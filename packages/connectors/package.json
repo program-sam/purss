@@ -1,0 +1,19 @@
+{
+  "name": "@purss/connectors",
+  "private": true,
+  "description": "Safe fetching, discovery and connector contracts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./icons": "./src/icons.ts",
+    "./image": "./src/image.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@purss/domain": "*",
+    "htmlparser2": "^12.0.0",
+    "linkedom": "^0.18.15",
+    "sanitize-html": "2.18.1",
+    "sharp": "0.35.5"
+  }
+}

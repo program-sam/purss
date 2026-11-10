@@ -1,0 +1,12 @@
+{
+  "name": "@purss/ui",
+  "private": true,
+  "description": "Original visual tokens and accessible primitives",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./primitives.css": "./src/primitives.css"
+  },
+  "dependencies": {}
+}

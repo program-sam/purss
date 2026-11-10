@@ -1,0 +1,56 @@
+/* Home for someone coming back: the summary band, the rows above the boxes, and the activity panel's lists. */
+
+.home-sum-wrap{display:grid;gap:4px}
+.home-sum .since{display:inline-flex;align-items:center;gap:6px;color:var(--accent-ink);font-weight:800}
+.since-boxes{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.since-boxes .link{font-weight:800}
+
+.wb-stack{display:grid;gap:16px;margin-bottom:16px}
+.wb .mod-t .go{margin-left:auto}
+.wb .mod-t .fold{transition:transform .15s}
+.wb .mod-t [aria-expanded="true"] .fold{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.wb .mod-t .fold{transition:none}}
+.wb-n{font-size:0.7812rem;font-weight:800;color:var(--ink-3);background:var(--hover);border-radius:999px;padding:1px 8px}
+.muted-notice{margin:0 0 14px}
+.wb-more{padding:0 14px 12px}
+.wb-attn li{border-bottom:1px solid var(--line)}
+.wb-attn li:last-child{border-bottom:0}
+.wb-src{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;text-align:left}
+.wb-src:hover{background:var(--hover)}
+.wb-src .t{display:grid;gap:2px;min-width:0;flex:1}
+.wb-src .title{font-weight:700;font-size:0.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wb-fresh-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;flex-wrap:wrap}
+.wb-fresh-in b{font-weight:800}
+.wb-fresh-in .fine{margin-top:2px;max-width:60ch}
+.mod-plain{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 8px;min-width:0}
+.end-of-new{margin-top:14px;text-align:center}
+
+/* Background activity, in the sidebar's foot and its panel */
+.side-act{padding:6px 10px 0;border-top:1px solid var(--line)}
+.side-act:empty{display:none}
+.side-act+.side-foot{border-top:0;padding-top:4px}
+.act{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;color:var(--ink-3);text-align:left}
+.act:hover{background:var(--hover);color:var(--ink-2)}
+.act .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.act .spin{flex:none}
+.act.problem{color:var(--warn-ink,var(--ink-2))}
+.pop.act-popup{max-width:min(400px,calc(100vw - 16px));width:400px}
+.act-pop{display:grid;gap:10px;padding:10px 12px;max-height:min(70vh,520px);overflow:auto}
+.act-pop h3{font-size:0.875rem;font-weight:800}
+.act-list{display:grid;gap:0}
+.act-list li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:0.8125rem}
+.act-list li:last-child{border-bottom:0}
+.act-list .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act-list .when{color:var(--ink-3);font-size:0.75rem;text-align:right;white-space:nowrap}
+.act-list .note{grid-column:1/-1;color:var(--ink-2);font-size:0.75rem}
+.act-list .bad .nm{color:var(--warn-ink,var(--ink))}
+.act-ev{display:grid;gap:0}
+.act-ev li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:5px 0;font-size:0.8125rem}
+.act-ev .when{color:var(--ink-3);white-space:nowrap}
+.rail .act-rail{position:relative}
+
+/* Notifications and New, in Settings */
+.nset .radiolist .rl{padding:8px 10px}
+.nset .inc{display:grid;gap:2px}
+.nset .inc .cols{display:grid;gap:2px;margin:4px 0 4px 28px;max-height:160px;overflow:auto}
+.notif .b{white-space:pre-line}

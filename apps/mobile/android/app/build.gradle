@@ -1,0 +1,103 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+// Release signing: the owner's own key, described in keystore.properties next to this project's
+// settings.gradle (storeFile, storePassword, keyAlias, keyPassword). Both files stay out of Git; without
+// them a release build is unsigned. See apps/mobile/README.md.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+// The version (plan/40), from the bundled interface's build (apps/web/dist/app-build.json, written by
+// `npm run sync`): versionName 2631214, versionCode the same number, so every build on main counts up.
+// A build without one (no history) is version 1 / "dev".
+def appBuildFile = file('../../../web/dist/app-build.json')
+def productVersion = appBuildFile.exists() ? new groovy.json.JsonSlurper().parse(appBuildFile).release : null
+def appVersionCode = productVersion ? (productVersion as String).toInteger() : 1
+def appVersionName = productVersion ? (productVersion as String) : "dev"
+
+android {
+    namespace = "app.purss"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "app.purss"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    buildTypes {
+        // Trying notifications without Firebase (plan/37, apps/mobile/README.md): a debug build can be pointed at a
+        // local relay and given a stand-in push address with -PpurssPushRelay=… -PpurssPushDebugToken=…. Release builds never.
+        debug {
+            buildConfigField "String", "PURSS_PUSH_RELAY", "\"${project.findProperty('purssPushRelay') ?: ''}\""
+            buildConfigField "String", "PURSS_PUSH_DEBUG_TOKEN", "\"${project.findProperty('purssPushDebugToken') ?: ''}\""
+        }
+        release {
+            buildConfigField "String", "PURSS_PUSH_RELAY", "\"\""
+            buildConfigField "String", "PURSS_PUSH_DEBUG_TOKEN", "\"\""
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+    // Background downloads and the widget's play/pause (plan/38). media3-session matches the audio plugin's version.
+    implementation "androidx.work:work-runtime:2.10.5"
+    implementation "androidx.media3:media3-session:1.9.0"
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.json:json:20250517"
+    // The app's own messaging service (PurssMessagingService) extends the push plugin's; same version as the plugin uses.
+    implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Notifications on this phone won't work in this build")
+}

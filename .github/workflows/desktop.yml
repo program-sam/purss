@@ -1,0 +1,125 @@
+# The desktop app (plan/42): built for Windows, macOS and Linux, and published as a GitHub release with fixed file
+# names and the updater's latest.json, monthly and on demand. A push to main that changes the desktop app only
+# builds it (no release). Publishing needs the updater key (secrets TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD): installed apps refuse updates without its signature. The packages themselves
+# aren't signed for Windows or macOS yet, so both warn on first open (see apps/desktop/README.md).
+name: Desktop app
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows
+            runner: windows-latest
+            bundles: --bundles nsis
+          - os: macos
+            runner: macos-latest
+            bundles: --target universal-apple-darwin --bundles app dmg
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundle_dir: universal-apple-darwin/release/bundle
+          - os: linux
+            # The oldest supported Ubuntu, so the AppImage runs on older systems too.
+            runner: ubuntu-22.04
+            bundles: --bundles appimage deb rpm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      PUBLISH: ${{ github.event_name != 'push' }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - name: A release needs the updater key
+        if: env.PUBLISH == 'true' && env.TAURI_SIGNING_PRIVATE_KEY == ''
+        shell: bash
+        run: |
+          echo "::error::Set the repository secret TAURI_SIGNING_PRIVATE_KEY (apps/desktop/README.md): without it installed apps can't update."
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          # The version (plan/40) counts the commit among its day's commits on main.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Linux libraries
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libdbus-1-dev
+      - run: npm ci
+      - name: Build
+        shell: bash
+        run: node apps/desktop/scripts/build.ts ${{ matrix.bundles }} $([ -z "$TAURI_SIGNING_PRIVATE_KEY" ] && echo --no-updater)
+      # After the build: the Rust crate embeds the interface it made (apps/web/app-dist).
+      - name: Rust tests
+        if: matrix.os == 'linux'
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Name the files
+        shell: bash
+        run: node apps/desktop/scripts/release-files.ts collect "apps/desktop/src-tauri/target/${{ matrix.bundle_dir || 'release/bundle' }}" out ${{ matrix.os }} $([ -z "$TAURI_SIGNING_PRIVATE_KEY" ] && echo --no-updater)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.os }}
+          path: out/
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          pattern: desktop-*
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          plain="$(node scripts/version.ts --plain)"
+          version="$(node scripts/version.ts --dotted)"
+          tag="desktop-${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "::notice::${tag} is already published: nothing changed since."; exit 0; fi
+          node apps/desktop/scripts/release-files.ts manifest out "$version" "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
+          previous="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // ""' | sed -n 's/^desktop-//p')"
+          {
+            echo "The desktop app for Windows, macOS and Linux, version ${plain}. Installed apps update themselves."
+            echo
+            if [ -n "$previous" ]; then node scripts/release-notes.ts "$(echo "$previous" | awk -F. '{printf "%02d%03d%02d", $1, $2, $3}')" "$plain"; fi
+          } > notes.md
+          gh release create "$tag" out/* --title "Desktop app ${plain}" --notes-file notes.md --latest

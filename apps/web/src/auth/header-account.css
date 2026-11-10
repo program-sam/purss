@@ -1,0 +1,6 @@
+/* Settings and Sign out sit beside the bell, in the corner layer, and the page leaves them room. */
+.cbtns .bar-acct{flex:none}
+.stage:has(> .corner .ibtn.bar-acct) .bar{padding-right:calc(80px + 46px)}
+.stage:has(> .corner .mbtn.bar-acct) .bar{padding-right:calc(80px + 7rem)}
+.stage:has(> .corner.float .bar-acct) :is(.home-top,.phead){padding-right:calc(44px + 7rem)}
+@media (pointer:coarse){.stage:has(> .corner.float .bar-acct) :is(.home-top,.phead){padding-right:calc(52px + 7rem)}}

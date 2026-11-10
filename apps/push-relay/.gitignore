@@ -1,0 +1,11 @@
+# Credentials and runtime data never belong in Git.
+secrets/
+.secrets/
+*.p8
+*.pem
+*.key
+*service-account*.json
+handle-secret
+data/
+.env
+.env.*

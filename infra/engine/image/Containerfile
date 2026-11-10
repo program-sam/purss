@@ -1,0 +1,9 @@
+# Pinned FreshRSS 1.30.4 plus the product's fixed admin helper (see purss-admin.php).
+FROM docker.io/freshrss/freshrss:1.30.4@sha256:a003730e81c89abf86c3ca9c8b263c818804734b574469d59586234364f425b0
+COPY allowlist.json /var/www/FreshRSS/purss/allowlist.json
+COPY purss-admin.php /var/www/FreshRSS/p/purss/admin.php
+COPY entrypoint.sh /usr/local/bin/purss-entrypoint
+RUN chmod 0755 /usr/local/bin/purss-entrypoint && chmod 0644 /var/www/FreshRSS/p/purss/admin.php /var/www/FreshRSS/purss/allowlist.json
+ENTRYPOINT ["/usr/local/bin/purss-entrypoint"]
+# Setting ENTRYPOINT clears the base image's CMD; restore it (cron + Apache in the foreground).
+CMD ["/bin/bash", "-o", "pipefail", "-c", "([ -z \"$CRON_MIN\" ] || cron) && . /etc/apache2/envvars && exec apache2 -D FOREGROUND $([ -n \"$OIDC_ENABLED\" ] && [ \"$OIDC_ENABLED\" -ne 0 ] && echo \"-D OIDC_ENABLED\")"]

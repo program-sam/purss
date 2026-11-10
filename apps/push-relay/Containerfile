@@ -1,0 +1,11 @@
+# Build from the repository root:  podman build -f apps/push-relay/Containerfile .
+FROM docker.io/library/node:26-bookworm-slim
+WORKDIR /app
+COPY apps/push-relay/package.json apps/push-relay/package.json
+COPY apps/push-relay/src apps/push-relay/src
+ENV NODE_ENV=production NODE_NO_WARNINGS=1 PURSS_RELAY_HOST=0.0.0.0 PURSS_RELAY_DATA_DIR=/data
+RUN mkdir /data && chown node:node /data
+VOLUME /data
+USER node
+EXPOSE 8950
+CMD ["node", "apps/push-relay/src/main.ts"]

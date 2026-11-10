@@ -1,0 +1,176 @@
+# PURSS on one host with Docker Compose.
+#   docker compose -f infra/compose.yaml up -d --build
+# PURSS listens on 127.0.0.1:8940 of the host only; reach it through an SSH tunnel,
+# set PURSS_BIND_ADDRESS to the host's LAN address for a home network (password sign-in over
+# plain HTTP), or run it behind an HTTPS reverse proxy with compose.proxy.yaml (no host ports).
+# FreshRSS has no route to the internet except the egress proxy, which refuses private and
+# internal destinations; the engine's admin helper and the API's internal listener are
+# reachable only on the internal network.
+name: purss
+
+x-app: &app
+  image: purss-app:local
+  build: { context: .., dockerfile: infra/Containerfile, args: { PURSS_PUBLIC_ORIGIN: "${PURSS_PUBLIC_ORIGIN:-http://localhost:8940}" } }
+  restart: unless-stopped
+  environment: &env
+    PURSS_DATA_DIR: /data
+    TZ: UTC
+
+networks:
+  internal:
+    internal: true
+    ipam: { config: [{ subnet: 172.31.88.0/24 }] }
+  # The bridge container's only network: egress (proxy and DNS) is its one peer and way out (plan/41).
+  bridge-net:
+    internal: true
+    ipam: { config: [{ subnet: 172.31.89.0/24 }] }
+  outside: {}
+
+volumes:
+  data: {}
+  secrets: {}
+  engine-data: {}
+
+services:
+  init:
+    <<: *app
+    restart: "no"
+    user: "0:0"
+    command: ["node", "infra/compose/init.ts"]
+    environment: { <<: *env, PURSS_ENGINE_PROXY: "172.31.88.10:8946", PURSS_ENGINE_DATA_DIR: /engine-data }
+    network_mode: none
+    volumes: [data:/data, secrets:/data/secrets, engine-data:/engine-data]
+
+  egress:
+    <<: *app
+    command: ["node", "apps/egress/src/main.ts"]
+    environment:
+      <<: *env
+      EGRESS_PROXY_HOST: 172.31.88.10
+      EGRESS_GATEWAY_HOST: 172.31.88.10
+      EGRESS_CONTROL_HOST: 172.31.88.10
+      EGRESS_BRIDGE_HOST: 172.31.88.10
+      EGRESS_BRIDGE_BACKEND: http://172.31.89.20:80
+      EGRESS_BRIDGE_NET_HOST: 172.31.89.10
+    networks: { internal: { ipv4_address: 172.31.88.10 }, bridge-net: { ipv4_address: 172.31.89.10 }, outside: {} }
+    # The DNS resolver for RSS-Bridge listens on port 53 as the unprivileged node user.
+    sysctls: { net.ipv4.ip_unprivileged_port_start: 53 }
+    volumes: [data:/data, secrets:/data/secrets:ro]
+    depends_on: { init: { condition: service_completed_successfully } }
+    mem_limit: 160m
+
+  # RSS-Bridge (plan/41), pinned by digest, only the catalogued bridges enabled. It reaches the
+  # internet only through egress: its requests go to the proxy and its name lookups to egress's
+  # resolver, both of which refuse private addresses.
+  bridge:
+    image: docker.io/rssbridge/rss-bridge@sha256:268709ce72acb66930dd0700ce1fcfe28501fa8fcdbfc79c149ffadccac8746b
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      RSSBRIDGE_system_enabled_bridges: TelegramBridge,BandcampBridge,SoundcloudBridge,TwitchBridge,MixCloudBridge,RutubeBridge,AppleMusicBridge
+      RSSBRIDGE_system_enable_debug_mode: "false"
+      RSSBRIDGE_proxy_url: http://172.31.89.10:8946
+      RSSBRIDGE_proxy_by_bridge: "false"
+      RSSBRIDGE_http_timeout: "15"
+      RSSBRIDGE_error_output: http
+      RSSBRIDGE_cache_type: array
+    # Name lookups go straight to egress's resolver; there is no other DNS on this network.
+    volumes: [./bridge/resolv.conf:/etc/resolv.conf:ro]
+    networks: { bridge-net: { ipv4_address: 172.31.89.20 } }
+    depends_on: { egress: { condition: service_started } }
+    mem_limit: 96m
+    pids_limit: 64
+
+  engine:
+    build: { context: engine/image, dockerfile: Containerfile }
+    image: purss-engine:local
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      CRON_MIN: "3,18,33,48"
+      ENABLE_ACCESS_LOG: "0"
+      FRESHRSS_INSTALL: >-
+        --default-user purss-engine-admin --auth-type form --environment production --base-url http://engine
+        --title purss-engine --language en --api-enabled --allow-anonymous=false --allow-anonymous-refresh=false
+        --allow-robots=false --disable-update
+      FRESHRSS_USER: >-
+        --user purss-engine-admin --password $$PURSS_ENGINE_ADMIN_PASSWORD --api-password $$PURSS_ENGINE_ADMIN_API_PASSWORD
+        --no-default-feeds --language en
+    networks: { internal: { ipv4_address: 172.31.88.20, aliases: [engine] } }
+    volumes: [engine-data:/var/www/FreshRSS/data, secrets:/run/purss-secrets:ro]
+    depends_on: { init: { condition: service_completed_successfully }, egress: { condition: service_started } }
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(trim(@file_get_contents('http://127.0.0.1/api/greader.php')) === 'OK' ? 0 : 1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    mem_limit: 256m
+    pids_limit: 512
+
+  engine-setup:
+    <<: *app
+    restart: "no"
+    command: ["node", "infra/compose/engine-setup.ts"]
+    environment: { <<: *env, PURSS_ENGINE_URL: http://engine, PURSS_ENGINE_PROXY: "172.31.88.10:8946" }
+    networks: [internal]
+    volumes: [secrets:/data/secrets:ro]
+    depends_on: { engine: { condition: service_healthy } }
+
+  api:
+    <<: *app
+    environment:
+      <<: *env
+      PURSS_HOST: 0.0.0.0
+      # The worker-only listener binds the internal network's address, never the proxy or outside ones.
+      PURSS_INTERNAL_HOST: 172.31.88.30
+      PURSS_PUBLIC_ORIGIN: ${PURSS_PUBLIC_ORIGIN:-http://localhost:8940}
+      # Accounts: "self" (invitations only) or "hosted" (adds allocations and optional open sign-up).
+      PURSS_MODE: ${PURSS_MODE:-self}
+      PURSS_SIGNUP: ${PURSS_SIGNUP:-invite}
+      PURSS_SIGNUP_DAILY_LIMIT: ${PURSS_SIGNUP_DAILY_LIMIT:-50}
+      PURSS_DEFAULT_ALLOCATION_BYTES: ${PURSS_DEFAULT_ALLOCATION_BYTES:-}
+      # Storage on this server: free disk kept in reserve, and the largest audio or video file saved (bytes; empty = default).
+      PURSS_DISK_RESERVE_BYTES: ${PURSS_DISK_RESERVE_BYTES:-}
+      # Sign-in with other providers (docs/self-hosting.md#configuration), and seconds between scheduled syncs.
+      PURSS_OIDC: ${PURSS_OIDC:-}
+      PURSS_SYNC_INTERVAL: ${PURSS_SYNC_INTERVAL:-}
+      # Outgoing email, optional (docs/self-hosting.md#outgoing-email); hosted open sign-up needs it.
+      PURSS_SMTP_HOST: ${PURSS_SMTP_HOST:-}
+      PURSS_SMTP_PORT: ${PURSS_SMTP_PORT:-}
+      PURSS_SMTP_SECURITY: ${PURSS_SMTP_SECURITY:-}
+      PURSS_SMTP_USER: ${PURSS_SMTP_USER:-}
+      PURSS_SMTP_PASSWORD: ${PURSS_SMTP_PASSWORD:-}
+      PURSS_MAIL_FROM: ${PURSS_MAIL_FROM:-}
+      # Assistants signing in with OAuth (plan/33): on in hosted mode; "on" to opt in when self-hosted (needs https).
+      PURSS_ASSISTANT_OAUTH: ${PURSS_ASSISTANT_OAUTH:-}
+      # AI filters (plan/36): Jev's address and model; empty means TypeSafe's. Keys are set in the app (Settings, Admin).
+      PURSS_JEV_URL: ${PURSS_JEV_URL:-}
+      PURSS_JEV_MODEL: ${PURSS_JEV_MODEL:-}
+      # Phone notifications through the project's push relay (plan/37): set it empty or "off" to turn them off.
+      PURSS_PUSH_RELAY_URL: ${PURSS_PUSH_RELAY_URL-official}
+      # The phone apps this PURSS vouches for, so they can use its passkeys (docs/self-hosting.md#configuration).
+      PURSS_APP_ANDROID_PACKAGE: ${PURSS_APP_ANDROID_PACKAGE:-}
+      PURSS_APP_ANDROID_CERT_SHA256: ${PURSS_APP_ANDROID_CERT_SHA256:-}
+      PURSS_APP_IOS_APP_ID: ${PURSS_APP_IOS_APP_ID:-}
+      PURSS_ENGINE_URL: http://engine
+      PURSS_EGRESS_CONTROL_URL: http://172.31.88.10:8949/status
+      PURSS_BRIDGE_URL: http://172.31.88.10:8945
+    ports: ["${PURSS_BIND_ADDRESS:-127.0.0.1}:${PURSS_HOST_PORT:-8940}:8940"]
+    networks: { internal: { ipv4_address: 172.31.88.30 }, outside: {} }
+    volumes: [data:/data, secrets:/data/secrets]
+    depends_on: { engine-setup: { condition: service_completed_successfully } }
+    mem_limit: 256m
+
+  worker:
+    <<: *app
+    command: ["node", "apps/worker/src/main.ts"]
+    environment:
+      <<: *env
+      PURSS_INTERNAL_URL: http://172.31.88.30:8948
+      PURSS_ENGINE_ADMIN_URL: http://engine/purss/admin.php
+      PURSS_JEV_URL: ${PURSS_JEV_URL:-}
+      PURSS_JEV_MODEL: ${PURSS_JEV_MODEL:-}
+    networks: [internal, outside]
+    volumes: [data:/data, secrets:/data/secrets]
+    depends_on: { api: { condition: service_started } }
+    mem_limit: 192m

@@ -1,0 +1,17 @@
+/* "Remind me" on a kept item, and Home's "Coming up". */
+.p-remind{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px;font-size:0.875rem;color:var(--ink-2)}
+.p-remind b{font-weight:700;color:var(--ink)}
+.p-remind.form{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.p-remind .rm-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.p-remind .rm-f{display:grid;gap:4px;font-weight:700;font-size:0.8125rem;color:var(--ink-2)}
+.p-remind .rm-q{display:flex;gap:10px;flex-wrap:wrap;padding-bottom:8px}
+.p-remind .rm-acts{display:flex;gap:8px;flex-wrap:wrap}
+.coming-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;text-align:left}
+.coming-row:hover{background:var(--hover)}
+.coming-row .when{flex:none;min-width:5.5em;font-weight:800;font-size:0.8125rem;color:var(--ink-2)}
+.coming-row .what{display:grid;gap:2px;min-width:0;flex:1}
+.coming-row .title{font-weight:700;font-size:0.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coming-row .fine{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coming{margin-bottom:16px}
+.coming li{border-bottom:1px solid var(--line)}
+.coming li:last-child{border-bottom:0}

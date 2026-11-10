@@ -1,0 +1,30 @@
+node_modules/
+dist/
+# The phone apps' interface packed by the server image (plan/39)
+apps/web/app-dist/
+apps/web/app-bundle/
+# Which version a build is, written where there is no history (plan/40)
+/version.json
+build/
+coverage/
+.output/
+.cache/
+.env
+.env.*
+!.env.example
+.secrets/
+secrets/
+/data/
+/backups/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.log
+*.tar
+*.tar.gz
+*.tgz
+playwright-report/
+test-results/
+.DS_Store

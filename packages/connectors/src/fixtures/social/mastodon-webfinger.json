@@ -1,0 +1,36 @@
+{
+ "subject": "acct:Mastodon@mastodon.social",
+ "aliases": [
+  "https://mastodon.social/@Mastodon",
+  "https://mastodon.social/users/Mastodon"
+ ],
+ "links": [
+  {
+   "rel": "http://webfinger.net/rel/profile-page",
+   "type": "text/html",
+   "href": "https://mastodon.social/@Mastodon"
+  },
+  {
+   "rel": "self",
+   "type": "application/activity+json",
+   "href": "https://mastodon.social/users/Mastodon"
+  },
+  {
+   "rel": "http://ostatus.org/schema/1.0/subscribe",
+   "template": "https://mastodon.social/authorize_interaction?uri={uri}"
+  },
+  {
+   "rel": "https://w3id.org/fep/3b86/Create",
+   "template": "https://mastodon.social/share?text={content}"
+  },
+  {
+   "rel": "https://w3id.org/fep/3b86/Object",
+   "template": "https://mastodon.social/authorize_interaction?uri={object}"
+  },
+  {
+   "rel": "http://webfinger.net/rel/avatar",
+   "type": "image/png",
+   "href": "https://files.mastodon.social/accounts/avatars/000/013/179/original/b4ceb19c9c54ec7e.png"
+  }
+ ]
+}

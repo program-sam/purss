@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Your next To read items and the episode you\'re listening to</string>
+    <string name="widget_to_read">To read</string>
+    <string name="widget_not_connected">Open the app to connect it to your PURSS.</string>
+    <string name="widget_nothing">Nothing To read.</string>
+    <string name="widget_play">Play %1$s</string>
+    <string name="widget_pause">Pause %1$s</string>
+    <string name="widget_open">Open %1$s</string>
+    <string name="widget_row">%1$s, from %2$s</string>
+    <string name="widget_playing">Playing</string>
+    <string name="widget_paused_at">Paused at %1$s</string>
+    <string name="widget_paused">Paused</string>
+</resources>

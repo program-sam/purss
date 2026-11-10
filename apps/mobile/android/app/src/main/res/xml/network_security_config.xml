@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  System certificate authorities only. Plain HTTP is permitted here because a PURSS on the local
+  network is often reached by its address (192.168.x.x, 10.x.x.x, 100.64.x.x), and these rules can't
+  list address ranges. The app decides instead, with the rule it shares with the browser extension
+  (parseWorkspaceAddress in packages/domain): it connects over plain HTTP only to an address on this
+  device or the local network, and says so; its transport sends nothing to any other origin; its page
+  policy loads images and media only over HTTPS or from the PURSS; downloads and the player take a
+  publisher's file only over HTTPS. See plan/31 (an open question for the owner).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

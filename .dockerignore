@@ -1,0 +1,23 @@
+node_modules
+**/node_modules
+data
+apps/web/dist
+apps/web/app-dist
+apps/web/app-bundle
+output
+.output
+test-results
+playwright-report
+prototypes
+# Built elsewhere: only their package.json files go in, so npm sees the same workspaces as the lockfile.
+apps/mobile/*
+!apps/mobile/package.json
+# The interface the image packs for the apps' live updates (plan/39) needs these.
+!apps/mobile/native-level.json
+!apps/mobile/scripts
+apps/mobile/scripts/*
+!apps/mobile/scripts/app-bundle.ts
+!apps/mobile/src
+apps/extension/*
+!apps/extension/package.json
+apps/site/dist

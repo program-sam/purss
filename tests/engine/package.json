@@ -1,0 +1,6 @@
+{
+  "name": "@purss/engine-tests",
+  "private": true,
+  "type": "module",
+  "description": "Contract tests of the FreshRSS boundary against the pinned engine container"
+}

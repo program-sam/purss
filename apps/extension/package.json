@@ -1,0 +1,19 @@
+{
+  "name": "@purss/extension",
+  "private": true,
+  "description": "Browser extension for Chrome, Edge, Firefox and Safari: keep pages, hand sites to Add source, search",
+  "type": "module",
+  "scripts": {
+    "build": "node src/packaging/build.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "@purss/domain": "*",
+    "@purss/ui": "*"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.15",
+    "sharp": "0.35.5",
+    "vite": "8.3.6"
+  }
+}

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:webfeeds="http://webfeeds.org/rss/1.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Mastodon</title>
+    <description>Public posts from @Mastodon@mastodon.social</description>
+    <link>https://mastodon.social/@Mastodon</link>
+    <image>
+      <url>https://files.mastodon.social/accounts/avatars/000/013/179/original/b4ceb19c9c54ec7e.png</url>
+      <title>Mastodon</title>
+      <link>https://mastodon.social/@Mastodon</link>
+    </image>
+    <lastBuildDate>Mon, 19 Oct 2026 09:59:05 +0000</lastBuildDate>
+    <webfeeds:icon>https://files.mastodon.social/accounts/avatars/000/013/179/original/b4ceb19c9c54ec7e.png</webfeeds:icon>
+    <generator>Mastodon v5.0.0-nightly.2026-11-05</generator>
+    <item>
+      <guid isPermaLink="true">https://mastodon.social/@Mastodon/117466985005297414</guid>
+      <link>https://mastodon.social/@Mastodon/117466985005297414</link>
+      <pubDate>Mon, 19 Oct 2026 09:59:05 +0000</pubDate>
+      <description>&lt;p&gt;We didn’t want to require you to have a GitHub profile to report issues or suggest ideas, so starting now you can do it on our new community forum. &lt;/p&gt;&lt;p&gt;You can also vote for other people’s ideas to keep things manageable. It’s the main place we’ll be looking for feedback!&lt;/p&gt;&lt;p&gt;&lt;a href="https://community.joinmastodon.org/" target="_blank" rel="nofollow noopener" translate="no"&gt;&lt;span class="invisible"&gt;https://&lt;/span&gt;&lt;span class=""&gt;community.joinmastodon.org/&lt;/span&gt;&lt;span class="invisible"&gt;&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;</description>
+    </item><item>
+      <guid isPermaLink="true">https://mastodon.social/@Mastodon/117466983307949301</guid>
+      <link>https://mastodon.social/@Mastodon/117466983307949301</link>
+      <pubDate>Mon, 19 Oct 2026 09:58:40 +0000</pubDate>
+      <description>&lt;p&gt;&lt;a href="https://mastodon.social/tags/Mastodon" class="mention hashtag" rel="tag"&gt;#&lt;span&gt;Mastodon&lt;/span&gt;&lt;/a&gt; is getting a new look in our upcoming 5.0 release.&lt;/p&gt;&lt;p&gt;We wrote a bit more about our design process and how we approach community input. If you’re on mastodon.social you will see the new design tomorrow, on Tuesday. We rely on your feedback!&lt;/p&gt;&lt;p&gt;&lt;a href="https://blog.joinmastodon.org/2026/10/5.0-a-closer-look/" target="_blank" rel="nofollow noopener" translate="no"&gt;&lt;span class="invisible"&gt;https://&lt;/span&gt;&lt;span class="ellipsis"&gt;blog.joinmastodon.org/2026/10/&lt;/span&gt;&lt;span class="invisible"&gt;5.0-a-closer-look/&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;</description>
+      <category>mastodon</category>
+    </item><item>
+      <guid isPermaLink="true">https://mastodon.social/@Mastodon/117411420916699261</guid>
+      <link>https://mastodon.social/@Mastodon/117411420916699261</link>
+      <pubDate>Fri, 09 Oct 2026 14:28:25 +0000</pubDate>
+      <description>&lt;p&gt;New &lt;a href="https://mastodon.social/tags/Plushtodon" class="mention hashtag" rel="tag"&gt;#&lt;span&gt;Plushtodon&lt;/span&gt;&lt;/a&gt; colours now available for pre-orders on our shop! This is a way to support our work and get a squishy friend at the same time.&lt;/p&gt;&lt;p&gt;&lt;a href="https://blog.joinmastodon.org/2026/10/plushtodon-pre-orders-now-open/" target="_blank" rel="nofollow noopener" translate="no"&gt;&lt;span class="invisible"&gt;https://&lt;/span&gt;&lt;span class="ellipsis"&gt;blog.joinmastodon.org/2026/10/&lt;/span&gt;&lt;span class="invisible"&gt;plushtodon-pre-orders-now-open/&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;a href="https://mastodon.social/tags/Merchtodon" class="mention hashtag" rel="tag"&gt;#&lt;span&gt;Merchtodon&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;</description>
+      <category>Plushtodon</category>
+      <category>Merchtodon</category>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,6 @@
+{
+  "name": "@purss/push-relay",
+  "private": true,
+  "type": "module",
+  "description": "Content-free push wake-up relay: holds the FCM and APNs credentials, knows devices only by opaque handle"
+}

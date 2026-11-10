@@ -1,0 +1,18 @@
+{
+  "name": "@purss/domain",
+  "private": true,
+  "description": "Framework-independent product contracts",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./workspace-address": "./src/workspace-address.ts",
+    "./distribution": "./src/distribution.ts",
+    "./app-bundle": "./src/app-bundle.ts",
+    "./paths": "./src/paths.ts",
+    "./version": "./src/version.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
