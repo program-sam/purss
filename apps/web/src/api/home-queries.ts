@@ -23,7 +23,7 @@ export function homeOverviewQuery() {
       const o = await get<HomeOverview>("/api/home", undefined, signal);
       // Changes not yet sent show here as they do in every list.
       await outbox.ready;
-      return { ...o, toRead: { ...o.toRead, items: outbox.overlay(o.toRead.items) }, recentlyKept: outbox.overlay(o.recentlyKept) };
+      return { ...o, toRead: { ...o.toRead, items: outbox.overlay(o.toRead.items) }, toListen: { ...o.toListen, items: outbox.overlay(o.toListen.items) }, recentlyKept: outbox.overlay(o.recentlyKept) };
     },
     staleTime: 20_000,
   });

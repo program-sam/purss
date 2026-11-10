@@ -404,6 +404,16 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   changeState(app, p, d, { opened: true, expectedRevision: revision(app, d) });
   assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [a, b]);
 
+  // Podcast episodes put aside are To listen, not To read.
+  const e = addItem(app, p, news, { publishedAt: ago(10 * DAY) });
+  app.db.run("UPDATE items SET kind = 'podcast' WHERE id = ?", e);
+  work(e, "toread");
+  const split = homeOverview(app, p);
+  assert.deepEqual(split.toRead.items.map((i) => i.id), [a, b]);
+  assert.equal(split.toRead.total, 2);
+  assert.deepEqual(split.toListen.items.map((i) => i.id), [e]);
+  assert.equal(split.toListen.total, 1);
+
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   keepItem(app, p, d, basket.id);
   assert.deepEqual(homeOverview(app, p).recentlyKept.map((i) => i.id), [d]);
@@ -414,7 +424,7 @@ test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, recentlyKept: [], fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, recentlyKept: [], fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------
