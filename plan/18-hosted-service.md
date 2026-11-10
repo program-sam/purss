@@ -61,14 +61,23 @@ that adds a followed source or a collection (follow, re-follow, OPML, MCP, impor
 saved links don't count. Users see sources used of their plan instead of storage.
 The byte allocation stays as an administrator-only safeguard against disk abuse.
 The server keeps no audio or video files for users; the apps download them to the
-device only. An administrator assigns plans; billing cadence is decided, but the
-subscription provider and donation processor are still open, and no payment handling
-is built until they are.
+device only. On the hosted service people pay for a plan through Stripe; administrators
+can still set any plan by hand, and self-hosted installs have no plans at all.
 
 Paid plans: Plus (€5 a month or €48 a year: 1,000 sources, unlimited collections, sharing) and
 Pro (€10 a month or €96 a year: everything in Plus, 5,000 sources and Smart filters with 25
-million Jev tokens a week; see [Smart filters](36-ai-filters.md)). Administrators set plans
-until a payment provider is chosen.
+million Jev tokens a week; see [Smart filters](36-ai-filters.md)).
+
+Payments run in a separate billing service that the project keeps private: it holds the
+Stripe keys, the prices, Checkout, the customer portal and the webhook. PURSS itself stores no
+payment details and knows only an optional `PURSS_BILLING_URL` and `PURSS_BILLING_SECRET`
+(hosted mode only, apps/api/src/billing.ts). Settings → Plan asks PURSS for a signed ticket
+naming the account and sends the person to the service; the service sets Free, Plus or Pro back
+through `POST /api/billing/plan`, signed with the same secret. It can never change an
+administrator or an account the operator made Unlimited, and an account that no longer exists
+answers 404, after which the service cancels its subscription. A cancelled plan lasts to the end
+of the paid period and then becomes Free; nothing is removed (see below). Without the two
+settings, Settings → Plan only shows the plan and says the administrator sets it.
 
 If paid capacity is introduced, disclose the allowance and what counts, make renewal
 and cancellation clear, and define grace/downgrade policy before accepting money.

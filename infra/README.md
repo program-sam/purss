@@ -58,7 +58,7 @@ secrets, and remove its line from `authorized_keys` to revoke it.
 Server settings that don't belong in Git (the public address, `PURSS_MODE` and the like) stay in
 the server's `.env`; a deploy never changes it.
 
-The project's own server also runs the [push relay](../apps/push-relay/README.md) from the same
-deploy: its `COMPOSE_FILE` adds `infra/compose.relay.yaml`, and its proxy sends `push.purss.app` to
-`http://purss-push-relay:8950`. The relay's credential files sit in the host folder named by
-`PURSS_RELAY_SECRETS_DIR`, outside Git.
+The project's own server adds `infra/compose.official.yaml` to its `COMPOSE_FILE`, so the same deploy
+also runs the [push relay](../apps/push-relay/README.md) (its proxy sends `push.purss.app` to
+`http://purss-push-relay:8950`; credential files sit in the host folder named by
+`PURSS_RELAY_SECRETS_DIR`, outside Git) and passes the hosted service's billing settings to the API.

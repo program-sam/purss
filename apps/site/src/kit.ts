@@ -7,6 +7,7 @@ import { links, type Site } from "./site.ts";
  */
 import { ANDROID_APK, DESKTOP_DOWNLOADS, DISTRIBUTION, publishedStores } from "@purss/domain/distribution";
 import type { Distributed } from "@purss/domain/distribution";
+import { PLAN_PRICES_EUR } from "@purss/domain/plans";
 import type { DesktopOs } from "./desktop.ts";
 
 const P: Record<string, string> = {
@@ -232,8 +233,8 @@ export function addSourceDialog(): string {
 
 type Price = { price: string; per: string };
 /** Plus and Pro prices in euros including VAT; every price on the site derives from these. */
-export const PLUS = { month: 5, year: 48 };
-export const PRO = { month: 10, year: 96 };
+export const PLUS = PLAN_PRICES_EUR.plus;
+export const PRO = PLAN_PRICES_EUR.pro;
 
 /** Self-hosting: free, with no limits; offered in the "Host it yourself" section, not as a plan card. */
 export const SELF_HOSTED = { name: "Self-hosted", price: "0" };

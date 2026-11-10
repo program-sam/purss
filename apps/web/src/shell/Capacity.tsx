@@ -20,7 +20,8 @@ export function CapacityMeter({ capacity }: { capacity: Capacity }) {
 const line = (used: number, limit: number | null, what: string) => (limit === null ? plural(used, what) : `${n(used)} of ${n(limit)}`);
 
 /** What the plan allows and what is used, shown from the sidebar footer. */
-export function CapacityPanel({ capacity, paused }: { capacity: Capacity; paused: string | null }) {
+/** `onPlan` opens Settings → Plan (hosted installations). */
+export function CapacityPanel({ capacity, paused, onPlan }: { capacity: Capacity; paused: string | null; onPlan?: () => void }) {
   const full = (k: "sources" | "collections") => capacity[k].limit !== null && capacity[k].used >= capacity[k].limit!;
   return (
     <div className="meter-pop">
@@ -37,6 +38,7 @@ export function CapacityPanel({ capacity, paused }: { capacity: Capacity; paused
         {full("collections") ? " Remove a collection to add another." : ""}
         {" "}Saved links don't count as sources.
       </p>
+      {onPlan && capacity.plan && capacity.plan !== "unlimited" ? <button type="button" className="link" onClick={onPlan}>{capacity.plan === "free" ? "See plans" : "Manage your plan"}</button> : null}
     </div>
   );
 }

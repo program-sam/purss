@@ -10,6 +10,7 @@ import { handleMcp } from "./mcp/server.ts";
 import { checkDeviceRoute, clientGate, type Gate } from "./connect/gate.ts";
 import { handleOAuth, isOAuthPath } from "./oauth/endpoints.ts";
 import { serveAppAssociation } from "./connect/app-association.ts";
+import { handleBillingPlan } from "./billing.ts";
 import { assertStillUsable } from "./services/deletion.ts";
 import { webRoute } from "./web-routes.ts";
 import { APP_PATH } from "@purss/domain/paths";
@@ -63,6 +64,8 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
       if (serveAppAssociation(app, url.pathname, res)) return;
       // OAuth metadata, token and revocation endpoints for assistants (plan/33): no cookies either.
       if (isOAuthPath(url.pathname)) { await handleOAuth(app, raw, res, url.pathname); return; }
+      // The billing service setting an account's plan (billing.ts): signed, no cookies.
+      if (url.pathname === "/api/billing/plan") { await handleBillingPlan(app, raw, res); return; }
       // Connected apps use a device token instead of cookies on /api (connect/gate.ts, plan/24).
       const gate: Gate = url.pathname.startsWith("/api/") ? clientGate(app, raw, res, url.pathname, method) : { kind: "browser" };
       if (gate.kind === "done") return;

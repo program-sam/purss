@@ -10,6 +10,7 @@
     "./distribution": "./src/distribution.ts",
     "./app-bundle": "./src/app-bundle.ts",
     "./paths": "./src/paths.ts",
+    "./plans": "./src/plans.ts",
     "./version": "./src/version.ts"
   },
   "dependencies": {
