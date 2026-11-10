@@ -1,0 +1,181 @@
+# Every Monday: take the dependency updates that are safe once the checks pass, and report the rest
+# (scripts/update-dependencies.ts says which is which). Four jobs, so new dependency code never runs
+# with the right to change the repository:
+#   prepare  read-only: finds the updates and runs every check on them; hands on the diff
+#   publish  runs no updated code: stages the diff and checks the staged result touches only versions
+#            (scripts/check-update.ts), and pushes it to main only if main is still the commit that was tested
+#   deploy   the usual test-and-deploy workflow, for that commit
+#   report   keeps one issue, "Dependency updates", current: the last run's problem and what needs a person
+name: Weekly dependency update
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-updates
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    # Only main is updated, also when started by hand from another branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.base.outputs.sha }}
+      changed: ${{ steps.update.outputs.changed }}
+      bridge: ${{ steps.bridge.outcome }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - id: base
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/out"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - name: Find updates
+        id: update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/update-dependencies.ts --summary "$GITHUB_STEP_SUMMARY" --manual "$RUNNER_TEMP/out/manual.md"
+          --message "$RUNNER_TEMP/out/message.txt" --outputs "$GITHUB_OUTPUT"
+      # The same checks as every push to main, on the updated tree.
+      - if: steps.update.outputs.changed == 'true'
+        run: npm ci
+      - if: steps.update.outputs.changed == 'true'
+        run: npm run check
+      - if: steps.update.outputs.changed == 'true'
+        run: npm test
+      - if: steps.update.outputs.changed == 'true'
+        run: npm run build
+      - name: Compare the new RSS-Bridge image with the current one on every bridged service
+        id: bridge
+        if: steps.update.outputs.bridge_new != ''
+        env:
+          CANDIDATE: ${{ steps.update.outputs.bridge_new }}
+          BASELINE: ${{ steps.update.outputs.bridge_old }}
+        run: node scripts/bridge-check.ts --candidate "$CANDIDATE" --baseline "$BASELINE" --summary "$GITHUB_STEP_SUMMARY"
+      - name: Hand on the update
+        if: always() && steps.update.outcome == 'success'
+        run: git diff > "$RUNNER_TEMP/out/update.patch"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: update
+          path: ${{ runner.temp }}/out
+          if-no-files-found: ignore
+          retention-days: 30
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/download-artifact@v8
+        with:
+          name: update
+          path: ${{ runner.temp }}/update
+      - name: Check main is still the tested commit
+        env:
+          BASE: ${{ needs.prepare.outputs.base }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$BASE" ]; then
+            echo "main moved while the update was checked; next week's run tries again." >&2
+            exit 1
+          fi
+      # Node runs only the repository's own check (from the tested commit, before the update is applied
+      # to anything but the index), never an updated dependency: there is no npm install here.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Stage the update and check what it changes
+        run: |
+          cp scripts/check-update.ts "$RUNNER_TEMP/check-update.ts"
+          git apply --index "$RUNNER_TEMP/update/update.patch"
+          node "$RUNNER_TEMP/check-update.ts"
+      - name: Commit and push
+        id: push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -F "$RUNNER_TEMP/update/message.txt"
+          # Refused if main moved since the check above: nothing untested lands.
+          git push origin HEAD:refs/heads/main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ needs.publish.outputs.sha }}
+    secrets: inherit
+
+  report:
+    needs: [prepare, publish, deploy]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Dependency updates
+      RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PREPARE: ${{ needs.prepare.result }}
+      BRIDGE: ${{ needs.prepare.outputs.bridge }}
+      PUBLISH: ${{ needs.publish.result }}
+      DEPLOY: ${{ needs.deploy.result }}
+      SHA: ${{ needs.publish.outputs.sha }}
+    steps:
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: update
+          path: ${{ runner.temp }}/update
+      - name: Update the one issue
+        run: |
+          manual="$RUNNER_TEMP/update/manual.md"
+          problem=""
+          if [ "$PREPARE" != "success" ]; then
+            if [ "$BRIDGE" = "failure" ]; then problem="The new RSS-Bridge image failed the bridge check, so nothing was taken."
+            else problem="The checks of this week's updates failed, so nothing was taken."; fi
+          elif [ "$PUBLISH" = "failure" ]; then problem="The checked update couldn't be committed (main moved, or the update changed more than versions), so nothing was taken."
+          elif [ "$PUBLISH" = "success" ] && [ "$DEPLOY" != "success" ]; then problem="The update was committed to main (${SHA:0:7}) but its deploy failed, so what the server runs now isn't known: check it, and deploy again or revert."
+          fi
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")
+          if [ -z "$problem" ] && [ ! -s "$manual" ]; then
+            [ -n "$number" ] && gh issue close "$number" --comment "All clear in $RUN."
+            exit 0
+          fi
+          {
+            echo "Kept current by the weekly dependency update; last run: $RUN"
+            echo
+            if [ -n "$problem" ]; then echo "**Last run:** $problem"; echo; fi
+            if [ -s "$manual" ]; then cat "$manual"; fi
+          } > body.md
+          if [ -n "$number" ]; then gh issue edit "$number" --body-file body.md
+          else gh issue create --title "$TITLE" --body-file body.md; fi

@@ -1,0 +1,11 @@
+{
+  "name": "@purss/worker",
+  "private": true,
+  "description": "FreshRSS sync and bounded background jobs",
+  "type": "module",
+  "dependencies": {
+    "@purss/domain": "*",
+    "@purss/freshrss": "*",
+    "@purss/connectors": "*"
+  }
+}

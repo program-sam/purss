@@ -1,0 +1,72 @@
+/* Tokens. A skin sets only hue, saturation and lightness of the one accent. */
+:root{
+  --font:"Nunito Variable","Nunito",ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;
+  --h:212; --as:82%; --al:40%; --ail:29%;
+}
+[data-skin="lilac"]{--h:268;--as:58%;--al:47%;--ail:33%}
+[data-skin="meadow"]{--h:152;--as:72%;--al:24%;--ail:23%}
+:root,[data-theme="light"]{
+  color-scheme:light;
+  --bg:hsl(var(--h) 30% 99%);
+  --side:hsl(var(--h) 32% 96%);
+  --surface:#fff;
+  --surface-2:hsl(var(--h) 30% 97.5%);
+  --hover:hsl(var(--h) 30% 93.5%);
+  --line:hsl(var(--h) 24% 89%);
+  --line-2:hsl(var(--h) 18% 79%);
+  --ink:hsl(var(--h) 38% 12%);
+  --ink-2:hsl(var(--h) 20% 29%);
+  --ink-3:hsl(var(--h) 14% 39%);
+  --accent:hsl(var(--h) var(--as) var(--al));
+  --accent-top:hsl(var(--h) var(--as) calc(var(--al) + 5%));
+  --accent-bot:hsl(var(--h) var(--as) calc(var(--al) - 4%));
+  --accent-line:var(--accent);
+  --accent-bd:hsl(var(--h) var(--as) calc(var(--al) - 12%));
+  --on-accent:#fff;
+  --accent-ink:hsl(var(--h) 72% var(--ail));
+  --fresh:hsl(var(--h) var(--as) var(--al));
+  --tint:hsl(var(--h) 100% 97.5%);
+  --tint-2:hsl(var(--h) 85% 93%);
+  --tint-bd:hsl(var(--h) 55% 82%);
+  --sel-top:hsl(var(--h) 100% 98%); --sel-bot:hsl(var(--h) 88% 92%); --sel-bd:hsl(var(--h) 55% 80%);
+  --mod-top:hsl(var(--h) 100% 98.5%); --mod-bot:hsl(var(--h) 88% 94.5%); --mod-bd:hsl(var(--h) 45% 88%);
+  --sky-top:hsl(var(--h) 88% 81%); --sky-mid:hsl(var(--h) 92% 91%); --sky-bot:var(--bg);
+  --quilt:#fff; --quilt-o:.7; --sun:rgba(255,255,255,.8);
+  --hi:rgba(255,255,255,.9);
+  --focus:hsl(var(--h) var(--as) calc(var(--al) - 2%));
+  --shadow:0 1px 2px hsl(var(--h) 40% 20% / .06);
+  --shadow-pop:0 10px 30px hsl(var(--h) 40% 15% / .2),0 1px 3px hsl(var(--h) 40% 15% / .12);
+  --scrim:hsl(var(--h) 40% 10% / .42);
+  --amber:#7d4a00; --amber-bg:hsl(40 100% 93%); --amber-bd:hsl(38 80% 76%);
+  --orange:#e8731a; --ok:#2c9a5c; --danger:hsl(2 62% 42%);
+  --glass:rgba(255,255,255,.72); --glass-bd:rgba(255,255,255,.95);
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:hsl(var(--h) 16% 11%);
+  --side:hsl(var(--h) 18% 8.5%);
+  --surface:hsl(var(--h) 14% 14.5%);
+  --surface-2:hsl(var(--h) 14% 17.5%);
+  --hover:hsl(var(--h) 14% 20%);
+  --line:hsl(var(--h) 12% 21%);
+  --line-2:hsl(var(--h) 10% 31%);
+  --ink:hsl(var(--h) 25% 94%);
+  --ink-2:hsl(var(--h) 14% 77%);
+  --ink-3:hsl(var(--h) 10% 65%);
+  --accent-ink:hsl(var(--h) 92% 79%);
+  --fresh:hsl(var(--h) 95% 70%);
+  --tint:hsl(var(--h) 28% 17%); --tint-2:hsl(var(--h) 34% 22%); --tint-bd:hsl(var(--h) 28% 33%);
+  --sel-top:hsl(var(--h) 34% 25%); --sel-bot:hsl(var(--h) 34% 20%); --sel-bd:hsl(var(--h) 28% 34%);
+  --mod-top:hsl(var(--h) 28% 21%); --mod-bot:hsl(var(--h) 24% 17%); --mod-bd:hsl(var(--h) 20% 26%);
+  --sky-top:hsl(var(--h) 46% 24%); --sky-mid:hsl(var(--h) 32% 17%); --sky-bot:var(--bg);
+  --quilt:#cfe0ff; --quilt-o:.12; --sun:hsl(var(--h) 80% 60% / .16);
+  --hi:rgba(255,255,255,.07);
+  --focus:hsl(var(--h) 100% 74%);
+  --accent-line:hsl(var(--h) 85% 64%);
+  --shadow:0 1px 2px rgba(0,0,0,.35);
+  --shadow-pop:0 10px 30px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
+  --scrim:rgba(0,0,0,.55);
+  --amber:#f2c068; --amber-bg:hsl(38 40% 15%); --amber-bd:hsl(38 35% 28%);
+  --danger:hsl(4 85% 74%);
+  --glass:rgba(255,255,255,.07); --glass-bd:rgba(255,255,255,.16);
+}

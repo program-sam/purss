@@ -1,0 +1,69 @@
+# Every push to main is checked and tested; if that passes, the same commit is deployed to the
+# server. The deploy key can only run infra/deploy/purss-deploy.sh there (see infra/README.md).
+# The weekly dependency update calls it for the commit it pushed (its push starts no workflow).
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to test and deploy
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    # One deploy at a time, in push order; a newer push waits instead of cancelling a running one.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+          # The version (plan/40) counts the commit among its day's commits on main.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      # The server builds from an archive without history, so the version goes in as version.json.
+      - run: node scripts/version.ts --write
+      - name: Deploy this commit
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          git archive --format=tar --add-file=version.json HEAD | gzip | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "root@${DEPLOY_HOST}" "deploy $(git rev-parse HEAD)"

@@ -1,0 +1,12 @@
+{
+  "name": "@purss/freshrss",
+  "private": true,
+  "description": "FreshRSS GReader protocol and provisioning adapter",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@purss/domain": "*"
+  }
+}

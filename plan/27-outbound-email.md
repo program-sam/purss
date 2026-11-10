@@ -1,0 +1,46 @@
+# Outgoing email
+
+The owner decided (2026-11-05) that the server needs outgoing email for account management:
+required for the official hosted service, fully optional for self-hosters and not recommended to
+them (no nagging; everything works without it). This document records the build decisions.
+
+## Where email is used
+
+| Moment | Who | What is sent |
+| --- | --- | --- |
+| An administrator makes an invitation and types an address | Any installation with email set up | The invitation link; the address is used for that one message and not stored |
+| Open sign-up | Hosted, where an address is required | A link to confirm the new account's address |
+| Adding or changing the address (*Settings → Security*, needs a recent sign-in) | Any installation with email set up | A confirmation link to the new address; a notice to the old confirmed one, naming the new one masked |
+| *Forgot your password?* | Any installation with email set up; accounts with a password and a confirmed address | A single-use reset link (one hour) |
+| A password reset with that link | Any installation with email set up | A notice that the password changed. The account is signed out everywhere: sessions, connected apps, pending connection codes, assistant tokens, OAuth grants and email links not used yet (`auth/sign-out.ts`) |
+| `cli.ts test-email <address>` | Operator | A test message |
+
+## Decisions
+
+| Concern | Decision | Reason |
+| --- | --- | --- |
+| Library | nodemailer 10.3.1, pinned exactly; no other new dependency | Maintained, no dependencies of its own, MIT-0; SMTP is not something to hand-write |
+| Configuration | `PURSS_SMTP_HOST`, `_PORT`, `_SECURITY` (`starttls` default, `tls`, `none`), `_USER`, `_PASSWORD`, `PURSS_MAIL_FROM`, passed through Compose; documented only in the self-hosting reference | Optional and neutral for self-hosters; STARTTLS is required by default rather than opportunistic |
+| Hosted open sign-up | Open only when configured open, in hosted mode, and the last mail server check passed; the API checks at start and every 10 minutes while failing, logs why sign-up is closed, and shows the state under *Administration → Health* | "Refuse to enable hosted open signup without working SMTP"; a configured but broken server counts as not working |
+| Account address | `accounts.email` plus `email_verified_at`; offered whenever a mail server is set up, in any mode (`accountEmailAvailable`), and required only at hosted open sign-up; without a mail server there is no address field at all | Owner decision: email is optional everywhere and adds password reset wherever it is set up. plan/21: never a primary key, never used to sign in, link accounts or grant the administrator role; several accounts may share one address |
+| Links | 32-byte random tokens, only SHA-256 stored (`email_tokens`), single use, tied to the address they were sent to (a later address change voids them); confirmation 48 hours, reset one hour; a new link replaces older unused ones | Credentials, treated like invitation codes |
+| Reset scope | Only active, non-administrator accounts that have a password and a confirmed address; the username stays; the account is signed out everywhere, its assistant tokens revoked, and the address told | A mailbox is weaker proof than a passkey; administrators recover with recovery codes or the CLI (plan/21) |
+| Enumeration | `/api/password-reset` always answers the same, sends after the response, accepts a username or an address, and is limited per address (10 an hour), per identifier (5) and per account (3 links an hour) | Whether an account or address exists stays private |
+| Delivery | Messages sent after the response (confirmation, reset, notices) are first written to `mail_queue`, sealed with AES-256-GCM under a key in the secrets folder (`mail-queue-key`, made at startup: a secrets folder where it can't be made stops the server with the reason, so queueing after a committed change can't fail), then sent at once by the API. Started without email set up, the server drops what is still queued, logs each as failed (`unconfigured`) and says how many. One the server can't take yet (down, or the process stopped) is retried by the maintenance tick, after a restart too, from 30 seconds doubling to 15 minutes, for up to a day; a refused one is dropped. Shutdown gives sends in flight ten seconds and leaves the rest queued. Invitations and the test message are sent while the person waits | A restart never drops a reset link; the database alone never holds a usable link; no worker or broker needed |
+| Send log | `mail_log`: kind, masked recipient (`a•••@example.com`), outcome, error code (`EAUTH 535`); no body, subject or link; purged after 90 days. Audit events mask addresses too | "A send log without message bodies"; operators can diagnose without keeping addresses |
+| Messages | Plain text plus simple HTML with the same words, in the product's plain language; nothing a person typed appears except the recipient's own username | No injection through display names or notes |
+| Account deletion | Asking to delete ends unused email links (`auth/sign-out.ts`); a reset link still works in the grace period and is refused once removal starts. Removal deletes the account's email links and queued mail, clears its address, and keeps its `mail_log` lines without the account id | Nothing of the address outlives the account except masked log lines |
+
+## Open questions for the owner
+
+- Should a new hosted account be usable before its address is confirmed? Built: yes; an
+  unconfirmed address only can't receive reset links. Requiring confirmation first is a small
+  change in the sign-up route.
+- Email-based password reset is a self-service recovery path wherever email is set up (plan/21
+  asks for a reviewed policy). It needs the owner's review before hosted launch.
+
+## Not built
+
+Bounce and complaint handling, DKIM/SPF guidance beyond "the server must allow the sender",
+sending through an HTTP mail API, digests or notifications by email, email changes confirmed from
+the old address before they take effect, and adding a password to a passkey-only account by email.

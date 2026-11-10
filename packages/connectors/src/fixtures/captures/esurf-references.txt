@@ -1,0 +1,39 @@
+Kowalski, A. and Castillo, M.: Suspended load rating curves revisited, Earth Surf. Proc. Land., 14, 648–997, https://doi.org/10.0000/example.1000, 2009.
+
+Bakker, L. and Okafor, B.: A flume study of bedload entrainment thresholds, Earth Surf. Proc. Land., 15, 544–1329, https://doi.org/10.0000/example.1001, 2000.
+
+Hughes, K. and Bakker, L.: Suspended load rating curves revisited, Earth Surf. Proc. Land., 46, 226–1129, https://doi.org/10.0000/example.1002, 2018.
+
+Bakker, L. and Jansen, W.: Suspended load rating curves revisited, Earth Surf. Proc. Land., 24, 147–1471, https://doi.org/10.0000/example.1003, 2002.
+
+Jansen, W. and Garcia, P.: Grain-size sorting on gravel bars during floods, Sedimentology, 17, 684–1216, https://doi.org/10.0000/example.1004, 2015.
+
+Fontaine, J. and Bakker, L.: A flume study of bedload entrainment thresholds, J. Hydrol., 16, 660–1630, https://doi.org/10.0000/example.1005, 2000.
+
+Bakker, L. and Jansen, W.: A flume study of bedload entrainment thresholds, Water Resour. Res., 53, 644–1338, https://doi.org/10.0000/example.1006, 2022.
+
+Kowalski, A. and Hughes, K.: Hillslope erosion under changing land use, J. Hydrol., 29, 354–1714, https://doi.org/10.0000/example.1007, 2003.
+
+Hughes, K. and Bakker, L.: Seasonal turbidity in a regulated river, Sedimentology, 41, 451–1647, https://doi.org/10.0000/example.1008, 2012.
+
+Jansen, W. and Petrov, D.: Groundwater contributions to baseflow in karst terrain, Earth Surf. Proc. Land., 42, 528–1069, https://doi.org/10.0000/example.1009, 2022.
+
+Kowalski, A. and Castillo, M.: Hillslope erosion under changing land use, Water Resour. Res., 12, 784–980, https://doi.org/10.0000/example.1010, 2022.
+
+Kowalski, A. and Fontaine, J.: Landslide-dammed lakes and their drainage, Sedimentology, 41, 693–1717, https://doi.org/10.0000/example.1011, 2012.
+
+Castillo, M. and Nakamura, Y.: Groundwater contributions to baseflow in karst terrain, J. Hydrol., 40, 813–1581, https://doi.org/10.0000/example.1012, 2000.
+
+Bakker, L. and Lindqvist, H.: Seasonal turbidity in a regulated river, Sedimentology, 53, 556–1192, https://doi.org/10.0000/example.1013, 2020.
+
+Moreau, C. and Okafor, B.: Landslide-dammed lakes and their drainage, Earth Surf. Proc. Land., 39, 463–1073, https://doi.org/10.0000/example.1014, 2017.
+
+Dahl, E. and Hughes, K.: Sediment pulses after storm events in a small upland catchment, Geomorphology, 59, 394–1033, https://doi.org/10.0000/example.1015, 2021.
+
+Hughes, K. and Garcia, P.: Suspended load rating curves revisited, Water Resour. Res., 15, 270–1360, https://doi.org/10.0000/example.1016, 2010.
+
+Ibrahim, S. and Okafor, B.: Grain-size sorting on gravel bars during floods, Water Resour. Res., 45, 385–1624, https://doi.org/10.0000/example.1017, 2011.
+
+Lindqvist, H. and Kowalski, A.: Suspended load rating curves revisited, Geomorphology, 19, 184–1081, https://doi.org/10.0000/example.1018, 2002.
+
+Hughes, K. and Kowalski, A.: A flume study of bedload entrainment thresholds, Earth Surf. Proc. Land., 41, 703–1087, https://doi.org/10.0000/example.1019, 2006.

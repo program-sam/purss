@@ -1,0 +1,16 @@
+{
+  "name": "@purss/desktop",
+  "private": true,
+  "description": "Desktop app for Windows, macOS and Linux: the web app's build in a Tauri shell",
+  "type": "module",
+  "scripts": {
+    "interface": "cd ../web && PURSS_WEB_BASE=/ npx vite build --outDir app-dist",
+    "build": "node scripts/build.ts"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}

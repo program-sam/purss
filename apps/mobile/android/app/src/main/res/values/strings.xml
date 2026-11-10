@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PURSS</string>
+    <string name="title_activity_main">PURSS</string>
+    <string name="package_name">app.purss</string>
+    <string name="custom_url_scheme">purss</string>
+    <string name="audio_player_service_description">Plays audio from your PURSS in the background.</string>
+    <string name="push_channel_name">PURSS notifications</string>
+    <string name="push_channel_description">New items and other news from your PURSS, as you chose in its notification settings.</string>
+    <string name="push_hidden_text">Something new in your PURSS</string>
+</resources>

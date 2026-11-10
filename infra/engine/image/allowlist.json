@@ -1,0 +1,14 @@
+{
+  "cliScripts": [
+    "create-user.php",
+    "update-user.php",
+    "list-users.php",
+    "actualize-user.php",
+    "delete-user.php"
+  ],
+  "snippetHashes": [
+    "08e9560b808a24c96a406a9e1ed32550adf00ebaee7ab048ad7b2bf5f5aab8e9",
+    "a41fd3f1c813394184682dd2e86238f3184bd19e52f40f31a0b33a36e73fddfb",
+    "afab7d417b78c9d3246550f6507da3d99e32c60f01fc9e49fb62b9f77e9b1dda"
+  ]
+}

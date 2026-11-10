@@ -1,0 +1,1065 @@
+/* ===== App layout ===== */
+html,body{height:100%}
+body{overflow:hidden}
+[data-density="compact"]{--row-h:44px;--row-py:4px;--av-row:22px}
+:root{--row-h:56px;--row-py:9px;--av-row:26px}
+.skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--surface);padding:8px 14px;border-radius:8px;border:2px solid var(--focus);font-weight:700}
+.skip:focus{top:10px}
+/* The mini-player takes a band at the bottom (--player-space, extra.css); the whole layout, drawers and panels included, ends above it. */
+.app{display:grid;grid-template-columns:var(--sbw,276px) minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);height:calc(100dvh - var(--player-space))}
+.app[data-sb="rail"]{--sbw:68px}
+.app[data-sb="drawer"],.app[data-sb="hidden"]{--sbw:0px}
+.side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;width:var(--sbw)}
+.app[data-sb="drawer"] .side,.app[data-sb="hidden"] .side{position:fixed;left:0;top:0;bottom:var(--player-space);z-index:50;width:min(86vw,320px);transform:translateX(-102%);visibility:hidden;box-shadow:var(--shadow-pop);border-right:1px solid var(--line-2)}
+.app[data-sb="drawer"][data-drawer="open"] .side,.app[data-sb="hidden"][data-drawer="open"] .side{transform:none;visibility:visible}
+.navscrim,.pscrim{display:none}
+.app[data-drawer="open"][data-sb="drawer"] .navscrim,.app[data-drawer="open"][data-sb="hidden"] .navscrim{display:block;position:fixed;inset:0;z-index:45;background:var(--scrim)}
+.side-scroll{flex:1;min-height:0;overflow:auto;padding:0 8px 12px}
+.side-foot{display:flex;flex-wrap:wrap;align-items:center;gap:4px;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--line)}
+.side-foot .stor{flex:1 1 auto}
+.side-foot .set{display:flex;align-items:center;gap:6px;height:32px;padding:0 9px;border-radius:8px;font-size:0.8125rem;font-weight:700;color:var(--ink-2)}
+.side-foot .set:hover{background:var(--hover);color:var(--ink)}
+.brand{white-space:nowrap}
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+
+/* Rail: collection icons only */
+.rail{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0 8px;height:100%;min-height:0}
+.rail .mark{width:30px;height:30px;border-radius:9px;margin-bottom:6px}
+.rail .mark .ic{width:18px;height:18px}
+.rail-add{width:44px;height:40px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(rgba(255,255,255,.2),rgba(255,255,255,0) 52%),linear-gradient(var(--accent-top),var(--accent-bot));border:1px solid var(--accent-bd);box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 1px 2px hsl(var(--h) 60% 18% / .28);margin-bottom:6px}
+.rail-add:hover{filter:brightness(1.07)}
+.rbtn{position:relative;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--ink-2);border:1px solid transparent;flex:none}
+.rbtn:hover{background:var(--hover);color:var(--ink)}
+.rbtn.sel{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd);box-shadow:inset 0 1px 0 var(--hi);color:var(--ink)}
+.rtile{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:1.0625rem;line-height:1;background:linear-gradient(var(--surface),var(--surface-2));border:1px solid var(--line-2);box-shadow:inset 0 1px 0 var(--hi)}
+.rbtn .dot{position:absolute;top:5px;right:6px;box-shadow:0 0 0 2px var(--side)}
+.rbtn .bn{position:absolute;right:3px;bottom:3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--surface);border:1px solid var(--line-2);font-size:0.6562rem;font-weight:800;color:var(--ink-2);display:grid;place-items:center}
+.rail hr{width:32px;border:0;border-top:1px solid var(--line);margin:6px 0}
+.rail .sp{flex:1}
+.rail-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:2px 0}
+.rail .meter{width:34px}
+.tip{position:fixed;z-index:95;padding:5px 9px;border-radius:8px;background:var(--ink);color:var(--bg);font-size:0.7812rem;font-weight:700;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-pop)}
+
+/* Header */
+.bar{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 14px 6px 10px;border-bottom:1px solid var(--line);background:linear-gradient(var(--surface),var(--surface-2));box-shadow:inset 0 1px 0 var(--hi);flex:none;flex-wrap:wrap;position:relative;z-index:6}
+.crumbs{flex:1;min-width:0}
+.crumbs ol{display:flex;align-items:center;min-width:0;font-weight:700;font-size:0.875rem}
+.crumbs li{display:flex;align-items:center;min-width:0;white-space:nowrap}
+.crumbs li+li::before{content:"\203A";margin:0 8px;color:var(--ink-3);font-weight:800}
+.crumbs li:last-child{overflow:hidden;text-overflow:ellipsis;display:block;color:var(--ink)}
+.crumbs li:not(:last-child){color:var(--ink-2)}
+.crumbs button{font-weight:700;border-radius:6px;padding:2px 4px;margin:-2px -4px}
+.crumbs button:hover{background:var(--hover);color:var(--ink)}
+.bar-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bar .bar-add{order:4}
+/* The bell lives in a zero-height layer at the top right of the page area; the bar keeps room for it. */
+.corner{position:relative;height:0;flex:none;z-index:7}
+.corner .cbtns{position:absolute;top:8px;right:14px;display:flex;align-items:center;gap:6px}
+/* Without a bar the bell stays put while the page scrolls, level with the page's heading, which leaves it room. */
+.corner.float .cbtns{top:23px}
+.corner.float :is(.bell,.bar-acct){background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:var(--shadow)}
+.corner.float :is(.bell,.bar-acct):hover{background:var(--surface)}
+.stage:has(> .corner.float) :is(.home-top,.phead){padding-right:44px}
+/* A list page's tools sit beside its title when there is room, else on their own line just above the list. */
+.phead:has(> .ltools){grid-template-columns:minmax(0,1fr) auto;column-gap:16px}
+.phead:has(> .ltools)>*{grid-column:1/-1}
+.phead:has(> .ltools)>:first-child{grid-column:1;grid-row:1}
+.phead:has(> .ltools)>.ltools{grid-column:2;grid-row:1;align-self:start;flex-wrap:nowrap}
+@container (max-width:1019px){.phead:has(> .ltools)>.ltools{grid-column:1/-1;grid-row:auto;margin-top:2px}}
+/* The way back up, above a page's heading. */
+.trail{padding-top:16px;font-size:0.8125rem;font-weight:700;color:var(--ink-2)}
+.trail ol{display:flex;align-items:center;flex-wrap:wrap;min-width:0}
+.trail li+li::before{content:"\203A";margin:0 7px;color:var(--ink-3);font-weight:800}
+.trail button{font-weight:700;border-radius:6px;padding:2px 4px;margin:-2px -4px;color:var(--ink-2)}
+.trail button:hover{background:var(--hover);color:var(--ink);text-decoration:underline}
+.trail+.phead{padding-top:6px}
+/* The bar's first line is as tall as the bell, and keeps room for it and its unread count. */
+.bar{padding-right:72px}
+.bar>.crumbs{display:flex;align-items:center;min-height:36px}
+@media (pointer:coarse){.corner .cbtns{top:6px}.corner.float .cbtns{top:19px}.bar{padding-right:80px}.bar>.crumbs{min-height:40px}.stage:has(> .corner.float) :is(.home-top,.phead){padding-right:52px}}
+[data-display="eink"] .corner .cbtns{top:6px}
+[data-display="eink"] .corner.float .cbtns{top:19px}
+[data-display="eink"] .bar{padding-right:80px}
+[data-display="eink"] .bar>.crumbs{min-height:40px}
+[data-display="eink"] .stage:has(> .corner.float) :is(.home-top,.phead){padding-right:52px}
+.mbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 10px;border-radius:8px;border:1px solid var(--line-2);background:linear-gradient(var(--surface),var(--surface-2));box-shadow:inset 0 1px 0 var(--hi),var(--shadow);font-weight:700;font-size:0.8125rem;color:var(--ink);white-space:nowrap}
+.mbtn:hover{background:linear-gradient(var(--surface),var(--hover))}
+.mbtn[aria-expanded="true"],.mbtn[aria-pressed="true"]{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd)}
+.mbtn .ic{width:14px;height:14px;color:var(--ink-3)}
+.mbtn .k{color:var(--ink-3);font-weight:700}
+.mbtn.quietb{background:none;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.mbtn.quietb:hover{background:var(--hover);color:var(--ink)}
+@media (pointer:coarse){.mbtn{height:40px}}
+
+.main{flex:1;min-height:0;overflow:auto;container-type:inline-size;padding-bottom:88px;outline:none;position:relative}
+.col{max-width:1100px;margin:0 auto;padding:0 28px}
+.col.narrow{max-width:840px}
+.col.wide{max-width:1240px}
+.app[data-bp="xl"] .col{max-width:1440px}
+.app[data-bp="xl"] .col.narrow,.app[data-bp="xl"] .col.wide{max-width:1440px}
+/* Very wide screens: wider columns and one step up in the type people read most, so the page
+   doesn't shrink to a small island in a sea of empty canvas. */
+@media (min-width:2200px){
+  .app[data-bp="xl"] .col{max-width:1760px}
+  .app[data-bp="xl"] .col.narrow,.app[data-bp="xl"] .col.wide{max-width:1760px}
+  .app[data-bp="xl"][data-sb="full"]{--sbw:300px}
+  .card .title{font-size:0.9688rem}
+  .row-s,.when,.card .meta{font-size:0.8438rem}
+  .srow,.glabel,.nav-row,.bk,.pill-search{font-size:0.9062rem}
+  .crumbs ol{font-size:0.9375rem}
+  .mbtn,.seg button{font-size:0.875rem}
+  .p-title{font-size:1.5rem}
+  .prose{font-size:1.0938rem}
+}
+
+/* Home */
+.homewash{background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-mid) 58%,var(--sky-bot) 100%);position:relative;overflow:hidden;margin-bottom:6px}
+.quilt{opacity:var(--quilt-o)}.quilt path{fill:none;stroke:var(--quilt);stroke-width:1.6;stroke-dasharray:7 6}.quilt circle{fill:var(--quilt)}
+.homewash svg.quilt{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(#000 35%,transparent);mask-image:linear-gradient(#000 35%,transparent)}
+.homewash .col{position:relative;padding-top:22px;padding-bottom:20px;display:grid;gap:6px}
+.home-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.home-top .mbtn.quietb{flex:none;background:var(--glass);border-color:var(--glass-bd)}
+.home-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;font-size:0.875rem;font-weight:700;color:var(--ink-2)}
+.home-sum .fr{display:inline-flex;align-items:center;gap:6px;color:var(--accent-ink);font-weight:800}
+@media (max-width:767px){.homewash .col{padding-top:14px;padding-bottom:12px}}
+.homewash h1{font-size:clamp(1.625rem,2.6vw,2.125rem);font-weight:900;letter-spacing:-.025em;line-height:1.05;text-shadow:0 1px 0 rgba(255,255,255,.7)}
+[data-theme="dark"] .homewash h1{text-shadow:0 1px 0 rgba(0,0,0,.4)}
+.home-body{padding-top:16px}
+.mods{display:flex;gap:16px;align-items:flex-start}
+.mcol{display:flex;flex-direction:column;gap:16px;min-width:0;flex:1 1 0}
+.mod{background:var(--surface);border:1px solid var(--mod-bd);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;min-width:0;--ring:var(--mod-top)}
+.mod-h{display:flex;align-items:center;gap:6px;padding:0 6px 0 4px;min-height:44px;background:linear-gradient(var(--mod-top),var(--mod-bot));border-bottom:1px solid var(--mod-bd);box-shadow:inset 0 1px 0 var(--hi)}
+.mod.shut .mod-h{border-bottom:0}
+.mod-t{flex:1;min-width:0;font-size:inherit}
+.mod-t>button{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 8px;border-radius:8px;min-width:0}
+.mod-t .t{font-size:0.9375rem;font-weight:800;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto;max-width:100%}
+.mod-t>button:hover .t{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.mod-t .go{color:var(--ink-3);margin-left:-6px;flex:none}
+.mod-fresh{display:inline-flex;align-items:center;gap:6px;font-size:0.7812rem;font-weight:800;color:var(--accent-ink);white-space:nowrap;padding-right:2px}
+.mod-b .row-main{padding-top:calc(var(--row-py) - 1px);padding-bottom:calc(var(--row-py) - 1px)}
+.mod-all{display:flex;align-items:center;gap:4px;width:100%;padding:10px 14px;border-top:1px solid var(--line);font-size:0.8125rem;font-weight:700;color:var(--accent-ink)}
+.mod-all span{color:var(--ink-3);font-weight:600}
+.mod-all:hover{background:var(--hover)}
+.mod-empty{padding:18px 16px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.day h3{font-size:0.7812rem;font-weight:800;color:var(--ink-3);padding:14px 14px 6px;background:var(--surface);position:sticky;top:0;z-index:1;border-top:1px solid var(--line)}
+.day:first-child h3{border-top:0}
+.sec{margin-top:26px}
+.sec:first-child{margin-top:0}
+.sec>h2{font-size:0.9375rem;font-weight:800;letter-spacing:-.005em;margin-bottom:10px;display:flex;align-items:baseline;gap:10px}
+.sec>h2 .more{font-size:0.8125rem;font-weight:700;color:var(--ink-3)}
+.front-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px 28px}
+.hl{border-top:2px solid var(--ink);padding-top:8px}
+.hl h3{font-size:0.9375rem;font-weight:800;margin-bottom:2px}
+.hl h3 button{display:inline-flex;align-items:center;gap:6px;border-radius:6px}
+.hl h3 button:hover{text-decoration:underline;text-underline-offset:3px}
+.hl li{border-bottom:1px solid var(--line)}
+.hl li:last-child{border-bottom:0}
+.hl .hli{display:grid;gap:2px;width:100%;text-align:left;padding:9px 0;border-radius:6px}
+.hl .hli:hover .title{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.hl .title{font-weight:700;font-size:0.875rem;line-height:1.35;display:flex;gap:8px;align-items:baseline}
+.hl .title .dot{align-self:center}
+.hl .m{font-size:0.7812rem;font-weight:600;color:var(--ink-3)}
+.shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+.bshelf{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow);text-align:left;width:100%;border-top:3px solid var(--tint-bd)}
+.bshelf:hover{background:var(--hover)}
+.bshelf b{font-weight:800;display:flex;justify-content:space-between;gap:8px}
+.bshelf span{font-size:0.7812rem;font-weight:600;color:var(--ink-3)}
+
+/* Item rows: actions cluster */
+.row-main{grid-template-columns:14px var(--av-row) minmax(0,1fr) auto;min-height:var(--row-h);padding:var(--row-py) 14px var(--row-py) 10px}
+.row .gut{width:14px;display:grid;place-items:center}
+.row .av{--s:var(--av-row)}
+.row.has-keep .row-main{padding-right:88px}
+.racts{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:2px}
+.racts .keep,.racts .rmore{position:static;transform:none;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:var(--ink-3);opacity:0}
+.racts .keep:hover,.racts .rmore:hover{background:var(--hover);color:var(--ink)}
+.row:hover .racts .keep,.row:hover .racts .rmore,.row:focus-within .racts .keep,.row:focus-within .racts .rmore,.racts [aria-expanded="true"]{opacity:1}
+.racts .keep.on{color:var(--accent-ink)}
+.racts .keep.on .ic{fill:currentColor}
+.restore{height:28px;padding:0 10px;border-radius:8px;font-weight:700;font-size:0.8125rem;color:var(--accent-ink);border:1px solid var(--tint-bd);background:var(--tint)}
+.restore:hover{background:var(--tint-2)}
+@media (hover:none){.racts .keep,.racts .rmore{opacity:1}}
+@media (pointer:coarse){.racts .keep,.racts .rmore{width:40px;height:40px}.row.has-keep .row-main{padding-right:104px}}
+.row.picked>.row-main{background:var(--tint)}
+.row.dim .row-main .title{color:var(--ink-2);font-weight:600;text-decoration:line-through;text-decoration-thickness:1px}
+/* Finished items fade so what is still to do stands out; they come back to full strength when pointed at, opened or picked. */
+.irow[data-wf="finished"]:not(.sel-row):not(.picked):not(:hover):not(:focus-within){opacity:.55}
+.irow[data-wf="finished"] .title{font-weight:500}
+.cbx{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-2);background:var(--surface);display:inline-grid;place-items:center;flex:none;color:#fff}
+.cbx .ic{width:12px;height:12px;stroke-width:3;opacity:0}
+[aria-pressed="true"]>.gut .cbx,[aria-pressed="true"] .cbx.lead{background:linear-gradient(var(--accent-top),var(--accent-bot));border-color:var(--accent-bd)}
+[aria-pressed="true"]>.gut .cbx .ic,[aria-pressed="true"] .cbx.lead .ic{opacity:1}
+.cbx.on{background:linear-gradient(var(--accent-top),var(--accent-bot));border-color:var(--accent-bd)}
+.cbx.on .ic{opacity:1}
+.paused{font-size:0.7188rem;font-weight:700;color:var(--ink-3)}
+
+/* Collection page */
+.phead{padding-top:24px;padding-bottom:14px;display:grid;gap:8px}
+.phead h1{font-size:1.5625rem;font-weight:900;letter-spacing:-.02em;line-height:1.15}
+.psub{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;font-weight:600;color:var(--ink-2);font-size:0.8438rem}
+.psub .fr{display:inline-flex;align-items:center;gap:6px;color:var(--accent-ink);font-weight:800}
+.psub .ring-sky{--ring:var(--bg)}
+.ptitle{display:flex;gap:14px;align-items:center}
+.ptitle-t{display:grid;gap:4px;min-width:0}
+.phead .note{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-radius:10px;font-weight:600;background:var(--tint);border:1px solid var(--tint-bd);color:var(--ink);max-width:620px}
+.phead .note.login{background:var(--amber-bg);border-color:var(--amber-bd)}
+.phead .note .ic{margin-top:2px;color:var(--accent-ink)}
+.phead .note.login .ic{color:var(--amber)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 12px;margin:0 -2px;scrollbar-width:thin}
+.chipf{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px 0 5px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);font-weight:700;font-size:0.8125rem;color:var(--ink-2);white-space:nowrap;flex:none}
+.chipf:first-child{padding-left:12px}
+.chipf:hover{background:var(--hover)}
+.chipf[aria-pressed="true"]{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd);color:var(--ink);box-shadow:inset 0 1px 0 var(--hi)}
+.chipf .av{--s:20px}
+.selbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin:0 0 12px;border-radius:12px;background:linear-gradient(var(--mod-top),var(--mod-bot));border:1px solid var(--mod-bd);box-shadow:inset 0 1px 0 var(--hi),var(--shadow-pop)}
+.selbar .cnt2{font-weight:800;margin-right:6px}
+.selbar .sp{flex:1}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+/* Rows out of view skip layout and paint until they come near, so long lists open, resize and restyle quickly; `auto` keeps each row's real height once it has been shown. */
+.list .irow{content-visibility:auto;contain-intrinsic-block-size:auto 80px}
+.kept{display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:700;color:var(--accent-ink);white-space:nowrap}
+.kept .ic{width:12px;height:12px;fill:currentColor}
+/* At most four cards a row, each at least 280px, so titles and excerpts can finish. */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 48px)/4)),1fr));gap:16px}
+.card{position:relative;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.card-main{display:flex;flex-direction:column;gap:10px;width:100%;height:100%;padding:8px 8px 10px;border-radius:12px}
+.card-main:hover{background:var(--hover)}
+.card.sel-row{border-color:var(--accent-line);background:var(--tint)}
+.card.picked{border-color:var(--accent-line);background:var(--tint)}
+.card.dim{opacity:.8}
+.card .meta{display:flex;align-items:center;gap:8px;padding:0 6px;font-size:0.7812rem;font-weight:600;color:var(--ink-2)}
+.card .meta .sn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.card .meta time{margin-left:auto;color:var(--ink-3);white-space:nowrap}
+.card .title{padding:0 6px;font-weight:800;font-size:0.9062rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .wfrow{min-height:34px;padding:0 76px 0 6px}
+.card .excerpt{padding:0 6px;font-size:0.8438rem;line-height:1.5;color:var(--ink-2);font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .art:not(.vid) .badge{display:none}
+.card .len{font-size:0.7812rem;font-weight:600;color:var(--ink-3)}
+.card-main:not(:has(.art)){padding-top:14px}
+.card .racts{top:auto;bottom:10px;right:8px;transform:none;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;box-shadow:var(--shadow);gap:0;padding:1px}
+.card .racts .keep,.card .racts .rmore{opacity:0}
+.card:hover .racts .keep,.card:hover .racts .rmore,.card:focus-within .racts .keep,.card:focus-within .racts .rmore,.card .racts [aria-expanded="true"]{opacity:1}
+.card .racts:not(:hover):not(:focus-within){border-color:transparent;background:transparent;box-shadow:none}
+.card .cbx.lead{position:absolute;left:18px;top:18px;width:20px;height:20px;border-radius:6px;background:var(--surface);z-index:2}
+@media (hover:none){.card .racts .keep,.card .racts .rmore{opacity:1!important}}
+.art{--ah:200;position:relative;display:block;aspect-ratio:16/9;border-radius:8px;overflow:hidden;border:1px solid hsl(var(--ah) 40% 80%);
+  background:radial-gradient(120% 90% at 18% 0%,hsl(var(--ah) 85% 93%),transparent 62%),radial-gradient(90% 100% at 92% 100%,hsl(calc(var(--ah) + 36) 70% 84%),transparent 62%),linear-gradient(hsl(var(--ah) 60% 89%),hsl(var(--ah) 52% 80%))}
+.art.vid{border-color:hsl(var(--ah) 30% 18%);background:radial-gradient(70% 90% at 78% 12%,hsl(var(--ah) 55% 46%),transparent 62%),radial-gradient(90% 90% at 8% 100%,hsl(calc(var(--ah) - 24) 40% 24%),transparent 70%),linear-gradient(hsl(var(--ah) 30% 22%),hsl(var(--ah) 32% 14%))}
+.art .play{position:absolute;left:50%;top:50%;width:38px;height:38px;margin:-19px 0 0 -19px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.5);color:#fff;backdrop-filter:blur(2px)}
+.art .play .ic{fill:#fff;stroke:none;width:15px;height:15px;margin-left:2px}
+.art .badge{position:absolute;right:7px;bottom:7px;padding:2px 7px;border-radius:6px;font-size:0.7188rem;font-weight:800;background:rgba(10,16,26,.72);color:#fff}
+.empty{padding:44px 20px;text-align:center;display:grid;justify-items:center;gap:12px;color:var(--ink-2);font-weight:600}
+.empty h2{font-size:1rem;font-weight:800;color:var(--ink)}
+.empty.card-like{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+
+/* Board */
+.board{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 14px;align-items:flex-start;scroll-snap-type:x proximity}
+.bcol{flex:1 0 248px;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;scroll-snap-align:start}
+
+.bcol-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px 0 12px;min-height:42px;background:linear-gradient(var(--mod-top),var(--mod-bot));border-bottom:1px solid var(--mod-bd);border-radius:11px 11px 0 0;font-weight:800;box-shadow:inset 0 1px 0 var(--hi)}
+.bcol-h .n{font-size:0.7812rem;color:var(--ink-3);font-weight:800}
+button.bcol-h{width:100%;text-align:left}
+.bcol.drop{outline:2px dashed var(--accent-line);outline-offset:-3px}
+.bcards{display:grid;gap:8px;padding:8px;min-height:64px;align-content:start}
+.bcards:empty::after{content:"Nothing here";padding:14px 6px;color:var(--ink-3);font-weight:600;font-size:0.8125rem;text-align:center}
+.bcard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);cursor:grab}
+.bcard.sel-row{border-color:var(--accent-line);background:var(--tint)}
+.bcard.picked{border-color:var(--accent-line);background:var(--tint)}
+.bcard.dragging{opacity:.45}
+.bcard.dim .title{color:var(--ink-2);text-decoration:line-through;text-decoration-thickness:1px}
+.bcard-main{display:grid;gap:6px;width:100%;padding:10px 40px 10px 11px;border-radius:10px}
+.bcard-main:hover{background:var(--hover)}
+.bcard .m{display:flex;align-items:center;gap:7px;font-size:0.7812rem;font-weight:600;color:var(--ink-2)}
+.bcard .m .sn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.bcard .m time{color:var(--ink-3);white-space:nowrap;margin-left:auto}
+.bcard .title{font-weight:700;font-size:0.8438rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bcard .rmore{position:absolute;right:4px;top:4px;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ink-3)}
+.bcard .rmore:hover{background:var(--hover);color:var(--ink)}
+.bcard .bkept{display:flex}
+.bcard .cbx.lead{position:absolute;left:-7px;top:-7px;width:20px;height:20px;border-radius:6px;z-index:2}
+.pager-tabs{display:none}
+
+/* Table */
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;font-size:0.8438rem}
+.tbl th{padding:0;text-align:left;background:linear-gradient(var(--mod-top),var(--mod-bot));border-bottom:1px solid var(--mod-bd);box-shadow:inset 0 1px 0 var(--hi);position:sticky;top:0}
+.tbl th>button,.tbl th>span{width:100%;height:38px;padding:0 12px;display:flex;align-items:center;gap:6px;font-weight:800;font-size:0.7812rem;color:var(--ink-2);white-space:nowrap}
+.tbl th>button:hover{color:var(--ink)}
+.tbl th .ic{width:12px;height:12px;color:var(--accent-ink)}
+.tbl td{padding:0 12px;height:var(--row-h);border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink-2);font-weight:600;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr:hover td{background:var(--hover)}
+.tbl tr.sel-row td{background:var(--tint)}
+.tbl tr.picked td{background:var(--tint)}
+.tbl tr.dim td.ttl .title{text-decoration:line-through;text-decoration-thickness:1px}
+.tbl .c-src{display:flex;align-items:center;gap:8px;height:var(--row-h);color:var(--ink)}
+.tbl .c-src .av{--s:22px}
+.tbl td.ttl{white-space:normal;min-width:260px;max-width:440px;padding:0}
+.tbl td.ttl .tb{display:flex;align-items:center;gap:9px;width:100%;min-height:var(--row-h);padding:0 12px;text-align:left}
+.tbl td.ttl .title{font-weight:700;color:var(--ink);line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tbl .kbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-radius:8px;color:var(--ink-3);font-weight:700}
+.tbl .kbtn:hover{background:var(--hover);color:var(--ink)}
+.tbl .kbtn.on{color:var(--accent-ink)}
+.tbl .kbtn.on .ic{fill:currentColor}
+.tbl .rmore{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ink-3);opacity:0}
+.tbl tr:hover .rmore,.tbl tr:focus-within .rmore,.tbl .rmore[aria-expanded="true"]{opacity:1}
+.tbl .rmore:hover{background:var(--surface);color:var(--ink)}
+@media (hover:none){.tbl .rmore{opacity:1}}
+
+/* Panel */
+.panel{position:relative;width:var(--panel-w,clamp(400px,36vw,640px));border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.panel[hidden]{display:none}
+.resizer{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:5;touch-action:none}
+.resizer::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent}
+.resizer:hover::after,.resizer:focus-visible::after,.resizer.drag::after{background:var(--accent-line)}
+.resizer:focus-visible{outline:none}
+#panel-in{display:flex;flex-direction:column;min-height:0;flex:1}
+.panel-bar{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 8px 6px 14px;border-bottom:1px solid var(--line);background:linear-gradient(var(--surface),var(--surface-2));box-shadow:inset 0 1px 0 var(--hi);flex:none}
+.panel-bar .src{flex:1;min-width:0;display:flex;align-items:center;gap:9px;padding:2px 6px 2px 2px;margin-left:-2px;border-radius:8px;font-weight:800;font-size:0.875rem}
+.panel-bar .src:hover{background:var(--hover)}
+.panel-bar .src span.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back{display:none}
+.panel-body{flex:1;overflow:auto;padding:18px 18px 88px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start}
+.panel-body .art{border-radius:10px;width:100%}
+.p-title{font-size:1.3125rem;line-height:1.25;font-weight:900;letter-spacing:-.015em}
+.p-by{font-weight:700;color:var(--ink-2)}
+.p-meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.8125rem;font-weight:600;color:var(--ink-3)}
+.p-ex{font-size:0.9688rem;line-height:1.6;color:var(--ink);font-weight:500}
+.p-quote{padding:10px 12px;border-left:3px solid var(--tint-bd);background:var(--tint);border-radius:0 10px 10px 0;font-weight:600;color:var(--ink)}
+.p-quote b{display:block;font-size:0.7812rem;color:var(--ink-3);font-weight:800;margin-bottom:2px}
+.p-warn{display:flex;gap:9px;padding:9px 12px;border-radius:10px;background:var(--amber-bg);border:1px solid var(--amber-bd);font-weight:600}
+.p-warn .ic{color:var(--amber);margin-top:2px}
+.prog{display:grid;gap:6px;font-size:0.8125rem;font-weight:700;color:var(--ink-2)}
+.prog .track{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.prog .track i{display:block;height:100%;background:var(--accent-line);border-radius:99px}
+.panel-body hr{border:0;border-top:1px solid var(--line);margin:2px 0}
+/* Reader actions: one row under the title, so the article follows straight after. */
+.p-acts{display:flex;flex-wrap:wrap;gap:8px}
+.p-acts .mbtn{height:34px}
+.p-acts .mbtn .k{color:var(--ink-3)}
+.p-acts .st{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd)}
+.p-acts .st-new{background:linear-gradient(var(--surface),var(--surface-2));border-color:var(--line-2)}
+.p-acts .kept-on{color:var(--accent-ink)}
+.p-acts .kept-on .ic:first-child{fill:currentColor}
+.p-acts .kept-on .k{color:var(--accent-ink);margin-left:2px}
+.p-copy{display:grid;gap:8px;padding-top:14px;border-top:1px solid var(--line)}
+.p-copy .fine,.p-copy .cap{font-size:0.875rem;color:var(--ink-2)}
+.fine{font-size:0.7812rem;font-weight:600;color:var(--ink-3);line-height:1.45}
+.cap{font-size:0.8125rem;font-weight:600;color:var(--ink-2)}
+
+/* Toasts: bottom-left, above the reserved bottom strip, never bottom-centre */
+#toasts{position:fixed;left:16px;bottom:72px;z-index:90;display:grid;gap:8px;justify-items:start}
+.toast{max-width:min(380px,calc(100vw - 32px));padding:6px 6px 6px 14px}
+.toast .tx{min-width:0}
+.toast .ta{height:28px;padding:0 10px;border-radius:8px;font-weight:800;text-decoration:underline;text-underline-offset:2px;color:inherit;white-space:nowrap}
+.toast .ta:hover{background:rgba(255,255,255,.14)}
+[data-theme="dark"] .toast .ta:hover{background:rgba(0,0,0,.08)}
+.toast .ta.undo{color:hsl(var(--h) 100% 82%)}
+[data-theme="dark"] .toast .ta.undo{color:hsl(var(--h) 80% 28%)}
+
+/* Palette (search) and dialogs */
+.pal-scrim{position:fixed;inset:0;z-index:80;background:var(--scrim);display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px}
+.pal{width:min(560px,100%);max-height:min(540px,76dvh);display:flex;flex-direction:column;border-radius:16px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow-pop);overflow:hidden}
+.pal-in{display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;border-bottom:1px solid var(--line);color:var(--ink-3)}
+.pal-in input{flex:1;height:100%;border:0;background:none;font-weight:700;font-size:0.9375rem;outline:none;color:var(--ink)}
+.pal-in input::placeholder{color:var(--ink-3);font-weight:600}
+.pal-list{overflow:auto;padding:6px}
+.pal-h{padding:8px 10px 4px;font-size:0.7812rem;font-weight:800;color:var(--ink-3)}
+.pal-i{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 10px;border-radius:9px;cursor:pointer;font-weight:700}
+.pal-i .tx small.snip{display:block;color:var(--ink-2);font-weight:500;margin-top:2px}
+.pal-i:has(.snip){padding-top:8px;padding-bottom:8px;margin-bottom:4px}
+.pal-i mark{background:hsl(48 96% 80%);color:var(--ink);font-weight:800;border-radius:3px;padding:0 2px}
+[data-theme="dark"] .pal-i mark{background:hsl(45 70% 35%);color:#fff}
+.pal-i .av{flex:none}
+.pal-i[aria-selected="true"]{background:linear-gradient(var(--sel-top),var(--sel-bot));box-shadow:inset 0 0 0 1px var(--sel-bd)}
+.pal-i .tx{display:grid;min-width:0}
+.pal-i .tx span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pal-i small{font-size:0.75rem;color:var(--ink-3);font-weight:600}
+.pal-empty{padding:26px 16px;text-align:center;color:var(--ink-2);font-weight:600}
+.dlg.sm{width:min(440px,100%)}
+.dlg.md{width:min(620px,100%)}
+.dlg-b .hint{font-size:0.8125rem;color:var(--ink-2);font-weight:600;line-height:1.5}
+.dlg-f .lft{margin-right:auto}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw-opt{position:relative;display:flex;align-items:center;gap:9px;height:38px;padding:0 14px 0 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);font-weight:700;cursor:pointer}
+.sw-opt input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.sw-opt .c{width:18px;height:18px;border-radius:50%;background:linear-gradient(hsl(var(--sh) 80% 56%),hsl(var(--sh) 80% 38%));border:1px solid hsl(var(--sh) 70% 30%);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+.sw-opt:has(input:checked){border-color:var(--accent-line);box-shadow:0 0 0 1px var(--accent-line);background:var(--tint)}
+.sw-opt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.chk{position:relative;display:flex;align-items:center;gap:10px;min-height:36px;font-weight:700;cursor:pointer}
+.chk input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.chk:has(input:focus-visible) .cb{outline:2px solid var(--focus);outline-offset:2px}
+.chk small{display:block;font-weight:600;color:var(--ink-3);font-size:0.7812rem}
+.lopts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lopt{position:relative;display:grid;gap:8px;padding:10px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer}
+.lopt:hover{background:var(--tint)}
+.lopt input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.lopt:has(input:checked){border-color:var(--accent-line);background:var(--tint);box-shadow:0 0 0 1px var(--accent-line)}
+.lopt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.lopt b{font-weight:800;display:flex;align-items:center;gap:8px}
+.lopt small{font-size:0.7812rem;color:var(--ink-3);font-weight:600;line-height:1.35}
+.thumb{height:62px;border-radius:8px;background:var(--bg);border:1px solid var(--line);padding:6px;display:grid;gap:4px;overflow:hidden}
+.thumb i{display:block;border-radius:3px;background:var(--line-2);opacity:.7}
+.thumb .hd{background:linear-gradient(var(--mod-top),var(--mod-bot));border:1px solid var(--mod-bd);opacity:1}
+.thumb.t-col{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.thumb.t-col>div{border:1px solid var(--mod-bd);border-radius:4px;background:var(--surface);overflow:hidden;display:grid;grid-template-rows:9px 1fr}
+.thumb.t-col>div>i:first-child{border-radius:0;background:linear-gradient(var(--mod-top),var(--mod-bot));opacity:1}
+.thumb.t-feed{grid-template-rows:6px 7px 7px 6px 7px 7px}
+.thumb.t-feed .dh{width:26px;height:4px;background:var(--ink-3);opacity:.6;align-self:center}
+.thumb.t-new{grid-template-rows:1fr 1fr}
+.thumb.t-new>div{border:1px solid var(--mod-bd);border-radius:4px;background:var(--surface);padding:3px;display:grid;gap:3px;align-content:center}
+.thumb.t-new .f{display:flex;align-items:center;gap:3px}
+.thumb.t-new .f b{width:5px;height:5px;border-radius:50%;background:var(--accent-line);display:block}
+.thumb.t-new .f i{flex:1;height:4px}
+.thumb.t-front{grid-template-columns:1fr 1fr 1fr;grid-template-rows:14px 1fr 10px}
+.thumb.t-front .c{grid-column:1/-1;display:flex;gap:4px}
+.thumb.t-front .c i{flex:1;height:100%;background:var(--surface);border:1px solid var(--line-2);opacity:1;border-radius:3px;position:relative}
+.thumb.t-front .c i::after{content:"";position:absolute;left:3px;bottom:2px;width:60%;height:2px;border-radius:2px;background:var(--accent-line)}
+.thumb.t-front .h{display:grid;gap:3px;border-top:2px solid var(--ink-3);padding-top:3px;align-content:start}
+.thumb.t-front .h i{height:4px}
+.thumb.t-front .s{grid-column:1/-1;display:flex;gap:4px}
+.thumb.t-front .s i{flex:1;border-top:2px solid var(--tint-bd);background:var(--surface);border-radius:2px;opacity:1}
+.ordlist{display:grid;gap:2px;padding:4px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2)}
+.ordrow{display:flex;align-items:center;gap:4px;min-height:42px;padding:0 4px 0 10px;border-radius:9px}
+.ordrow:hover{background:var(--hover)}
+.ordrow label{position:relative;display:flex;align-items:center;gap:10px;flex:1;min-width:0;font-weight:700;cursor:pointer;min-height:40px}
+.ordrow label input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.ordrow label:has(input:focus-visible) .cb{outline:2px solid var(--focus);outline-offset:2px}
+.ordrow .ibtn{width:30px;height:30px}
+.ordrow .ibtn[disabled]{opacity:.35;cursor:default}
+.radiolist{display:grid;gap:2px;padding:4px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2)}
+.rl{position:relative;display:flex;align-items:center;gap:10px;min-height:42px;padding:0 10px;border-radius:9px;cursor:pointer;font-weight:700}
+.rl:hover{background:var(--hover)}
+.rl input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.rl .radio{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line-2);background:var(--surface);flex:none;display:grid;place-items:center}
+.rl input:checked+.radio{border-color:var(--accent-line);background:radial-gradient(var(--accent-line) 0 4px,var(--surface) 4.5px)}
+.rl:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:-2px}
+.rl .where{margin-left:auto;font-size:0.7812rem;color:var(--ink-3);font-weight:600;white-space:nowrap}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;align-items:center;margin:0}
+.keys dt{display:flex;gap:4px;justify-content:flex-start}
+.keys dd{margin:0;font-weight:600;color:var(--ink-2)}
+.keys h3{grid-column:1/-1;font-size:0.7812rem;font-weight:800;color:var(--ink-3);margin-top:6px}
+.keys h3:first-child{margin-top:0}
+.dangerb{background:linear-gradient(var(--surface),var(--surface-2));color:var(--ink);border-color:var(--ink-3)}
+
+@media (prefers-reduced-motion:no-preference){
+  .panel:not([hidden]){animation:panelin .14s ease-out}
+  @keyframes panelin{from{opacity:.4;transform:translateX(10px)}to{opacity:1;transform:none}}
+  .dlg,.pal{animation:dlgin .14s ease-out}
+  @keyframes dlgin{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+  .toast{animation:toastin .16s ease-out}
+  @keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}.chev .ic{transition:none}}
+[data-fresh="off"] .dot,[data-fresh="off"] .mod-fresh,[data-fresh="off"] .psub .fr,[data-fresh="off"] .home-sum .fr,[data-fresh="off"] .home-sum .since,[data-fresh="off"] .since-boxes{display:none}
+/* "Show counts" off: no number of New items anywhere (sidebar, page heads, Home's boxes and summary). Words stay. */
+[data-counts="off"] .cnt,[data-counts="off"] .bk .n,[data-counts="off"] .rbtn .bn,[data-counts="off"] .psub .fr,[data-counts="off"] .home-sum .fr,[data-counts="off"] .mod-fresh,[data-counts="off"] .wb-n{display:none}
+
+/* ===== Breakpoints (data-bp is set from the viewport width by script) ===== */
+/* md 1024-1279: sidebar rail, panel overlays from the right */
+.app[data-bp="md"] .panel,.app[data-bp="sm"] .panel,.app[data-bp="xs"] .panel{position:fixed;right:0;top:0;bottom:var(--player-space);z-index:40}
+.app[data-bp="md"] .panel{width:min(600px,70vw)!important;box-shadow:var(--shadow-pop)}
+.app[data-bp="md"] .resizer,.app[data-bp="sm"] .resizer,.app[data-bp="xs"] .resizer{display:none}
+/* sm 768-1023: right sheet about 70% wide with a scrim */
+/* Tablets: the reader takes the whole screen, with Back, like a phone. */
+.app[data-bp="sm"] .panel{inset:0 0 var(--player-space) 0;width:auto!important;border-left:0;z-index:55}
+.app[data-bp="sm"][data-panel="open"] .pscrim{display:block;position:fixed;inset:0;z-index:52;background:var(--scrim)}
+.app[data-bp="sm"] .bar{padding-left:14px}
+/* xs <768: full-screen sheets, bottom-sheet popups */
+.app[data-bp="xs"] .panel{inset:0 0 var(--player-space) 0;width:auto!important;border-left:0;z-index:55}
+.app[data-bp="xs"] .back{display:inline-grid}
+.app[data-bp="xs"] .panel-bar [data-fk="close"]{display:none}
+.app[data-bp="xs"] .panel-body{padding-bottom:100px}
+.app[data-bp="sm"] .panel-body{padding-bottom:100px}
+.app[data-bp="xs"] .bar{padding:6px 10px 8px 6px}
+.app[data-bp="xs"] .bar>.crumbs{margin-right:56px}
+.app[data-bp="xs"] .corner .cbtns{right:10px}
+.app[data-bp="xs"] .bar-tools{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+.app[data-bp="xs"] .bar-tools>*{flex:none}
+.app[data-bp="xs"] .bar-tools .mbtn .k{display:none}
+.crumbs.xs{display:flex;align-items:center;gap:4px;min-width:0;font-weight:800;font-size:0.9375rem}
+.crumbs.xs .here{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumb-back{display:inline-flex;align-items:center;gap:2px;min-width:0;height:40px;padding:0 10px 0 4px;margin:-4px 0 -4px -4px;border-radius:10px;color:var(--ink-2);font-weight:800;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumb-back:hover{background:var(--hover)}
+.app[data-bp="xs"] .col{padding-left:16px;padding-right:16px}
+.app[data-bp="xs"] .phead h1{font-size:1.4375rem}
+.app[data-bp="xs"] .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.app[data-bp="xs"] .row-t .title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
+.app[data-bp="xs"] .side-foot{padding-bottom:72px}
+.app[data-bp="xs"] #toasts,.app[data-bp="sm"] #toasts{left:12px;right:12px;justify-items:stretch}
+.app[data-bp="xs"] .toast{max-width:none}
+.app[data-bp="xs"] .selbar{padding:8px}
+.app[data-bp="xs"] .board{scroll-snap-type:x mandatory;gap:10px}
+.app[data-bp="xs"] .bcol{flex:0 0 100%}
+.app[data-bp="xs"] .bcol.ign{flex:0 0 100%}
+.app[data-bp="xs"] .pager-tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.app[data-bp="xs"] .pager-tabs button{flex:none;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);font-weight:700;font-size:0.8125rem;color:var(--ink-2)}
+.app[data-bp="xs"] .pager-tabs button[aria-pressed="true"]{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd);color:var(--ink)}
+.app[data-bp="xs"] .pager-tabs .n{font-size:0.75rem;color:var(--ink-3)}
+.app[data-bp="xs"] .lopts{grid-template-columns:1fr 1fr}
+@media (max-width:767px){
+  .dlg-scrim{align-items:end;padding:0}
+  .dlg-scrim .dlg{width:100%;max-height:92dvh;border-radius:16px 16px 0 0}
+  .dlg-scrim .dlg-f{padding-bottom:max(14px,env(safe-area-inset-bottom))}
+  .dlg-scrim .lopts{grid-template-columns:1fr 1fr}
+  .pal-scrim{padding-top:8vh}
+}
+.mhr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.ck{width:14px;height:14px;display:inline-grid;place-items:center;color:var(--accent-ink);flex:none}
+.mi .ic{color:var(--ink-3)}
+.kg{font-size:0.7812rem;font-weight:800;color:var(--ink-3);margin:0 0 -6px}
+.thumb.t-col em{display:block;margin:3px 4px;background:repeating-linear-gradient(var(--line-2) 0 3px,transparent 3px 7px);opacity:.7}
+.bar-add{order:2}
+.bcards{grid-template-columns:minmax(0,1fr)}
+.mbtn .ic:last-child:not(:first-child){transform:rotate(90deg);width:12px;height:12px}
+.front-cols{display:block;column-width:290px;column-gap:32px}
+.front-cols .hl{break-inside:avoid;margin-bottom:22px}
+.dlg{max-height:min(800px,calc(100dvh - 32px))}
+.dlg.lg{width:min(720px,100%)}
+.two{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start}
+.lopts.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.lopts.four .lopt{padding:8px}
+.lopts.four small{font-size:0.75rem}
+@media (max-width:700px){.two{grid-template-columns:1fr}.lopts.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.crumbs{flex:1 1 200px}
+.side{grid-column:1;grid-row:1}
+.stage{grid-column:2;grid-row:1}
+.panel{grid-column:3;grid-row:1}
+
+.app[data-bp="xs"] .crumbs{flex:1 1 70px}
+.app[data-bp="xs"] .bar-add{order:3}
+.bcard-main,.card-main{grid-template-columns:minmax(0,1fr)}
+.seg button{padding-left:9px;padding-right:9px}
+.mbtn{padding:0 7px 0 9px;gap:5px}
+.bar-tools{gap:6px}
+.row.dim .row-main .title{text-decoration:none;color:var(--ink-3);font-weight:600}
+.bcard.dim .title{text-decoration:none;color:var(--ink-3)}
+.tbl tr.dim td.ttl .title{text-decoration:none;color:var(--ink-3)}
+.app[data-sb="drawer"] .side-foot,.app[data-sb="hidden"] .side-foot{padding-bottom:72px}
+
+.srcacts{display:flex;gap:8px;flex-wrap:wrap}
+.plink{display:inline-flex;align-items:center;gap:5px;font-weight:700;color:var(--ink-2);border-radius:6px;padding:2px 6px;margin:-2px -6px}
+.plink:hover{background:var(--hover);color:var(--ink)}
+.plink .ic{color:var(--ink-3)}
+.app[data-bp="xs"] .selbar{flex-wrap:wrap;overflow:visible}
+.app[data-bp="xs"] .racts .keep:not(.on){display:none}
+.app[data-bp="xs"] .row.has-keep .row-main{padding-right:52px}
+.app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main{padding-right:92px}
+@media (pointer:coarse){.app[data-bp="xs"] .row.has-keep .row-main{padding-right:58px}.app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main{padding-right:100px}}
+
+
+/* Phone tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);padding:4px 6px max(4px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -1px 8px hsl(var(--h) 40% 20% / .06)}
+.tab{display:grid;justify-items:center;gap:2px;padding:6px 2px 4px;border-radius:10px;color:var(--ink-3);font-size:0.7188rem;font-weight:700}
+.tab .ti{display:grid;place-items:center;width:44px;height:28px;border-radius:999px}
+.tab .ic{width:20px;height:20px}
+.tab[aria-current="page"]{color:var(--accent-ink)}
+.tab[aria-current="page"] .ti{background:var(--tint-2)}
+.app[data-bp="xs"] .main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+.app[data-bp="xs"] .bar [data-fk="tside"]{display:none}
+@media (max-width:767px){#toasts{bottom:calc(76px + env(safe-area-inset-bottom))}}
+
+/* Page heads carry the same calm sky as Home, fading into the page. */
+.pagewash{position:absolute;left:0;right:0;top:0;height:150px;background:linear-gradient(180deg,var(--sky-mid),var(--bg));opacity:.75;pointer-events:none}
+.pagewash+.col{position:relative}
+/* Source settings read as name and value. */
+.mbtn .val{color:var(--ink-3);font-weight:700;margin-left:2px}
+.mbtn .sw{position:relative;width:26px;height:15px;border-radius:99px;background:var(--line-2);margin-left:4px;flex:none;transition:background .12s}
+.mbtn .sw::after{content:"";position:absolute;left:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--surface);box-shadow:0 1px 1px rgba(0,0,0,.2);transition:transform .12s}
+.mbtn .sw.on{background:var(--accent)}
+.mbtn .sw.on::after{transform:translateX(11px)}
+.mbtn[aria-pressed="true"]:has(.sw){background:linear-gradient(var(--surface),var(--surface-2));border-color:var(--line-2)}
+.ign-show{display:flex;align-items:center;justify-content:center;gap:4px;padding:18px 12px;font-size:0.7812rem;font-weight:700;color:var(--ink-3)}
+.ign-show:hover{color:var(--ink)}
+@media (min-width:1680px){.row-t .title{font-size:0.9375rem}.row-s{font-size:0.8438rem}}
+@media (min-width:2200px){.row-t .title,.card .title{font-size:1rem}}
+/* A source page lists one source: its rows drop the repeated icon and name. */
+.in-source .row .av,.in-source .row-s .sn{display:none}
+.in-source .row-main{grid-template-columns:14px minmax(0,1fr)}
+.p-meta .nowrap{white-space:nowrap}
+@media (max-width:767px){.p-meta.dotted .nowrap{flex-basis:100%}.p-meta.dotted .nowrap::before{content:none}}
+.p-acts a.mbtn{text-decoration:none}
+/* The keep button's word shows where it can't be learned by hovering: on cards on touch screens. */
+.racts .kl{display:none}
+.card .racts .keep{width:auto;padding:0 10px 0 8px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+.card .racts .kl{display:inline}
+.card .wfrow{padding-right:120px}
+@media (hover:none){.card .wfrow{padding-right:180px}.card .racts .keep{width:auto;padding:0 10px 0 8px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}.card .racts .kl{display:inline}}
+/* The time sits with the source under the title, so the eye doesn't cross the row for it. */
+.row-main{grid-template-columns:14px var(--av-row) minmax(0,1fr)}
+.row-s .when{align-self:auto;padding-top:0;font-size:inherit}
+.row-s .sn+.when::before{content:"·";margin-right:8px;color:var(--ink-3)}
+.row.sel-row .racts,.row:not(:hover):not(:focus-within) .racts{background:none}
+.in-source .row-s .when::before{content:none}
+@media (min-width:1680px){.panel{width:var(--panel-w,clamp(560px,36vw,820px))}}
+/* Document pages (Storage, Your data, Sharing, Administration) read best at one calm width. */
+.app .col.page,.app[data-bp="xl"] .col.page{max-width:960px}
+/* Cards keep their bookmark visible; on touch screens both footer actions carry a word. */
+.card .racts .keep{opacity:1}
+@media (hover:none){.card .racts .rmore{width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}.card .racts .ml{display:inline}}
+.racts .ml,.ibtn .ml{display:none}
+@media (hover:none){.row .racts .rmore{width:auto;padding:0 8px;gap:4px;display:inline-flex;align-items:center;font-size:0.7812rem;font-weight:700}.row .racts .ml,.panel-bar .ibtn .ml{display:inline}.panel-bar .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}}
+.app[data-bp="xs"] .row.has-keep .row-main{padding-right:84px}
+.p-meta.dotted{gap:4px 0}
+.p-meta.dotted>*+*::before{content:"·";margin:0 8px;color:var(--ink-3)}
+/* A picture-less card shows its excerpt in the picture's slot: same shape as its neighbours, no void. */
+.art-text{display:flex;align-items:center;padding:16px 18px;background:var(--tint);border:0}
+.card-main .art-text{aspect-ratio:auto;min-height:0;flex:0 0 auto}
+.art-text>span{display:grid;gap:8px;max-height:100%;overflow:hidden}
+.art-text b{font-size:0.9688rem;line-height:1.3;font-weight:800;color:var(--ink);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.art-text .ax{font-size:0.8438rem;line-height:1.5;color:var(--ink-2);font-weight:500;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.card-main:has(.art-text) .excerpt,.card-main:has(.art-text)>.title{display:none}
+/* Wide lists carry a one-line excerpt and the item's picture, as reading apps do; narrow ones stay compact. */
+.list{container-type:inline-size}
+.row-t .ex,.row .thumb{display:none}
+.row .thumb{width:72px;height:48px;border-radius:8px;overflow:hidden;border:1px solid var(--line);flex:none;margin-left:12px}
+.row .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+@container (min-width:760px){
+  .list .row-main{grid-template-columns:14px var(--av-row) minmax(0,1fr) auto}
+  .in-source .list .row-main{grid-template-columns:14px minmax(0,1fr) auto}
+  .list .row-t .ex{display:block;font-size:0.8438rem;line-height:1.45;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .list .row .thumb{display:block}
+}
+/* Beside an open reader the list is narrow: titles may take two lines instead of being cut. */
+.app[data-panel="open"] .row-t .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* Storage and other document pages: one right edge. */
+/* Phone source head: logo beside the name, the summary line full width beneath. */
+@media (max-width:767px){
+  .ptitle{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:10px;row-gap:6px}
+  .ptitle>.ptitle-t{display:contents}
+  .ptitle>.av{--s:40px!important}
+  .ptitle .psub .mbtn{height:30px;padding:0 10px}
+  .ptitle .psub{grid-column:1/-1}
+}
+/* Board: an empty column shrinks to a narrow rail (still a drop target), so full columns get the room. */
+
+/* Laptops: the reader docks beside the list at a compact width. */
+@media (max-width:1439px){.app[data-bp="lg"] .panel{width:clamp(420px,36vw,520px)!important}}
+/* Search: the list fades at its bottom edge when more results follow below. */
+.pal-list{-webkit-mask-image:linear-gradient(#000 calc(100% - 28px),transparent);mask-image:linear-gradient(#000 calc(100% - 28px),transparent);padding-bottom:22px}
+/* Home boxes carry the one-line excerpt when they are wide enough, like lists. */
+.mod{container-type:inline-size}
+@container (min-width:760px){.mod .row-t .ex{display:block;font-size:0.8438rem;line-height:1.45;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.row-s .when{color:var(--ink-2)}
+@media (hover:none){.mod-h .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}.mod-h .ibtn .ml{display:inline}}
+/* The reader's ⋯ says More at every size; the toolbar's does on touch screens. */
+.panel-bar .ibtn .ml{display:inline}
+.panel-bar .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+@media (hover:none){.bar-tools .ibtn .ml{display:inline}.bar-tools .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}}
+.bar-tools .ibtn .ml{display:none}
+@media (hover:none){.bar-tools .ibtn .ml{display:inline}}
+/* Text cards: the title and excerpt start at the top of their panel. */
+.art-text{align-items:flex-start}
+/* Search: a stronger cue that more results follow. */
+.pal-list{-webkit-mask-image:linear-gradient(#000 calc(100% - 48px),transparent);mask-image:linear-gradient(#000 calc(100% - 48px),transparent);padding-bottom:40px}
+/* Wide screens: secondary text a step larger and darker, excerpts at a readable measure. */
+@media (min-width:2200px){.row-s{font-size:0.875rem;color:var(--ink-2)}.row-t .ex{font-size:0.9062rem!important;max-width:120ch}}
+.cnt .u{font-weight:700;color:var(--ink-3)}
+/* Cards always show their ⋯, so Keep sits at a fixed place in the footer. */
+.card .racts .rmore{opacity:1!important}
+/* Every board column header reads the same, collapsed or not. */
+.bcol-h,.bcol.ign .bcol-h{font-size:0.9375rem;font-weight:800;color:var(--ink)}
+.bcol.is-empty{min-height:108px}
+@container (min-width:600px){.mod .row-t .ex{display:block;font-size:0.8438rem;line-height:1.45;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@container (min-width:1200px){.list .row-t .ex{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-width:120ch}}
+.card .meta{margin-top:auto}
+/* Phone row menus: present but quiet. */
+@media (hover:none){.row .racts .rmore{color:var(--ink-3);font-weight:600;font-size:0.8125rem}}
+/* Sidebar counts: the unit is smaller and closer, so names keep their room. */
+.cnt .u{font-size:0.6562rem;font-weight:700;margin-left:1px}
+/* Search: a visible scrollbar says more results follow. */
+.pal-list{scrollbar-gutter:stable;overflow-y:scroll}
+.pagewash{overflow:hidden}
+.pagewash svg.quilt{position:absolute;inset:0;width:100%;height:100%;opacity:calc(var(--quilt-o)*.6);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
+/* Picture-less cards with a longer excerpt use more of the card instead of leaving it blank. */
+.art-text .ax{-webkit-line-clamp:8}
+/* Round 9 */
+/* Cards take their own height, so a short card has no blank band. */
+.grid{align-items:start}
+/* List pages: one comfortable column on large screens; excerpts at a readable measure. */
+.app[data-bp="xl"] .col.narrow{max-width:1120px}
+.row-t .ex{max-width:90ch}
+/* Board: five equal columns. */
+.bcol,.bcol.is-empty,.bcol.ign{flex:1 1 0;min-width:200px}
+/* Phone rows: the ⋯ alone, with a full-size target; headers and the reader keep the word. */
+@media (hover:none){.row .racts .ml{display:none!important}.row .racts .rmore{width:44px!important;padding:0!important;justify-content:center}.app[data-bp="xs"] .row.has-keep .row-main{padding-right:56px}}
+/* Sidebar: a little more room for source names on large screens. */
+@media (min-width:1440px){.app[data-sb="full"]{--sbw:300px}}
+.srcs{margin-left:12px}
+/* Dialogs: the body's foot matches its head; while more lies below, it fades at its bottom edge. */
+.dlg-b{padding-bottom:24px}
+.dlg-b.more{-webkit-mask-image:linear-gradient(#000 calc(100% - 36px),transparent);mask-image:linear-gradient(#000 calc(100% - 36px),transparent)}
+/* The reader's header carries the same soft sky as the page heads. */
+.panel-bar{background:linear-gradient(180deg,var(--sky-mid),var(--surface))}
+/* Round 10 */
+/* Card rows share a height; a picture-less card's tint grows to fill it, its text held to 5 lines. */
+.grid{align-items:stretch}
+.card-main .art-text{flex:1 1 auto}
+.art-text .ax{-webkit-line-clamp:5}
+.card .wfrow{min-height:40px;align-items:center}
+.card .racts{bottom:13px}
+/* Sidebar wide enough for long source names from laptop size. */
+@media (min-width:1280px){.app[data-sb="full"]{--sbw:300px}}
+/* The reader: balanced titles; Open original is the primary step when only a summary was saved. */
+.p-title{text-wrap:balance}
+.p-acts .mbtn.go{background:linear-gradient(var(--accent-top),var(--accent-bot));color:var(--on-accent);border-color:var(--accent-bd)}
+.p-acts .mbtn.go .ic{color:var(--on-accent)}
+/* Wide Home: a step larger rows. */
+@media (min-width:2200px){.mod .row-main{padding-top:12px;padding-bottom:12px}}
+/* Document pages: key-value rows at a readable width. */
+.fx-facts,.fx-legend{max-width:680px}
+.bcol-empty{padding:14px 6px;margin:0;color:var(--ink-3);font-weight:600;font-size:0.8125rem;text-align:center}
+@media (pointer:coarse){.card .racts{bottom:8px}}
+/* A picture-less card's excerpt fills its tint and fades out, rather than stopping at a fixed line count. */
+.art-text .ax{-webkit-line-clamp:unset;display:block;overflow:hidden}
+.art-text>span{display:flex;flex-direction:column;gap:8px;height:100%;-webkit-mask-image:linear-gradient(#000 calc(100% - 32px),transparent);mask-image:linear-gradient(#000 calc(100% - 32px),transparent)}
+.art-text{align-items:stretch}
+.card-main:not(:has(.art)) .art-text,.card-main .art-text{max-height:none}
+/* Round 11 */
+.mod .row-t .ex{max-width:90ch}
+/* Overflow menus in headers and toolbars say what they are at every size. */
+.mod-h .ibtn .ml,.bar-tools .ibtn .ml{display:inline!important}
+.mod-h .ibtn:has(.ml),.bar-tools .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700;color:var(--ink-2)}
+/* Phone reader: the basket name alone, so the three actions share one row. */
+@media (max-width:420px){.p-acts{gap:6px}.p-acts .mbtn{padding:0 9px;gap:4px}}
+/* Round 12 */
+/* Very wide screens: the sidebar grows with its larger text, so source names fit. */
+@media (min-width:2200px){.app[data-bp="xl"][data-sb="full"]{--sbw:336px}}
+/* List column: text plus picture, nothing more. */
+.app[data-bp="xl"] .col.narrow{max-width:1060px}
+/* Storage: the bar shares its rows' width. */
+.fx-bar{max-width:680px}
+/* Board: the Ignored column's empty text sits where the others' does. */
+.bcol-empty{padding:14px 6px;margin:6px 0 0}
+/* One card treatment: picture-less cards are white like the rest, the title leading and more of the excerpt below it. */
+.art-text{background:none;padding:6px 6px 0}
+.art-text .ax{color:var(--ink-2)}
+.art-text>span{-webkit-mask-image:none;mask-image:none}
+.art-text .ax{display:-webkit-box;-webkit-line-clamp:9;-webkit-box-orient:vertical;overflow:hidden}
+/* One tag style: state and basket both read as small pills. */
+.kept{height:18px;padding:0 7px 0 6px;border-radius:999px;border:1px solid var(--tint-bd);background:var(--tint);font-size:0.7188rem}
+/* Phone reader: the primary step comes first. */
+@media (max-width:767px){.p-acts .mbtn.go{order:-1}}
+.card .len{display:inline-flex;align-items:center;gap:4px}
+.card .len .ic{width:12px;height:12px;color:var(--ink-3)}
+.pal-list{padding-bottom:56px}
+/* Round 13 */
+/* The sidebar toggle and the bell stay at the window's edges; the breadcrumbs and toolbar line up with the page's content column (measured by the header). */
+.bar.al .crumbs{margin-left:var(--crumb-l,0px)}
+/* Rows without a picture let their text run the full row. */
+/* Cards: shorter pictures, so rows are shorter and text cards fill them. */
+.card .art:not(.art-text){aspect-ratio:2/1}
+/* Card ⋯ says More at every size. */
+.card .racts .rmore{width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+.card .racts .ml{display:inline}
+.card .wfrow{padding-right:190px}
+/* Document pages at the width of their contents. */
+.app .col.page,.app[data-bp="xl"] .col.page{max-width:780px}
+.fx-facts,.fx-legend,.fx-bar{max-width:none}
+/* Round 14 */
+/* Tablets: the full-screen reader gets the same Back control as phones. */
+.app[data-bp="sm"] .back{display:inline-grid}
+/* Open original leads the action row whenever it is the primary step, at every size. */
+.p-acts .mbtn.go{order:-1}
+/* Excerpts in rows hold a readable measure even without a picture. */
+/* Very wide screens: a slightly wider list with type a step up. */
+@media (min-width:2200px){.app[data-bp="xl"] .col.narrow{max-width:1240px}}
+/* Phone reader: the primary step full width, State and basket side by side below it. */
+@container reader (max-width:560px){.p-acts .mbtn.go{flex:1 1 100%;justify-content:center}}
+/* A one-source Home box names its source in the header. */
+.mod-t .one{font-size:0.8125rem;font-weight:700;color:var(--ink-3);margin-left:6px}
+/* Round 15 */
+/* Search: tall enough for every result it shows. */
+.pal{max-height:min(760px,calc(100dvh - 12vh - 48px))}
+/* Picture-less cards: five lines of excerpt, the source line pinned to the bottom. */
+.art-text .ax{-webkit-line-clamp:5}
+/* Tablet reader: Back is the one way out. */
+.app[data-bp="sm"] .panel-bar [data-fk="close"]{display:none}
+/* Round 16 */
+/* Cards: rows share a top edge (so "Newest" reads left to right) and each card keeps its own height; excerpts stay short so rows stay even. */
+.grid{align-items:start}
+.card-main{height:auto}
+.art-text .ax{-webkit-line-clamp:5}
+/* Phone reader: State and basket share their row equally, label and value spaced alike. */
+.p-acts .kept-on .k{margin-left:0}
+@container reader (max-width:560px){.p-acts .mbtn{flex:1 1 auto;justify-content:center;min-width:0;max-width:100%}.p-acts .mbtn .k:last-of-type{overflow:hidden;text-overflow:ellipsis}}
+/* Settings: one "selected" look. The accent choice reads like the Theme and Density switches, a white pill with a check. */
+.swatches{display:inline-flex;justify-self:start;gap:2px;padding:2px;border-radius:9px;background:var(--hover);border:1px solid var(--line);box-shadow:inset 0 1px 2px rgba(0,0,0,.05)}
+.sw-opt{height:30px;padding:0 12px 0 8px;gap:7px;border:0;border-radius:7px;background:none;font-size:0.8125rem;color:var(--ink-2)}
+.sw-opt:hover{color:var(--ink)}
+.sw-opt:has(input:checked){background:linear-gradient(var(--surface),var(--surface-2));color:var(--ink);border-color:transparent;box-shadow:inset 0 1px 0 var(--hi),0 0 0 1px var(--line-2),var(--shadow)}
+.sw-opt .c{display:grid;place-items:center;width:16px;height:16px}
+.sw-opt:has(input:checked) .c::after{content:"";width:7px;height:4px;margin-top:-2px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg)}
+/* Storage: the percentages share one right-aligned column. */
+.fx-legend dd span{min-width:0;width:5.4em;flex:none}
+/* Picture-less cards read as a lede, a step larger excerpt; pictures a little shorter. */
+.card .art:not(.art-text){aspect-ratio:12/5}
+.card-main .art-text .ax{font-size:0.9062rem;line-height:1.55;color:var(--ink-2)}
+/* Placeholders read as hints, never as typed values. */
+.in::placeholder{color:var(--ink-3);opacity:.75;font-style:italic}
+/* Reader bar: once the title scrolls away it shows beside the source's avatar. */
+.panel-bar.titled .src{flex:none}
+.panel-bar.titled .src .nm{display:none}
+.panel-bar .pt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;font-size:0.875rem}
+/* The docked sidebar's collapse button sits in its header, beside the app name. */
+.brand .side-collapse{margin-left:auto;margin-right:-6px;color:var(--ink-3)}
+.brand .side-collapse:hover{color:var(--ink)}
+/* Source page: one quiet line says what its two settings do. */
+.srcacts-hint{margin:6px 0 0;font-size:0.7812rem;font-weight:500;color:var(--ink-3)}
+/* Selected segments carry the accent, so the choice reads at a glance. */
+.seg button[aria-pressed="true"],.sw-opt:has(input:checked){color:var(--accent-ink);box-shadow:inset 0 1px 0 var(--hi),0 0 0 1px var(--accent-line),var(--shadow)}
+/* A narrow list beside the docked reader: the toolbar drops its "View"/"Show" prefixes to stay on one line. */
+/* Rows: Keep and More are always there, quiet until pointed at, at every size. */
+.racts .keep,.racts .rmore{opacity:1}
+.app[data-bp="xs"] .racts .keep:not(.on){display:grid}
+.app[data-bp="xs"] .row.has-keep .row-main,.app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main{padding-right:96px}
+/* Selected segments: a light accent fill as well as accent text. */
+.seg button[aria-pressed="true"],.sw-opt:has(input:checked){background:var(--tint)}
+/* Storage and other document pages: wider on large screens so their two-card rows breathe. */
+.app[data-bp="xl"] .col.page{max-width:960px}
+/* Very wide lists: excerpts and metadata a step up with the titles. */
+@media (min-width:2200px){.list .row-t .ex{font-size:0.9062rem}.row-s{font-size:0.875rem}}
+/* List rows: one text width for every row, the picture right after it (its column is kept even when a row has none). */
+@container (min-width:760px){
+  .list .row-main{grid-template-columns:14px var(--av-row) minmax(0,1fr) 84px}
+  .in-source .list .row-main{grid-template-columns:14px minmax(0,1fr) 84px}
+  .list .row-t .ex{max-width:none}
+}
+
+/* The reader is a size container, so a narrow docked reader lays out its actions like a phone. */
+.panel{container:reader/inline-size}
+/* Dialog bodies: an empty slot (a live region with no results yet) leaves the flow, so head and foot padding match. */
+.dlg-b>div:empty{position:absolute}
+.dlg-b{padding-top:20px;padding-bottom:20px}
+/* Search: a quiet footer says how many results there are and that all of them are in the list. */
+.pal-foot{flex:none;display:flex;justify-content:space-between;gap:12px;white-space:nowrap;padding:8px 14px;border-top:1px solid var(--line);font-size:0.7812rem;font-weight:600;color:var(--ink-3);background:var(--surface-2)}
+@media (pointer:coarse){.pal-foot .keys{display:none}}
+/* One wording for the view and filter controls at every size: the icon and value say it. */
+.bar-tools .mbtn .k{display:none}
+/* Home box headers name their sources beside the avatars. */
+.mod-t .one{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:100}
+/* Very wide lists: titles a step up as well. */
+/* Phone reader scrolled: the title takes the avatar's place. */
+.app[data-bp="xs"] .panel-bar.titled .src{display:none}
+
+/* Cards: the reading time sits in the source line; the footer holds state and actions. */
+.card .meta .len{margin-left:auto}
+.card .wfrow time{color:var(--ink-3);font-weight:600;white-space:nowrap}
+/* Document pages share the left edge of the other pages' column. */
+.app .col.page{margin-left:max(0px,calc((100% - var(--wcol)) / 2));margin-right:auto}
+/* Each row carries its source's colour as a thin stripe at its left edge: a quiet signature that groups items by source at a glance. */
+.list .row,.mod .row{position:relative}
+.list .row::before,.mod .row::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:hsl(var(--sh,210) 55% 62% / .55);pointer-events:none}
+[data-theme="dark"] .list .row::before,[data-theme="dark"] .mod .row::before{background:hsl(var(--sh,210) 50% 58% / .5)}
+/* Phone Home boxes: the collection name stays whole; the avatars stand for the sources. */
+.app[data-bp="xs"] .mod-t .one{display:none}
+/* Cards: four lines of excerpt keep text cards short enough to scan. */
+.art-text .ax{-webkit-line-clamp:4}
+/* One column for Home and every view of a collection, source or basket: the toolbar, list, cards and Home boxes share both edges.
+   Its width ends where a list row's text, picture and actions end. Document pages keep their own width on the same left edge. */
+.app{--wcol:1256px}
+@media (min-width:2200px){.app{--wcol:1416px}}
+.app .col:not(.narrow):not(.page),.app[data-bp="xl"] .col:not(.narrow):not(.page){max-width:var(--wcol)}
+.card .wfrow{overflow:hidden;white-space:nowrap}
+/* Cards: each row's cards share one height, the source line and footer pinned to the bottom, so a row reads as one line of footers. */
+.grid{align-items:stretch}
+.card-main{height:100%}
+/* Very wide lists: the whole row a step larger. */
+@media (min-width:2200px){.list .row-t .title{font-size:1.125rem}.list .row-t .ex{font-size:0.9688rem}.list .row-s{font-size:0.9062rem}}
+/* List rows (tablet and up): Keep and More carry their words, as in Cards. */
+.app:not([data-bp="xs"]) .list .row .racts .keep,.app:not([data-bp="xs"]) .list .row .racts .rmore{width:auto;padding:0 10px 0 8px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+.app:not([data-bp="xs"]) .list .row .racts .kl,.app:not([data-bp="xs"]) .list .row .racts .ml{display:inline!important}
+.app:not([data-bp="xs"]) .list .row.has-keep .row-main{padding-right:170px}
+@media (pointer:coarse){.app:not([data-bp="xs"]) .list .row.has-keep .row-main{padding-right:180px}}
+/* Phone source page: the Manage note sits right under Manage. */
+.app[data-bp="xs"] .srcacts-hint{margin-top:-12px}
+/* Rail: a collection tile shows its first source's icon. */
+.rtile.src{background:none;border:0;padding:0;display:grid;place-items:center}
+/* Phone rows: Keep above More in a narrow column, so titles keep the width. */
+.app[data-bp="xs"] .row .racts{flex-direction:column;gap:0}
+.app[data-bp="xs"] .row .racts .keep,.app[data-bp="xs"] .row .racts .rmore{height:36px;width:40px}
+.app[data-bp="xs"] .row.has-keep .row-main,.app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main{padding-right:52px}
+/* Home boxes carry their one-line excerpt from 520px wide; on very wide screens their rows step up like lists. */
+@container (min-width:520px){.mod .row-t .ex{display:block;font-size:0.8438rem;line-height:1.45;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media (min-width:2200px){.mod .row-t .title{font-size:1.0625rem}.mod .row-t .ex{font-size:0.9375rem}.mod .row-s{font-size:0.875rem}}
+/* Storage: its notes at a readable size and contrast. */
+.col.page .fine{font-size:0.875rem;line-height:1.5;color:var(--ink-2)}
+/* Home rows: long headlines wrap to a second line before they are cut. */
+.mod .row-t .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* A single-column Home box is as wide as a list, so its rows word Keep and More the same way. */
+@container (min-width:760px){
+  .mod .row .racts .keep,.mod .row .racts .rmore{width:auto;padding:0 10px 0 8px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+  .mod .row .racts .kl,.mod .row .racts .ml{display:inline!important}
+  .mod .row.has-keep .row-main{padding-right:170px}
+}
+/* Picture-less cards: the excerpt takes the height its row leaves (never under four lines), in whole lines. */
+.card-main .art-text{flex:1 1 auto}
+.card-main .art-text>span{display:flex;flex-direction:column;gap:8px;height:100%}
+.card-main .art-text .ax{flex:none;min-height:6.2em}
+/* Reader back control (phone and tablet): the word as well as the chevron. */
+.panel-bar .back{width:auto;padding:0 10px 0 6px;gap:4px;align-items:center;font-weight:700;font-size:0.875rem;color:var(--ink-2)}
+.app[data-bp="xs"] .panel-bar .back,.app[data-bp="sm"] .panel-bar .back{display:inline-flex}
+/* Board lanes reach at least the bottom of the screen, empty ones included. */
+.app:not([data-bp="xs"]) .bcol{min-height:calc(100dvh - 200px)}
+/* Document pages share the column width of Home and lists. */
+.app .col.page,.app[data-bp="xl"] .col.page{max-width:var(--wcol)}
+/* Rail: a collection tile carries a small stacked-cards badge, so it never reads as a single source. */
+.rbtn[data-collection]{position:relative}
+.rbtn[data-collection] .rtile.src::after{content:"";position:absolute;right:4px;bottom:4px;width:9px;height:7px;border-radius:2px;background:var(--surface);border:1.5px solid var(--ink-3);box-shadow:-2px -2px 0 -0.5px var(--surface),-2px -2px 0 1px var(--ink-3)}
+/* Phone rows: Keep and More form one centred group. */
+.app[data-bp="xs"] .row .racts{gap:2px}
+.app[data-bp="xs"] .row .racts .keep,.app[data-bp="xs"] .row .racts .rmore{height:32px}
+/* Settings: one selected treatment — the accent pill — for tabs, segments and swatches alike. */
+.dlg .seg button[aria-pressed="true"],.dlg .sw-opt:has(input:checked){background:var(--tint);color:var(--accent-ink);box-shadow:inset 0 0 0 1px var(--accent-line)}
+/* Tablet cards: shorter pictures and a larger lede in text-only cards, so mixed rows have no empty wells. */
+.app[data-bp="sm"] .card .art:not(.art-text){aspect-ratio:3/1}
+.app[data-bp="sm"] .card-main .art-text .ax{font-size:0.9688rem;line-height:1.6}
+/* Cards: one source line — source, age, reading time; the footer holds only the state tag and actions. */
+.card .meta time{margin-left:0;color:var(--ink-3);font-weight:600}
+.card .meta time::before{content:"·";margin-right:8px;color:var(--ink-3)}
+/* Phone rows: Keep and More drawn compact (28px each), the tap area kept by the row's own padding. */
+.app[data-bp="xs"] .row .racts .keep,.app[data-bp="xs"] .row .racts .rmore{height:26px;width:40px}
+/* Home boxes word Keep and More from 520px wide, the same as lists. */
+@container (min-width:520px){
+  .mod .row .racts .keep,.mod .row .racts .rmore{width:auto;padding:0 8px 0 6px;gap:4px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700}
+  .mod .row .racts .kl,.mod .row .racts .ml{display:inline!important}
+  .mod .row.has-keep .row-main{padding-right:156px}
+}
+/* Phone source page: the header wraps tighter so the list starts higher. */
+.app[data-bp="xs"] .srchead .psub,.app[data-bp="xs"] .phead .psub{row-gap:4px}
+/* Scrolled reader bar: compact State and Keep beside the title. */
+.pb-acts{display:inline-flex;gap:6px;flex:none}
+.pb-acts .mbtn{height:30px;padding:0 9px;font-size:0.8125rem}
+.app[data-bp="xs"] .pb-acts .mbtn:not(.kept-on) .pb-kl{display:none}
+/* Phone rows: titles get three lines before they are cut. */
+.app[data-bp="xs"] .row-t .title{-webkit-line-clamp:3}
+/* More (⋯) drawn in the same quiet grey as the bookmark. */
+.racts .rmore .ic{color:var(--ink-3);opacity:.85}
+.pb-acts .mbtn .ic:last-child{transform:rotate(90deg);width:12px;height:12px}
+/* Phone, scrolled: More shows as its icon so the title keeps room. */
+.app[data-bp="xs"] .panel-bar.titled .ibtn .ml{display:none!important}
+.app[data-bp="xs"] .panel-bar.titled .ibtn:has(.ml){padding:0 8px}
+.app[data-bp="xs"] .panel-bar.titled .back .bl{display:none}
+/* Storage cards: label and value stay within reading distance. */
+.col.page .fx-legend,.col.page .fx-facts,.col.page .fx-bar,.col.page .fx-cap,.col.page .fx-big{max-width:760px}
+/* Row actions sit in the timestamp's grey until the row is pointed at or focused; Kept keeps its accent. */
+.list .racts .keep:not(.on),.list .racts .rmore,.mod .racts .keep:not(.on),.mod .racts .rmore{color:var(--ink-3)}
+.list .row:hover .racts .keep:not(.on),.list .row:hover .racts .rmore,.list .row:focus-within .racts .keep:not(.on),.list .row:focus-within .racts .rmore,.mod .row:hover .racts .keep:not(.on),.mod .row:hover .racts .rmore{color:var(--ink-2)}
+/* "Kept in Fieldwork" on cards; rows show the basket as a tag instead. */
+.racts .kb{display:none}
+.card .racts .keep.on .kb{display:inline;margin-left:3px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Board: lanes with cards take the room; empty lanes stay narrow. */
+.app:not([data-bp="xs"]) .bcol{flex:3 1 0;min-width:240px}
+.app:not([data-bp="xs"]) .bcol.is-empty{flex:1.15 1 0;min-width:190px}
+/* Phone reader, scrolled: the bar keeps Keep; State stays with the actions below the title. */
+.app[data-bp="xs"] .pb-acts .st{display:none}
+/* Tablet reader (full screen): the phone's stacked actions. */
+.app[data-bp="sm"] .p-acts .mbtn.go{flex:1 1 100%;justify-content:center}
+.app[data-bp="sm"] .p-acts .mbtn{flex:1 1 auto;justify-content:center;min-width:0;max-width:100%}
+.bcol-h{white-space:nowrap}
+.bcol-h>*:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* Toolbar More: a bordered button like its neighbours. */
+.bar-tools .ibtn:has(.ml){height:30px;border:1px solid var(--line-2);border-radius:8px;background:linear-gradient(var(--surface),var(--surface-2));box-shadow:inset 0 1px 0 var(--hi),var(--shadow);color:var(--ink)}
+.app[data-bp="xs"] .bar-tools .ibtn:has(.ml){height:38px}
+/* Lists from 900px wide: excerpts wrap to two lines instead of one long line. */
+@container (min-width:900px){.list .row-t .ex{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}
+/* Search: the list fades well clear of the footer, so no result is cut through its letters. */
+.pal-list{-webkit-mask-image:linear-gradient(#000 calc(100% - 72px),transparent);mask-image:linear-gradient(#000 calc(100% - 72px),transparent);padding-bottom:64px}
+/* Board: empty lanes shrink to a narrow column; lanes with cards share the rest. */
+.app:not([data-bp="xs"]) .bcol.is-empty{flex:0 0 172px;min-width:172px}
+/* Rail: a collection tile carries its name underneath. */
+.rbtn[data-collection]{height:auto;width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px}
+.rail .rname{font-size:0.625rem;font-weight:700;line-height:1.1;color:var(--ink-3);max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rbtn[data-collection].sel .rname{color:var(--accent-ink)}
+/* Storage: usage and "Make room" side by side from 1100px. */
+.fx-pair{display:grid;gap:16px}
+@media (min-width:1100px){.fx-pair{grid-template-columns:1fr 1fr;align-items:start}}
+.fx-pair .fx-legend,.fx-pair .fx-facts,.fx-pair .fx-bar{max-width:none}
+/* Search: a visible scrollbar whenever results continue. */
+.pal-list::-webkit-scrollbar{width:8px}.pal-list::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+.pal-list{scrollbar-color:var(--line-2) transparent}
+/* Inside a basket every row is kept, so Kept is drawn in the quiet row grey. */
+.rbtn[data-collection] .rtile.src{position:relative}
+.rbtn[data-collection] .rtile.src::after{right:-3px;bottom:-2px}
+.rail .rname{max-width:60px;font-size:0.5938rem;letter-spacing:-.01em}
+/* Board: lanes with cards share the width by how much they hold; empty lanes are compact. */
+.app:not([data-bp="xs"]) .bcol:not(.is-empty){flex:var(--lane,1) 1 0;min-width:260px}
+.app:not([data-bp="xs"]) .bcol.is-empty{flex:0 0 132px;min-width:132px}
+.bcol.is-empty .bcol-h{font-size:0.8125rem;padding:0 8px 0 10px}
+/* Scrolled phone reader: More bordered like Keep beside it. */
+.app[data-bp="xs"] .panel-bar.titled .ibtn:has(.ml){height:30px;border:1px solid var(--line-2);border-radius:8px;background:linear-gradient(var(--surface),var(--surface-2))}
+/* Phone toolbar: More shows as its icon, so every control fits the width. */
+.app[data-bp="xs"] .bar-tools .ibtn .ml{display:none!important}
+.app[data-bp="xs"] .bar-tools .ibtn:has(.ml){width:40px;padding:0;justify-content:center}
+/* Row and card actions: icons only (download for media, To read, Ignore, More), named by a tip on hover.
+   Quiet until pointed at; always shown. Keep lives in the reader and in More. */
+.racts.qa{gap:2px}
+.racts .rq,.tbl .rq{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--ink-3)}
+.racts .rq .ic,.tbl .rq .ic{width:19px;height:19px}
+.racts .rq:hover,.tbl .rq:hover,.racts .rq:focus-visible{background:var(--hover);color:var(--ink)}
+.racts .rq.on,.tbl .rq.on{color:var(--accent-ink)}
+/* Download: an empty ring around a cross while it waits its turn; a ring fills around the arrow while the file comes in;
+   a filled check once it's on the device; a warning when it didn't finish. Ring and icon share the button's centre. */
+.rq.sv{position:relative}
+.rq.sv.busy,.rq.sv.queued{color:var(--accent-ink)}
+.rq.sv.busy .ic,.rq.sv.queued .ic{width:15px;height:15px}
+.rq.sv .dl-ring{position:absolute;inset:0;margin:auto;width:28px;height:28px}
+.rq.sv.done .dl-badge{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent)}
+.rq.sv.done .dl-badge .ic{width:15px;height:15px;stroke-width:2.6}
+.rq.sv.failed{color:var(--danger)}
+.racts .rq[aria-disabled="true"],.tbl .rq[aria-disabled="true"]{cursor:default}
+.racts .rq[aria-disabled="true"]:hover,.tbl .rq[aria-disabled="true"]:hover{background:none}
+.tbl .rq{width:32px;height:32px;opacity:0}
+.tbl tr:hover .rq,.tbl tr:focus-within .rq,.tbl .rq.on,.tbl .rq.sv:not(.none){opacity:1}
+@media (hover:none){.tbl .rq{opacity:1}}
+.tacts{display:flex;align-items:center;gap:2px;justify-content:flex-end}
+@media (pointer:coarse){.racts .rq{width:40px;height:40px}}
+[data-display="eink"] .racts .rq,[data-display="eink"] .tbl .rq{opacity:1!important;width:40px;height:40px}
+/* Text leaves room for the actions: --na slots of 38px (42px on touch screens). */
+.row.has-acts .row-main{padding-right:calc(var(--na) * 38px + 12px)}
+@media (pointer:coarse){.row.has-acts .row-main{padding-right:calc(var(--na) * 42px + 12px)}}
+[data-display="eink"] .row.has-acts .row-main{padding-right:calc(var(--na) * 42px + 12px)}
+.card .wfrow{padding-right:calc(var(--na) * 38px + 16px)}
+@media (pointer:coarse){.card .wfrow{padding-right:calc(var(--na) * 42px + 16px)}}
+/* Phone rows: the icons two high, in --nc narrow columns, so titles keep the width. */
+.app[data-bp="xs"] .row .racts.qa{display:grid;grid-template-rows:auto auto;grid-auto-flow:column;gap:0 2px}
+.app[data-bp="xs"] .row .racts.qa .rq{width:40px;height:30px}
+/* Taller rows space the two icons apart: the room beyond 60px shared above, between and below them, up to 14px between. */
+.app[data-bp="xs"] .row .racts.qa{top:0;bottom:0;transform:none;width:calc(var(--nc) * 42px - 2px);container-type:size;align-content:center}
+.app[data-bp="xs"] .row .racts.qa .rq{--qg:clamp(0px, (100cqh - 60px) / 3, 14px)}
+.app[data-bp="xs"] .row .racts.qa .rq:nth-child(odd){margin-bottom:calc(var(--qg) / 2)}
+.app[data-bp="xs"] .row .racts.qa .rq:nth-child(even){margin-top:calc(var(--qg) / 2)}
+/* The last icon alone in its column (More, when there is no download) sits between the two rows. */
+.app[data-bp="xs"] .row .racts.qa .rq:last-child:nth-child(odd){grid-row:1 / span 2;align-self:center;margin:0}
+.app[data-bp="xs"] .row.has-acts .row-main{padding-right:calc(var(--nc) * 42px + 12px)}
+/* Touch screens: each action also takes the taps on the space around it, unchanged to look at. Neighbours split the
+   gap between them; in a row the outer ones reach the row's top, bottom and right edges (the row clips the rest),
+   in a card the pill's surrounding padding, in the table the cell's height. */
+@media (pointer:coarse){
+  .row:has(> .racts){overflow:clip}
+  .racts>button,.tbl .rq{position:relative}
+  .racts>button::after,.tbl .rq::after{content:"";position:absolute;inset:-60px -1px}
+  .row .racts>button:first-child::after{left:-6px}
+  .row .racts>button:last-child::after{right:-8px}
+  .app[data-bp="xs"] .row .racts.qa .rq:nth-child(odd)::after{bottom:calc(var(--qg) / -2)}
+  .app[data-bp="xs"] .row .racts.qa .rq:nth-child(even)::after{top:calc(var(--qg) / -2)}
+  .app[data-bp="xs"] .row .racts.qa .rq:last-child::after{bottom:-60px}
+  .app[data-bp="xs"] .row .racts.qa .rq:nth-last-child(2):nth-child(odd)::after{right:-8px}
+  .app[data-bp="xs"] .row .racts.qa .rq:nth-child(-n+2)::after{left:-6px}
+  .card .racts>button::after{inset:-8px -1px -9px}
+  .card .racts>button:first-child::after{left:-8px}
+  .card .racts>button:last-child::after{right:-9px}
+  .tbl .rq::after{inset:calc((100% - var(--row-h)) / 2) -1px}
+}
+
+/* What a basket's lists say about the kept copy and the person's note. */
+.copy{display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:700;color:var(--ink-2);white-space:nowrap}
+.copy .ic{width:12px;height:12px;flex:none}
+.copy-text .ic{color:var(--ok)}
+.copy-partial .ic,.copy-failed .ic{color:var(--danger)}
+.copy-failed,.copy-partial{color:var(--ink)}
+.note-line{display:flex;align-items:flex-start;gap:6px;min-width:0;margin-top:2px;font-size:0.8125rem;font-weight:600;color:var(--ink-2)}
+.note-line .ic{width:12px;height:12px;flex:none;margin-top:3px;color:var(--ink-3)}
+.note-line>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snip-note{font-weight:800;color:var(--ink-2)}

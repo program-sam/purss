@@ -1,0 +1,367 @@
+/* Additions to the A3 prototype CSS for the parts a real app needs: sign-in, loading, notices,
+   notifications, article text and a few states the prototype only sketched. Same tokens, same feel. */
+
+/* Sign-in, setup, invitation */
+.auth-page{min-height:100dvh;display:grid;place-items:center;padding:24px 16px;background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-mid) 42%,var(--sky-bot) 100%)}
+.auth-card{width:min(28.75rem,100%);background:var(--surface);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow-pop);overflow:hidden}
+.auth-card .dlg-h{padding:16px 20px}
+.auth-card .brand{padding:0;gap:12px}
+.auth-title{font-size:1.1875rem;font-weight:800;letter-spacing:-.01em}
+.auth-card .dlg-b{padding:20px;gap:16px}
+/* Large text: the card grows with the text, and what is in it wraps instead of running past the edge. */
+.auth-card .dlg-b,.auth-card .dlg-b>*{min-width:0}
+.auth-card .btn{height:auto;min-height:32px;padding-block:8px;white-space:normal;text-align:center;line-height:1.25}
+@media (pointer:coarse){.auth-card .btn{min-height:40px}}
+.auth-card .hint{font-size:0.875rem;color:var(--ink-2);font-weight:600;line-height:1.5}
+.codes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:12px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2)}
+.codes li{display:flex}
+.codes code{font:700 0.875rem/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;padding:6px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line);width:100%;user-select:all}
+.splash{min-height:100dvh;display:grid;place-items:center;gap:12px;padding:24px;color:var(--ink-2);font-weight:700;grid-auto-flow:column;justify-content:center;align-content:center}
+.splash .spin{margin-right:2px}
+
+/* Loading, notices, quiet cards */
+.skel{border-radius:8px;background:linear-gradient(90deg,var(--line) 0%,var(--surface-2) 50%,var(--line) 100%);background-size:200% 100%}
+@media (prefers-reduced-motion:no-preference){.skel{animation:skel 1.4s ease-in-out infinite}@keyframes skel{from{background-position:200% 0}to{background-position:-200% 0}}}
+.notice{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;margin:0 0 14px;border-radius:10px;font-weight:600;background:var(--tint);border:1px solid var(--tint-bd);color:var(--ink)}
+.notice .ic{margin-top:2px;color:var(--accent-ink)}
+.home-body .notice{margin-top:2px}
+.phead .notice{margin:0}
+.reminder{display:flex;align-items:flex-start;gap:12px;padding:11px 14px;margin:0 0 16px;border-radius:12px;background:var(--surface);border:1px solid var(--mod-bd);box-shadow:var(--shadow);font-weight:600;color:var(--ink)}
+.reminder>.ic{margin-top:3px;color:var(--ink-3)}
+.reminder .tx{flex:1;min-width:0;display:grid;gap:2px}
+.reminder .tx p{margin:0}
+.reminder .acts{display:flex;gap:6px;flex-wrap:wrap}
+.reminder .btn{height:28px;font-size:0.8125rem}
+.tl-note{display:flex;align-items:center;gap:6px;margin:0 2px 10px}
+.empty p{max-width:52ch}
+.empty .btn{margin-top:2px}
+
+/* Pictures in cards */
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.art:has(img)::before{display:none}
+.art .play,.art .badge{z-index:1}
+
+/* Storage meter */
+.meter .other{background:var(--line-2)}
+.meter-pop .sw.feeds{background:var(--accent-line)}
+.meter-pop .sw.kept{background:hsl(var(--h) 80% 70%)}
+.meter-pop .sw.other{background:var(--line-2)}
+[data-theme="dark"] .meter-pop .sw.kept{background:hsl(var(--h) 60% 80%)}
+.rbtn .meter{width:34px}
+
+/* Notifications */
+.bell{position:relative}
+/* The unread count sits beside the bell, inside the button, so neither covers the other. */
+.bell:has(.bell-n){width:auto;padding:0 7px 0 6px;gap:3px;display:inline-flex;align-items:center}
+.bell-n{position:static;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:0.6562rem;line-height:1;font-weight:800;display:grid;place-items:center}
+.notif-pop{width:min(360px,calc(100vw - 16px));padding:0}
+.notif-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 8px}
+.notif-h strong{font-size:0.9375rem;font-weight:800}
+.notif-list{max-height:min(380px,50dvh);overflow:auto;padding:0 6px}
+.notif-i{display:flex;align-items:flex-start;gap:8px;width:100%;padding:8px;border-radius:9px;font-weight:600}
+.notif-i:hover,.notif-i:focus-visible{background:var(--hover)}
+.notif-dot{width:10px;flex:none;display:grid;place-items:center;padding-top:6px}
+.notif-i .tx{display:grid;gap:1px;min-width:0}
+.notif-i .t{font-weight:700;font-size:0.8438rem}
+.notif-i .b{color:var(--ink-2);font-size:0.8125rem}
+.notif-i .when{font-size:0.75rem;color:var(--ink-3)}
+.notif-f{padding:8px 14px 10px;border-top:1px solid var(--line);margin-top:6px;font-size:0.8125rem}
+
+/* Item panel */
+.caps{display:grid;gap:4px}
+.caps .cap{display:flex;gap:8px;align-items:flex-start}
+.caps .cap .ic{margin-top:3px;color:var(--accent-ink)}
+.caps .cap small{color:var(--ink-3);font-weight:600}
+.panel-body:focus{outline:none}
+.prose{font-size:1.0312rem;line-height:1.7;color:var(--ink);font-weight:500;overflow-wrap:anywhere}
+.prose>*+*{margin-top:.9em}
+.prose h1,.prose h2,.prose h3,.prose h4{line-height:1.25;font-weight:800;letter-spacing:-.01em;margin-top:1.3em}
+.prose h1{font-size:1.35em}.prose h2{font-size:1.22em}.prose h3,.prose h4{font-size:1.08em}
+.prose a.tok{white-space:nowrap}
+.prose img{max-width:100%;height:auto;border-radius:8px;display:block}
+.prose figure{margin:1em 0}
+.prose figcaption{font-size:.85em;color:var(--ink-3);margin-top:.3em}
+.prose blockquote{margin:1em 0;padding:.4em 1em;border-left:3px solid var(--tint-bd);background:var(--tint);border-radius:0 8px 8px 0}
+.prose pre{overflow:auto;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-size:.88em}
+.prose code{font-size:.9em}
+.prose ul,.prose ol{padding-left:1.4em}
+.prose ul{list-style:disc}.prose ol{list-style:decimal}
+.prose li+li{margin-top:.3em}
+.prose table{border-collapse:collapse;display:block;overflow:auto;max-width:100%}
+.prose th,.prose td{border:1px solid var(--line-2);padding:4px 8px}
+.prose hr{border:0;border-top:1px solid var(--line);margin:1.2em 0}
+
+/* Security list in Settings */
+.seclist{display:grid;gap:6px}
+.seclist li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2)}
+.seclist .tx{flex:1;min-width:0;display:grid}
+.seclist .tx b{font-weight:700}
+.seclist .tx small{color:var(--ink-3);font-weight:600;font-size:0.7812rem}
+.bm-drag{cursor:grab;flex:none}
+.seclist .btn{height:28px;font-size:0.8125rem}
+.get-apps .get-stores{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.get-apps .tx small+small{margin-top:2px}
+
+/* Dialog details */
+.dlg-b .chips{overflow:visible}
+.dlg-b .field>.lbl{margin-bottom:0}
+.dlg-b .seg{justify-self:start}
+/* Section tabs stay on one row; on a narrow screen the bar itself scrolls sideways.
+   The wrapper must not scroll: Firefox shrinks a scrolling grid row to nothing. */
+.dlg-tabs{display:flex;min-width:0}
+.dlg-tabs .seg{flex-wrap:nowrap;max-width:100%;overflow-x:auto}
+.dlg-b .btn[disabled]{opacity:.5}
+.cb{flex:none}
+a.btn{text-decoration:none}
+a.btn.lg{height:36px}
+.rl .cb{margin-right:0}
+.pal-i .ic{color:var(--ink-3)}
+.link{background:none}
+.srow .shared{margin-left:2px}
+.hm.login{color:var(--amber)}
+.mod-t .t{margin-right:0}
+.mod-t>button>.ic.go{margin-left:-2px}
+@media (max-width:767px){
+  .reminder{flex-wrap:wrap}
+  .reminder .acts{width:100%;padding-left:34px}
+  .codes{grid-template-columns:1fr 1fr}
+  .notif-pop{position:fixed!important;left:8px!important;right:8px!important;width:auto}
+}
+@media print{.side,.bar,.corner,.panel{display:none}}
+
+
+/* Board: per-column "Show more" */
+.bcol-more { display: block; margin: 6px 10px 10px; font-size: 0.8125rem; }
+
+/* Long collections: "Show all" in the sidebar */
+.more-srcs { display: block; width: 100%; text-align: left; padding: 4px 10px 6px 34px; background: none; border: 0; color: var(--accent-ink); font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: pointer; border-radius: 8px; }
+.more-srcs:hover { background: var(--hover, rgba(0, 0, 0, 0.04)); }
+.chips { flex-wrap: wrap; overflow-x: visible; padding-bottom: 6px; }
+
+/* A collection's source filter: one drop-down under the list tools */
+.srcfilter { display: flex; padding: 2px 0 12px; }
+.srcfilter .mbtn { max-width: 100%; min-width: 0; }
+.srcfilter-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.srcpick-pop { min-width: 260px; max-height: min(420px, calc(100dvh - 32px)); overflow-y: auto; }
+.srcpick-r { display: flex; align-items: center; gap: 2px; }
+.srcpick-r > .mi:first-child { flex: 1; min-width: 0; }
+.srcpick-r > .mi.only { width: auto; flex: none; color: var(--accent-ink); font-size: 0.7812rem; font-weight: 700; }
+
+/* Offline notice: a calm strip under the header while what's shown may come from this device's saved copies */
+.setup-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--amber-bg, var(--surface-2)); color: var(--ink); }
+.offline-note { display: flex; align-items: center; justify-content: center; gap: 8px; flex: none; padding: 5px 14px; background: var(--amber-bg); border-bottom: 1px solid var(--amber-bd); color: var(--amber); font-size: 0.7812rem; font-weight: 700; text-align: center; }
+.offline-note .ic { flex: none; }
+
+/* Phones and installed apps draw under notches, rounded corners and the home indicator (the page asks for
+   viewport-fit=cover); every inset below is 0 where there is nothing to avoid. */
+.app { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+.app[data-bp] .bar { padding-top: max(6px, env(safe-area-inset-top)); }
+/* The bell and settings over the bar move down with it, so they stay level with its title. */
+.app[data-bp] .corner:not(.float) .cbtns { margin-top: calc(max(6px, env(safe-area-inset-top)) - 6px); }
+/* Account reminders above the bar take the inset instead, as the topmost strip. */
+.app[data-bp] .stage > .setup-note:first-child { padding-top: max(8px, env(safe-area-inset-top)); }
+.app[data-bp] .stage > .setup-note ~ .bar { padding-top: 6px; }
+.app[data-bp] .stage > .setup-note ~ .corner .cbtns { margin-top: 0; }
+.side { padding-top: env(safe-area-inset-top); }
+.app[data-sb="drawer"] .side, .app[data-sb="hidden"] .side { padding-left: env(safe-area-inset-left); }
+.panel-bar { padding-top: max(6px, env(safe-area-inset-top)); }
+.app[data-bp="md"] .panel, .app[data-bp="sm"] .panel, .app[data-bp="xs"] .panel { padding-right: env(safe-area-inset-right); }
+.main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+#toasts { bottom: calc(72px + env(safe-area-inset-bottom)); }
+.app[data-bp="xs"] .panel-body, .app[data-bp="sm"] .panel-body { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+.app[data-bp="xs"] .side-foot, .app[data-sb="drawer"] .side-foot, .app[data-sb="hidden"] .side-foot { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+.auth-page { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+
+/* Text from feeds and from people can run right to left or mix scripts: each piece reads in its own direction
+   (dir="auto" in the markup) and is kept apart from its neighbours. */
+[dir="auto"], bdi { unicode-bidi: isolate; }
+.title[dir="auto"], .ex[dir="auto"], .excerpt[dir="auto"] { text-align: start; }
+
+/* A change PURSS has not confirmed yet. */
+/* (it appears after a short wait, decided in outbox/hooks.ts) */
+.pend { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-3); font-size: 0.75rem; font-weight: 700; animation: pend-in .2s ease both; }
+.pend .ic { width: 13px; height: 13px; }
+@keyframes pend-in { from { opacity: 0; } to { opacity: 1; } }
+.p-pend { display: flex; align-items: center; gap: 8px; }
+
+/* The play mark of a video card is a real link laid over the card's picture. */
+.playwrap { position: absolute; z-index: 3; left: 8px; right: 8px; top: 8px; aspect-ratio: 16 / 9; display: grid; place-items: center; pointer-events: none; }
+.playlink { pointer-events: auto; width: 52px; height: 52px; border-radius: 50%; }
+.playlink:hover { background: rgba(255, 255, 255, .16); }
+.playlink:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.art-link { display: block; border-radius: 10px; }
+.art-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.art-link:hover .play { background: rgba(255, 255, 255, .34); }
+
+.p-title:focus { outline: none; }
+.p-sum { align-items: flex-start; }
+.board-note { margin: 0 0 10px; }
+.board-note .link { margin-left: auto; white-space: nowrap; }
+
+/* Breadcrumbs: when the trail is wider than the bar, the earlier steps give way first (with an ellipsis) instead of running into the next. */
+.crumbs li { flex: 0 1 auto; overflow: hidden; }
+.crumbs li:not(:last-child) { flex-shrink: 3; }
+.crumbs li > button, .crumbs li > bdi { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs li:last-child { flex-shrink: 1; }
+
+/* A message that arrives while a dialog is open goes to the top of the window, where it cannot cover the dialog's own
+   buttons or messages (which sit at its foot, or at the foot of a phone's sheet), and stays above the dialog's backdrop. */
+html[data-modal] #toasts { top: max(8px, env(safe-area-inset-top)); bottom: auto; left: 8px; right: 8px; justify-items: center; z-index: 120; pointer-events: none; }
+html[data-modal] #toasts .toast { pointer-events: auto; max-width: min(420px, 100%); }
+
+/* A larger text size (Settings) also widens what has to hold text: the sidebar, and the room a row keeps for its Keep and More
+   buttons. --ts is the scale, 1.15 to 1.5; at the normal size none of this applies. */
+html[data-ts] .app[data-sb="full"] { --sbw: calc(300px * var(--ts)); }
+html[data-ts] .row.has-keep .row-main { padding-right: calc(88px * var(--ts)); }
+html[data-ts] .card .wfrow { padding-right: calc(120px * var(--ts)); }
+@media (pointer: coarse) { html[data-ts] .row.has-keep .row-main { padding-right: calc(104px * var(--ts)); } }
+html[data-ts] .app[data-bp="xs"] .row.has-keep .row-main { padding-right: calc(52px * var(--ts)); }
+html[data-ts] .app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main { padding-right: calc(92px * var(--ts)); }
+.bk .n, .side-foot .stor { white-space: nowrap; }
+.app[data-bp="xs"] .p-acts .mbtn.st .k { display: none; }
+
+/* "Try again" beside a failed source: in the Needs attention list it sits after the source's row, in the activity list after its name. */
+.wb-attn li { display: flex; align-items: center; }
+.wb-attn li .wb-src { flex: 1; width: auto; min-width: 0; }
+.wb-attn li .retry { flex: none; margin-right: 14px; white-space: nowrap; font-weight: 700; }
+.act-list li .retry { margin-left: 8px; white-space: nowrap; }
+.note .retry { white-space: nowrap; font-weight: 700; }
+
+/* Under the title after opening cleared New: a quiet line, not a message. */
+.p-seen { color: var(--ink-3); }
+.p-seen .link { margin-left: 4px; font-weight: 700; }
+
+/* Player: the mini-player floats at the bottom while you move around; the item panel's audio/video box.
+   --player-space is the band it takes at the bottom of the screen (its measured height --player-h, set by
+   PlayerBar, plus its offset and a gap); the layout ends above that band (app.css), so nothing sits under it. */
+.app{--player-bottom:12px;--player-space:0px}
+.app[data-player="open"]{--player-space:calc(var(--player-h,0px) + var(--player-bottom) + 8px)}
+.player{position:fixed;left:50%;bottom:var(--player-bottom);transform:translateX(-50%);width:min(960px,calc(100vw - 20px));z-index:58;display:grid;gap:10px;padding:12px 16px;border-radius:18px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow-pop);container-type:inline-size}
+/* Wide: what is playing | the transport above the position | speed, sleep timer and close. */
+.player-body{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,400px) minmax(max-content,2fr);grid-template-areas:"meta ctrl tools" "meta seek tools";align-items:center;column-gap:20px;row-gap:2px}
+.player-title{grid-area:meta;min-width:0;display:flex;align-items:center;gap:12px;text-align:left;background:none;border:0;padding:4px;margin:-4px;border-radius:12px;color:var(--ink);cursor:pointer}
+.player-title:hover{background:var(--hover)}
+.player-title .av{border-radius:10px}
+.player-title .av img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.player-meta{min-width:0;display:grid;gap:2px}
+.player-meta b,.player-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-meta b{font-size:0.9375rem;line-height:1.25}
+.player-meta span{font-size:0.78rem;color:var(--ink-3);font-weight:600}
+.player-controls{grid-area:ctrl;display:flex;align-items:center;justify-content:center;gap:18px}
+.player-controls .ibtn{border-radius:999px}
+.player-skip{position:relative;width:40px;height:40px;color:var(--ink)}
+.player-skip .ic{width:30px;height:30px;stroke-width:1.6}
+.player-skip span{position:absolute;inset:0;display:grid;place-items:center;padding-top:2px;font:800 0.62rem/1 var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.player-skip:hover{background:var(--hover)}
+.player-main{position:relative;width:46px;height:46px;background:var(--accent);border:1px solid var(--accent-bd);color:var(--on-accent)}
+.player-main:hover{background:var(--accent);color:var(--on-accent);filter:brightness(1.06)}
+.player-main .ic{width:20px;height:20px;stroke-width:2.6;fill:currentColor;stroke-linejoin:round}
+.player-main[data-busy]::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid transparent;border-top-color:var(--accent);animation:player-spin .9s linear infinite}
+@keyframes player-spin{to{transform:rotate(360deg)}}
+.player-seek{grid-area:seek;display:flex;align-items:center;gap:10px;min-width:0}
+.player-time{font-size:0.72rem;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:3.6em}
+.player-time:first-child{text-align:right}
+.player-seek input{flex:1;min-width:0;height:22px;margin:0;background:none;cursor:pointer;-webkit-appearance:none;appearance:none}
+.player-seek input::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--pct,0%),var(--line-2) var(--pct,0%))}
+.player-seek input::-moz-range-track{height:4px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--pct,0%),var(--line-2) var(--pct,0%))}
+.player-seek input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--accent-bd);transition:transform .12s}
+.player-seek input::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--accent-bd)}
+.player-seek input:hover::-webkit-slider-thumb,.player-seek input:active::-webkit-slider-thumb{transform:scale(1.2)}
+.player-seek input:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.player-tools{grid-area:tools;display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.player-pill{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;min-width:46px;padding:0 10px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font:800 0.8125rem/1 var(--font);font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer}
+.player-pill:hover{background:var(--hover)}
+.player-sleep[data-on]{background:var(--tint);border-color:var(--tint-bd);color:var(--accent-ink)}
+.player-end{display:flex;align-items:center}
+.player-end .ibtn{border-radius:999px}
+.player-note{margin:0;font-size:0.8125rem;font-weight:600;color:var(--ink-2);display:flex;gap:6px;align-items:center}
+.player-screen{border-radius:12px;overflow:hidden;background:#000;max-height:min(42vh,360px);display:grid}
+.player-video{width:100%;max-height:min(42vh,360px);display:block}
+/* Narrow (a phone, a narrow window): what is playing and close on top, the position across, the transport in the middle below with speed and sleep timer at its sides. */
+@container (max-width:640px){
+  .player-body{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:"meta meta end" "seek seek seek" "rate ctrl sleep";row-gap:8px;column-gap:8px}
+  .player-tools{display:contents}
+  .player-rate{grid-area:rate;justify-self:start}
+  .player-sleep{grid-area:sleep;justify-self:end}
+  .player-end{grid-area:end;justify-self:end;align-self:start;margin:-4px -6px 0 0}
+  .player-controls{gap:22px}
+  .player-main{width:52px;height:52px}
+  .player-main .ic{width:22px;height:22px}
+  .player-title .av{--s:40px!important}
+}
+@container (max-width:340px){.player-controls{gap:10px}.player-pill{padding:0 8px;min-width:40px}.player-unit{display:none}}
+@media (max-width:560px){.app{--player-bottom:6px}.player{padding:10px 12px;border-radius:16px}}
+/* The size toggle: a chevron pointing down to make the player smaller, up to show it in full. */
+.player-size .ic{transform:rotate(90deg)}
+.player[data-mini] .player-size .ic{transform:rotate(-90deg)}
+/* Smaller: one row with what is playing, play/pause and the buttons at the end, and a thin line for the position.
+   Skips, the position slider, speed and the source line wait in the full player; a running sleep timer still shows. */
+.player[data-mini]{width:min(560px,calc(100vw - 20px));gap:6px;padding:8px 10px 10px;overflow:hidden}
+.player[data-mini] .player-body{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"meta ctrl tools";row-gap:0;column-gap:8px}
+.player[data-mini] .player-tools{display:flex;gap:4px}
+.player[data-mini] .player-end{grid-area:auto;margin:0;align-self:center}
+.player[data-mini] .player-skip,.player[data-mini] .player-seek,.player[data-mini] .player-rate,.player[data-mini] .player-sleep:not([data-on]),.player[data-mini] .player-meta span{display:none}
+.player[data-mini] .player-title{gap:10px}
+.player[data-mini] .player-title .av{--s:34px!important;border-radius:8px}
+.player[data-mini] .player-main{width:40px;height:40px}
+.player[data-mini] .player-main .ic{width:17px;height:17px}
+.player-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--line)}
+.player-progress i{display:block;height:100%;background:var(--accent)}
+/* On a phone the player sits just above the tab bar, and lists leave room for both. */
+.app[data-bp="xs"]{--player-bottom:calc(66px + env(safe-area-inset-bottom))}
+.app[data-bp="xs"][data-panel="open"]{--player-bottom:calc(6px + env(safe-area-inset-bottom))}
+/* A drawer that ends above the player has no tab bar or system bar to leave room for. */
+.app[data-player="open"] .side-foot{padding-bottom:8px}
+.media-box{display:grid;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2)}
+.media-play{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.media-saved{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.media-saved p{margin:0;flex:1 1 220px}
+/* A download's ring (rows and the reader): fills as the file comes in, turns while its size isn't known. */
+.dl-ring{width:28px;height:28px;flex:none;transform:rotate(-90deg)}
+.dl-ring circle{fill:none;stroke-width:3.2}
+.dl-ring .track{stroke:var(--line-2)}
+.dl-ring .fill{stroke:var(--accent);stroke-linecap:round;transition:stroke-dasharray .25s linear}
+.dl-ring.turning{animation:dl-turn 1s linear infinite}
+@keyframes dl-turn{to{transform:rotate(270deg)}}
+@media (prefers-reduced-motion:reduce){.dl-ring.turning{animation:none}}
+[data-display="eink"] .dl-ring.turning{animation:none}
+[data-display="eink"] .dl-ring .fill{transition:none}
+/* Downloaded: said plainly, with a filled check, not in small print. */
+.dl-state{display:flex;align-items:center;gap:10px;flex:1 1 220px;min-width:0}
+.dl-state p{margin:0}
+.dl-state .dl-head{font-weight:700}
+.dl-badge.lg{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent)}
+.dl-badge.lg .ic{width:18px;height:18px;stroke-width:2.6}
+.dl-state.failed .ic{color:var(--danger);flex:none}
+.dl-state.dl-page{flex-basis:100%}
+
+/* Highlights and notes (plan/26) */
+mark.anno{background:var(--amber-bg);color:inherit;border-bottom:2px solid var(--amber-bd);border-radius:2px;cursor:pointer;padding:0}
+mark.anno[data-anno*=" "]{border-bottom-width:3px;box-shadow:inset 0 -.55em 0 var(--amber-bd)}
+mark.anno:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
+.sel-bar{position:fixed;z-index:60;display:flex;gap:6px;padding:6px;border-radius:12px;background:var(--surface);border:1px solid var(--line-2);box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.sel-bar .btn{min-height:40px}
+.anno-notes{display:grid;gap:8px}
+.anno-list{display:grid;gap:10px}
+.anno-item{display:grid;gap:4px}
+.anno-quote{margin:0;padding:6px 10px;border-left:3px solid var(--amber-bd);background:var(--amber-bg);border-radius:0 8px 8px 0;font-weight:600;color:var(--ink);overflow-wrap:anywhere;white-space:pre-wrap}
+.anno-body{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:600;color:var(--ink)}
+.anno-meta{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.anno-sync,.anno-detached{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap}
+.anno-sync.failed{color:var(--amber)}
+.anno-editor{display:grid;gap:8px}
+.anno-actions{display:flex;gap:8px;flex-wrap:wrap}
+.in.anno-text{height:auto;min-height:84px;padding:9px 12px;resize:vertical;line-height:1.45}
+
+/* AI filter preview (dialogs/AiFilter.tsx): what the filter would keep and drop. */
+.aif-preview{max-height:320px;overflow-y:auto;overflow-x:hidden}
+.aif-preview .ordrow{gap:10px;min-width:0;padding-right:10px}
+.aif-preview .nm{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aif-verdict{flex:none;min-width:44px;text-align:center;font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px}
+.aif-verdict.aif-keep{background:var(--tint);color:var(--accent-ink);border:1px solid var(--tint-bd)}
+.aif-verdict.aif-drop{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}
+.aif-dropped .nm{color:var(--ink-3)}
+.aif-pct{flex:none;font-variant-numeric:tabular-nums}
+/* The mark on items downloaded to this device. */
+.dl-tag{display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:700;color:var(--accent-ink)}
+.dl-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}

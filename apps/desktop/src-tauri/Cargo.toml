@@ -1,0 +1,47 @@
+[package]
+name = "purss"
+version = "0.0.0"
+description = "PURSS for Windows, macOS and Linux"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[lib]
+name = "purss"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-plugin-deep-link = "2.6"
+tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }
+tauri-plugin-dialog = "2.6"
+tauri-plugin-opener = "2.5"
+tauri-plugin-updater = "2.14"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "http2"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["macros", "fs", "io-util", "time", "sync", "rt"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tiny_http = "0.12"
+getrandom = "0.3"
+gethostname = "1"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+notify-rust = "4"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+tauri-plugin-notification = "2.3"
+tauri-plugin-autostart = "2.5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

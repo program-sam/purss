@@ -1,0 +1,106 @@
+diff --git a/android/src/main/java/us/mediagrid/capacitorjs/plugins/nativeaudio/AudioPlayerService.java b/android/src/main/java/us/mediagrid/capacitorjs/plugins/nativeaudio/AudioPlayerService.java
+index f4dc858..cfc834b 100644
+--- a/android/src/main/java/us/mediagrid/capacitorjs/plugins/nativeaudio/AudioPlayerService.java
++++ b/android/src/main/java/us/mediagrid/capacitorjs/plugins/nativeaudio/AudioPlayerService.java
+@@ -8,11 +8,16 @@ import androidx.annotation.Nullable;
+ import androidx.annotation.OptIn;
+ import androidx.media3.common.AudioAttributes;
+ import androidx.media3.common.C;
++import androidx.media3.common.ForwardingSimpleBasePlayer;
+ import androidx.media3.common.Player;
+ import androidx.media3.common.util.UnstableApi;
+ import androidx.media3.exoplayer.ExoPlayer;
++import androidx.media3.session.CommandButton;
+ import androidx.media3.session.MediaSession;
+ import androidx.media3.session.MediaSessionService;
++import com.google.common.collect.ImmutableList;
++import com.google.common.util.concurrent.Futures;
++import com.google.common.util.concurrent.ListenableFuture;
+ 
+ public class AudioPlayerService extends MediaSessionService {
+ 
+@@ -20,6 +25,59 @@ public class AudioPlayerService extends MediaSessionService {
+     public static final String PLAYBACK_CHANNEL_ID = "playback_channel";
+     private MediaSession mediaSession = null;
+ 
++    // PURSS (apps/mobile/patches): the PURSS's skip lengths, kept equal to
++    // SKIP_BACK_SECONDS and SKIP_FORWARD_SECONDS in apps/web/src/player/logic.ts.
++    private static final long SKIP_BACK_MS = 15_000;
++    private static final long SKIP_FORWARD_MS = 30_000;
++
++    /**
++     * One episode plays at a time, so "next" and "previous" skip within it: a headset's double press
++     * (and a Bluetooth headset's or car's next button) skips forward, previous skips back.
++     */
++    @OptIn(markerClass = UnstableApi.class)
++    private static final class SkipWithinEpisode extends ForwardingSimpleBasePlayer {
++
++        SkipWithinEpisode(Player player) {
++            super(player);
++        }
++
++        @Override
++        protected State getState() {
++            State state = super.getState();
++            return state
++                .buildUpon()
++                .setAvailableCommands(
++                    state.availableCommands
++                        .buildUpon()
++                        .addAll(
++                            Player.COMMAND_SEEK_TO_NEXT,
++                            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
++                            Player.COMMAND_SEEK_TO_PREVIOUS,
++                            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
++                        )
++                        .build()
++                )
++                .build();
++        }
++
++        @Override
++        protected ListenableFuture<?> handleSeek(int mediaItemIndex, long positionMs, int seekCommand) {
++            switch (seekCommand) {
++                case Player.COMMAND_SEEK_TO_NEXT:
++                case Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM:
++                    getPlayer().seekForward();
++                    return Futures.immediateVoidFuture();
++                case Player.COMMAND_SEEK_TO_PREVIOUS:
++                case Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM:
++                    getPlayer().seekBack();
++                    return Futures.immediateVoidFuture();
++                default:
++                    return super.handleSeek(mediaItemIndex, positionMs, seekCommand);
++            }
++        }
++    }
++
++    @OptIn(markerClass = UnstableApi.class)
+     @Override
+     public void onCreate() {
+         Log.i(TAG, "Service being created");
+@@ -44,9 +102,23 @@ public class AudioPlayerService extends MediaSessionService {
+                 true
+             )
+             .setWakeMode(C.WAKE_MODE_NETWORK)
++            .setSeekBackIncrementMs(SKIP_BACK_MS)
++            .setSeekForwardIncrementMs(SKIP_FORWARD_MS)
+             .build();
+         player.setPlayWhenReady(false);
+-        mediaSession = new MediaSession.Builder(this, player)
++        // The notification and lock screen show "back 15" and "forward 30" where track buttons would be.
++        CommandButton skipBack = new CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
++            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
++            .setDisplayName("Back 15 seconds")
++            .setSlots(CommandButton.SLOT_BACK)
++            .build();
++        CommandButton skipForward = new CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
++            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
++            .setDisplayName("Forward 30 seconds")
++            .setSlots(CommandButton.SLOT_FORWARD)
++            .build();
++        mediaSession = new MediaSession.Builder(this, new SkipWithinEpisode(player))
++            .setMediaButtonPreferences(ImmutableList.of(skipBack, skipForward))
+             .setCallback(new MediaSessionCallback(this))
+             .setSessionActivity(sessionActivityPendingIntent)
+             .build();

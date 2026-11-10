@@ -1,0 +1,28 @@
+/* Statistics pages: calm, numbers only. Same surfaces and tokens as the rest of the app. */
+
+.spark{display:block;max-width:100%;height:auto;fill:var(--accent-ink)}
+.spark-base{stroke:var(--line-2);stroke-width:1}
+
+.fx-sec-b.stat-blocks{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 32px}
+.fx-sec-b.stat-spark{gap:8px}
+@media (max-width:700px){.fx-sec-b.stat-blocks{grid-template-columns:1fr}}
+.stat-block{display:grid;gap:6px;align-content:start;min-width:0}
+.stat-block h3{font-size:0.7812rem;font-weight:800;color:var(--ink-3);letter-spacing:.02em}
+.stat-dl{display:grid;margin:0}
+.stat-item{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;border-bottom:1px solid var(--line)}
+.stat-item:last-child{border-bottom:0}
+.stat-item dt{color:var(--ink-2);font-weight:600}
+.stat-item dd{margin:0;color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+/* The per-source table. Row headers are real headers, so they must not pick up the column-header look. */
+.stat-tbl{min-width:980px}
+.stat-tbl th>button,.stat-tbl th>span{padding:0 9px}
+.stat-tbl td{padding:0 9px}
+.stat-tbl th.num>button{justify-content:flex-end}
+.stat-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.stat-tbl tbody th,.stat-tbl tfoot th{position:static;background:none;box-shadow:none;border-bottom:1px solid var(--line);padding:0 9px 0 12px;height:var(--row-h);text-align:left;font-weight:700;font-size:0.8438rem;color:var(--ink);white-space:nowrap}
+.stat-tbl tbody th .link{font-weight:700;color:var(--ink)}
+.stat-tbl tfoot th,.stat-tbl tfoot td{border-top:1px solid var(--mod-bd);border-bottom:0;font-weight:800;color:var(--ink)}
+.stat-tbl tfoot tr:hover td{background:none}
+.stat-week{display:inline-flex;align-items:center;gap:10px}
+.stat-week .num{min-width:3ch}

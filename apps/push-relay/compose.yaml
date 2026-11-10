@@ -1,0 +1,26 @@
+# The project's push relay (plan/37), deployed on its own; see README.md. Settings in an .env file next to this
+# one or in the environment:
+#   PURSS_RELAY_SECRETS_DIR=/srv/push-relay/secrets docker compose -f apps/push-relay/compose.yaml up -d --build
+# Put an HTTPS reverse proxy in front of the bound port; the relay itself speaks plain HTTP.
+services:
+  push-relay:
+    build:
+      context: ../..
+      dockerfile: apps/push-relay/Containerfile
+    restart: unless-stopped
+    mem_limit: 128m
+    ports:
+      - "${PURSS_RELAY_BIND:-127.0.0.1}:8950:8950"
+    environment:
+      PURSS_RELAY_TRUST_PROXY: ${PURSS_RELAY_TRUST_PROXY:-1}
+      # Each platform is on when its credentials are named (paths inside the container); empty leaves it off.
+      PURSS_RELAY_FCM_CREDENTIALS: ${PURSS_RELAY_FCM_CREDENTIALS:-}
+      PURSS_RELAY_APNS_KEY: ${PURSS_RELAY_APNS_KEY:-}
+      PURSS_RELAY_APNS_KEY_ID: ${PURSS_RELAY_APNS_KEY_ID:-}
+      PURSS_RELAY_APNS_TEAM_ID: ${PURSS_RELAY_APNS_TEAM_ID:-}
+      PURSS_RELAY_APNS_TOPIC: ${PURSS_RELAY_APNS_TOPIC:-app.purss}
+    volumes:
+      - relay-data:/data
+      - ${PURSS_RELAY_SECRETS_DIR:?set PURSS_RELAY_SECRETS_DIR to the host directory holding the credential files}:/run/relay-secrets:ro
+volumes:
+  relay-data:

@@ -1,0 +1,51 @@
+/*
+ * E-ink display (a per-device choice, set as data-display="eink" on <html>). Pure black on white,
+ * nothing that moves, no shadows, gradients or see-through layers, hover-only controls always
+ * shown, heavier focus and borders, and larger targets. Every rule is scoped to the marker, so the
+ * standard light and dark looks are untouched. The app's own components follow in apps/web/src/eink.css.
+ */
+:root[data-display="eink"]{
+  color-scheme:light;
+  --bg:#fff; --side:#fff; --surface:#fff; --surface-2:#fff; --hover:#fff;
+  --line:#000; --line-2:#000;
+  --ink:#000; --ink-2:#000; --ink-3:#000;
+  --accent:#000; --accent-top:#000; --accent-bot:#000; --accent-line:#000; --accent-bd:#000; --on-accent:#fff; --accent-ink:#000;
+  --fresh:#000;
+  --tint:#fff; --tint-2:#fff; --tint-bd:#000;
+  --sel-top:#fff; --sel-bot:#fff; --sel-bd:#000;
+  --mod-top:#fff; --mod-bot:#fff; --mod-bd:#000;
+  --sky-top:#fff; --sky-mid:#fff; --sky-bot:#fff;
+  --quilt:#fff; --quilt-o:0; --sun:transparent; --hi:transparent;
+  --focus:#000;
+  --shadow:none; --shadow-pop:none;
+  --scrim:#fff;
+  --amber:#000; --amber-bg:#fff; --amber-bd:#000;
+  --orange:#000; --ok:#000;
+  --glass:#fff; --glass-bd:#000;
+}
+[data-display="eink"] *,[data-display="eink"] *::before,[data-display="eink"] *::after{
+  animation:none!important;transition:none!important;box-shadow:none!important;text-shadow:none!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;scroll-behavior:auto!important;
+  -webkit-font-smoothing:auto;
+}
+[data-display="eink"] ::selection{background:#000;color:#fff}
+[data-display="eink"] :focus-visible{outline:3px solid #000!important;outline-offset:2px!important}
+/* Chosen and current things carry a heavy edge, since there is no colour or shadow to show it. */
+[data-display="eink"] .sel,[data-display="eink"] [aria-pressed="true"],[data-display="eink"] [aria-selected="true"],[data-display="eink"] [aria-current="page"]{outline:2px solid #000;outline-offset:-2px}
+[data-display="eink"] a{text-decoration:underline}
+[data-display="eink"] * {scrollbar-color:#000 #fff}
+[data-display="eink"] ::-webkit-scrollbar-thumb{background-color:#000}
+
+/* Primitives */
+[data-display="eink"] .btn{border-color:#000;background:#fff;height:40px}
+[data-display="eink"] .btn:hover{background:#fff}
+[data-display="eink"] .btn.primary,[data-display="eink"] .mark{background:#000;color:#fff;border-color:#000}
+[data-display="eink"] .ibtn{width:40px;height:40px}
+[data-display="eink"] .seg button{height:36px}
+[data-display="eink"] .av,[data-display="eink"] .av.pic{background:#fff;color:#000;border-color:#000}
+[data-display="eink"] .keep{opacity:1;width:40px;height:40px}
+[data-display="eink"] .cb{width:20px;height:20px;border:2px solid #000}
+[data-display="eink"] .dlg,[data-display="eink"] .pal,[data-display="eink"] .pop{border:2px solid #000}
+[data-display="eink"] .toast{background:#000;color:#fff;border:2px solid #fff;outline:2px solid #000}
+[data-display="eink"] .toast .undo,[data-display="eink"] .toast .x{color:#fff;opacity:1}
+[data-display="eink"] .toast :focus-visible{outline-color:#fff!important}

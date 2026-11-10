@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["packages/*/src", "apps/*/src", "apps/*/vite.config.ts", "apps/mobile/capacitor.config.ts", "apps/mobile/scripts/*.ts", "apps/desktop/scripts/*.ts", "scripts/*.ts", "tests/**/*.ts", "infra/**/*.ts"]
+}

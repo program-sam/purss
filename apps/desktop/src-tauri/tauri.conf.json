@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PURSS",
+  "mainBinaryName": "purss",
+  "version": "0.0.0",
+  "identifier": "app.purss",
+  "build": {
+    "frontendDist": "../../web/app-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "PURSS",
+        "width": 1200,
+        "height": 820,
+        "minWidth": 360,
+        "minHeight": 480,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        "main"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "appimage",
+      "deb",
+      "rpm",
+      "nsis",
+      "app",
+      "dmg"
+    ],
+    "category": "News",
+    "shortDescription": "Your feeds, videos, podcasts and kept pages in one calm place",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "fileAssociations": [
+      {
+        "ext": [
+          "opml"
+        ],
+        "name": "OPML subscription list",
+        "description": "A list of feeds to follow",
+        "mimeType": "text/x-opml",
+        "role": "Viewer"
+      }
+    ],
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/purss.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/purss.desktop"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "purss",
+          "feed",
+          "podcast",
+          "pcast"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzNEMxRjlERTBGNzc0NUYKUldSZmRQZmduUjlNdzlveWcwWTFKMzY5Nk5aVXQyc3IwUEpWY2RPRjJmZ3NGaUd3cHIxbndqa2kK",
+      "endpoints": [
+        "https://github.com/program-sam/purss/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+/* E-ink display: the app's own parts. Tokens and primitives are in packages/ui/src/eink.css. */
+[data-display="eink"] .homewash svg.quilt{display:none}
+/* Page by page: every row laid out, so the pages are measured exactly. */
+[data-display="eink"] .list .irow{content-visibility:visible}
+[data-display="eink"] .rail-add{background:#000;color:#fff;border-color:#000}
+[data-display="eink"] .rail-add:hover{filter:none}
+[data-display="eink"] .crumbs [aria-current]{outline:none}
+[data-display="eink"] .auth-card,[data-display="eink"] .app[data-bp] .panel{border-width:2px;border-color:#000}
+
+/* Row, card and table actions are always there: an e-reader has no hover. */
+[data-display="eink"] .racts .keep,[data-display="eink"] .racts .rmore,[data-display="eink"] .tbl .rmore{opacity:1!important;width:40px;height:40px}
+[data-display="eink"] .row.has-keep .row-main{padding-right:104px}
+[data-display="eink"] .cbx{width:20px;height:20px;border:2px solid #000}
+/* No fading on e-ink: finished items recede by weight alone, and To read is a solid black tag. */
+[data-display="eink"] .irow[data-wf="finished"]{opacity:1!important}
+
+/* Thumbnails without an image: a plain frame instead of a tinted wash. */
+[data-display="eink"] .art,[data-display="eink"] .art.vid{background:#fff!important;border-color:#000!important}
+[data-display="eink"] .art::before{display:none}
+[data-display="eink"] .art .play{background:#fff;border:2px solid #000;color:#000}
+[data-display="eink"] .art .play .ic{fill:#000}
+[data-display="eink"] .art .badge{background:#000;color:#fff}
+[data-display="eink"] .skel{background:#fff;outline:1px dashed #000;outline-offset:-1px}
+[data-display="eink"] .board{scroll-snap-type:none}
+
+/* Page buttons: a bar under the list and under the article (never over the text), moving one screen at a time. */
+.pagenav{flex:none;display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:2px solid #000;background:#fff}
+.pagenav .btn{min-width:120px;justify-content:center;border-width:2px;font-weight:800}
+/* On a phone the list's page buttons sit above the tab bar, not behind it. */
+.app[data-bp="xs"] .stage>.pagenav{margin-bottom:calc(64px + env(safe-area-inset-bottom))}
+.app[data-bp="xs"][data-player="open"] .stage>.pagenav{margin-bottom:0}
+/* The player's position: the played part black, the rest white inside a black line. */
+[data-display="eink"] .player-seek input::-webkit-slider-runnable-track{height:8px;border:1.5px solid #000;background:linear-gradient(to right,#000 var(--pct,0%),#fff var(--pct,0%))}
+[data-display="eink"] .player-seek input::-moz-range-track{height:8px;border:1.5px solid #000;background:linear-gradient(to right,#000 var(--pct,0%),#fff var(--pct,0%))}
+[data-display="eink"] .player-seek input::-webkit-slider-thumb{margin-top:-5px;border-color:#fff;box-shadow:0 0 0 1.5px #000}
+[data-display="eink"] .player-progress{background:#fff;border-top:1.5px solid #000;height:5px}
+[data-display="eink"] .player-progress i{background:#000}

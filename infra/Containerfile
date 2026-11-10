@@ -1,0 +1,39 @@
+# Product image: API, worker, egress and the Compose setup steps (same image, different commands).
+FROM docker.io/library/node:26-bookworm-slim AS build
+WORKDIR /app
+# Which version this is (plan/40): from the checkout's history when the build has it (a git clone), else the
+# version.json a deploy adds, else none. Both are optional (the patterns may match nothing; package.json
+# always does); .git's contents land in /ctx, which git reads as the repository. Copying them makes a new
+# commit rerun this step. git is only needed here.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+COPY scripts/version.ts ./scripts/version.ts
+COPY packages/domain/src/version.ts ./packages/domain/src/version.ts
+COPY package.json version.jso[n] .gi[t] /ctx/
+RUN node scripts/version.ts --write --from /ctx && rm -rf /ctx
+COPY package.json package-lock.json tsconfig.json ./
+COPY apps ./apps
+COPY packages ./packages
+# The web app's and the website's dependencies only: the phone app and the browser extension are built
+# elsewhere. The website's canonical links and link previews name the address it is served at.
+ARG PURSS_PUBLIC_ORIGIN=http://localhost:8940
+RUN npm ci --no-audit --no-fund -w @purss/web -w @purss/site && npm run build -w @purss/web && SITE_ORIGIN="$PURSS_PUBLIC_ORIGIN" npm run build -w @purss/site
+# The same interface built for the phone apps' own root and packed for their live updates (plan/39).
+RUN cd apps/web && PURSS_WEB_BASE=/ npx vite build --outDir app-dist && cd ../.. && node apps/mobile/scripts/app-bundle.ts apps/web/app-dist apps/web/app-bundle
+
+FROM docker.io/library/node:26-bookworm-slim
+ENV NODE_ENV=production PURSS_DATA_DIR=/data NODE_NO_WARNINGS=1
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY infra/compose ./infra/compose
+COPY scripts/backup.ts scripts/restore.ts scripts/version.ts ./scripts/
+COPY --from=build /app/version.json ./version.json
+RUN npm ci --omit=dev --no-audit --no-fund -w @purss/api -w @purss/worker -w @purss/egress && rm -rf apps/web/src apps/web/node_modules apps/site/src
+COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY --from=build /app/apps/web/app-bundle ./apps/web/app-bundle
+COPY --from=build /app/apps/site/dist ./apps/site/dist
+RUN mkdir -p /data && chown node:node /data
+USER node
+EXPOSE 8940
+CMD ["node", "apps/api/src/main.ts"]

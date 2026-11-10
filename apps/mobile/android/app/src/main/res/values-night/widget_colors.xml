@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget in the app's dark theme (packages/ui tokens.css). -->
+<resources>
+    <color name="widget_bg">#20252a</color>
+    <color name="widget_line">#2f353c</color>
+    <color name="widget_ink">#eceff4</color>
+    <color name="widget_ink_2">#9da5af</color>
+    <color name="widget_accent">#98c6fb</color>
+</resources>
