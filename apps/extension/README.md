@@ -47,7 +47,7 @@ connection in the PURSS. The extension remembers the server it last connected to
 
 | Path | What lives there |
 | --- | --- |
-| `src/background.ts` | Right-click menu, address-bar keyword `ws`, the opt-in toolbar mark |
+| `src/background.ts` | Right-click menu, address-bar keyword `purss`, the opt-in toolbar mark |
 | `src/popup/` | The toolbar popup for the open page |
 | `src/options/` | Connecting, disconnecting, settings |
 | `src/content/` | The two scripts injected into a page on request: feed hints, readable text |

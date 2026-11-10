@@ -5,7 +5,7 @@ import { links, type Site } from "./site.ts";
  * Shared pieces for the site: icons, sample PURSS data, and mock app screens built from the
  * app's own CSS classes so every screenshot on the site looks exactly like the product.
  */
-import { DESKTOP_DOWNLOADS, DISTRIBUTION, publishedStores } from "@purss/domain/distribution";
+import { ANDROID_APK, DESKTOP_DOWNLOADS, DISTRIBUTION, publishedStores } from "@purss/domain/distribution";
 import type { Distributed } from "@purss/domain/distribution";
 import type { DesktopOs } from "./desktop.ts";
 
@@ -332,20 +332,20 @@ const developerLinks = () => `<p class="fine a-dev">Developers: <a class="link" 
  */
 function getDesktop(site: Site): string {
   const url = (file: string) => `${site.repo}/releases/latest/download/${file}`;
-  const first = (os: DesktopOs) => url(DESKTOP_DOWNLOADS.find((p) => p.os === os)!.file);
+  const first = (os: Exclude<DesktopOs, "android">) => url(DESKTOP_DOWNLOADS.find((p) => p.os === os)!.file);
   const releases = `${site.repo}/releases/latest`;
-  return `<div class="a-desktop"><a class="btn primary" data-desktop-main href="${releases}" data-windows="${first("windows")}" data-macos="${first("macos")}" data-linux="${first("linux")}">Download</a>`
+  return `<div class="a-desktop"><a class="btn primary" data-desktop-main href="${releases}" data-windows="${first("windows")}" data-macos="${first("macos")}" data-linux="${first("linux")}" data-android="${url(ANDROID_APK)}">Download</a>`
     + `<a class="link fine" data-desktop-other hidden href="${releases}">Other systems</a></div>`;
 }
 
 const APPS = (site: Site) => [
-  ["ext", "Browser extension", `Keep the page you're reading, follow its site, or search your PURSS from the address bar. For ${DISTRIBUTION.extension.platforms}.`, () => getIt("extension")],
-  ["phone", "Phone and tablet", `The same PURSS on your phone or tablet. The ${DISTRIBUTION.mobile.platforms} apps add listening with the screen off, downloads for offline reading and sharing links in from any app.`, () => getIt("mobile")],
-  ["laptop", "Windows, Mac and Linux", "The desktop app keeps running in the tray, so notifications and downloads go on with its window closed. Downloads are files you can open anywhere, feed links and OPML files open in it, and it updates itself.", () => getDesktop(site)],
-  ["bookmark", "Bookmarklets", "Nothing to install: two bookmarks that bring any page to Add source or a basket, in any browser.", () => ""],
-  ["key", "Your assistant, if you want one", "Connect an AI assistant you already use, such as Claude or ChatGPT, so it can search and read your PURSS, and organise it if you allow. It plugs in through MCP, the standard way assistants connect to apps. Off until you turn it on.", () => ""],
-  ["page", "E-ink display", "Black on white with page buttons instead of scrolling, for e-readers. Switched on per device.", () => ""],
-  ["window", "Install it as an app", "Its own window and icon from your browser, and your reading list saved for reading offline.", () => ""],
+  ["ext", "Browser extension", `Found something good? Keep it or follow its site without leaving the page. For ${DISTRIBUTION.extension.platforms}.`, () => getIt("extension")],
+  ["phone", "Phone and tablet", `Catch up in the queue or on the plane. The ${DISTRIBUTION.mobile.platforms} app plays with the screen off, keeps downloads for offline and takes links shared from any app.`, () => `<span class="a-stores">${getIt("mobile")}<a class="btn" href="${site.repo}/releases/latest/download/${ANDROID_APK}">Download for Android</a></span>`],
+  ["laptop", "Windows, Mac and Linux", "Close the window and it keeps working: alerts and downloads carry on from the tray, and it updates itself.", () => getDesktop(site)],
+  ["bookmark", "Bookmarklets", "Can't install anything? Two bookmarks send any page to PURSS, in any browser.", () => ""],
+  ["key", "Your assistant, if you want one", "Ask Claude, ChatGPT or another assistant you already use what you've read about something, and let it tidy up if you allow. Connects through MCP; off until you turn it on.", () => ""],
+  ["page", "E-ink display", "Long reads are easier on the eyes on an e-reader: black on white, page buttons instead of scrolling.", () => ""],
+  ["window", "Install it as an app", "No app store needed: add it from your browser and your reading list works offline.", () => ""],
 ] as const;
 
 export function appCards(site: Site): string {
@@ -384,7 +384,7 @@ const FAQ: readonly (readonly [string, Answer])[] = [
   ["Can I share something with other people?", "Yes. Copy link on an item copies the original page's address, so you can send it to anyone and they need no account. A separate Copy link to this item in your PURSS opens it for you after you sign in. You can also share a whole basket or collection with Share on its page: it becomes a public page and feed that anyone can read without an account and follow from their own PURSS or any feed reader, and it keeps showing what you add. You can add a public note to any item on it. Before anything is shared you see the page and what of yours becomes public; it never shows your reading, private notes, highlights or saved text. Sharing is part of Plus and Pro, and included when you host PURSS yourself."],
   ["Can readers of my blog follow it here?", "Yes. In Settings → Connected apps, paste your blog's feed address to get a Follow button for your pages. Readers who press it can follow you in their PURSS, or copy the feed into any other reader. The button is a plain link: no script, no tracking."],
   ["What works without a connection?", "In the installed app, your reading list is saved on the device: your To read and In progress items, recent new ones, and kept items with saved text. You can read them, mark them and write highlights and notes; changes are sent when you're back online. Adding sources, search, settings and anything not saved need a connection, and so can pictures. The phone app can also download an episode to your device for listening offline."],
-  ["Is there a phone app or a browser extension?", "Both are on the way. The Android and iOS apps and the extension for Chrome, Edge, Firefox and Safari aren't in the app and browser stores yet. Until they are, add PURSS to your home screen from your browser: it opens like an app and keeps your reading list for offline. Bookmarklets work in any browser with nothing to install. If you're technical, you can already build both from the source code."],
+  ["Is there a phone app or a browser extension?", "Both are on the way to the stores. The Android app can already be downloaded from this page; the extension for Chrome, Edge and Firefox isn't in the browser stores yet. On an iPhone or iPad, add PURSS to your home screen from your browser: it opens like an app and keeps your reading list for offline. Bookmarklets work in any browser with nothing to install. If you're technical, you can already build both from the source code."],
   ["Can I sign in on a borrowed or shared computer?", "Yes. Fingerprint, face or screen lock is the quickest way in on your own devices, but you can also sign in with a username and password on any computer. On a library, work or borrowed computer, choose This is a shared computer on the sign-in page: the session ends when the browser closes, and after eight hours at the latest, and offline copies stay off in an ordinary browser tab. Two people on one laptop each use their own account."],
   ["Is it accessible?", (site) => `We build the website and the app for keyboard use and screen readers: named controls, visible focus, keyboard shortcuts in the app, a skip link on the website, and text that still fits when enlarged. We have checked them with the keyboard alone, with the browser's accessibility tree and with enlarged text, and we fix what that finds. We have not had an independent audit or tested with a panel of people who use assistive technology, so there will be gaps. If something doesn't work for you, <a class="link" href="${links(site).source}/issues">open an issue</a> or reach program-sam through the <a class="link" href="/legal.html">legal notice</a>, and say what you were doing and what you use. We treat it as a bug.`],
   ["Does it use AI?", "Not unless you ask it to. There's no built-in AI. If you want, you can connect your own assistant, such as Claude or ChatGPT, to search and read your PURSS, and organise it if you allow. It's off until you turn it on, and you can disconnect it at any time."],

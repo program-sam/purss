@@ -12,7 +12,7 @@ test("every build asks for the same narrow permissions, and none for sites", () 
     const perms = m.permissions as string[];
     for (const p of ["activeTab", "scripting", "storage", "contextMenus"]) assert.ok(perms.includes(p), `${t}: ${p}`);
     for (const p of ["tabs", "<all_urls>", "cookies", "webRequest", "history", "bookmarks"]) assert.ok(!perms.includes(p), `${t}: no ${p}`);
-    assert.deepEqual(m.omnibox, { keyword: "ws" });
+    assert.deepEqual(m.omnibox, { keyword: "purss" });
     assert.equal(m.version, "26.312.14", t);
   }
 });

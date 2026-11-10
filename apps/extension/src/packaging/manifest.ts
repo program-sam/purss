@@ -50,7 +50,7 @@ export function manifestFor(target: Target, version: string | null): Record<stri
     optional_permissions: ["tabs"],
     // No host permissions: the PURSS answers the extension's requests (CORS for extension origins,
     // plan/24), and pages are read only through activeTab.
-    omnibox: { keyword: "ws" },
+    omnibox: { keyword: "purss" },
     ...(target === "chromium" ? { minimum_chrome_version: "120" } : {}),
     ...(target === "firefox" ? {
       browser_specific_settings: {

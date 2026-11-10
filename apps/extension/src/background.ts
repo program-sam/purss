@@ -77,7 +77,7 @@ api.contextMenus?.onClicked.addListener((info, tab) => void (async () => {
   }
 })());
 
-// ---------- address bar: "ws <words>" searches the PURSS ----------
+// ---------- address bar: "purss <words>" searches the PURSS ----------
 api.omnibox?.setDefaultSuggestion({ description: "Search your PURSS for: %s" });
 api.omnibox?.onInputEntered.addListener((text, disposition) => void (async () => {
   const conn = await getConnection();

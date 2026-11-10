@@ -31,5 +31,6 @@ test("store listings are https addresses or not published, and only published on
   assert.deepEqual(publishedStores("extension", none), []);
   assert.deepEqual(publishedStores("extension", firefoxOnly), [{ id: "firefox", name: "Firefox Add-ons", url: "https://addons.mozilla.org/firefox/addon/x/" }], "setting one address is enough for its button");
   assert.deepEqual(publishedStores("mobile", firefoxOnly), []);
-  assert.deepEqual([...DISTRIBUTION.extension.stores, ...DISTRIBUTION.mobile.stores].sort(), Object.keys(STORE_LISTINGS).sort(), "every store belongs to one of them");
+  for (const id of [...DISTRIBUTION.extension.stores, ...DISTRIBUTION.mobile.stores]) assert.ok(id in STORE_LISTINGS, `${id} is a known store`);
+  assert.deepEqual([...DISTRIBUTION.extension.stores, ...DISTRIBUTION.mobile.stores].filter((id) => id === "safari" || id === "ios"), [], "Apple's stores are parked: their code stays, they aren't offered");
 });
