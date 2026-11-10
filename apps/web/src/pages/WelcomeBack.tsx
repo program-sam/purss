@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
-import type { ItemDTO, SourceDTO } from "@purss/domain";
+import type { HomeOverview, ItemDTO, SourceDTO } from "@purss/domain";
 import { Avatar, Button, Icon } from "@purss/ui";
 import { homeOverviewQuery } from "../api/home-queries.ts";
 import { findItem } from "../api/queries.ts";
@@ -118,9 +118,11 @@ function Attention() {
   );
 }
 
-const isToRead = (i: ItemDTO) => i.workflow === "toread";
+/** To read is split in two rows: podcasts are To listen, everything else To read. */
+const isToRead = (i: ItemDTO) => i.workflow === "toread" && i.kind !== "podcast";
+const isToListen = (i: ItemDTO) => i.workflow === "toread" && i.kind === "podcast";
 
-/** The items To read and Recently kept show right now (a collapsed row shows none): the boxes below leave these out. */
+/** The items To read, To listen and Recently kept show right now (a collapsed row shows none): the boxes below leave these out. */
 export function useShownAbove(): ReadonlySet<string> {
   const o = useHomeOverview().data;
   const hints = useHints();
@@ -129,6 +131,7 @@ export function useShownAbove(): ReadonlySet<string> {
     if (!o) return ids;
     const open = (row: string) => !hints.collapsed.includes(`home:${row}`);
     if (open("toread")) for (const it of o.toRead.items) ids.add(it.id);
+    if (open("tolisten")) for (const it of o.toListen.items) ids.add(it.id);
     if (open("kept")) for (const it of o.recentlyKept) ids.add(it.id);
     return ids;
   }, [o, hints.collapsed]);
@@ -146,32 +149,41 @@ export function MutedLine() {
 const FRESH_AWAY_MS = 30 * 86_400_000;
 const FRESH_PILE = 50;
 
-/** To read, Recently kept, Needs attention and Mark all as seen. */
+/**
+ * A row of items put aside (To read or To listen): the oldest few, and Show all for the rest. An item taken out of To read or
+ * ignored here leaves at once.
+ */
+function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: string; row: HomeOverview["toRead"] | undefined; keeps: (i: ItemDTO) => boolean; type: string }) {
+  const nav = useNav();
+  const rc = useRowCtx();
+  const items = useLive(row?.items ?? []).filter(keeps);
+  const ctx = useMemo(() => ({ ...rc, leaves: (i: ItemDTO) => leavesOn(i, keeps, false) }), [rc, keeps]);
+  if (!items.length) return null;
+  const total = row?.total ?? 0;
+  const totalKnown = !row?.totalAtMost; // muted words were not asked about every item of a long list: the number may be too high, so it is not shown
+  return (
+    <RowBox id={id} title={title} count={totalKnown ? total : undefined}>
+      <RowContext.Provider value={ctx}><ul className="mod-b">{items.map((it) => <ItemRow key={it.id} item={it} />)}</ul></RowContext.Provider>
+      {total > items.length ? <button type="button" className="mod-all" onClick={() => nav.go({ t: "r", id: "toread" }, { type })}>Show all{totalKnown ? ` ${total}` : ""}<Icon name="chev" size="sm" /></button> : null}
+    </RowBox>
+  );
+}
+
+/** To read, To listen, Recently kept, Needs attention and Mark all as seen. */
 export function WelcomeRows() {
   const ws = useWorkspace();
-  const nav = useNav();
   const actions = useItemActions();
   const o = useHomeOverview().data;
-  // The To read box lists To read items only: one taken out of To read or ignored here leaves at once.
-  const toRead = useLive(o?.toRead.items ?? []).filter(isToRead);
   const rc = useRowCtx();
-  const toReadCtx = useMemo(() => ({ ...rc, leaves: (i: ItemDTO) => leavesOn(i, isToRead, false) }), [rc]);
   // Recently kept lists kept items whatever their state, so nothing leaves it from here.
   const keptCtx = useMemo(() => ({ ...rc, leaves: () => "" }), [rc]);
   const kept = useLive(o?.recentlyKept ?? []);
-  const showToRead = () => nav.go({ t: "r", id: "toread" });
-  const total = o?.toRead.total ?? 0;
-  const totalKnown = !o?.toRead.totalAtMost; // muted words were not asked about every To read item of a long list: the number may be too high, so it is not shown
   const fresh = o?.fresh ?? 0;
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
   const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
-    toRead.length ? (
-      <RowBox key="toread" id="toread" title="To read" count={totalKnown ? total : undefined}>
-        <RowContext.Provider value={toReadCtx}><ul className="mod-b">{toRead.map((it) => <ItemRow key={it.id} item={it} />)}</ul></RowContext.Provider>
-        {total > toRead.length ? <button type="button" className="mod-all" onClick={showToRead}>Show all{totalKnown ? ` ${total}` : ""}<Icon name="chev" size="sm" /></button> : null}
-      </RowBox>
-    ) : null,
+    <PutAsideRow key="toread" id="toread" title="To read" row={o?.toRead} keeps={isToRead} type="articles,videos" />,
+    <PutAsideRow key="tolisten" id="tolisten" title="To listen" row={o?.toListen} keeps={isToListen} type="podcasts" />,
     kept.length ? (
       <RowBox key="kept" id="kept" title="Recently kept">
         <RowContext.Provider value={keptCtx}><ul className="mod-b">{kept.map((it) => <ItemRow key={it.id} item={it} />)}</ul></RowContext.Provider>

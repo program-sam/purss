@@ -104,25 +104,32 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   }
 
   // Recently kept leaves out what Home leaves out (items of sources whose collections are all hidden on Home);
-  // To read is what the person put aside, wherever it came from. Both leave out what the muted words match, and an item is listed
-  // in the first of them that has it.
+  // To read and To listen are what the person put aside, wherever it came from. All leave out what the muted words match, and an
+  // item is listed in the first of them that has it.
   const homeParams: SqlParam[] = [];
   const onHome = onHomeItem(app, ws, homeParams);
   const muted = workspaceMuted(app, ws, now);
   const recentCut = new Date(now.getTime() - RECENT_DAYS * 86_400_000).toISOString();
 
-  // To read: the oldest items and how many there are, in one pass over them. With muted words the first thousand are read (see
-  // `mutedScan`) and each is asked about them, so the list takes the first unmuted ones and the total leaves out those they match;
-  // with more To read items than that, the total is made in part and may be too high.
-  const toReadRows = app.db.all<{ id: string; n: number; m: number }>(
-    `SELECT id, n, ${muted ? "purss_muted(?, title, excerpt)" : "0"} AS m FROM (
-       SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${FROM_VISIBLE}
-       WHERE st.workspace_id = ? AND i.workspace_id = ? AND st.workflow = 'toread' AND ${VISIBLE_SOURCE}
-       ORDER BY COALESCE(i.published_at, i.discovered_at) ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
-    ...(muted ? [muted] : []), ws, ws);
-  const toRead = toReadRows.filter((r) => !r.m).map((r) => r.id).slice(0, ROW_ITEMS);
-  const toReadTotal = (toReadRows[0]?.n ?? 0) - toReadRows.reduce((sum, r) => sum + r.m, 0);
-  const toReadPartial = muted !== null && toReadRows.length > mutedScan.rows;
+  // To read and To listen (podcasts) are two rows, each the oldest items of its kind and how many there are, in one pass over them.
+  // With muted words the first thousand are read (see `mutedScan`) and each is asked about them, so a row takes the first unmuted
+  // ones and its total leaves out those they match; with more items than that, the total is made in part and may be too high.
+  const putAside = (kind: string) => {
+    const rows = app.db.all<{ id: string; n: number; m: number }>(
+      `SELECT id, n, ${muted ? "purss_muted(?, title, excerpt)" : "0"} AS m FROM (
+         SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${FROM_VISIBLE}
+         WHERE st.workspace_id = ? AND i.workspace_id = ? AND st.workflow = 'toread' AND ${kind} AND ${VISIBLE_SOURCE}
+         ORDER BY COALESCE(i.published_at, i.discovered_at) ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
+      ...(muted ? [muted] : []), ws, ws);
+    return {
+      ids: rows.filter((r) => !r.m).map((r) => r.id).slice(0, ROW_ITEMS),
+      total: (rows[0]?.n ?? 0) - rows.reduce((sum, r) => sum + r.m, 0),
+      totalAtMost: muted !== null && rows.length > mutedScan.rows,
+    };
+  };
+  const toRead = putAside("i.kind <> 'podcast'");
+  const toListen = putAside("i.kind = 'podcast'");
+  const putAsideIds = [...toRead.ids, ...toListen.ids];
 
   const keptIds: string[] = [];
   const keptBase = `SELECT b.item_id AS item_id${muted ? ", i.title AS title, i.excerpt AS excerpt" : ""}
@@ -131,7 +138,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   for (const r of muted
     ? app.db.all<{ item_id: string }>(`SELECT item_id FROM (${keptBase} LIMIT -1) WHERE ${NOT_MUTED_ROW} LIMIT 30`, ws, recentCut, ...homeParams, muted)
     : app.db.all<{ item_id: string }>(`${keptBase} LIMIT 30`, ws, recentCut, ...homeParams)) {
-    if (!keptIds.includes(r.item_id) && !toRead.includes(r.item_id) && keptIds.length < ROW_ITEMS) keptIds.push(r.item_id);
+    if (!keptIds.includes(r.item_id) && !putAsideIds.includes(r.item_id) && keptIds.length < ROW_ITEMS) keptIds.push(r.item_id);
   }
   const fresh = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.workspace_id = ? AND st.fresh = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
@@ -146,12 +153,13 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
       [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 
-  const dtos = new Map(itemsByIds(app, ws, [...new Set([...toRead, ...keptIds])]).map((d) => [d.id, d]));
+  const dtos = new Map(itemsByIds(app, ws, [...new Set([...putAsideIds, ...keptIds])]).map((d) => [d.id, d]));
   const pick = (ids: string[]) => ids.flatMap((id) => dtos.get(id) ?? []);
   return {
     lastVisitAt,
     since,
-    toRead: { items: pick(toRead), total: toReadTotal, totalAtMost: toReadPartial },
+    toRead: { items: pick(toRead.ids), total: toRead.total, totalAtMost: toRead.totalAtMost },
+    toListen: { items: pick(toListen.ids), total: toListen.total, totalAtMost: toListen.totalAtMost },
     recentlyKept: pick(keptIds),
     fresh,
     unread,

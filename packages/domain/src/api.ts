@@ -612,10 +612,12 @@ export type HomeOverview = {
   /** New items (still marked New) that arrived since then, by Home box; null on the first visit or when none. */
   since: { total: number; boxes: { id: string; name: string; count: number }[] } | null;
   /**
-   * To read, oldest first. `total` leaves out the To read items the muted words match among the first thousand; with more than
-   * that, `totalAtMost` says the rest were not looked at, so the total may be too high.
+   * To read items that are not podcasts, oldest first. `total` leaves out the ones the muted words match among the first thousand;
+   * with more than that, `totalAtMost` says the rest were not looked at, so the total may be too high.
    */
   toRead: { items: ItemDTO[]; total: number; totalAtMost: boolean };
+  /** To read podcast episodes ("To listen"), counted the same way. */
+  toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   recentlyKept: ItemDTO[];
   /** Every New marker in PURSS, for "Start fresh". */
   fresh: number;
