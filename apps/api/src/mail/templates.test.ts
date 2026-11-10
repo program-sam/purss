@@ -23,10 +23,11 @@ test("every link stands alone on its own line, so no full stop is glued to it", 
   assert.deepEqual(linksAreAlone(reminder.text), [`${link}1`, `${link}2`]);
 });
 
-test("the HTML version links the same address and shows it in full below the words", () => {
+test("the HTML version links the same address on a button and shows it in full below", () => {
   const link = "https://ws.example.org/app/verify-email?token=abc&x=1";
   const m = verifyMail("a@example.org", { link, hours: 48 });
-  assert.match(m.html, /<a href="https:\/\/ws\.example\.org\/app\/verify-email\?token=abc&amp;x=1">confirm this address<\/a>/);
+  assert.match(m.html, /<a href="https:\/\/ws\.example\.org\/app\/verify-email\?token=abc&amp;x=1" style="[^"]*">Confirm this address<\/a>/);
+  assert.ok(!/<img|src=|url\(/.test(m.html), "the HTML loads nothing remote");
   assert.match(m.html, /word-break:break-all">https:\/\/ws\.example\.org\/app\/verify-email\?token=abc&amp;x=1<\/p>/);
 });
 

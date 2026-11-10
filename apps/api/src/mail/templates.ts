@@ -13,15 +13,50 @@ function escape(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-/** A paragraph of words, or a link that stands alone (`label` is what the HTML version shows as the clickable words). */
+/** A paragraph of words, or a link that stands alone (`label` is what the HTML version shows on its button). */
 type Part = string | { href: string; label: string };
+
+/*
+ * The HTML version is a table layout with inline styles, the form mail programs render alike
+ * (Gmail, Outlook and Apple Mail drop <style> blocks and most modern CSS). It loads no images
+ * and nothing remote, so it looks the same with images blocked and tells no one it was opened.
+ */
+const BRAND = "#1260ba";
+const INK = "#1d2733";
+const MUTED = "#5b6878";
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+function paragraph(text: string): string {
+  return `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${INK}">${escape(text)}</p>`;
+}
+
+function button(href: string, label: string): string {
+  const url = escape(href);
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 8px"><tr>`
+    + `<td style="border-radius:8px;background:${BRAND}"><a href="${url}" style="display:inline-block;padding:12px 24px;border-radius:8px;font-family:${FONT};font-size:16px;font-weight:600;line-height:1.2;color:#ffffff;text-decoration:none">${escape(label)}</a></td>`
+    + `</tr></table>\n<p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:${MUTED};word-break:break-all">${url}</p>`;
+}
 
 function compose(to: string, subject: string, parts: Part[]): Message {
   const text = parts.map((p) => (typeof p === "string" ? p : p.href)).join("\n\n") + `\n\n-- \n${NAME}\n`;
-  const body = parts.map((p) => typeof p === "string"
-    ? `<p>${escape(p)}</p>`
-    : `<p><a href="${escape(p.href)}">${escape(p.label)}</a></p>\n<p style="font-size:13px;color:#555;word-break:break-all">${escape(p.href)}</p>`).join("\n");
-  const html = `<!doctype html><html><body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.5;color:#111;max-width:560px">\n${body}\n<p style="font-size:13px;color:#555">${NAME}</p>\n</body></html>\n`;
+  const body = parts.map((p) => (typeof p === "string" ? paragraph(p) : button(p.href, p.label))).join("\n");
+  const preview = typeof parts[0] === "string" ? escape(parts[0]) : "";
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(subject)}</title></head>
+<body style="margin:0;padding:0;background:#eaf1fa;font-family:${FONT}">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preview}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eaf1fa"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:14px;border:1px solid #d5e1ef;font-family:${FONT}">
+<tr><td style="padding:20px 32px;background:${BRAND};border-radius:13px 13px 0 0"><span style="font-size:20px;font-weight:700;letter-spacing:2px;color:#ffffff">${NAME}</span></td></tr>
+<tr><td style="padding:32px 32px 16px">
+<h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:700;color:${INK}">${escape(subject)}</h1>
+${body}
+</td></tr>
+</table>
+<p style="margin:20px 0 0;font-size:12px;line-height:1.5;color:${MUTED};font-family:${FONT}">${NAME}: follow your sources, keep what matters.</p>
+</td></tr></table>
+</body></html>
+`;
   return { to, subject, text, html };
 }
 
@@ -33,7 +68,7 @@ export function invitationMail(to: string, opts: { link: string; days: number; o
   return compose(to, `You're invited to ${NAME}`, [
     `You've been invited to create an account on ${NAME} at ${host(opts.origin)}: a private place to follow websites, feeds and channels and keep what matters to you.`,
     "To accept, open this link and choose how you'll sign in:",
-    { href: opts.link, label: "your invitation" },
+    { href: opts.link, label: "Accept your invitation" },
     `The invitation works once and ends in ${opts.days} ${opts.days === 1 ? "day" : "days"}. If you weren't expecting it, you can ignore this email.`,
   ]);
 }
@@ -41,7 +76,7 @@ export function invitationMail(to: string, opts: { link: string; days: number; o
 export function verifyMail(to: string, opts: { link: string; hours: number }): Message {
   return compose(to, "Confirm your email address", [
     `Please confirm that this is the email address for your ${NAME} account. Open this link:`,
-    { href: opts.link, label: "confirm this address" },
+    { href: opts.link, label: "Confirm this address" },
     `The link works for ${opts.hours} hours. Your address is used only for messages about your account, such as resetting your password.`,
     "If you didn't make an account, you can ignore this email.",
   ]);
@@ -50,7 +85,7 @@ export function verifyMail(to: string, opts: { link: string; hours: number }): M
 export function resetMail(to: string, opts: { link: string; username: string; minutes: number }): Message {
   return compose(to, "Reset your password", [
     `Someone asked to reset the password for the username ${opts.username}. To choose a new password, open this link:`,
-    { href: opts.link, label: "choose a new password" },
+    { href: opts.link, label: "Choose a new password" },
     `The link works once, for ${opts.minutes} minutes. Choosing a new password signs the account out everywhere.`,
     "If it wasn't you, ignore this email: your password stays as it is.",
   ]);
@@ -79,7 +114,7 @@ export function reminderMail(to: string, opts: { items: { title: string | null; 
   const parts: Part[] = [one ? "A reminder you set on something you kept is due today." : `${opts.items.length} reminders you set on things you kept are due today.`];
   for (const item of opts.items) {
     parts.push(item.title ? `${item.title}${item.note ? `: ${item.note}` : ""}` : "An item you kept:");
-    parts.push({ href: item.link, label: item.title ? "open it in your PURSS" : "open the item" });
+    parts.push({ href: item.link, label: item.title ? "Open it in your PURSS" : "Open the item" });
   }
   parts.push("You asked for reminders by email in Settings, under Notifications. You can turn them off there.");
   return compose(to, one ? "A reminder you set is due" : `${opts.items.length} reminders you set are due`, parts);
