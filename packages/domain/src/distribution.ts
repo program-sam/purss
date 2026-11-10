@@ -41,8 +41,8 @@ const doc = (file: string, anchor?: string) => `${SOURCE_URL}/blob/main/${file}$
 export type Distributed = "extension" | "mobile";
 
 export const DISTRIBUTION: Readonly<Record<Distributed, { stores: readonly StoreId[]; platforms: string; install: string }>> = {
-  extension: { stores: ["chrome", "edge", "firefox", "safari"], platforms: "Chrome, Edge, Firefox and Safari", install: doc("apps/extension/README.md", "try-it-unpacked") },
-  mobile: { stores: ["android", "ios"], platforms: "Android and iOS", install: doc("apps/mobile/README.md", "build") },
+  extension: { stores: ["chrome", "edge", "firefox"], platforms: "Chrome, Edge and Firefox", install: doc("apps/extension/README.md", "try-it-unpacked") },
+  mobile: { stores: ["android"], platforms: "Android", install: doc("apps/mobile/README.md", "build") },
 };
 
 /**
@@ -76,6 +76,9 @@ export const DESKTOP_PACKAGES: readonly DesktopPackage[] = [
 /** The files people download (the macOS update archive is for the updater only). */
 export const DESKTOP_DOWNLOADS: readonly DesktopPackage[] = DESKTOP_PACKAGES.filter((p) => !p.updaterOnly);
 
+/** The Android app outside the stores: a signed APK in the same releases (built by the same workflow). */
+export const ANDROID_APK = "PURSS-android.apk";
+
 export const DESKTOP_RELEASES_URL = `${SOURCE_URL}/releases/latest`;
 export const desktopDownloadUrl = (file: string): string => `${SOURCE_URL}/releases/latest/download/${file}`;
 
@@ -96,4 +99,4 @@ export function publishedStores(what: Distributed, listings: Readonly<Record<Sto
  * register with it; every PURSS sends through it unless its operator sets PURSS_PUSH_RELAY_URL. The value
  * to change once the owner has deployed the relay at its final address.
  */
-export const OFFICIAL_PUSH_RELAY = "https://push.program-sam.com";
+export const OFFICIAL_PUSH_RELAY = "https://push.purss.app";

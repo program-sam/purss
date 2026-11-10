@@ -960,7 +960,7 @@ type its address first; the extension remembers it. Then:
   opens Add source in your PURSS with the address filled in; press **Find** and choose as usual.
 - **Right-click** a page or a link for *Keep page in* or *Keep link in* and a basket. The toolbar
   button shows ✓ when it worked and ! when it didn't (hover over it for the reason).
-- **Search**: type `ws`, a space and your words in the address bar, then Enter.
+- **Search**: type `purss`, a space and your words in the address bar, then Enter.
 - **Mark pages you've kept** (in the extension's options, off unless you turn it on) shows ✓ on the
   toolbar button whenever the page you open is already kept. For that, the extension asks your
   PURSS about every page you open in a normal window (never in private windows). When it's off,

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { DESKTOP_RELEASES_URL, DISTRIBUTION, publishedStores } from "@purss/domain";
+import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, desktopDownloadUrl, publishedStores } from "@purss/domain";
 import type { Distributed } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { platform } from "../../platform/index.ts";
@@ -47,7 +47,8 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
           <small>Keep the page you're reading, add its site as a source, and search your PURSS from the address bar. For {DISTRIBUTION.extension.platforms}.</small>
           <Get what="extension" />
         </Row>
-        <Row icon="phone" title="Phone and tablet app">
+        <Row icon="phone" title="Phone and tablet app" action={platform.connection && !platform.desktop ? undefined
+          : <a className="btn" href={desktopDownloadUrl(ANDROID_APK)} target="_blank" rel="noopener noreferrer">Download for Android</a>}>
           <small>The same PURSS on {DISTRIBUTION.mobile.platforms}: listen with the screen off, download for reading offline, share links into it.</small>
           <Get what="mobile" />
         </Row>
