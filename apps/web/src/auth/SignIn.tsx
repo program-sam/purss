@@ -143,9 +143,11 @@ export function SignInPage() {
             <div><Button variant="primary" type="submit" disabled={busy || code.trim().length < 8}>Sign in with this code</Button></div>
           </form>
         )}
+        {/* With open sign-up an invitation is only ever followed from its email link, which fills in the code. */}
         <p className="fine" style={{ textAlign: "center" }}>
-          New here? <a className="link" href={inApp("/invite")}>Use an invitation</a>
-          {session?.installation.signup === "open" ? <> or <a className="link" href={inApp("/signup")}>create an account</a></> : null}
+          {session?.installation.signup === "open"
+            ? <>New here? <a className="link" href={inApp("/signup")}>Create an account</a></>
+            : <>New here? <a className="link" href={inApp("/invite")}>Use an invitation</a></>}
         </p>
       </div>
     </AuthFrame>

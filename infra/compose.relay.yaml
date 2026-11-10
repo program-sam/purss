@@ -1,0 +1,16 @@
+# The project's push relay (apps/push-relay) beside the official PURSS, so every deploy updates it too.
+# Only the server behind push.purss.app adds this file to COMPOSE_FILE; a self-hosted PURSS never needs it.
+# Point the proxy at http://purss-push-relay:8950 and keep the credential files in a host folder outside Git:
+#   PURSS_RELAY_SECRETS_DIR=/opt/purss-relay-secrets
+#   PURSS_RELAY_FCM_CREDENTIALS=/run/relay-secrets/fcm-service-account.json
+services:
+  push-relay:
+    extends:
+      file: ../apps/push-relay/compose.yaml
+      service: push-relay
+    ports: !reset []
+    networks:
+      proxy: { aliases: [purss-push-relay] }
+
+volumes:
+  relay-data:

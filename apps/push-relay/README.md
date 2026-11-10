@@ -91,7 +91,8 @@ PURSS_RELAY_APNS_TEAM_ID=TEAM123456
 docker compose -f apps/push-relay/compose.yaml up -d --build
 ```
 
-The secrets directory is mounted read-only at `/run/relay-secrets`. A platform whose variables are
+The project's own relay runs beside the official PURSS and is updated by every deploy of it (see
+[infra/README.md](../../infra/README.md#deploying-from-github)). The secrets directory is mounted read-only at `/run/relay-secrets`. A platform whose variables are
 left empty stays off (Android first and iOS later works); a path that points at a missing file
 stops the relay. The data volume holds `relay.db` and `handle-secret`; back up
 `handle-secret` or accept that apps re-register after a loss.
