@@ -20,6 +20,9 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 
 export const PLAN_LABELS: Record<Plan, string> = { free: "Free", plus: "Plus", pro: "Pro", unlimited: "Unlimited" };
 
+/** What the paid plans cost on the hosted service, in euros including VAT. */
+export const PLAN_PRICES_EUR = { plus: { month: 5, year: 48 }, pro: { month: 10, year: 96 } } as const;
+
 /** Sharing baskets and collections as public pages: Plus and up (plan/19). */
 export const planShares = (plan: Plan): boolean => plan !== "free";
 /** Smart filters on the server's Jev key: Pro and Unlimited (plan/36). */

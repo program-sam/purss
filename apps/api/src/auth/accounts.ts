@@ -274,6 +274,7 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
     mail: mailConfigured(app),
     version: app.config.version?.version ?? null,
     accountEmail: accountEmailAvailable(app),
+    billing: app.config.billing !== null,
   };
   if (accountCount(app) === 0) return { state: "unclaimed", csrf: null, account: null, installation };
   const p = ctx.principal;

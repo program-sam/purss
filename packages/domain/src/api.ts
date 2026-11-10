@@ -51,6 +51,8 @@ export type SessionInfo = {
     version: string | null;
     /** Accounts have an email address, confirmed by a link, that can receive a password-reset link (hosted, with email). */
     accountEmail: boolean;
+    /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
+    billing: boolean;
   };
 };
 /** The signed-in account's email address (plan/27). */

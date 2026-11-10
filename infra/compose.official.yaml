@@ -1,0 +1,25 @@
+# The project's own server (purss.app) only; a self-hosted PURSS never needs this file. Its COMPOSE_FILE adds it
+# after compose.proxy.yaml, so every deploy also updates:
+# - the push relay (apps/push-relay): point the proxy's push.purss.app at http://purss-push-relay:8950, and keep
+#   the relay's credential files in a host folder outside Git, e.g.
+#     PURSS_RELAY_SECRETS_DIR=/opt/purss-relay-secrets
+#     PURSS_RELAY_FCM_CREDENTIALS=/run/relay-secrets/fcm-service-account.json
+# - the link to the hosted service's billing (plan/18, apps/api/src/billing.ts), set in the server's .env:
+#     PURSS_BILLING_URL=https://purss.app/billing
+#     PURSS_BILLING_SECRET=…  (the billing service's shared secret)
+services:
+  api:
+    environment:
+      PURSS_BILLING_URL: ${PURSS_BILLING_URL:-}
+      PURSS_BILLING_SECRET: ${PURSS_BILLING_SECRET:-}
+
+  push-relay:
+    extends:
+      file: ../apps/push-relay/compose.yaml
+      service: push-relay
+    ports: !reset []
+    networks:
+      proxy: { aliases: [purss-push-relay] }
+
+volumes:
+  relay-data:

@@ -11,6 +11,7 @@ const DIALOGS: Record<string, Overlay> = {
   security: { kind: "settings", tab: "security" },
   apps: { kind: "settings", tab: "apps" },
   notifications: { kind: "settings", tab: "notifications" },
+  plan: { kind: "settings", tab: "plan" },
   shortcuts: { kind: "shortcuts" },
   search: { kind: "palette" },
   basket: { kind: "basket-form" },

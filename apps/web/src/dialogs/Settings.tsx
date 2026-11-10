@@ -36,8 +36,9 @@ import { fkeys } from "../features/shared/api.ts";
 import { MutedWordsField } from "./MutedWords.tsx";
 import { AiSettingsField } from "./AiFilter.tsx";
 import { DeleteAccountSection } from "../features/account/DeleteAccount.tsx";
+import { PlanTab } from "../features/account/PlanTab.tsx";
 
-type Tab = "general" | "notifications" | "security" | "assistants" | "apps" | "device" | "account";
+type Tab = "general" | "notifications" | "security" | "assistants" | "apps" | "device" | "plan" | "account";
 const SKINS: { value: Preferences["skin"]; label: string; hue: number }[] = [{ value: "sky", label: "Sky", hue: 212 }, { value: "lilac", label: "Lilac", hue: 268 }, { value: "meadow", label: "Meadow", hue: 152 }];
 
 function useZones(current: string): string[] {
@@ -345,17 +346,19 @@ function VersionNote() {
 
 export function SettingsDialog({ tab: initial }: { tab?: Tab }) {
   const ov = useOverlays();
+  const hosted = useSession().data?.installation.mode === "hosted";
   // The apps have everything the browser has, plus their own device settings.
   const options: { value: Tab; label: string }[] = [
     { value: "general", label: "General" }, { value: "notifications", label: "Notifications and New" },
     ...(platform.connection ? [{ value: "device" as const, label: "This device" }] : []),
-    { value: "security", label: "Security" }, { value: "apps", label: "Connected apps" }, { value: "assistants", label: "Assistants" }, { value: "account", label: "Account" },
+    { value: "security", label: "Security" }, { value: "apps", label: "Connected apps" }, { value: "assistants", label: "Assistants" },
+    ...(hosted ? [{ value: "plan" as const, label: "Plan" }] : []), { value: "account", label: "Account" },
   ];
   const [tab, setTab] = useState<Tab>(initial && options.some((o) => o.value === initial) ? initial : "general");
   return (
     <Dialog title="Settings" size="lg" onClose={ov.close} initialFocus="dialog" footer={<><VersionNote /><Button variant="primary" onClick={ov.close}>Done</Button></>}>
       <div className="dlg-tabs"><Segmented label="Settings section" value={tab} onChange={setTab} buttonStyle={{ height: 30, padding: "0 14px" }} options={options} /></div>
-      {tab === "general" ? <GeneralTab /> : tab === "notifications" ? <NotificationSettings /> : tab === "security" ? <SecurityTab /> : tab === "apps" ? <ConnectedApps onOpen={setTab} /> : tab === "device" ? <DeviceTab /> : tab === "assistants" ? <AssistantSettings /> : <DeleteAccountSection />}
+      {tab === "general" ? <GeneralTab /> : tab === "notifications" ? <NotificationSettings /> : tab === "security" ? <SecurityTab /> : tab === "apps" ? <ConnectedApps onOpen={setTab} /> : tab === "device" ? <DeviceTab /> : tab === "assistants" ? <AssistantSettings /> : tab === "plan" ? <PlanTab /> : <DeleteAccountSection />}
     </Dialog>
   );
 }

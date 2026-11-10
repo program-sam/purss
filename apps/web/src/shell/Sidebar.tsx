@@ -123,7 +123,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
   const adminPages = adminOnly.length > 1 ? adminOnly : [];
   const addTo = place?.t === "c" ? place.id : place?.t === "s" ? ws.sourceById.get(place.id)?.collectionIds[0] : undefined;
   const openAdd = () => overlays.open({ kind: "add-source", collectionId: addTo });
-  const openCapacity = (anchor: HTMLElement, up: boolean) => { if (capacity) popups.panel(anchor, "Your plan", () => <CapacityPanel capacity={capacity} paused={paused} />, { up }); };
+  const openCapacity = (anchor: HTMLElement, up: boolean) => { if (capacity) popups.panel(anchor, "Your plan", () => <CapacityPanel capacity={capacity} paused={paused} onPlan={hosted ? () => overlays.open({ kind: "settings", tab: "plan" }) : undefined} />, { up }); };
   const capacityLabel = capacity ? `${capacityLine(capacity)}${paused ? ". New items are paused" : ""}. Show your plan` : "";
   const homeHere = place?.t === "home";
   const readHere = place?.t === "r";

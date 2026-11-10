@@ -78,6 +78,12 @@ export type Config = {
    * project's relay unless PURSS_PUSH_RELAY_URL names another or turns it off; nothing to set up.
    */
   pushRelay: string | null;
+  /**
+   * Hosted only: an external billing service (its address and a shared secret of at least 32 characters), which
+   * people reach from Settings to pay for a plan and which sets plans back through /api/billing/plan (billing.ts).
+   * Null without it: administrators set plans by hand.
+   */
+  billing: { url: string; secret: string } | null;
 };
 
 /** A number from the environment; unset or empty (Compose passes a variable the operator didn't set as "") means the default. */
@@ -127,6 +133,17 @@ function assistantOAuth(env: NodeJS.ProcessEnv, mode: Config["mode"], publicOrig
  * off; anything else must be the https address of another relay (one holding the credentials of the app
  * the phones run, so in practice a fork's own).
  */
+function billing(env: NodeJS.ProcessEnv, mode: string): { url: string; secret: string } | null {
+  const url = env.PURSS_BILLING_URL?.trim() ?? "";
+  const secret = env.PURSS_BILLING_SECRET?.trim() ?? "";
+  if (mode !== "hosted" || (!url && !secret)) return null;
+  let u: URL;
+  try { u = new URL(url); } catch { throw new Error("PURSS_BILLING_URL must be the billing service's https address."); }
+  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) throw new Error("PURSS_BILLING_URL must be a plain https address.");
+  if (secret.length < 32) throw new Error("PURSS_BILLING_SECRET must be at least 32 characters, the same as the billing service's.");
+  return { url: u.href.replace(/\/+$/, ""), secret };
+}
+
 function pushRelay(env: NodeJS.ProcessEnv): string | null {
   const v = env.PURSS_PUSH_RELAY_URL?.trim();
   if (v === undefined || v === "official") return OFFICIAL_PUSH_RELAY;
@@ -181,5 +198,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     assistantOAuth: assistantOAuth(env, mode, publicOrigin),
     jev: jevConfigFromEnv(env),
     pushRelay: pushRelay(env),
+    billing: billing(env, mode),
   };
 }

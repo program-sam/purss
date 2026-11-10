@@ -15,7 +15,7 @@ export type Overlay =
   | { kind: "customise-home" }
   | { kind: "basket-form"; id?: string; keepItemId?: string }
   | { kind: "basket-delete"; id: string }
-  | { kind: "settings"; tab?: "general" | "notifications" | "security" | "apps" | "assistants" | "device" | "account" }
+  | { kind: "settings"; tab?: "general" | "notifications" | "security" | "apps" | "assistants" | "device" | "plan" | "account" }
   | { kind: "shortcuts" }
   | { kind: "palette"; query?: string }
   | { kind: "keep-page"; url: string; title?: string }
