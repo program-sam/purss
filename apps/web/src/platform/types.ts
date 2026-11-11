@@ -40,8 +40,8 @@ export interface Platform {
   readonly push: PhonePush | null;
   /** Where a tapped widget row or notification asks the app to go (`purss://open`). Returns a function that stops listening. */
   onOpen(listener: (target: OpenTarget) => void): () => void;
-  /** Addresses `purss://connect?…` that reach the connected app: the code the system browser hands back after linking a provider sign-in. Returns a function that stops listening. */
-  onConnectLink(listener: (url: string) => void): () => void;
+  /** Addresses `purss://connect?…` that reach the connected app: the code the system browser hands back after linking a provider sign-in or confirming it's you with one. Returns a function that stops listening. */
+  onConnectReturn(listener: (url: string) => void): () => void;
   /** The installed app's version (plan/40), as its store build says; null on the web, or for a build without one. */
   appVersion(): Promise<string | null>;
   /** Updates of the app's interface from the connected PURSS (plan/39); null where there are none (the web app, an app not connected). */

@@ -97,14 +97,16 @@ export function readCallback(url: string, expected: { state: string; issuer: str
 }
 
 /**
- * What came back to purss://connect for an external sign-in the app is linking (`link_code`, never `code`): the code to redeem at
- * `/api/auth/oidc/<id>/link` with the verifier it made. Only an answer to this request counts: its state, and the PURSS naming itself.
+ * What came back to purss://connect after the system browser signed the person in at a provider for something the app asked: a
+ * `link_code` (adding the provider as a way to sign in) or a `confirm_code` (confirming it's you), never `code`, which is a
+ * connection's. The code is redeemed at `/api/auth/oidc/<id>/link` or `/confirm` with the app's token and the verifier it made. Only an
+ * answer to this request counts: its state, and the PURSS naming itself.
  */
-export function readLinkCallback(url: string, expected: { state: string; issuer: string }): { kind: "code"; code: string } | { kind: "ignored" } {
+export function readAppCode(url: string, kind: "link" | "confirm", expected: { state: string; issuer: string }): { kind: "code"; code: string } | { kind: "ignored" } {
   const [base, rest = ""] = url.split("#")[0]!.split(/\?(.*)/s);
   if (base !== REDIRECT_URI) return { kind: "ignored" };
   const q = new URLSearchParams(rest);
-  const code = q.get("link_code");
+  const code = q.get(kind === "link" ? "link_code" : "confirm_code");
   if (!code || q.get("state") !== expected.state || q.get("iss") !== expected.issuer) return { kind: "ignored" };
   return { kind: "code", code };
 }
