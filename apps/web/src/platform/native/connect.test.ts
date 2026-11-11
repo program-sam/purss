@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseWorkspaceAddress } from "@purss/domain";
-import { checkInfo, connectPageUrl, parseConnection, parsePending, pkce, providersOffered, providerStartUrl, readCallback, readLinkCallback, signinOffered, signupOffer } from "./connect.ts";
+import { checkInfo, connectPageUrl, parseConnection, parsePending, pkce, providersOffered, providerStartUrl, readAppCode, readCallback, signinOffered, signupOffer } from "./connect.ts";
 
 test("the app takes the same addresses as the extension: https, or plain http on this device or the local network, flagged as unencrypted", () => {
   assert.deepEqual(parseWorkspaceAddress(" workspace.example.org/inbox?x=1 "), { ok: true, origin: "https://workspace.example.org", unencrypted: false });
@@ -103,14 +103,20 @@ test("Continue with Google opens the provider's sign-in in the browser and retur
   assert.ok(new URL(providerStartUrl(google.start, "https://ws.example/connect", request)).searchParams.get("next")!.startsWith("/connect?"));
 });
 
-test("the code for a provider the app is linking is taken only from its own answer: its state, PURSS naming itself, link_code", () => {
+test("the code for a provider the app is linking or confirming with is taken only from its own answer: its kind, its state, PURSS naming itself", () => {
   const expected = { state: "ST", issuer: "https://ws.example" };
-  assert.deepEqual(readLinkCallback("purss://connect?link_code=LC&state=ST&iss=https%3A%2F%2Fws.example", expected), { kind: "code", code: "LC" });
-  assert.deepEqual(readLinkCallback("purss://connect?link_code=LC&state=OTHER&iss=https%3A%2F%2Fws.example", expected), { kind: "ignored" }, "another request's state");
-  assert.deepEqual(readLinkCallback("purss://connect?link_code=LC&state=ST&iss=https%3A%2F%2Fother.example", expected), { kind: "ignored" }, "another PURSS");
-  assert.deepEqual(readLinkCallback("purss://connect?link_code=LC&state=ST", expected), { kind: "ignored" }, "PURSS didn't name itself");
-  assert.deepEqual(readLinkCallback("purss://connect?code=LC&state=ST&iss=https%3A%2F%2Fws.example", expected), { kind: "ignored" }, "a connection's code is not a link's");
-  assert.deepEqual(readLinkCallback("purss://open?link_code=LC&state=ST&iss=https%3A%2F%2Fws.example", expected), { kind: "ignored" }, "another address");
-  // And the first screen's reader doesn't take a link's code for a connection's.
-  assert.notEqual(readCallback("purss://connect?link_code=LC&state=ST&iss=https%3A%2F%2Fws.example", expected).kind, "code");
+  const iss = "iss=https%3A%2F%2Fws.example";
+  assert.deepEqual(readAppCode(`purss://connect?link_code=LC&state=ST&${iss}`, "link", expected), { kind: "code", code: "LC" });
+  assert.deepEqual(readAppCode(`purss://connect?confirm_code=CC&state=ST&${iss}`, "confirm", expected), { kind: "code", code: "CC" });
+  // One kind's code is never taken for the other's, nor a connection's `code` for either.
+  assert.deepEqual(readAppCode(`purss://connect?link_code=LC&state=ST&${iss}`, "confirm", expected), { kind: "ignored" });
+  assert.deepEqual(readAppCode(`purss://connect?confirm_code=CC&state=ST&${iss}`, "link", expected), { kind: "ignored" });
+  assert.deepEqual(readAppCode(`purss://connect?code=LC&state=ST&${iss}`, "link", expected), { kind: "ignored" });
+  assert.deepEqual(readAppCode(`purss://connect?confirm_code=CC&state=OTHER&${iss}`, "confirm", expected), { kind: "ignored" }, "another request's state");
+  assert.deepEqual(readAppCode("purss://connect?confirm_code=CC&state=ST&iss=https%3A%2F%2Fother.example", "confirm", expected), { kind: "ignored" }, "another PURSS");
+  assert.deepEqual(readAppCode("purss://connect?confirm_code=CC&state=ST", "confirm", expected), { kind: "ignored" }, "PURSS didn't name itself");
+  assert.deepEqual(readAppCode(`purss://open?confirm_code=CC&state=ST&${iss}`, "confirm", expected), { kind: "ignored" }, "another address");
+  // And the first screen's reader doesn't take either for a connection's code.
+  assert.notEqual(readCallback(`purss://connect?confirm_code=CC&state=ST&${iss}`, expected).kind, "code");
+  assert.notEqual(readCallback(`purss://connect?link_code=LC&state=ST&${iss}`, expected).kind, "code");
 });

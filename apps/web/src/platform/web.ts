@@ -54,7 +54,7 @@ export const webPlatform: Platform = {
   widget: null,
   push: null,
   onOpen: () => () => {},
-  onConnectLink: () => () => {},
+  onConnectReturn: () => () => {},
   notifier: browserNotifier,
   badge: null,
   onIntake: () => () => {},
