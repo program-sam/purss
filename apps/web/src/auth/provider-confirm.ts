@@ -1,6 +1,7 @@
 import { ApiError, api, post } from "../api/client.ts";
 import { platform } from "../platform/index.ts";
 import { withinApp } from "../app-base.ts";
+import { pkce, readLinkCallback } from "../platform/native/connect.ts";
 import { rememberConfirming } from "./confirm-marker.ts";
 
 /*
@@ -46,7 +47,8 @@ export async function confirmWithProvider(provider: { id: string; label: string 
 
 /**
  * Add the provider as a way to sign in to the signed-in account (it needs a recent sign-in first). A browser leaves for the
- * provider and comes back to Settings → Security; an app does it in the system browser and resolves once it is linked.
+ * provider and comes back to Settings → Security. An app does it in the system browser, which never links anything itself: it hands
+ * the app a one-time code at purss://connect, and the app redeems it with its own token and a verifier only it holds.
  */
 export async function linkWithProvider(provider: { id: string; label: string }): Promise<void> {
   if (!platform.connection) {
@@ -54,9 +56,21 @@ export async function linkWithProvider(provider: { id: string; label: string }):
     await new Promise<never>(() => undefined);
     return;
   }
-  const { url } = await post<{ url: string }>(`/api/auth/oidc/${enc(provider.id)}/ticket`, { purpose: "link" });
-  platform.openExternal(url);
-  await waitFor(async () => (await security()).methods.some((m) => m.kind === "oidc" && m.label === provider.label));
+  const request = await pkce();
+  let cancel = () => {};
+  const code = new Promise<string>((resolve, reject) => {
+    const stop = platform.onConnectLink((url) => {
+      const back = readLinkCallback(url, { state: request.state, issuer: platform.publicOrigin() });
+      if (back.kind === "code") resolve(back.code);
+    });
+    const timer = setTimeout(() => reject(new ApiError(0, "timeout", "That wasn't finished in the browser. Try again.")), WAIT_MS);
+    cancel = () => { clearTimeout(timer); stop(); };
+  });
+  try {
+    const { url } = await post<{ url: string }>(`/api/auth/oidc/${enc(provider.id)}/ticket`, { purpose: "link", codeChallenge: request.challenge, state: request.state });
+    platform.openExternal(url);
+    await post(`/api/auth/oidc/${enc(provider.id)}/link`, { code: await code, codeVerifier: request.verifier });
+  } finally { cancel(); }
 }
 
 /** What to tell the person back from the provider's page, as PURSS itself says whether they are confirmed. */

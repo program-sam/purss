@@ -18,6 +18,8 @@ export function StepUpOptions({ busy, confirm, returnTo }: { busy: boolean; conf
   const account = useSession().data?.account;
   const [secret, setSecret] = useState("");
   const passkey = passkeysAvailable() && !!account?.hasPasskey;
+  // A provider that can only show its account chooser confirms an account with no password and no passkey, and no other.
+  const providers = (account?.linkedProviders ?? []).filter((p) => p.canConfirm);
   return (
     <>
       {account?.hasPassword ? (
@@ -28,7 +30,7 @@ export function StepUpOptions({ busy, confirm, returnTo }: { busy: boolean; conf
         </form>
       ) : null}
       {passkey ? <div style={{ display: "grid", gap: 4 }}><Button id="su-first" disabled={busy} onClick={() => confirm(() => assertPasskey("/api/auth/step-up/passkey"))}><Icon name="key" />Confirm with fingerprint, face or screen lock</Button></div> : null}
-      {(account?.linkedProviders ?? []).map((p, i) => (
+      {providers.map((p, i) => (
         <div key={p.id} style={{ display: "grid", gap: 4 }}>
           <Button id={!account?.hasPassword && !passkey && i === 0 ? "su-first" : undefined} disabled={busy} onClick={() => confirm(() => confirmWithProvider(p, returnTo))}>Confirm with {p.label}</Button>
         </div>

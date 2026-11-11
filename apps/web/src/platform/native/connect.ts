@@ -96,6 +96,19 @@ export function readCallback(url: string, expected: { state: string; issuer: str
   return { kind: "code", code };
 }
 
+/**
+ * What came back to purss://connect for an external sign-in the app is linking (`link_code`, never `code`): the code to redeem at
+ * `/api/auth/oidc/<id>/link` with the verifier it made. Only an answer to this request counts: its state, and the PURSS naming itself.
+ */
+export function readLinkCallback(url: string, expected: { state: string; issuer: string }): { kind: "code"; code: string } | { kind: "ignored" } {
+  const [base, rest = ""] = url.split("#")[0]!.split(/\?(.*)/s);
+  if (base !== REDIRECT_URI) return { kind: "ignored" };
+  const q = new URLSearchParams(rest);
+  const code = q.get("link_code");
+  if (!code || q.get("state") !== expected.state || q.get("iss") !== expected.issuer) return { kind: "ignored" };
+  return { kind: "code", code };
+}
+
 /** The connection waiting for the browser's answer; kept in case the system stops the app meanwhile. */
 export type Pending = { origin: string; issuer: string; verifier: string; state: string; startedAt: number; passkeys?: boolean };
 export const PENDING_MAX_AGE_MS = 10 * 60_000;

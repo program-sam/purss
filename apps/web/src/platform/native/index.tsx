@@ -217,6 +217,10 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     onIntake: () => () => {},
     desktop: null,
     appVersion: async () => { try { return plainVersion((await App.getInfo()).version); } catch { return null; } },
+    onConnectLink(listener) {
+      const handle = App.addListener("appUrlOpen", (e) => { if (/^purss:\/\/connect\b/i.test(e.url)) listener(e.url); });
+      return () => { void handle.then((h) => h.remove()); };
+    },
     onOpen(listener) {
       const open = (url: unknown) => {
         if (typeof url !== "string") return;

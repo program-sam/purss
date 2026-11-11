@@ -96,7 +96,7 @@ const setupRoute = createRoute({
 });
 const signinRoute = createRoute({
   getParentRoute: () => rootRoute, path: "/signin", component: SignInPage,
-  validateSearch: (s: Record<string, unknown>) => compact({ error: str(s.error), next: safeNext(s.next), notice: str(s.notice), due: str(s.due) }),
+  validateSearch: (s: Record<string, unknown>) => compact({ error: str(s.error), provider: str(s.provider), next: safeNext(s.next), notice: str(s.notice), due: str(s.due) }),
   beforeLoad: async ({ context, search }) => {
     const s = await sessionOf(context.queryClient);
     if (s.state === "signed_in" && search.next) throw redirect({ href: search.next });
