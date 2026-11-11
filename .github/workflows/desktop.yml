@@ -4,7 +4,8 @@
 # (secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD): installed apps refuse updates without
 # its signature; and the Android release key (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
 # ANDROID_KEY_PASSWORD): Android installs an update only when it is signed with the same key. The desktop packages
-# aren't signed for Windows or macOS yet, so both warn on first open (see apps/desktop/README.md).
+# aren't signed for Windows or macOS yet, so both warn on first open (see apps/desktop/README.md). The APK gets phone
+# push from the Firebase configuration in the secret GOOGLE_SERVICES_JSON (the file's contents).
 name: Desktop and Android apps
 
 on:
@@ -99,6 +100,7 @@ jobs:
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
     steps:
       - name: A release needs the Android release key
         if: env.PUBLISH == 'true' && env.ANDROID_KEYSTORE_BASE64 == ''
@@ -124,6 +126,13 @@ jobs:
         run: |
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.jks
           printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" > keystore.properties
+      - name: Firebase configuration (phone push)
+        if: env.GOOGLE_SERVICES_JSON != ''
+        working-directory: apps/mobile/android/app
+        run: printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
+      - name: A release without push
+        if: env.PUBLISH == 'true' && env.GOOGLE_SERVICES_JSON == ''
+        run: echo "::warning::GOOGLE_SERVICES_JSON isn't set, so this APK can't receive push notifications."
       - name: Build
         working-directory: apps/mobile/android
         run: ./gradlew assembleFullRelease --no-daemon
