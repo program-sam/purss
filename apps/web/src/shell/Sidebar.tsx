@@ -2,7 +2,7 @@ import type { Capacity, CollectionDTO, SourceDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { formatCount, plural } from "../lib/format.ts";
-import { setHints, useHints } from "../state/ui-store.ts";
+import { setHints, toggleGroup, useHints, useOpenGroups } from "../state/ui-store.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
@@ -65,32 +65,34 @@ function SourceRow({ s, place }: { s: SourceDTO; place: Place | null }) {
 function Group({ id, label, sources, collection, place }: { id: string; label: string; sources: SourceDTO[]; collection?: CollectionDTO; place: Place | null }) {
   const nav = useNav();
   const hints = useHints();
-  const open = !hints.collapsed.includes(id);
+  const open = useOpenGroups().includes(id);
   const here = !!collection && place?.t === "c" && place.id === collection.id;
   const fresh = collection ? collection.freshCount : sources.reduce((n, s) => n + s.freshCount, 0);
   const expandable = !collection || collection.mode === "sources";
-  const toggle = () => setHints({ collapsed: open ? [...hints.collapsed, id] : hints.collapsed.filter((x) => x !== id) });
+  // A closed group holding the source you're on marks its name, so you can still see where you are.
+  const within = !open && place?.t === "s" && sources.some((s) => s.id === place.id);
+  const toggle = () => toggleGroup(id);
   // Long groups show their first few sources, plus the one you're on, until "Show all".
   const all = hints.showAll.includes(id);
   const toggleAll = () => setHints({ showAll: all ? hints.showAll.filter((x) => x !== id) : [...hints.showAll, id] });
   const shown = all ? sources : sources.filter((s, i) => i < GROUP_PREVIEW || (place?.t === "s" && place.id === s.id));
   return (
     <li className="group">
-      <div className={`grow${here ? " sel" : ""}`}>
+      <div className={`grow${here ? " sel" : ""}${within ? " within" : ""}`}>
         {expandable ? (
           <button type="button" className="chev" aria-expanded={open} aria-label={`${label}, ${plural(sources.length, "source")}`} onClick={toggle}><Icon name="chev" /></button>
-        ) : <span style={{ width: 26, flex: "none" }} />}
+        ) : <span className="chev-gap" />}
         {collection ? (
           <button type="button" data-collection={collection.id} className="glabel" aria-current={here ? "page" : undefined} onClick={() => nav.go({ t: "c", id: collection.id })}>
-            {collection.emoji ? <span aria-hidden="true" style={{ marginRight: 6 }}>{collection.emoji}</span> : null}<bdi>{collection.name}</bdi>
+            {collection.emoji ? <span className="gem" aria-hidden="true">{collection.emoji}</span> : null}<bdi>{collection.name}</bdi>
           </button>
-        ) : <span className="glabel" style={{ fontWeight: 700, color: "var(--ink-2)" }}>{label}</span>}
+        ) : <span className="glabel loose">{label}</span>}
         {collection?.aiFiltered ? <FilterMark /> : null}
         {!open && fresh ? <span className="cnt" title={`${fresh} new`}>{fresh}<span className="u"> new</span></span> : null}
       </div>
       {open && expandable ? (
         <ul className="srcs">
-          {sources.length ? shown.map((s) => <SourceRow key={s.id} s={s} place={place} />) : <li><p className="fine" style={{ padding: "4px 8px 6px" }}>No sources yet</p></li>}
+          {sources.length ? shown.map((s) => <SourceRow key={s.id} s={s} place={place} />) : <li><p className="fine side-empty">No sources yet</p></li>}
           {sources.length > GROUP_PREVIEW ? (
             <li><button type="button" className="more-srcs" aria-expanded={all} onClick={toggleAll}>{all ? "Show fewer" : `Show all ${sources.length}`}</button></li>
           ) : null}
@@ -180,7 +182,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
           {onToggle ? <button type="button" className="ibtn side-collapse" data-fk="tside" aria-label="Collapse sidebar" aria-expanded={true} onClick={onToggle}><Icon name="sidebar" /></button> : null}</div>
         {session?.account?.displayName ? <p className="fine" style={{ margin: "-6px 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.account.displayName}</p> : null}
         <button type="button" className="btn primary lg" data-fk="add" onClick={openAdd}><Icon name="plus" />Add source</button>
-        <div style={{ display: "grid", gap: 6 }}>
+        <div className="side-nav">
           <button type="button" className={`nav-row${homeHere ? " sel" : ""}`} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" />Home</button>
           <button type="button" className={`nav-row${readHere ? " sel" : ""}`} aria-current={readHere ? "page" : undefined} onClick={() => nav.go({ t: "r", id: "toread" })}><Icon name="item" />To read</button>
           <button type="button" className="pill-search" aria-label={KEYBOARD ? `Search, shortcut ${SEARCH_SPOKEN}` : "Search"} onClick={() => overlays.open({ kind: "palette" })}><Icon name="search" />Search{KEYBOARD ? <kbd aria-hidden="true">{SEARCH_KEY}</kbd> : null}</button>
@@ -192,7 +194,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
           {ws.collections.map((c) => <Group key={c.id} id={c.id} label={c.name} collection={c} sources={ws.sourcesOf(c)} place={place} />)}
           {ws.looseSources.length ? <Group id="loose" label="Sources not in a collection" sources={ws.looseSources} place={place} /> : null}
         </ul>
-        {!ws.collections.length && !ws.looseSources.length ? <p className="fine" style={{ padding: "6px 10px" }}>Nothing followed yet.</p> : null}
+        {!ws.collections.length && !ws.looseSources.length ? <p className="fine side-empty">Nothing followed yet.</p> : null}
         <div className="sec-head"><h2 id="h-bk">Baskets</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "basket-form" })}><Icon name="plus" size="sm" />New basket</button></div>
         <ul aria-labelledby="h-bk">
           {ws.data.baskets.map((b) => {
@@ -205,7 +207,6 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
               </li>
             );
           })}
-          {!ws.data.baskets.length ? <li><p className="fine" style={{ padding: "4px 10px 6px" }}>Baskets keep items you choose, even after their source drops them. Use the bookmark on any item to keep it.</p></li> : null}
         </ul>
         {morePages.length ? (
           <>

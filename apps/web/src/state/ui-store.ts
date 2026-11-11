@@ -2,13 +2,16 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Layout hints that belong to this browser, not to the account: sidebar width mode, collapsed
- * groups, the detail panel's width. Product settings (theme, density, Home layout) are saved on the
+ * Home boxes, the detail panel's width. Product settings (theme, density, Home layout) are saved on the
  * server with the account; only a tiny copy of the visual ones is kept here so the first paint
  * after a reload does not flash the wrong theme.
  */
 export type UiHints = {
   sidebar: "full" | "rail" | null;
+  /** Home collection boxes the user collapsed; they start open. */
   collapsed: string[];
+  /** Home's To read, To listen, Recently kept and Needs attention rows the user opened; they start closed. */
+  opened: string[];
   /** Sidebar groups showing all their sources instead of the first few. */
   showAll: string[];
   /** Reader panel width the user dragged to; null follows the window (see .panel in app.css). */
@@ -19,7 +22,7 @@ export type VisualHint = { theme: "system" | "light" | "dark"; skin: string; den
 
 const KEY = "purss-ui";
 const VISUAL_KEY = "purss-visual";
-const DEFAULTS: UiHints = { sidebar: null, collapsed: [], showAll: [], readerWidth: null, boardColumn: "new" };
+const DEFAULTS: UiHints = { sidebar: null, collapsed: [], opened: [], showAll: [], readerWidth: null, boardColumn: "new" };
 
 let state: UiHints = read();
 const listeners = new Set<() => void>();
@@ -39,6 +42,23 @@ export function setHints(patch: Partial<UiHints>): void {
 
 export function useHints(): UiHints {
   return useSyncExternalStore((cb) => { listeners.add(cb); return () => listeners.delete(cb); }, () => state, () => DEFAULTS);
+}
+
+/**
+ * Sidebar collections opened during this page load. Not saved: every load starts with all of them
+ * closed, so the sidebar stays short.
+ */
+let openGroups: readonly string[] = [];
+const groupListeners = new Set<() => void>();
+const NO_GROUPS: readonly string[] = [];
+
+export function toggleGroup(id: string): void {
+  openGroups = openGroups.includes(id) ? openGroups.filter((x) => x !== id) : [...openGroups, id];
+  groupListeners.forEach((l) => l());
+}
+
+export function useOpenGroups(): readonly string[] {
+  return useSyncExternalStore((cb) => { groupListeners.add(cb); return () => groupListeners.delete(cb); }, () => openGroups, () => NO_GROUPS);
 }
 
 export function readVisualHint(): VisualHint | null {

@@ -69,17 +69,24 @@ kbd{font:700 0.6875rem/1 var(--font);padding:3px 6px;border-radius:6px;border:1p
 .mark{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;color:#fff;background:linear-gradient(rgba(255,255,255,.3),rgba(255,255,255,0) 55%),linear-gradient(var(--accent-top),var(--accent-bot));border:1px solid var(--accent-bd);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
 .mark .ic{width:15px;height:15px;fill:#fff;stroke:none}
 .side-head .btn.primary{width:100%;justify-content:center}
+.side-nav{display:grid;gap:6px}
+.side-empty{padding:4px 10px 6px}
 .nav-row{display:flex;align-items:center;gap:9px;width:100%;height:30px;padding:0 10px;border-radius:8px;border:1px solid transparent;font-weight:700;font-size:0.8438rem;color:var(--ink)}
 .nav-row:hover,.srow:hover,.glabel:hover,.chev:hover{background:var(--hover)}
 .pill-search{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 8px 0 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-3);font-weight:600;font-size:0.8438rem;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
 .pill-search:hover{border-color:var(--tint-bd)}
 .pill-search kbd{margin-left:auto}
 .sel{background:linear-gradient(var(--sel-top),var(--sel-bot))!important;border-color:var(--sel-bd)!important;box-shadow:inset 0 1px 0 var(--hi)}
-.sec-head{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 4px 10px;min-height:34px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;padding:22px 8px 6px 10px;min-height:34px}
 .sec-head h2{font-size:0.7812rem;font-weight:800;color:var(--ink-3);letter-spacing:.01em}
 .quiet{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 6px;border-radius:6px;font-size:0.7812rem;font-weight:700;color:var(--ink-3)}
 .quiet:hover{background:var(--hover);color:var(--ink)}
 .grow{display:flex;align-items:center;border-radius:8px;border:1px solid transparent;min-height:30px}
+.group+.group{margin-top:4px}
+.chev-gap{width:26px;flex:none}
+.glabel .gem{margin-right:6px}
+.glabel.loose{font-weight:700;color:var(--ink-2)}
+.grow.within .glabel{color:var(--accent-ink)}
 .chev{display:grid;place-items:center;width:26px;height:28px;border-radius:7px;color:var(--ink-3);flex:none}
 .chev .ic{transition:transform .12s}
 .chev[aria-expanded="true"] .ic{transform:rotate(90deg)}
