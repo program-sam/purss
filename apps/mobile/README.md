@@ -72,7 +72,7 @@ the file a release build is unsigned. The GitHub release workflow builds this fu
 
 **Notifications** need the owner's Firebase project: put its `google-services.json` (Android app
 `app.purss`) in `android/app/` before building. It is not committed (ignored in
-`android/.gitignore`). Without it the build works and Settings → This device says this build can't
+`android/.gitignore`); the release workflow writes it from the repository secret `GOOGLE_SERVICES_JSON`. Without it the build works and Settings → This device says this build can't
 receive notifications. The relay that sends to it is `apps/push-relay`; the whole setup is in
 [plan/37](../../plan/37-push-notifications.md#owner-steps). For Google Play, Play App Signing keeps the distribution key and
 this one becomes the upload key.
