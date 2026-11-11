@@ -12,6 +12,7 @@
 .stat-item{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;border-bottom:1px solid var(--line)}
 .stat-item:last-child{border-bottom:0}
 .stat-item dt{color:var(--ink-2);font-weight:600}
+.stat-sub dt{padding-left:16px;font-weight:500}
 .stat-item dd{margin:0;color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 
 /* The per-source table. Row headers are real headers, so they must not pick up the column-header look. */

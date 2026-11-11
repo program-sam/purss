@@ -60,8 +60,8 @@ function Failed({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return <div className="empty card-like"><h2>Couldn't load the statistics</h2><p>{messageOf(error)}</p><Button onClick={onRetry}>Try again</Button></div>;
 }
 
-function Item({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="stat-item"><dt>{label}</dt><dd>{children}</dd></div>;
+function Item({ label, sub, children }: { label: string; sub?: boolean; children: ReactNode }) {
+  return <div className={sub ? "stat-item stat-sub" : "stat-item"}><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -91,6 +91,7 @@ function SourceBody({ data }: { data: SourceStatsResponse }) {
           </Block>
           <Block title="Workflow">
             {WORKFLOW_ORDER.map((w) => <Item key={w} label={WORKFLOW_LABELS[w]}>{countWithShare(s.workflow[w], s.totalItems)}</Item>)}
+            {s.filteredOut > 0 ? <Item label={`Of ${WORKFLOW_LABELS.ignored}: filtered out by a Smart filter`} sub>{countWithShare(s.filteredOut, s.totalItems)}</Item> : null}
           </Block>
           <Block title="Reading and keeping">
             <Item label="Opened at least once">{countWithShare(s.opened, s.totalItems)}</Item>
@@ -107,7 +108,7 @@ function SourceBody({ data }: { data: SourceStatsResponse }) {
 }
 
 type Column = { key: StatsSortKey; label: string; numeric: boolean };
-const COLUMNS: readonly Column[] = [
+const BASE_COLUMNS: readonly Column[] = [
   { key: "name", label: "Source", numeric: false },
   { key: "items", label: "Items", numeric: true },
   { key: "weekly", label: "Items per week", numeric: false },
@@ -116,8 +117,9 @@ const COLUMNS: readonly Column[] = [
   { key: "opened", label: "Opened", numeric: true },
   { key: "kept", label: "In baskets", numeric: true },
 ];
+const FILTERED_COLUMN: Column = { key: "filtered", label: "Filtered out by Smart filter", numeric: true };
 
-function Cells({ stats }: { stats: StatsNumbers }) {
+function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) {
   const ws = useWorkspace();
   const total = stats.totalItems;
   return (
@@ -128,6 +130,7 @@ function Cells({ stats }: { stats: StatsNumbers }) {
       {WORKFLOW_ORDER.map((w: WorkflowState) => <td key={w} className="num">{countWithShare(stats.workflow[w], total)}</td>)}
       <td className="num">{countWithShare(stats.opened, total)}</td>
       <td className="num">{countWithShare(stats.kept, total)}</td>
+      {filtered ? <td className="num">{countWithShare(stats.filteredOut, total)}</td> : null}
     </>
   );
 }
@@ -150,13 +153,16 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
   const [sort, setSort] = useState<{ key: StatsSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const rows = useMemo(() => sortRows(data.sources, sort.key, sort.dir), [data.sources, sort]);
   const pick = (key: StatsSortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: firstDirection(key) }));
+  // The Smart filter column appears only when a filter has items in Ignored here.
+  const filtered = data.totals.filteredOut > 0;
+  const columns = filtered ? [...BASE_COLUMNS, FILTERED_COLUMN] : BASE_COLUMNS;
   if (!data.sources.length) return <div className="empty card-like"><h2>No sources to count yet</h2></div>;
   return (
     <div className="tblwrap">
       <table className="tbl stat-tbl" aria-label={`Statistics for each source in ${data.name}`}>
         <thead>
           <tr>
-            {COLUMNS.map((c) => {
+            {columns.map((c) => {
               const on = sort.key === c.key;
               return (
                 <th key={c.key} scope="col" className={c.numeric ? "num" : undefined} aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
@@ -167,10 +173,10 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => <tr key={r.sourceId ?? "none"}><SourceCell row={r} /><Cells stats={r.stats} /></tr>)}
+          {rows.map((r) => <tr key={r.sourceId ?? "none"}><SourceCell row={r} /><Cells stats={r.stats} filtered={filtered} /></tr>)}
         </tbody>
         <tfoot>
-          <tr><th scope="row" className="stat-name">Total · {plural(data.sources.length, "source")}</th><Cells stats={data.totals} /></tr>
+          <tr><th scope="row" className="stat-name">Total · {plural(data.sources.length, "source")}</th><Cells stats={data.totals} filtered={filtered} /></tr>
         </tfoot>
       </table>
     </div>

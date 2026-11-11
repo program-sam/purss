@@ -21,6 +21,7 @@ import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, deleteCollection, listCollections } from "./collections.ts";
 import { setPreferences } from "./preferences.ts";
 import { listSources } from "./sources.ts";
+import { collectionStats, sourceStats } from "./statistics.ts";
 
 /*
  * Smart filters (plan/36) end to end: a sync queues judging, a worker step asks a stand-in Jev over HTTP through the internal routes
@@ -214,6 +215,29 @@ test("the person's change is their last word; a looser filter gives back only un
   assert.equal(post(b.app, b.owner.workspaceId, "Hiring now").workflow, "new");
   assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'ignored' AND to_state = 'new'", post(b.app, b.owner.workspaceId, "Hiring again").id));
   assert.equal(post(b.app, b.owner.workspaceId, "Hiring, opened in Ignored").workflow, "ignored", "opened while Ignored: the person's");
+});
+
+test("statistics count what a Smart filter filtered out, until the person changes it", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const source = makeSource(b.app, b.owner, "Delta Notes", "feed/1");
+  const col = createCollection(b.app, b.owner, { name: "Delta", emoji: null, mode: "sources", sourceIds: [source], query: null, view: "list" });
+  await b.setServerKey("server-key-1234");
+  await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment" });
+  applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Sediment cores", "feed/1"), neutral("Hiring now", "feed/1"), neutral("Hiring again", "feed/1"), neutral("Hiring thrice", "feed/1")]));
+  await runJudging(b);
+  assert.equal(sourceStats(b.app, b.owner, source).stats.filteredOut, 3);
+
+  // Finished by the person: no longer the filter's. Taken back and ignored by hand: Ignored, but not filtered out.
+  const done = post(b.app, b.owner.workspaceId, "Hiring now");
+  changeState(b.app, b.owner, done.id, { workflow: "finished", expectedRevision: done.revision });
+  const manual = post(b.app, b.owner.workspaceId, "Hiring again");
+  changeState(b.app, b.owner, manual.id, { workflow: "new", expectedRevision: manual.revision });
+  changeState(b.app, b.owner, manual.id, { workflow: "ignored", expectedRevision: post(b.app, b.owner.workspaceId, "Hiring again").revision });
+
+  const stats = sourceStats(b.app, b.owner, source).stats;
+  assert.deepEqual([stats.workflow.ignored, stats.filteredOut], [2, 1]);
+  assert.equal(collectionStats(b.app, b.owner, col.id).totals.filteredOut, 1);
 });
 
 test("a kept post is never dropped, a filter changed mid-flight waits for its own re-check, and turning off stops judging", async (t) => {

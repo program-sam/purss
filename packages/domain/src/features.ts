@@ -127,6 +127,8 @@ export type StatsNumbers = {
   /** Items moved to Finished / Ignored in the last 30 days, from the account's own change log, counted once each. */
   finishedLast30Days: number;
   ignoredLast30Days: number;
+  /** Items a Smart filter moved to Ignored whose workflow nobody has changed since; part of the Ignored count. */
+  filteredOut: number;
 };
 
 export type SourceStatsResponse = { sourceId: string; title: string; asOf: string; stats: StatsNumbers };

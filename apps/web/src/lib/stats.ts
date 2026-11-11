@@ -33,7 +33,7 @@ export function gapLabel(days: number | null): string {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-export type StatsSortKey = "name" | "items" | "weekly" | "last" | WorkflowState | "opened" | "kept";
+export type StatsSortKey = "name" | "items" | "weekly" | "last" | WorkflowState | "opened" | "kept" | "filtered";
 
 /** The number a column sorts by (the name sorts as text). */
 function valueOf(row: CollectionStatsRow, key: Exclude<StatsSortKey, "name">): number {
@@ -44,6 +44,7 @@ function valueOf(row: CollectionStatsRow, key: Exclude<StatsSortKey, "name">): n
     case "last": return s.lastItemAt ? Date.parse(s.lastItemAt) : Number.NEGATIVE_INFINITY;
     case "opened": return s.opened;
     case "kept": return s.kept;
+    case "filtered": return s.filteredOut;
     default: return s.workflow[key];
   }
 }
