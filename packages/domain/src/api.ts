@@ -139,8 +139,8 @@ export type Preferences = {
 };
 /** A muted word or phrase; `until` is when it stops (an ISO time), or null for until it is removed. */
 export type MutedWord = { text: string; until: string | null };
-/** *arrivals*: as they arrive, at most one per source per hour; *daily* / *weekly*: one digest at `digestTime` (on `digestDay` for weekly). */
-export type NotificationFrequency = "off" | "arrivals" | "daily" | "weekly";
+/** *daily* / *weekly*: one digest at `digestTime` (on `digestDay` for weekly); *off*: nothing about new items. */
+export type NotificationFrequency = "off" | "daily" | "weekly";
 export type NotificationInclude = {
   /** New items from every source on Home, or only from these collections. */
   newItems: "all" | string[];
@@ -165,6 +165,8 @@ export type NotificationPrefs = {
   previews: boolean;
   /** Also email the dates set with "Remind me" on the day (needs outgoing email and a confirmed address). */
   emailReminders: boolean;
+  /** Also email the daily or weekly digest (needs outgoing email and a confirmed address). */
+  emailDigest: boolean;
 };
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: "system",
@@ -179,9 +181,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   homeOther: true,
   welcomeAsked: false,
   notifications: {
-    mode: "inapp", frequency: "arrivals", digestTime: "08:00", digestDay: 1,
+    mode: "inapp", frequency: "weekly", digestTime: "08:00", digestDay: 1,
     include: { newItems: "all", problems: true, reminders: true, captures: true },
-    quietStart: null, quietEnd: null, previews: false, emailReminders: false,
+    quietStart: null, quietEnd: null, previews: false, emailReminders: false, emailDigest: true,
   },
   timezone: null,
   mutedWords: [],

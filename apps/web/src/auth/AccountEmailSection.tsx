@@ -66,7 +66,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
       {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
       {data && !editing ? (
         <>
-          <p className="fine">{data.address ? <><b>{data.address}</b> · {data.confirmed ? "confirmed" : "not confirmed yet"}</> : "No address yet."} It's used only for account messages, such as password resets.</p>
+          <p className="fine">{data.address ? <><b>{data.address}</b> · {data.confirmed ? "confirmed" : "not confirmed yet"}</> : "No address yet."} We email it only about your account, such as password resets, and with your digest of what's new, which you can turn off under Notifications and New. No newsletters or marketing.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button onClick={() => { setValue(data.address ?? ""); setEditing(true); setError(""); }}>{data.address ? "Change address" : "Add an address"}</Button>
             {data.address && !data.confirmed ? <Button disabled={busy} onClick={() => void resend()}>Send the link again</Button> : null}

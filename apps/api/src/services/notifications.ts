@@ -1,8 +1,10 @@
-import { OTHER_BOX_ID, newId } from "@purss/domain";
+import { OTHER_BOX_ID, appUrl, newId } from "@purss/domain";
 import type { NotificationDTO, Preferences } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { nowIso } from "../http.ts";
+import { sendLater } from "../mail/mailer.ts";
+import { digestMail } from "../mail/templates.ts";
 import { getPreferences } from "./preferences.ts";
 import { addDays, localDate, validTimezone } from "./reminders.ts";
 import { boxesBySource } from "./home.ts";
@@ -11,9 +13,10 @@ import type { BoxLink } from "./home.ts";
 
 /*
  * Notifications (plan/29 §2). One place decides who is told what, when:
- *  - frequency "arrivals": a source's new items within an hour share one notification;
- *  - "daily" / "weekly": arrivals wait, and one digest at the chosen time counts what is still New;
- *  - "off": nothing about new items (a source set to "Notify me" still tells you as items arrive).
+ *  - frequency "daily" / "weekly": arrivals wait, and one digest at the chosen time counts what is still New;
+ *  - "off": nothing about new items;
+ *  - a source set to "Notify me" tells you as its items arrive, whatever the frequency: its new items within an hour
+ *    share one notification.
  * Sources set to "muted" never notify. Collections hidden from Home are left out unless chosen.
  * Titles stay out of the text unless previews are on and the source isn't private.
  */
@@ -38,16 +41,10 @@ function boxesFor(prefs: Preferences, boxes: BoxLink[] | undefined, homeOther: b
   return boxes.filter((b) => chosen.includes(b.id));
 }
 
-function includes(app: App, workspaceId: string, prefs: Preferences, sourceId: string): boolean {
-  const boxes = app.db.all<{ id: string; name: string; show_on_home: number }>(
-    `SELECT c.id, c.name, c.show_on_home FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.source_id = ? AND c.workspace_id = ? AND c.mode = 'sources'`, sourceId, workspaceId);
-  return boxesFor(prefs, boxes.map((b) => ({ id: b.id, name: b.name, home: b.show_on_home === 1 })), prefs.homeOther).length > 0;
-}
-
 /**
  * Record arrival notifications for followed sources (only items that are New: a source's back catalogue is not
- * passed in). Per-source "muted" wins; "Notify me" always tells. Otherwise only the "arrivals" frequency tells at
- * once; digests are made later from what is still New. Delivery timing depends on engine polling.
+ * passed in). Only sources set to "Notify me" tell at once; the rest wait for a digest, made later from what is still
+ * New. Delivery timing depends on engine polling.
  */
 /** `fromItems`: take each source's preview title from these posts only (a Smart filter's kept posts; plan/36). */
 export function notifyArrivals(app: App, workspaceId: string, perSource: [string, number][], _dedupBase?: string, fromItems?: readonly string[]): void {
@@ -56,8 +53,7 @@ export function notifyArrivals(app: App, workspaceId: string, perSource: [string
   let changed = 0;
   for (const [sourceId, count] of perSource) {
     const s = app.db.get<Sourcey>("SELECT id, title, notify, is_private FROM sources WHERE id = ?", sourceId);
-    if (!s || s.notify === "muted") continue;
-    if (s.notify !== "on" && (prefs.notifications.frequency !== "arrivals" || !includes(app, workspaceId, prefs, sourceId))) continue;
+    if (!s || s.notify !== "on") continue;
     // The item stored last that the person will see: the one that just arrived (an engine's crawl times needn't follow
     // arrival order), among an AI filter's kept posts when it ran, else among what isn't Ignored.
     const newest = fromItems
@@ -191,6 +187,7 @@ export function lastScheduled(now: number, tzName: string | null, time: string, 
  * happen in one transaction, so a failure leaves the window where it was and the digest is made again whole, and a digest
  * is never made twice for the same window. The end of the window (`notification_state.window_end`) is the durable record
  * of what has been covered; it is not a notification, so pruning notifications can never make a digest be sent again.
+ * The digest also goes by email when the person keeps that on and the account's address is confirmed.
  * Returns whether a notification was created.
  */
 export function runDigest(app: App, workspaceId: string, accountId: string, now: Date = new Date()): boolean {
@@ -211,11 +208,20 @@ export function runDigest(app: App, workspaceId: string, accountId: string, now:
     if (!d.total) return false;
     const text = digestText(d, freq);
     // Named by the window it covers: the same window can only be recorded once.
-    return app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
+    const recorded = app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
       newId("ntf"), workspaceId, text.title, text.body, `digest:${freq}:${window.from}`, window.to).changes > 0;
+    return recorded ? text : null;
   });
-  if (made) emit(app, accountId, { type: "notification" });
-  return made;
+  if (!made) return false;
+  emit(app, accountId, { type: "notification" });
+  if (prefs.notifications.emailDigest) {
+    const account = app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", accountId);
+    if (account?.email && account.email_verified_at) {
+      const home = `${app.config.publicOrigin}${appUrl("/")}`;
+      sendLater(app, "digest", accountId, digestMail(account.email, { title: made.title, lines: made.body.split("\n"), link: home, settings: `${home}?dialog=notifications` }));
+    }
+  }
+  return true;
 }
 
 /** A failure of a source is told about again no sooner than this after the last time. */

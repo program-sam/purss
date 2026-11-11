@@ -11,7 +11,7 @@ import { useSavePreferences } from "../state/prefs.ts";
 import { platform } from "../platform/index.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 
-const FREQUENCIES: NotificationFrequency[] = ["arrivals", "daily", "weekly", "off"];
+const FREQUENCIES: NotificationFrequency[] = ["daily", "weekly", "off"];
 
 /** Settings → Notifications and New: how and when to be told, what about, quiet hours, and how New markers behave. */
 export function NotificationSettings() {
@@ -27,10 +27,11 @@ export function NotificationSettings() {
   const toggleBox = (id: string, on: boolean) => include({ newItems: on ? [...new Set([...(chosen ?? []), id])] : (chosen ?? []).filter((x) => x !== id) });
   const off = n.frequency === "off";
   const computer = platform.notifier.kind === "computer";
-  // Reminders by email need outgoing email on this installation and a confirmed address on the account.
+  // Digests and reminders by email need outgoing email on this installation and a confirmed address on the account.
   const session = useSession().data;
   const email = useQuery({ ...accountEmailQuery, enabled: !!session?.installation.accountEmail }).data;
-  const mailReminders = !!session?.installation.mail && !!email?.address && email.confirmed;
+  const canEmail = !!session?.installation.mail && !!email?.address && email.confirmed;
+  const unconfirmed = !!session?.installation.mail && !!email && !canEmail;
   const address = email?.address ?? "";
 
   return (
@@ -55,6 +56,10 @@ export function NotificationSettings() {
             <TextInput type="time" aria-label="Time of the digest" value={n.digestTime} onChange={(e) => e.target.value && set({ digestTime: e.target.value })} />
           </div>
         ) : null}
+        {(n.frequency === "daily" || n.frequency === "weekly") && canEmail ? (
+          <Check checked={n.emailDigest} onChange={(v) => set({ emailDigest: v })} hint={`Sent to ${address}. Item titles are left out unless you show titles in notifications.`}>Email me the digest</Check>
+        ) : null}
+        {(n.frequency === "daily" || n.frequency === "weekly") && unconfirmed ? <p className="fine">Add and confirm an email address under Security to get the digest by email.</p> : null}
         <p className="fine">Times are in your time zone ({p.timezone.replace(/_/g, " ")}). New items arrive in batches when sources are checked; it isn't instant.</p>
       </fieldset>
 
@@ -69,7 +74,7 @@ export function NotificationSettings() {
           ) : <p className="fine" style={{ marginLeft: 28 }}>Collections you hide from Home in Customise Home are left out.</p>}
           <Check checked={n.include.problems} onChange={(v) => include({ problems: v })}>Sources that stop working</Check>
           <Check checked={n.include.reminders} onChange={(v) => include({ reminders: v })} hint="“On this day” notes about kept items, and your Remind me days. Turn the notes off in General.">Reminders</Check>
-          {mailReminders ? <div style={{ marginLeft: 28 }}><Check checked={n.emailReminders} disabled={!n.include.reminders} onChange={(v) => set({ emailReminders: v })} hint={`Also email your Remind me days to ${address}. Item titles are left out unless you show titles in notifications.`}>Email me reminders</Check></div> : null}
+          {canEmail ? <div style={{ marginLeft: 28 }}><Check checked={n.emailReminders} disabled={!n.include.reminders} onChange={(v) => set({ emailReminders: v })} hint={`Also email your Remind me days to ${address}. Item titles are left out unless you show titles in notifications.`}>Email me reminders</Check></div> : null}
           <Check checked={n.include.captures} onChange={(v) => include({ captures: v })}>Readable text that failed to save</Check>
         </div>
         <Check checked={n.previews} onChange={(v) => set({ previews: v })} hint="Off by default, so a notification doesn't reveal what you follow on a shared screen. Private sources never show titles.">Show item titles in notifications</Check>

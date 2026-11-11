@@ -3,7 +3,7 @@ import type { Message } from "./mailer.ts";
 /*
  * The messages, in the product's plain language: plain text plus a simple HTML version with the
  * same words. Nothing a person typed goes into a message except the recipient's own username,
- * and, for a reminder the person asked for, what they wrote on it. Every link stands alone on
+ * for a reminder the person asked for, what they wrote on it, and in a digest, their collections' names. Every link stands alone on
  * its own line, so no full stop or word can end up glued to its address.
  */
 
@@ -77,7 +77,7 @@ export function verifyMail(to: string, opts: { link: string; hours: number }): M
   return compose(to, "Confirm your email address", [
     `Please confirm that this is the email address for your ${NAME} account. Open this link:`,
     { href: opts.link, label: "Confirm this address" },
-    `The link works for ${opts.hours} hours. Your address is used only for messages about your account, such as resetting your password.`,
+    `The link works for ${opts.hours} hours. We email this address only about your account, such as resetting your password, and with your digest of what's new, which you can turn off in Settings. No newsletters or marketing.`,
     "If you didn't make an account, you can ignore this email.",
   ]);
 }
@@ -118,6 +118,19 @@ export function reminderMail(to: string, opts: { items: { title: string | null; 
   }
   parts.push("You asked for reminders by email in Settings, under Notifications. You can turn them off there.");
   return compose(to, one ? "A reminder you set is due" : `${opts.items.length} reminders you set are due`, parts);
+}
+
+/**
+ * A daily or weekly digest: its title, one line per collection (counts, and titles only under the notification rules applied by
+ * `digestFor`), a link to Home, and a link straight to the setting that stops these emails.
+ */
+export function digestMail(to: string, opts: { title: string; lines: string[]; link: string; settings: string }): Message {
+  return compose(to, opts.title, [
+    ...opts.lines,
+    { href: opts.link, label: `Open your ${NAME}` },
+    `You get this email because digest emails are on for your ${NAME} account. To stop them, or to change how often they come, untick "Email me the digest" here:`,
+    { href: opts.settings, label: "Change digest emails" },
+  ]);
 }
 
 export function testMail(to: string, opts: { origin: string }): Message {

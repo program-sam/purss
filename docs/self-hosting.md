@@ -380,6 +380,9 @@ messages through a mail server you name:
   used to link accounts or grant anything.
 - **Reminders:** a person can ask for the days they set with *Remind me* to be emailed too
   (*Settings → Notifications and New*, off by default); it needs a confirmed address.
+- **Digests:** the daily or weekly digest is also emailed to an account's confirmed address, unless
+  the person turns off *Email me the digest* (*Settings → Notifications and New*). Weekly is the
+  default, and nothing is sent for a period with nothing new.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

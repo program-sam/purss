@@ -124,7 +124,7 @@ The web app asks again for what it shows when the page or the app comes back to 
 The search index records which version it is being rebuilt for and how far it got, for items and for the person's notes, so an interrupted rebuild is
 never mistaken for one of a later version. `GET /api/activity` summarises the job queue, the sync checkpoint and recent
 arrivals for the sidebar's activity line. `services/notifications.ts` is the one place that decides who is told what
-and when; `digestFor` counts a digest for a window and is what email would reuse.
+and when; `digestFor` counts a digest for a window; `runDigest` puts it in the bell and, when allowed, emails it.
 
 **Keeping.** An item's content lives in immutable `item_versions`. Keeping inserts a basket
 membership that pins the current version, in one transaction with its storage record; an

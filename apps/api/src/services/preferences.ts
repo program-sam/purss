@@ -9,6 +9,7 @@ const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const notificationsPatch = z.object({
   // "off" is what older exports say; it reads as the frequency "off" (see merge).
   mode: z.enum(["off", "inapp", "browser"]),
+  // "arrivals" (told as items arrive) is what older exports and stored choices may say; it reads as "weekly" (see merge).
   frequency: z.enum(["off", "arrivals", "daily", "weekly"]),
   digestTime: clock,
   digestDay: z.number().int().min(0).max(6),
@@ -22,6 +23,7 @@ const notificationsPatch = z.object({
   quietEnd: time,
   previews: z.boolean(),
   emailReminders: z.boolean(),
+  emailDigest: z.boolean(),
 }).partial();
 export const preferencesPatchSchema = z.object({
   theme: z.enum(["system", "light", "dark"]),
@@ -55,8 +57,9 @@ function merge(base: Preferences, patch: Partial<Preferences> | PreferencesPatch
   const next = { ...base, ...rest } as Preferences;
   if (n) {
     const legacyOff = (n.mode as string | undefined) === "off";
+    const legacyArrivals = (n.frequency as string | undefined) === "arrivals";
     next.notifications = {
-      ...base.notifications, ...n, ...(legacyOff ? { mode: "inapp", frequency: "off" } : {}),
+      ...base.notifications, ...n, ...(legacyArrivals ? { frequency: "weekly" } : {}), ...(legacyOff ? { mode: "inapp", frequency: "off" } : {}),
       include: { ...base.notifications.include, ...(n.include ?? {}) },
     } as Preferences["notifications"];
   }

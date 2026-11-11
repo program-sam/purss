@@ -127,7 +127,6 @@ const neutral = (title: string, streamId: string) => entry(streamId, { title, su
 test("a source filter marks the posts it drops Ignored, keeps the rest, and announces only those", async (t) => {
   const b = await boot();
   t.after(b.close);
-  setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "arrivals" } });
   const source = makeSource(b.app, b.owner, "Delta Notes", "feed/1");
   b.app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", source);
 
@@ -315,7 +314,6 @@ test("a collection's filter covers its sources and goes with the collection; pre
 test("a key Jev refuses: posts stay as they are and are announced, the key is marked, and a new key clears it", async (t) => {
   const b = await boot();
   t.after(b.close);
-  setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "arrivals" } });
   const source = makeSource(b.app, b.owner, "Delta Notes", "feed/1");
   b.app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", source);
   await b.setServerKey("server-key-1234");
