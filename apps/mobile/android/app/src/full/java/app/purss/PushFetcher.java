@@ -5,7 +5,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
@@ -30,32 +29,15 @@ import app.purss.device.BackgroundLogic;
 public final class PushFetcher {
 
     private static final String TAG = "PurssPush";
-    private static final String PREFS = "purss_push";
-    private static final String KEY_ORIGIN = "origin";
-    private static final String KEY_TOKEN = "fetchToken";
     static final String CHANNEL = "workspace";
     private static final int MAX_BYTES = 64 * 1024;
 
     private PushFetcher() {}
 
-    /** Where to fetch from and with what; private to the app (backups are off). */
-    static void setTarget(Context ctx, String origin, String fetchToken) {
-        prefs(ctx).edit().putString(KEY_ORIGIN, origin).putString(KEY_TOKEN, fetchToken).commit();
-    }
-
-    public static void clearTarget(Context ctx) {
-        prefs(ctx).edit().clear().commit();
-    }
-
-    private static SharedPreferences prefs(Context ctx) {
-        return ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-    }
-
     /** Fetch what is waiting and show it. Blocks: call it off the main thread. Never throws. */
     static void fetchAndShow(Context ctx) {
-        SharedPreferences p = prefs(ctx);
-        String origin = p.getString(KEY_ORIGIN, null);
-        String token = p.getString(KEY_TOKEN, null);
+        String origin = PushTarget.origin(ctx);
+        String token = PushTarget.fetchToken(ctx);
         if (origin == null || token == null) return;
         // Not allowed to show anything: leave the notifications waiting rather than take them unseen.
         if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return;
@@ -77,7 +59,7 @@ public final class PushFetcher {
             int status = c.getResponseCode();
             if (status == 401 && BackgroundLogic.refusedWith(readError(c), "push_signed_out")) {
                 // This phone's registration is gone; the app registers again when it next starts. Any other 401 is transient.
-                clearTarget(ctx);
+                PushTarget.clear(ctx);
                 return;
             }
             if (status != 200) {

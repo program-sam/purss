@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
       allowBackup is off: the app keeps a device token (in the Android Keystore, which a backup can't
@@ -81,16 +80,6 @@
             android:name=".device.WidgetPlayback"
             android:exported="false" />
 
-        <!--
-          Pushes from the relay (plan/37): this service fetches and shows the texts, in place of the push
-          plugin's own, which it extends.
-        -->
-        <service android:name="com.capacitorjs.plugins.pushnotifications.MessagingService" tools:node="remove" />
-        <service android:name=".PurssMessagingService" android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
     </application>
 
     <!-- Permissions -->
@@ -102,6 +91,4 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Notifications on this phone (asked for only when the person turns them on). -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

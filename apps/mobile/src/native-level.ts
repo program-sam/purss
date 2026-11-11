@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,10 +30,10 @@ export function nativeFingerprint(dir = MOBILE_DIR): string {
   return fingerprintOf(dir, ["android", "ios", "patches", "capacitor.config.ts"]);
 }
 
-/** A hash of the tracked files under `paths` (relative to `dir`) and the dependencies in `dir`'s package.json. The desktop app's level uses it too (plan/42). */
+/** A hash of the source files under `paths` (relative to `dir`) and the dependencies in `dir`'s package.json. The desktop app's level uses it too (plan/42). */
 export function fingerprintOf(dir: string, paths: string[]): string {
-  const files = execFileSync("git", ["ls-files", "-z", "--", ...paths], { cwd: dir, encoding: "utf8" })
-    .split("\0").filter(Boolean).sort();
+  const files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...paths], { cwd: dir, encoding: "utf8" })
+    .split("\0").filter(Boolean).filter((file) => existsSync(path.join(dir, file))).sort();
   const hash = createHash("sha256");
   for (const f of files) hash.update(f).update("\0").update(readFileSync(path.join(dir, f))).update("\0");
   const pkg = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as { dependencies?: Record<string, string> };

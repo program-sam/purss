@@ -4,8 +4,9 @@
   "description": "Android and iOS apps: the web app's build in a Capacitor shell",
   "type": "module",
   "scripts": {
-    "sync": "node scripts/patch-plugins.ts && PURSS_WEB_BASE=/ npm run build -w @purss/web && cap sync",
-    "android:debug": "npm run sync && cd android && ./gradlew assembleDebug"
+    "sync": "node scripts/patch-plugins.ts && node scripts/sync-android.ts full",
+    "sync:foss": "node scripts/patch-plugins.ts && node scripts/sync-android.ts foss",
+    "android:debug": "npm run sync && cd android && ./gradlew assembleFullDebug"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.1",

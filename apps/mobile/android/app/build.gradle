@@ -9,18 +9,29 @@ def keystorePropertiesFile = rootProject.file('keystore.properties')
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+def purssFossBuild = project.findProperty('purssFoss')?.toString()?.toBoolean() ?: false
 
 // The version (plan/40), from the bundled interface's build (apps/web/dist/app-build.json, written by
-// `npm run sync`): versionName 2631214, versionCode the same number, so every build on main counts up.
-// A build without one (no history) is version 1 / "dev".
+// `npm run sync`): versionName and versionCode are the same number, so every build on main counts up.
+// F-Droid supplies the same values from its metadata for a tagged source build. A build without one
+// (no history) is version 1 / "dev".
 def appBuildFile = file('../../../web/dist/app-build.json')
 def productVersion = appBuildFile.exists() ? new groovy.json.JsonSlurper().parse(appBuildFile).release : null
-def appVersionCode = productVersion ? (productVersion as String).toInteger() : 1
-def appVersionName = productVersion ? (productVersion as String) : "dev"
+def appVersionCode = project.findProperty('purssVersionCode')?.toString()?.toInteger() ?: (productVersion ? (productVersion as String).toInteger() : 1)
+def appVersionName = project.findProperty('purssVersionName')?.toString() ?: (productVersion ? (productVersion as String) : "dev")
 
 android {
     namespace = "app.purss"
     compileSdk = rootProject.ext.compileSdkVersion
+    flavorDimensions += "distribution"
+    productFlavors {
+        full {
+            dimension "distribution"
+        }
+        foss {
+            dimension "distribution"
+        }
+    }
     defaultConfig {
         applicationId "app.purss"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -56,7 +67,7 @@ android {
         release {
             buildConfigField "String", "PURSS_PUSH_RELAY", "\"\""
             buildConfigField "String", "PURSS_PUSH_DEBUG_TOKEN", "\"\""
-            if (keystorePropertiesFile.exists()) {
+            if (!purssFossBuild && keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
@@ -87,15 +98,15 @@ dependencies {
     implementation "androidx.media3:media3-session:1.9.0"
     testImplementation "junit:junit:$junitVersion"
     testImplementation "org.json:json:20250517"
-    // The app's own messaging service (PurssMessagingService) extends the push plugin's; same version as the plugin uses.
-    implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
+    // The full build's messaging service extends the Capacitor push plugin's; FOSS excludes both.
+    fullImplementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
 }
 
 apply from: 'capacitor.build.gradle'
 
 try {
     def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
+    if (!purssFossBuild && servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
     }
 } catch(Exception e) {

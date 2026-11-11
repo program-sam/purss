@@ -4,7 +4,7 @@
   "description": "PURSS: FreshRSS-backed personal internet dashboard",
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": ">=26"
+    "node": ">=24"
   },
   "workspaces": [
     "apps/*",
