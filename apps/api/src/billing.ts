@@ -66,8 +66,8 @@ export async function handleBillingPlan(app: App, raw: IncomingMessage, res: Ser
   const seconds = Math.floor(now / 1000);
   if (Math.abs(seconds - body.at) > PLAN_SKEW_SECONDS) throw new HttpError(401, "stale", "The request is too old.");
   for (const [k, until] of seen) if (until < seconds) seen.delete(k);
+  // Everything from here on runs without awaiting, so "seen" means the same request was already applied.
   if (seen.has(sig)) throw new HttpError(409, "replayed", "That request was already used.");
-  seen.set(sig, body.at + PLAN_SKEW_SECONDS);
 
   const exists = app.db.get<{ status: string }>("SELECT status FROM accounts WHERE id = ?", body.accountId);
   // Gone (or never here): the service stops charging for it.
@@ -79,6 +79,7 @@ export async function handleBillingPlan(app: App, raw: IncomingMessage, res: Ser
     app.db.run("UPDATE accounts SET plan = ? WHERE id = ?", body.plan, body.accountId);
     console.log(`[billing] plan ${before} -> ${body.plan}`);
   }
+  seen.set(sig, body.at + PLAN_SKEW_SECONDS);
   sendJson(res, 200, { plan: body.plan, changed: before !== body.plan });
 }
 
