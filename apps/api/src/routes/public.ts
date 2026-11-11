@@ -22,7 +22,8 @@ import {
   refreshAuth, recentAuthAvailable, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
-import { finishOidc, startOidc } from "../auth/oidc.ts";
+import { finishOidc, issueAppTicket, startFromTicket, startOidc } from "../auth/oidc.ts";
+import { deviceIdOf } from "../connect/devices.ts";
 import { PASSWORD_MAX, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
 import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { noteSnippets, searchItems } from "../services/search.ts";
@@ -55,6 +56,14 @@ const staleDays = (iso: string | null | undefined) => (iso ? Math.floor((Date.no
 
 /** Room for BROWSER_CAPTURE_MAX_CHARS characters as JSON: up to 3 bytes each in UTF-8, plus escapes and the other fields. */
 const BROWSER_CAPTURE_BODY_LIMIT = 8 * 1024 * 1024;
+
+/** What the system browser shows after it finished an app's external sign-in (the app, waiting, carries on by itself). */
+function appReturnPage(purpose: "link" | "stepup"): string {
+  const said = purpose === "link" ? "The sign-in is connected to your PURSS account." : "You're confirmed.";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Return to PURSS</title></head>`
+    + `<body style="font:16px/1.5 system-ui,sans-serif;max-width:28rem;margin:15vh auto;padding:0 1.5rem"><h1 style="font-size:1.4rem">${said}</h1>`
+    + `<p>Go back to the PURSS app. You can close this page.</p></body></html>`;
+}
 
 /** The username and password every new account is made with, from sign-up, setup and invitations. */
 const newAccountSchema = { username: z.string().max(80), password: z.string().max(PASSWORD_MAX * 4) };
@@ -136,35 +145,71 @@ export function publicRouter(): Router<Ctx> {
     return { ok: true };
   });
 
+  /**
+   * Starts an external sign-in in this browser (purpose: sign in, `?link=1` to add it to the signed-in account, `?stepup=1` to
+   * confirm it's you with it). `next` is where to return afterwards. `?ticket=` starts what a connected app asked for.
+   */
   r.get("/api/auth/oidc/:provider/start", async (req, ctx, res) => {
-    const purpose = req.query.get("link") === "1" ? "link" : "signin";
-    if (purpose === "link") requireRecentAuth(requirePrincipal(ctx));
-    const sharedComputer = purpose === "signin" && req.query.get("shared") === "1";
+    const providerId = req.params.provider!;
+    const ticket = req.query.get("ticket");
+    const purpose = req.query.get("stepup") === "1" ? "stepup" : req.query.get("link") === "1" ? "link" : "signin";
     const binder = randomToken(24);
-    const url = await startOidc(ctx.app, req.params.provider!, purpose, ctx.principal?.accountId ?? null, binder, { sharedComputer, sessionId: purpose === "link" ? ctx.principal?.sessionId ?? null : null });
-    setCookie(res, OIDC_COOKIE, binder, { maxAge: 600, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" });
-    const next = purpose === "signin" ? safeReturnPath(req.query.get("next")) : null;
-    if (next) setCookie(res, OIDC_NEXT_COOKIE, next, { maxAge: 600, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" });
+    let url: string;
+    if (ticket) {
+      limit(`oidc-ticket:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 30);
+      url = await startFromTicket(ctx.app, providerId, ticket, binder);
+    } else {
+      const p = purpose === "signin" ? null : requirePrincipal(ctx);
+      if (p && deviceIdOf(p)) throw badRequest("A connected app opens this in the system browser with a ticket.", "use_ticket");
+      if (purpose === "link") requireRecentAuth(p!);
+      const sharedComputer = purpose === "signin" && req.query.get("shared") === "1";
+      url = await startOidc(ctx.app, providerId, purpose, p?.accountId ?? null, binder, { sharedComputer, sessionId: p?.sessionId ?? null });
+    }
+    const cookie = { maxAge: 600, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" };
+    setCookie(res, OIDC_COOKIE, binder, cookie);
+    const next = purpose === "link" ? null : safeReturnPath(req.query.get("next"));
+    if (next && !ticket) setCookie(res, OIDC_NEXT_COOKIE, next, cookie);
     res.writeHead(302, { location: url, "cache-control": "no-store" });
     res.end();
     return undefined;
   });
   r.get("/api/auth/oidc/:provider/callback", async (req, ctx, res) => {
     let target = appUrl("/");
+    let fromApp: "link" | "stepup" | null = null;
     try {
-      const out = await finishOidc(ctx.app, req.params.provider!, new URL(req.raw.url ?? "/", ctx.app.config.publicOrigin), req.cookies[OIDC_COOKIE] ?? "", ctx.principal?.accountId ?? null, ctx.principal?.sessionId ?? null);
+      const out = await finishOidc(ctx.app, req.params.provider!, new URL(req.raw.url ?? "/", ctx.app.config.publicOrigin), {
+        binder: req.cookies[OIDC_COOKIE] ?? "", accountId: ctx.principal?.accountId ?? null, sessionId: ctx.principal?.sessionId ?? null,
+        address: clientAddress(req.raw, ctx.app.config.trustProxy),
+      });
       if (out.purpose === "signin") startSession(ctx.app, res, req.raw, out.accountId, "oidc", { sharedComputer: out.sharedComputer });
+      if (out.viaApp && out.purpose !== "signin") fromApp = out.purpose;
       target = appUrl(out.purpose === "link" ? "/?dialog=security" : safeReturnPath(req.cookies[OIDC_NEXT_COOKIE]) ?? "/");
     } catch (err) {
       const code = err instanceof HttpError ? err.code : "oidc_failed";
       // The sign-in page asks GET /api/auth/deletion (with the cookie just set) when the deletion is due.
       target = appUrl(code === "deletion_pending" ? "/signin?notice=deletion_pending" : `/signin?error=${encodeURIComponent(code)}`);
     }
-    setCookie(res, OIDC_COOKIE, "", { maxAge: 0, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" });
-    setCookie(res, OIDC_NEXT_COOKIE, "", { maxAge: 0, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" });
+    const cleared = { maxAge: 0, secure: ctx.app.config.publicOrigin.startsWith("https:"), path: "/api/auth/oidc/" };
+    setCookie(res, OIDC_COOKIE, "", cleared);
+    setCookie(res, OIDC_NEXT_COOKIE, "", cleared);
+    if (fromApp) {
+      // The system browser has nothing of PURSS to show: the app notices by itself (it asks whether it is confirmed).
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.end(appReturnPage(fromApp));
+      return undefined;
+    }
     res.writeHead(302, { location: target, "cache-control": "no-store" });
     res.end();
     return undefined;
+  });
+  /** A connected app asks for a ticket to open an external sign-in in the system browser: to add it, or to confirm it's you with it. */
+  r.post("/api/auth/oidc/:provider/ticket", (req, ctx) => {
+    const p = requirePrincipal(ctx);
+    if (!deviceIdOf(p)) throw badRequest("Browsers start this themselves.", "not_device");
+    limit(`oidc-ticket:${p.accountId}`, 30);
+    const { purpose } = parse(z.object({ purpose: z.enum(["link", "stepup"]) }), req.body);
+    if (purpose === "link") requireRecentAuth(p);
+    return { url: issueAppTicket(ctx.app, req.params.provider!, purpose, p.accountId, p.sessionId) };
   });
 
   // ---------- account security (signed in) ----------

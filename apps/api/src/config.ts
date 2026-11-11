@@ -12,7 +12,12 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 let buildVersion: BuildVersion | null | undefined;
 const thisVersion = () => (buildVersion === undefined ? (buildVersion = readVersion(REPO)) : buildVersion);
 
-export type OidcProviderConfig = { id: string; label: string; issuer: string; clientId: string; clientSecret?: string };
+/**
+ * An external sign-in provider (OpenID Connect). `stepUp` is how "confirm it's you" asks it to check the person again:
+ * "reauthenticate" (the default) sends prompt=login and max_age=0 and refuses an ID token whose auth_time is older than the
+ * request; "choose-account" sends prompt=select_account only, for a provider such as Google that doesn't honour the first.
+ */
+export type OidcProviderConfig = { id: string; label: string; issuer: string; clientId: string; clientSecret?: string; stepUp?: "reauthenticate" | "choose-account" };
 
 /** Outgoing email (plan/27): optional; hosted open sign-up needs it. */
 export type MailConfig = {
@@ -166,6 +171,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (env.PURSS_OIDC) {
     const parsed = JSON.parse(env.PURSS_OIDC) as OidcProviderConfig[];
     oidc = parsed.filter((p) => p && typeof p.id === "string" && typeof p.issuer === "string" && typeof p.clientId === "string");
+    for (const p of oidc) {
+      if (p.stepUp !== undefined && p.stepUp !== "reauthenticate" && p.stepUp !== "choose-account") throw new Error(`PURSS_OIDC: stepUp for "${p.id}" must be "reauthenticate" or "choose-account".`);
+    }
   }
   const alloc = env.PURSS_DEFAULT_ALLOCATION_BYTES;
   return {

@@ -71,6 +71,7 @@ export function connectInfo(app: App): ConnectInfo {
       passkeyOptions: appPasskeys(app) ? `${app.config.publicOrigin}/api/connect/passkey/options` : null,
       passwordReset: accountEmailAvailable(app) ? `${app.config.publicOrigin}/api/password-reset` : null,
       passwordResetConfirm: accountEmailAvailable(app) ? `${app.config.publicOrigin}/api/password-reset/confirm` : null,
+      providers: app.config.oidc.map((o) => ({ id: o.id, label: o.label, start: `${app.config.publicOrigin}/api/auth/oidc/${encodeURIComponent(o.id)}/start` })),
     },
     features: { urlLookup: true, browserCapture: true },
   };
