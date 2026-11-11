@@ -17,7 +17,7 @@ import { setPreferences } from "../../apps/api/src/services/preferences.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 import type { Principal } from "../../apps/api/src/app.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -32,6 +32,7 @@ const env: NodeJS.ProcessEnv = {
   ...process.env, PURSS_DATA_DIR: dataDir, PURSS_PORT: String(PORT), PURSS_INTERNAL_PORT: String(INTERNAL),
   PURSS_PUBLIC_ORIGIN: origin, PURSS_WEB_DIST: webDist, PURSS_DISK_RESERVE_BYTES: "0",
 };
+const USERNAME = "listener";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 /** A 30-second silent WAV: every browser can play it, and it is long enough to pause partway. */
@@ -69,11 +70,11 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 
 /** A podcast source with two episodes; the publisher's addresses are unreachable on purpose. */
-function prepare(): { recoveryCodes: string[]; sourceId: string } {
+function prepare(): { sourceId: string } {
   const app = createApp(loadConfig(env as Record<string, string>));
   try {
     const code = ensureClaimCode(app)!;
-    const { accountId, recoveryCodes } = claim(app, code, "Listener");
+    const { accountId } = claim(app, code, "Listener", testPassword(USERNAME));
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
@@ -85,18 +86,18 @@ function prepare(): { recoveryCodes: string[]; sourceId: string } {
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),
     ]));
-    return { recoveryCodes, sourceId };
+    return { sourceId };
   } finally {
     app.db.close();
   }
 }
 
-async function signIn(page: Page, code: string): Promise<void> {
+async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("button", { name: "Use a recovery code" }).click();
-  await page.getByLabel("Recovery code").fill(code);
-  await page.getByRole("button", { name: "Sign in with this code" }).click();
+  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Add source" }).first().waitFor();
 }
 
@@ -129,7 +130,7 @@ async function publisherServes(page: Page): Promise<void> {
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
   cpSync(path.join(repo, "apps/web/dist"), webDist, { recursive: true });
-  const { recoveryCodes, sourceId } = prepare();
+  const { sourceId } = prepare();
   // What an earlier version kept on this server: saved files and a download in progress.
   mkdirSync(path.join(dataDir, "media", "incoming"), { recursive: true });
   mkdirSync(path.join(dataDir, "media", "acc_0123456789abcdefghjkmnpqrs"), { recursive: true });
@@ -150,7 +151,7 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await publisherServes(page);
-    await signIn(page, recoveryCodes[0]!);
+    await signIn(page);
 
     await openEpisode(page, sourceId, "Night shipping forecast");
     await page.getByText(/Streams from the publisher's site/).waitFor();

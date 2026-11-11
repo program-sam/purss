@@ -23,7 +23,7 @@ import { setPreferences } from "../../apps/api/src/services/preferences.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp, start } from "../../apps/api/src/main.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 import { startClientSite } from "../../apps/api/src/oauth/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -46,16 +46,17 @@ const env: Record<string, string> = {
   PURSS_DISK_RESERVE_BYTES: "0",
   PURSS_ASSISTANT_OAUTH: "on",
 };
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 const b64url = (b: Buffer) => b.toString("base64url");
 
 /** A claimed installation with one source and an article; assistant access on for the installation only. */
-function prepare(): { recoveryCodes: string[] } {
+function prepare(): void {
   const app = createApp(loadConfig(env));
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
@@ -65,7 +66,6 @@ function prepare(): { recoveryCodes: string[] } {
     makeSource(app, p, "Tidal Notes", "feed/1");
     applySyncBatch(app, eu.id, batch([entry("feed/1", { title: "Tidal flats and sediment" })]));
     setInstallation(app, "assistant_access", "on");
-    return { recoveryCodes };
   } finally {
     app.db.close();
   }
@@ -83,7 +83,7 @@ async function mcp(token: string, method: string, params: Record<string, unknown
 
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
-  const { recoveryCodes } = prepare();
+  prepare();
   const site = await startClientSite();
   const running = await start(loadConfig(env));
   const browser = await chromium.launch();
@@ -122,9 +122,9 @@ async function main(): Promise<void> {
     const consent = await page.goto(authorizeUrl(state));
     assert.equal(consent!.headers()["x-frame-options"], "DENY");
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("button", { name: "Use a recovery code" }).click();
-    await page.getByLabel("Recovery code").fill(recoveryCodes[0]!);
-    await page.getByRole("button", { name: "Sign in with this code" }).click();
+    await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL(/\/oauth\/authorize\?/);
     await page.getByText("Let Helpful Assistant use your PURSS?").waitFor();
     await page.getByText(`Identified by ${new URL(clientId).host}`).waitFor();

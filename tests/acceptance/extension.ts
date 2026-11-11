@@ -24,6 +24,7 @@ import { setPreferences } from "../../apps/api/src/services/preferences.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createBasket } from "../../apps/api/src/services/collections.ts";
+import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
 import { OFFICIAL_WORKSPACE_ORIGIN } from "../../packages/domain/src/distribution.ts";
 
 declare const chrome: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- evaluated inside extension pages
@@ -49,6 +50,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: path.join(repo, "apps/web/dist"),
   PURSS_DISK_RESERVE_BYTES: "0",
 };
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 let api: ChildProcess | null = null;
@@ -75,19 +77,18 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms = 10_000): P
 }
 
 /** A claimed installation with two baskets. */
-function prepare(): { recoveryCodes: string[] } {
+function prepare(): void {
   const app = createApp(loadConfig({ ...env } as Record<string, string>));
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     createBasket(app, p, { name: "Read later", captureMode: "metadata" });
     createBasket(app, p, { name: "Papers", captureMode: "metadata" });
-    return { recoveryCodes };
   } finally {
     app.db.close();
   }
@@ -121,17 +122,17 @@ function extensionCopy(publisher: string): string {
   return dir;
 }
 
-async function signIn(page: Page, code: string): Promise<void> {
-  await page.getByRole("button", { name: "Use a recovery code" }).click();
-  await page.getByLabel("Recovery code").fill(code);
-  await page.getByRole("button", { name: "Sign in with this code" }).click();
+async function signIn(page: Page): Promise<void> {
+  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
 async function main(): Promise<void> {
   for (const f of ["apps/web/dist/index.html", "apps/extension/dist/chromium/manifest.json"]) {
     if (!existsSync(path.join(repo, f))) throw new Error(`Missing ${f}: run npm run build and npm run build:extension first`);
   }
-  const { recoveryCodes } = prepare();
+  prepare();
   const publisher = await startPublisher();
   startApi();
   await waitFor("the API", async () => (await fetch(`${origin}/api/session`)).ok, 30_000);
@@ -157,7 +158,7 @@ async function main(): Promise<void> {
     const plain = `${publisher.base}/plain?ref=bookmarklet`;
     await page.goto(`${origin}/app/?dialog=keep&url=${encodeURIComponent(plain)}&title=1984`);
     await page.waitForURL(/\/signin\?next=/);
-    await signIn(page, recoveryCodes[0]!);
+    await signIn(page);
     await page.getByRole("dialog", { name: "Keep this page" }).waitFor();
     assert.equal(await page.getByLabel("Title (optional)").inputValue(), "1984", "a number-like title stays text");
     assert.ok(!new URL(page.url()).searchParams.has("url"), "the address is tidied");

@@ -1,6 +1,6 @@
 // Acceptance journey for installing the app and reading offline, against the real API serving the
-// built web app (no FreshRSS, egress or worker, so no podman and no network): sign in with a recovery
-// code, mark an item To read, turn offline reading on, let the pack save, go offline, reload, read the
+// built web app (no FreshRSS, egress or worker, so no podman and no network): sign in with a username
+// and password, mark an item To read, turn offline reading on, let the pack save, go offline, reload, read the
 // item's text, see that changes fail plainly, come back online, switch to a new build, turn the
 // setting off and on, sign out, and check that no copies stay. Along the way: highlight and comment on
 // text (pointer and keyboard), see the highlight offline, write a note offline that waits to sync across
@@ -22,7 +22,7 @@ import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createCollection } from "../../apps/api/src/services/collections.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-offline-"));
@@ -39,6 +39,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: webDist,
   PURSS_DISK_RESERVE_BYTES: "0",
 };
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 let api: ChildProcess | null = null;
@@ -70,13 +71,13 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 
 /** The throwaway library: two sources in one collection, one article with a long text. Returns what the journey needs. */
-function prepare(): { recoveryCodes: string[]; accountId: string } {
+function prepare(): { accountId: string } {
   const config = loadConfig({ ...env, PURSS_DATA_DIR: dataDir } as Record<string, string>);
   const app = createApp(config);
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
@@ -91,18 +92,18 @@ function prepare(): { recoveryCodes: string[]; accountId: string } {
     ];
     applySyncBatch(app, eu.id, batch(posts));
     createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", view: "list", sourceIds: [tidal, radio], query: null } as Parameters<typeof createCollection>[2]);
-    return { recoveryCodes, accountId };
+    return { accountId };
   } finally {
     app.db.close();
   }
 }
 
-async function signInWithCode(page: Page, code: string): Promise<void> {
+async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("button", { name: "Use a recovery code" }).click();
-  await page.getByLabel("Recovery code").fill(code);
-  await page.getByRole("button", { name: "Sign in with this code" }).click();
+  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
   const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
@@ -219,7 +220,7 @@ async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/sw.js"))) throw new Error("Build the web app first: npm run build");
   // The API serves a private copy of the build, so the journey can swap in a new worker script later.
   cpSync(path.join(repo, "apps/web/dist"), webDist, { recursive: true });
-  const { recoveryCodes, accountId } = prepare();
+  const { accountId } = prepare();
   startApi();
   await waitFor("the API", async () => (await fetch(`${origin}/api/session`)).ok, 30_000);
   step("API started on its own port and data with a seeded library");
@@ -235,11 +236,11 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
 
-    await signInWithCode(page, recoveryCodes[0]!);
+    await signIn(page);
     await waitFor("the worker to take charge of the page", () => hasWorkerControl(page), 20_000);
     assert.deepEqual((await cacheNames(page)).filter((n) => n.startsWith("purss-api:")), [], "an ordinary browser tab keeps nothing until offline reading is turned on");
     assert.ok((await cacheNames(page)).some((n) => n.startsWith("purss-shell:")), "the app itself is saved");
-    step("signed in with a recovery code; the app shell is saved and no personal data is");
+    step("signed in with a username and password; the app shell is saved and no personal data is");
 
     // The browser itself agrees the page is installable.
     const cdp = await context.newCDPSession(page);
@@ -439,7 +440,7 @@ async function main(): Promise<void> {
     const app = await installed.newPage();
     currentPage = app;
     app.on("pageerror", (e) => errors.push(e.message));
-    await signInWithCode(app, recoveryCodes[1]!);
+    await signIn(app);
     await waitFor("the installed app to save its reading list on its own", async () => (await cacheNames(app)).includes(`purss-api:${accountId}`), 30_000);
     await openSettings(app);
     assert.equal(await offlineBox(app).isChecked(), true, "offline reading is on by default in an installed app");

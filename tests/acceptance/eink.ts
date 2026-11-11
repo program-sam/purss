@@ -18,7 +18,7 @@ import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createCollection } from "../../apps/api/src/services/collections.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-eink-"));
@@ -35,6 +35,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_DISK_RESERVE_BYTES: "0",
 };
 const shots = os.tmpdir();
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 let api: ChildProcess | null = null;
@@ -61,13 +62,13 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 
 /** A library long enough to page through: one source with 40 posts, the first with a long article. */
-function prepare(): { recoveryCodes: string[]; sourceId: string; longItemId: string } {
+function prepare(): { sourceId: string; longItemId: string } {
   const config = loadConfig({ ...env, PURSS_DATA_DIR: dataDir } as Record<string, string>);
   const app = createApp(config);
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
@@ -84,18 +85,18 @@ function prepare(): { recoveryCodes: string[]; sourceId: string; longItemId: str
     applySyncBatch(app, eu.id, batch(posts));
     createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", view: "list", sourceIds: [sourceId], query: null } as Parameters<typeof createCollection>[2]);
     const longItemId = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'A very long walk across the flats'")!.id;
-    return { recoveryCodes, sourceId, longItemId };
+    return { sourceId, longItemId };
   } finally {
     app.db.close();
   }
 }
 
-async function signIn(page: Page, code: string): Promise<void> {
+async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("button", { name: "Use a recovery code" }).click();
-  await page.getByLabel("Recovery code").fill(code);
-  await page.getByRole("button", { name: "Sign in with this code" }).click();
+  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Add source" }).first().waitFor();
 }
 
@@ -160,7 +161,7 @@ let currentPage: Page | null = null;
 
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
-  const { recoveryCodes, sourceId, longItemId } = prepare();
+  const { sourceId, longItemId } = prepare();
   startApi();
   await waitFor("the API", async () => (await fetch(`${origin}/api/session`)).ok, 30_000);
   step("API started on its own port and data with a 40-item library");
@@ -173,7 +174,7 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
 
-    await signIn(page, recoveryCodes[0]!);
+    await signIn(page);
     await page.goto(`${origin}/app/s/${sourceId}`);
     await page.locator(".row-main").first().waitFor();
     const standard = await look(page);
@@ -264,7 +265,7 @@ async function main(): Promise<void> {
     const phone = await browser.newContext({ viewport: { width: 412, height: 915 } });
     const small = await phone.newPage();
     currentPage = small;
-    await signIn(small, recoveryCodes[1]!); // recovery codes are single-use
+    await signIn(small);
     await setEink(small, true);
     await small.goto(`${origin}/app/s/${sourceId}`);
     await small.locator(".row-main").first().waitFor();

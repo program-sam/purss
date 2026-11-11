@@ -14,6 +14,7 @@ import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { startSmtpSink, textOf, type SmtpSink } from "../../apps/api/src/mail/testing.ts";
+import { testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-email-"));
@@ -61,7 +62,7 @@ async function main(sink: SmtpSink): Promise<void> {
   };
   // The operator's own account exists; the journey is about a stranger signing up.
   const app = createApp(loadConfig(env));
-  try { claim(app, ensureClaimCode(app)!, "Operator"); } finally { app.db.close(); }
+  try { claim(app, ensureClaimCode(app)!, "Operator", testPassword("operator")); } finally { app.db.close(); }
   startApi(env);
   await waitFor("open sign-up, once the mail server check passes", async () => (await (await fetch(`${origin}/api/session`)).json()).installation.signup === "open", 30_000);
   assert.match(apiLog, /outgoing email works/);
@@ -79,15 +80,16 @@ async function main(sink: SmtpSink): Promise<void> {
     await page.getByRole("link", { name: "create an account" }).click();
     await page.getByLabel("Email address").fill("robin@example.org");
     await page.getByLabel("Display name (optional)").fill("Robin");
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.locator("label.chk", { hasText: "I've saved these codes" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Use a username and password" }).click();
     await page.getByRole("textbox", { name: "Username" }).fill("robin");
     await page.getByLabel("Password", { exact: true }).fill("tidal flats at low water");
     await page.getByLabel("Password again").fill("tidal flats at low water");
-    await page.getByRole("button", { name: "Save and continue" }).click();
-    await page.getByRole("button", { name: "Add source" }).first().waitFor();
+    await page.getByRole("button", { name: "Continue" }).click();
+    // Where the browser supports passkeys the account offers one; this journey is about the password.
+    const skipPasskey = page.getByRole("button", { name: "Skip for now" });
+    const addSource = page.getByRole("button", { name: "Add source" }).first();
+    await skipPasskey.or(addSource).waitFor();
+    if (await skipPasskey.isVisible()) await skipPasskey.click();
+    await addSource.waitFor();
     step("signed up with an email address and a password");
 
     await waitFor("the confirmation email", async () => sink.received.length >= 1, 15_000);
@@ -106,7 +108,7 @@ async function main(sink: SmtpSink): Promise<void> {
     currentPage = phone;
     phone.on("pageerror", (e) => errors.push(e.message));
     await phone.goto(`${origin}/app/signin`);
-    await phone.getByRole("link", { name: "Forgot your password?" }).click();
+    await phone.getByRole("link", { name: "Reset your password by email" }).click();
     await phone.getByLabel("Username or email address").fill("someone-else");
     await phone.getByRole("button", { name: "Send a link" }).click();
     await phone.getByText("If that account has a confirmed email, we").waitFor();
