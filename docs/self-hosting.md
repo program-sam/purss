@@ -251,8 +251,8 @@ What a provider can do:
   that isn't linked signs in to nothing.
 - **Confirm it's you.** An account made this way has no password and perhaps no passkey, so for sensitive
   changes (adding a sign-in method, deleting the account, connecting an app) *Confirm with Google* sends the
-  person to the provider again in the same browser and returns them. In the apps it opens the system browser
-  and the app notices when it is done. The provider must be the one linked to that account, and only the
+  person to the provider again in the same browser and returns them. In the apps it opens the system browser,
+  which sends the app a one-time code that only that app can redeem. The provider must be the one linked to that account, and only the
   browser session (or app) that asked is confirmed. Google can only show its account chooser, so it confirms an
   account that has no password and no passkey; accounts that have one confirm with it (see `stepUp` below).
 
