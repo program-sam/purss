@@ -35,7 +35,7 @@ the updater checks its own signature.
 
 ## Build
 
-Needs Node 24 or newer, Rust (stable) and, on Linux, WebKitGTK 4.1 and its development files
+Needs Node 26, Rust (stable) and, on Linux, WebKitGTK 4.1 and its development files
 (`webkit2gtk4.1-devel` on Fedora, `libwebkit2gtk-4.1-dev` on Debian and Ubuntu, plus `libayatana-appindicator3-dev`
 for the tray icon).
 

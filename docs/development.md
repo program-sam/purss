@@ -51,7 +51,7 @@ performance measurements in `hostlock measure`.
 
 ## Conventions
 
-- **TypeScript without a build step on the server.** Node 24 runs `.ts` files directly by
+- **TypeScript without a build step on the server.** Node 26 runs `.ts` files directly by
   stripping types, so only erasable syntax is allowed (`erasableSyntaxOnly`: no enums,
   namespaces or parameter properties). Imports name the `.ts` file. `tsc` only type-checks.
 - **Tests** use `node:test` and `node:assert`, sit next to the code as `*.test.ts`, and are
