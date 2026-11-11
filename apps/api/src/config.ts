@@ -12,12 +12,31 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 let buildVersion: BuildVersion | null | undefined;
 const thisVersion = () => (buildVersion === undefined ? (buildVersion = readVersion(REPO)) : buildVersion);
 
+/** How "confirm it's you" asks an external provider to check the person again (see OidcProviderConfig). */
+export type StepUpMode = "reauthenticate" | "choose-account";
+
 /**
  * An external sign-in provider (OpenID Connect). `stepUp` is how "confirm it's you" asks it to check the person again:
- * "reauthenticate" (the default) sends prompt=login and max_age=0 and refuses an ID token whose auth_time is older than the
- * request; "choose-account" sends prompt=select_account only, for a provider such as Google that doesn't honour the first.
+ * "reauthenticate" sends prompt=login and max_age=0 and refuses an ID token without a recent auth_time; "choose-account"
+ * sends prompt=select_account only, for a provider such as Google that doesn't honour the first. It is always set once
+ * loaded: Google's issuer defaults to "choose-account", every other to "reauthenticate". Because "choose-account" proves
+ * only a signed-in provider account in that browser, it confirms accounts with no password and no passkey, and no others.
  */
-export type OidcProviderConfig = { id: string; label: string; issuer: string; clientId: string; clientSecret?: string; stepUp?: "reauthenticate" | "choose-account" };
+export type OidcProviderConfig = { id: string; label: string; issuer: string; clientId: string; clientSecret?: string; stepUp: StepUpMode };
+
+/**
+ * An issuer address as a comparison key: lower-case host, no trailing slash. A configured issuer and the `iss` stored from an ID
+ * token name the same issuer however either spells its end; anything that isn't an address compares as typed.
+ */
+export function issuerKey(issuer: string): string {
+  const text = issuer.trim();
+  try {
+    const u = new URL(text);
+    return `${u.origin}${u.pathname.replace(/\/+$/, "")}`;
+  } catch { return text.replace(/\/+$/, ""); }
+}
+
+const GOOGLE_ISSUER = "https://accounts.google.com";
 
 /** Outgoing email (plan/27): optional; hosted open sign-up needs it. */
 export type MailConfig = {
@@ -169,11 +188,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const mode = env.PURSS_MODE === "hosted" ? "hosted" : "self";
   let oidc: OidcProviderConfig[] = [];
   if (env.PURSS_OIDC) {
-    const parsed = JSON.parse(env.PURSS_OIDC) as OidcProviderConfig[];
-    oidc = parsed.filter((p) => p && typeof p.id === "string" && typeof p.issuer === "string" && typeof p.clientId === "string");
-    for (const p of oidc) {
+    const parsed = JSON.parse(env.PURSS_OIDC) as (Omit<OidcProviderConfig, "stepUp"> & { stepUp?: unknown })[];
+    oidc = parsed.filter((p) => p && typeof p.id === "string" && typeof p.issuer === "string" && typeof p.clientId === "string").map((p) => {
       if (p.stepUp !== undefined && p.stepUp !== "reauthenticate" && p.stepUp !== "choose-account") throw new Error(`PURSS_OIDC: stepUp for "${p.id}" must be "reauthenticate" or "choose-account".`);
-    }
+      const issuer = p.issuer.trim();
+      try { new URL(issuer); } catch { throw new Error(`PURSS_OIDC: the issuer of "${p.id}" must be an address such as https://accounts.google.com.`); }
+      return { ...p, issuer, stepUp: p.stepUp ?? (issuerKey(issuer) === GOOGLE_ISSUER ? "choose-account" : "reauthenticate") };
+    });
   }
   const alloc = env.PURSS_DEFAULT_ALLOCATION_BYTES;
   return {

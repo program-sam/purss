@@ -32,8 +32,11 @@ export type SessionInfo = {
     isAdmin: boolean;
     hasPasskey: boolean;
     hasPassword: boolean;
-    /** The external sign-ins (providers set up here) this account has linked, which can also confirm it's you. */
-    linkedProviders: { id: string; label: string }[];
+    /**
+     * The external sign-ins (providers set up here) this account has linked. `canConfirm`: it may also confirm it's you now (a provider
+     * that can only show its account chooser confirms only an account with no password and no passkey).
+     */
+    linkedProviders: { id: string; label: string; canConfirm: boolean }[];
     /** This browser signed in as a shared computer: it signs out when it closes and after 8 hours. */
     sharedComputer: boolean;
   } | null;

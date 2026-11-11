@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadConfig } from "./config.ts";
+import { issuerKey, loadConfig } from "./config.ts";
 
 const repoFile = (p: string) => readFileSync(new URL(`../../../${p}`, import.meta.url), "utf8");
 
@@ -15,13 +15,27 @@ test("a variable passed through empty, as Compose does for one the operator didn
   assert.equal(loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test", PURSS_DISK_RESERVE_BYTES: "0" }).diskReserveBytes, 0, "an explicit 0 is still 0");
 });
 
-test("PURSS_OIDC providers keep their step-up mode, and a mode that doesn't exist is refused", () => {
+test("PURSS_OIDC providers get a step-up mode: Google's issuer chooses the account, any other re-authenticates, and a mode can be set", () => {
   const google = { id: "google", label: "Google", issuer: "https://accounts.google.com", clientId: "id.apps.googleusercontent.com", clientSecret: "s" };
+  const other = { id: "sso", label: "Company SSO", issuer: "https://sso.example.org/realm", clientId: "c" };
   const load = (providers: unknown[]) => loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test", PURSS_OIDC: JSON.stringify(providers) });
-  assert.deepEqual(load([google]).oidc, [google], "Google is an ordinary entry");
-  assert.equal(load([{ ...google, stepUp: "choose-account" }]).oidc[0]!.stepUp, "choose-account");
-  assert.equal(load([{ ...google, stepUp: "reauthenticate" }]).oidc[0]!.stepUp, "reauthenticate");
+  assert.deepEqual(load([google]).oidc, [{ ...google, stepUp: "choose-account" }], "Google can't be made to ask again");
+  assert.equal(load([{ ...google, issuer: "https://accounts.google.com/" }]).oidc[0]!.stepUp, "choose-account", "however its end is written");
+  assert.equal(load([other]).oidc[0]!.stepUp, "reauthenticate");
+  assert.equal(load([{ ...google, stepUp: "reauthenticate" }]).oidc[0]!.stepUp, "reauthenticate", "what is set wins");
+  assert.equal(load([{ ...other, stepUp: "choose-account" }]).oidc[0]!.stepUp, "choose-account");
   assert.throws(() => load([{ ...google, stepUp: "sometimes" }]), /stepUp for "google"/);
+  assert.throws(() => load([{ ...other, issuer: "sso.example.org" }]), /issuer of "sso"/);
+  assert.equal(load([{ ...other, issuer: "  https://sso.example.org/realm  " }]).oidc[0]!.issuer, "https://sso.example.org/realm", "kept as written, without the spaces");
+});
+
+test("issuer addresses are compared by their address, not their spelling", () => {
+  assert.equal(issuerKey("https://accounts.google.com"), issuerKey("https://accounts.google.com/"));
+  assert.equal(issuerKey("HTTPS://Accounts.Google.com/"), issuerKey("https://accounts.google.com"));
+  assert.equal(issuerKey("https://sso.example.org/realm/"), issuerKey("https://sso.example.org/realm"));
+  assert.notEqual(issuerKey("https://sso.example.org/realm"), issuerKey("https://sso.example.org/other"));
+  assert.notEqual(issuerKey("https://sso.example.org"), issuerKey("http://sso.example.org"));
+  assert.equal(issuerKey("accounts.google.com/"), "accounts.google.com", "not an address: as typed, without the slash");
 });
 
 test("every API setting documented for operators reaches the api container in Compose", () => {

@@ -10,6 +10,7 @@ import type { App } from "../app.ts";
 import { audit } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 import { sessionWrite } from "./accounts.ts";
+import { hasPassword, linkedProviders } from "./providers.ts";
 import { passkeyOrigins } from "../connect/app-association.ts";
 
 const CHALLENGE_SECONDS = 300;
@@ -98,15 +99,16 @@ export function listMethods(app: App, accountId: string) {
 
 /**
  * Removing a sign-in method needs a recent sign-in. The password can be changed but never removed: it is the way back in, and
- * a passkey or a linked provider is an extra. An account always keeps at least one way to sign in.
+ * a passkey or a linked provider is an extra. A provider can go only while a password remains (a passkey is not a way in on its
+ * own); a passkey can go only while a password or a provider that is still set up here remains.
  */
 export function removeMethod(app: App, accountId: string, sessionId: string, methodId: string): void {
   sessionWrite(app, accountId, sessionId, () => {
     const m = app.db.get<{ kind: string }>("SELECT kind FROM sign_in_methods WHERE id = ? AND account_id = ?", methodId, accountId);
     if (!m) throw new HttpError(404, "not_found", "That sign-in method doesn't exist.");
     if (m.kind === "password") throw new HttpError(409, "password_required", "Your password can be changed but not removed. It's how you can always get back in.");
-    const others = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sign_in_methods WHERE account_id = ? AND id <> ?", accountId, methodId)!.n;
-    if (others === 0) throw new HttpError(409, "last_method", "This is your last way to sign in. Add a password first.");
+    const stays = m.kind === "oidc" ? hasPassword(app, accountId) : hasPassword(app, accountId) || linkedProviders(app, accountId).length > 0;
+    if (!stays) throw new HttpError(409, "last_method", "This is your last way to sign in. Add a password first.");
     app.db.run("DELETE FROM sign_in_methods WHERE id = ?", methodId);
     audit(app, accountId, "sign_in_method_remove", m.kind, "success");
   }, true);
