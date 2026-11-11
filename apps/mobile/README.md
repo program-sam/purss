@@ -17,15 +17,18 @@ offers when it fits the app's native code (live updates, [plan/39](../../plan/39
 | `android/app/src/main/java/app/purss/device/` | The app's own native code (Kotlin, [plan/38](../../plan/38-phone-background-and-widgets.md)): the `PurssDevice` plugin (downloads that can be stopped), the background download job, the home-screen widget |
 | `ios/App/` | The Xcode project: the app, its entitlements, and the `ShareExtension` and `Widgets` targets; `App/PurssDevice/` is the iOS side of the app's own plugin and background job |
 | `scripts/emulator-workspace.ts` | A throwaway PURSS with a small library, for trying the app on an emulator or phone |
-| `android/app/src/main/java/app/purss/` | `PurssPushPlugin` (hands the notification credential to native code), `PurssMessagingService` and `PushFetcher` (fetch and show notifications, plan/37) |
-| `android/app/src/debug/` | Debug builds only: a broadcast that runs what an arriving push runs, for the emulator |
+| `android/app/src/full/` | Full Android distribution's `PurssPushPlugin`, Firebase messaging service and fetcher (plan/37) |
+| `android/app/src/fullDebug/` | Full debug builds only: a broadcast that runs what an arriving push runs, for the emulator |
 
 Plugins (pinned; listed in both this package and `apps/web`, which imports them):
 `@capacitor/app`, `browser`, `device`, `filesystem`, `network`;
 `@aparajita/capacitor-secure-storage` (the device token), `@mediagrid/capacitor-native-audio`
 (background audio with lock-screen controls), `@capgo/capacitor-share-target` (links shared from
 other apps), `@capacitor/push-notifications` (notification permission, push address, taps on iOS),
-`@capgo/capacitor-updater` (live updates of the interface, plan/39).
+`@capgo/capacitor-updater` (live updates of the interface, plan/39). The FOSS Android sync removes the push
+plugin from Capacitor's generated dependency and registration lists. It also removes the passkey plugin's
+optional Play Services provider and the updater's Play Store APK-update adapter; Android's Credential
+Manager and the updater's live interface downloads remain. iOS and the full Android build keep the complete plugins.
 Why each was chosen is in plan/31 and plan/37. `patches/` holds the app's changes to plugins (a file
 `@scope+name.patch` changes `@scope/name`); `npm run sync` applies them to `node_modules` before the native
 projects are built, and `npm test` checks they still fit the installed versions. The app's own plugins, `PurssDevice` (plan/38) and
@@ -34,23 +37,23 @@ projects are built, and `npm test` checks they still fit the installed versions.
 ## Build
 
 ```sh
-npm install
+npm ci
 npm run sync -w @purss/mobile             # patches plugins (patches/), builds the web app for the apps' own
                                         # root (PURSS_WEB_BASE=/) and copies it and the plugin lists into android/ and ios/
 ```
 
-**Android** (debug APK): needs the Android SDK (platform 36) and a JDK the Android Gradle plugin
-supports (21; JDK 25 is too new for Gradle 8.14).
+**Android** needs Node.js 24 or later, the Android SDK (platform 36), and JDK 21 (JDK 25 is too new
+for the Android Gradle plugin used here).
 
 ```sh
 cd apps/mobile/android
-JAVA_HOME=<jdk 21> ANDROID_HOME=<sdk> ./gradlew assembleDebug
-# app/build/outputs/apk/debug/app-debug.apk
+JAVA_HOME=<jdk 21> ANDROID_HOME=<sdk> ./gradlew assembleFullDebug
+# app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
-**Version:** the product's ([plan/40](../../plan/40-versions.md)): versionName and versionCode are the number
-(`2631214`), read by Gradle from the bundled interface's `app-build.json`, so build from an up-to-date checkout
-of main. Each build is higher than the last, as Google Play requires.
+**Version:** the product's ([plan/40](../../plan/40-versions.md)): versionName and versionCode come from the
+checkout (`node scripts/version.ts --plain`) and Gradle reads them from the bundled interface's `app-build.json`.
+Each build is higher than the last, as Google Play requires.
 
 **Release signing** is the owner's own key, never committed (`*.jks`, `*.keystore` and
 `keystore.properties` are ignored). Create a key with
@@ -64,8 +67,8 @@ keyAlias=purss
 keyPassword=…
 ```
 
-`./gradlew assembleRelease` (or `bundleRelease` for Google Play) then signs with it; without the
-file a release build is unsigned.
+`./gradlew assembleFullRelease` (or `bundleFullRelease` for Google Play) then signs with it; without
+the file a release build is unsigned. The GitHub release workflow builds this full variant.
 
 **Notifications** need the owner's Firebase project: put its `google-services.json` (Android app
 `app.purss`) in `android/app/` before building. It is not committed (ignored in
@@ -73,6 +76,51 @@ file a release build is unsigned.
 receive notifications. The relay that sends to it is `apps/push-relay`; the whole setup is in
 [plan/37](../../plan/37-push-notifications.md#owner-steps). For Google Play, Play App Signing keeps the distribution key and
 this one becomes the upload key.
+
+## F-Droid build
+
+The `foss` Android flavor has the same application id (`app.purss`) and app screens as the full build. It
+does not include the Capacitor push-notifications plugin, Firebase Messaging, Google Play Services, Google
+Play Core, the Google Services Gradle plugin, or the app's Firebase messaging service. Settings → This device
+explains that this build can't receive phone notifications. Notifications inside PURSS, including the bell
+and its settings, still work. Android's system Credential Manager and Capgo's live interface updates remain;
+the FOSS build leaves APK updates to F-Droid. The default `full` flavor keeps phone push and is what GitHub
+releases build.
+
+Build an unsigned FOSS APK from a complete git checkout with Node.js 24+, JDK 21 and Android SDK platform 36:
+
+```sh
+npm ci
+npm run sync:foss -w @purss/mobile
+cd apps/mobile/android
+./gradlew assembleFossRelease --no-daemon -PpurssFoss=true
+# app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+```
+
+The sync builds the web interface with phone push disabled, applies FOSS-only adjustments to the two
+third-party Android plugins, runs Capacitor sync for Android, then removes the push plugin dependency and
+reflective registration from generated Android files. The updater compiles its Play Store API calls into the
+same plugin that handles live updates, so excluding only Maven dependencies leaves unresolved Java references.
+The FOSS sync applies exact, asserted source edits; its tests check that live updates remain, and the regular
+sync restores the original npm plugin sources. Passkeys still use Android's Credential Manager. The FOSS build
+also removes the Play Services and Play Store APK-update dependencies. Run the regular
+`npm run sync -w @purss/mobile` before building the full variant again. The FOSS build uses the version
+from the git checkout; F-Droid's recipe passes the `versionName` and `versionCode` recorded in its build
+metadata. F-Droid signs the APK with its own key. Since Android treats signatures as part of app identity,
+installing F-Droid over a GitHub-signed installation is blocked by Android. Switching requires an
+uninstall, which erases the app's on-device data, including offline downloads and settings; the server
+account is unaffected.
+
+The draft metadata is in `apps/mobile/fdroid/`; the store text is in
+`fastlane/metadata/android/en-US/`. Before submission, the owner should merge this work, choose
+the first public release tag containing it, and set the metadata `commit` to that tag. Set the build's
+`versionName` and `versionCode`, plus `CurrentVersion` and `CurrentVersionCode`, to the numeric version
+from that tag (`node scripts/version.ts --plain`; PURSS uses the same number for both). In a fork of
+[fdroiddata](https://gitlab.com/fdroid/fdroiddata), copy the YAML to
+`metadata/app.purss.yml`, run its lint and build checks, and open a merge request. Reviewers will check that
+the tagged source builds offline apart from declared npm and Maven dependencies, the APK has no Firebase
+or Google Play Services classes, its version matches the metadata, and the app and all bundled licenses
+are free. They may also ask for store screenshots and details about permissions or online services.
 
 ## Live updates and the native level
 
@@ -107,7 +155,7 @@ confirming an address, invitations) are pasted into the app.
 npm run build                                           # the PURSS's own build, served at /app/
 node apps/mobile/scripts/emulator-workspace.ts 19990   # prints a username and password; Ctrl+C deletes everything
 adb reverse tcp:19990 tcp:19990                          # the emulator's localhost is this computer
-adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r apps/mobile/android/app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
 The app opens on the official server's sign-in; press **Use another server**, type
@@ -128,7 +176,7 @@ WorkManager skips a periodic run that comes before its hour is up ("executed bef
 logcat); on an emulator, `adb root` and moving the clock forward an hour lets it run. A force-stopped
 app has no jobs until it is opened again (Android's rule). Its log tag is `PurssBackground`. The widget
 is in the launcher's widget list as *PURSS*. Kotlin unit tests:
-`./gradlew testDebugUnitTest`.
+`./gradlew testFullDebugUnitTest`.
 
 ### Notifications on the emulator
 
@@ -140,7 +188,7 @@ exists only in debug builds.
 PURSS_RELAY_PORT=8950 PURSS_RELAY_DATA_DIR=/tmp/purss-relay node apps/push-relay/src/main.ts &
 PURSS_PUSH_RELAY_URL=http://localhost:8950 node apps/mobile/scripts/emulator-workspace.ts 19990
 adb reverse tcp:19990 tcp:19990 && adb reverse tcp:8950 tcp:8950
-cd apps/mobile/android && ./gradlew assembleDebug -PpurssPushRelay=http://localhost:8950 -PpurssPushDebugToken=emulator-debug-token-0123456789
+cd apps/mobile/android && ./gradlew assembleFullDebug -PpurssPushRelay=http://localhost:8950 -PpurssPushDebugToken=emulator-debug-token-0123456789
 ```
 
 Connect, turn on Settings → This device → Notifications on this phone (the system asks), make

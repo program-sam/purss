@@ -1,0 +1,44 @@
+Categories:
+  - Reading
+License: AGPL-3.0-only
+WebSite: https://purss.app
+SourceCode: https://github.com/program-sam/purss
+IssueTracker: https://github.com/program-sam/purss/issues
+
+AutoName: PURSS
+Summary: A personal reader for feeds, podcasts, and saved articles
+Description: |-
+  PURSS keeps the things you follow in one place. Connect to a PURSS server to read articles, listen to
+  podcasts, and keep items in baskets for later.
+
+  Follow feeds from FreshRSS and use search, filters, and reading progress to find what matters. Save
+  items to collections, work through what is new, and keep an offline copy on this device when you need one.
+
+  PURSS is a client for your own PURSS server. You need an account and server address to use it. Your
+  library and account live on that server; the app keeps downloads and settings on this device.
+
+  The F-Droid build does not receive phone push notifications. Notifications inside the app remain available.
+
+RepoType: git
+Repo: https://github.com/program-sam/purss.git
+
+Builds:
+  - versionName: '2631505'
+    versionCode: 2631505
+    commit: REPLACE_WITH_FIRST_PUBLIC_TAG
+    subdir: apps/mobile/android
+    sudo: apt-get install -y nodejs npm
+    init: cd ../../.. && npm ci
+    gradle:
+      - foss
+    output: app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+    prebuild: cd ../../.. && npm run sync:foss -w @purss/mobile
+    gradleprops:
+      - purssFoss=true
+      - purssVersionName=$$VERSION$$
+      - purssVersionCode=$$VERCODE$$
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: '2631505'
+CurrentVersionCode: 2631505

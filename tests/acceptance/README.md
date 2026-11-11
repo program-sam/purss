@@ -13,7 +13,7 @@ passkey → the kept item is in its basket → storage counts it → an invited 
 and password, passkey skipped) asks to be deleted, is signed out, and keeps its account by signing in
 again with its password.
 
-Needs Node 26, podman with the pinned FreshRSS image, network access to the public
+Needs Node 24 or newer, podman with the pinned FreshRSS image, network access to the public
 feeds, and Playwright's Chromium (`npx playwright install chromium`). It takes a few
 minutes; run it under the host's work lock. On failure it prints the job and capture
 state and saves a screenshot to the system temp directory; the containers and data
@@ -28,7 +28,7 @@ mobile layouts and screen readers. See [the acceptance matrix](../../plan/13-val
 
 `tests/acceptance/offline.ts` is a second, hermetic journey for the installable app; `npm run
 test:e2e` builds the web app and runs it after the core journey, and `node tests/acceptance/offline.ts`
-(after `npm run build`) runs it alone. It needs only Node 26 and Playwright's Chromium: no podman, FreshRSS or network. It
+(after `npm run build`) runs it alone. It needs only Node 24 or newer and Playwright's Chromium: no podman, FreshRSS or network. It
 starts the API on its own ports (199xx) with a throwaway data directory and a copy of the web build,
 and seeds a small library from the API's own test fixtures, posted through the same sync path the
 worker uses. The hermetic journeys make their account in-process with a username and the shared test
@@ -51,7 +51,7 @@ itself as an installed app, that offline reading starts on by itself.
 
 `tests/acceptance/connect.ts` is a hermetic journey for connecting the phone app and the browser
 extension (plan/24); `npm run test:e2e` runs it after the offline journey, and `node tests/acceptance/connect.ts` (after
-`npm run build`) runs it alone. Like the offline journey it needs only Node 26 and Playwright's
+`npm run build`) runs it alone. Like the offline journey it needs only Node 24 or newer and Playwright's
 Chromium, and starts the API on free ports with a throwaway data directory. A browser
 extension's request sends a signed-out person through sign-in and back to the approval page; the
 typed code and PKCE verifier give it a token that looks up a kept page, keeps a link once and is
@@ -66,7 +66,7 @@ one opens the password form.
 
 `tests/acceptance/oauth.ts` is a hermetic journey for assistants that connect with OAuth (plan/33);
 `npm run test:e2e` runs it after the connected-apps journey, and `node tests/acceptance/oauth.ts`
-(after `npm run build`) runs it alone. It needs Node 26, Playwright's Chromium and `openssl`, and
+(after `npm run build`) runs it alone. It needs Node 24 or newer, Playwright's Chromium and `openssl`, and
 runs the API in its own process on free ports with OAuth turned on, so the client metadata document
 can come from a local HTTPS server through the safe fetcher's in-process test hooks. The script acts
 as the assistant: `/mcp`'s 401 leads it to the protected resource and authorization server
@@ -79,7 +79,7 @@ foreign return address is stopped on the page.
 
 ## The player and playback positions
 
-`tests/acceptance/media.ts` is a hermetic journey like the offline one (Node 26 and Chromium only;
+`tests/acceptance/media.ts` is a hermetic journey like the offline one (Node 24 or newer and Chromium only;
 `npm run test:e2e` runs it after the connected-apps journey, or `node tests/acceptance/media.ts` after `npm run build`). The server
 keeps no audio or video files, so the journey first leaves a media folder as an earlier version would have and
 checks the API removes it when it starts, and that the page's `media-src` policy allows publishers' https files only. It seeds a

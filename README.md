@@ -44,7 +44,7 @@ confirm the first time you open it ([apps/desktop](apps/desktop/README.md#downlo
 
 ## Run it
 
-For development: Node.js 26, podman (rootless is fine) and the pinned FreshRSS image.
+For development: Node.js 24 or newer, podman (rootless is fine) and the pinned FreshRSS image.
 To run your own installation, follow [Host it yourself](docs/install.md), a step-by-step
 guide; [docs/self-hosting.md](docs/self-hosting.md) is the full reference.
 
