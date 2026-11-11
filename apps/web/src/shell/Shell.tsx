@@ -39,7 +39,6 @@ import { DownloadsRunner } from "../downloads/DownloadsRunner.tsx";
 import { ShareIntake } from "../share/ShareIntake.tsx";
 import { platform } from "../platform/index.ts";
 import { OpenLinks } from "./OpenLinks.tsx";
-import { SetupBanner } from "../auth/SetupBanner.tsx";
 import { leaveThen } from "../lib/leave.ts";
 
 
@@ -267,7 +266,6 @@ function ShellFrame() {
         <div className="navscrim" onClick={() => setDrawer(false)} />
         <div className="pscrim" onClick={closeItem} />
         <div className="stage">
-          <SetupBanner />
           <Header drawerOpen={drawer} overlaySidebar={overlaySb} onToggleSidebar={toggleSidebar} />
           <main className="main" id="main" ref={mainRef} tabIndex={-1}><Outlet /></main>
           {display === "eink" ? <PageNav target={mainRef} what="list" /> : null}

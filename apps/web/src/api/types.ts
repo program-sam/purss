@@ -13,5 +13,4 @@ export type UnfollowResult = { keptItems: number; deletedItems: number };
 export type SecurityMethod = { id: string; kind: "passkey" | "oidc" | "password"; label: string | null; createdAt: string; lastUsedAt: string | null };
 export type SecuritySession = { id: string; current: boolean; createdAt: string; lastSeenAt: string; method: string; device: string | null; sessionClass: "persistent" | "shared" };
 export type SecurityInfo = { methods: SecurityMethod[]; sessions: SecuritySession[]; recentAuth: boolean };
-export type RecoveryCodes = { recoveryCodes: string[]; recoveryGeneration: number };
 export type BasketCreateResult = BasketDTO;

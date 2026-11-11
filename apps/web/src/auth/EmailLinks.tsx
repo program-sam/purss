@@ -39,9 +39,8 @@ export function VerifyEmailPage() {
         {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>Go to your PURSS</a></div> : null}
         {state !== "working" && !signedIn ? (
           <>
-            <p>Sign in with your fingerprint, face or screen lock, your password (username or email address) or a recovery code.</p>
+            <p>Sign in with your password (username or email address) or your fingerprint, face or screen lock.</p>
             <div><a className="btn primary" href={inApp("/signin")}>Sign in</a></div>
-            {session?.installation.signup === "open" ? <p className="fine">Didn't finish creating your account, or never saw its recovery codes? You can <a className="link" href={inApp("/signup")}>create it again</a>.</p> : null}
           </>
         ) : null}
       </div>
@@ -87,7 +86,7 @@ export function ResetPasswordPage() {
             </Field>
             {alert}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !identifier.trim()}>Send a link</Button><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
-            <p className="fine">Administrators reset with a recovery code or the server's operator tool instead.</p>
+            <p className="fine">Administrators get a reset link from the server's operator tool instead.</p>
           </form>
         )}
       </AuthFrame>

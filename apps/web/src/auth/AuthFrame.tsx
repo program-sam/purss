@@ -4,7 +4,7 @@ import { Icon } from "@purss/ui";
 
 /** The calm centred card used for setup, sign-in and invitations. */
 export function AuthFrame({ title, intro, children, footer }: { title: string; intro?: ReactNode; children: ReactNode; footer?: ReactNode }) {
-  // The tab names the step, and a new step (recovery codes after the form) puts focus on its heading.
+  // The tab names the step, and a new step (adding a passkey after the form) puts focus on its heading.
   const heading = useRef<HTMLHeadingElement>(null);
   const shown = useRef(false);
   useEffect(() => {

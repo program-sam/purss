@@ -128,10 +128,10 @@ test("hosted open sign-up stays closed until the mail server check succeeds, and
   await checkMail(b.app);
   assert.equal((await b.req("GET", "/api/session", null)).json.installation.signup, "open");
   assert.equal((await b.req("GET", "/api/admin/health", admin)).json.signupWaitingForMail, false);
-  assert.equal((await b.req("POST", "/api/signup", null, { displayName: "Ana" })).status, 400, "an address is required");
+  assert.equal((await b.req("POST", "/api/signup", null, { displayName: "Ana", username: "ana-ana", password: "a long enough password" })).status, 400, "an address is required");
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n, 1, "nothing was created");
 
-  const ok = await b.req("POST", "/api/signup", null, { displayName: "Ana", email: "ana@example.org" });
+  const ok = await b.req("POST", "/api/signup", null, { displayName: "Ana", email: "ana@example.org", username: "ana-ana", password: "a long enough password" });
   assert.equal(ok.status, 200);
   await settleMail(b.app);
   const ana = b.app.db.get<{ id: string; email: string; email_verified_at: string | null }>("SELECT id, email, email_verified_at FROM accounts WHERE display_name = 'Ana'")!;

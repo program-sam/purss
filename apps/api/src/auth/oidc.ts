@@ -101,8 +101,6 @@ export async function finishOidc(app: App, providerId: string, currentUrl: URL, 
       if (!existing) {
         app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?)",
           newId("sim"), row.account_id, p.label, claims.iss, claims.sub, nowIso());
-        app.db.run("UPDATE account_enrollment SET durable_method_exists = 1 WHERE account_id = ?", row.account_id);
-        app.db.run("UPDATE sessions SET setup_permission_used_at = COALESCE(setup_permission_used_at, ?), setup_permission_expires_at = NULL WHERE account_id = ?", nowIso(), row.account_id);
         audit(app, row.account_id, "oidc_link", providerId, "success");
       }
     });

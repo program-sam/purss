@@ -28,7 +28,7 @@ test("a PURSS that vouches for its apps serves the association files and offers 
   assert.deepEqual(aasa.webcredentials.apps, ["ABCDE12345.app.purss"]);
 
   const info = await (await fetch(`${s.base}/api/connect/info`)).json() as { signin: { methods: string[]; passkeyOptions: string | null } };
-  assert.deepEqual(info.signin.methods, ["password", "recovery", "passkey"]);
+  assert.deepEqual(info.signin.methods, ["password", "passkey"]);
   const options = await fetch(`${s.base}/api/connect/passkey/options`, { method: "POST", headers: { origin: "capacitor://localhost", "content-type": "application/json" }, body: "{}" });
   assert.equal(options.status, 200);
   const body = await options.json() as { challengeId: string; options: { rpId: string; challenge: string } };
@@ -46,7 +46,7 @@ test("a PURSS that vouches for no app says so, and the app doesn't offer its pas
   assert.equal((await fetch(`${s.base}/.well-known/assetlinks.json`)).status, 404);
   assert.equal((await fetch(`${s.base}/.well-known/apple-app-site-association`)).status, 404);
   const info = await (await fetch(`${s.base}/api/connect/info`)).json() as { signin: { methods: string[]; passkeyOptions: string | null } };
-  assert.deepEqual([info.signin.methods, info.signin.passkeyOptions], [["password", "recovery"], null]);
+  assert.deepEqual([info.signin.methods, info.signin.passkeyOptions], [["password"], null]);
   assert.equal((await fetch(`${s.base}/api/connect/passkey/options`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 404);
 });
 

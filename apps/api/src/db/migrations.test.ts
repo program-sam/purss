@@ -64,7 +64,7 @@ test("006 drops saved searches and leaves filter collections, which keep their o
   }
 });
 
-test("008 keeps every existing sign-in method and accepts passwords with unique usernames", () => {
+test("008 keeps every existing passkey and linked sign-in and accepts passwords with unique usernames", () => {
   const db = new Database(":memory:");
   try {
     db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
@@ -77,15 +77,65 @@ test("008 keeps every existing sign-in method and accepts passwords with unique 
     db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, credential_id, public_key, counter, created_at) VALUES ('sim_pk', 'acc_1', 'passkey', 'Laptop', 'cred1', x'0102', 7, '2026-01-01T00:00:00.000Z')");
     db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, used_at, created_at) VALUES ('sim_rc', 'acc_1', 'recovery', 'abcd', 'salt$hash', NULL, '2026-01-01T00:00:00.000Z')");
     db.run("INSERT INTO sign_in_methods (id, account_id, kind, issuer, subject, created_at) VALUES ('sim_oi', 'acc_1', 'oidc', 'https://id.example', 'sub1', '2026-01-01T00:00:00.000Z')");
-    const before = db.all("SELECT * FROM sign_in_methods ORDER BY id");
+    // Recovery codes were removed later (054) together with the column that marked them used.
+    const kept = "id, account_id, kind, label, credential_id, public_key, counter, transports, issuer, subject, secret_hash, created_at, last_used_at";
+    const before = db.all(`SELECT ${kept} FROM sign_in_methods WHERE kind <> 'recovery' ORDER BY id`);
 
     assert.equal(migrate(db), files.filter((f) => f >= "008").length);
-    assert.deepEqual(db.all(`SELECT ${Object.keys(before[0]!).join(", ")} FROM sign_in_methods ORDER BY id`), before, "rows survive the rebuild unchanged");
+    assert.deepEqual(db.all(`SELECT ${kept} FROM sign_in_methods ORDER BY id`), before, "rows survive the rebuild unchanged");
 
     db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw1', 'acc_1', 'password', 'parent', 'h', '2026-01-02T00:00:00.000Z')");
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'parent', 'h', '2026-01-02T00:00:00.000Z')"), /UNIQUE/, "usernames are unique");
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw3', 'acc_1', 'password', 'other', 'h', '2026-01-02T00:00:00.000Z')"), /UNIQUE/, "one password per account");
-    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_rc2', 'acc_2', 'recovery', 'abcd', 'h', '2026-01-02T00:00:00.000Z')");
+  } finally {
+    db.close();
+  }
+});
+
+test("054 deletes the recovery codes and what only they needed, and keeps every other sign-in method, session and sign-up attempt", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "054")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    const at = "2026-01-01T00:00:00.000Z";
+    db.run("INSERT INTO accounts (id, created_at) VALUES ('acc_1', ?), ('acc_2', ?)", at, at);
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, credential_id, public_key, counter, transports, created_at, last_used_at) VALUES ('sim_pk', 'acc_1', 'passkey', 'Laptop', 'cred1', x'0102', 7, '[\"internal\"]', ?, ?)", at, at);
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at, last_used_at) VALUES ('sim_pw', 'acc_1', 'password', 'parent', 'scrypt$1$8$1$s$h', ?, ?)", at, at);
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES ('sim_oi', 'acc_2', 'oidc', 'Provider', 'https://id.example', 'sub1', ?)", at);
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, used_at, created_at) VALUES ('sim_rc1', 'acc_1', 'recovery', 'abcd', 'salt$hash', NULL, ?), ('sim_rc2', 'acc_2', 'recovery', 'efgh', 'salt$hash', ?, ?)", at, at, at);
+    db.run("INSERT INTO account_enrollment (account_id, recovery_generation, recovery_acknowledged_generation, durable_method_exists) VALUES ('acc_1', 1, 1, 1)");
+    db.run("INSERT INTO sessions (id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class, setup_permission_expires_at) VALUES ('ses_1', 'acc_1', 'c', ?, '2027-01-01T00:00:00.000Z', ?, ?, 'recovery', 'ua', 'shared', ?)", at, at, at, at);
+    db.run("INSERT INTO signup_attempts (attempt_hash, account_id, session_id, created_at) VALUES ('hash1', 'acc_1', 'ses_1', ?)", at);
+    const kept = "id, account_id, kind, label, credential_id, public_key, counter, transports, issuer, subject, secret_hash, created_at, last_used_at";
+    const methods = db.all(`SELECT ${kept} FROM sign_in_methods WHERE kind <> 'recovery' ORDER BY id`);
+    const sessionColumns = "id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class";
+    const sessions = db.all(`SELECT ${sessionColumns} FROM sessions`);
+    const attempts = db.all("SELECT attempt_hash, account_id, created_at FROM signup_attempts");
+    const indexes = () => db.all("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'sign_in_methods' AND sql IS NOT NULL ORDER BY name");
+    const indexesBefore = indexes();
+
+    assert.equal(migrate(db), files.filter((f) => f >= "054").length);
+    assert.equal(db.get("SELECT 1 FROM sign_in_methods WHERE kind = 'recovery'"), undefined, "the recovery codes are deleted, used or not");
+    assert.deepEqual(db.all(`SELECT ${kept} FROM sign_in_methods ORDER BY id`), methods, "the passkey, password and linked sign-in are as they were");
+    assert.deepEqual(db.all(`SELECT ${sessionColumns} FROM sessions`), sessions, "sessions are as they were");
+    assert.deepEqual(indexes(), indexesBefore, "and so are the table's indexes");
+    const columns = (t: string) => db.all<{ name: string }>(`SELECT name FROM pragma_table_info('${t}')`).map((c) => c.name);
+    assert.ok(!columns("sign_in_methods").includes("used_at"), "the single-use mark is gone");
+    assert.ok(!columns("sessions").some((c) => c.startsWith("setup_permission")), "so is the setup permission");
+    assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = 'account_enrollment'"), undefined, "and the enrollment table");
+    assert.deepEqual(db.all("SELECT attempt_hash, account_id, created_at FROM signup_attempts"), attempts, "a sign-up attempt keeps what a repeat needs");
+    assert.ok(!columns("signup_attempts").includes("session_id"));
+
+    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_rc3', 'acc_1', 'recovery', 'abcd', 'h', ?)", at), /CHECK/, "no recovery code can be made again");
+    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'parent', 'h', ?)", at), /UNIQUE/, "usernames are still unique");
+    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw3', 'acc_1', 'password', 'other', 'h', ?)", at), /UNIQUE/, "and an account still has one password");
+    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, issuer, subject, created_at) VALUES ('sim_oi2', 'acc_1', 'oidc', 'https://id.example', 'sub1', ?)", at), /UNIQUE/, "and a linked identity belongs to one account");
+    assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
+    assert.equal(migrate(db), 0, "and it does not run twice");
   } finally {
     db.close();
   }
@@ -251,8 +301,7 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const at = "2026-01-01T00:00:00.000Z";
     db.run("INSERT INTO accounts (id, display_name, created_at) VALUES ('acc_1', 'Ann', ?), ('acc_2', 'Bo', ?)", at, at);
     db.run("INSERT INTO workspaces (id, account_id, created_at, last_visit_at) VALUES ('wsp_1', 'acc_1', ?, ?), ('wsp_2', 'acc_2', ?, NULL)", at, at, at);
-    db.run("INSERT INTO account_enrollment (account_id, recovery_generation, durable_method_exists) VALUES ('acc_1', 1, 1)");
-    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, created_at, home_share, posts_per_day) VALUES ('src_1', 'acc_1', 'wsp_1', 'feed', 'Feed', 'RSS feed', ?, 'own', 2.5)", at);
+    db.run("INSERT INTO account_enrollment (account_id, recovery_generation, durable_method_exists) VALUES ('acc_1', 1, 1)");    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, created_at, home_share, posts_per_day) VALUES ('src_1', 'acc_1', 'wsp_1', 'feed', 'Feed', 'RSS feed', ?, 'own', 2.5)", at);
     db.exec("PRAGMA foreign_keys = OFF"); // items and their versions point at each other
     db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, discovered_at, current_version_id, created_at, updated_at) VALUES ('itm_1', 'acc_1', 'wsp_1', 'src_1', 'article', 't', 'https://Example.org/a?utm_source=x', ?, 'ver_1', ?, ?)", at, at, at);
     db.run("INSERT INTO item_versions (id, workspace_id, item_id, title, content_hash, summary_html, created_at, content_omitted) VALUES ('ver_1', 'wsp_1', 'itm_1', 't', 'h', '<p>s</p>', ?, 1)", at);
@@ -272,9 +321,11 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
 
     assert.equal(migrate(db), files.length - mains.length, "every one of ours applies");
     // Separate "shared collections" were removed when sharing moved onto baskets and collections (043, owner decision).
-    const removed = new Set(["publications", "publication_items"]);
+    // The enrollment record went with the recovery codes (054).
+    const removed = new Set(["publications", "publication_items", "account_enrollment"]);
     // The posting rate behind the "busy" hint went with the Fewer share of Home (050), and the share of Home itself (052): owner decisions.
-    const droppedColumns = new Set(["sources.posts_per_day", "sources.home_share"]);
+    // The setup permission and the single-use mark of recovery codes went with them (054).
+    const droppedColumns = new Set(["sources.posts_per_day", "sources.home_share", "sessions.setup_permission_expires_at", "sessions.setup_permission_used_at", "sign_in_methods.used_at"]);
     for (const t of removed) assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = ?", t), undefined, `${t} is gone`);
     for (const [t, b] of before) {
       if (removed.has(t)) continue;

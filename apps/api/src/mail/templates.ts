@@ -93,8 +93,8 @@ export function resetMail(to: string, opts: { link: string; username: string; mi
 
 export function passwordChangedMail(to: string): Message {
   return compose(to, "Your password was changed", [
-    `The password for your ${NAME} account was just changed with a reset link sent to this address. The account was signed out everywhere and its assistant tokens were revoked.`,
-    "If you didn't do this, sign in with a recovery code and change your password, or contact the administrator.",
+    `The password for your ${NAME} account was just changed with a reset link. The account was signed out everywhere and its assistant tokens were revoked.`,
+    "If you didn't do this, reset your password again from the sign-in page, or contact the administrator.",
   ]);
 }
 

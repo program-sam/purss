@@ -31,7 +31,7 @@ function ExportSection() {
     <Section title="Export everything" hint="One file you can keep, move, or import again later.">
       <div className="fx-two-lines">
         <p><b>Included:</b> your sources, collections, baskets and what you kept in them, items with the text that was saved, workflow and reading progress, preferences, and your sharing settings with their public notes.</p>
-        <p><b>Left out:</b> passwords, fingerprint, face or screen lock sign-ins, recovery codes and sign-in sessions; private source links and links to items from private sources (those sources come back as “needs reconnecting”); anything you never saved, such as pages, images, audio and video that only exist at their original address and may disappear.</p>
+        <p><b>Left out:</b> passwords, fingerprint, face or screen lock sign-ins and sign-in sessions; private source links and links to items from private sources (those sources come back as “needs reconnecting”); anything you never saved, such as pages, images, audio and video that only exist at their original address and may disappear.</p>
       </div>
       <div className="fx-acts-row">
         <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? "Preparing…" : "Download export"}</Button>

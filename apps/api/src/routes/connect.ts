@@ -1,15 +1,15 @@
 import { appUrl } from "@purss/domain";
 import { z } from "zod";
 import { CONNECT_CLIENT_KINDS, connectApproveSchema, connectRequestSchema, connectSigninSchema, connectSignupSchema, connectTokenSchema } from "@purss/domain";
-import type { ConnectApproveResult, ConnectClientKind, ConnectInfo, ConnectRequestSummary, ConnectSignupResult, ConnectTokenResult } from "@purss/domain";
+import type { ConnectApproveResult, ConnectClientKind, ConnectInfo, ConnectRequestSummary, ConnectTokenResult } from "@purss/domain";
 import type { App, Ctx } from "../app.ts";
 import { audit, requirePrincipal, requireRecentAuth } from "../app.ts";
 import { HttpError, Router, badRequest, clientAddress, parse, rateLimit } from "../http.ts";
 import { CODE_TTL_SECONDS, issueCode, redeemCode } from "../connect/codes.ts";
 import { REDIRECT_PATTERNS, checkRedirect, cleanDeviceName } from "../connect/clients.ts";
 import { MAX_DEVICES, createDeviceToken, deviceCount, deviceIdOf, listDevices, revokeDevice, tooMany } from "../connect/devices.ts";
-import { acceptInvite, acknowledgeRecoveryCodes, assertSignupCapacity, openSignupAttempt, recoveryGeneration, selfSignup, useRecoveryCode } from "../auth/accounts.ts";
-import { PASSWORD_MIN, checkPassword, normalizeUsername, preparePassword, storePassword } from "../auth/passwords.ts";
+import { acceptInvite, assertSignupCapacity, openSignupAttempt, selfSignup } from "../auth/accounts.ts";
+import { PASSWORD_MIN, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
 import { accountEmailAvailable, setAccountEmail } from "../services/account-email.ts";
 import { signupOpen } from "../mail/mailer.ts";
 import { endDeletion, keepTokenFor } from "../services/deletion.ts";
@@ -67,7 +67,7 @@ export function connectInfo(app: App): ConnectInfo {
     signup: { endpoint: `${app.config.publicOrigin}/api/connect/signup`, invitation: true, open: signupOpen(app), passwordMin: PASSWORD_MIN },
     signin: {
       endpoint: `${app.config.publicOrigin}/api/connect/signin`,
-      methods: appPasskeys(app) ? ["password", "recovery", "passkey"] : ["password", "recovery"],
+      methods: appPasskeys(app) ? ["password", "passkey"] : ["password"],
       passkeyOptions: appPasskeys(app) ? `${app.config.publicOrigin}/api/connect/passkey/options` : null,
       passwordReset: accountEmailAvailable(app) ? `${app.config.publicOrigin}/api/password-reset` : null,
       passwordResetConfirm: accountEmailAvailable(app) ? `${app.config.publicOrigin}/api/password-reset/confirm` : null,
@@ -108,9 +108,9 @@ export function connectRouter(): Router<Ctx> {
   });
 
   /**
-   * Sign in from the mobile app with a username and password or a recovery code, and connect it: the same
+   * Sign in from the mobile app with a username and password (or a passkey), and connect it: the same
    * checks, limits and answers as signing in in a browser, but the result is the app's device token, not a
-   * cookie. A recovery code is used up only when the app is connected.
+   * cookie.
    */
   r.post("/api/connect/signin", async (req, ctx): Promise<ConnectTokenResult> => {
     const { app } = ctx;
@@ -133,26 +133,14 @@ export function connectRouter(): Router<Ctx> {
       const { accountId } = await verifyAuthentication(app, body.challengeId, body.response as unknown as AuthenticationResponseJSON);
       return answer(app.db.tx(() => connect(accountId)));
     }
-    if (body.method === "password") {
-      rateLimit(`password:${address}`, 10);
-      rateLimit(`password-user:${normalizeUsername(body.username)}`, 10, 15 * 60_000);
-      const accountId = await checkPassword(app, body.username, body.password);
-      if (!accountId) {
-        audit(app, null, "sign_in", method, "failure");
-        throw new HttpError(401, "bad_password", "That username and password don't match.");
-      }
-      return answer(app.db.tx(() => connect(accountId)));
-    }
-    rateLimit(`recovery:${address}`, 10);
-    const out = app.db.tx(() => {
-      const accountId = useRecoveryCode(app, body.code);
-      return accountId ? connect(accountId) : null;
-    });
-    if (!out) {
+    rateLimit(`password:${address}`, 10);
+    rateLimit(`password-user:${normalizeUsername(body.username)}`, 10, 15 * 60_000);
+    const accountId = await checkPassword(app, body.username, body.password);
+    if (!accountId) {
       audit(app, null, "sign_in", method, "failure");
-      throw new HttpError(401, "bad_code", "That recovery code isn't right or was already used.");
+      throw new HttpError(401, "bad_password", "That username and password don't match.");
     }
-    return answer(out);
+    return answer(app.db.tx(() => connect(accountId)));
   });
 
   /** A passkey challenge for signing in from the phone app (where the PURSS vouches for it). */
@@ -175,10 +163,10 @@ export function connectRouter(): Router<Ctx> {
 
   /**
    * Create an account from the mobile app and connect it in one step: with an invitation code, or an email address
-   * where sign-up is open, plus a username and password to sign in with in a browser later. The account, its
-   * password and the app's device token are written in one transaction, so nothing is left half made.
+   * where sign-up is open, plus a username and password to sign in with. The account, its password and the app's
+   * device token are written in one transaction, so nothing is left half made.
    */
-  r.post("/api/connect/signup", async (req, ctx): Promise<ConnectSignupResult> => {
+  r.post("/api/connect/signup", async (req, ctx): Promise<ConnectTokenResult> => {
     const { app } = ctx;
     const address = clientAddress(req.raw, app.config.trustProxy);
     const body = parse(connectSignupSchema, req.body);
@@ -188,23 +176,12 @@ export function connectRouter(): Router<Ctx> {
     const password = await preparePassword(body.username, body.password);
     const deviceName = cleanDeviceName("mobile", body.deviceName);
     return app.db.tx(() => {
-      const created = body.invitation !== undefined ? acceptInvite(app, body.invitation, body.displayName) : selfSignup(app, body.displayName, address, attemptRetryAt);
-      storePassword(app, created.accountId, password);
-      app.db.run("UPDATE account_enrollment SET durable_method_exists = 1 WHERE account_id = ?", created.accountId);
+      const created = body.invitation !== undefined ? acceptInvite(app, body.invitation, body.displayName, password) : selfSignup(app, body.displayName, address, password, attemptRetryAt);
       const made = createDeviceToken(app, created.accountId, "mobile", deviceName, body.invitation !== undefined ? "invite" : "signup");
       // Last: the confirmation email goes out at once, so nothing may refuse the sign-up after it.
       if (body.email !== undefined) setAccountEmail(app, created.accountId, body.email);
-      return { token: made.secret, tokenType: "Bearer", device: made.device, recoveryCodes: created.recoveryCodes, recoveryGeneration: recoveryGeneration(app, created.accountId) };
+      return { token: made.secret, tokenType: "Bearer", device: made.device };
     });
-  });
-
-  /** The mobile app confirms the person saved the recovery codes it showed after creating the account. */
-  r.post("/api/connect/recovery-codes/acknowledge", (req, ctx) => {
-    const p = requirePrincipal(ctx);
-    if (!deviceIdOf(p)) throw badRequest("This is for the app. In a browser, use Settings → Security.", "not_device");
-    const { generation } = parse(z.object({ generation: z.number().int().min(1) }), req.body);
-    acknowledgeRecoveryCodes(ctx.app, p.accountId, generation);
-    return { ok: true };
   });
 
   /** Disconnect the app making the request (its own "sign out"). */

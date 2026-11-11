@@ -1,7 +1,7 @@
 /*
  * A sign-up attempt's random id, kept on this browser until the account is made. The server finds the account an
- * earlier press of the button already made for the same id, so pressing twice, or again after closing the page, doesn't
- * make a second account or send a second confirmation. (Only a hash of the id is stored on the server.)
+ * earlier press of the button already made for the same id (when the same email address and password are given again), so
+ * pressing twice, or again after closing the page, doesn't make a second account or send a second confirmation. (Only a hash of the id is stored on the server.)
  */
 const KEY = "purss:signup-attempt";
 
@@ -24,7 +24,7 @@ export function signupAttempt(): string {
   }
 }
 
-/** The account was made and its recovery codes shown: the next sign-up starts a new attempt. */
+/** The account was made: the next sign-up starts a new attempt. */
 export function finishSignupAttempt(): void {
   try { localStorage.removeItem(KEY); } catch { /* nothing kept */ }
 }

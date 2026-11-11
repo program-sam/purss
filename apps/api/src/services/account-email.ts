@@ -108,8 +108,8 @@ export function confirmEmail(app: App, token: string): void {
 type ResetTarget = { id: string; email: string; username: string };
 
 /**
- * Ordinary, active accounts with a password and a confirmed address. Administrators recover with
- * recovery codes or the CLI. An account in its deletion grace period can still reset its password
+ * Ordinary, active accounts with a password and a confirmed address. Administrators reset with the
+ * operator's `password-reset-link`. An account in its deletion grace period can still reset its password
  * (then signing in offers to keep it); one whose removal has started can't.
  */
 function resetTargets(app: App, identifier: string): ResetTarget[] {
@@ -121,6 +121,27 @@ function resetTargets(app: App, identifier: string): ResetTarget[] {
   return value.includes("@")
     ? app.db.all<ResetTarget>(`${base} AND lower(a.email) = lower(?) LIMIT 5`, value)
     : app.db.all<ResetTarget>(`${base} AND m.label = ? LIMIT 1`, value.toLowerCase());
+}
+
+/** What a reset link made at the server (hostResetLink) holds in place of the address a link was sent to. */
+const MADE_AT_SERVER = "";
+
+/** An active account with a password whose removal hasn't started: whoever holds a reset link made at the server for it may choose a new password. */
+function hostResetTarget(app: App, accountId: string): { id: string; email: string | null; username: string } | undefined {
+  return app.db.get<{ id: string; email: string | null; username: string }>(
+    `SELECT a.id, CASE WHEN a.email_verified_at IS NOT NULL THEN a.email END AS email, m.label AS username
+     FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password'
+     WHERE a.id = ? AND a.status = 'active' AND NOT EXISTS (SELECT 1 FROM account_deletions d WHERE d.account_id = a.id AND d.state = 'purging')`, accountId);
+}
+
+/**
+ * A single-use reset link for an account, made at the server by its operator (cli.ts `password-reset-link`) for someone who
+ * can't sign in and has no email to receive one: on installations without outgoing email, and for administrators, who don't
+ * reset by email. It is the same link the email flow sends, and works without email being set up. Run inside the caller's transaction.
+ */
+export function hostResetLink(app: App, accountId: string): { link: string; minutes: number } {
+  if (!hostResetTarget(app, accountId)) throw new HttpError(404, "no_password", "That account has no password to reset.");
+  return { link: link(app, "/reset-password", issueToken(app, accountId, "reset", MADE_AT_SERVER, RESET_MINUTES * 60)), minutes: RESET_MINUTES };
 }
 
 /** Send reset links for a username or a confirmed address. Says nothing about whether either exists. */
@@ -144,28 +165,30 @@ export function requestPasswordReset(app: App, identifier: string): void {
 
 /**
  * Choose a new password with a reset link. The username stays; the account is signed out
- * everywhere (sessions, connected apps, assistants: auth/sign-out.ts), and the address is told.
+ * everywhere (sessions, connected apps, assistants: auth/sign-out.ts), and its confirmed address is told.
  */
 export async function resetPassword(app: App, token: string, password: string): Promise<void> {
-  requireAvailable(app);
   const id = sha256(token);
   const row = app.db.get<{ account_id: string; email: string }>(
     "SELECT account_id, email FROM email_tokens WHERE id = ? AND purpose = 'reset' AND used_at IS NULL AND expires_at > ?", id, nowIso());
   const spent = () => new HttpError(400, "link_spent", `${SPENT} Ask for a new one on the sign-in page.`);
-  const target = row ? resetTargets(app, row.email).find((t) => t.id === row.account_id) : undefined;
+  // A link sent by email only works for an account that still qualifies for one; a link made at the server needs only a usable account.
+  const targetNow = (): { id: string; email: string | null; username: string } | undefined => !row ? undefined
+    : row.email === MADE_AT_SERVER ? hostResetTarget(app, row.account_id)
+    : resetTargets(app, row.email).find((t) => t.id === row.account_id);
+  const target = targetNow();
   if (!row || !target) throw spent();
   checkNewPassword(target.username, password);
   const claimed = app.db.run("UPDATE email_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL", nowIso(), id);
   if (claimed.changes !== 1) throw spent();
   // Hashing takes a while: the account may have started being removed meanwhile.
   await writePassword(app, target.id, target.username, password, (write) => app.db.tx(() => {
-    if (!resetTargets(app, row.email).some((t) => t.id === target.id)) throw spent();
+    if (targetNow()?.id !== target.id) throw spent();
     write();
   }));
   app.db.tx(() => {
     signOutEverywhere(app, target.id, "everything");
     audit(app, target.id, "password_reset", target.id, "success");
   });
-  sendLater(app, "password_changed", target.id, passwordChangedMail(target.email));
+  if (target.email) sendLater(app, "password_changed", target.id, passwordChangedMail(target.email));
 }
-

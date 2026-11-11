@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
+import { TEST_PASSWORD, batch, entry, makeOwner, makeSource, makeTestApp, testPassword } from "../testing.ts";
 import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
 import { listItems, getItemDetail, insertItem, searchSnippets } from "./items.ts";
 import { applyUndo, bulk, changeState, keepItem, keepWithUndo, unkeepItem } from "./state.ts";
@@ -480,17 +480,16 @@ test("a source set to notify still notifies when the PURSS setting is off; other
   assert.ok(src);
 });
 
-test("recovery-code step-up never uses up another account's code; claiming removes the setup-code file", async (t) => {
+test("claiming makes the owner with a password and removes the setup-code file", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const { claim, ensureClaimCode, issueRecoveryCodes, useRecoveryCode } = await import("../auth/accounts.ts");
+  const { claim, ensureClaimCode } = await import("../auth/accounts.ts");
+  const { checkPassword } = await import("../auth/passwords.ts");
   const { existsSync } = await import("node:fs");
   const code = ensureClaimCode(app)!;
   assert.ok(existsSync(`${app.config.secretsDir}/setup-code`));
-  const owner = claim(app, code, null);
+  const owner = claim(app, code, null, testPassword("first-owner"));
   assert.ok(!existsSync(`${app.config.secretsDir}/setup-code`), "the code file goes with the claim");
-  const other = makeOwner(app, { admin: false });
-  const otherCodes = issueRecoveryCodes(app, other.accountId);
-  assert.equal(useRecoveryCode(app, otherCodes[0]!, owner.accountId), null);
-  assert.equal(useRecoveryCode(app, otherCodes[0]!), other.accountId, "the code still works for its owner");
+  assert.equal(await checkPassword(app, "first-owner", TEST_PASSWORD), owner.accountId, "the owner signs in with the username and password chosen at setup");
+  assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", owner.accountId) !== undefined, true);
 });

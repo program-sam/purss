@@ -43,8 +43,8 @@ export const revokedEvent = (deviceId: string) => `device-revoked:${deviceId}`;
 /** A new token for an approved connection. The secret is returned once. */
 /**
  * `authMethod` is how the person just proved who they are (it starts the token's step-up clock):
- * 'connect' (approved on the Connect page after a recent sign-in), 'app-password', 'app-recovery',
- * 'invite', or 'signup' (open sign-up proves only an email address, so it counts after a step-up).
+ * 'connect' (approved on the Connect page after a recent sign-in), 'app-password', 'app-passkey',
+ * 'invite', or 'signup'.
  */
 export function createDeviceToken(app: App, accountId: string, kind: ConnectClientKind, name: string, authMethod = "connect"): { device: DeviceDTO; secret: string } {
   return app.db.tx(() => {
@@ -74,8 +74,8 @@ export const tooMany = () => new HttpError(409, "too_many_devices", `You can con
  */
 export function resolveDeviceToken(app: App, secret: string): DeviceCaller | null {
   if (!secret.startsWith(DEVICE_TOKEN_PREFIX)) return null;
-  const row = app.db.get<{ id: string; account_id: string; kind: ConnectClientKind; last_used_at: string; created_at: string; auth_at: string | null; auth_method: string; workspace_id: string }>(
-    `SELECT d.id, d.account_id, d.kind, d.last_used_at, d.created_at, d.auth_at, d.auth_method, w.id AS workspace_id
+  const row = app.db.get<{ id: string; account_id: string; kind: ConnectClientKind; last_used_at: string; created_at: string; auth_at: string | null; workspace_id: string }>(
+    `SELECT d.id, d.account_id, d.kind, d.last_used_at, d.created_at, d.auth_at, w.id AS workspace_id
      FROM device_tokens d JOIN workspaces w ON w.account_id = d.account_id WHERE d.token_hash = ?`, sha256(secret));
   if (!row || !isAccountUsable(app, row.account_id) || row.last_used_at <= idleCutoff()) return null;
   if (Date.now() - Date.parse(row.last_used_at) > LAST_USED_GRANULARITY_MS) {
@@ -85,17 +85,11 @@ export function resolveDeviceToken(app: App, secret: string): DeviceCaller | nul
     principal: {
       accountId: row.account_id, workspaceId: row.workspace_id, sessionId: `${DEVICE_SESSION_PREFIX}${row.id}`, csrf: "",
       isAdmin: row.kind === "mobile" && !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", row.account_id),
-      authAt: row.kind === "mobile" ? deviceAuthAt(row) ?? new Date(0).toISOString() : new Date(0).toISOString(),
+      authAt: row.kind === "mobile" ? row.auth_at ?? new Date(0).toISOString() : new Date(0).toISOString(),
     },
     kind: row.kind,
     deviceId: row.id,
   };
-}
-
-/** A phone app's last real authentication, by the rule sessions follow (lastRealAuth in auth/accounts.ts). */
-export function deviceAuthAt(row: { auth_at: string | null; auth_method: string; created_at: string }): string | null {
-  if (!row.auth_at) return null;
-  return row.auth_method === "signup" && row.auth_at <= row.created_at ? null : row.auth_at;
 }
 
 export function listDevices(app: App, p: Principal): DeviceDTO[] {

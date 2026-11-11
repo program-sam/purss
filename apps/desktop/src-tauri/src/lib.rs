@@ -103,7 +103,7 @@ fn open_external(url: String, app: AppHandle) -> Result<(), String> {
     app.opener().open_url(parsed.as_str(), None::<&str>).map_err(|e| e.to_string())
 }
 
-/// Save a file the person asked for (an export, recovery codes) where they choose. False when they cancelled.
+/// Save a file the person asked for (an export) where they choose. False when they cancelled.
 #[tauri::command]
 async fn save_file(request: Request<'_>, app: AppHandle) -> Result<bool, String> {
     let InvokeBody::Raw(data) = request.body() else { return Err("expected the file's bytes".into()) };

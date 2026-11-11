@@ -3,12 +3,11 @@ import { newId } from "@purss/domain";
 import type { App } from "../app.ts";
 import { audit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
-import { credentialWrite } from "./accounts.ts";
 
 /*
- * Username and password sign-in, for installations reached over plain HTTP (for example a home
- * server on a LAN), where browsers refuse passkeys. Stored as a 'password' sign-in method: the
- * label is the lower-case username, secret_hash an scrypt hash with its parameters.
+ * Username and password sign-in: every account has one, made with the account. Stored as a 'password'
+ * sign-in method: the label is the lower-case username, secret_hash an scrypt hash with its parameters.
+ * It can be changed or reset but never removed; a passkey or a linked provider is only an extra way in.
  */
 
 export const USERNAME_RULE = /^[a-z0-9][a-z0-9._-]{2,39}$/;
@@ -49,11 +48,6 @@ export function checkNewPassword(username: string, password: string): void {
   if ([...password].length < PASSWORD_MIN) throw new HttpError(400, "short_password", `Use at least ${PASSWORD_MIN} characters for the password.`);
   if ([...password].length > PASSWORD_MAX) throw new HttpError(400, "long_password", `Use at most ${PASSWORD_MAX} characters for the password.`);
   if (password.toLowerCase() === username) throw new HttpError(400, "weak_password", "The password can't be the same as the username.");
-}
-
-/** Set or replace the account's username and password. Needs recent authentication (checked by the route). */
-export async function setPassword(app: App, accountId: string, sessionId: string, rawUsername: string, password: string): Promise<void> {
-  await writePassword(app, accountId, rawUsername, password, (write) => credentialWrite(app, accountId, sessionId, write));
 }
 
 /**

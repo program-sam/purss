@@ -5,7 +5,7 @@ import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";
 import { requireAdmin, requireRecentAuth } from "../app.ts";
-import { makeOwner, makeTestApp } from "../testing.ts";
+import { TEST_PASSWORD, makeOwner, makeTestApp } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { publicRouter, safeReturnPath } from "../routes/public.ts";
@@ -20,6 +20,7 @@ import { checkRedirect, cleanDeviceName, deviceMayUse, isClientOrigin } from "./
 import { issueCode, redeemCode, s256, verifierMatches } from "./codes.ts";
 import { MAX_DEVICES, createDeviceToken, purgeIdleDevices, resolveDeviceToken } from "./devices.ts";
 import { createInvite } from "../auth/accounts.ts";
+import { passwordUsername } from "../auth/passwords.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 
 // RFC 7636 appendix B.
@@ -229,16 +230,17 @@ test("the phone app is a full sign-in: an administrator, confirm-it's-you like a
 
   // Ten minutes later it has to confirm it's you, and the app does that itself, as a session would.
   b.app.db.run("UPDATE device_tokens SET auth_at = ?", addSeconds(-3600));
-  const stale = await asApp(b, token, "POST", "/api/account/recovery-codes", {});
+  const change = { username: passwordUsername(b.app, b.owner.accountId)!, password: "a new long password" };
+  const stale = await asApp(b, token, "PUT", "/api/account/password", change);
   assert.deepEqual([stale.status, stale.json.error.code], [403, "step_up"]);
   assert.equal((await asApp(b, token, "GET", "/api/account/security")).json.recentAuth, false);
-  const codes = (await call(b.app, b.server.base, "POST", "/api/account/recovery-codes", signIn(b.app, b.owner.accountId))).json.codes as string[];
-  assert.equal((await asApp(b, token, "POST", "/api/auth/step-up/recovery", { code: codes[0] })).status, 200);
+  assert.equal((await asApp(b, token, "POST", "/api/auth/step-up/password", { password: "not the password" })).status, 401);
+  assert.equal((await asApp(b, token, "POST", "/api/auth/step-up/password", { password: TEST_PASSWORD })).status, 200);
   assert.equal((await asApp(b, token, "GET", "/api/account/security")).json.recentAuth, true);
-  const fresh = await asApp(b, token, "POST", "/api/account/recovery-codes", {});
+  const fresh = await asApp(b, token, "PUT", "/api/account/password", change);
   assert.equal(fresh.status, 200, fresh.text);
 
-  // A connection from before this release has no recent sign-in until it confirms.
+  // A connection with no recent sign-in recorded has to confirm first.
   b.app.db.run("UPDATE device_tokens SET auth_at = NULL");
   assert.throws(() => requireRecentAuth(resolveDeviceToken(b.app, token)!.principal), /confirm it's you/);
 
@@ -246,13 +248,6 @@ test("the phone app is a full sign-in: an administrator, confirm-it's-you like a
   const ext = resolveDeviceToken(b.app, await connect(b, "extension"))!;
   assert.equal(ext.principal.isAdmin, false);
   assert.throws(() => requireRecentAuth(ext.principal), /confirm it's you/);
-});
-
-test("an account made through open sign-up in the app confirms it's you before its first security change", async (t) => {
-  const b = await boot();
-  t.after(b.close);
-  const created = createDeviceToken(b.app, b.owner.accountId, "mobile", "Pixel", "signup");
-  assert.throws(() => requireRecentAuth(resolveDeviceToken(b.app, created.secret)!.principal), /confirm it's you/, "an email address proves no one's identity");
 });
 
 test("a device token can't reach a browser-only route through another spelling of its path", async (t) => {
@@ -568,26 +563,25 @@ test("a linked sign-in returns only to a path on this PURSS", () => {
 
 const signupBody = (invitation: string, over: Record<string, unknown> = {}) => ({ client: "mobile", invitation, displayName: "Robin", username: "robin", password: "a long enough secret", deviceName: "Pixel 8", ...over });
 
-test("the app creates an account with an invitation and is connected at once, with recovery codes and a password for the browser", async (t) => {
+test("the app creates an account with an invitation and is connected at once, with its password for the browser and no recovery codes", async (t) => {
   const b = await boot();
   t.after(b.close);
   const code = createInvite(b.app, b.owner.accountId, null, null);
   const r = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", cookie: b.session.cookie, body: signupBody(code) });
   assert.equal(r.status, 200, r.text);
   assert.equal(r.headers.get("access-control-allow-origin"), "capacitor://localhost");
-  assert.equal(r.json.recoveryCodes.length > 0, true);
+  assert.deepEqual(Object.keys(r.json).sort(), ["device", "token", "tokenType"], "a device token and nothing else: no recovery codes");
   assert.equal(r.json.device.name, "Pixel 8");
   const acct = b.app.db.get<{ account_id: string }>("SELECT account_id FROM device_tokens WHERE id = ?", r.json.device.id)!.account_id;
   assert.notEqual(acct, b.owner.accountId, "a new account, not the one whose cookie came along");
   assert.equal(b.app.db.get<{ display_name: string }>("SELECT display_name FROM accounts WHERE id = ?", acct)!.display_name, "Robin");
-  assert.equal(b.app.db.get<{ n: number }>("SELECT durable_method_exists AS n FROM account_enrollment WHERE account_id = ?", acct)!.n, 1);
+  assert.deepEqual(b.app.db.all<{ kind: string; label: string }>("SELECT kind, label FROM sign_in_methods WHERE account_id = ?", acct).map((m) => [m.kind, m.label]), [["password", "robin"]], "made with its password and nothing else");
   assert.equal(b.app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", acct), undefined, "never an administrator");
 
   const me = await asApp(b, r.json.token, "GET", "/api/session");
   assert.equal(me.json.account.id, acct);
-  assert.equal(me.json.account.recoveryAcknowledged, false);
-  assert.equal((await asApp(b, r.json.token, "POST", "/api/connect/recovery-codes/acknowledge", { generation: r.json.recoveryGeneration })).status, 200);
-  assert.equal((await asApp(b, r.json.token, "GET", "/api/session")).json.account.recoveryAcknowledged, true);
+  assert.equal(me.json.account.hasPassword, true);
+  requireRecentAuth(resolveDeviceToken(b.app, r.json.token)!.principal); // choosing the password counts as signing in
 
   // The password works in a browser.
   const signedIn = await raw(b, "POST", "/api/auth/password", { origin: b.app.config.publicOrigin, body: { username: "Robin", password: "a long enough secret" } });
@@ -618,13 +612,17 @@ test("a refused sign-up leaves nothing behind: a taken username, a bad invitatio
   assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { username: "sam" }) })).status, 200);
 });
 
-test("recovery codes are acknowledged by the app only with its own device token", async (t) => {
+test("the recovery-code endpoints are gone, for the browser and for the app", async (t) => {
   const b = await boot();
   t.after(b.close);
-  const r = await raw(b, "POST", "/api/connect/recovery-codes/acknowledge", { origin: b.app.config.publicOrigin, cookie: b.session.cookie, csrf: b.session.csrf, body: { generation: 1 } });
-  assert.equal(r.json.error.code, "not_device");
-  const ext = createDeviceToken(b.app, b.owner.accountId, "extension", "Firefox").secret;
-  assert.equal((await asApp(b, ext, "POST", "/api/connect/recovery-codes/acknowledge", { generation: 1 }, "moz-extension://8c1f3c3a-1111-2222-3333-444455556666")).status, 403, "not the extension's");
+  for (const path of ["/api/auth/recovery", "/api/auth/step-up/recovery", "/api/account/recovery-codes", "/api/account/recovery-codes/acknowledge", "/api/connect/recovery-codes/acknowledge"]) {
+    const r = await raw(b, "POST", path, { origin: b.app.config.publicOrigin, cookie: b.session.cookie, csrf: b.session.csrf, body: { code: "abcd-abcd-abcd-abcd", generation: 1 } });
+    assert.equal(r.status, 404, path);
+  }
+  const app = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: { client: "mobile", method: "recovery", code: "abcd-abcd-abcd-abcd" } });
+  assert.equal(app.status, 400, "the app can sign in with a password or a passkey only");
+  const info = await raw(b, "GET", "/api/connect/info");
+  assert.deepEqual(info.json.signin.methods, ["password"]);
 });
 
 test("open sign-up from the app sends the confirmation email only for an account it really made", async (t) => {
@@ -649,7 +647,7 @@ test("open sign-up from the app sends the confirmation email only for an account
   assert.equal(app.db.get("SELECT 1 FROM accounts WHERE email = 'second@example.org'"), undefined);
 });
 
-test("the app signs in with a username and password or a recovery code and is connected, with the browser's checks", async (t) => {
+test("the app signs in with a username and password and is connected, with the browser's checks", async (t) => {
   const b = await boot();
   t.after(b.close);
   const code = createInvite(b.app, b.owner.accountId, null, null);
@@ -665,20 +663,17 @@ test("the app signs in with a username and password or a recovery code and is co
   assert.equal((await asApp(b, ok.json.token, "GET", "/api/session")).json.account.id, acct, "the account that signed in, not the cookie's");
   assert.equal(ok.json.device.name, "Tablet");
 
-  // A recovery code: used up only when the app is connected.
-  const recovery = made.json.recoveryCodes[0];
+  // A suspended account isn't signed in to, and nothing is spent by the refusal.
   b.app.db.run("UPDATE accounts SET status = 'suspended' WHERE id = ?", acct);
-  assert.equal((await signin({ client: "mobile", method: "recovery", code: recovery })).json.error.code, "suspended");
+  assert.equal((await signin({ client: "mobile", method: "password", username: "robin", password: "a long enough secret" })).json.error.code, "suspended");
   b.app.db.run("UPDATE accounts SET status = 'active' WHERE id = ?", acct);
-  const byCode = await signin({ client: "mobile", method: "recovery", code: recovery });
-  assert.equal(byCode.status, 200, "the code wasn't spent by the refused attempt");
-  assert.equal((await signin({ client: "mobile", method: "recovery", code: recovery })).json.error.code, "bad_code", "and works once");
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'sign_in' AND target = 'app-recovery' AND outcome = 'failure'")!.n, 1);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'sign_in' AND target = 'app-password' AND outcome = 'failure'")!.n, 1, "only the wrong password was a failure");
 
   // Signing in counts as confirming it's you, for ten minutes, as in a browser.
-  assert.equal((await asApp(b, ok.json.token, "POST", "/api/account/recovery-codes", {})).status, 200);
+  const change = { username: "robin", password: "another long enough secret" };
+  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/password", change)).status, 200);
   b.app.db.run("UPDATE device_tokens SET auth_at = ?", addSeconds(-3600));
-  assert.equal((await asApp(b, ok.json.token, "POST", "/api/account/recovery-codes", {})).json.error.code, "step_up");
+  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/password", change)).json.error.code, "step_up");
 });
 
 test("signing in from the app shares the browser's limits per address and per username", async (t) => {

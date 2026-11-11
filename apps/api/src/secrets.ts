@@ -54,7 +54,7 @@ export function unseal(secret: string, sealed: string): string | null {
 }
 export const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
 
-/** scrypt hash "salt$hash" for low-entropy-tolerant secrets (setup and recovery codes). */
+/** scrypt hash "salt$hash" for low-entropy-tolerant secrets (the setup code). */
 export function hashSecret(secret: string): string {
   const salt = randomBytes(16);
   const hash = scryptSync(secret, salt, 32);

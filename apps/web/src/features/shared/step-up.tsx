@@ -6,33 +6,24 @@ import { assertPasskey } from "../../auth/SignIn.tsx";
 import { passkeysAvailable } from "../../auth/PasswordForm.tsx";
 import { useSession } from "../../api/hooks.ts";
 
-/** True when the server wants a fresh passkey or recovery-code confirmation before it will do this. */
+/** True when the server wants a fresh passkey or password confirmation before it will do this. */
 export const needsStepUp = (err: unknown): boolean => err instanceof ApiError && err.code === "step_up";
 
-export type StepUpMethod = "passkey" | "password" | "recovery";
-
-/** The ways to confirm it's you: a passkey where the browser allows it, the password if one is set, or a recovery code. */
-export function StepUpOptions({ busy, confirm }: { busy: boolean; confirm: (run: () => Promise<unknown>, method: StepUpMethod) => void }) {
+/** The ways to confirm it's you: your password, or a passkey where the browser allows it. */
+export function StepUpOptions({ busy, confirm }: { busy: boolean; confirm: (run: () => Promise<unknown>) => void }) {
   const account = useSession().data?.account;
-  const [code, setCode] = useState("");
   const [secret, setSecret] = useState("");
   const passkey = passkeysAvailable() && !!account?.hasPasskey;
   return (
     <>
-      {passkey ? <div style={{ display: "grid", gap: 4 }}><Button id="su-first" variant="primary" disabled={busy} onClick={() => confirm(() => assertPasskey("/api/auth/step-up/passkey"), "passkey")}><Icon name="key" />Confirm with fingerprint, face or screen lock</Button></div> : null}
       {account?.hasPassword ? (
-        <form onSubmit={(e) => { e.preventDefault(); confirm(() => post("/api/auth/step-up/password", { password: secret }).finally(() => setSecret("")), "password"); }} style={{ display: "grid", gap: 8 }}>
-          <label className="lbl" htmlFor="su-pw" style={{ fontWeight: 800, fontSize: 13 }}>{passkey ? "Or use your password" : "Your password"}</label>
+        <form onSubmit={(e) => { e.preventDefault(); confirm(() => post("/api/auth/step-up/password", { password: secret }).finally(() => setSecret(""))); }} style={{ display: "grid", gap: 8 }}>
+          <label className="lbl" htmlFor="su-pw" style={{ fontWeight: 800, fontSize: 13 }}>Your password</label>
           <TextInput id="su-pw" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="current-password" />
-          <div><Button type="submit" variant={passkey ? undefined : "primary"} disabled={busy || !secret}>Confirm with password</Button></div>
+          <div><Button type="submit" variant="primary" disabled={busy || !secret}>Confirm with password</Button></div>
         </form>
       ) : null}
-      <form onSubmit={(e) => { e.preventDefault(); confirm(() => post("/api/auth/step-up/recovery", { code: code.trim() }), "recovery"); }} style={{ display: "grid", gap: 8 }}>
-        <label className="lbl" htmlFor="su-code" style={{ fontWeight: 800, fontSize: 13 }}>{passkey || account?.hasPassword ? "Or use a recovery code" : "A recovery code"}</label>
-        <TextInput id="su-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} />
-        {account?.needsSetup && account.recoveryCodesLeft > 0 ? <p className="fine">This uses one of your recovery codes; you'll have {Math.max(0, account.recoveryCodesLeft - 1)} left. You can make new codes afterwards.</p> : null}
-        <div><Button type="submit" disabled={busy || code.trim().length < 8}>Confirm with this code</Button></div>
-      </form>
+      {passkey ? <div style={{ display: "grid", gap: 4 }}><Button id="su-first" disabled={busy} onClick={() => confirm(() => assertPasskey("/api/auth/step-up/passkey"))}><Icon name="key" />Confirm with fingerprint, face or screen lock</Button></div> : null}
     </>
   );
 }
@@ -47,7 +38,7 @@ export function StepUpDialog({ onDone, onCancel }: { onDone: () => void; onCance
     try { await run(); onDone(); } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
   return (
-    <Dialog title="Confirm it's you" size="sm" onClose={onCancel} initialFocus="#su-first, #su-pw, #su-code"
+    <Dialog title="Confirm it's you" size="sm" onClose={onCancel} initialFocus="#su-pw, #su-first"
       footer={<Button onClick={onCancel}>Cancel</Button>}>
       <p className="hint">For your safety, confirm it's you before this change. Nothing has been changed yet.</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}

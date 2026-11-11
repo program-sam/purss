@@ -10,8 +10,6 @@ import type { SecurityMethod } from "../api/types.ts";
 import { registerPasskey } from "../auth/PasskeyStep.tsx";
 import { PasswordForm, passkeysAvailable } from "../auth/PasswordForm.tsx";
 import { StepUpOptions } from "../features/shared/step-up.tsx";
-import type { StepUpMethod } from "../features/shared/step-up.tsx";
-import { RecoveryCodesPanel } from "../auth/RecoveryCodesPanel.tsx";
 import { shortDate, timeAgo } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
@@ -138,7 +136,7 @@ function GeneralTab() {
   );
 }
 
-type Step = { kind: "main" } | { kind: "stepup"; then: (usedRecoveryCode?: boolean) => Promise<void> } | { kind: "codes"; codes: string[]; generation: number } | { kind: "password" };
+type Step = { kind: "main" } | { kind: "stepup"; then: () => Promise<void> } | { kind: "password" };
 
 function SecurityTab() {
   const ws = useWorkspace();
@@ -148,8 +146,6 @@ function SecurityTab() {
   const sec = useQuery(securityQuery);
   const out = useSignOut();
   const [step, setStep] = useState<Step>({ kind: "main" });
-  const [codesOffer, setCodesOffer] = useState<number | null>(null);
-  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const unsynced = useWaitingCount();
@@ -160,58 +156,40 @@ function SecurityTab() {
     ]);
   const refresh = () => { void refreshQueries(); };
 
-  function offerFreshCodesAfterRecoveryStepUp(usedRecoveryCode: boolean) {
-    if (usedRecoveryCode && session?.account?.needsSetup) setCodesOffer(Math.max(0, session.account.recoveryCodesLeft - 1));
-  }
-
   /** Run an action that needs a recent sign-in; if the server asks for a fresh confirmation, ask, then retry once. */
-  async function withStepUp(run: (usedRecoveryCode?: boolean) => Promise<void>) {
+  async function withStepUp(run: () => Promise<void>) {
     setError("");
     try { await run(); } catch (err) {
       if (err instanceof ApiError && err.code === "step_up") { setStep({ kind: "stepup", then: run }); return; }
       setError(messageOf(err));
     }
   }
-  async function finishStepUp(confirm: () => Promise<void>, then: (usedRecoveryCode?: boolean) => Promise<void>, method: StepUpMethod) {
+  async function finishStepUp(confirm: () => Promise<void>, then: () => Promise<void>) {
     setBusy(true); setError("");
     let confirmed = false;
     try {
       await confirm();
       confirmed = true;
       setStep({ kind: "main" });
-      const usedRecoveryCode = method === "recovery" && !!session?.account?.needsSetup;
-      await then(usedRecoveryCode);
+      await then();
     } catch (err) {
       if (confirmed) setStep({ kind: "main" });
       setError(messageOf(err));
     } finally { setBusy(false); }
   }
 
-  // Adding a sign-in method needs recent authentication unless this is the live sign-up setup permission.
-  const addPasskey = () => withStepUp(async (usedRecoveryCode = false) => {
-    try { await registerPasskey(null); await refreshQueries(); toast("Fingerprint, face or screen lock added"); }
-    finally { offerFreshCodesAfterRecoveryStepUp(usedRecoveryCode); }
-  });
+  // Adding a sign-in method needs a recent sign-in.
+  const addPasskey = () => withStepUp(async () => { await registerPasskey(null); await refreshQueries(); toast("Fingerprint, face or screen lock added"); });
   const removeMethod = (m: SecurityMethod) => withStepUp(async () => { await del(`/api/account/methods/${encodeURIComponent(m.id)}`); refresh(); toast("Sign-in method removed"); });
-  const newCodes = () => withStepUp(async () => { const out = await post<{ codes: string[]; generation: number }>("/api/account/recovery-codes"); setCodesOffer(null); setPendingProvider(null); refresh(); setStep({ kind: "codes", codes: out.codes, generation: out.generation }); });
   // The form needs a recent sign-in when saved; confirm first so nothing typed is lost.
-  const openPassword = () => withStepUp(async (usedRecoveryCode = false) => {
-    const [s, currentSession] = await Promise.all([
-      qc.fetchQuery({ ...securityQuery, staleTime: 0 }),
-      qc.fetchQuery({ ...sessionQuery, staleTime: 0 }),
-    ]);
-    if (!s.recentAuth && !currentSession.account?.setupPermissionAvailable) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
-    offerFreshCodesAfterRecoveryStepUp(usedRecoveryCode);
-    setStep({ kind: "password" });
-  });
-  const linkProvider = (id: string) => withStepUp(async (usedRecoveryCode = false) => {
+  const openPassword = () => withStepUp(async () => {
     const s = await qc.fetchQuery({ ...securityQuery, staleTime: 0 });
     if (!s.recentAuth) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
-    if (usedRecoveryCode && session?.account?.needsSetup) {
-      offerFreshCodesAfterRecoveryStepUp(usedRecoveryCode);
-      setPendingProvider(id);
-      return;
-    }
+    setStep({ kind: "password" });
+  });
+  const linkProvider = (id: string) => withStepUp(async () => {
+    const s = await qc.fetchQuery({ ...securityQuery, staleTime: 0 });
+    if (!s.recentAuth) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
     window.location.assign(`/api/auth/oidc/${encodeURIComponent(id)}/start?link=1`);
   });
   async function revoke(id: string) {
@@ -221,12 +199,9 @@ function SecurityTab() {
     try { await post("/api/account/sessions/sign-out-others"); refresh(); toast("Signed out everywhere else"); } catch (err) { setError(messageOf(err)); }
   }
 
-  if (step.kind === "codes") {
-    return <RecoveryCodesPanel codes={step.codes} generation={step.generation} onSaved={() => { refresh(); setStep({ kind: "main" }); }} confirmLabel="Done" />;
-  }
   if (step.kind === "password") {
     const current = sec.data?.methods.find((m) => m.kind === "password")?.label ?? null;
-    return <PasswordForm current={current} submitLabel={current ? "Save new password" : "Save password"} onDone={() => { refresh(); setStep({ kind: "main" }); toast(current ? "Password changed" : "Password added"); }} onCancel={() => setStep({ kind: "main" })} />;
+    return <PasswordForm current={current} submitLabel="Save new password" onDone={() => { refresh(); setStep({ kind: "main" }); toast("Password changed"); }} onCancel={() => setStep({ kind: "main" })} />;
   }
   if (step.kind === "stepup") {
     const then = step.then;
@@ -234,7 +209,7 @@ function SecurityTab() {
       <div style={{ display: "grid", gap: 14 }}>
         <p className="hint">For your safety, confirm it's you before this change.</p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <StepUpOptions busy={busy} confirm={(run, method) => void finishStepUp(() => run().then(() => undefined), then, method)} />
+        <StepUpOptions busy={busy} confirm={(run) => void finishStepUp(() => run().then(() => undefined), then)} />
         <div><button type="button" className="link" onClick={() => { setStep({ kind: "main" }); setError(""); }}>Cancel</button></div>
       </div>
     );
@@ -247,12 +222,22 @@ function SecurityTab() {
   return (
     <>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      {codesOffer !== null ? <div className="state note" role="status"><Icon name="key" /><span>This uses one of your recovery codes. You'll have {codesOffer} left. Make new codes now if you want. <Button onClick={() => void newCodes()}>Make new codes</Button> <button type="button" className="link" onClick={() => setCodesOffer(null)}>Later</button></span></div> : null}
-      {pendingProvider ? <p className="fine">You can make new recovery codes before continuing, or <button type="button" className="link" onClick={() => window.location.assign(`/api/auth/oidc/${encodeURIComponent(pendingProvider)}/start?link=1`)}>continue linking {providers.find((p) => p.id === pendingProvider)?.label ?? "this sign-in"}</button>.</p> : null}
       {sec.isPending ? <p className="state"><span className="spin" aria-hidden="true" />Loading…</p> : null}
       {sec.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(sec.error)}</span></p> : null}
       {sec.data ? (
         <>
+          <section className="field" aria-labelledby="sec-p">
+            <div className="lbl" id="sec-p">Password</div>
+            {password ? (
+              <ul className="seclist">
+                <li>
+                  <Icon name="user" />
+                  <span className="tx"><b>{password.label}</b><small>Username · added {shortDate(password.createdAt, Date.now(), ws.prefs.timezone)}{password.lastUsedAt ? ` · last used ${timeAgo(password.lastUsedAt)}` : ""}</small></span>
+                </li>
+              </ul>
+            ) : null}
+            <div><Button onClick={() => void openPassword()}>Change username or password</Button></div>
+          </section>
           <section className="field" aria-labelledby="sec-m">
             <div className="lbl" id="sec-m">Fingerprint, face or screen lock, and linked sign-ins</div>
             <p className="fine">Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a password manager.</p>
@@ -278,25 +263,7 @@ function SecurityTab() {
           {passkeysAvailable() ? null : <p className="fine">{platform.connection
             ? "Fingerprint, face or screen lock works in the app once this PURSS's operator sets it up (see the app section of the self-hosting guide)."
             : "Fingerprint, face or screen lock needs a secure (https) address, so it can't be added here."}</p>}
-          <section className="field" aria-labelledby="sec-p">
-            <div className="lbl" id="sec-p">Password</div>
-            {password ? (
-              <ul className="seclist">
-                <li>
-                  <Icon name="user" />
-                  <span className="tx"><b>{password.label}</b><small>Username · added {shortDate(password.createdAt, Date.now(), ws.prefs.timezone)}{password.lastUsedAt ? ` · last used ${timeAgo(password.lastUsedAt)}` : ""}</small></span>
-                  <Button onClick={() => void removeMethod(password)} aria-label="Remove password">Remove</Button>
-                </li>
-              </ul>
-            ) : <p className="fine">A password works on any computer, including borrowed ones.</p>}
-            <div><Button onClick={() => void openPassword()}>{password ? "Change username or password" : "Add a password"}</Button></div>
-          </section>
           {session?.installation.accountEmail ? <AccountEmailSection withStepUp={withStepUp} /> : null}
-          <section className="field" aria-labelledby="sec-r">
-            <div className="lbl" id="sec-r">Recovery codes</div>
-            <p className="fine">{session?.account ? `${session.account.recoveryCodesLeft} unused ${session.account.recoveryCodesLeft === 1 ? "code" : "codes"} left. ` : ""}Each code works once if you lose your phone or forget your password. New codes replace the old ones.</p>
-            <div><Button onClick={() => void newCodes()}>Make new recovery codes</Button></div>
-          </section>
           <section className="field" aria-labelledby="sec-s">
             <div className="lbl" id="sec-s">Signed-in devices</div>
             <ul className="seclist">
@@ -322,7 +289,7 @@ function SecurityTab() {
 }
 
 function methodName(m: string): string {
-  return { passkey: "fingerprint, face or screen lock", password: "password", signup: "sign-up", recovery: "recovery code", setup: "setup", invite: "invitation", oidc: "linked sign-in" }[m] ?? m;
+  return { passkey: "fingerprint, face or screen lock", password: "password", signup: "sign-up", setup: "setup", invite: "invitation", oidc: "linked sign-in" }[m] ?? m;
 }
 function shortDevice(ua: string | null): string {
   if (!ua) return "A browser";

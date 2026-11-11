@@ -48,7 +48,7 @@ export const OPTIONAL_SECTION_NAMES = ["stateLog", "annotations", "images", "ite
 export type SectionName = (typeof SECTION_NAMES)[number] | (typeof OPTIONAL_SECTION_NAMES)[number];
 
 export const ARCHIVE_OMITTED: readonly string[] = [
-  "Passwords, passkeys, recovery codes, sign-in sessions and access tokens are never exported.",
+  "Passwords, passkeys, sign-in sessions and access tokens are never exported.",
   "Service secrets and the collection engine's own data and identifiers are not included.",
   "Private source links, and any link, image or media address that belongs to an item from a private source, are left out. Those sources are exported as references that need to be reconnected.",
   "Addresses that carry a password or access key are left out of item links and media.",
