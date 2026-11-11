@@ -10,6 +10,8 @@ import type { Preferences, SyncEntry } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
+import { settleMail, useTransport } from "../mail/mailer.ts";
+import type { Message } from "../mail/mailer.ts";
 import { applySyncBatch } from "./sync.ts";
 import { insertItem, listItems } from "./items.ts";
 import type { NewItem } from "./items.ts";
@@ -29,8 +31,8 @@ const ahead = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 type Owner = Principal & { engineUserId: string };
 
-function setup() {
-  const { app, cleanup } = makeTestApp();
+function setup(env: Record<string, string> = {}) {
+  const { app, cleanup } = makeTestApp(env);
   const p = makeOwner(app);
   return { app, p, cleanup };
 }
@@ -59,6 +61,7 @@ test("a source's back catalogue is not New and tells no one; what comes after is
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Old podcast", "feed/1", { settled: false });
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", src);
   const old = entry("feed/1", { publishedAt: ago(30 * DAY) });
   const undated = entry("feed/1", { publishedAt: null });
   const newer = entry("feed/1", { publishedAt: ahead(60_000) });
@@ -84,6 +87,7 @@ test("one new item's notification opens that item; once more arrive it opens the
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Tidal Notes", "feed/1");
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", src);
   addItem(app, p, src, { discoveredAt: ago(DAY) });
   const first = addItem(app, p, src, { discoveredAt: ago(2 * DAY) }); // stored last, though crawled earlier: it is what arrived
   notifyArrivals(app, p.workspaceId, [[src, 1]]);
@@ -116,6 +120,7 @@ test("a feed that starts empty is settled too: its first genuinely new undated e
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Slow start", "feed/1", { settled: false });
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", src);
   walk(app, p);
   walk(app, p);
   assert.ok(settled(app, src), "nothing to enumerate is still an enumeration");
@@ -554,10 +559,11 @@ test("a paused source collects nothing new", (t) => {
 
 // ---------- F23 notifications ----------
 
-test("arrivals of one source within the hour share one notification that grows", (t) => {
+test("a 'Notify me' source's arrivals within the hour share one notification that grows", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  makeSource(app, p, "Chatty", "feed/1");
+  const chatty = makeSource(app, p, "Chatty", "feed/1");
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", chatty);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   assert.deepEqual(notes(app).map((n) => n.title), ["New from Chatty"]);
   app.db.run("UPDATE notifications SET read_at = ?", nowIso());
@@ -582,7 +588,7 @@ test("with a daily digest, arrivals wait and one digest counts what is still New
   const hid = createCollection(app, p, { name: "Shelf", emoji: null, mode: "sources", sourceIds: [shelved], query: null, view: "list" });
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", hid.id);
   setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00", previews: false } });
-  app.db.run("UPDATE notification_state SET window_end = '2026-11-03T08:00:00.000Z'");
+  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-11-03T08:00:00.000Z");
 
   const mk = (src: string, at: string, over: Partial<NewItem> = {}) => addItem(app, p, src, { discoveredAt: at, ...over });
   mk(essays, "2026-11-04T10:00:00.000Z", { title: "Essay one" });
@@ -637,7 +643,7 @@ test("a digest never shows the titles of a private source, with titles on or off
   assert.deepEqual(on.boxes.find((b) => b.id === mixed.id)!.titles, ["Visible title"]);
 
   // The notification made from it carries the same.
-  app.db.run("UPDATE notification_state SET window_end = ?", window.from);
+  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, window.from);
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T09:00:00.000Z")), true);
   const text = notes(app).map((n) => `${n.title}\n${n.body}`).join("\n");
   assert.match(text, /Visible title/);
@@ -665,15 +671,6 @@ test("choosing \"Other sources\" tells about the sources that are in no collecti
   assert.deepEqual(boxes(), [[col.id, 1]], "all of Home, and Other sources is hidden from Home");
   setPreferences(app, p.workspaceId, { homeOther: true, notifications: { include: { newItems: "all" } } });
   assert.deepEqual(boxes(), [[OTHER_BOX_ID, 8], [col.id, 1]]);
-
-  // An arrival from a loose source tells when it was chosen, and not when something else was.
-  setPreferences(app, p.workspaceId, { homeOther: false, notifications: { frequency: "arrivals", include: { newItems: [OTHER_BOX_ID] } } });
-  notifyArrivals(app, p.workspaceId, [[loose, 2], [inBox, 1]]);
-  assert.deepEqual(notes(app).map((n) => n.source_id), [loose]);
-  app.db.run("DELETE FROM notifications");
-  setPreferences(app, p.workspaceId, { notifications: { include: { newItems: [col.id] } } });
-  notifyArrivals(app, p.workspaceId, [[loose, 2], [inBox, 1]]);
-  assert.deepEqual(notes(app).map((n) => n.source_id), [inBox]);
 });
 
 test("a weekly digest comes on its day, in the person's time zone", () => {
@@ -710,12 +707,62 @@ test("a weekly digest is made once, on or after its day", (t) => {
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
   setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "weekly", digestDay: 1, digestTime: "08:00" } });
-  app.db.run("UPDATE notification_state SET window_end = '2026-10-29T00:00:00.000Z'");
+  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-10-29T00:00:00.000Z");
   addItem(app, p, src, { discoveredAt: "2026-11-01T10:00:00.000Z" });
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-01T12:00:00.000Z")), false, "Sunday: Monday has not come");
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T12:00:00.000Z")), true, "Thursday: Monday's digest, late, still comes");
   assert.match(notes(app)[0]!.title, /^Your weekly digest: 1 new in/);
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-06T12:00:00.000Z")), false);
+});
+
+test("a digest goes by email too, to a confirmed address, unless the person turns that off; titles follow the same rules", async (t) => {
+  const { app, p, cleanup } = setup({ PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>", PURSS_PUBLIC_ORIGIN: "https://ws.example.org" });
+  t.after(async () => { await settleMail(app); cleanup(); });
+  const sent: Message[] = [];
+  useTransport(app, { send: async (m) => { sent.push(m); }, verify: async () => undefined });
+  const open = makeSource(app, p, "Open", "feed/1");
+  const secret = makeSource(app, p, "Secret", "feed/2", { isPrivate: true });
+  createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", sourceIds: [open, secret], query: null, view: "list" });
+  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { digestDay: 1, digestTime: "08:00" } });
+  assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly", "weekly is the default");
+  const week = async (n: number, monday: string) => {
+    addItem(app, p, open, { title: `Open post ${n}`, discoveredAt: `${monday}T06:00:00.000Z` });
+    addItem(app, p, secret, { title: `Patron post ${n}`, discoveredAt: `${monday}T06:00:00.000Z` });
+    app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, `${monday}T00:00:00.000Z`);
+    assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date(`${monday}T08:05:00.000Z`)), true);
+    await settleMail(app);
+  };
+
+  // No address, then an unconfirmed one: the bell only.
+  await week(1, "2026-10-12");
+  app.db.run("UPDATE accounts SET email = 'me@example.org', email_verified_at = NULL WHERE id = ?", p.accountId);
+  await week(2, "2026-10-19");
+  assert.equal(sent.length, 0, "no confirmed address, no email");
+
+  // Confirmed: on by default; counts and a link, no titles while titles are off.
+  app.db.run("UPDATE accounts SET email_verified_at = ? WHERE id = ?", nowIso(), p.accountId);
+  await week(3, "2026-10-26");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.to, "me@example.org");
+  assert.equal(sent[0]!.subject, "Your weekly digest: 2 new in 1 collection");
+  assert.match(sent[0]!.text, /^Reading: 2 new$/m);
+  assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/"), "the link to Home is a line of its own");
+  assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/?dialog=notifications"), "and so is the link to the setting that stops them");
+  assert.ok(!/post/.test(sent[0]!.text) && !/post/.test(sent[0]!.html), "no titles while titles are off");
+
+  // Titles on: public titles only, never a private source's.
+  setPreferences(app, p.workspaceId, { notifications: { previews: true } });
+  await week(4, "2026-11-02");
+  assert.equal(sent.length, 2);
+  assert.match(sent[1]!.text, /Open post 4/);
+  assert.ok(!/Patron/.test(sent[1]!.text) && !/Patron/.test(sent[1]!.html), "a private source's titles never go by email");
+
+  // Turned off: the bell keeps getting it, email stops.
+  setPreferences(app, p.workspaceId, { notifications: { emailDigest: false } });
+  await week(5, "2026-11-09");
+  assert.equal(sent.length, 2);
+  assert.equal(notes(app).length, 5, "every digest is in the bell");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE kind = 'digest'")!.n, 2);
 });
 
 test("switching how often to be told starts from now; off silences the bell badge", (t) => {
@@ -733,7 +780,7 @@ test("switching how often to be told starts from now; off silences the bell badg
   assert.equal(listNotifications(app, p).length, 1, "what is already there can still be read");
 });
 
-test("legacy 'off' mode reads as the frequency off, and the new fields validate", () => {
+test("legacy 'off' mode reads as the frequency off, legacy 'arrivals' as a weekly digest, and the new fields validate", () => {
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } }).success, true);
   assert.equal(preferencesPatchSchema.safeParse({ freshDays: 366 }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { digestTime: "25:00" } }).success, false);
@@ -744,6 +791,11 @@ test("legacy 'off' mode reads as the frequency off, and the new fields validate"
     setPreferences(app, p.workspaceId, { notifications: { mode: "off" } } as never);
     const n = getPreferences(app, p.workspaceId).notifications;
     assert.deepEqual([n.mode, n.frequency], ["inapp", "off"]);
+    // Told as items arrive is no longer offered: an older export, or a choice stored before, reads as a weekly digest.
+    setPreferences(app, p.workspaceId, { notifications: { frequency: "arrivals" } } as never);
+    assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly");
+    app.db.run("UPDATE preferences SET value = json_set(value, '$.notifications.frequency', 'arrivals') WHERE workspace_id = ?", p.workspaceId);
+    assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly");
     // Changing one include switch keeps the others.
     setPreferences(app, p.workspaceId, { notifications: { frequency: "daily", include: { problems: false } } });
     const after: Preferences["notifications"] = getPreferences(app, p.workspaceId).notifications;
@@ -821,7 +873,7 @@ test("a digest is made once: its window moves with it in one transaction, and pr
   const src = makeSource(app, p, "S", "feed/1");
   createCollection(app, p, { name: "All", emoji: null, mode: "sources", sourceIds: [src], query: null, view: "list" });
   setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00" } });
-  app.db.run("UPDATE notification_state SET window_end = '2026-11-03T08:00:00.000Z'");
+  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-11-03T08:00:00.000Z");
   addItem(app, p, src, { discoveredAt: "2026-11-04T10:00:00.000Z" });
   const windowEnd = () => app.db.get<{ w: string }>("SELECT window_end AS w FROM notification_state")!.w;
   const due = new Date("2026-11-05T08:05:00.000Z");
@@ -873,7 +925,7 @@ test("old notifications are pruned: past 90 days, or beyond the newest 500; and 
   assert.ok(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications")!.n > 0, "others stay");
 });
 
-test("a source set to 'Notify me' tells as items arrive even with a digest; muted never does", (t) => {
+test("only a source set to 'Notify me' tells as items arrive, with a digest or with notifications off; muted never does", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const loud = makeSource(app, p, "Loud", "feed/1");
@@ -884,9 +936,9 @@ test("a source set to 'Notify me' tells as items arrive even with a digest; mute
   setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
   assert.deepEqual(notes(app).map((n) => n.source_id), [loud]);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "arrivals" } });
-  applySyncBatch(app, p.engineUserId, batch([entry("feed/2"), entry("feed/3")]));
-  assert.deepEqual(notes(app).map((n) => n.source_id).sort(), [loud, plain].sort());
+  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
+  assert.deepEqual(notes(app).map((n) => [n.source_id, n.title]), [[loud, "2 new from Loud"]]);
 });
 
 // ---------- the pass, and tenant isolation ----------

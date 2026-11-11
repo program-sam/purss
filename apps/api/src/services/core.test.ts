@@ -398,7 +398,8 @@ test("an edited item shows the kept copy; dropping the last pin releases the old
 test("private sources never put item titles in notifications", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  makeSource(app, p, "Patron feed", "feed/9", { isPrivate: true });
+  const patron = makeSource(app, p, "Patron feed", "feed/9", { isPrivate: true });
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", patron);
   app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ notifications: { mode: "browser", previews: true, quietStart: null, quietEnd: null } }), "x");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/9", { title: "Secret patron-only episode" })]));
   const n = app.db.get<{ title: string; body: string | null }>("SELECT title, body FROM notifications")!;

@@ -1,11 +1,14 @@
 import { useState } from "react";
+import type { NotificationFrequency } from "@purss/domain";
+import { useQuery } from "@tanstack/react-query";
 import { Button, Dialog, SelectInput, TextInput } from "@purss/ui";
+import { useSession } from "../api/hooks.ts";
+import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
 import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 
-type Frequency = "off" | "arrivals" | "daily" | "weekly";
-const CHOICES: Frequency[] = ["daily", "weekly", "arrivals", "off"];
+const CHOICES: NotificationFrequency[] = ["weekly", "daily", "off"];
 
 /**
  * Asked once per account after signing in (also for accounts that existed before the question did): how often to be
@@ -21,11 +24,15 @@ function Question() {
   const ws = useWorkspace();
   const save = useSavePreferences();
   const n = ws.data.preferences.notifications;
-  // The suggestion is a daily digest at 08:00, unless the person has already said they want nothing.
-  const [frequency, setFrequency] = useState<Frequency>(n.frequency === "off" ? "off" : "daily");
+  // The suggestion is a weekly digest on Monday at 08:00, unless the person has already said they want nothing.
+  const [frequency, setFrequency] = useState<NotificationFrequency>(n.frequency === "off" ? "off" : "weekly");
   const [time, setTime] = useState(n.digestTime);
   const [day, setDay] = useState(n.digestDay);
   const [days, setDays] = useState(ws.data.preferences.freshDays);
+  // A digest also goes by email when this installation sends email and the account's address is confirmed.
+  const session = useSession().data;
+  const email = useQuery({ ...accountEmailQuery, enabled: !!session?.installation.accountEmail }).data;
+  const emailed = !!session?.installation.mail && !!email?.address && email.confirmed && n.emailDigest;
 
   const done = (keep: boolean) => void save(keep
     ? { welcomeAsked: true }
@@ -40,7 +47,7 @@ function Question() {
             <label key={v} className="rl" style={{ alignItems: "flex-start", padding: 10 }}>
               <input type="radio" name="freq" checked={frequency === v} onChange={() => setFrequency(v)} />
               <span className="radio" aria-hidden="true" style={{ marginTop: 2 }} />
-              <span style={{ display: "grid", gap: 2 }}><span>{FREQUENCY_LABELS[v].label}{v === "daily" ? " (suggested)" : ""}</span><span className="fine">{FREQUENCY_LABELS[v].blurb}</span></span>
+              <span style={{ display: "grid", gap: 2 }}><span>{FREQUENCY_LABELS[v].label}{v === "weekly" ? " (suggested)" : ""}</span><span className="fine">{FREQUENCY_LABELS[v].blurb}</span></span>
             </label>
           ))}
         </div>
@@ -54,7 +61,9 @@ function Question() {
             <TextInput type="time" aria-label="Time of day" value={time} onChange={(e) => e.target.value && setTime(e.target.value)} />
           </div>
         ) : null}
-        <p className="fine">Times are in your time zone. Notifications arrive in the bell; you can add browser alerts in Settings.</p>
+        <p className="fine">{emailed && (frequency === "daily" || frequency === "weekly")
+          ? `Times are in your time zone. The digest arrives in the bell and by email to ${email.address}; you can turn the email off in Settings.`
+          : "Times are in your time zone. Notifications arrive in the bell; you can add browser alerts in Settings."}</p>
       </fieldset>
       <div className="field"><label htmlFor="fresh-days">How long should items stay marked New?</label>
         <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>

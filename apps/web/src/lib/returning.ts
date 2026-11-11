@@ -10,7 +10,6 @@ export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
 
 export const FREQUENCY_LABELS: Record<Preferences["notifications"]["frequency"], { label: string; blurb: string }> = {
   off: { label: "Don't tell me", blurb: "Nothing about new items. Sources you set to “Notify me” still do." },
-  arrivals: { label: "As they arrive", blurb: "At most one notification per source per hour." },
   daily: { label: "A daily digest", blurb: "One notification a day, counting what is still New." },
   weekly: { label: "A weekly digest", blurb: "One notification a week, counting what is still New." },
 };

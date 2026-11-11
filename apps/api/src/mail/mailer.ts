@@ -18,7 +18,7 @@ import { ensureSecret, readSecret, seal, unseal } from "../secrets.ts";
  * The key is made at startup (prepareMail), so queueing in a request never writes a file.
  */
 
-export type MailKind = "invitation" | "verify" | "reset" | "password_changed" | "email_changed" | "reminder" | "test";
+export type MailKind = "invitation" | "verify" | "reset" | "password_changed" | "email_changed" | "reminder" | "digest" | "test";
 export type Message = { to: string; subject: string; text: string; html: string };
 
 /** The part that talks to a mail server. Tests swap in their own. */

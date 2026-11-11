@@ -495,8 +495,8 @@ your next visit, so it is still there when you come back. The Undecided state is
 item can be New and To read, or Undecided and no longer New. *Settings → Notifications and New* can
 hide the markers and the counts.
 
-The first time you open PURSS, it asks how often to tell you about new things (a daily
-digest at 08:00 is suggested) and how long items stay New; *Not now* keeps the defaults. Both stay
+The first time you open PURSS, it asks how often to tell you about new things (a weekly
+digest on Monday at 08:00 is suggested) and how long items stay New; *Not now* keeps the defaults. Both stay
 in Settings.
 
 ## Search
@@ -640,16 +640,18 @@ reminders*. The bell says "On this day" for these.
 
 The bell lists what you chose to be told about. *Settings → Notifications and New* chooses:
 
-- **How often:** *As they arrive* (at most one notification per source per hour, which grows as
-  more arrive), a **daily digest** at a time you pick, a **weekly digest** on a day and time you
+- **How often:** a **daily digest** at a time you pick, a **weekly digest** on a day and time you
   pick (in your time zone), or *Don't tell me*. A digest is one notification, "Your daily digest:
   54 new in 4 collections", with a line per collection counting what is still New. Items you have
-  already dealt with don't count.
+  already dealt with don't count. A digest with nothing in it isn't sent. Where the installation
+  sends email and your address is confirmed, the digest also comes **by email** (*Email me the
+  digest*, on by default), under the same rules for titles.
 - **What about:** new items from every collection shown on Home, or only from the collections you
   tick; sources that stop working; reminders ("On this day" notes and the days you set with
   [Remind me](#reminders)); saved text that couldn't be saved.
   Collections you hide from Home are left out unless you tick them. A source's own setting wins:
-  *Mute* never notifies, *Notify me* tells you as items arrive even when the general setting is off.
+  *Mute* never notifies, *Notify me* tells you as items arrive (at most one notification per source per hour, which grows
+  as more arrive), whatever the general setting.
 - **Where:** the bell, or also **browser alerts while this page is open** (press *Allow browser
   notifications* once).
 - **Show item titles in notifications:** off by default, so notifications leave out item titles. The
@@ -658,8 +660,9 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
 
 With notifications off the bell shows no number. Notifications are deleted after 90 days (and
 only the newest 500 are kept), and a source's notifications go when you unfollow it. Alerts to a
-closed browser (push) are *not built*. Email carries your [reminders](#reminders) when you ask for
-that and your account's own messages; digests and arrivals are not emailed.
+closed browser (push) are *not built*. Email carries the digest (unless you turn it off), your
+[reminders](#reminders) when you ask for that, and your account's own messages; notifications of
+*Notify me* sources, failing sources and failed text saves stay in the bell.
 
 ## Install and offline reading
 
@@ -1100,7 +1103,7 @@ and the server's when the app runs other screens than the server offers.
   is saved on this device only. (Your browser's own zoom works as well.)
 - **Sounds:** soft interface sounds for your own actions; arrivals stay silent. Off by default;
   turn them on, set the volume and pick one of four styles. Saved on this device only.
-- **Notifications and New:** how often and about what you are told, whether [reminders](#reminders) also come by email, quiet hours, how long items stay New, and whether New markers and counts show. See above.
+- **Notifications and New:** how often and about what you are told, whether the digest and [reminders](#reminders) also come by email, quiet hours, how long items stay New, and whether New markers and counts show. See above.
 - **Security:** password, fingerprint, face or screen lock, linked sign-in
   and signed-in devices, and your email address where the installation sends email. On a phone,
   Settings also has a button in the header; on a shared computer the header has **Sign out**.

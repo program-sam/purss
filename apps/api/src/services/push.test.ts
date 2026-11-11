@@ -46,6 +46,7 @@ async function boot() {
   const server = await startTestServer(app, [publicRouter(), ...extraRouters.api()], extraRouters.pages());
   const phone = createDeviceToken(app, owner.accountId, "mobile", "Pixel").secret;
   const src = makeSource(app, owner, "Tidal Notes", "feed/1");
+  app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", src);
   const asPhone = async (method: string, path: string, body?: unknown, token = phone) => {
     const res = await fetch(server.base + path, { method, headers: { authorization: `Bearer ${token}`, origin: "https://localhost", ...(body === undefined ? {} : { "content-type": "application/json" }) }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: res.status, json: await res.json().catch(() => null) as any };

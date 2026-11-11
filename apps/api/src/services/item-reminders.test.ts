@@ -147,7 +147,7 @@ test("with notifications off, or Reminders off, nobody is told and the day is no
   setItemReminder(app, p, b, { remindOn: "2026-11-12", note: null }, NOW);
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
   assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T08:00:00.000Z")), 0);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "arrivals" } });
+  setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
   assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T09:00:00.000Z")), 0, "switching them back on does not tell about a day that has gone");
   assert.equal(notes(app, p).length, 0);
   setPreferences(app, p.workspaceId, { notifications: { include: { reminders: false } } });

@@ -138,6 +138,8 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     kinds.push(kind);
     sourceIds.push(makeSource(app, p, `Source ${tag}-${s + 1}`, stream, { kind, settled: false }));
   }
+  // Every tenth source is set to "Notify me", so its New arrivals are told at once; the rest wait for the weekly digest.
+  for (const id of sourceIds.filter((_, s) => s % 10 === 0)) app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", id);
   const collectionCount = Math.max(1, Math.round(opts.sources / 30));
   for (let c = 0; c < collectionCount; c++) {
     const members = sourceIds.filter((_, s) => s % collectionCount === c || (s % 7 === 0 && (s / 7) % collectionCount === c));
