@@ -16,7 +16,7 @@ should not need to understand FreshRSS, API passwords, XPath, or container netwo
 A working preliminary application, run locally on one host. It implements the
 approved A3 design and every planned gate in a preliminary state (see
 [plan/22](plan/22-implementation.md) for what each gate includes and defers):
-setup with a one-time code, passkeys and recovery codes, guided Add source with
+setup with a one-time code, username and password sign-in with optional passkeys, guided Add source with
 YouTube and podcast discovery, FreshRSS collection through an egress proxy,
 collections, baskets with kept versions and readable-text capture, saved podcast and video
 files with an in-app player, five views,

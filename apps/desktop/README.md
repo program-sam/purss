@@ -83,7 +83,7 @@ starts on its own until the PURSS's build fits it.
 ## Trying it
 
 `apps/mobile/scripts/emulator-workspace.ts` gives a throwaway PURSS with a small library: start it, run the app,
-choose *Use another server*, type `http://localhost:19990` and sign in with a recovery code it printed. The app keeps
+choose *Use another server*, type `http://localhost:19990` and sign in with the username and password it printed. The app keeps
 its state in the system's usual places (on Linux `~/.local/share/app.purss` and
 `~/.config/app.purss`) and its downloads in `~/Downloads/PURSS`.
 

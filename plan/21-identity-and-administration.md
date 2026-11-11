@@ -29,29 +29,45 @@ Keep provider tokens server-side, encrypt with keys outside the data store, and
 define refresh serialization/rotation, expiry, revocation, and recovery behavior.
 Never automatically link accounts or grant admin by matching email/domain/profile
 claims. Adding/removing a sign-in method requires authenticated confirmation and
-recent reauthentication; prevent lockout when removing the last usable method.
+recent reauthentication; prevent lockout when removing the last usable method (the password
+cannot be removed, so one always remains).
 
-Self-hosting must not require a particular commercial identity provider. Offer a
-reviewed provider-independent sign-in/recovery path, preferably passkeys with recovery
-codes or another explicitly chosen secure option. Prove enrollment, lost-device,
-provider-outage and public-origin-change recovery before account creation ships.
-Recovery codes or an operator-only recovery path must not depend on the old origin.
+Self-hosting must not require a particular commercial identity provider. The
+provider-independent sign-in is a username and password, chosen when the account is made
+(first-run claim, invitation, open sign-up, the phone app's sign-up): the password is created
+together with the account, and it can be changed or reset but never removed, so every account
+keeps a way in that depends on no provider, device or origin. Fingerprint, face or screen lock
+(a passkey) is offered right after, can be skipped and added later in Settings → Security;
+passkeys and linked provider sign-ins can be removed. Enrollment is therefore the username and
+password, then optionally a passkey, and "confirm it's you" accepts the password or a passkey.
+Prove enrollment, lost-device, provider-outage and public-origin-change recovery before account
+creation ships: a lost device or a provider outage is answered by signing in with the password
+on another device, and a changed public origin leaves the password working while passkeys
+(bound to the origin) are added again.
 Guided origin changes warn before applying, preserve an independent recovery path,
 and guide callback re-registration and sign-in-method re-enrollment as required;
 never temporarily turn authentication off to restore access. A one-time installation
-claim is not the permanent everyday login method. Hosted recovery must not bypass
-tenant identity or allow an admin to impersonate users without an explicit policy.
-At signup offer an independent second method or recovery codes, and explain the
-consequence if declined; do not promise provider-loss recovery without an enrolled
-proof. Hosted or approved multi-user admin-assisted recovery needs a reviewed
+claim is not the permanent everyday login method: it chooses the owner's username and
+password. Hosted recovery must not bypass tenant identity or allow an admin to impersonate
+users without an explicit policy.
+A forgotten password is recovered by an email link where the installation sends email (always
+on the hosted service), sent to the address confirmed at sign-up (or added later in
+Settings → Security); the link works once, for an
+hour, and choosing a new password signs the account out everywhere (sessions, connected apps,
+assistants). Hosted or approved multi-user admin-assisted recovery needs a reviewed
 ownership-proof policy, admin step-up,
 audit, notifications to existing verified channels, and a disclosed delay before
 any identity change. If proof is insufficient, deny recovery rather than rebind an
 account on request. The dashboard has no direct attach/rebind-sign-in control.
-Single-owner self-host recovery is an audited host-level procedure to re-enroll
-the existing account's methods, not a dashboard rebind or creation of another user.
-It verifies operator control without requiring an existing verified email channel
-or the old public origin; normal authentication remains enforced throughout.
+Self-host recovery, and recovery for administrators (who do not reset by email), is an
+audited host-level procedure: `node apps/api/src/cli.ts password-reset-link <account>` prints a
+single-use link, shown once and valid for 60 minutes, that opens the ordinary "Choose a new
+password" page for the existing account's username. Using it signs the account out everywhere.
+It is not a dashboard rebind and creates no other user. It verifies operator control without
+requiring an existing verified email channel or the old public origin, works whether or not
+email is set up, and refuses an account without a password or one already being deleted;
+normal authentication remains enforced throughout. Where the installation has no email, the
+sign-in page tells the person to ask the server's administrator for such a link.
 
 ## Roles and authorization
 

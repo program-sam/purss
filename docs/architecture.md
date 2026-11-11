@@ -332,7 +332,7 @@ through nodemailer: invitation links, and account address confirmation, password
 change notices. Account addresses exist only where email is set up (`accountEmailAvailable`), in
 any mode; only hosted open sign-up requires one. Messages that must not reveal whether an account
 exists are sent after the response, through a queue in the database (`mail_queue`, sealed with a key
-from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens`; `mail_log` keeps kind,
+from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens` (the operator's `password-reset-link` command makes the same kind of reset token at the server and sends nothing); `mail_log` keeps kind,
 masked recipient, outcome and error code, never a body. The server is checked at start and every 10
 minutes while failing; hosted open sign-up is open only while that check passes. See
 [plan/27](../plan/27-outbound-email.md).

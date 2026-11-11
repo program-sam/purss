@@ -124,9 +124,9 @@ PURSS_BIND_ADDRESS=192.168.1.20
 PURSS_PUBLIC_ORIGIN=http://192.168.1.20:8940
 ```
 
-Browsers refuse passkeys on plain HTTP outside `localhost`, so on such an address the app asks
-for a **username and password** during setup and when someone accepts an invitation, and
-offers only those (plus recovery codes) at sign-in. Anyone on the network can see traffic to a
+Browsers refuse passkeys on plain HTTP outside `localhost`, so on such an address the app
+doesn't offer fingerprint, face or screen lock: everyone signs in with their **username and
+password**, chosen during setup or when they accept an invitation. Anyone on the network can see traffic to a
 plain-HTTP address; keep it to a network you trust, or put it behind HTTPS (below) to use
 passkeys. Browsers also install the app and keep offline copies only over HTTPS or at
 `localhost`, so on a plain-HTTP LAN address those features are unavailable. The Android and iOS
@@ -189,10 +189,40 @@ redacted. FreshRSS's access log is off. The API logs plain lines.
 
 On start, an API with no accounts writes a one-time **setup code** to `secrets/setup-code`
 (mode 0600) and stores only its hash. Whoever enters it at `/app/setup` becomes the owner and the
-administrator, receives ten recovery codes, and may add fingerprint, face or screen lock (a
-passkey) or a username and password. The code works once; the
+administrator. The setup page asks for the code and for a **username and password** (typed twice),
+and then, where the browser supports it, offers fingerprint, face or screen lock (a passkey), which
+can be skipped and added later in *Settings → Security*. The code works once; the
 file is removed the next time the API starts. There is no first-visitor-wins page and no other
 way to become administrator: invitations never grant administration.
+
+## Forgotten passwords
+
+Every account has a username and a password, and a password can be changed (*Settings → Security*)
+or reset but never removed. Someone who has forgotten theirs gets back in in one of two ways:
+
+- **By email**, where the installation has [outgoing email](#outgoing-email) and the account has a
+  confirmed address: **Can't sign in?** on the sign-in page leads to a page that emails a link to
+  that address. The link works once, for an hour.
+- **With a link from the operator**, for a server without email, an account without a confirmed
+  address, and administrators (who don't reset by email). On the server:
+
+  ```sh
+  docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts password-reset-link "Alex"
+  ```
+
+  (Locally: `node apps/api/src/cli.ts password-reset-link "Alex"`, with `PURSS_DATA_DIR` set if the
+  data isn't in `./data`.) The account is an id (`acc_…`) or a unique display name. The command needs only the data
+  directory, like the other [operator commands](#operator-cli). It
+  prints a single-use link such as `https://purss.example/app/reset-password?token=…`, which is
+  shown once and valid for 60 minutes. Give it only to the person it is for, by a channel you
+  trust. Opening the link shows the ordinary **Choose a new password** page: they keep their
+  username and choose a new password, then sign in with it. Choosing it signs the account out
+  everywhere: browser sessions, connected apps and assistant tokens. It works whether or not
+  email is set up, and is recorded in the audit log as a host-level action. It refuses an account
+  that has no password or whose removal has already started.
+
+When the sign-in page can't offer the email reset, it tells the person to ask the server's
+administrator for a password reset link.
 
 ## Self and hosted mode
 
@@ -233,7 +263,7 @@ set up, outgoing email. Two more sections show how well following works:
   site is counted (`bandcamp.com`, never the page, a creator's subdomain or who looked), kept 180 days.
 
 An administrator creates invitations under **Administration → Invitations** (confirming with
-fingerprint, face or screen lock, a password or recovery code) or with the CLI, and can list and
+fingerprint, face or screen lock or a password) or with the CLI, and can list and
 revoke open ones there. An
 invitation is a code, valid 1 to 60 days (14 by default), delivered as a link
 `/app/invite?code=…`; it can be used once and never grants administration. Under **Accounts** an
@@ -269,9 +299,9 @@ messages through a mail server you name:
   is sent there (the address isn't stored).
 - **Account addresses:** each account can add an email address in *Settings → Security* (hosted
   open sign-up asks for one), confirmed by a link; a forgotten password can be reset with a link
-  sent to a confirmed address (*Forgot your password?* on the sign-in page). Resetting signs the account out everywhere,
-  revokes its assistant tokens and tells the address. Administrators don't get reset links: they
-  use recovery codes or `reissue-recovery-codes`. A confirmed address can be typed in place of the
+  sent to a confirmed address (**Can't sign in?** on the sign-in page). Resetting signs the account out everywhere,
+  revokes its assistant tokens and tells the address. Administrators don't get reset links by email: the operator
+  makes one with `password-reset-link` ([forgotten passwords](#forgotten-passwords)). A confirmed address can be typed in place of the
   username when signing in with a password (with the same limits and the same error for every
   name that isn't known; an address that several accounts share signs in none of them); it is never
   used to link accounts or grant anything.
@@ -324,7 +354,7 @@ key, the Admin page says so, and filters stop using it until it is replaced.
 
 ## Operator CLI
 
-For recovery when the web app can't be used. It works on the database file directly and needs
+For the operator, including when the web app can't be used. It works on the database file directly and needs
 only the data directory; every change is written to the audit log as a host-level action.
 
 ```sh
@@ -332,7 +362,7 @@ node apps/api/src/cli.ts status
 node apps/api/src/cli.ts create-invite [--note "text"] [--allocation <bytes>] [--days <n>]
 node apps/api/src/cli.ts set-allocation <account> <bytes|none>
 node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
-node apps/api/src/cli.ts reissue-recovery-codes <account> --yes
+node apps/api/src/cli.ts password-reset-link <account>
 node apps/api/src/cli.ts reconcile-usage
 node apps/api/src/cli.ts test-email <address>
 ```
@@ -348,11 +378,14 @@ node apps/api/src/cli.ts test-email <address>
   nothing is deleted. Refused for an account that is being deleted.
 - `set-plan` (hosted only): changes an account's plan. Over the new plan's limits nothing is
   removed; new follows and collections wait until the account is under them.
-- `reissue-recovery-codes`: replaces unused recovery codes, signs the account out everywhere,
-  revokes its assistant tokens and OAuth grants, disconnects its connected apps, ends connections
-  still waiting for their code, and prints the new codes once. Use it for someone who lost every passkey, password and code.
-  During an account's deletion grace period the new codes let its owner sign in and keep it;
-  once removal has started it is refused.
+- `password-reset-link`: prints a single-use link, shown once and valid for 60 minutes, to
+  `<public origin>/app/reset-password?token=…`, the ordinary *Choose a new password* page. Using it
+  sets a new password for the account's existing username, signs the account out everywhere,
+  revokes its assistant tokens and OAuth grants, disconnects its connected apps and ends connections
+  still waiting for their code. Use it for someone who forgot their password on a server without
+  email, and for administrators ([forgotten passwords](#forgotten-passwords)). It is refused for an
+  account that has no password. During an account's deletion grace period the new password lets
+  its owner sign in and keep the account; once removal has started it is refused.
 - `reconcile-usage`: compares each account's storage ledger with its stored objects and reports
   differences without changing them; exits 1 if any differ. It also recounts the used-bytes
   total the quota check reads (and the flags the storage summary reads) and corrects them if
@@ -553,8 +586,8 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   approved in the browser, then use a device token (stored as a SHA-256 hash) instead of cookies.
   Return addresses are fixed in code, so no client registration or OAuth setup is needed. A token
   is never an administrator, can't change sign-in or security settings, stops after 90 days unused,
-  and is revoked from *Settings → Connected apps*, by suspension, by a password reset by email, or by
-  `reissue-recovery-codes`.
+  and is revoked from *Settings → Connected apps*, by suspension, by a password reset (by email, or with a link
+  from `password-reset-link`).
   The browser extension's text captures are what the person's browser showed; the server sanitizes
   them and fetches nothing for them ([plan/32](../plan/32-browser-extension.md)).
   CORS is answered only for the apps' own origins and only for token requests, never with
@@ -585,7 +618,7 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   same-origin; feed and article images load directly from publishers over HTTPS), same-origin check
   plus a per-session CSRF token on every change, HttpOnly SameSite=Lax session cookies, and
   in-memory rate limits on sign-in, setup and invitation attempts.
-- **Secrets on disk:** the database holds only hashes of the setup code, recovery codes and
+- **Secrets on disk:** the database holds only hashes of the setup code and
   invitations (the setup code's plain text is the operator's file). Private source links and
   engine passwords are files under `secrets/` (0600), never in the database or job payloads.
 - **Not built:** Web Push, real private-service connectors (the private feed gateway registers
