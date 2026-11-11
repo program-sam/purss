@@ -78,7 +78,7 @@ then show its store button instead of "Not in the stores yet".
   `src/packaging/manifest.ts`; it can't change after the first upload, and the connect flow's return
   address is derived from it). Upload `purss-firefox.zip` in the Developer Hub. Because
   the scripts are bundled, AMO asks for the source: upload a source archive of the repository with
-  these build steps (`npm ci`, `npm run build:extension`, Node 24 or newer). Check that the data-collection
+  these build steps (`npm ci`, `npm run build:extension`, Node 26). Check that the data-collection
   declaration in the manifest matches the listing. For self-distribution instead, `web-ext sign
   --channel=unlisted` with AMO API keys kept outside the repository.
 - **Safari (macOS and iOS):** needs an Apple Developer Program membership. In App Store Connect,

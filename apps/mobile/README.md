@@ -42,7 +42,7 @@ npm run sync -w @purss/mobile             # patches plugins (patches/), builds t
                                         # root (PURSS_WEB_BASE=/) and copies it and the plugin lists into android/ and ios/
 ```
 
-**Android** needs Node.js 24 or later, the Android SDK (platform 36), and JDK 21 (JDK 25 is too new
+**Android** needs Node.js 26, the Android SDK (platform 36), and JDK 21 (JDK 25 is too new
 for the Android Gradle plugin used here).
 
 ```sh
@@ -87,7 +87,7 @@ and its settings, still work. Android's system Credential Manager and Capgo's li
 the FOSS build leaves APK updates to F-Droid. The default `full` flavor keeps phone push and is what GitHub
 releases build.
 
-Build an unsigned FOSS APK from a complete git checkout with Node.js 24+, JDK 21 and Android SDK platform 36:
+Build an unsigned FOSS APK from a complete git checkout with Node.js 26, JDK 21 and Android SDK platform 36:
 
 ```sh
 npm ci
