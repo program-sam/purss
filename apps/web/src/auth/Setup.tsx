@@ -8,6 +8,7 @@ import { useSession } from "../api/hooks.ts";
 import { sessionQuery } from "../api/queries.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 import { PasskeyStep } from "./PasskeyStep.tsx";
+import { ProviderButton } from "./ProviderButton.tsx";
 import { passkeysAvailable, usePasswordFields } from "./PasswordForm.tsx";
 
 type Step = "account" | "passkey";
@@ -22,6 +23,8 @@ export function SetupPage({ mode = "setup", initialCode = "" }: { mode?: "setup"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [sharedComputer, setSharedComputer] = useState(false);
+  // Open sign-up also takes an account made by signing in with a provider (no username or password).
+  const providers = useSession().data?.installation.oidcProviders ?? [];
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // The button stays busy until the account is made or refused, and a second press (or Enter) while it works does nothing.
@@ -77,6 +80,12 @@ export function SetupPage({ mode = "setup", initialCode = "" }: { mode?: "setup"
       footer={<Button variant="primary" type="submit" form="setup-form" disabled={busy || !valid || (mode !== "signup" ? !code.trim() : !email.trim())}>{busy ? (mode === "signup" ? "Creating your account…" : "Checking…") : "Continue"}</Button>}
     >
       <form id="setup-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
+        {mode === "signup" && providers.length ? (
+          <>
+            {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${sharedComputer ? "?shared=1" : ""}`} />)}
+            <p className="fine" style={{ textAlign: "center", marginTop: -4 }}>Or make an account with an email address and a password:</p>
+          </>
+        ) : null}
         {mode !== "signup" ? (
           <Field label={mode === "setup" ? "Setup code" : "Invitation code"} htmlFor="auth-code">
             <TextInput id="auth-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoFocus aria-invalid={!!error} aria-describedby={error ? "auth-error" : undefined} />

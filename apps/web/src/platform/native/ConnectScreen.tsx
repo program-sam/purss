@@ -4,7 +4,8 @@ import { OFFICIAL_WORKSPACE_ORIGIN, parseWorkspaceAddress, startingServer, UNENC
 import type { ConnectInfo, ConnectSignupInput, ConnectTokenResult } from "@purss/domain";
 import { Button, Field, Icon, IconSprite, TextInput } from "@purss/ui";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";
-import { checkInfo, connectPageUrl, parsePending, passkeysOffered, pkce, readCallback, REDIRECT_URI, signinOffered, signupOffer } from "./connect.ts";
+import { ProviderButton } from "../../auth/ProviderButton.tsx";
+import { checkInfo, connectPageUrl, parsePending, passkeysOffered, pkce, providersOffered, providerStartUrl, readCallback, REDIRECT_URI, signinOffered, signupOffer } from "./connect.ts";
 import { inviteFromLink, tokenFromLink } from "../../lib/email-links.ts";
 import type { Connection, Pending } from "./connect.ts";
 import type { Passkeys } from "../types.ts";
@@ -56,7 +57,7 @@ async function getJson(url: string, init: RequestInit = {}): Promise<{ status: n
 }
 
 /** A PURSS the address led to, and what it lets the app do itself. */
-type Workspace = { origin: string; info: ConnectInfo; signup: { open: boolean; passwordMin: number } | null; passkeys: boolean };
+type Workspace = { origin: string; info: ConnectInfo; signup: { open: boolean; passwordMin: number } | null; passkeys: boolean; providers: { id: string; label: string; start: string }[] };
 type SigninFields = { method: "password"; username: string; password: string } | { method: "passkey" };
 /** What signing in came to: an error to show, an account set to be deleted that can still be kept, or (empty) connected. */
 type SigninAnswer = { error?: string; keep?: { token: string; dueAt: string } };
@@ -138,7 +139,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
       const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? "That address answers, but it isn't a PURSS." : "PURSS didn't answer properly. Try again later." };
       if (!checked.ok) { failed(checked.message); return; }
       localStorage.setItem(ADDRESS_KEY, n.origin);
-      const ws: Workspace = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info) };
+      const ws: Workspace = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info), providers: providersOffered(checked.info) };
       if (!signinOffered(checked.info)) { await openBrowser(ws); return; }
       setPhase({ kind: "signin", ws });
     } catch {
@@ -153,13 +154,17 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     setPhase({ kind: "address" });
   }
 
-  /** Passkeys and linked accounts: approve this app on PURSS's Connect page in the system browser. */
-  async function openBrowser(ws: Workspace) {
+  /**
+   * Passkeys and linked accounts: approve this app on PURSS's Connect page in the system browser. With `provider` (Continue with
+   * Google) the browser starts at that provider's sign-in and ends on the same page. Never the app's own web view: Google refuses it.
+   */
+  async function openBrowser(ws: Workspace, provider?: Workspace["providers"][number]) {
     const p = await pkce();
     const pending: Pending = { origin: ws.origin, issuer: ws.info.origin, verifier: p.verifier, state: p.state, startedAt: Date.now(), passkeys: ws.passkeys };
     pendingRef.current = pending;
     localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
-    const page = connectPageUrl(ws.info.connect.page, { challenge: p.challenge, state: p.state, deviceName: await deviceName() });
+    const request = { challenge: p.challenge, state: p.state, deviceName: await deviceName() };
+    const page = provider ? providerStartUrl(provider.start, ws.info.connect.page, request) : connectPageUrl(ws.info.connect.page, request);
     setPhase({ kind: "waiting", pending, page });
     await shell.openBrowser(page);
   }
@@ -270,10 +275,13 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
             <SigninForm ws={phase.ws} onSignIn={(input) => signIn(phase.ws, input)} onReset={(id) => requestReset(phase.ws.origin, id)} onNewPassword={(token, pw) => setNewPassword(phase.ws.origin, token, pw)}
               browserLabel={phase.ws.passkeys ? shell.browserSignin.withPasskeys : shell.browserSignin.withoutPasskeys}
               onBrowser={() => void openBrowser(phase.ws).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError("Couldn't open the browser. Try again."); })}
+              providers={phase.ws.providers}
+              onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError("Couldn't open the browser. Try again."); })}
               onSignup={phase.ws.signup ? () => setPhase({ kind: "signup", ws: phase.ws, ...phase.ws.signup! }) : null}
               server={serverLine(phase.ws.origin)} />
           ) : phase.kind === "signup" ? (
-            <SignupForm open={phase.open} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })} />
+            <SignupForm open={phase.open} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })}
+              providers={phase.open ? phase.ws.providers : []} onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signup", ws: phase.ws, open: phase.open, passwordMin: phase.passwordMin }); setError("Couldn't open the browser. Try again."); })} />
 
           ) : phase.kind === "waiting" ? (
             <div style={{ display: "grid", gap: 12 }}>
@@ -294,7 +302,10 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
 }
 
 /** A new account: an invitation code (or an email address where sign-up is open), a name, and the username and password to sign in with later. */
-function SignupForm({ open, passwordMin, onSubmit, onBack }: { open: boolean; passwordMin: number; onSubmit: (input: Omit<ConnectSignupInput, "client" | "deviceName">) => Promise<string | null>; onBack: () => void }) {
+function SignupForm({ open, passwordMin, onSubmit, onBack, providers, onProvider }: {
+  open: boolean; passwordMin: number; onSubmit: (input: Omit<ConnectSignupInput, "client" | "deviceName">) => Promise<string | null>; onBack: () => void;
+  providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
+}) {
   // Where anyone may sign up, an email address is asked; someone with an invitation can still use it (it may carry more room).
   const [withInvite, setWithInvite] = useState(!open);
   const [code, setCode] = useState("");
@@ -317,6 +328,12 @@ function SignupForm({ open, passwordMin, onSubmit, onBack }: { open: boolean; pa
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }} aria-label="Create an account">
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+      {providers.length ? (
+        <>
+          {providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />)}
+          <p className="fine" style={{ textAlign: "center" }}>Opens in your browser. Or make an account here with an email address and a password:</p>
+        </>
+      ) : null}
       {!withInvite ? (
         <Field label="Email address" htmlFor="su-e" hint="We send a link to confirm it. It's also how you reset a forgotten password.">
           <TextInput id="su-e" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" maxLength={254} />
@@ -346,10 +363,11 @@ function SignupForm({ open, passwordMin, onSubmit, onBack }: { open: boolean; pa
 }
 
 /** Signing in here: a username and password; a passkey or linked account through the browser. */
-function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLabel, onSignup, server }: {
+function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLabel, providers, onProvider, onSignup, server }: {
   ws: Workspace; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (identifier: string) => Promise<string | null>;
   onNewPassword: (token: string, password: string) => Promise<string | null>;
-  onBrowser: () => void; browserLabel: string; onSignup: (() => void) | null; server: ReactNode;
+  onBrowser: () => void; browserLabel: string; providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
+  onSignup: (() => void) | null; server: ReactNode;
 }) {
   const [mode, setMode] = useState<"password" | "reset" | "reset-sent" | "reset-done">("password");
   const [link, setLink] = useState("");
@@ -465,6 +483,7 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
         <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? "Sending…" : "Signing in…") : mode === "reset" ? "Send the link" : "Sign in"}</Button>
       </div>
       {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with fingerprint, face or screen lock</Button></div> : null}
+      {mode !== "reset" ? providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />) : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
         {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use a username and password</button> : null}
         {mode === "password" && ws.info.signin.passwordReset ? <button type="button" className="link" onClick={() => go("reset")}>Forgot your password?</button> : null}

@@ -12,6 +12,7 @@ test("deep links open the popup they name with what they carry", () => {
   assert.deepEqual(deepLinkOverlay({ dialog: "search", q: "tides" }), { kind: "palette", query: "tides" });
   assert.deepEqual(deepLinkOverlay({ dialog: "search" }), { kind: "palette" });
   assert.deepEqual(deepLinkOverlay({ dialog: "apps" }), { kind: "settings", tab: "apps" });
+  assert.deepEqual(deepLinkOverlay({ dialog: "account" }), { kind: "settings", tab: "account" });
   assert.equal(deepLinkOverlay({ dialog: "nope" }), null);
   assert.equal(deepLinkOverlay({ dialog: "constructor" }), null, "only its own names");
 });

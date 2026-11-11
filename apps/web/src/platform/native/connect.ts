@@ -1,4 +1,5 @@
 import { parseWorkspaceAddress } from "@purss/domain";
+import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
 
 /**
@@ -39,6 +40,12 @@ export function signupOffer(info: ConnectInfo): { open: boolean; passwordMin: nu
   return s && s.invitation === true && typeof s.passwordMin === "number" ? { open: s.open === true, passwordMin: s.passwordMin } : null;
 }
 
+/** The external sign-ins this PURSS offers (an older one lists none). */
+export function providersOffered(info: ConnectInfo): { id: string; label: string; start: string }[] {
+  const list = (info as Partial<ConnectInfo>).signin?.providers;
+  return Array.isArray(list) ? list.filter((p) => p && typeof p.id === "string" && typeof p.label === "string" && typeof p.start === "string") : [];
+}
+
 const b64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 /** A PKCE verifier (32 random bytes) and its S256 challenge, and a state value (16 random bytes). */
@@ -52,6 +59,17 @@ export async function pkce(random: (n: number) => Uint8Array = (n) => crypto.get
 export function connectPageUrl(page: string, p: { challenge: string; state: string; deviceName: string }): string {
   const q = new URLSearchParams({ client: "mobile", redirect_uri: REDIRECT_URI, state: p.state, code_challenge: p.challenge, code_challenge_method: "S256", device_name: p.deviceName });
   return `${page}?${q}`;
+}
+
+/**
+ * Where "Continue with <provider>" opens in the system browser: the provider's start address, told to land on the approval
+ * page afterwards. Signed in there (or with a new account made there), the person presses Connect and the browser hands the
+ * code back to purss://connect, exactly as when the Connect page is opened directly.
+ */
+export function providerStartUrl(start: string, page: string, p: { challenge: string; state: string; deviceName: string }): string {
+  const target = new URL(connectPageUrl(page, p));
+  const inApp = (target.pathname.startsWith(`${APP_PATH}/`) ? target.pathname.slice(APP_PATH.length) : target.pathname) + target.search;
+  return `${start}?next=${encodeURIComponent(inApp)}`;
 }
 
 export type Callback =

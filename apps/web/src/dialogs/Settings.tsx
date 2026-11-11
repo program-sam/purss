@@ -9,6 +9,7 @@ import { useSession } from "../api/hooks.ts";
 import type { SecurityMethod } from "../api/types.ts";
 import { registerPasskey } from "../auth/PasskeyStep.tsx";
 import { PasswordForm, passkeysAvailable } from "../auth/PasswordForm.tsx";
+import { linkWithProvider } from "../auth/provider-confirm.ts";
 import { StepUpOptions } from "../features/shared/step-up.tsx";
 import { shortDate, timeAgo } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
@@ -187,10 +188,13 @@ function SecurityTab() {
     if (!s.recentAuth) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
     setStep({ kind: "password" });
   });
-  const linkProvider = (id: string) => withStepUp(async () => {
+  const linkProvider = (p: { id: string; label: string }) => withStepUp(async () => {
     const s = await qc.fetchQuery({ ...securityQuery, staleTime: 0 });
     if (!s.recentAuth) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
-    window.location.assign(`/api/auth/oidc/${encodeURIComponent(id)}/start?link=1`);
+    toast(platform.connection ? `Finish connecting ${p.label} in your browser, then come back here.` : `Opening ${p.label}…`);
+    await linkWithProvider(p);
+    await refreshQueries();
+    toast(`${p.label} connected`);
   });
   async function revoke(id: string) {
     try { await del(`/api/account/sessions/${encodeURIComponent(id)}`); refresh(); toast("Signed that device out"); } catch (err) { setError(messageOf(err)); }
@@ -201,7 +205,7 @@ function SecurityTab() {
 
   if (step.kind === "password") {
     const current = sec.data?.methods.find((m) => m.kind === "password")?.label ?? null;
-    return <PasswordForm current={current} submitLabel="Save new password" onDone={() => { refresh(); setStep({ kind: "main" }); toast("Password changed"); }} onCancel={() => setStep({ kind: "main" })} />;
+    return <PasswordForm current={current} submitLabel={current ? "Save new password" : "Add password"} onDone={() => { refresh(); setStep({ kind: "main" }); toast(current ? "Password changed" : "Password added"); }} onCancel={() => setStep({ kind: "main" })} />;
   }
   if (step.kind === "stepup") {
     const then = step.then;
@@ -209,7 +213,7 @@ function SecurityTab() {
       <div style={{ display: "grid", gap: 14 }}>
         <p className="hint">For your safety, confirm it's you before this change.</p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <StepUpOptions busy={busy} confirm={(run) => void finishStepUp(() => run().then(() => undefined), then)} />
+        <StepUpOptions busy={busy} returnTo="/?dialog=security" confirm={(run) => void finishStepUp(() => run().then(() => undefined), then)} />
         <div><button type="button" className="link" onClick={() => { setStep({ kind: "main" }); setError(""); }}>Cancel</button></div>
       </div>
     );
@@ -236,7 +240,8 @@ function SecurityTab() {
                 </li>
               </ul>
             ) : null}
-            <div><Button onClick={() => void openPassword()}>Change username or password</Button></div>
+            {!password ? <p className="fine">You sign in without a password, with {(sec.data?.methods ?? []).filter((m) => m.kind === "oidc").map((m) => m.label).join(" and ") || "a linked sign-in"}. Add one to also sign in with a username and password, and to be able to remove that sign-in.</p> : null}
+            <div><Button onClick={() => void openPassword()}>{password ? "Change username or password" : "Add a password"}</Button></div>
           </section>
           <section className="field" aria-labelledby="sec-m">
             <div className="lbl" id="sec-m">Fingerprint, face or screen lock, and linked sign-ins</div>
@@ -257,7 +262,7 @@ function SecurityTab() {
             </ul>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {passkeysAvailable() ? <Button disabled={busy} onClick={() => void addPasskey()}><Icon name="plus" size="sm" />Add fingerprint, face or screen lock</Button> : null}
-              {providers.map((p) => <Button key={p.id} onClick={() => void linkProvider(p.id)}>Link {p.label}</Button>)}
+              {providers.map((p) => <Button key={p.id} onClick={() => void linkProvider(p)}>Link {p.label}</Button>)}
             </div>
           </section>
           {passkeysAvailable() ? null : <p className="fine">{platform.connection

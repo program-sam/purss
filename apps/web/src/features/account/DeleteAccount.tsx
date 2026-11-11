@@ -18,7 +18,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const ov = useOverlays();
-  const stepUp = useStepUp();
+  const stepUp = useStepUp({ returnTo: "/?dialog=account" });
   const word = confirmWord(useSession().data?.account?.displayName);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);

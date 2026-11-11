@@ -23,6 +23,9 @@ import type { ListSearch } from "../nav.ts";
 import { pageFor } from "../plugins.ts";
 import { useItemActions } from "../state/actions.ts";
 import { useLiveUpdates } from "../state/live.ts";
+import { useToasts } from "../state/toasts.tsx";
+import { confirmationNotice } from "../auth/provider-confirm.ts";
+import { takeConfirmingProvider } from "../auth/confirm-marker.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { PopupProvider } from "../state/popups.tsx";
@@ -103,6 +106,9 @@ function ShellFrame() {
   const unread = ws.prefs.notifications.frequency === "off" ? 0 : ws.data.unreadNotifications;
   useEffect(() => { platform.badge?.(unread); }, [unread]);
   useLiveUpdates(onNotification);
+  // Back from a provider's page after "Confirm it's you": the action that needed it can be done again.
+  const { toast } = useToasts();
+  useEffect(() => { const label = takeConfirmingProvider(); if (label) void confirmationNotice(label).then((said) => toast(said)).catch(() => undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const overlaySb = bp === "sm" || bp === "xs";
   // A laptop with the reader docked: the sidebar steps back to its rail while the item is open, so the

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseWorkspaceAddress } from "@purss/domain";
-import { checkInfo, connectPageUrl, parseConnection, parsePending, pkce, readCallback, signinOffered, signupOffer } from "./connect.ts";
+import { checkInfo, connectPageUrl, parseConnection, parsePending, pkce, providersOffered, providerStartUrl, readCallback, signinOffered, signupOffer } from "./connect.ts";
 
 test("the app takes the same addresses as the extension: https, or plain http on this device or the local network, flagged as unencrypted", () => {
   assert.deepEqual(parseWorkspaceAddress(" workspace.example.org/inbox?x=1 "), { ok: true, origin: "https://workspace.example.org", unencrypted: false });
@@ -78,4 +78,27 @@ test("the app signs in itself only where PURSS offers a password", () => {
   assert.equal(signinOffered(checked({ ...info, signin })), true);
   assert.equal(signinOffered(checked({ ...info, signin: { ...signin, methods: ["password", "passkey"] } })), true);
   assert.equal(signinOffered(checked({ ...info, signin: { ...signin, methods: ["passkey"] } })), false);
+});
+
+const google = { id: "google", label: "Google", start: "https://ws.example/api/auth/oidc/google/start" };
+
+test("the external sign-ins a PURSS offers are read defensively; an older PURSS offers none", () => {
+  const withProviders = { ...info, signin: { endpoint: "e", methods: ["password"], passkeyOptions: null, passwordReset: null, passwordResetConfirm: null, providers: [google, { id: 1 }, null] } };
+  assert.deepEqual(providersOffered(withProviders as never), [google]);
+  assert.deepEqual(providersOffered(info as never), []);
+  assert.deepEqual(providersOffered({ ...info, signin: { providers: "nope" } } as never), []);
+});
+
+test("Continue with Google opens the provider's sign-in in the browser and returns to the approval page for this app", () => {
+  const request = { challenge: "CH", state: "ST", deviceName: "Pixel 8" };
+  // The Connect page is at /app/connect on a PURSS; the provider's start takes the path inside the app.
+  const url = new URL(providerStartUrl(google.start, "https://ws.example/app/connect", request));
+  assert.equal(`${url.origin}${url.pathname}`, google.start);
+  const next = url.searchParams.get("next")!;
+  assert.ok(next.startsWith("/connect?"), "an in-app path, not the /app prefix (the server adds it)");
+  assert.deepEqual([...new URL(`https://ws.example${next}`).searchParams], [...new URL(connectPageUrl("https://ws.example/connect", request)).searchParams]);
+  assert.equal(new URL(`https://ws.example${next}`).searchParams.get("code_challenge"), "CH");
+  assert.equal(new URL(`https://ws.example${next}`).searchParams.get("redirect_uri"), "purss://connect");
+  // A PURSS whose Connect page isn't under /app keeps its path.
+  assert.ok(new URL(providerStartUrl(google.start, "https://ws.example/connect", request)).searchParams.get("next")!.startsWith("/connect?"));
 });

@@ -12,6 +12,12 @@
 .auth-card .dlg-b,.auth-card .dlg-b>*{min-width:0}
 .auth-card .btn{height:auto;min-height:32px;padding-block:8px;white-space:normal;text-align:center;line-height:1.25}
 @media (pointer:coarse){.auth-card .btn{min-height:40px}}
+/* "Continue with Google": Google's sign-in button (white, 1px #747775 border, #1F1F1F text, its G), kept as it is in every theme. */
+.gsi-button{box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:40px;padding:0 12px;background:#fff;color:#1f1f1f;border:1px solid #747775;border-radius:4px;font:500 14px/20px "Google Sans",Roboto,Arial,system-ui,sans-serif;text-decoration:none;cursor:pointer;-webkit-appearance:none;appearance:none}
+.gsi-button:hover{background:#f0f0f0}
+.gsi-button:focus-visible{outline:2px solid #1a73e8;outline-offset:2px}
+.gsi-button:disabled{opacity:.6;cursor:default}
+.gsi-mark{flex:none}
 .auth-card .hint{font-size:0.875rem;color:var(--ink-2);font-weight:600;line-height:1.5}
 .splash{min-height:100dvh;display:grid;place-items:center;gap:12px;padding:24px;color:var(--ink-2);font-weight:700;grid-auto-flow:column;justify-content:center;align-content:center}
 .splash .spin{margin-right:2px}
