@@ -7,6 +7,7 @@ import { audit } from "../app.ts";
 import { HttpError, addSeconds, consumeRateLimit, nowIso, setCookie } from "../http.ts";
 import { hashSecret, humanCode, normalizeCode, randomToken, sha256, verifySecret, writeSecret, readSecret, removeSecret } from "../secrets.ts";
 import { storePassword, verifyPassword, writePassword } from "./passwords.ts";
+import { canConfirm, linkedProviders } from "./providers.ts";
 import type { PreparedPassword } from "./passwords.ts";
 import { enqueue } from "../services/jobs.ts";
 import { mailConfigured, signupOpen } from "../mail/mailer.ts";
@@ -189,13 +190,12 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
   const a = app.db.get<{ display_name: string | null }>("SELECT display_name FROM accounts WHERE id = ?", p.accountId)!;
   const hasPasskey = !!app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'passkey'", p.accountId);
   const hasPassword = !!app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", p.accountId);
-  const linkedIssuers = new Set(app.db.all<{ issuer: string }>("SELECT issuer FROM sign_in_methods WHERE account_id = ? AND kind = 'oidc'", p.accountId).map((m) => m.issuer));
   return {
     state: "signed_in",
     csrf: p.csrf,
     account: {
       id: p.accountId, displayName: a.display_name, isAdmin: p.isAdmin, hasPasskey, hasPassword,
-      linkedProviders: app.config.oidc.filter((o) => linkedIssuers.has(o.issuer)).map((o) => ({ id: o.id, label: o.label })),
+      linkedProviders: linkedProviders(app, p.accountId).map((o) => ({ id: o.id, label: o.label, canConfirm: canConfirm(app, p.accountId, o) })),
       sharedComputer: app.db.get<{ session_class: string }>("SELECT session_class FROM sessions WHERE id = ?", p.sessionId)?.session_class === "shared",
     },
     installation,
@@ -334,21 +334,26 @@ export function selfSignup(app: App, displayName: string | null, address: string
   return openSignup(app, address, attemptRetryAt, () => createAccount(app, { displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password }).accountId);
 }
 
-/** Whether any account has this email address, confirmed or not (compared without regard to case). */
+/**
+ * Whether an account has confirmed this email address (compared without regard to case). An address someone typed but never
+ * confirmed proves nothing, so it doesn't keep the provider, which did vouch for it, from making an account.
+ */
 export function emailInUse(app: App, email: string): boolean {
-  return !!app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?)", email);
+  return !!app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?) AND email_verified_at IS NOT NULL", email);
 }
 
 /**
  * Open sign-up through an external provider: the same limits and bookkeeping as selfSignup, but the account has no password.
  * The provider vouched for `email` (the caller checked email_verified), so it is stored confirmed and no message is sent. An
- * address that already belongs to an account is refused (409 email_in_use): sign-in never links or duplicates by email.
+ * address another account has confirmed is refused (409 email_in_use): sign-in never links or duplicates by email.
  */
 export function signupWithProvider(
   app: App, who: { displayName: string | null; email: string; label: string; issuer: string; subject: string }, address: string, attemptRetryAt: number | null = null,
 ): { accountId: string } {
   return openSignup(app, address, attemptRetryAt, () => {
-    if (emailInUse(app, who.email)) throw new HttpError(409, "email_in_use", "An account with this email address already exists.");
+    if (emailInUse(app, who.email)) {
+      throw new HttpError(409, "email_in_use", `An account with this email address already exists. Sign in with your username and password, then connect ${who.label} in Settings → Security.`);
+    }
     const { accountId } = createAccount(app, { displayName: who.displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password: null });
     const now = nowIso();
     app.db.run("UPDATE accounts SET email = ?, email_verified_at = ? WHERE id = ?", who.email, now, accountId);
