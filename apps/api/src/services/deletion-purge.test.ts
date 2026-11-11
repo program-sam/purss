@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { newId } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { createInvite, issueRecoveryCodes } from "../auth/accounts.ts";
+import { createInvite } from "../auth/accounts.ts";
 import { runCommand } from "../cli.ts";
 import { bootDeletion, makeDue, member, rowsMentioning, seedAdjacent } from "../deletion-testing.ts";
 import type { DeletionBoot, Member } from "../deletion-testing.ts";
@@ -68,7 +68,7 @@ function populate(app: App, m: Member, owner: Member): string[] {
   app.db.run("INSERT INTO reminders (id, workspace_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, '2026-11-05', ?)", newId("rem"), m.workspaceId, lib.keptIds[0]!, lib.baskets.reading, nowIso(), nowIso());
   app.db.run("INSERT INTO item_reminders (id, account_id, workspace_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, '2026-11-20', 'Ask again', ?)", newId("irm"), m.accountId, m.workspaceId, lib.keptIds[0]!, nowIso()); // "Remind me"
   app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) VALUES (?, 'example.org/not-for-me.xml', ?)", m.workspaceId, nowIso()); // "Not interested" in Discover
-  app.db.run("INSERT INTO signup_attempts (attempt_hash, account_id, session_id, created_at) VALUES (?, ?, ?, ?)", newId("hash"), m.accountId, newId("ses"), nowIso()); // a sign-up that can still be picked up
+  app.db.run("INSERT INTO signup_attempts (attempt_hash, account_id, created_at) VALUES (?, ?, ?)", newId("hash"), m.accountId, nowIso()); // a sign-up attempt that can still be picked up
   app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'New', 'n1', ?)", newId("ntf"), m.workspaceId, nowIso());
   app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?)", m.workspaceId, nowIso()); // digest watermark
   app.db.run("INSERT OR IGNORE INTO signup_creations (account_id, address_hash, created_at) VALUES (?, 'address', ?)", m.accountId, nowIso()); // counted against the sign-up limit
@@ -84,7 +84,6 @@ function populate(app: App, m: Member, owner: Member): string[] {
   app.db.run("UPDATE invites SET used_at = ?, used_by = ? WHERE note = 'for the member'", nowIso(), m.accountId);
   reserve(app, m.accountId, 10, "test", `res:${m.accountId}`);
   recordSyncSuccess(app, m.engineUserId);
-  issueRecoveryCodes(app, m.accountId);
   signIn(app, m.accountId);
   enqueue(app, "engine.sync", { engineUserId: m.engineUserId }, { accountId: m.accountId, workspaceId: m.workspaceId });
   seedAdjacent(app, p); // connected apps, playback, annotations, browser capture, a kept picture, email, OAuth
@@ -187,7 +186,7 @@ test("allocation changes are refused mid-purge, and the CLI counts and protects 
   assert.equal(out.status, 409);
   assert.ok(b.app.db.get("SELECT 1 FROM audit_events WHERE action = 'admin_account_update' AND target = ? AND outcome = 'failure'", m.accountId));
   await assert.rejects(runCommand(b.app, ["set-allocation", m.accountId, "1000"], io), /being deleted/);
-  await assert.rejects(runCommand(b.app, ["reissue-recovery-codes", m.accountId, "--yes"], io), /being deleted/);
+  await assert.rejects(runCommand(b.app, ["password-reset-link", m.accountId], io), /being deleted/);
   runDeletions(b.app);
   assert.equal(b.app.db.get("SELECT 1 FROM storage_accounts WHERE account_id = ?", m.accountId), undefined, "phase 1 still completes cleanly");
 });

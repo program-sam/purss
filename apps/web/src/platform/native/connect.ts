@@ -30,7 +30,7 @@ export function passkeysOffered(info: ConnectInfo): boolean {
 
 export function signinOffered(info: ConnectInfo): boolean {
   const s = (info as Partial<ConnectInfo>).signin;
-  return !!s && Array.isArray(s.methods) && s.methods.includes("password") && s.methods.includes("recovery");
+  return !!s && Array.isArray(s.methods) && s.methods.includes("password");
 }
 
 /** What PURSS lets the app do to create an account; null when it can't (an older PURSS). */

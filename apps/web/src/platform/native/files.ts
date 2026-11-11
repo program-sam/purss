@@ -95,7 +95,7 @@ export async function deviceConnection(): Promise<DeviceConnection> {
   } catch { return "unknown"; }
 }
 
-/** A file for the person (an export, recovery codes): written to the app's cache, then offered in the share sheet. */
+/** A file for the person (an export): written to the app's cache, then offered in the share sheet. */
 export async function shareFile(data: Blob, filename: string): Promise<void> {
   const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

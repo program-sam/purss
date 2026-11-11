@@ -6,7 +6,7 @@ import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import type { App } from "../app.ts";
 import { registrationOptions, verifyRegistration } from "../auth/passkeys.ts";
 import { finishOidc, startOidc } from "../auth/oidc.ts";
-import { setPassword } from "../auth/passwords.ts";
+import { setPassword } from "../auth/accounts.ts";
 import { bootDeletion, member, setCookie, signInWithPassword, stalledRequest } from "../deletion-testing.ts";
 import type { DeletionBoot, Member } from "../deletion-testing.ts";
 import { signIn, signedInPrincipal } from "../features-testing.ts";

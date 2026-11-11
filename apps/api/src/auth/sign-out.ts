@@ -6,7 +6,7 @@ import { revokeAllTokens } from "../services/assistant.ts";
  * Sign an account out everywhere. The one place that decides what that covers, so every path ends the
  * same credentials:
  *
- * - "everything" (a password reset by email, the operator's `reissue-recovery-codes`, asking to
+ * - "everything" (a password reset, by email or with a link the operator made, asking to
  *   delete the account, services/deletion.ts): browser
  *   sessions, connected apps (device tokens; their live streams end), connection and OAuth codes not
  *   yet exchanged, assistant tokens and OAuth grants, and email links not used yet (confirming the

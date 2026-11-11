@@ -71,10 +71,11 @@ test("the app offers its own sign-up only where PURSS says it can, with open sig
   assert.deepEqual(signupOffer(checked({ ...info, signup: { ...signup, open: true } })), { open: true, passwordMin: 10 });
 });
 
-test("the app signs in itself only where PURSS offers both a password and a recovery code", () => {
+test("the app signs in itself only where PURSS offers a password", () => {
   const checked = (v: unknown) => { const c = checkInfo(v); assert.ok(c.ok); return c.info; };
   assert.equal(signinOffered(checked(info)), false, "an older PURSS: sign in through the browser");
-  const signin = { endpoint: "https://ws.example/api/connect/signin", methods: ["password", "recovery"], passwordReset: null };
+  const signin = { endpoint: "https://ws.example/api/connect/signin", methods: ["password"], passwordReset: null };
   assert.equal(signinOffered(checked({ ...info, signin })), true);
-  assert.equal(signinOffered(checked({ ...info, signin: { ...signin, methods: ["password"] } })), false);
+  assert.equal(signinOffered(checked({ ...info, signin: { ...signin, methods: ["password", "passkey"] } })), true);
+  assert.equal(signinOffered(checked({ ...info, signin: { ...signin, methods: ["passkey"] } })), false);
 });

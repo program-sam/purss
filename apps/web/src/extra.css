@@ -13,9 +13,6 @@
 .auth-card .btn{height:auto;min-height:32px;padding-block:8px;white-space:normal;text-align:center;line-height:1.25}
 @media (pointer:coarse){.auth-card .btn{min-height:40px}}
 .auth-card .hint{font-size:0.875rem;color:var(--ink-2);font-weight:600;line-height:1.5}
-.codes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:12px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2)}
-.codes li{display:flex}
-.codes code{font:700 0.875rem/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;padding:6px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line);width:100%;user-select:all}
 .splash{min-height:100dvh;display:grid;place-items:center;gap:12px;padding:24px;color:var(--ink-2);font-weight:700;grid-auto-flow:column;justify-content:center;align-content:center}
 .splash .spin{margin-right:2px}
 
@@ -124,7 +121,6 @@ a.btn.lg{height:36px}
 @media (max-width:767px){
   .reminder{flex-wrap:wrap}
   .reminder .acts{width:100%;padding-left:34px}
-  .codes{grid-template-columns:1fr 1fr}
   .notif-pop{position:fixed!important;left:8px!important;right:8px!important;width:auto}
 }
 @media print{.side,.bar,.corner,.panel{display:none}}
@@ -148,7 +144,6 @@ a.btn.lg{height:36px}
 .srcpick-r > .mi.only { width: auto; flex: none; color: var(--accent-ink); font-size: 0.7812rem; font-weight: 700; }
 
 /* Offline notice: a calm strip under the header while what's shown may come from this device's saved copies */
-.setup-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--amber-bg, var(--surface-2)); color: var(--ink); }
 .offline-note { display: flex; align-items: center; justify-content: center; gap: 8px; flex: none; padding: 5px 14px; background: var(--amber-bg); border-bottom: 1px solid var(--amber-bd); color: var(--amber); font-size: 0.7812rem; font-weight: 700; text-align: center; }
 .offline-note .ic { flex: none; }
 
@@ -158,10 +153,6 @@ a.btn.lg{height:36px}
 .app[data-bp] .bar { padding-top: max(6px, env(safe-area-inset-top)); }
 /* The bell and settings over the bar move down with it, so they stay level with its title. */
 .app[data-bp] .corner:not(.float) .cbtns { margin-top: calc(max(6px, env(safe-area-inset-top)) - 6px); }
-/* Account reminders above the bar take the inset instead, as the topmost strip. */
-.app[data-bp] .stage > .setup-note:first-child { padding-top: max(8px, env(safe-area-inset-top)); }
-.app[data-bp] .stage > .setup-note ~ .bar { padding-top: 6px; }
-.app[data-bp] .stage > .setup-note ~ .corner .cbtns { margin-top: 0; }
 .side { padding-top: env(safe-area-inset-top); }
 .app[data-sb="drawer"] .side, .app[data-sb="hidden"] .side { padding-left: env(safe-area-inset-left); }
 .panel-bar { padding-top: max(6px, env(safe-area-inset-top)); }

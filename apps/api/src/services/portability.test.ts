@@ -60,10 +60,10 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   const lib = seedLibrary(app, p);
   // A public item whose address carries a credential, and sign-in material that must never leave.
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { title: "Token link", url: "https://example.org/post?token=ABCDEF123456" })]));
-  app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES (?, ?, 'recovery', 'abcd', 'SALT$HASHVALUE', ?)", newId("sim"), p.accountId, new Date().toISOString());
+  app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, credential_id, public_key, counter, created_at) VALUES (?, ?, 'passkey', 'abcd', 'CREDENTIALID123', x'5055424b4559', 0, ?)", newId("sim"), p.accountId, new Date().toISOString());
   const { text, doc } = await exportDoc(app, p);
 
-  for (const forbidden of [PRIVATE_FEED_URL, "SUPERSECRETTOKEN123", PRIVATE_ITEM_URL, "ITEMSECRET456", "feeds.example", "test-token", "SALT$HASHVALUE", "ABCDEF123456",
+  for (const forbidden of [PRIVATE_FEED_URL, "SUPERSECRETTOKEN123", PRIVATE_ITEM_URL, "ITEMSECRET456", "feeds.example", "test-token", "CREDENTIALID123", "Z2tIGr5Ikvymvbvh", "ABCDEF123456",
     "tag:google.com", '"feed/1"', '"feed/2"', p.accountId, p.workspaceId, p.engineUserId, "engine_stream", "secret_hash", "csrf"]) {
     assert.ok(!text.includes(forbidden), `export must not contain ${forbidden}`);
   }

@@ -62,7 +62,7 @@ export const LEGAL = {
 
 <h2>What the hosted service stores</h2>
 <ul>
-<li><b>Your account:</b> your display name and how you sign in. With fingerprint, face or screen lock we store only its public key; with a password, only a secure hash. Recovery codes are stored the same way.</li>
+<li><b>Your account:</b> your display name and how you sign in. With fingerprint, face or screen lock we store only its public key; with a password, only a secure hash.</li>
 <li><b>Your email address,</b> if you give one; signing up asks for it. We use it to confirm it's yours, to send password reset links, and for notices about your account, such as a changed password or address. No newsletters or marketing. A log of what was sent (the kind of message, a masked address and whether it arrived) is kept for 90 days, without the messages.</li>
 <li><b>Your PURSS:</b> the sources you follow, the items they publish, your collections, baskets, reading progress and workflow states, readable copies you asked for, your highlights and notes, where you stopped listening to an episode, and your settings.</li>
 <li><b>Page text from your browser:</b> when you ask the browser extension to keep a page with its text, it sends the readable part of the page as your browser shows it, which can include pages you are signed in to. It is stored like other readable copies.</li>

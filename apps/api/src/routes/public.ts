@@ -18,12 +18,12 @@ const OIDC_COOKIE = "purss_oidc";
 /** Where to return after a linked sign-in, e.g. an app's connection request (plan/24). */
 const OIDC_NEXT_COOKIE = "purss_oidc_next";
 import {
-  acceptInvite, acknowledgeRecoveryCodes, assertSignupCapacity, claim, endSession, issueRecoveryCodes, openSignupAttempt, recordSignupAttempt, recoveryGeneration,
-  refreshAuth, recentAuthAvailable, resumeSignup, selfSignup, sessionInfo, sessionWrite, setupPermissionAvailable, signupCapacityStatus, startSession, useRecoveryCode,
+  acceptInvite, assertSignupCapacity, claim, endSession, openSignupAttempt, recordSignupAttempt,
+  refreshAuth, recentAuthAvailable, resumeSignup, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
 import { finishOidc, startOidc } from "../auth/oidc.ts";
-import { PASSWORD_MAX, checkPassword, normalizeUsername, setPassword } from "../auth/passwords.ts";
+import { PASSWORD_MAX, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
 import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
@@ -56,33 +56,44 @@ const staleDays = (iso: string | null | undefined) => (iso ? Math.floor((Date.no
 /** Room for BROWSER_CAPTURE_MAX_CHARS characters as JSON: up to 3 bytes each in UTF-8, plus escapes and the other fields. */
 const BROWSER_CAPTURE_BODY_LIMIT = 8 * 1024 * 1024;
 
+/** The username and password every new account is made with, from sign-up, setup and invitations. */
+const newAccountSchema = { username: z.string().max(80), password: z.string().max(PASSWORD_MAX * 4) };
+
 /** Keep the public sign-up flow isolated so hosted email enrollment can be added alongside it. */
-const signupHandler: Handler<Ctx> = (req, ctx, res) => {
+const signupHandler: Handler<Ctx> = async (req, ctx, res) => {
   const address = clientAddress(req.raw, ctx.app.config.trustProxy);
   const attemptRetryAt = openSignupAttempt(ctx.app, address);
   // Open sign-up is hosted-only and needs working email: every account gets an address to confirm.
   const body = parse(z.object({
-    displayName: z.string().trim().max(60).nullable().default(null), email: emailSchema, sharedComputer: z.boolean().default(false),
+    displayName: z.string().trim().max(60).nullable().default(null), email: emailSchema, ...newAccountSchema, sharedComputer: z.boolean().default(false),
     // The browser's random id for this attempt: pressing the button again, or again after closing the page, finds the account it made.
     attempt: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/).optional(),
   }), req.body);
-  // A repeat of the same attempt with the same address finds the account it made; a different address is a new sign-up.
-  const resumed = body.attempt ? resumeSignup(ctx.app, body.attempt, body.email) : null;
-  if (resumed) {
-    ctx.app.events.emit(`session:${resumed.replacedSessionId}`, "revoked");
-    const sessionId = startSession(ctx.app, res, req.raw, resumed.accountId, "signup", { sharedComputer: body.sharedComputer, setupPermission: true, setupExpiresAt: resumed.setupExpiresAt });
-    recordSignupAttempt(ctx.app, body.attempt!, resumed.accountId, sessionId);
-    return { recoveryCodes: resumed.recoveryCodes, recoveryGeneration: resumed.recoveryGeneration };
-  }
+  // Checked and hashed before anything is written: hashing is slow, and a refused password must leave nothing behind.
+  const password = await preparePassword(body.username, body.password);
+  // A repeat of the same attempt with the same address and password signs in to the account it made; anything else is a new sign-up.
+  const resume = async (): Promise<boolean> => {
+    const accountId = body.attempt ? await resumeSignup(ctx.app, body.attempt, body.email, body.password) : null;
+    if (accountId) startSession(ctx.app, res, req.raw, accountId, "signup", { sharedComputer: body.sharedComputer });
+    return accountId !== null;
+  };
+  if (await resume()) return { ok: true };
   assertSignupCapacity(ctx.app, address, attemptRetryAt);
-  const out = ctx.app.db.tx(() => {
-    const created = selfSignup(ctx.app, body.displayName, address, attemptRetryAt);
-    setAccountEmail(ctx.app, created.accountId, body.email);
-    return created;
-  });
-  const sessionId = startSession(ctx.app, res, req.raw, out.accountId, "signup", { sharedComputer: body.sharedComputer, setupPermission: true });
-  if (body.attempt) recordSignupAttempt(ctx.app, body.attempt, out.accountId, sessionId);
-  return { recoveryCodes: out.recoveryCodes, recoveryGeneration: out.recoveryGeneration };
+  let out;
+  try {
+    out = ctx.app.db.tx(() => {
+      const created = selfSignup(ctx.app, body.displayName, address, password, attemptRetryAt);
+      setAccountEmail(ctx.app, created.accountId, body.email);
+      return created;
+    });
+  } catch (err) {
+    // Two presses can be hashing at once: the one that finishes second finds the account the first made.
+    if (err instanceof HttpError && err.code === "username_taken" && await resume()) return { ok: true };
+    throw err;
+  }
+  startSession(ctx.app, res, req.raw, out.accountId, "signup", { sharedComputer: body.sharedComputer });
+  if (body.attempt) recordSignupAttempt(ctx.app, body.attempt, out.accountId);
+  return { ok: true };
 };
 
 export function publicRouter(): Router<Ctx> {
@@ -91,20 +102,20 @@ export function publicRouter(): Router<Ctx> {
   // ---------- session & sign-in ----------
   r.get("/api/session", (_req, ctx) => sessionInfo(ctx));
 
-  r.post("/api/setup/claim", (req, ctx, res) => {
+  r.post("/api/setup/claim", async (req, ctx, res) => {
     limit(`claim:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), sharedComputer: z.boolean().default(false) }), req.body);
-    const out = claim(ctx.app, body.code, body.displayName);
+    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), ...newAccountSchema, sharedComputer: z.boolean().default(false) }), req.body);
+    const out = claim(ctx.app, body.code, body.displayName, await preparePassword(body.username, body.password));
     startSession(ctx.app, res, req.raw, out.accountId, "setup", { sharedComputer: body.sharedComputer });
-    return { recoveryCodes: out.recoveryCodes, recoveryGeneration: recoveryGeneration(ctx.app, out.accountId) };
+    return { ok: true };
   });
 
-  r.post("/api/invites/accept", (req, ctx, res) => {
+  r.post("/api/invites/accept", async (req, ctx, res) => {
     limit(`invite:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), sharedComputer: z.boolean().default(false) }), req.body);
-    const out = acceptInvite(ctx.app, body.code, body.displayName);
+    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), ...newAccountSchema, sharedComputer: z.boolean().default(false) }), req.body);
+    const out = acceptInvite(ctx.app, body.code, body.displayName, await preparePassword(body.username, body.password));
     startSession(ctx.app, res, req.raw, out.accountId, "invite", { sharedComputer: body.sharedComputer });
-    return { recoveryCodes: out.recoveryCodes, recoveryGeneration: recoveryGeneration(ctx.app, out.accountId) };
+    return { ok: true };
   });
 
   r.post("/api/signup", signupHandler);
@@ -118,18 +129,6 @@ export function publicRouter(): Router<Ctx> {
     const body = parse(z.object({ challengeId: z.string(), response: z.record(z.string(), z.unknown()) }), req.body);
     const result = await verifyAuthentication(ctx.app, body.challengeId, body.response as unknown as AuthenticationResponseJSON);
     startSession(ctx.app, res, req.raw, result.accountId, "passkey", { sharedComputer: result.sharedComputer });
-    return { ok: true };
-  });
-
-  r.post("/api/auth/recovery", (req, ctx, res) => {
-    limit(`recovery:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    const { code, sharedComputer } = parse(z.object({ code: z.string().min(8).max(60), sharedComputer: z.boolean().default(false) }), req.body);
-    const accountId = useRecoveryCode(ctx.app, code);
-    if (!accountId) {
-      audit(ctx.app, null, "sign_in", "recovery", "failure");
-      throw new HttpError(401, "bad_code", "That recovery code isn't right or was already used.");
-    }
-    startSession(ctx.app, res, req.raw, accountId, "recovery", { sharedComputer });
     return { ok: true };
   });
 
@@ -186,11 +185,10 @@ export function publicRouter(): Router<Ctx> {
   });
 
   // ---------- account security (signed in) ----------
-  // Adding a sign-in method needs recent authentication unless the sign-up session still has its setup permission.
+  // Adding a sign-in method needs recent authentication.
   r.post("/api/auth/passkey/register/options", (_req, ctx) => {
     const p = requirePrincipal(ctx);
-    const setupPermission = setupPermissionAvailable(ctx.app, p.accountId, p.sessionId);
-    if (!setupPermission) requireRecentAuth(p);
+    requireRecentAuth(p);
     return registrationOptions(ctx.app, p.accountId);
   });
   r.post("/api/auth/passkey/register/verify", async (req, ctx) => {
@@ -208,16 +206,6 @@ export function publicRouter(): Router<Ctx> {
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
     return { ok: true };
   });
-  r.post("/api/auth/step-up/recovery", (req, ctx) => {
-    const p = requirePrincipal(ctx);
-    limit(`stepup-recovery:${p.accountId}`, 10);
-    const { code } = parse(z.object({ code: z.string().min(8).max(60) }), req.body);
-    sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
-      if (useRecoveryCode(ctx.app, code, p.accountId) !== p.accountId) throw new HttpError(401, "bad_code", "That recovery code isn't right or was already used.");
-      refreshAuth(ctx.app, p.sessionId);
-    });
-    return { ok: true };
-  });
   r.post("/api/auth/step-up/password", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`stepup-password:${p.accountId}`, 10);
@@ -226,10 +214,10 @@ export function publicRouter(): Router<Ctx> {
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
     return { ok: true };
   });
-  // Adding or changing a password needs recent authentication, like adding a passkey.
+  // Changing the password needs recent authentication, like adding a passkey.
   r.put("/api/account/password", async (req, ctx) => {
     const p = requirePrincipal(ctx);
-    if (!setupPermissionAvailable(ctx.app, p.accountId, p.sessionId)) requireRecentAuth(p);
+    requireRecentAuth(p);
     const body = parse(z.object({ username: z.string().max(80), password: z.string().max(PASSWORD_MAX * 4) }), req.body);
     await setPassword(ctx.app, p.accountId, p.sessionId, body.username, body.password);
     return { ok: true };
@@ -263,27 +251,6 @@ export function publicRouter(): Router<Ctx> {
       sessions: sessions.map((s) => ({ id: s.id.slice(0, 16), current: s.id === p.sessionId, createdAt: s.created_at, lastSeenAt: s.last_seen_at, method: s.method, device: s.user_agent, sessionClass: s.session_class })),
       recentAuth: recentAuthAvailable(ctx.app, p.accountId, p.sessionId),
     };
-  });
-  r.post("/api/account/recovery-codes", (_req, ctx) => {
-    const p = requirePrincipal(ctx);
-    const permission = setupPermissionAvailable(ctx.app, p.accountId, p.sessionId);
-    const current = ctx.app.db.get<{ recovery_generation: number; recovery_acknowledged_generation: number | null }>("SELECT recovery_generation, recovery_acknowledged_generation FROM account_enrollment WHERE account_id = ?", p.accountId);
-    if (!permission || current?.recovery_acknowledged_generation === current?.recovery_generation) requireRecentAuth(p);
-    return sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
-      const setup = setupPermissionAvailable(ctx.app, p.accountId, p.sessionId);
-      const enrollment = ctx.app.db.get<{ recovery_generation: number; recovery_acknowledged_generation: number | null }>("SELECT recovery_generation, recovery_acknowledged_generation FROM account_enrollment WHERE account_id = ?", p.accountId);
-      if ((!setup || enrollment?.recovery_acknowledged_generation === enrollment?.recovery_generation)
-        && Date.now() - Date.parse(p.authAt) > 10 * 60_000) throw new HttpError(403, "step_up", "Please confirm it's you again before doing this.");
-      const codes = issueRecoveryCodes(ctx.app, p.accountId);
-      audit(ctx.app, p.accountId, "recovery_codes_issue", null, "success");
-      return { codes, generation: recoveryGeneration(ctx.app, p.accountId) };
-    });
-  });
-  r.post("/api/account/recovery-codes/acknowledge", (req, ctx) => {
-    const p = requirePrincipal(ctx);
-    const body = parse(z.object({ generation: z.number().int().positive() }), req.body);
-    sessionWrite(ctx.app, p.accountId, p.sessionId, () => acknowledgeRecoveryCodes(ctx.app, p.accountId, body.generation));
-    return { ok: true };
   });
   r.delete("/api/account/methods/:id", (req, ctx) => {
     const p = requirePrincipal(ctx);

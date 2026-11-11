@@ -265,7 +265,6 @@ function deleteAccountRows(app: App, accountId: string, workspaceId: string): vo
   byAccount("storage_accounts");
   byAccount("usage_events");
   byAccount("auth_challenges");
-  byAccount("account_enrollment");
   byAccount("signup_creations");
   byAccount("signup_attempts");
   byAccount("sign_in_methods");

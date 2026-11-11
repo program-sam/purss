@@ -32,11 +32,6 @@ export type SessionInfo = {
     isAdmin: boolean;
     hasPasskey: boolean;
     hasPassword: boolean;
-    recoveryCodesLeft: number;
-    recoveryGeneration: number;
-    recoveryAcknowledged: boolean;
-    needsSetup: boolean;
-    setupPermissionAvailable: boolean;
     /** This browser signed in as a shared computer: it signs out when it closes and after 8 hours. */
     sharedComputer: boolean;
   } | null;
@@ -774,7 +769,7 @@ export type ConnectInfo = {
   };
   /**
    * The mobile app can create an account itself: POST `endpoint` (ConnectSignupInput) answers with a
-   * device token and the recovery codes. `invitation` always; `open` when this PURSS takes new
+   * device token. `invitation` always; `open` when this PURSS takes new
    * accounts without one (then an email address is needed instead of an invitation code).
    */
   signup: { endpoint: string; invitation: true; open: boolean; passwordMin: number };
@@ -785,7 +780,7 @@ export type ConnectInfo = {
    * `passwordReset` (POST { identifier }) emails a reset link and `passwordResetConfirm` (POST { token,
    * password }) sets the new password from it; both null where this PURSS doesn't use email for accounts.
    */
-  signin: { endpoint: string; methods: ("password" | "recovery" | "passkey")[]; passkeyOptions: string | null; passwordReset: string | null; passwordResetConfirm: string | null };
+  signin: { endpoint: string; methods: ("password" | "passkey")[]; passkeyOptions: string | null; passwordReset: string | null; passwordResetConfirm: string | null };
   features: { urlLookup: true; browserCapture: true };
 };
 
@@ -812,10 +807,9 @@ export const connectRequestSchema = z.object({
   device_name: z.string().max(200).optional(),
 });
 export const connectApproveSchema = connectRequestSchema.extend({ device_name: z.string().trim().min(1).max(80) });
-/** Signing in from the mobile app: a username and password, or a recovery code. */
+/** Signing in from the mobile app: a username and password, or a passkey. */
 export const connectSigninSchema = z.discriminatedUnion("method", [
   z.object({ client: z.literal("mobile"), method: z.literal("password"), username: z.string().max(80), password: z.string().min(1).max(1024), deviceName: z.string().max(200).optional() }),
-  z.object({ client: z.literal("mobile"), method: z.literal("recovery"), code: z.string().min(8).max(60), deviceName: z.string().max(200).optional() }),
   // A passkey answer to the challenge from POST /api/connect/passkey/options.
   z.object({ client: z.literal("mobile"), method: z.literal("passkey"), challengeId: z.string().max(100), response: z.record(z.string(), z.unknown()), deviceName: z.string().max(200).optional() }),
 ]);
@@ -832,7 +826,6 @@ export const connectSignupSchema = z.object({
   deviceName: z.string().max(200).optional(),
 }).refine((v) => (v.invitation === undefined) !== (v.email === undefined), { message: "Give an invitation code or an email address." });
 export type ConnectSignupInput = z.input<typeof connectSignupSchema>;
-export type ConnectSignupResult = ConnectTokenResult & { recoveryCodes: string[]; recoveryGeneration: number };
 
 export const connectTokenSchema = z.object({
   client: z.enum(CONNECT_CLIENT_KINDS),

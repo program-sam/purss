@@ -4,11 +4,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { makeOwner, makeTestApp } from "./testing.ts";
+import { TEST_PASSWORD, makeOwner, makeTestApp, testPassword } from "./testing.ts";
 import type { App } from "./app.ts";
 import { seedLibrary, signIn } from "./features-testing.ts";
 import { main } from "./cli.ts";
-import { acceptInvite, issueRecoveryCodes, recoveryCodesLeft, useRecoveryCode } from "./auth/accounts.ts";
+import { acceptInvite } from "./auth/accounts.ts";
+import { checkPassword, passwordUsername } from "./auth/passwords.ts";
+import { HttpError } from "./http.ts";
+import { resetPassword } from "./services/account-email.ts";
 import { createDeviceToken, resolveDeviceToken } from "./connect/devices.ts";
 import { usedBytes } from "./services/storage.ts";
 
@@ -72,33 +75,72 @@ test("set-allocation changes the limit by id or unique name, validates, and is a
   assert.ok(audit.every((a) => a.actor_account_id === null));
 });
 
-test("reissue-recovery-codes needs --yes, prints new codes once, signs the account out, disconnects its apps and retires the old codes", async (t) => {
+test("password-reset-link prints a link that sets a new password once, signs the account out and disconnects its apps, and is audited", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
+  const username = passwordUsername(app, p.accountId)!;
   signIn(app, p.accountId);
-  const oldCodes = issueRecoveryCodes(app, p.accountId);
   const phone = createDeviceToken(app, p.accountId, "mobile", "Phone").secret;
   app.db.run("INSERT INTO connect_codes (code_hash, account_id, kind, redirect_uri, code_challenge, label, created_at, expires_at) VALUES ('h', ?, 'mobile', 'purss://connect', 'c', 'Phone', ?, ?)", p.accountId, new Date().toISOString(), new Date(Date.now() + 300_000).toISOString());
-  const dry = (await run(app, ["reissue-recovery-codes", p.accountId]));
-  assert.equal(dry.code, 2);
-  assert.match(dry.err, /--yes/);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions")!.n, 1, "nothing happened without --yes");
-  assert.equal(recoveryCodesLeft(app, p.accountId), 10);
+  assert.equal(app.config.mail, null, "this installation has no outgoing email");
 
-  const r = (await run(app, ["reissue-recovery-codes", p.accountId, "--yes"]));
+  const r = await run(app, ["password-reset-link", p.accountId]);
   assert.equal(r.code, 0);
-  const printed = r.out.split("\n").map((l) => l.trim()).filter((l) => /^[a-z0-9]{4}(-[a-z0-9]{4}){3}$/.test(l));
-  assert.equal(printed.length, 10);
+  const link = r.out.split("\n").map((l) => l.trim()).find((l) => l.startsWith("http"))!;
+  assert.match(link, new RegExp(`^${app.config.publicOrigin}/app/reset-password\\?token=`));
+  assert.match(r.out, /works once and expires in 60 minutes/);
+  const token = new URL(link).searchParams.get("token")!;
+  // Nothing has changed until the link is used.
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?", p.accountId)!.n, 1);
+  assert.equal(await checkPassword(app, username, TEST_PASSWORD), p.accountId);
+
+  // The link works without outgoing email, for an administrator, with the account's own username.
+  await resetPassword(app, token, "a brand new password");
+  assert.equal(await checkPassword(app, username, "a brand new password"), p.accountId);
+  assert.equal(await checkPassword(app, username, TEST_PASSWORD), null, "the old password is gone");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?", p.accountId)!.n, 0, "all sessions revoked");
   assert.equal(resolveDeviceToken(app, phone), null, "connected apps disconnected");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM connect_codes")!.n, 0, "a connection waiting for its code exchange ends too");
-  assert.equal(useRecoveryCode(app, oldCodes[0]!), null, "the old codes are gone");
-  assert.equal(useRecoveryCode(app, printed[0]!), p.accountId, "a new code works, once");
-  assert.equal(useRecoveryCode(app, printed[0]!), null);
-  const event = app.db.get<{ actor_account_id: string | null; target: string; detail: string }>("SELECT actor_account_id, target, detail FROM audit_events WHERE action = 'cli_reissue_recovery_codes'")!;
+  // ...and only once.
+  await assert.rejects(resetPassword(app, token, "yet another password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent");
+  assert.equal(await checkPassword(app, username, "a brand new password"), p.accountId);
+
+  const event = app.db.get<{ actor_account_id: string | null; target: string; detail: string }>("SELECT actor_account_id, target, detail FROM audit_events WHERE action = 'cli_password_reset_link'")!;
   assert.deepEqual([event.actor_account_id, event.target, event.detail], [null, p.accountId, "host-level"]);
-  assert.ok(!JSON.stringify(app.db.all("SELECT * FROM audit_events")).includes(printed[1]!), "codes are never logged");
+  assert.ok(!JSON.stringify(app.db.all("SELECT * FROM audit_events")).includes(token), "the link is never logged");
+  assert.equal(app.db.get("SELECT id FROM email_tokens WHERE id = ?", token), undefined, "only a hash of the link is kept");
+});
+
+test("a password reset link made at the server expires, and a newer one replaces it", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const linkOf = async (): Promise<string> => new URL((await run(app, ["password-reset-link", p.accountId])).out.split("\n").map((l) => l.trim()).find((l) => l.startsWith("http"))!).searchParams.get("token")!;
+  const first = await linkOf();
+  const second = await linkOf();
+  await assert.rejects(resetPassword(app, first, "a first new password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent", "the older link was replaced");
+  app.db.run("UPDATE email_tokens SET expires_at = ? WHERE purpose = 'reset'", new Date(Date.now() - 1000).toISOString());
+  await assert.rejects(resetPassword(app, second, "a second new password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent", "an hour later it has expired");
+  assert.equal(await checkPassword(app, passwordUsername(app, p.accountId)!, TEST_PASSWORD), p.accountId, "the password never changed");
+});
+
+test("password-reset-link refuses an account that doesn't exist, has no password or is being deleted", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  assert.equal((await run(app, ["password-reset-link"])).code, 2);
+  assert.equal((await run(app, ["password-reset-link", "nobody"])).code, 1);
+  app.db.run("DELETE FROM sign_in_methods WHERE account_id = ?", p.accountId);
+  const none = await run(app, ["password-reset-link", p.accountId]);
+  assert.equal(none.code, 1);
+  assert.match(none.err, /no password to reset/);
+  const q = makeOwner(app, { admin: false });
+  app.db.run("INSERT INTO account_deletions (account_id, request_id, requested_at, due_at, state) VALUES (?, 'adr_1', ?, ?, 'purging')", q.accountId, new Date().toISOString(), new Date().toISOString());
+  const gone = await run(app, ["password-reset-link", q.accountId]);
+  assert.equal(gone.code, 1);
+  assert.match(gone.err, /being deleted/);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM email_tokens")!.n, 0);
 });
 
 test("create-invite prints a one-time code that a hosted installation accepts", async (t) => {
@@ -111,7 +153,7 @@ test("create-invite prints a one-time code that a hosted installation accepts", 
   const r = (await run(app, ["create-invite", "--note", "for Alex", "--allocation", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
   assert.equal(r.code, 0);
   const code = /: ([a-z0-9-]{24})$/.exec(r.out)![1]!;
-  const joined = acceptInvite(app, code, "Alex");
+  const joined = acceptInvite(app, code, "Alex", testPassword());
   assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allocation_bytes, 777);
   assert.equal(app.db.get("SELECT created_by FROM invites")!.created_by, p.accountId);
   assert.equal(app.db.get("SELECT actor_account_id FROM audit_events WHERE action = 'cli_create_invite'")!.actor_account_id, null);

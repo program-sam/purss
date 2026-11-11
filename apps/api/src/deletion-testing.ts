@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { newId } from "@purss/domain";
 import type { App, Principal } from "./app.ts";
 import { createAccount, setInstallation } from "./auth/accounts.ts";
-import { hashPassword } from "./auth/passwords.ts";
+import { preparePassword } from "./auth/passwords.ts";
 import { call, startTestServer } from "./features-testing.ts";
 import type { Reply, TestSession } from "./features-testing.ts";
 import { extraRouters } from "./routes/index.ts";
@@ -60,13 +60,12 @@ export type DeletionBoot = Awaited<ReturnType<typeof bootDeletion>>;
 let n = 0;
 /** An account with a display name (or none), a ready engine user and a password to sign in with. */
 export async function member(app: App, displayName: string | null, opts: { admin?: boolean } = {}): Promise<Member> {
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null }));
-  const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
-  app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   const username = `member${++n}${Date.now().toString(36)}`;
   const password = "correct horse battery";
-  app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES (?, ?, 'password', ?, ?, ?)",
-    `sim_${username}`, accountId, username, await hashPassword(password), new Date().toISOString());
+  const prepared = await preparePassword(username, password);
+  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null, password: prepared }));
+  const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
+  app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   return { accountId, workspaceId, engineUserId: eu.id, username, password };
 }
 

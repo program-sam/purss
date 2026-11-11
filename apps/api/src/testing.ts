@@ -8,6 +8,7 @@ import type { App, Principal } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { openDatabase } from "./db/database.ts";
 import { createAccount } from "./auth/accounts.ts";
+import type { PreparedPassword } from "./auth/passwords.ts";
 import { nowIso } from "./http.ts";
 
 /** A real database in a temp directory, without network listeners. */
@@ -19,8 +20,18 @@ export function makeTestApp(env: Record<string, string> = {}): { app: App; clean
   return { app, cleanup: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
+/** The password of accounts made with testPassword. */
+export const TEST_PASSWORD = "correct horse battery staple";
+// A hash of TEST_PASSWORD at a low scrypt cost, so tests that need many accounts don't spend a second each hashing.
+const TEST_HASH = "scrypt$1024$8$1$GnuUuWPbHDqwnElYXKC--Q$Z2tIGr5IkvymvbvhZPH5ldSC4PYRS12snDfxGmvonko";
+let usernames = 0;
+/** What createAccount needs to give an account a username and TEST_PASSWORD. Each call without a name makes a new username. */
+export function testPassword(username = `tester${++usernames}`): PreparedPassword {
+  return { username, hash: TEST_HASH };
+}
+
 export function makeOwner(app: App, opts: { allocationBytes?: number | null; admin?: boolean } = {}): Principal & { engineUserId: string } {
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null }));
+  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   return { accountId, workspaceId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };

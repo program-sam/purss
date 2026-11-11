@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { OFFICIAL_WORKSPACE_ORIGIN, parseWorkspaceAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
-import type { ConnectInfo, ConnectSignupInput, ConnectSignupResult, ConnectTokenResult } from "@purss/domain";
+import type { ConnectInfo, ConnectSignupInput, ConnectTokenResult } from "@purss/domain";
 import { Button, Field, Icon, IconSprite, TextInput } from "@purss/ui";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";
-import { RecoveryCodesPanel } from "../../auth/RecoveryCodesPanel.tsx";
 import { checkInfo, connectPageUrl, parsePending, passkeysOffered, pkce, readCallback, REDIRECT_URI, signinOffered, signupOffer } from "./connect.ts";
 import { inviteFromLink, tokenFromLink } from "../../lib/email-links.ts";
 import type { Connection, Pending } from "./connect.ts";
@@ -14,7 +13,7 @@ import type { Passkeys } from "../types.ts";
  * The apps' first screen (plan/31): straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
  * on the server chosen before; an address is asked only after *Use another server*, or when there is no official
  * server. After a check that the server is a PURSS: signing in right
- * here (a username and password, or a recovery code; a forgotten password is reset by email) or creating an
+ * here (a username and password; a forgotten password is reset by email) or creating an
  * account (an invitation code, or an email address where sign-up is open). A passkey or a linked account
  * needs the system browser: PURSS's Connect page, with the code back at purss://connect.
  *
@@ -58,14 +57,13 @@ async function getJson(url: string, init: RequestInit = {}): Promise<{ status: n
 
 /** A PURSS the address led to, and what it lets the app do itself. */
 type Workspace = { origin: string; info: ConnectInfo; signup: { open: boolean; passwordMin: number } | null; passkeys: boolean };
-type SigninFields = { method: "password"; username: string; password: string } | { method: "recovery"; code: string } | { method: "passkey" };
+type SigninFields = { method: "password"; username: string; password: string } | { method: "passkey" };
 /** What signing in came to: an error to show, an account set to be deleted that can still be kept, or (empty) connected. */
 type SigninAnswer = { error?: string; keep?: { token: string; dueAt: string } };
 
 type Phase = { kind: "address" } | { kind: "checking" } | { kind: "opening"; origin: string } | { kind: "unreachable"; origin: string } | { kind: "waiting"; pending: Pending; page: string } | { kind: "finishing" }
   | { kind: "signin"; ws: Workspace }
-  | { kind: "signup"; ws: Workspace; open: boolean; passwordMin: number }
-  | { kind: "codes"; origin: string; token: string; codes: string[]; generation: number };
+  | { kind: "signup"; ws: Workspace; open: boolean; passwordMin: number };
 
 const errorMessage = (body: unknown, fallback: string) => (body as { error?: { message?: string } } | null)?.error?.message ?? fallback;
 const offline = (err: unknown) => !(err instanceof Error) || !err.message || /fetch|network|abort/i.test(err.message);
@@ -177,7 +175,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
         const { challengeId, options } = (challenge.body ?? {}) as { challengeId?: string; options?: Parameters<Passkeys["get"]>[0] };
         if (challenge.status !== 200 || !challengeId || !options) return { error: errorMessage(challenge.body, "PURSS didn't start the sign-in. Try again.") };
         try { body = { method: "passkey", challengeId, response: await shell.passkeys!.get(options) }; } catch (err) {
-          return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password or a recovery code." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
+          return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
         }
       }
       const out = await getJson(`${origin}/api/connect/${keeping ? "keep-account" : "signin"}`, { method: "POST", body: JSON.stringify({ ...body, client: "mobile", deviceName: await deviceName() }) });
@@ -215,12 +213,12 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     const origin = ws.origin;
     try {
       const out = await getJson(`${origin}/api/connect/signup`, { method: "POST", body: JSON.stringify({ ...input, client: "mobile", deviceName: await deviceName() }) });
-      const made = out.body as Partial<ConnectSignupResult> | null;
-      if (out.status !== 200 || typeof made?.token !== "string" || !Array.isArray(made.recoveryCodes) || typeof made.recoveryGeneration !== "number") {
+      const token = (out.body as Partial<ConnectTokenResult> | null)?.token;
+      if (out.status !== 200 || typeof token !== "string") {
         return errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't create the account. Try again.");
       }
-      await saveConnection({ origin, token: made.token, passkeys: ws.passkeys });
-      setPhase({ kind: "codes", origin, token: made.token, codes: made.recoveryCodes, generation: made.recoveryGeneration });
+      await saveConnection({ origin, token, passkeys: ws.passkeys });
+      location.reload();
       return null;
     } catch (err) {
       return offline(err) ? "Couldn't reach PURSS. Check your connection and try again." : (err as Error).message;
@@ -247,7 +245,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   return (
     <>
       <IconSprite />
-      <AuthFrame title={phase.kind === "signin" ? "Sign in" : phase.kind === "signup" ? "Create your account" : phase.kind === "codes" ? "Keep your recovery codes" : "Connect to your PURSS"}
+      <AuthFrame title={phase.kind === "signin" ? "Sign in" : phase.kind === "signup" ? "Create your account" : "Connect to your PURSS"}
         intro={phase.kind === "address" || phase.kind === "checking" ? "Type the address of your own PURSS, or of another hosted one." : undefined}>
         <div style={{ display: "grid", gap: 14 }}>
           {notice ? <p className="state note" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
@@ -276,12 +274,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
               server={serverLine(phase.ws.origin)} />
           ) : phase.kind === "signup" ? (
             <SignupForm open={phase.open} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })} />
-          ) : phase.kind === "codes" ? (
-            <RecoveryCodesPanel codes={phase.codes} generation={phase.generation} onSaved={() => location.reload()}
-              acknowledge={async (generation) => {
-                const out = await fetch(`${phase.origin}/api/connect/recovery-codes/acknowledge`, { method: "POST", credentials: "omit", headers: { authorization: `Bearer ${phase.token}`, "content-type": "application/json" }, body: JSON.stringify({ generation }) });
-                if (!out.ok) throw new Error("Couldn't confirm that just now. Check your connection and try again.");
-              }} />
+
           ) : phase.kind === "waiting" ? (
             <div style={{ display: "grid", gap: 12 }}>
               <p className="state" role="status"><span className="spin" aria-hidden="true" />Waiting for you to approve this app in the browser…</p>
@@ -352,23 +345,22 @@ function SignupForm({ open, passwordMin, onSubmit, onBack }: { open: boolean; pa
   );
 }
 
-/** Signing in here: a username and password, or a recovery code; a passkey or linked account through the browser. */
+/** Signing in here: a username and password; a passkey or linked account through the browser. */
 function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLabel, onSignup, server }: {
   ws: Workspace; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (identifier: string) => Promise<string | null>;
   onNewPassword: (token: string, password: string) => Promise<string | null>;
   onBrowser: () => void; browserLabel: string; onSignup: (() => void) | null; server: ReactNode;
 }) {
-  const [mode, setMode] = useState<"password" | "recovery" | "reset" | "reset-sent" | "reset-done">("password");
+  const [mode, setMode] = useState<"password" | "reset" | "reset-sent" | "reset-done">("password");
   const [link, setLink] = useState("");
   const [newPassword, setNewPasswordText] = useState("");
   const [keep, setKeep] = useState<{ token: string; dueAt: string } | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const ready = mode === "password" ? username.trim() !== "" && password !== "" : mode === "recovery" ? code.trim().length >= 8 : identifier.trim() !== "";
+  const ready = mode === "password" ? username.trim() !== "" && password !== "" : identifier.trim() !== "";
   const go = (m: typeof mode) => { setMode(m); setError(""); };
 
   async function submit(e: FormEvent) {
@@ -381,7 +373,7 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
       if (failed) setError(failed); else go("reset-sent");
       return;
     }
-    const out = await onSignIn(mode === "password" ? { method: "password", username: username.trim(), password } : { method: "recovery", code: code.trim() });
+    const out = await onSignIn({ method: "password", username: username.trim(), password });
     if (out.keep) { setKeep(out.keep); setBusy(false); return; }
     if (out.error) { setError(out.error); setBusy(false); if (mode === "password") setPassword(""); }
   }
@@ -464,10 +456,6 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
             <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={256} />
           </Field>
         </>
-      ) : mode === "recovery" ? (
-        <Field label="Recovery code" htmlFor="si-r" hint="One of the codes you saved when you made the account. Each works once.">
-          <TextInput id="si-r" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" maxLength={60} />
-        </Field>
       ) : (
         <Field label="Username or email address" htmlFor="si-i" hint="We email a link to set a new password, if the account has a confirmed address.">
           <TextInput id="si-i" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={300} />
@@ -479,7 +467,6 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
       {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with fingerprint, face or screen lock</Button></div> : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
         {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use a username and password</button> : null}
-        {mode !== "recovery" ? <button type="button" className="link" onClick={() => go("recovery")}>Use a recovery code</button> : null}
         {mode === "password" && ws.info.signin.passwordReset ? <button type="button" className="link" onClick={() => go("reset")}>Forgot your password?</button> : null}
         {mode === "reset" ? <button type="button" className="link" onClick={() => go("reset-sent")}>I already have a link</button> : null}
         <button type="button" className="link" onClick={onBrowser}>{browserLabel}</button>

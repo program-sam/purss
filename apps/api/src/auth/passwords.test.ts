@@ -34,7 +34,7 @@ test("passwords are stored as salted scrypt hashes and verified", async () => {
   assert.equal(await verifyPassword("x", "garbage"), false);
 });
 
-test("an account sets a username and password after a recent sign-in, then signs in with it", async (t) => {
+test("an account changes its username and password after a recent sign-in, then signs in with the new ones", async (t) => {
   const b = await boot();
   t.after(b.close);
   const stale = signIn(b.app, b.owner.accountId, { authAgeSeconds: 3600 });
@@ -101,25 +101,46 @@ test("the password confirms step-up only for its own account", async (t) => {
   await b.req("PUT", "/api/account/password", theirs, { username: "stepper2", password: "their long secret" });
 
   const stale = signIn(b.app, b.owner.accountId, { authAgeSeconds: 3600 });
+  const change = { username: "stepper", password: "my other long secret" };
   assert.equal((await b.req("POST", "/api/auth/step-up/password", stale, { password: "their long secret" })).status, 401, "another account's password doesn't count");
-  assert.equal((await b.req("POST", "/api/account/recovery-codes", stale)).json.error.code, "step_up");
+  assert.equal((await b.req("PUT", "/api/account/password", stale, change)).json.error.code, "step_up");
   assert.equal((await b.req("POST", "/api/auth/step-up/password", stale, { password: "my long secret!!" })).status, 200);
-  assert.equal((await b.req("POST", "/api/account/recovery-codes", stale)).status, 200, "now recent");
+  assert.equal((await b.req("PUT", "/api/account/password", stale, change)).status, 200, "now recent");
 });
 
-test("the password can be removed only while another way in remains", async (t) => {
+test("the password can be changed but never removed, while a passkey can be removed", async (t) => {
   const b = await boot();
   t.after(b.close);
   const s = signIn(b.app, b.owner.accountId);
-  await b.req("PUT", "/api/account/password", s, { username: "remover", password: "removable secret" });
-  b.app.db.run("DELETE FROM sign_in_methods WHERE account_id = ? AND kind <> 'password'", b.owner.accountId);
-  const id = b.app.db.get<{ id: string }>("SELECT id FROM sign_in_methods WHERE kind = 'password'")!.id;
-  const last = await b.req("DELETE", `/api/account/methods/${id}`, s);
+  await b.req("PUT", "/api/account/password", s, { username: "keeper", password: "kept long secret" });
+  b.app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, credential_id, public_key, counter, created_at) VALUES ('sim_pk', ?, 'passkey', 'Laptop', 'cred-1', x'01', 0, '2026-01-01T00:00:00.000Z')", b.owner.accountId);
+  const password = b.app.db.get<{ id: string }>("SELECT id FROM sign_in_methods WHERE kind = 'password' AND account_id = ?", b.owner.accountId)!.id;
+
+  const refused = await b.req("DELETE", `/api/account/methods/${password}`, s);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.json.error.code, "password_required");
+  assert.match(refused.json.error.message, /changed but not removed/);
+  assert.ok(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = ?", password), "the password is still there");
+
+  const stale = signIn(b.app, b.owner.accountId, { authAgeSeconds: 3600 });
+  assert.equal((await b.req("DELETE", "/api/account/methods/sim_pk", stale)).json.error.code, "step_up", "removing a way in needs a recent sign-in");
+  assert.equal((await b.req("DELETE", "/api/account/methods/sim_pk", s)).status, 200);
+  assert.equal(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = 'sim_pk'"), undefined, "the passkey is gone");
+  assert.ok(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = ?", password), "and the password stays");
+  assert.equal((await b.req("POST", "/api/auth/password", null, { username: "keeper", password: "kept long secret" })).status, 200, "so the account can still sign in");
+});
+
+test("an account always keeps one way to sign in", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const s = signIn(b.app, b.owner.accountId);
+  // An account whose only way in is a linked provider (the password row is taken away to make that so).
+  b.app.db.run("DELETE FROM sign_in_methods WHERE account_id = ?", b.owner.accountId);
+  b.app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES ('sim_o', ?, 'oidc', 'Provider', 'https://id.example', 'sub-1', '2026-01-01T00:00:00.000Z')", b.owner.accountId);
+  const last = await b.req("DELETE", "/api/account/methods/sim_o", s);
   assert.equal(last.status, 409);
   assert.equal(last.json.error.code, "last_method");
-  assert.equal((await b.req("POST", "/api/account/recovery-codes", s)).status, 200);
-  assert.equal((await b.req("DELETE", `/api/account/methods/${id}`, s)).status, 200);
-  assert.equal(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE kind = 'password'"), undefined);
+  assert.ok(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = 'sim_o'"));
 });
 
 test("password guessing is rate limited, and then even the right password waits", async (t) => {

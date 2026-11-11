@@ -4,14 +4,14 @@ import { loadConfig } from "./config.ts";
 import type { App } from "./app.ts";
 import { audit } from "./app.ts";
 import { openDatabase } from "./db/database.ts";
-import { createInvite, issueRecoveryCodes } from "./auth/accounts.ts";
+import { createInvite } from "./auth/accounts.ts";
 import { StorageFull, allocation, checkGrowth, databaseBytes, markPaused, recountCurrentFlags, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
-import { signOutEverywhere } from "./auth/sign-out.ts";
 import { checkMail, mailHealth, sendMail } from "./mail/mailer.ts";
 import { testMail } from "./mail/templates.ts";
-import { emailSchema } from "./services/account-email.ts";
+import { emailSchema, hostResetLink } from "./services/account-email.ts";
 import { usableAccountSql } from "./services/deletion.ts";
 import { PLAN_NAMES } from "@purss/domain";
+import { HttpError } from "./http.ts";
 import { capacity, storedPlan } from "./services/plans.ts";
 
 /*
@@ -23,7 +23,7 @@ import { capacity, storedPlan } from "./services/plans.ts";
  *   node apps/api/src/cli.ts create-invite [--note "text"] [--allocation <bytes>] [--days <n>]
  *   node apps/api/src/cli.ts set-allocation <account> <bytes|none>
  *   node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
- *   node apps/api/src/cli.ts reissue-recovery-codes <account> --yes
+ *   node apps/api/src/cli.ts password-reset-link <account>
  *   node apps/api/src/cli.ts reconcile-usage
  *   node apps/api/src/cli.ts test-email <address>
  *
@@ -132,23 +132,21 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       io.out(`Plan for ${acct.displayName ?? acct.id}: ${before} -> ${value} (${c.sources.used} sources, ${c.collections.used} collections).`);
       return 0;
     }
-    case "reissue-recovery-codes": {
+    case "password-reset-link": {
       const acct = resolveAccount(app, rest[0]);
-      // During the grace period new codes let the owner sign in and keep the account; once removal started they can't.
+      // During the grace period a new password lets the owner sign in and keep the account; once removal started it can't.
       if (deletionState(app, acct.id) === "purging") throw new CliError(`${acct.displayName ?? acct.id} is being deleted and can't be signed in to any more.`);
-      if (!rest.includes("--yes")) {
-        io.err(`This replaces every unused recovery code for ${acct.displayName ?? acct.id}, signs the account out everywhere (connected apps too) and is recorded in the audit log.`);
-        io.err("Run it again with --yes to continue.");
-        return 2;
-      }
-      const codes = app.db.tx(() => {
-        const issued = issueRecoveryCodes(app, acct.id);
-        signOutEverywhere(app, acct.id, "everything");
-        audit(app, null, "cli_reissue_recovery_codes", acct.id, "success", "host-level");
-        return issued;
+      const made = app.db.tx(() => {
+        let out;
+        try { out = hostResetLink(app, acct.id); } catch (err) {
+          if (err instanceof HttpError) throw new CliError(`${acct.displayName ?? acct.id} has no password to reset or can't be reset now.`);
+          throw err;
+        }
+        audit(app, null, "cli_password_reset_link", acct.id, "success", "host-level");
+        return out;
       });
-      io.out(`New recovery codes for ${acct.displayName ?? acct.id}. They are shown once; store them somewhere safe. All sessions were signed out, assistant tokens revoked and connected apps disconnected.`);
-      for (const c of codes) io.out(`  ${c}`);
+      io.out(`Password reset link for ${acct.displayName ?? acct.id}. It is shown once, works once and expires in ${made.minutes} minutes. Give it only to the person it is for; opening it lets them choose a new password, and signs the account out everywhere, assistant tokens and connected apps included.`);
+      io.out(`  ${made.link}`);
       return 0;
     }
     case "reconcile-usage": {
@@ -182,7 +180,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       return 0;
     }
     default:
-      io.err("Usage: node apps/api/src/cli.ts <status | create-invite | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|unlimited> | reissue-recovery-codes <account> --yes | reconcile-usage | test-email <address>>");
+      io.err("Usage: node apps/api/src/cli.ts <status | create-invite | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
       return 2;
   }
 }

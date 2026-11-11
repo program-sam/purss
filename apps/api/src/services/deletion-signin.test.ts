@@ -63,19 +63,17 @@ test("signing in during the grace period starts no session: a single-use cookie 
   assert.equal((await signInWithPassword(b, m)).status, 200);
 });
 
-test("a sibling token is useless after a cancel and a new request; recovery codes get the same offer", async (t) => {
+test("a sibling token is useless after a cancel and a new request", async (t) => {
   const b = await bootDeletion();
   t.after(b.close);
   await member(b.app, "Owner", { admin: true });
   const m = await member(b.app, "Lee");
-  const { issueRecoveryCodes } = await import("../auth/accounts.ts");
-  const codes = issueRecoveryCodes(b.app, m.accountId);
   await requestDeletion(b, m, "Lee");
 
   const first = setCookie(await signInWithPassword(b, m), "purss_deletion")!.pair;
-  const viaCode = await b.api(null, "POST", "/api/auth/recovery", { code: codes[0] });
-  assert.equal(viaCode.status, 409);
-  const sibling = setCookie(viaCode, "purss_deletion")!.pair;
+  const again = await signInWithPassword(b, m);
+  assert.equal(again.status, 409);
+  const sibling = setCookie(again, "purss_deletion")!.pair;
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM confirm_tokens WHERE purpose = 'deletion-cancel'")!.n, 2);
 
   assert.equal((await b.api(null, "POST", "/api/auth/deletion/cancel", {}, { cookie: first })).status, 200);
