@@ -246,16 +246,19 @@ What a provider can do:
   signing up with a password (30 attempts an hour and 10 accounts an hour per address,
   `PURSS_SIGNUP_DAILY_LIMIT` a day). If an account with that email address exists, confirmed or not, no
   second account is made and nothing is linked: the person is told to sign in with their username and
-  password and connect the provider in *Settings → Security*. Where sign-up is closed, a provider account
+  password and connect the provider in *Settings → Security*. (An address someone typed but never confirmed
+  doesn't count, since the provider vouched for its own.) Where sign-up is closed, a provider account
   that isn't linked signs in to nothing.
 - **Confirm it's you.** An account made this way has no password and perhaps no passkey, so for sensitive
   changes (adding a sign-in method, deleting the account, connecting an app) *Confirm with Google* sends the
   person to the provider again in the same browser and returns them. In the apps it opens the system browser
   and the app notices when it is done. The provider must be the one linked to that account, and only the
-  browser session (or app) that asked is confirmed.
+  browser session (or app) that asked is confirmed. Google can only show its account chooser, so it confirms an
+  account that has no password and no passkey; accounts that have one confirm with it (see `stepUp` below).
 
-A person without a password can add one in *Settings → Security* (*Add a password*), and can only remove
-the provider while another way to sign in remains. Their data can always be exported and the account
+A person without a password can add one in *Settings → Security* (*Add a password*). A provider can be
+removed only while a password remains (a passkey on its own is not a way in), and so can't be removed from an account
+that has none; a provider you stop configuring stops counting as a way in. Their data can always be exported and the account
 deleted, whatever their sign-in. There is no email recovery for an account without a password: an owner who
 loses the provider account loses the way in, so tell people to add a password if the account matters to them.
 
@@ -273,7 +276,7 @@ loses the provider account loses the way in, so tell people to add a password if
    secret out of Git):
 
    ```sh
-   PURSS_OIDC='[{"id":"google","label":"Google","issuer":"https://accounts.google.com","clientId":"1234-abc.apps.googleusercontent.com","clientSecret":"GOCSPX-…","stepUp":"choose-account"}]'
+   PURSS_OIDC='[{"id":"google","label":"Google","issuer":"https://accounts.google.com","clientId":"1234-abc.apps.googleusercontent.com","clientSecret":"GOCSPX-…"}]'
    ```
 
 4. Restart the API (`docker compose -f infra/compose.yaml up -d api`). The sign-in page now shows **Continue
@@ -284,12 +287,15 @@ provider is the same entry with its own `issuer` (the address that serves `/.wel
 `clientId` and `clientSecret`; a provider that registers an app per redirect address wants
 `<PURSS_PUBLIC_ORIGIN>/api/auth/oidc/<id>/callback`.
 
-`stepUp` says how *Confirm it's you* asks the provider to check the person again. The default,
-`"reauthenticate"`, sends `prompt=login&max_age=0` and refuses an ID token whose `auth_time` is older than
-the request: right for providers that follow OpenID Connect. Google does not offer either (its documented
-`prompt` values are `none`, `consent` and `select_account`), so use `"choose-account"` for it: Google's account
-chooser opens in that browser, and only the account linked to this PURSS account can confirm it. That proves
-the person has a signed-in Google account in that browser, not that they typed its password just now.
+`stepUp` (optional) says how *Confirm it's you* asks the provider to check the person again. `"reauthenticate"`
+sends `prompt=login&max_age=0` and refuses an ID token whose `auth_time` is missing or older than the request:
+right for providers that follow OpenID Connect, and the default for them; it lets any account that linked the
+provider confirm with it. Google offers neither (its documented `prompt` values are `none`, `consent` and
+`select_account`), so an entry with Google's issuer defaults to `"choose-account"`: Google's account chooser opens in
+that browser, and only the account linked to this PURSS account can confirm it. That proves the person has a
+signed-in Google account in that browser, not that they typed its password just now, so it confirms only accounts
+that have no password and no passkey; accounts that have one confirm with it. Set `"stepUp"` yourself to override
+either default.
 
 ## Self and hosted mode
 

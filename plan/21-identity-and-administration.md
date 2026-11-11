@@ -72,30 +72,39 @@ normal authentication remains enforced throughout. Where the installation has no
 sign-in page tells the person to ask the server's administrator for such a link.
 
 Providers are listed in `PURSS_OIDC` and are generic (Google is `{id: "google", label: "Google", issuer:
-"https://accounts.google.com", clientId, clientSecret}`); scopes are `openid email profile`. Where hosted open
-sign-up is on, a sign-in whose identity (issuer and subject) is not linked creates an account, under the same
-rate limits, daily capacity and `signup_creations` bookkeeping as sign-up with a password, provided the ID token
-carries an email with `email_verified` true. The account has the provider's `name` as its display name, that
-email confirmed (no mail is sent), the provider sign-in linked, no password and no administrator role. If any
-account (confirmed or not, compared without regard to case) already has that email, nothing is created or
-linked: the page says to sign in with the username and password and connect the provider in Settings →
-Security. Where sign-up is closed an unlinked identity is refused (`not_linked`). Linking stays an action of a
-signed-in account with recent authentication. A provider-only account can export its data, delete itself,
-add a password (after "confirm it's you") and remove the provider only once another way in exists. An account
-without a password has nothing to reset by email: its recovery from a lost provider account is the password it
-added beforehand, so Settings → Security says so.
+"https://accounts.google.com", clientId, clientSecret}`); scopes are `openid email profile`. A configured issuer and
+the `iss` stored from an ID token are compared as addresses (host in lower case, trailing slash ignored), not as typed.
+Where hosted open sign-up is on, a sign-in whose identity (issuer and subject) is not linked creates an account, under
+the same rate limits, daily capacity and `signup_creations` bookkeeping as sign-up with a password, provided the ID
+token carries an email with `email_verified` true. The account has the provider's `name` as its display name, that
+email confirmed (no mail is sent), the provider sign-in linked, no password and no administrator role. If another
+account has that email *confirmed* (compared without regard to case), nothing is created or linked: the page says to
+sign in with the username and password and connect the provider in Settings → Security. An address someone only
+typed and never confirmed proves nothing and doesn't block the provider, which vouched for its own. Where sign-up is
+closed an unlinked identity is refused (`not_linked`). Linking stays an action of a signed-in account with recent
+authentication. A provider-only account can export its data, delete itself and add a password (after "confirm it's
+you"). A provider sign-in can be removed only while a password remains, and a passkey can be removed only while a password or a
+provider still set up here remains: a passkey alone is not a way in, and a stored sign-in for a provider no longer in
+`PURSS_OIDC` is not one either. An account without a password has nothing to reset by email: its recovery from a lost
+provider account is the password it added beforehand, so Settings → Security says so.
 
 "Confirm it's you" accepts a linked provider as well as the password or a passkey, so an account with
 neither can pass every recent-authentication gate (`requireRecentAuth`, `sessionWrite`, the approval pages). It
-is an OIDC flow with its own purpose: where the provider supports it, it forces re-authentication
-(`prompt=login`, `max_age=0`) and an ID token whose `auth_time` is older than the request is refused; a provider
-that can't be made to ask again (Google) is configured `stepUp: "choose-account"` and gets `prompt=select_account`,
-which proves a signed-in provider account in that browser rather than a fresh password entry. The state is bound to
-the starting browser (binder cookie) and to the starting session, and the identity that signs in must already be
-linked to that account; success refreshes that session's recent authentication and no other. A connected app
-can't show the provider's page (Google refuses embedded web views), so it asks for a single-use ticket and opens
-the system browser; the same checks apply with the app's connection in place of the cookie session, and the app
-learns it is confirmed by asking the server (plan/24).
+is an OIDC flow with its own purpose, and each provider has a mode (`stepUp`, set per provider, defaulting to
+`"choose-account"` for Google's issuer and `"reauthenticate"` for every other). In `reauthenticate` mode it forces
+re-authentication (`prompt=login`, `max_age=0`) and refuses an ID token whose `auth_time` is missing or older than the
+request, so it confirms any account that has the provider linked. A provider that can't be made to ask again (Google;
+`choose-account`) gets `prompt=select_account`, which proves a signed-in provider account in that browser rather than a
+fresh password entry, so it confirms only an account with no password and no passkey, checked when the flow starts, when
+an app's ticket is made and again when it comes back; accounts with a password or passkey confirm with those, and the
+account's session reports which linked providers may confirm it. The state is bound to the starting browser (binder
+cookie) and to the starting session, and the identity that signs in must already be linked to that account; success
+refreshes that session's recent authentication and no other. A connected app can't show the provider's page (Google
+refuses embedded web views), so it asks for a single-use ticket and opens the system browser; confirming applies the same
+checks with the app's connection in place of the cookie session, and the app learns it is confirmed by asking the server
+([plan/24](24-connected-apps.md)). Linking from an app never completes in that browser, because the ticket's address can be
+handed to anyone: the browser gets only a single-use code back to the app (`purss://connect`), and the app redeems it with
+its own token and the verifier it made, so only the app that asked links what was signed in.
 
 ## Roles and authorization
 
