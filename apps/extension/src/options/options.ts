@@ -167,7 +167,7 @@ async function render(): Promise<void> {
     await badgeSetting(),
     h("section", { class: "card" },
       h("h2", {}, "Search from the address bar"),
-      h("p", {}, "Type ", h("code", {}, "ws"), ", a space and what you're looking for, then press Enter.")),
+      h("p", {}, "Type ", h("code", {}, "purss"), ", a space and what you're looking for, then press Enter.")),
     h("section", { class: "card" },
       h("h2", {}, "What the extension sends"),
       h("p", { class: "fine" }, "Only to your own PURSS, and only when you use it: the page's address and title when you keep it or open the popup; the readable text of the page when you choose to keep its text; your search words. It reads a page only when you open the popup on it or use the right-click menu. It sends nothing anywhere else.")),
