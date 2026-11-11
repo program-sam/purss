@@ -4,7 +4,7 @@
 //
 // Checks, in a desktop browser unless said: reading progress counts only a person's own scrolling (a script's jump to the end and
 // Tab moving focus to the bottom save nothing; the wheel does), reopening goes back to where the item was left, an item that fits
-// the screen counts after twenty seconds; Home's To read lists what was put aside, Recently kept leaves out a collection hidden on
+// the screen counts after twenty seconds; Home's rows above the boxes start closed and stay open once opened; To read lists what was put aside, Recently kept leaves out a collection hidden on
 // Home, and the boxes below do not repeat what is above them; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened.
@@ -242,7 +242,16 @@ async function main(): Promise<void> {
     // ---------- Home ----------
     await page.goto(`${origin}/app/`);
     await page.getByRole("heading", { name: "Home" }).waitFor();
+    const rowToggle = (name: string) => page.locator(`.wb h2:has(:text('${name}')) button`);
+    await rowToggle("To read").waitFor();
+    for (const name of ["To read", "Recently kept"]) assert.equal(await rowToggle(name).getAttribute("aria-expanded"), "false", `${name} starts closed`);
+    assert.equal(await page.locator(".wb .irow").count(), 0, "a closed row shows no items");
+    await rowToggle("To read").click();
+    await rowToggle("Recently kept").click();
+    await page.reload();
     await page.locator(".wb:has(h2 :text('To read')) .irow").first().waitFor();
+    assert.equal(await rowToggle("Recently kept").getAttribute("aria-expanded"), "true", "a row the user opened stays open");
+    step("Home's To read and Recently kept start closed; once opened they stay open");
     assert.equal(await page.locator(".ccard").count(), 0, "Home has no Continue row");
     const toRead = await homeTitles(page, ".wb:has(h2 :text('To read')) .irow .title");
     assert.deepEqual(toRead, ["Medium note"], "To read lists what was put aside");

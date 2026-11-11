@@ -74,8 +74,9 @@ function RowBox({ id, title, count, children }: { id: string; title: string; cou
   const hints = useHints();
   const ws = useWorkspace();
   const key = `home:${id}`;
-  const shut = hints.collapsed.includes(key);
-  const toggle = () => setHints({ collapsed: shut ? hints.collapsed.filter((x) => x !== key) : [...hints.collapsed, key] });
+  // Closed until the user opens it; opening it is remembered on this browser.
+  const shut = !hints.opened.includes(key);
+  const toggle = () => setHints({ opened: shut ? [...hints.opened, key] : hints.opened.filter((x) => x !== key) });
   return (
     <section className={`mod wb${shut ? " shut" : ""}`} aria-labelledby={`wb-${id}`}>
       <header className="mod-h">
@@ -129,12 +130,12 @@ export function useShownAbove(): ReadonlySet<string> {
   return useMemo(() => {
     const ids = new Set<string>();
     if (!o) return ids;
-    const open = (row: string) => !hints.collapsed.includes(`home:${row}`);
+    const open = (row: string) => hints.opened.includes(`home:${row}`);
     if (open("toread")) for (const it of o.toRead.items) ids.add(it.id);
     if (open("tolisten")) for (const it of o.toListen.items) ids.add(it.id);
     if (open("kept")) for (const it of o.recentlyKept) ids.add(it.id);
     return ids;
-  }, [o, hints.collapsed]);
+  }, [o, hints.opened]);
 }
 
 /** Under Home's rows: how many items the muted words left out of Home, and a way to see them. */

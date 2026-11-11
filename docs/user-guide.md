@@ -177,7 +177,8 @@ feed each.
 
 ## Sources
 
-Open a source from the sidebar to see its items. Its page header has **Notifications** (mute
+Open a source from the sidebar to see its items. The sidebar's collections start closed each
+time PURSS opens; open one with its arrow to see its sources. Its page header has **Notifications** (mute
 or same as Settings), **Full articles** and **Manage**, which pauses, renames, changes
 its **collections** or **unfollows** it. Right-click a source,
 collection, basket or item in the sidebar or a list for the same actions (Shift + right-click
@@ -316,8 +317,9 @@ collections appear there, and in what order. Sources that are in no collection a
 an **Other sources** box, which is listed there like a collection (shown by default).
 
 **Home when you come back.** Whatever the layout, Home starts with a summary line ("Since your
-last visit (3 days ago): 412 new in 6 collections") and, when there is something to say, rows
-you can collapse:
+last visit (3 days ago): 412 new in 6 collections") and, when there is something to say, these
+rows. To read, To listen, Recently kept and Needs attention start closed; one you open stays open
+in that browser.
 
 - **Coming up:** the reminders you set on kept items for today and the next six days
   ([Reminders](#reminders)). Not there when you have none.
