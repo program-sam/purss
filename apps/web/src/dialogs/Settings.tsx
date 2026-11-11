@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Preferences } from "@purss/domain";
 import { Button, Check, Dialog, Icon, Segmented, SelectInput } from "@purss/ui";
 import { ApiError, del, messageOf, post } from "../api/client.ts";
-import { keys, securityQuery, sessionQuery } from "../api/queries.ts";
+import { keys, securityQuery } from "../api/queries.ts";
 import { useSession } from "../api/hooks.ts";
 import type { SecurityMethod } from "../api/types.ts";
 import { registerPasskey } from "../auth/PasskeyStep.tsx";
