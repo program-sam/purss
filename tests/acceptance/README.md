@@ -129,3 +129,19 @@ its date and without the page's furniture; "Add as a source" opens Add source wi
 no discovery request; *Settings → Connected apps* lists the extension and offers the bookmarklets, and
 running one opens Add source; disconnecting revokes the token. The right-click menu and the address-bar
 keyword can't be driven from Playwright; their logic has unit tests.
+
+## Signing in with Google
+
+`tests/acceptance/google.ts` is a hermetic journey for signing in with an external OpenID Connect provider
+([plan/21](../../plan/21-identity-and-administration.md)); `npm run test:e2e` runs it after the email journey, and
+`node tests/acceptance/google.ts` (after `npm run build`) runs it alone. It needs only Node 26 and Playwright's
+Chromium: a hosted API with open sign-up, a local SMTP server (open sign-up needs working email) and a local fake issuer
+(`oauth2-mock-server`) configured as Google. A stranger makes an account with *Continue with Google* (no username or
+password) and reaches Home; Settings → Security lists Google and refuses to remove the last way in; signing out and in
+again with Google uses the same account; with the sign-in older than ten minutes, *Add a password* asks to confirm
+it's you, *Confirm with Google* does, and the password is added. Someone whose Google email already belongs to an
+account, or whom Google doesn't vouch for, is refused with nothing made or linked. The phone app's browser path
+(`providerStartUrl`) signs a third person up through the provider in the system browser, lands on the approval page,
+hands the code to `purss://connect` and gets a device token; the app then confirms it's it through a single-use
+ticket and the system browser. It checks Google's button (white, its inline G, no remote image) and that nothing loads
+from outside PURSS and the issuer, and saves screenshots to `.output/google-signin/`.

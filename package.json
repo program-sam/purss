@@ -14,7 +14,7 @@
     "check": "node scripts/check-workspace.mjs && tsc -p tsconfig.json",
     "test": "node --test --test-concurrency=4 \"scripts/*.test.mjs\" \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
     "test:engine": "node --test --test-concurrency=1 \"tests/engine/*.test.ts\"",
-    "test:e2e": "npm run build && npm run build:extension && node tests/acceptance/run.ts && node tests/acceptance/offline.ts && node tests/acceptance/home.ts && node tests/acceptance/connect.ts && node tests/acceptance/oauth.ts && node tests/acceptance/media.ts && node tests/acceptance/eink.ts && node tests/acceptance/email.ts && node tests/acceptance/extension.ts",
+    "test:e2e": "npm run build && npm run build:extension && node tests/acceptance/run.ts && node tests/acceptance/offline.ts && node tests/acceptance/home.ts && node tests/acceptance/connect.ts && node tests/acceptance/oauth.ts && node tests/acceptance/media.ts && node tests/acceptance/eink.ts && node tests/acceptance/email.ts && node tests/acceptance/google.ts && node tests/acceptance/extension.ts",
     "dev": "node scripts/dev.ts",
     "build": "npm run build -w @purss/web -w @purss/site",
     "build:extension": "npm run build -w @purss/extension"
