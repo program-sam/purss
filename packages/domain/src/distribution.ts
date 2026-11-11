@@ -10,7 +10,7 @@ export type StoreId = "chrome" | "edge" | "firefox" | "safari" | "android" | "io
 
 /** Store listings, by store. null: not published there yet. */
 export const STORE_LISTINGS: Readonly<Record<StoreId, string | null>> = {
-  chrome: null,
+  chrome: "https://chromewebstore.google.com/detail/purss/hbchpheipggpppbilgepkalcnnemnldl",
   edge: null,
   firefox: null,
   safari: null,
