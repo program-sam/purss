@@ -26,14 +26,14 @@ Pick one. You can change it later by editing `.env` and starting again (step 5).
 
 | Option | Who can open it | How people sign in |
 | --- | --- | --- |
-| **A. Only this machine** | You, at `http://localhost:8940`, or from another computer through an SSH tunnel | Fingerprint, face or screen lock, or username and password |
+| **A. Only this machine** | You, at `http://localhost:8940`, or from another computer through an SSH tunnel | Username and password, and fingerprint, face or screen lock if you add it |
 | **B. Your home network** | Everyone on your Wi-Fi, at the server's address, e.g. `http://192.168.1.20:8940` | Username and password |
-| **C. The internet, with HTTPS** | Anyone you invite, at your own domain, e.g. `https://purss.example.com` | Fingerprint, face or screen lock, or username and password |
+| **C. The internet, with HTTPS** | Anyone you invite, at your own domain, e.g. `https://purss.example.com` | Username and password, and fingerprint, face or screen lock if you add it |
 
 - **Fingerprint, face or screen lock** (a passkey) works over HTTPS or at `localhost`; browsers
   refuse it on a plain `http://` address. Use Touch ID, Face ID, Windows Hello, your phone's
-  screen lock or a password manager. On option B the app therefore asks for a username and
-  password instead.
+  screen lock or a password manager. On option B the app therefore doesn't offer it; everyone
+  signs in with a username and password.
 - **Option B** sends everything unencrypted over your network. Use it only on a network you
   trust.
 - **Option C** needs a domain name and a reverse proxy that handles HTTPS certificates, such as
@@ -124,11 +124,11 @@ docker compose -f infra/compose.yaml exec api cat /data/secrets/setup-code
 Open your address (step 2); it takes you to the setup page (`/app/setup`). Then:
 
 1. Enter the setup code and, if you like, a display name.
-2. **Save the ten recovery codes** somewhere safe, for example in a password manager or on
-   paper. Each works once, and they are your way back in if you lose your other sign-in.
-3. Add fingerprint, face or screen lock (a passkey), or choose a password that works on any
-   computer, including borrowed ones. Use Touch ID, Face ID, Windows Hello, your phone's screen
-   lock or a password manager. On option B the app goes straight to the username and password.
+2. Choose a username and a password, and type the password again. The password works on any
+   computer, including borrowed ones.
+3. Add fingerprint, face or screen lock (a passkey) if you like, or skip it and add it later in
+   *Settings → Security*. Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a
+   password manager. On option B the app goes straight into PURSS after step 2.
 
 The setup code stops working once it has been used.
 
@@ -180,7 +180,7 @@ and is there again on the next start. Never add `-v` unless you mean to delete e
 | The page doesn't load | Check `docker compose -f infra/compose.yaml ps` and the logs: `docker compose -f infra/compose.yaml logs --tail 50 api` |
 | "This request didn't come from the PURSS page." | `PURSS_PUBLIC_ORIGIN` doesn't match the address in the browser. Fix `.env` and run the start command again |
 | No fingerprint, face or screen lock option | Expected on a plain `http://` address other than `localhost`. Use a username and password, or set up HTTPS (option C) |
-| Someone lost access to fingerprint, face or screen lock, their password and recovery codes | On the server: `docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts reissue-recovery-codes "<their display name>" --yes`. It prints new recovery codes to give them (see the [operator CLI](self-hosting.md#operator-cli)) |
+| Someone forgot their password (or you did, as administrator) | On the server: `docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts password-reset-link "<their display name>"`. It prints a link, shown once and valid for 60 minutes, to give them; it opens a page where they choose a new password (see [forgotten passwords](self-hosting.md#forgotten-passwords)) |
 | You lost the setup code before using it | Read it again with the command in step 6 |
 | Feeds don't update | Look at **Administration → Health**; the engine and egress cards say what is wrong |
 | "Port is already allocated" when starting | Another program uses port 8940. Set `PURSS_HOST_PORT=8950` in `.env`, change the port in `PURSS_PUBLIC_ORIGIN` to match, and start again |

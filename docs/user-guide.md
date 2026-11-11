@@ -11,44 +11,34 @@ yet.
 2. Enter the **setup code**. The operator reads it from the server (see
    [self-hosting](self-hosting.md#the-first-administrator)). Whoever enters it first becomes the
    owner and administrator, and the code stops working.
-3. Save your **recovery codes**. You get ten, shown once; each one signs you in
-   once. Keep them somewhere safe in case you lose your phone or forget your password.
-4. Add **fingerprint, face or screen lock**. Use Touch ID, Face ID, Windows Hello,
-   your phone's screen lock or a password manager. A password is an equal choice and works on
+3. Choose a **username** and a **password**, and type the password again. The password works on
    any computer, including borrowed ones.
-
-If you skip this, a **Finish setting up** banner stays in PURSS. If you lose this device
-and your recovery codes, you'll lose access to this account.
-
-If you leave the recovery codes page without confirming that you saved them, a banner asks **Did you
-save your recovery codes?** with **Yes, I saved them** and **Make new ones**. It stays until you
-confirm, or make a new set and confirm that. The codes can't be shown again (the server keeps
-no readable copy), which is why the only way to see a set is to make a new one.
+4. Add **fingerprint, face or screen lock** if you like. Use Touch ID, Face ID, Windows Hello,
+   your phone's screen lock or a password manager. You can skip this and add it later in
+   *Settings → Security*.
 
 Fingerprint, face or screen lock works over **HTTPS**, or at `http://localhost`. It doesn't work
 over plain HTTP at another address, such as a LAN IP. It is tied to the exact host name you use,
 so one added at `localhost` won't work at `127.0.0.1`.
 
 **Joining an existing installation:** an administrator sends you an invitation link
-(`/app/invite?code=…`), on a home server as well as a hosted one. You choose your own name and
-sign-in; the rest is the same as above. A hosted installation may also offer *create an
+(`/app/invite?code=…`), on a home server as well as a hosted one. You choose your own name, username and
+password; the rest is the same as above. A hosted installation may also offer *create an
 account* on the sign-in page when its operator has turned open sign-up on. That page asks for an
-email address, which a link in a message confirms (no card needed). The button stays busy while the account is
-made. If you press it twice, or press it again after closing the page, you get the account the
-first press made and one confirmation message, not a second account. A confirmation link opened
-in a browser where you aren't signed in confirms the address and then tells you how to get in:
-sign in, or create the account again if you never saw its recovery codes.
+email address, which a link in a message confirms (no card needed); the confirmed address is the one a
+password reset is sent to. The button stays busy while the account is
+made. If you press it twice, or press it again after closing the page, with the same email address and
+password, you get the account the first press made and one confirmation message, not a second account.
+A confirmation link opened in a browser where you aren't signed in confirms the address and offers
+the sign-in page.
 
 ## Signing in
 
-- **Fingerprint, face or screen lock:** sign in with Touch ID, Face ID, Windows Hello, your
-  phone's screen lock or a password manager.
 - **Password:** works on any computer, including borrowed ones. Type your username, or the email
   address of your account once you have confirmed it. (An address that belongs to several accounts
   works for none of them: use the username.)
-- **Recovery code:** for when you lose your phone or forget your password. Each
-  code works once. *Settings → Security* shows how many are left and can make a fresh set, which
-  replaces the old ones.
+- **Fingerprint, face or screen lock:** sign in with Touch ID, Face ID, Windows Hello, your
+  phone's screen lock or a password manager, once you have added it in *Settings → Security*.
 - **External sign-in** (OpenID Connect) appears only when the operator has configured a
   provider, and only for an identity you linked while signed in (*Settings → Security*).
 
@@ -59,23 +49,26 @@ header shows **Sign out** so leaving takes one press. *Settings
 → Security* lists the browser, system and approximate last use for each signed-in device, marks
 this device, and lets you sign out one device or **Sign out everywhere else**.
 
-Adding or removing a sign-in method and making new recovery codes need a recent sign-in. If you
-have only recovery codes, confirming with one uses it; the screen tells you how many will remain
-and offers **Make new codes** afterwards.
+*Settings → Security* is also where you change your username or password, add or remove
+fingerprint, face or screen lock, and link or remove an external sign-in. The password can be
+changed but not removed. Changing any of these needs a recent sign-in: the screen asks you to
+confirm it's you with your password or with fingerprint, face or screen lock, then carries on.
 
-If you lose access to fingerprint, face or screen lock and have no password or recovery code,
-the operator can issue new recovery codes from the server.
+**Forgotten your password?** On the sign-in page, **Can't sign in?** leads to a password reset by
+email where the installation sends email (always on the hosted service). Otherwise it says to ask
+the server's administrator for a password reset link; the administrator's side is described in
+[forgotten passwords](self-hosting.md#forgotten-passwords).
 
 **Where the installation sends email** (always on the hosted service) your account can also have
 an email address, given when you sign up on the hosted service or added and changed in *Settings →
-Security* (that asks you to confirm it's you). A link in an email confirms it. If you sign in with a password and forget it, *Forgot your password?* on the sign-in page sends
+Security* (that asks you to confirm it's you). A link in an email confirms it. If you forget your password, the reset by email sends
 a link to your confirmed address; it works once, for an hour. Choosing a new password signs you out
 everywhere, disconnects your connected apps and assistants, and the address is told. Once it is confirmed, the
 address can be typed in place of your username when you sign in with your password; it never signs you in
 on its own. Otherwise it is used for messages about your account and, if you choose that in
 *Settings → Notifications and New*, for [reminders](#reminders). Every link in a message is on a line of its
-own, so nothing gets stuck to its end. Administrator accounts reset with a recovery code
-instead. On an installation whose operator set up outgoing email, an invitation may also arrive by
+own, so nothing gets stuck to its end. Administrator accounts get a password reset link from the
+operator at the server instead. On an installation whose operator set up outgoing email, an invitation may also arrive by
 email.
 
 ## Adding sources
@@ -818,8 +811,8 @@ Only connect what you started yourself, just now. **Don't connect** sends nothin
   [Browser extension and bookmarklets](#browser-extension-and-bookmarklets).
 - *Settings → Connected apps* lists each app with when it was connected and last used.
   **Disconnect** stops it at once. An app that isn't used for 90 days is disconnected on its own.
-  An administrator suspending your account, the operator resetting your sign-in, or a password reset
-  by email disconnects them all.
+  An administrator suspending your account, or a password reset (by email, or with a link the operator
+  made at the server), disconnects them all.
 
 ## The desktop app
 
@@ -829,7 +822,7 @@ open it Windows asks you to confirm (*More info*, then *Run anyway*) and a Mac a
 *System Settings → Privacy & Security*.
 
 **Connecting.** As in the phone app: sign in to the official server, or choose *Use another server*, with your
-username and password or a recovery code. To use a passkey or a linked account, choose *Sign in in your browser*:
+username and password. To use a passkey or a linked account, choose *Sign in in your browser*:
 your browser opens the server's Connect page, and the app connects when you press *Connect* there. Your connection
 is kept in your computer's keyring (on a Linux computer without one, in a file only your user account can read).
 The app connects only to servers updated for it; to the app an older one looks unreachable.
@@ -860,14 +853,14 @@ The Android and iOS app is the same PURSS as in the browser, made for a phone. I
 the official server unless you choose another one: your own, or another hosted one.
 
 **Signing in.** The app opens on the official server's sign-in: sign in with your username and
-password, or with one of your recovery codes. *Forgot your password?* emails you a link to set a
-new one. To sign in with your fingerprint, face or screen lock, or a linked account, choose *Use fingerprint, face or a linked account*:
+password. Where the server sends email, *Forgot your password?* emails you a link to set a
+new one; on a server that doesn't, its administrator can give you a reset link to open in a browser. To sign in with your fingerprint, face or screen lock, or a linked account, choose *Use fingerprint, face or a linked account*:
 a sign-in tab opens the server's Connect page; sign in there, check that it names this device, and
 press *Connect* (see [Connected apps](#connected-apps)).
 
 **New here?** Choose *Create an account*. Enter the invitation code you were given (or, where the
 server lets anyone sign up, your email address), your name, and a username and password. The app
-connects straight away and shows your recovery codes: save them before you continue.
+connects straight away.
 
 **Another server.** Press **Use another server** under the sign-in and type the address you open
 your PURSS at (it needs **https://**, except on your own computer or home network, where the
@@ -887,7 +880,7 @@ like) still come through the app store.
 
 - Everything in the browser is in the app too: Settings (with *This device* for downloads and the
   connection), Security, Connected apps, Assistants, *Your data* and administration. When the app
-  asks you to confirm it's you, use your password or a recovery code. Exports and recovery codes
+  asks you to confirm it's you, use your password (or fingerprint, face or screen lock where the app has it). Exports
   open the share sheet, so you can save them to Files or a cloud drive.
 - Links to other sites open in a browser tab over the app.
 - **Listening** carries on with the screen off or in another app, with play, pause and skipping on
@@ -1061,8 +1054,8 @@ and everything kept in them, saved text and browser captures, and where you
 stopped listening, highlights and notes, reading history and statistics, preferences, shared
 collections, your email address, sign-in methods, connected apps and assistants. The dialog offers **Export first**, so you
 can keep a copy to import elsewhere. To confirm, type your display name exactly as shown (or
-the word `delete` if your account has none), and confirm it's you with fingerprint, face or screen lock, a password or
-recovery code if you haven't signed in recently.
+the word `delete` if your account has none), and confirm it's you with fingerprint, face or screen lock or a password
+if you haven't signed in recently.
 
 - **Straight away:** you are signed out on every device, the phone apps and browser extension
   are disconnected, assistants (tokens and those connected with OAuth) stop working, your shared pages are switched off, and nothing new is
@@ -1072,7 +1065,7 @@ recovery code if you haven't signed in recently.
   whether to **Keep my account** or **Leave it**. Keeping it ends the deletion and signs you in
   with everything as it was; shared pages stay switched off until you share them again,
   and apps, extensions and assistants have to be connected again. If you forgot your password,
-  a reset by email still works during these days.
+  a reset by email, or a link from the operator, still works during these days.
 - **After 7 days:** signing in is refused and the account can't be kept. Everything is removed
   from PURSS and from the collection engine. Only the administration audit log keeps a
   record that an account with that id was deleted.
@@ -1103,7 +1096,7 @@ and the server's when the app runs other screens than the server offers.
 - **Sounds:** soft interface sounds for your own actions; arrivals stay silent. Off by default;
   turn them on, set the volume and pick one of four styles. Saved on this device only.
 - **Notifications and New:** how often and about what you are told, whether [reminders](#reminders) also come by email, quiet hours, how long items stay New, and whether New markers and counts show. See above.
-- **Security:** fingerprint, face or screen lock, linked sign-in, password, recovery
-  codes and sessions, and your email address where the installation sends email. On a phone,
+- **Security:** password, fingerprint, face or screen lock, linked sign-in
+  and signed-in devices, and your email address where the installation sends email. On a phone,
   Settings also has a button in the header; on a shared computer the header has **Sign out**.
 - **Account:** delete your account; see [Deleting your account](#deleting-your-account).
