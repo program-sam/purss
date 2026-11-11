@@ -116,10 +116,10 @@ const css = `
 `;
 
 const VIEWS = [
-  { k: "cards", n: "Cards", icon: "grid", cap: "Cards for YouTube channels: thumbnails, lengths and what's new. No autoplay, no recommendations; videos play on YouTube.", html: () => appWindow(cardsScreen(), { url: "your.purss/watch", crumbs: ["Collections", "Watch"], label: "Cards view of a Watch collection with video thumbnails", sel: "Watch" }) },
-  { k: "table", n: "Table", icon: "table", cap: "A table for recipes: sort the columns and see at a glance what you kept.", html: () => appWindow(tableScreen(), { url: "your.purss/recipes", crumbs: ["Collections", "Recipes"], label: "Table view of recipes with source, date, state and kept columns", sel: "Recipes" }) },
-  { k: "board", n: "Board", icon: "board", cap: "A board for reading: drag items from To read to Finished.", html: () => appWindow(boardScreen(), { url: "your.purss/slow-reads", crumbs: ["Collections", "Slow reads"], label: "Board view with To read, In progress and Finished columns", sel: "Slow reads" }) },
-  { k: "timeline", n: "Timeline", icon: "timeline", cap: "A timeline for podcasts: new episodes grouped by day.", html: () => appWindow(timelineScreen(), { url: "your.purss/listen", crumbs: ["Collections", "Listen"], label: "Timeline view of podcast episodes grouped by day", sel: "Listen" }) },
+  { k: "cards", n: "Cards", icon: "grid", cap: "Channels as cards: see what's worth watching from the thumbnail. No autoplay, no recommendations; videos play on YouTube.", html: () => appWindow(cardsScreen(), { url: "your.purss/watch", crumbs: ["Collections", "Watch"], label: "Cards view of a Watch collection with video thumbnails", sel: "Watch" }) },
+  { k: "table", n: "Table", icon: "table", cap: "Recipes as a table: sort by source or date and find the one you kept last winter.", html: () => appWindow(tableScreen(), { url: "your.purss/recipes", crumbs: ["Collections", "Recipes"], label: "Table view of recipes with source, date, state and kept columns", sel: "Recipes" }) },
+  { k: "board", n: "Board", icon: "board", cap: "Reading as a board: see what you started and what's still waiting.", html: () => appWindow(boardScreen(), { url: "your.purss/slow-reads", crumbs: ["Collections", "Slow reads"], label: "Board view with To read, In progress and Finished columns", sel: "Slow reads" }) },
+  { k: "timeline", n: "Timeline", icon: "timeline", cap: "Podcasts as a timeline: this week's episodes, day by day.", html: () => appWindow(timelineScreen(), { url: "your.purss/listen", crumbs: ["Collections", "Listen"], label: "Timeline view of podcast episodes grouped by day", sel: "Listen" }) },
 ] as const;
 
 /** A shared basket's public page, as visitors see it (original sample content). */
@@ -160,7 +160,7 @@ export const home = {
 <section class="a-hero">${quilt("hero-quilt", 150)}
 <div class="s-wrap s-center">
 <h1 class="s-h1">Your internet, organized by you.</h1>
-<p class="s-lead">Follow blogs, news sites, YouTube channels, podcasts and journals in one calm place. Sort them your way, keep what matters, with no engagement algorithm deciding what you see.</p>
+<p class="s-lead">The blogs, channels, podcasts and journals you chose, in one place that isn't trying to keep you scrolling.</p>
 <div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">Create a free account</a><a class="btn xl" href="#self-host">${ic("server")}Host it yourself</a></div>
 <div class="a-shot">${appWindow()}</div>
 <div class="a-follow"><span>${ic("rss")}Blogs &amp; news</span><span>${ic("book")}Journals</span><span>${ic("play")}YouTube</span><span>${ic("mic")}Podcasts</span><span>${ic("share")}Mastodon &amp; Bluesky</span><span>${ic("export")}Import from other readers</span></div>
@@ -172,7 +172,7 @@ export const home = {
 <span class="s-kicker">${ic("heart")}Why we built it</span>
 <h2 class="s-h2">The web was yours once. Take it back.</h2>
 <p class="s-lead a-pitch-p">You used to choose what you read: a favorite blog, a journal, a channel you loved. Then feeds started choosing for you, ranked to keep you scrolling and tuned for outrage.</p>
-<p class="s-lead a-pitch-p">PURSS gives the choice back. You pick the sources and the order, and nothing is pushed at you to keep you hooked. It's the web you chose: calm, private and yours.</p>
+<p class="s-lead a-pitch-p">PURSS gives the choice back. You decide what comes in and in what order, so the time you spend reading is time you meant to spend.</p>
 <div class="a-vs"><div class="them"><h3>Algorithmic feeds</h3><ul>
 <li>${ic("x")}Ranked to keep you scrolling</li><li>${ic("x")}Strangers and ads in between</li><li>${ic("x")}Your attention is the product</li><li>${ic("x")}Gone when the platform changes its mind</li></ul></div>
 <div class="us"><h3>Your PURSS</h3><ul>
@@ -180,53 +180,53 @@ export const home = {
 </div></section>
 
 <section class="s-sec s-tint" id="features"><div class="s-wrap"><div class="a-split">
-<div><span class="s-kicker">${ic("plus")}Follow</span><h2 class="s-h2">Paste a link. See what you'll get. Follow.</h2>
-<p class="s-lead">No feed URLs to hunt for, no settings to understand. PURSS finds the feed, shows a preview and tells you what following means.</p>
-<ul class="a-list"><li>${ic("check")}Websites, journals, YouTube, podcasts, Mastodon, Bluesky and more. Try any link</li><li>${ic("check")}Bring your list from another reader</li><li>${ic("compass")}Coming soon: suggestions for sources you'll like</li></ul></div>
+<div><span class="s-kicker">${ic("plus")}Follow</span><h2 class="s-h2">Nothing from the people you follow gets buried.</h2>
+<p class="s-lead">Subscribing on YouTube or following someone on Bluesky doesn't mean you'll see what they post. Here it does: paste a link, and new posts arrive, unranked, until you say stop.</p>
+<ul class="a-list"><li>${ic("check")}Sites, journals, YouTube, podcasts, Mastodon, Bluesky: try any link</li><li>${ic("check")}Switching readers? Bring your whole list in one go</li><li>${ic("compass")}Coming soon: suggestions for sources you'll like</li></ul></div>
 <div class="a-stage">${addSourceDialog()}</div></div></div></section>
 
 <section class="s-sec"><div class="s-wrap"><div class="a-split rev">
-<div><span class="s-kicker">${ic("basket")}Keep</span><h2 class="s-h2">Your own baskets, kept after the web forgets.</h2>
-<p class="s-lead">Gather what matters from any source into baskets for a project, a trip or a rainy Sunday. Each kept item stays with its details and summary, and a readable copy of the text if you ask, long after the feed has moved on.</p>
-<ul class="a-list"><li>${ic("check")}Mix items from blogs, journals, videos and podcasts</li><li>${ic("check")}One item in as many baskets as you like</li><li>${ic("check")}Still yours after you unfollow the source</li></ul></div>
+<div><span class="s-kicker">${ic("basket")}Keep</span><h2 class="s-h2">Find it again in six months.</h2>
+<p class="s-lead">You'll want that article again, long after the feed has moved on. Drop it in a basket for the project, the trip or the rainy Sunday, and its details, summary and, if you ask, a readable copy of the text stay with you.</p>
+<ul class="a-list"><li>${ic("check")}Articles, videos and episodes side by side</li><li>${ic("check")}Still there after you unfollow the source</li></ul></div>
 <div class="a-stage a-keep">${appWindow(basketScreen(), { side: false, url: "your.purss/baskets/thesis", crumbs: ["Baskets", "Thesis sources"], label: "A basket called Thesis sources with four kept items, one from a source that was unfollowed" })}</div></div></div></section>
 
 <section class="s-sec" id="read"><div class="s-wrap"><div class="a-split">
-<div><span class="s-kicker">${ic("book")}Read</span><h2 class="s-h2">Read, listen and make it yours.</h2>
-<p class="s-lead">Open anything and read it right in your PURSS, then pick up where you left off on any device.</p>
-<ul class="a-list"><li>${ic("check")}Read full articles in the app, where the site allows it</li><li>${ic("check")}Mark items To read, In progress or Finished</li><li>${ic("check")}Your place is remembered on every device</li><li>${ic("check")}Highlight passages and add notes, all searchable</li><li>${ic("check")}Listen to podcasts in the built-in player</li><li>${ic("check")}Keep anything in a basket as you read</li></ul></div>
+<div><span class="s-kicker">${ic("book")}Read</span><h2 class="s-h2">Start on the laptop, finish on the train.</h2>
+<p class="s-lead">No pile of open tabs, no wondering where you were. Your place, your highlights and your notes follow you to every device, so nothing you started gets lost.</p>
+<ul class="a-list"><li>${ic("check")}Full articles right in the app, where the site allows it</li><li>${ic("check")}Know at a glance what's next and what's half done</li><li>${ic("check")}Notes and highlights you can search later</li><li>${ic("check")}A podcast player that remembers where you were</li></ul></div>
 <div class="a-stage a-read">${appWindow(readingScreen(), { side: false, url: "your.purss/slow-reads", crumbs: ["Collections", "Slow reads"], label: "A long read open in the reading pane, 42% read, kept in a basket" })}</div></div></div></section>
 
 <section class="s-sec" id="share"><div class="s-wrap"><div class="a-split rev">
-<div><span class="s-kicker">${ic("share")}Share</span><h2 class="s-h2">Curate your corner of the web, and share it.</h2>
-<p class="s-lead">Turn any basket or collection into a page anyone can open, no account needed. Friends read it in their browser, or follow it in their PURSS or any feed reader and get each new pick as you add it.</p>
+<div><span class="s-kicker">${ic("share")}Share</span><h2 class="s-h2">You're the one people ask for good links.</h2>
+<p class="s-lead">Share a basket or collection as a page anyone can open, no account needed. Anyone who follows it gets each new pick as you add it, in their PURSS or any feed reader.</p>
 <p class="s-p a-who">A reading list for your class. The best of your field, picked by someone who knows it. The links your followers keep asking for. A newsletter, without writing one.</p>
-<ul class="a-list"><li>${ic("check")}Press Share to get a web page and a feed</li><li>${ic("check")}Add a note on why each pick is worth it</li><li>${ic("check")}Only what you choose goes public. Pause or stop any time</li></ul>
+<ul class="a-list"><li>${ic("check")}A note on each pick says why it's worth their time</li><li>${ic("check")}Only what you choose goes public. Pause or stop any time</li></ul>
 <p class="s-p" style="margin-top:14px">Included in Plus and Pro, and when you host it yourself.</p></div>
 <div class="a-stage a-keep">${sharedPageMock()}</div></div></div></section>
 
 <section class="s-sec s-tint" id="smart-filters"><div class="s-wrap"><div class="a-split">
 <div><span class="s-kicker">${ic("filter")}Smart filters</span><h2 class="s-h2">Love the source. Skip the noise.</h2>
-<p class="s-lead">Your favorite site also posts plenty you'll never read. Keywords and tags miss half of what you want and catch the wrong half. Just say what you care about, in your own words, and a Smart filter keeps those posts and quietly sets the rest aside.</p>
-<ul class="a-list"><li>${ic("check")}For one busy source or a whole collection</li><li>${ic("check")}See what it would keep before you turn it on</li><li>${ic("check")}Nothing is deleted: set-aside posts wait in Ignored</li></ul>
+<p class="s-lead">Your favorite paper also posts plenty you'll never read, and keywords never quite catch it. Say what you care about in your own words, and the rest steps aside.</p>
+<ul class="a-list"><li>${ic("check")}See what it would keep before you turn it on</li><li>${ic("check")}Nothing is deleted: set-aside posts wait in Ignored</li></ul>
 <p class="s-p" style="margin-top:14px">Included in Pro.</p></div>
 <div class="a-stage a-keep">${smartFilterMock()}</div></div></div></section>
 
-<section class="s-sec s-tint" id="views"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("grid")}See it your way</span><h2 class="s-h2" style="margin:10px 0 12px"><span class="a-vh-long">Videos as cards. Recipes as a table. Reading as a board. Podcasts as a timeline.</span><span class="a-vh-short">Cards, table, board or timeline: your choice.</span></h2><p class="s-lead">You pick how each collection looks, to suit what's in it and what you like to see. Switch any time; nothing else changes.</p>
+<section class="s-sec s-tint" id="views"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("grid")}See it your way</span><h2 class="s-h2" style="margin:10px 0 12px"><span class="a-vh-long">Videos as cards. Recipes as a table. Reading as a board. Podcasts as a timeline.</span><span class="a-vh-short">Cards, table, board or timeline: your choice.</span></h2><p class="s-lead">A recipe isn't a video, and a podcast isn't a long read. Give each collection the layout that suits it.</p>
 <div class="seg a-tabs" role="tablist" aria-label="Views">${VIEWS.map((v, k) => `<button type="button" role="tab" id="vt-${v.k}" aria-controls="vp" aria-selected="${k === 0}" data-v="${v.k}">${ic(v.icon)}${v.n}</button>`).join("")}</div></div>
 <div class="a-view" id="vp" role="tabpanel" tabindex="0" aria-labelledby="vt-${VIEWS[0].k}">${VIEWS[0].html()}</div><p class="a-view-cap">${VIEWS[0].cap}</p></div></section>
 
 <section class="s-sec"><div class="s-wrap"><div class="s-center"><span class="s-kicker">The little things</span><h2 class="s-h2" style="margin-top:10px">Calm by design.</h2></div>
 <div class="s-feats a-feats" style="margin-top:40px">
 ${([
-  ["bell", "Gentle alerts", "A bell for new arrivals, browser alerts while PURSS is open, per-source mute and quiet hours. Pick a date to be reminded about something you kept, and get a yearly note about it too. Turn any of it off."],
-  ["spark", "New, but not noisy", "Fresh items glow until you've seen them. Counts and alerts are yours to switch off."],
-  ["search", "Find anything", "Search every item you've followed or kept, and your own highlights and notes, from one box. Keyboard first, mouse friendly."],
-  ["rss", "A Follow button for your blog", "Write a blog? Make a Follow button for it in Settings. Readers follow you here or copy your feed into any reader, and nobody is tracked."],
+  ["bell", "Gentle alerts", "Hear about the sources you care about, when you want to, and nothing else. Kept something for later? Pick a date and it comes back to you."],
+  ["spark", "New, but not noisy", "See what's new without a red badge nagging you. Counts are yours to switch off."],
+  ["search", "Find anything", "That article from last spring, that line you highlighted: one search box finds it."],
+  ["rss", "A Follow button for your blog", "Write a blog? Give readers a way to follow you that doesn't track them."],
 ] as const).map(([i, t, p]) => `<div class="s-feat"><span class="s-ico">${ic(i, "lg")}</span><h3 class="s-h3">${t}</h3><p>${p}</p></div>`).join("")}
 </div></div></section>
 
-<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}Apps and extensions</span><h2 class="s-h2" style="margin:10px 0 12px">Wherever you come across things.</h2><p class="s-lead">Bring a page in from your browser, listen on your phone, or read on an e-reader. It's the same PURSS everywhere.</p></div>
+<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}Apps and extensions</span><h2 class="s-h2" style="margin:10px 0 12px">Wherever you come across things.</h2><p class="s-lead">Save it where you find it, read it where you are. Your browser, phone, computer and e-reader all share one PURSS.</p></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
 <section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">Pricing</span><h2 class="s-h2" style="margin:10px 0 12px">Simple, honest pricing.</h2><p class="s-lead">We run it for you, from free to Pro. Every plan includes the full reader, baskets, search and export. Prefer to run it yourself? <a class="link" href="#self-host">It's free</a>.</p></div>${billingToggle()}
@@ -237,7 +237,7 @@ ${([
 
 <section class="s-sec tight" id="self-host"><div class="s-wrap"><div class="a-host">
 <div><span class="s-kicker">${ic("server")}Host it yourself</span><h2 class="s-h2">Prefer to run it yourself? It's free.</h2>
-<p class="s-lead">The same PURSS on your own server, with no limits. Up and running with Docker in about 30 minutes.</p>
+<p class="s-lead">Your reading on your own hardware, where nobody can change the rules on you. The same PURSS with no limits, running with Docker in about 30 minutes.</p>
 <ul class="a-list"><li>${ic("check")}Every feature, free forever</li><li>${ic("check")}Runs on a spare computer, in about 1&nbsp;GB of memory</li><li>${ic("check")}Backups and invitations for family and friends built in</li><li>${ic("check")}Open source, AGPL-3.0</li></ul>
 <div class="s-cta" style="margin-top:26px"><a class="btn primary lg" href="${links(site).install}">Read the install guide</a><a class="btn lg" href="${links(site).source}">View the source</a></div></div>
 <div>${terminal(site)}</div></div></div></section>
