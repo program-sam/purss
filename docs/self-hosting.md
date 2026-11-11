@@ -96,7 +96,7 @@ variables `compose.yaml` refers to:
 | `PURSS_PUSH_RELAY_URL` | unset | Phone notifications go through the project's relay; set it empty (`PURSS_PUSH_RELAY_URL=`) or `off` to turn them off |
 | `PURSS_APP_ANDROID_CERT_SHA256`, `PURSS_APP_ANDROID_PACKAGE`, `PURSS_APP_IOS_APP_ID` | empty | The phone apps this PURSS vouches for, so they can use its passkeys; see [Configuration](#configuration) |
 | `PURSS_DISK_RESERVE_BYTES` | empty | Free disk kept in reserve; empty means 1 GiB |
-| `PURSS_OIDC` | empty | Sign-in with other providers; see [Configuration](#configuration) |
+| `PURSS_OIDC` | empty | Sign-in with other providers, such as Google; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_SYNC_INTERVAL` | empty | Seconds between scheduled syncs per account; empty means 120 |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | empty | Jev's address and model for Smart filters; empty means TypeSafe's and the newest Jev |
 
@@ -197,8 +197,9 @@ way to become administrator: invitations never grant administration.
 
 ## Forgotten passwords
 
-Every account has a username and a password, and a password can be changed (*Settings → Security*)
-or reset but never removed. Someone who has forgotten theirs gets back in in one of two ways:
+Every account made with a username and password keeps one: it can be changed (*Settings → Security*)
+or reset but never removed. (An account made by [signing in with a provider](#signing-in-with-google-or-another-provider)
+has no password until it adds one there, so it has none to forget or reset.) Someone who has forgotten theirs gets back in in one of two ways:
 
 - **By email**, where the installation has [outgoing email](#outgoing-email) and the account has a
   confirmed address: **Can't sign in?** on the sign-in page leads to a page that emails a link to
@@ -223,6 +224,72 @@ or reset but never removed. Someone who has forgotten theirs gets back in in one
 
 When the sign-in page can't offer the email reset, it tells the person to ask the server's
 administrator for a password reset link.
+
+## Signing in with Google or another provider
+
+`PURSS_OIDC` lets people sign in with an OpenID Connect provider instead of a username and password.
+PURSS ships no provider and needs none: Google is just one entry in the list. Each entry shows a
+**Continue with …** button on the sign-in page (and the sign-up page when sign-up is open), and in
+the phone and desktop apps, where it opens the system browser, because Google refuses to sign
+anyone in inside an app's embedded web view. Signed in there, the person presses *Connect* and the
+browser hands the app back to itself.
+
+What a provider can do:
+
+- **Sign in** to an account that linked it in *Settings → Security* (*Link Google*, which asks the
+  person to confirm it's them first). Accounts are matched by the provider's issuer and its
+  account id, never by email address, and nothing is ever linked automatically.
+- **Make an account**, when [open sign-up](#self-and-hosted-mode) is on (hosted mode with outgoing email) and the
+  provider account isn't linked yet. The provider must vouch for the email address (`email_verified`).
+  The account has that address already confirmed (no mail is sent), the provider's name as its display
+  name, the provider as its way to sign in, and no password. It counts against the same limits as
+  signing up with a password (30 attempts an hour and 10 accounts an hour per address,
+  `PURSS_SIGNUP_DAILY_LIMIT` a day). If an account with that email address exists, confirmed or not, no
+  second account is made and nothing is linked: the person is told to sign in with their username and
+  password and connect the provider in *Settings → Security*. Where sign-up is closed, a provider account
+  that isn't linked signs in to nothing.
+- **Confirm it's you.** An account made this way has no password and perhaps no passkey, so for sensitive
+  changes (adding a sign-in method, deleting the account, connecting an app) *Confirm with Google* sends the
+  person to the provider again in the same browser and returns them. In the apps it opens the system browser
+  and the app notices when it is done. The provider must be the one linked to that account, and only the
+  browser session (or app) that asked is confirmed.
+
+A person without a password can add one in *Settings → Security* (*Add a password*), and can only remove
+the provider while another way to sign in remains. Their data can always be exported and the account
+deleted, whatever their sign-in. There is no email recovery for an account without a password: an owner who
+loses the provider account loses the way in, so tell people to add a password if the account matters to them.
+
+### Setting up Google
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project, then *Google Auth
+   Platform* (APIs & Services → OAuth consent screen): user type *External*, an app name, a support email
+   and your site's domain. The only scopes PURSS asks for are `openid`, `email` and `profile`, which need no
+   Google review. Publish the app (*In production*); in *Testing* only the listed test users can sign in.
+2. *Clients* (Credentials) → *Create client* → *Web application*. Under *Authorized redirect URIs* add exactly
+   `<PURSS_PUBLIC_ORIGIN>/api/auth/oidc/google/callback`, for example
+   `https://purss.example.org/api/auth/oidc/google/callback` (https, except for localhost). Copy the client ID
+   and the client secret.
+3. Set `PURSS_OIDC` where the other settings live (for Compose, the `.env` next to `compose.yaml`; keep the
+   secret out of Git):
+
+   ```sh
+   PURSS_OIDC='[{"id":"google","label":"Google","issuer":"https://accounts.google.com","clientId":"1234-abc.apps.googleusercontent.com","clientSecret":"GOCSPX-…","stepUp":"choose-account"}]'
+   ```
+
+4. Restart the API (`docker compose -f infra/compose.yaml up -d api`). The sign-in page now shows **Continue
+   with Google**; the apps show it the next time they open the sign-in screen.
+
+Use the id `google` for Google: it is what gives the button Google's own look. Any other OpenID Connect
+provider is the same entry with its own `issuer` (the address that serves `/.well-known/openid-configuration`),
+`clientId` and `clientSecret`; a provider that registers an app per redirect address wants
+`<PURSS_PUBLIC_ORIGIN>/api/auth/oidc/<id>/callback`.
+
+`stepUp` says how *Confirm it's you* asks the provider to check the person again. The default,
+`"reauthenticate"`, sends `prompt=login&max_age=0` and refuses an ID token whose `auth_time` is older than
+the request: right for providers that follow OpenID Connect. Google does not offer either (its documented
+`prompt` values are `none`, `consent` and `select_account`), so use `"choose-account"` for it: Google's account
+chooser opens in that browser, and only the account linked to this PURSS account can confirm it. That proves
+the person has a signed-in Google account in that browser, not that they typed its password just now.
 
 ## Self and hosted mode
 
@@ -498,7 +565,7 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this PURSS's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
 | `PURSS_DEFAULT_ALLOCATION_BYTES` | none | Allocation for new hosted accounts; empty means no limit; not used in self mode |
 | `PURSS_DISK_RESERVE_BYTES` | 1 GiB | Free disk below which growth pauses |
-| `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?}`; callback `<origin>/api/auth/oidc/<id>/callback` |
+| `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_ENGINE_URL` | `http://127.0.0.1:8941` | FreshRSS address handed to the worker |
 | `PURSS_EGRESS_CONTROL_URL` | `http://127.0.0.1:8949/status` | Egress status for admin health |
 | `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest of [plan/41](../plan/41-source-bridges.md)) get the "no feeds" answer |

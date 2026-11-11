@@ -29,17 +29,19 @@ Keep provider tokens server-side, encrypt with keys outside the data store, and
 define refresh serialization/rotation, expiry, revocation, and recovery behavior.
 Never automatically link accounts or grant admin by matching email/domain/profile
 claims. Adding/removing a sign-in method requires authenticated confirmation and
-recent reauthentication; prevent lockout when removing the last usable method (the password
-cannot be removed, so one always remains).
+recent reauthentication; prevent lockout when removing the last usable method (a password
+cannot be removed, so an account that has one always keeps it; one made by a provider keeps
+the provider until it has another way in).
 
 Self-hosting must not require a particular commercial identity provider. The
 provider-independent sign-in is a username and password, chosen when the account is made
 (first-run claim, invitation, open sign-up, the phone app's sign-up): the password is created
-together with the account, and it can be changed or reset but never removed, so every account
-keeps a way in that depends on no provider, device or origin. Fingerprint, face or screen lock
-(a passkey) is offered right after, can be skipped and added later in Settings → Security;
+together with the account, and it can be changed or reset but never removed, so every such account
+keeps a way in that depends on no provider, device or origin. The one account without a password is
+one made by signing in with a provider (below), which can add a password in Settings → Security.
+Fingerprint, face or screen lock (a passkey) is offered right after, can be skipped and added later in Settings → Security;
 passkeys and linked provider sign-ins can be removed. Enrollment is therefore the username and
-password, then optionally a passkey, and "confirm it's you" accepts the password or a passkey.
+password, then optionally a passkey, and "confirm it's you" accepts the password, a passkey or a linked provider.
 Prove enrollment, lost-device, provider-outage and public-origin-change recovery before account
 creation ships: a lost device or a provider outage is answered by signing in with the password
 on another device, and a changed public origin leaves the password working while passkeys
@@ -68,6 +70,32 @@ requiring an existing verified email channel or the old public origin, works whe
 email is set up, and refuses an account without a password or one already being deleted;
 normal authentication remains enforced throughout. Where the installation has no email, the
 sign-in page tells the person to ask the server's administrator for such a link.
+
+Providers are listed in `PURSS_OIDC` and are generic (Google is `{id: "google", label: "Google", issuer:
+"https://accounts.google.com", clientId, clientSecret}`); scopes are `openid email profile`. Where hosted open
+sign-up is on, a sign-in whose identity (issuer and subject) is not linked creates an account, under the same
+rate limits, daily capacity and `signup_creations` bookkeeping as sign-up with a password, provided the ID token
+carries an email with `email_verified` true. The account has the provider's `name` as its display name, that
+email confirmed (no mail is sent), the provider sign-in linked, no password and no administrator role. If any
+account (confirmed or not, compared without regard to case) already has that email, nothing is created or
+linked: the page says to sign in with the username and password and connect the provider in Settings →
+Security. Where sign-up is closed an unlinked identity is refused (`not_linked`). Linking stays an action of a
+signed-in account with recent authentication. A provider-only account can export its data, delete itself,
+add a password (after "confirm it's you") and remove the provider only once another way in exists. An account
+without a password has nothing to reset by email: its recovery from a lost provider account is the password it
+added beforehand, so Settings → Security says so.
+
+"Confirm it's you" accepts a linked provider as well as the password or a passkey, so an account with
+neither can pass every recent-authentication gate (`requireRecentAuth`, `sessionWrite`, the approval pages). It
+is an OIDC flow with its own purpose: where the provider supports it, it forces re-authentication
+(`prompt=login`, `max_age=0`) and an ID token whose `auth_time` is older than the request is refused; a provider
+that can't be made to ask again (Google) is configured `stepUp: "choose-account"` and gets `prompt=select_account`,
+which proves a signed-in provider account in that browser rather than a fresh password entry. The state is bound to
+the starting browser (binder cookie) and to the starting session, and the identity that signs in must already be
+linked to that account; success refreshes that session's recent authentication and no other. A connected app
+can't show the provider's page (Google refuses embedded web views), so it asks for a single-use ticket and opens
+the system browser; the same checks apply with the app's connection in place of the cookie session, and the app
+learns it is confirmed by asking the server (plan/24).
 
 ## Roles and authorization
 

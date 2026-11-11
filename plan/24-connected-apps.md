@@ -6,8 +6,9 @@ same-origin and CSRF checks. This document records the shared foundation they us
 connection flow, device tokens, CORS for their origins, and keeping a link without
 making duplicates. The apps themselves are separate work.
 
-Self-hosters set nothing up: the client kinds, their return addresses and their
-permissions are fixed in code, with no client registration, OAuth provider or email.
+Self-hosters set nothing up for the connection itself: the client kinds, their return addresses and their
+permissions are fixed in code, with no client registration, OAuth provider or email. (Whatever external sign-ins
+the operator configured, such as Google, appear in the app too: `PURSS_OIDC`, [plan/21](21-identity-and-administration.md).)
 
 ## Connecting
 
@@ -53,6 +54,8 @@ addresses, and feature flags (`urlLookup: true`; `browserCapture: true`, plan/32
 | Audit | Approvals, token issue, failed exchanges (with reason), disconnects (from Settings or the app) | Recoverable without logging secrets |
 | Limits | Token exchange 30 per 10 minutes per address; approvals 30 per 10 minutes per account | Bounded guessing and code minting |
 | Return path | `/signin?next=` (a same-site path only) for passkey and password sign-in, and a short cookie through a linked (OIDC) sign-in | The person lands back on the approval page |
+| Continue with a provider | `GET /api/connect/info` lists the external sign-ins (`signin.providers`: id, label, start address). The app's *Continue with Google* opens `<origin>/api/auth/oidc/<id>/start?next=/connect?…` in the system browser, never the app's web view (Google refuses embedded web views, `disallowed_useragent`), with the same PKCE request as the Connect page. The person signs in there, or an account is made by that sign-in where open sign-up allows it ([plan/21](21-identity-and-administration.md)); the callback lands on the approval page, where *Connect* sends the code to `purss://connect` as usual | One approval path for every way to sign in: the app connects by itself afterwards, and a person with only a provider sign-in has no password to type into an app |
+| Linking or confirming with a provider from an app | `POST /api/auth/oidc/<id>/ticket` (the app's token; `purpose` `link` needs a recent sign-in first) answers a single-use, five-minute address for the system browser: `…/start?ticket=…`. That browser has no session, so the flow is bound to its binder cookie and to the app's connection named by the ticket; the identity that signs in must be linked to that account (for `link`, it becomes linked). On success a *confirm* refreshes the connection's `auth_at`, and the browser shows a page that says to return to the app; the app asks `GET /api/account/security` (`recentAuth`, `methods`) until it is done, for up to five minutes | A provider-only account in the app can pass every recent-authentication gate and link a provider, like the browser's |
 
 ## Why bearer requests skip the Origin/CSRF check, and why the CORS rules are safe
 
@@ -97,6 +100,7 @@ ordinary cookie request with all the old checks.
 | Token theft | Hash only at rest; shown once; idle expiry; revocation on the next request; narrow scope for the extension, never an administrator or a recent sign-in; the phone app's token is a recent sign-in only for ten minutes after the person proved who they are, so a stolen one can't change sign-in methods or administration without the password or a passkey |
 | Brute force | Codes have 59 to 256 bits and need the verifier; exchanges are rate-limited per address; a wrong verifier burns the code |
 | Timing | Codes and tokens are looked up by SHA-256; the verifier is compared in constant time |
+| Someone holding an app's token tricks its owner into finishing a provider sign-in for it | A ticket is single use and lasts five minutes. Finishing it means signing in at the provider as an identity already linked to that account, and it only refreshes that connection's recent sign-in, which a stolen token otherwise lacks. What remains is persuasion, as with the approval page: the browser shows only the provider's page, so never sign in at the provider for something you didn't just start in the app |
 | Cross-tenant access | The token resolves to its account's workspace; every route keeps its existing workspace scoping; lookup and keep query only that workspace |
 | Weakened cookie path | Cookie requests are unchanged; tests cover app origins, foreign origins and no origin |
 
