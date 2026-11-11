@@ -20,8 +20,8 @@ import { claim, createAccount, ensureClaimCode } from "../../apps/api/src/auth/a
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { startSmtpSink } from "../../apps/api/src/mail/testing.ts";
-import { testPassword } from "../../apps/api/src/testing.ts";
-import { pkce, providerStartUrl, providersOffered, readCallback, REDIRECT_URI } from "../../apps/web/src/platform/native/connect.ts";
+import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
+import { pkce, providerStartUrl, providersOffered, readCallback, readLinkCallback, REDIRECT_URI } from "../../apps/web/src/platform/native/connect.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-google-"));
@@ -249,6 +249,49 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const spent = await systemBrowser.goto(ticket.url);
     assert.equal(spent?.status(), 400, "a ticket works once");
     step("the app's connection was confirmed through the system browser and a single-use ticket");
+
+    // ---- the app asks for its address after a refusal: a plain page that leads back to the app
+    const refusedApp = await newPage({ width: 412, height: 915 });
+    const again = await pkce();
+    claims = { sub: "google-dana-refused", email: "dana@example.org", email_verified: true, name: "Dana Refused" };
+    await refusedApp.goto(providerStartUrl(providers[0]!.start, infoRes.connect.page, { challenge: again.challenge, state: again.state, deviceName: "Pixel 8" }));
+    await refusedApp.getByRole("heading", { name: "That didn't work" }).waitFor();
+    await refusedApp.getByText("An account with this email address already exists.").waitFor();
+    await refusedApp.getByText("Go back to the PURSS app").waitFor();
+    await refusedApp.screenshot({ path: path.join(shots, "08-app-refused.png") });
+    step("a refusal in the app's browser is a plain page that says why and leads back to the app");
+
+    // ---- the app links Google: whoever signs in in the browser links nothing; the app redeems the code that came back
+    const signedIn = await fetch(`${origin}/api/connect/signin`, { method: "POST", headers: { "content-type": "application/json", origin: "capacitor://localhost" },
+      body: JSON.stringify({ method: "password", username: "dana", password: TEST_PASSWORD, client: "mobile", deviceName: "Dana's phone" }) });
+    assert.equal(signedIn.status, 200);
+    const danaToken = ((await signedIn.json()) as { token: string }).token;
+    const asDana = (method: string, pathname: string, body?: unknown) => fetch(`${origin}${pathname}`, {
+      method, headers: { authorization: `Bearer ${danaToken}`, origin: "capacitor://localhost", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const link = await pkce();
+    const linkTicket = await (await asDana("POST", "/api/auth/oidc/google/ticket", { purpose: "link", codeChallenge: link.challenge, state: link.state })).json() as { url: string };
+    claims = { sub: "google-dana-work", email: "dana.work@example.org", email_verified: true, name: "Dana Work" };
+    const linkBrowser = await newPage({ width: 412, height: 915 });
+    await linkBrowser.goto(linkTicket.url);
+    const goBack = linkBrowser.getByRole("link", { name: "Go back to the PURSS app" });
+    await goBack.waitFor();
+    await linkBrowser.screenshot({ path: path.join(shots, "09-app-link-page.png") });
+    assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana-work'"), 0, "the browser linked nothing");
+    const handed = readLinkCallback((await goBack.getAttribute("href"))!, { state: link.state, issuer: origin });
+    assert.equal(handed.kind, "code");
+    const wrong = await asDana("POST", "/api/auth/oidc/google/link", { code: (handed as { code: string }).code, codeVerifier: (await pkce()).verifier });
+    assert.equal(wrong.status, 400, "not without the app's own verifier");
+    assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana-work'"), 0);
+    // The wrong try spent the code: the app starts again, and this time redeems with its verifier.
+    const retry = await pkce();
+    const retryTicket = await (await asDana("POST", "/api/auth/oidc/google/ticket", { purpose: "link", codeChallenge: retry.challenge, state: retry.state })).json() as { url: string };
+    await linkBrowser.goto(retryTicket.url);
+    const code = readLinkCallback((await linkBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, { state: retry.state, issuer: origin });
+    assert.equal(code.kind, "code");
+    const redeemed = await asDana("POST", "/api/auth/oidc/google/link", { code: (code as { code: string }).code, codeVerifier: retry.verifier });
+    assert.equal(redeemed.status, 200);
+    assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana-work'"), 1);
+    step("the app linked Google: the browser's half linked nothing, and only the app's code and verifier did");
 
     assert.deepEqual(errors, [], "no uncaught page errors");
     assert.deepEqual(outside, [], "nothing loaded from outside PURSS and the issuer");
