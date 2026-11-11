@@ -143,5 +143,7 @@ it's you, *Confirm with Google* does, and the password is added. Someone whose G
 account, or whom Google doesn't vouch for, is refused with nothing made or linked. The phone app's browser path
 (`providerStartUrl`) signs a third person up through the provider in the system browser, lands on the approval page,
 hands the code to `purss://connect` and gets a device token; the app then confirms it's it through a single-use
-ticket and the system browser. It checks Google's button (white, its inline G, no remote image) and that nothing loads
+ticket and the system browser, whose page changes nothing: only the code it sends back, redeemed with the app's own
+verifier, does (a wrong verifier or a second try fails). The app also links a second provider account that way, and
+a refusal in the app's browser is a plain page that leads back to the app. It checks Google's button (white, its inline G, no remote image) and that nothing loads
 from outside PURSS and the issuer, and saves screenshots to `.output/google-signin/`.

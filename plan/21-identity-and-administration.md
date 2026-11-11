@@ -100,11 +100,11 @@ an app's ticket is made and again when it comes back; accounts with a password o
 account's session reports which linked providers may confirm it. The state is bound to the starting browser (binder
 cookie) and to the starting session, and the identity that signs in must already be linked to that account; success
 refreshes that session's recent authentication and no other. A connected app can't show the provider's page (Google
-refuses embedded web views), so it asks for a single-use ticket and opens the system browser; confirming applies the same
-checks with the app's connection in place of the cookie session, and the app learns it is confirmed by asking the server
-([plan/24](24-connected-apps.md)). Linking from an app never completes in that browser, because the ticket's address can be
-handed to anyone: the browser gets only a single-use code back to the app (`purss://connect`), and the app redeems it with
-its own token and the verifier it made, so only the app that asked links what was signed in.
+refuses embedded web views), so it asks for a single-use ticket and opens the system browser. Neither linking nor confirming
+completes in that browser, because the ticket's address can be handed to anyone (or a stolen token can ask for one): the browser
+gets only a single-use code back to the app (`purss://connect`), and the app redeems it with its own token and the verifier it
+made ([plan/24](24-connected-apps.md)). Only the app that asked links what was signed in, or has its own connection's
+recent authentication refreshed, which is checked again (identity still linked, provider still allowed to confirm) at redemption.
 
 ## Roles and authorization
 

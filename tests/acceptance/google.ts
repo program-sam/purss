@@ -21,7 +21,7 @@ import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { startSmtpSink } from "../../apps/api/src/mail/testing.ts";
 import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
-import { pkce, providerStartUrl, providersOffered, readCallback, readLinkCallback, REDIRECT_URI } from "../../apps/web/src/platform/native/connect.ts";
+import { pkce, providerStartUrl, providersOffered, readAppCode, readCallback, REDIRECT_URI } from "../../apps/web/src/platform/native/connect.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-google-"));
@@ -236,19 +236,35 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     assert.deepEqual([me.state, me.account.displayName, me.account.hasPassword, me.account.linkedProviders.map((x) => x.id)], ["signed_in", "Pat", false, ["google"]]);
     step("the app's Continue with Google ran in the system browser: sign-up, approval, purss://connect, token — a signed-in provider-only account");
 
-    // ---- the app confirms it's it with Google: a ticket opened in the system browser
+    // ---- the app confirms it's it with Google: the system browser changes nothing, the code it sends back to the app does
     makeStale();
     const security0 = await (await asApp("GET", "/api/account/security")).json() as { recentAuth: boolean };
     assert.equal(security0.recentAuth, false);
-    const ticket = await (await asApp("POST", "/api/auth/oidc/google/ticket", { purpose: "stepup" })).json() as { url: string };
+    const confirm = await pkce();
+    const confirmTicket = await (await asApp("POST", "/api/auth/oidc/google/ticket", { purpose: "stepup", codeChallenge: confirm.challenge, state: confirm.state })).json() as { url: string };
     const systemBrowser = await newPage({ width: 412, height: 915 });
-    await systemBrowser.goto(ticket.url);
-    await systemBrowser.getByText("You're confirmed.").waitFor();
-    await systemBrowser.screenshot({ path: path.join(shots, "07-app-confirmed.png") });
-    assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, true, "the app asks and finds itself confirmed");
-    const spent = await systemBrowser.goto(ticket.url);
+    await systemBrowser.goto(confirmTicket.url);
+    const backToApp = systemBrowser.getByRole("link", { name: "Go back to the PURSS app" });
+    await backToApp.waitFor();
+    await systemBrowser.screenshot({ path: path.join(shots, "07-app-confirm-page.png") });
+    assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, false, "whoever finished it in the browser confirmed nothing");
+    const confirmed = readAppCode((await backToApp.getAttribute("href"))!, "confirm", { state: confirm.state, issuer: origin });
+    assert.equal(confirmed.kind, "code");
+    const redeemConfirm = (code: string, verifier: string) => asApp("POST", "/api/auth/oidc/google/confirm", { code, codeVerifier: verifier });
+    assert.equal((await redeemConfirm((confirmed as { code: string }).code, (await pkce()).verifier)).status, 400, "not without the app's own verifier");
+    assert.equal((await redeemConfirm((confirmed as { code: string }).code, confirm.verifier)).status, 400, "and that attempt spent the code");
+    assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, false);
+    const spent = await systemBrowser.goto(confirmTicket.url);
     assert.equal(spent?.status(), 400, "a ticket works once");
-    step("the app's connection was confirmed through the system browser and a single-use ticket");
+    // Again, and this time the app redeems what the browser sent with its verifier.
+    const second = await pkce();
+    const secondTicket = await (await asApp("POST", "/api/auth/oidc/google/ticket", { purpose: "stepup", codeChallenge: second.challenge, state: second.state })).json() as { url: string };
+    await systemBrowser.goto(secondTicket.url);
+    const second2 = readAppCode((await systemBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, "confirm", { state: second.state, issuer: origin });
+    assert.equal(second2.kind, "code");
+    assert.equal((await redeemConfirm((second2 as { code: string }).code, second.verifier)).status, 200);
+    assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, true, "the app that asked is confirmed");
+    step("the app's connection was confirmed only by redeeming the browser's code with its own verifier");
 
     // ---- the app asks for its address after a refusal: a plain page that leads back to the app
     const refusedApp = await newPage({ width: 412, height: 915 });
@@ -277,7 +293,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await goBack.waitFor();
     await linkBrowser.screenshot({ path: path.join(shots, "09-app-link-page.png") });
     assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana-work'"), 0, "the browser linked nothing");
-    const handed = readLinkCallback((await goBack.getAttribute("href"))!, { state: link.state, issuer: origin });
+    const handed = readAppCode((await goBack.getAttribute("href"))!, "link", { state: link.state, issuer: origin });
     assert.equal(handed.kind, "code");
     const wrong = await asDana("POST", "/api/auth/oidc/google/link", { code: (handed as { code: string }).code, codeVerifier: (await pkce()).verifier });
     assert.equal(wrong.status, 400, "not without the app's own verifier");
@@ -286,7 +302,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const retry = await pkce();
     const retryTicket = await (await asDana("POST", "/api/auth/oidc/google/ticket", { purpose: "link", codeChallenge: retry.challenge, state: retry.state })).json() as { url: string };
     await linkBrowser.goto(retryTicket.url);
-    const code = readLinkCallback((await linkBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, { state: retry.state, issuer: origin });
+    const code = readAppCode((await linkBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, "link", { state: retry.state, issuer: origin });
     assert.equal(code.kind, "code");
     const redeemed = await asDana("POST", "/api/auth/oidc/google/link", { code: (code as { code: string }).code, codeVerifier: retry.verifier });
     assert.equal(redeemed.status, 200);
