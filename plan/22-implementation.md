@@ -79,8 +79,8 @@ transaction as the mutation, a bounded control headroom, and a physical disk res
 | 6 Hosted | Accounts on every installation: admins invite people (e.g. a household), suspend, and grant or remove the admin role; each account has its own PURSS and FreshRSS user. Hosted mode adds storage allowances and optional open signup (`PURSS_SIGNUP=open`, rate-limited and capped per day; off by default; needs working outgoing email, [plan/27](27-outbound-email.md)) | Payments, abuse/verification tooling beyond rate limits, launch |
 | 7 Sharing | Share on baskets and collections (filters without reading-state rules): live public page and Atom feed, review of the page and of what becomes public, pause, stop, Follow by URL through Add source; public notes per item, opt-in search listing, the `/follow` page and Follow buttons, visitor reports and administrator takedowns; Plus on hosted installations | Source bundles for followers |
 
-OIDC sign-in is implemented and tested against a local mock issuer; no provider is
-configured by default. Real-service connectors, turning on open signup, payment, push delivery
+OIDC sign-in, account creation through a provider (open sign-up) and "confirm it's you" with a provider are implemented and tested against a local mock issuer; no provider is
+configured by default (the hosted service sets Google). Real-service connectors, turning on open signup, payment, push delivery
 and any exposure beyond localhost remain owner decisions.
 
 ## Build order
