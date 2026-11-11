@@ -3,12 +3,14 @@
 // the person is signed out, they sign in and come back, approve, and the extension exchanges the typed
 // code with PKCE; its token looks up a kept page, keeps links without duplicates and is refused
 // elsewhere. The phone app's request is approved and declined through its purss:// return address.
-// Settings → Connected apps lists both and disconnects them. Run: node tests/acceptance/connect.ts
-// (after npm run build)
+// Settings → Connected apps lists both and disconnects them. Once the sign-in is more than ten minutes
+// old, changing the password asks the person to confirm it's you, and the password does. Run:
+// node tests/acceptance/connect.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
+import { DatabaseSync } from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +23,7 @@ import { createApp } from "../../apps/api/src/main.ts";
 import { createBasket } from "../../apps/api/src/services/collections.ts";
 import { keepItem } from "../../apps/api/src/services/state.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-connect-"));
@@ -45,6 +47,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: path.join(repo, "apps/web/dist"),
   PURSS_DISK_RESERVE_BYTES: "0",
 };
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 // RFC 7636 appendix B.
 const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -75,12 +78,12 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 
 /** A claimed installation with one source, its article kept in a basket. */
-function prepare(): { recoveryCodes: string[] } {
+function prepare(): void {
   const app = createApp(loadConfig({ ...env } as Record<string, string>));
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
@@ -92,7 +95,6 @@ function prepare(): { recoveryCodes: string[] } {
     applySyncBatch(app, eu.id, batch([entry("feed/1", { title: "Tidal flats and sediment", url: KEPT_URL })]));
     const item = app.db.get<{ id: string }>("SELECT id FROM items WHERE source_id = ?", src)!.id;
     keepItem(app, p, item, createBasket(app, p, { name: "Read later", captureMode: "metadata" }).id);
-    return { recoveryCodes };
   } finally {
     app.db.close();
   }
@@ -111,7 +113,7 @@ async function watchNavigations(cdp: CDPSession): Promise<string[]> {
 
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
-  const { recoveryCodes } = prepare();
+  prepare();
   startApi();
   await waitFor("the API", async () => (await fetch(`${origin}/api/session`)).ok, 30_000);
   step("API started on its own port and data with a kept article");
@@ -127,9 +129,9 @@ async function main(): Promise<void> {
     // The extension asks to connect (no return address: it will take a typed code) while signed out.
     await page.goto(connectUrl({ client: "extension", device_name: "Firefox on the laptop" }));
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("button", { name: "Use a recovery code" }).click();
-    await page.getByLabel("Recovery code").fill(recoveryCodes[0]!);
-    await page.getByRole("button", { name: "Sign in with this code" }).click();
+    await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL(/\/connect\?/);
     await page.getByText("Connect the browser extension?").waitFor();
     assert.equal(await page.getByLabel("Name, so you recognise it later").inputValue(), "Firefox on the laptop");
@@ -194,6 +196,20 @@ async function main(): Promise<void> {
     assert.equal((await ext("GET", "/api/baskets")).status, 401);
     assert.equal((await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${phoneToken}` } })).status, 200, "the other app stays connected");
     step("Settings lists both apps; disconnecting the extension stops its token at once");
+
+    // A sign-in older than the step-up window (made so here) asks to confirm it's you before the password can change.
+    const db = new DatabaseSync(path.join(dataDir, "product.db"), { timeout: 5000 });
+    try { db.prepare("UPDATE sessions SET auth_at = ?").run(new Date(Date.now() - 11 * 60_000).toISOString()); } finally { db.close(); }
+    await page.getByRole("button", { name: "Security" }).click();
+    await page.getByRole("button", { name: "Change username or password" }).click();
+    await page.getByText("For your safety, confirm it's you before this change.").waitFor();
+    await page.getByLabel("Your password").fill("not the password");
+    await page.getByRole("button", { name: "Confirm with password" }).click();
+    await page.getByText("That password isn't right.").waitFor();
+    await page.getByLabel("Your password").fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: "Confirm with password" }).click();
+    await page.getByRole("button", { name: "Save new password" }).waitFor();
+    step("an older sign-in asks to confirm it's you before the password can change; the password does, and a wrong one does not");
 
     assert.deepEqual(errors, [], "no uncaught page errors");
   } catch (err) {

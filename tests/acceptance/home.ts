@@ -24,7 +24,7 @@ import { createApp } from "../../apps/api/src/main.ts";
 import { createBasket, createCollection } from "../../apps/api/src/services/collections.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
 import { changeState, keepItem } from "../../apps/api/src/services/state.ts";
-import { batch, entry, makeSource } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-home-"));
@@ -41,6 +41,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: webDist,
   PURSS_DISK_RESERVE_BYTES: "0",
 };
+const USERNAME = "reader";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -68,7 +69,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-type Seed = { recoveryCodes: string[]; ids: Record<string, string>; reading: string; radio: string };
+type Seed = { ids: Record<string, string>; reading: string; radio: string };
 const TITLES = ["Long essay", "Second essay", "Medium note", "Tiny abstract", "Night forecast", "Wire story 3"];
 
 /** The throwaway library: a collection shown on Home with a long article, a medium one, a tiny abstract and a busy source; one hidden from Home. */
@@ -78,7 +79,7 @@ function prepare(): Seed {
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId, recoveryCodes } = claim(app, code, "Reader");
+    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
     const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
@@ -108,18 +109,18 @@ function prepare(): Seed {
     keepItem(app, p, id("Wire story 3"), basket.id);
     changeState(app, p, id("Medium note"), { progress: 0.4, expectedRevision: rev(id("Medium note")) });
     changeState(app, p, id("Medium note"), { workflow: "toread", expectedRevision: rev(id("Medium note")) });
-    return { recoveryCodes, ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id };
+    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id };
   } finally {
     app.db.close();
   }
 }
 
-async function signIn(page: Page, code: string): Promise<void> {
+async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("button", { name: "Use a recovery code" }).click();
-  await page.getByLabel("Recovery code").fill(code);
-  await page.getByRole("button", { name: "Sign in with this code" }).click();
+  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
   const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
@@ -154,7 +155,7 @@ async function main(): Promise<void> {
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await signIn(page, seed.recoveryCodes[0]!);
+    await signIn(page);
     await page.getByText("Reading", { exact: true }).first().click();
     await page.locator("main .irow").first().waitFor();
     // A collection with new items opens on them; opened items stop being new, so read from everything.
@@ -294,7 +295,7 @@ async function main(): Promise<void> {
     // ---------- an e-ink display: the Page down button ----------
     const eink = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const reader = await eink.newPage();
-    await signIn(reader, seed.recoveryCodes[2]!);
+    await signIn(reader);
     await reader.getByRole("button", { name: "Settings" }).first().click();
     await reader.getByRole("dialog").waitFor();
     await reader.locator("label.chk", { hasText: "E-ink display" }).click();
@@ -320,7 +321,7 @@ async function main(): Promise<void> {
     // ---------- tips: mouse hover and keyboard focus show a row action's name, a tap on a phone does not ----------
     const desk = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const deskPage = await desk.newPage();
-    await signIn(deskPage, seed.recoveryCodes[3]!);
+    await signIn(deskPage);
     await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     const deskIgnore = deskPage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / });
     await deskIgnore.hover();
@@ -334,7 +335,7 @@ async function main(): Promise<void> {
     await desk.close();
     const phone = await browser.newContext({ viewport: { width: 412, height: 900 }, hasTouch: true, isMobile: true });
     const phonePage = await phone.newPage();
-    await signIn(phonePage, seed.recoveryCodes[4]!);
+    await signIn(phonePage);
     await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
     await phonePage.getByText("Ignored", { exact: true }).waitFor();

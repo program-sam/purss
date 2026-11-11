@@ -1,9 +1,9 @@
 // Acceptance journey against the real stack: a separate FreshRSS container, egress proxy,
 // API and worker on their own ports and a throwaway data directory, following real public
-// feeds (network required). Journey: set up -> passkey -> paste & follow -> items arrive ->
+// feeds (network required). Journey: set up with a username and password -> passkey -> paste & follow -> items arrive ->
 // browse views -> To read -> keep with text capture -> search -> restart -> sign in again
 // with the passkey -> find the kept item -> the sidebar counts the sources -> an invited second account
-// asks to be deleted and keeps its account by signing in again. Run: npm run test:e2e
+// asks to be deleted and keeps its account by signing in again with its password. Run: npm run test:e2e
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
@@ -34,6 +34,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_EGRESS_CONTROL_URL: "http://127.0.0.1:18949/status",
   PURSS_SYNC_INTERVAL: "20",
 };
+const PASSWORD = "tidal flats at low water";
 const FEEDS = [
   { url: "simonwillison.net", collection: "Reading" },
   { url: "https://www.youtube.com/@Computerphile", collection: "Watching" },
@@ -159,14 +160,15 @@ async function main(): Promise<void> {
     const cdp = await context.newCDPSession(page);
     const authenticatorId = await addPasskeyAuthenticator(cdp);
 
-    // Set up with the one-time code, keep recovery codes, add a passkey.
+    // Set up with the one-time code, a username and a password, then add a passkey.
     await page.goto(`${origin}/app/`);
     await page.waitForURL(/\/setup/);
-    await page.getByRole("textbox").first().fill(readFileSync(path.join(dataDir, "secrets/setup-code"), "utf8").trim());
-    await page.getByRole("button", { name: /Continue|Set up/ }).first().click();
-    await page.getByText("Keep your recovery codes").waitFor();
-    await page.getByText("I've saved these codes somewhere safe").click();
+    await page.getByLabel("Setup code").fill(readFileSync(path.join(dataDir, "secrets/setup-code"), "utf8").trim());
+    await page.locator("#pw-u").fill("first-reader");
+    await page.locator("#pw-p").fill(PASSWORD);
+    await page.locator("#pw-a").fill(PASSWORD);
     await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByText("Fingerprint, face or screen lock", { exact: true }).waitFor();
     await page.getByRole("button", { name: /add fingerprint, face or screen lock/i }).first().click();
     await waitFor("a passkey", async () => (await cdp.send("WebAuthn.getCredentials", { authenticatorId })).credentials.length === 1, 15_000);
     const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
@@ -177,7 +179,7 @@ async function main(): Promise<void> {
       await firstVisit.waitFor({ state: "hidden" });
     }
     await page.getByRole("button", { name: "Add source" }).first().waitFor();
-    step("claimed with the setup code and registered a passkey");
+    step("claimed with the setup code, a username and a password, and registered a passkey");
 
     // Paste, preview, follow; the engine collects through the egress proxy and items arrive.
     for (const f of FEEDS) await follow(page, f.url, f.collection);
@@ -337,10 +339,9 @@ async function main(): Promise<void> {
     p2.on("pageerror", (e) => errors.push(e.message));
     await p2.goto(`${origin}/app/invite?code=${encodeURIComponent(inviteCode)}`);
     await p2.locator("#auth-name").fill("Second Reader");
-    await p2.getByRole("button", { name: "Continue" }).click();
-    await p2.getByText("Keep your recovery codes").waitFor();
-    const recoveryCode = (await p2.locator("li code").first().innerText()).trim();
-    await p2.getByText("I've saved these codes somewhere safe").click();
+    await p2.locator("#pw-u").fill("second-reader");
+    await p2.locator("#pw-p").fill(PASSWORD);
+    await p2.locator("#pw-a").fill(PASSWORD);
     await p2.getByRole("button", { name: "Continue" }).click();
     await p2.getByRole("button", { name: /skip for now/i }).first().click();
     // A new account is asked once how it wants to be told about new things.
@@ -357,9 +358,9 @@ async function main(): Promise<void> {
     await p2.getByText(/Your account will be deleted on/).waitFor();
     step("a second account asked to be deleted and was signed out");
 
-    await p2.getByRole("button", { name: "Use a recovery code" }).click();
-    await p2.locator("#rc").fill(recoveryCode);
-    await p2.getByRole("button", { name: "Sign in with this code" }).click();
+    await p2.getByRole("textbox", { name: "Username" }).fill("second-reader");
+    await p2.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await p2.getByRole("button", { name: "Sign in", exact: true }).click();
     await p2.getByRole("button", { name: "Keep my account" }).click();
     await p2.getByRole("button", { name: "Add source" }).first().waitFor();
     await second.close();

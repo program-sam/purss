@@ -7,7 +7,7 @@
 //   npm run build && node apps/mobile/scripts/emulator-workspace.ts [port]
 //   adb reverse tcp:<port> tcp:<port>     # the emulator's localhost is then this computer's
 //
-// Connect the app to http://localhost:<port> and sign in with a recovery code it prints. Ctrl+C stops it.
+// Connect the app to http://localhost:<port> and sign in with the username and password it prints. Ctrl+C stops it.
 import { spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -19,10 +19,11 @@ import { loadConfig } from "../../api/src/config.ts";
 import { createApp } from "../../api/src/main.ts";
 import { changeState } from "../../api/src/services/state.ts";
 import { applySyncBatch } from "../../api/src/services/sync.ts";
-import { batch, entry, makeSource } from "../../api/src/testing.ts";
+import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PORT = Number(process.argv[2] ?? 19990);
+const USERNAME = "phone-tester";
 const INTERNAL = PORT + 8;
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-emulator-"));
 const dataDir = path.join(work, "data");
@@ -36,11 +37,11 @@ const env: NodeJS.ProcessEnv = {
 const ARTICLE = (title: string) => `<p>${title}. The tide comes in twice a day over the flats, and the channels fill first.</p>`
   + Array.from({ length: 12 }, (_, i) => `<p>Paragraph ${i + 1}: sediment settles where the water slows, so the banks grow on the inside of each bend and the mud shifts with every storm. Walkers follow the posts across, and the posts move too.</p>`).join("");
 
-function prepare(): { recoveryCodes: string[] } {
+function prepare(): void {
   const app = createApp(loadConfig(env as Record<string, string>));
   try {
     const code = ensureClaimCode(app)!;
-    const { accountId, recoveryCodes } = claim(app, code, "Phone tester");
+    const { accountId } = claim(app, code, "Phone tester", testPassword(USERNAME));
     const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
@@ -56,7 +57,6 @@ function prepare(): { recoveryCodes: string[] } {
     ]));
     const items = app.db.all<{ id: string; title: string; revision: number }>("SELECT id, title, revision FROM items i JOIN item_state s ON s.item_id = i.id");
     for (const it of items) if (it.title !== "Crackle on the long wave" && it.title !== "Mud, posts and storms") changeState(app, p, it.id, { workflow: "toread", expectedRevision: it.revision });
-    return { recoveryCodes };
   } finally {
     app.db.close();
   }
@@ -74,7 +74,7 @@ async function stop(): Promise<void> {
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
   cpSync(path.join(repo, "apps/web/dist"), webDist, { recursive: true });
-  const { recoveryCodes } = prepare();
+  prepare();
   api = spawn(process.execPath, ["apps/api/src/main.ts"], { cwd: repo, env, stdio: ["ignore", "inherit", "inherit"] });
   const until = Date.now() + 30_000;
   for (;;) {
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     if (Date.now() > until) throw new Error("The API didn't start");
     await new Promise((r) => setTimeout(r, 200));
   }
-  console.log(`\nWorkspace ready at ${origin}\nRecovery codes (each works once; connecting asks for a second one when the sign-in is over ten minutes old):\n${recoveryCodes.slice(0, 4).join("\n")}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
+  console.log(`\nWorkspace ready at ${origin}\nSign in with the username ${USERNAME} and the password ${TEST_PASSWORD}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => void stop().then(() => process.exit(0)));
 }
 
