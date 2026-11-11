@@ -7,7 +7,7 @@ export const LEGAL = {
     title: "Terms of service",
     updated: "November 2026",
     body: `
-<p class="s-lead">These terms cover the hosted PURSS that program-sam runs for you. If you run the software on your own server, these terms don't apply: the software itself is licensed under the <a class="link" href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>.</p>
+<p class="s-lead">These terms cover the hosted PURSS that Program Sam runs for you. If you run the software on your own server, these terms don't apply: the software itself is licensed under the <a class="link" href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>.</p>
 
 <h2>1. The plans</h2>
 <ul>
@@ -55,7 +55,7 @@ export const LEGAL = {
     title: "Privacy",
     updated: "November 2026",
     body: `
-<p class="s-lead">The short version: your PURSS is yours. We keep what the service needs to work, we don't track you, and we don't sell or advertise on your data. This page covers the hosted PURSS run by program-sam. If you host it yourself, your data stays on your server and this policy doesn't apply.</p>
+<p class="s-lead">The short version: your PURSS is yours. We keep what the service needs to work, we don't track you, and we don't sell or advertise on your data. This page covers the hosted PURSS run by Program Sam. If you host it yourself, your data stays on your server and this policy doesn't apply.</p>
 
 <h2>This website</h2>
 <p>This site sets no cookies and loads no analytics, trackers or third-party scripts. Our server sees the usual request details (your IP address and browser) when you visit, only to serve the pages.</p>
@@ -101,7 +101,7 @@ export const LEGAL = {
 <p>You can see and export everything at any time, correct it in the app, and close your account to have it deleted. If you live in the EU you also have the right to object, to restrict processing and to complain to your data protection authority. We use your data only to provide the service you signed up for.</p>
 
 <h2>Contact</h2>
-<p>Questions about privacy go to program-sam; see the <a class="link" href="/legal.html">legal notice</a>. If we change this policy, we tell you in PURSS before the change applies.</p>
+<p>Questions about privacy go to Program Sam; see the <a class="link" href="/legal.html">legal notice</a>. If we change this policy, we tell you in PURSS before the change applies.</p>
 `,
   },
   legal: {
@@ -111,10 +111,10 @@ export const LEGAL = {
 <p class="s-lead">Who runs PURSS, and how to reach them.</p>
 
 <h2>Operator</h2>
-<p>The hosted PURSS is run by <b>program-sam</b>, on a server program-sam manages.</p>
+<p>The hosted PURSS is run by <b>Program Sam</b>, on a server Program Sam manages.</p>
 
 <h2>Contact</h2>
-<p>Reach program-sam through <a class="link" href="https://github.com/program-sam">github.com/program-sam</a>.</p>
+<p>Reach Program Sam through <a class="link" href="https://github.com/program-sam">github.com/program-sam</a>.</p>
 
 <h2>The software</h2>
 <p>PURSS is free software under the <a class="link" href="https://www.gnu.org/licenses/agpl-3.0.html">GNU Affero General Public License v3.0</a>. It is built on <a class="link" href="https://freshrss.org">FreshRSS</a>, which fetches the feeds. Anyone may use, change and host it; anyone who distributes it, or runs a changed version as a network service, shares their source under the same license.</p>
@@ -123,7 +123,7 @@ export const LEGAL = {
 <p>Articles, videos and podcasts shown in a PURSS come from the sources each person chose to follow and belong to their publishers. PURSS doesn't rank them. On the hosted service, Discovery (coming soon) suggests sources, never single items, to readers who share their own, and says why; suggestions are never mixed into your lists.</p>
 
 <h2>Shared pages</h2>
-<p>A shared page (an address with <code>/p/</code> in it) is published by the person named on it, not by program-sam. It links to articles that belong to their publishers and shows only their titles, short summaries and that person's own public notes. To report a page that breaks the law or our terms, including a copyright complaint, use the <b>Report this page</b> link at its foot.</p>
+<p>A shared page (an address with <code>/p/</code> in it) is published by the person named on it, not by Program Sam. It links to articles that belong to their publishers and shows only their titles, short summaries and that person's own public notes. To report a page that breaks the law or our terms, including a copyright complaint, use the <b>Report this page</b> link at its foot.</p>
 
 <h2>Terms and privacy</h2>
 <p>Using the hosted service is covered by the <a class="link" href="/terms.html">terms of service</a> and the <a class="link" href="/privacy.html">privacy policy</a>.</p>

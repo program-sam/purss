@@ -31,7 +31,7 @@ export const PAGES = {
       license: "https://www.gnu.org/licenses/agpl-3.0.html",
       isAccessibleForFree: true,
       sameAs: [links(site).source],
-      publisher: { "@type": "Organization", name: "program-sam", url: "https://github.com/program-sam" },
+      publisher: { "@type": "Organization", name: "Program Sam", url: "https://github.com/program-sam" },
       offers: [
         { "@type": "Offer", name: SELF_HOSTED.name, price: SELF_HOSTED.price, priceCurrency: "EUR", url: links(site).install },
         { "@type": "Offer", name: PLANS.free.name, price: "0", priceCurrency: "EUR", url: abs(site, links(site).signUp) },
