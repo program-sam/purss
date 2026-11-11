@@ -275,6 +275,11 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
     push: null,
     interfaceUpdates: updates,
     appVersion: async () => { try { return plainVersion(await desktop.appVersion()); } catch { return null; } },
+    onConnectLink: (listener) => incoming.subscribe((i) => {
+      if (i.kind !== "url" || !/^purss:\/\/connect\b/i.test(i.url)) return false;
+      listener(i.url);
+      return true;
+    }),
     onOpen: (listener) => incoming.subscribe((i) => {
       if (i.kind !== "url") return false;
       const target = readOpenLink(i.url);
