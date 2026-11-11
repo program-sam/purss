@@ -57,7 +57,7 @@ export function NotificationSettings() {
           </div>
         ) : null}
         {(n.frequency === "daily" || n.frequency === "weekly") && canEmail ? (
-          <Check checked={n.emailDigest} onChange={(v) => set({ emailDigest: v })} hint={`Sent to ${address}. Item titles are left out unless you show titles in notifications.`}>Email me the digest</Check>
+          <Check checked={n.emailDigest} onChange={(v) => set({ emailDigest: v })} hint={`Sent to ${address}, with the titles of the newest items in each collection. Titles from private sources are never included.`}>Email me the digest</Check>
         ) : null}
         {(n.frequency === "daily" || n.frequency === "weekly") && unconfirmed ? <p className="fine">Add and confirm an email address under Security to get the digest by email.</p> : null}
         <p className="fine">Times are in your time zone ({p.timezone.replace(/_/g, " ")}). New items arrive in batches when sources are checked; it isn't instant.</p>

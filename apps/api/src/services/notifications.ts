@@ -5,6 +5,7 @@ import { emit } from "../app.ts";
 import { nowIso } from "../http.ts";
 import { sendLater } from "../mail/mailer.ts";
 import { digestMail } from "../mail/templates.ts";
+import type { DigestMail } from "../mail/templates.ts";
 import { getPreferences } from "./preferences.ts";
 import { addDays, localDate, validTimezone } from "./reminders.ts";
 import { boxesBySource } from "./home.ts";
@@ -21,6 +22,8 @@ import type { BoxLink } from "./home.ts";
  * Titles stay out of the text unless previews are on and the source isn't private.
  */
 
+/** How many of a box's newest items a digest email shows. */
+const TEASERS = 3;
 /** A source's arrivals within this many minutes of its first notification are folded into it. */
 const COALESCE_MINUTES = 60;
 /** Notifications are kept this long, and at most this many. */
@@ -88,19 +91,23 @@ function upsertArrival(app: App, workspaceId: string, s: Sourcey, count: number,
 // ---------- digests ----------
 
 export type DigestWindow = { from: string; to: string };
-export type DigestBox = { id: string; name: string; count: number; titles: string[] };
+/** An item the digest email shows as a teaser: never one of a private source. */
+export type DigestTeaser = { id: string; title: string; source: string; at: string };
+export type DigestBox = { id: string; name: string; count: number; titles: string[]; teasers: DigestTeaser[] };
 export type Digest = { window: DigestWindow; total: number; boxes: DigestBox[] };
 
 /**
  * What is still New among the items that arrived in a window, counted per Home box under the person's choice of
- * contents, for a digest here or by email. The same privacy rules hold in every channel, so they are applied here:
- * item titles (a few per box) are filled only when the person has turned on titles in notifications, and never for an item
- * of a private source. A source in two collections is counted in both, and once in `total`.
+ * contents, for a digest here or by email. The privacy rules are applied here: `titles` (a few per box, for the bell and
+ * the phone, which can show on a shared or locked screen) are filled only when the person has turned on titles in
+ * notifications; `teasers` (the newest few per box, for the email, which goes only to the person's own confirmed address)
+ * always are. Neither ever holds an item of a private source. A source in two collections is counted in both, and once in
+ * `total`.
  */
 export function digestFor(app: App, workspaceId: string, window: DigestWindow): Digest {
   const prefs = getPreferences(app, workspaceId);
-  const rows = app.db.all<{ source_id: string; n: number; is_private: number; notify: string }>(
-    `SELECT i.source_id, COUNT(*) AS n, s.is_private, s.notify FROM items i
+  const rows = app.db.all<{ source_id: string; n: number; is_private: number; notify: string; source_title: string }>(
+    `SELECT i.source_id, COUNT(*) AS n, s.is_private, s.notify, s.title AS source_title FROM items i
        JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id
      WHERE i.workspace_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND s.followed = 1 AND s.notify <> 'muted'
      GROUP BY i.source_id`, workspaceId, window.from, window.to);
@@ -111,31 +118,67 @@ export function digestFor(app: App, workspaceId: string, window: DigestWindow): 
     const mine = boxesFor(prefs, links.get(r.source_id), prefs.homeOther);
     if (!mine.length) continue;
     total += r.n;
-    const titles = prefs.notifications.previews && !r.is_private
-      ? app.db.all<{ title: string }>(
-        `SELECT i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1
-         ORDER BY i.discovered_at DESC LIMIT 2`, workspaceId, r.source_id, window.from, window.to).map((t) => t.title)
-      : [];
+    const newest = r.is_private ? [] : app.db.all<{ id: string; title: string; discovered_at: string }>(
+      `SELECT i.id, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
+       WHERE i.workspace_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND st.workflow <> 'ignored'
+       ORDER BY i.discovered_at DESC LIMIT ?`, workspaceId, r.source_id, window.from, window.to, TEASERS);
+    const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => t.title) : [];
+    const teasers = newest.map((t) => ({ id: t.id, title: t.title, source: r.source_title, at: t.discovered_at }));
     for (const b of mine) {
-      const box = boxes.get(b.id) ?? { id: b.id, name: b.name, count: 0, titles: [] };
+      const box = boxes.get(b.id) ?? { id: b.id, name: b.name, count: 0, titles: [], teasers: [] };
       box.count += r.n;
       box.titles.push(...titles);
+      box.teasers.push(...teasers);
       boxes.set(b.id, box);
     }
   }
   const list = [...boxes.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  for (const b of list) b.titles = b.titles.slice(0, 3);
+  for (const b of list) {
+    b.titles = b.titles.slice(0, 3);
+    b.teasers = b.teasers.sort((x, y) => y.at.localeCompare(x.at) || x.id.localeCompare(y.id)).slice(0, TEASERS);
+  }
   return { window, total, boxes: list };
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** How many boxes a digest lists; the rest are "and N more". */
+const DIGEST_BOXES = 8;
+
 /** The one notification a digest becomes: "Your daily digest: 54 new in 4 collections", with a line per collection. */
 export function digestText(d: Digest, kind: "daily" | "weekly"): { title: string; body: string } {
   const where = d.boxes.length === 1 && d.boxes[0]!.id === OTHER_BOX_ID ? "your other sources" : plural(d.boxes.length, "collection");
-  const lines = d.boxes.slice(0, 8).map((b) => `${b.name}: ${b.count} new${b.titles.length ? ` · ${b.titles.map((t) => `“${t}”`).join(", ")}` : ""}`);
-  if (d.boxes.length > 8) lines.push(`and ${d.boxes.length - 8} more`);
+  const lines = d.boxes.slice(0, DIGEST_BOXES).map((b) => `${b.name}: ${b.count} new${b.titles.length ? ` · ${b.titles.map((t) => `“${t}”`).join(", ")}` : ""}`);
+  if (d.boxes.length > DIGEST_BOXES) lines.push(`and ${d.boxes.length - DIGEST_BOXES} more`);
   return { title: `Your ${kind} digest: ${d.total} new in ${where}`, body: lines.join("\n") };
+}
+
+/** How long ago, in words, for a teaser: "2 hours ago", "yesterday", "3 days ago". */
+function ago(at: string, now: Date): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - Date.parse(at)) / 60_000));
+  if (minutes < 60) return minutes <= 1 ? "just now" : `${minutes} minutes ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return plural(hours, "hour") + " ago";
+  const days = Math.round(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+/** What the digest email shows: the counts, and per box its newest items with links into the app. */
+export function digestEmail(app: App, d: Digest, kind: "daily" | "weekly", now: Date = new Date()): DigestMail {
+  const home = `${app.config.publicOrigin}${appUrl("/")}`;
+  const text = digestText(d, kind);
+  const shown = d.boxes.slice(0, DIGEST_BOXES);
+  return {
+    subject: text.title,
+    intro: `${plural(d.total, "new item")} ${kind === "weekly" ? "this week" : "today"}, still waiting for you.`,
+    boxes: shown.map((b) => ({
+      name: b.name, count: b.count,
+      link: b.id === OTHER_BOX_ID ? home : `${home}c/${encodeURIComponent(b.id)}`,
+      teasers: b.teasers.map((t) => ({ title: t.title, meta: `${t.source} · ${ago(t.at, now)}`, link: `${home}?item=${encodeURIComponent(t.id)}` })),
+    })),
+    more: d.boxes.length - shown.length,
+    home, settings: `${home}?dialog=notifications`,
+  };
 }
 
 // ---------- the scheduled part ----------
@@ -210,16 +253,13 @@ export function runDigest(app: App, workspaceId: string, accountId: string, now:
     // Named by the window it covers: the same window can only be recorded once.
     const recorded = app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
       newId("ntf"), workspaceId, text.title, text.body, `digest:${freq}:${window.from}`, window.to).changes > 0;
-    return recorded ? text : null;
+    return recorded ? d : null;
   });
   if (!made) return false;
   emit(app, accountId, { type: "notification" });
   if (prefs.notifications.emailDigest) {
     const account = app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", accountId);
-    if (account?.email && account.email_verified_at) {
-      const home = `${app.config.publicOrigin}${appUrl("/")}`;
-      sendLater(app, "digest", accountId, digestMail(account.email, { title: made.title, lines: made.body.split("\n"), link: home, settings: `${home}?dialog=notifications` }));
-    }
+    if (account?.email && account.email_verified_at) sendLater(app, "digest", accountId, digestMail(account.email, digestEmail(app, made, freq, now)));
   }
   return true;
 }

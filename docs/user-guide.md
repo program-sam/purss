@@ -645,7 +645,9 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
   54 new in 4 collections", with a line per collection counting what is still New. Items you have
   already dealt with don't count. A digest with nothing in it isn't sent. Where the installation
   sends email and your address is confirmed, the digest also comes **by email** (*Email me the
-  digest*, on by default), under the same rules for titles.
+  digest*, on by default). The email looks like Home: a box per collection with its newest items,
+  each a link to open it. It shows titles even when titles in notifications are off (it goes only
+  to you), but never those of private sources.
 - **What about:** new items from every collection shown on Home, or only from the collections you
   tick; sources that stop working; reminders ("On this day" notes and the days you set with
   [Remind me](#reminders)); saved text that couldn't be saved.

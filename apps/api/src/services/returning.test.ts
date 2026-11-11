@@ -715,7 +715,7 @@ test("a weekly digest is made once, on or after its day", (t) => {
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-06T12:00:00.000Z")), false);
 });
 
-test("a digest goes by email too, to a confirmed address, unless the person turns that off; titles follow the same rules", async (t) => {
+test("a digest goes by email too, to a confirmed address, unless the person turns that off; it teases new titles, never a private source's", async (t) => {
   const { app, p, cleanup } = setup({ PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>", PURSS_PUBLIC_ORIGIN: "https://ws.example.org" });
   t.after(async () => { await settleMail(app); cleanup(); });
   const sent: Message[] = [];
@@ -739,7 +739,8 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   await week(2, "2026-10-19");
   assert.equal(sent.length, 0, "no confirmed address, no email");
 
-  // Confirmed: on by default; counts and a link, no titles while titles are off.
+  // Confirmed: on by default. The email teases the newest titles with links to them, even with titles off in notifications
+  // (the bell's copy still leaves them out); a private source's never.
   app.db.run("UPDATE accounts SET email_verified_at = ? WHERE id = ?", nowIso(), p.accountId);
   await week(3, "2026-10-26");
   assert.equal(sent.length, 1);
@@ -748,14 +749,21 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.match(sent[0]!.text, /^Reading: 2 new$/m);
   assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/"), "the link to Home is a line of its own");
   assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/?dialog=notifications"), "and so is the link to the setting that stops them");
-  assert.ok(!/post/.test(sent[0]!.text) && !/post/.test(sent[0]!.html), "no titles while titles are off");
+  const openId = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'Open post 3'")!.id;
+  assert.match(sent[0]!.text, /^- Open post 3 \(Open · 2 hours ago\)$/m);
+  assert.ok(sent[0]!.text.split("\n").includes(`  https://ws.example.org/app/?item=${openId}`), "each teaser links to its item");
+  assert.match(sent[0]!.html, /Open post 3/);
+  assert.match(sent[0]!.html, /1 more in Reading/, "the private item is counted, not shown");
+  assert.ok(!/Patron/.test(sent[0]!.text) && !/Patron/.test(sent[0]!.html), "a private source's titles never go by email");
+  assert.ok(!/post/.test(notes(app).at(-1)!.body ?? ""), "the bell's digest has no titles while titles are off");
 
-  // Titles on: public titles only, never a private source's.
+  // Titles on: the bell gets public titles too; the email is the same.
   setPreferences(app, p.workspaceId, { notifications: { previews: true } });
   await week(4, "2026-11-02");
   assert.equal(sent.length, 2);
   assert.match(sent[1]!.text, /Open post 4/);
-  assert.ok(!/Patron/.test(sent[1]!.text) && !/Patron/.test(sent[1]!.html), "a private source's titles never go by email");
+  assert.match(notes(app).at(-1)!.body ?? "", /Open post 4/);
+  assert.ok(!/Patron/.test(sent[1]!.text) && !/Patron/.test(sent[1]!.html) && !/Patron/.test(notes(app).at(-1)!.body ?? ""), "a private source's titles never show");
 
   // Turned off: the bell keeps getting it, email stops.
   setPreferences(app, p.workspaceId, { notifications: { emailDigest: false } });

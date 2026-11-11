@@ -3,7 +3,7 @@ import type { Message } from "./mailer.ts";
 /*
  * The messages, in the product's plain language: plain text plus a simple HTML version with the
  * same words. Nothing a person typed goes into a message except the recipient's own username,
- * for a reminder the person asked for, what they wrote on it, and in a digest, their collections' names. Every link stands alone on
+ * for a reminder the person asked for, what they wrote on it, and in a digest, their collections' names and the titles of new items. Every link stands alone on
  * its own line, so no full stop or word can end up glued to its address.
  */
 
@@ -120,17 +120,73 @@ export function reminderMail(to: string, opts: { items: { title: string | null; 
   return compose(to, one ? "A reminder you set is due" : `${opts.items.length} reminders you set are due`, parts);
 }
 
-/**
- * A daily or weekly digest: its title, one line per collection (counts, and titles only under the notification rules applied by
- * `digestFor`), a link to Home, and a link straight to the setting that stops these emails.
+/** A digest email: counts per collection and the newest items of each, with links into the app. */
+export type DigestMail = {
+  subject: string;
+  intro: string;
+  boxes: { name: string; count: number; link: string; teasers: { title: string; meta: string; link: string }[] }[];
+  /** Collections with new items that are not listed. */
+  more: number;
+  home: string;
+  /** Opens Settings → Notifications and New, where the email is turned off. */
+  settings: string;
+};
+
+/*
+ * The digest looks like Home: a sky-tinted page, and per collection a white box with Home's tinted header, its count of new
+ * items, and its newest items marked with Home's blue dot. Colours are Home's sky skin in hex (mail programs don't all read
+ * hsl()), the font stack is Home's without the web font (nothing remote is loaded), and every box is a table.
  */
-export function digestMail(to: string, opts: { title: string; lines: string[]; link: string; settings: string }): Message {
-  return compose(to, opts.title, [
-    ...opts.lines,
-    { href: opts.link, label: `Open your ${NAME}` },
-    `You get this email because digest emails are on for your ${NAME} account. To stop them, or to change how often they come, untick "Email me the digest" here:`,
-    { href: opts.settings, label: "Change digest emails" },
-  ]);
+const SKY = { top: "#a4ccf9", mid: "#d3e7fd", bg: "#fcfcfd", modTop: "#f7fbff", modBot: "#e5f0fd", modBd: "#d3dfee", line: "#dce3ea", ink: "#131e2a", ink3: "#566371", accent: "#1260ba", accentInk: "#15467f" };
+const ROUNDED = "ui-rounded,'SF Pro Rounded','Nunito','Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif";
+
+function digestBox(b: DigestMail["boxes"][number]): string {
+  const rows = b.teasers.map((t, i) => `<tr><td style="padding:12px 16px;${i ? `border-top:1px solid ${SKY.line};` : ""}">`
+    + `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>`
+    + `<td width="16" valign="top" style="padding-top:7px"><div style="width:7px;height:7px;border-radius:50%;background:${SKY.accent};font-size:0;line-height:0">&nbsp;</div></td>`
+    + `<td><a href="${escape(t.link)}" style="font-size:15px;line-height:1.4;font-weight:700;color:${SKY.ink};text-decoration:none">${escape(t.title)}</a>`
+    + `<div style="margin-top:3px;font-size:13px;line-height:1.4;color:${SKY.ink3}">${escape(t.meta)}</div></td>`
+    + `</tr></table></td></tr>`).join("");
+  const rest = b.count - b.teasers.length;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background:#ffffff;border:1px solid ${SKY.modBd};border-radius:12px;border-collapse:separate;overflow:hidden">`
+    + `<tr><td style="padding:12px 16px;background:${SKY.modBot};background-image:linear-gradient(${SKY.modTop},${SKY.modBot});border-bottom:1px solid ${SKY.modBd};border-radius:11px 11px 0 0">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>`
+    + `<td><a href="${escape(b.link)}" style="font-size:16px;font-weight:800;color:${SKY.ink};text-decoration:none">${escape(b.name)}</a></td>`
+    + `<td align="right" style="font-size:13px;font-weight:800;color:${SKY.accentInk};white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${SKY.accent};margin-right:6px;vertical-align:1px"></span>${b.count} new</td>`
+    + `</tr></table></td></tr>`
+    + rows
+    + `<tr><td style="padding:10px 16px;border-top:1px solid ${SKY.line}"><a href="${escape(b.link)}" style="font-size:13px;font-weight:700;color:${SKY.accentInk};text-decoration:none">${rest > 0 ? `${rest} more in ${escape(b.name)}` : `Open ${escape(b.name)}`} &rsaquo;</a></td></tr>`
+    + `</table>`;
+}
+
+/** The daily or weekly digest, built by `digestEmail` in services/notifications.ts. */
+export function digestMail(to: string, m: DigestMail): Message {
+  const stop = `You get this email because digest emails are on for your ${NAME} account. To stop them, or to change how often they come, untick "Email me the digest" in Settings, under Notifications and New.`;
+  const text = [
+    m.intro,
+    ...m.boxes.map((b) => [`${b.name}: ${b.count} new`, ...b.teasers.map((t) => `- ${t.title} (${t.meta})\n  ${t.link}`)].join("\n")),
+    ...(m.more > 0 ? [`and ${m.more} more ${m.more === 1 ? "collection" : "collections"}`] : []),
+    `Open your ${NAME}:\n${m.home}`,
+    `${stop}\n${m.settings}`,
+  ].join("\n\n") + `\n\n-- \n${NAME}\n`;
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(m.subject)}</title></head>
+<body style="margin:0;padding:0;background:${SKY.bg};font-family:${ROUNDED}">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escape(m.intro)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${SKY.mid};background-image:linear-gradient(${SKY.top},${SKY.mid} 180px,${SKY.bg} 420px)"><tr><td align="center" style="padding:28px 14px 32px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:${ROUNDED}">
+<tr><td style="padding:0 4px 18px"><span style="font-size:18px;font-weight:800;letter-spacing:2px;color:${SKY.accentInk}">${NAME}</span></td></tr>
+<tr><td style="padding:0 4px 20px"><h1 style="margin:0 0 6px;font-size:24px;line-height:1.25;font-weight:800;color:${SKY.ink}">${escape(m.subject.replace(/:.*$/, ""))}</h1>
+<p style="margin:0;font-size:15px;line-height:1.5;color:${SKY.ink3}">${escape(m.intro)}</p></td></tr>
+<tr><td>${m.boxes.map(digestBox).join("\n")}</td></tr>
+${m.more > 0 ? `<tr><td style="padding:0 4px 16px;font-size:14px;color:${SKY.ink3}">And ${m.more} more ${m.more === 1 ? "collection" : "collections"} with new items.</td></tr>` : ""}
+<tr><td align="center" style="padding:8px 0 24px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background:${SKY.accent}"><a href="${escape(m.home)}" style="display:inline-block;padding:12px 26px;border-radius:8px;font-size:16px;font-weight:700;line-height:1.2;color:#ffffff;text-decoration:none">Open your ${NAME}</a></td></tr></table></td></tr>
+<tr><td style="padding:0 4px;font-size:12px;line-height:1.55;color:${SKY.ink3}">${escape(stop)} <a href="${escape(m.settings)}" style="color:${SKY.accentInk};font-weight:700">Change digest emails</a></td></tr>
+</table>
+</td></tr></table>
+</body></html>
+`;
+  return { to, subject: m.subject, text, html };
 }
 
 export function testMail(to: string, opts: { origin: string }): Message {
