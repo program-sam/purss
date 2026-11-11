@@ -346,7 +346,6 @@ const APPS = (site: Site) => [
   ["bookmark", "Bookmarklets", "Can't install anything? Two bookmarks send any page to PURSS, in any browser.", () => ""],
   ["key", "Your assistant, if you want one", "Ask Claude, ChatGPT or another assistant you already use what you've read about something, and let it tidy up if you allow. Connects through MCP; off until you turn it on.", () => ""],
   ["page", "E-ink display", "Long reads are easier on the eyes on an e-reader: black on white, page buttons instead of scrolling.", () => ""],
-  ["window", "Install it as an app", "No app store needed: add it from your browser and your reading list works offline.", () => ""],
 ] as const;
 
 export function appCards(site: Site): string {
