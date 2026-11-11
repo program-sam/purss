@@ -1,7 +1,7 @@
 /* ===== App layout ===== */
 html,body{height:100%}
 body{overflow:hidden}
-[data-density="compact"]{--row-h:44px;--row-py:4px;--av-row:22px}
+:root[data-density="compact"]{--row-h:44px;--row-py:4px;--av-row:22px}
 :root{--row-h:56px;--row-py:9px;--av-row:26px}
 .skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--surface);padding:8px 14px;border-radius:8px;border:2px solid var(--focus);font-weight:700}
 .skip:focus{top:10px}
