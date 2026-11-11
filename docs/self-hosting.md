@@ -7,7 +7,7 @@ parts named here.
 
 ## Requirements
 
-- **Local run:** Node.js 26 or newer, and podman (rootless works). The pinned FreshRSS image
+- **Local run:** Node.js 24 or newer, and podman (rootless works). The pinned FreshRSS image
   is pulled on first start if it is missing.
 - **Docker Compose:** Docker Engine with a recent Compose v2 (the proxy overlay uses
   `!reset`). The containers are limited to about 870 MiB of memory together (API 256 MiB,

@@ -50,7 +50,7 @@ page (apps/web, in the WebView)                      native (apps/mobile)
   one download (`apps/web/src/downloads/manager.test.ts`), reading `record.json`
   (`downloads/background.test.ts`), the widget's snapshot and `purss://open` links
   (`device/widget.test.ts`, `platform/open-link.test.ts`), the stop order on disconnect (`platform/native/forget.test.ts`). Kotlin on
-  the JVM (`./gradlew testDebugUnitTest`): the mirrored state, the plan and its unsafe entries, the
+  the JVM (`./gradlew testFullDebugUnitTest`): the mirrored state, the plan and its unsafe entries, the
   records, the widget's To read refresh, stored connections and paths.
 - Android 15 emulator (debug APK, a throwaway PURSS through a throttling proxy): with *To read podcast
   episodes* on and the app closed (no activity, no WebView in the process), the job run on demand

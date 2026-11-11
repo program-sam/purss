@@ -12,7 +12,7 @@ the owner approves them.
 
 | Concern | Choice | Reason |
 | --- | --- | --- |
-| Language | TypeScript, run directly by Node 26 type stripping on the server; `tsc --noEmit` for checks | No server build step; erasable syntax only |
+| Language | TypeScript, run directly by Node 24 type stripping on the server; `tsc --noEmit` for checks | No server build step; erasable syntax only |
 | Database | `node:sqlite` (bundled SQLite 3.50, FTS5) | No native dependency; WAL; online backup API |
 | HTTP | `node:http` with a small typed router; `zod` for request validation | Small surface we control |
 | Web | React 19, Vite, TanStack Router and Query | As planned; A3 CSS ported to `packages/ui` tokens |
