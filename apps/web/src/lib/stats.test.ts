@@ -7,7 +7,7 @@ function numbers(over: Partial<StatsNumbers> = {}): StatsNumbers {
   return {
     totalItems: 0, weekly: new Array<number>(26).fill(0), lastItemAt: null, longestGapDays: null,
     workflow: { new: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
-    opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, ...over,
+    opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, filteredOut: 0, ...over,
   };
 }
 const row = (title: string, over: Partial<StatsNumbers> = {}): CollectionStatsRow => ({ sourceId: title.toLowerCase(), title, stats: numbers(over) });

@@ -3,6 +3,7 @@ import type { CollectionStatsResponse, CollectionStatsRow, SourceStatsResponse, 
 import type { App, Principal } from "../app.ts";
 import { notFound, nowIso } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
+import { FILTERED_OUT } from "./ai-filters.ts";
 import { VISIBLE_SOURCE, scopeClause } from "./items.ts";
 
 /*
@@ -30,7 +31,7 @@ function emptyNumbers(): StatsNumbers {
   return {
     totalItems: 0, weekly: new Array<number>(STATS_WEEKS).fill(0), lastItemAt: null, longestGapDays: null,
     workflow: { new: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
-    opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0,
+    opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, filteredOut: 0,
   };
 }
 
@@ -55,15 +56,16 @@ function numbersBySource(app: App, p: Principal, scope: string, now: string): Ma
   };
 
   const perState = WORKFLOW_STATES.map((w) => `COALESCE(SUM(st.workflow = '${w}'), 0) AS w_${w}`).join(", ");
-  type Counts = { sid: Sid; total: number; opened: number; kept: number; last_at: string | null } & Record<`w_${WorkflowState}`, number>;
+  type Counts = { sid: Sid; total: number; opened: number; kept: number; filtered: number; last_at: string | null } & Record<`w_${WorkflowState}`, number>;
   for (const r of app.db.all<Counts>(
     `SELECT i.source_id AS sid, COUNT(*) AS total, ${perState},
        COALESCE(SUM(st.opened_at IS NOT NULL), 0) AS opened,
        COALESCE(SUM(EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)), 0) AS kept,
+       COALESCE(SUM(${FILTERED_OUT}), 0) AS filtered,
        MAX(CASE WHEN ${EFFECTIVE} <= ? THEN ${EFFECTIVE} END) AS last_at
      ${FROM} WHERE ${where} GROUP BY i.source_id`, now, ...params)) {
     const n = at(r.sid);
-    n.totalItems = r.total; n.opened = r.opened; n.kept = r.kept; n.lastItemAt = r.last_at;
+    n.totalItems = r.total; n.opened = r.opened; n.kept = r.kept; n.filteredOut = r.filtered; n.lastItemAt = r.last_at;
     for (const w of WORKFLOW_STATES) n.workflow[w] = r[`w_${w}`];
   }
 
@@ -106,7 +108,7 @@ function longestGapSql(where: string, perSource: boolean): string {
 function totalsOf(app: App, p: Principal, scope: string, now: string, rows: StatsNumbers[]): StatsNumbers {
   const total = emptyNumbers();
   for (const n of rows) {
-    total.totalItems += n.totalItems; total.opened += n.opened; total.kept += n.kept;
+    total.totalItems += n.totalItems; total.opened += n.opened; total.kept += n.kept; total.filteredOut += n.filteredOut;
     total.finishedLast30Days += n.finishedLast30Days; total.ignoredLast30Days += n.ignoredLast30Days;
     for (const w of WORKFLOW_STATES) total.workflow[w] += n.workflow[w];
     n.weekly.forEach((c, i) => { total.weekly[i]! += c; });

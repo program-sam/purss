@@ -122,6 +122,9 @@ function removeFilterRows(app: App, filterId: string): void {
  */
 const UNTOUCHED = `st.revision = COALESCE((SELECT MAX(v2.applied_revision) FROM ai_filter_verdicts v2 WHERE v2.item_id = st.item_id), 0)`;
 
+/** SQL over `item_state st`: a filter dropped the post to Ignored and its workflow is still the filter's doing (what a filter's droppedCount counts). */
+export const FILTERED_OUT = `(st.workflow = 'ignored' AND EXISTS (SELECT 1 FROM ai_filter_verdicts v3 WHERE v3.item_id = st.item_id AND v3.dropped = 1) AND ${UNTOUCHED})`;
+
 /** The sources a filter covers. */
 function filterSourcesSql(): string {
   return `SELECT f.source_id AS source_id FROM ai_filters f WHERE f.id = ? AND f.source_id IS NOT NULL

@@ -577,6 +577,10 @@ feeds, and the app doesn't read anything into them.
 - **Longest gap:** the most days between two consecutive items dated in the last 12 months.
 - **Workflow states:** how many items are in each state, as a count with its share of the
   source's items, such as "31 (24%)". The count always comes first.
+- **Filtered out by a Smart filter:** of the Ignored items, those a Smart filter moved there and
+  whose workflow you haven't changed since. It appears only when there are some, also after the
+  filter is turned off; deleting the filter removes its record, so its posts then count as plain
+  Ignored. Moved to Ignored in the last 30 days includes the filter's moves.
 - **Opened** and **In baskets:** items you have opened at least once, and items in at least one
   basket.
 - **Moved to Finished / Ignored in the last 30 days:** counted from a log of your own workflow
