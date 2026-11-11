@@ -13,6 +13,7 @@ import { useSession } from "../api/hooks.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 import { passkeysAvailable } from "./PasswordForm.tsx";
 import { platform } from "../platform/index.ts";
+import { ProviderButton } from "./ProviderButton.tsx";
 
 const PASSKEY_SIGNIN_FAILURE = "Sign-in failed. Try again, or use your password.";
 
@@ -30,7 +31,18 @@ export async function assertPasskey(verifyPath: string, sharedComputer = false):
   await post(verifyPath, { challengeId, response });
 }
 
-const OIDC_ERRORS = "That sign-in didn't work. Try again, or use another way in.";
+/** What the sign-in page says when an external sign-in comes back with a problem (the server's code in `?error=`). */
+export function oidcError(code: string, label: string): string {
+  switch (code) {
+    case "account_deleting": return DELETING;
+    case "email_in_use": return `An account with this email address already exists. Sign in with your username and password, then connect ${label} in Settings → Security.`;
+    case "email_unverified": return `${label} didn't give PURSS a verified email address, so an account can't be made from it.`;
+    case "not_linked": return `That ${label} account isn't connected to an account here. Sign in another way and connect it in Settings → Security first.`;
+    case "signup_full": return "New accounts are full for now. Try again later.";
+    case "signup_rate_limited": return "Too many attempts to make an account from this address. Try again later.";
+    default: return "That sign-in didn't work. Try again, or use another way in.";
+  }
+}
 const DELETING = "This account is being deleted. It can't be signed in to or kept any more.";
 
 /** The provider sign-in's query: where to return afterwards, and whether this is a shared computer. */
@@ -49,7 +61,7 @@ export function SignInPage() {
   const session = useSession().data;
   const search = useSearch({ strict: false }) as { error?: string; next?: string; notice?: string; due?: string };
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(search.error === "account_deleting" ? DELETING : search.error ? OIDC_ERRORS : "");
+  const [error, setError] = useState(search.error ? oidcError(search.error, session?.installation.oidcProviders[0]?.label ?? "that account") : "");
   const [notice, setNotice] = useState(search.notice === "deletion_requested" && search.due ? `Your account will be deleted on ${shortDate(search.due)}. Sign in before then to keep it.` : "");
   const [pending, setPending] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -118,9 +130,7 @@ export function SignInPage() {
             <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a password manager.</p>
           </>
         ) : null}
-        {providers.map((p) => (
-          <a key={p.id} className="btn lg" style={{ width: "100%" }} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${oidcQuery(search.next, sharedComputer)}`}>Continue with {p.label}</a>
-        ))}
+        {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${oidcQuery(search.next, sharedComputer)}`} />)}
         {/* A reset link comes by email where this installation has account email; otherwise the administrator makes one at the server. */}
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.accountEmail
