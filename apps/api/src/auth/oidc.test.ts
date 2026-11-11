@@ -8,7 +8,7 @@ import type { TestSession } from "../features-testing.ts";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import type { DeletionBoot } from "../deletion-testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
-import { OidcFlowError, finishOidc, issueAppTicket, redeemLinkCode, startFromTicket, startOidc } from "./oidc.ts";
+import { OidcFlowError, finishOidc, issueAppTicket, redeemConfirmCode, redeemLinkCode, startFromTicket, startOidc } from "./oidc.ts";
 import { canConfirm, linkedProviders } from "./providers.ts";
 import type { OidcCaller, OidcPurpose } from "./oidc.ts";
 import { addSeconds, consumeRateLimit, HttpError, nowIso } from "../http.ts";
@@ -82,11 +82,11 @@ test("OIDC: link while signed in, then sign in with it; binding by issuer + subj
   const owner = makeOwner(app);
   const sessionId = sessionIdOf(signIn(app, owner.accountId));
   const linked = await signInWith(app, iss, caller("binder-link", { accountId: owner.accountId, sessionId }), "link", { accountId: owner.accountId });
-  assert.deepEqual(linked, { purpose: "link", accountId: owner.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, linkCode: null });
+  assert.deepEqual(linked, { purpose: "link", accountId: owner.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, appCode: null });
   assert.ok(app.db.get("SELECT 1 FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'user-123' AND account_id = ?", owner.accountId));
 
   const out = await signInWith(app, iss, caller("binder-signin"));
-  assert.deepEqual(out, { purpose: "signin", accountId: owner.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, linkCode: null });
+  assert.deepEqual(out, { purpose: "signin", accountId: owner.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, appCode: null });
   const shared = await signInWith(app, iss, caller("binder-shared"), "signin", { sharedComputer: true });
   assert.equal(shared.sharedComputer, true, "the shared-computer choice survives the OIDC round trip");
 });
@@ -311,7 +311,7 @@ test("step-up with a provider asks it to sign the person in again and refreshes 
   assert.equal(isStale(app, who.sessionId), true);
 
   const ok = await finishOidc(app, "mock", await authorize(await startOidc(app, "mock", "stepup", who.accountId, "b-ok", { sessionId: who.sessionId })), caller("b-ok", { accountId: who.accountId, sessionId: who.sessionId }));
-  assert.deepEqual(ok, { purpose: "stepup", accountId: who.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, linkCode: null });
+  assert.deepEqual(ok, { purpose: "stepup", accountId: who.accountId, sharedComputer: false, created: false, viaApp: false, appFlow: false, appCode: null });
   assert.equal(isStale(app, who.sessionId), false, "the session that asked is recently authenticated");
   assert.equal(isStale(app, otherId), true, "the account's other session is not");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'oidc_step_up' AND outcome = 'success'")!.n, 1);
@@ -357,45 +357,124 @@ test("a provider that can't be made to ask again is sent the account chooser ins
   assert.equal(isStale(app, who.sessionId), false);
 });
 
-test("a connected app confirms with a provider through a single-use ticket and the system browser", async (t) => {
+test("an app's ticket is single use, bound to the browser it opens in, and to the identity the account has", async (t) => {
   const { app, authorize, setClaims } = await hosted(t);
-  const iss: Issuer = { authorize, setClaims };
-  const who = await providerOnly(app, iss);
-  const phone = createDeviceToken(app, who.accountId, "mobile", "Phone", "connect");
-  const deviceRow = app.db.get<{ id: string }>("SELECT id FROM device_tokens WHERE account_id = ?", who.accountId)!;
-  const deviceSession = `${DEVICE_SESSION_PREFIX}${deviceRow.id}`;
-  app.db.run("UPDATE device_tokens SET auth_at = ? WHERE id = ?", addSeconds(-3600), deviceRow.id);
-  const authAt = () => app.db.get<{ auth_at: string }>("SELECT auth_at FROM device_tokens WHERE id = ?", deviceRow.id)!.auth_at;
-  assert.ok(phone.secret);
+  const who = await providerOnly(app, { authorize, setClaims });
+  const device = appSessionOf(app, who.accountId);
+  const ticketFor = (purpose: "link" | "stepup" = "stepup", pair = linkPair()) => new URL(issueAppTicket(app, "mock", purpose, who.accountId, device, pair)).searchParams.get("ticket")!;
 
-  const ticketUrl = new URL(issueAppTicket(app, "mock", "stepup", who.accountId, deviceSession));
-  const ticket = ticketUrl.searchParams.get("ticket")!;
-  // The system browser opens it: no session there, only the binder it is given.
+  // The system browser opens it: no session there, only the binder it is given; it works once.
+  const ticket = ticketFor();
   const providerUrl = await startFromTicket(app, "mock", ticket, "app-binder");
   await assert.rejects(startFromTicket(app, "mock", ticket, "again"), rejected("expired"), "a ticket works once");
-  const callback = await authorize(providerUrl);
-  await assert.rejects(finishOidc(app, "mock", callback, caller("not-the-binder")), rejected("mismatch"));
-  assert.ok(Date.now() - Date.parse(authAt()) > 10 * 60_000, "a callback in another browser confirmed nothing");
+  await assert.rejects(finishOidc(app, "mock", await authorize(providerUrl), caller("not-the-binder")), rejected("mismatch"));
 
-  const second = await startFromTicket(app, "mock", new URL(issueAppTicket(app, "mock", "stepup", who.accountId, deviceSession)).searchParams.get("ticket")!, "app-binder");
-  setClaims({ sub: "intruder", email: "i@example.org", email_verified: true });
-  await assert.rejects(finishOidc(app, "mock", await authorize(second), caller("app-binder")), rejected("wrong_account"));
-  setClaims({ sub: "g-step", email: "g-step@example.org", email_verified: true, auth_time: authNow() });
-  const third = await startFromTicket(app, "mock", new URL(issueAppTicket(app, "mock", "stepup", who.accountId, deviceSession)).searchParams.get("ticket")!, "app-binder");
-  const out = await finishOidc(app, "mock", await authorize(third), caller("app-binder"));
-  assert.deepEqual(out, { purpose: "stepup", accountId: who.accountId, sharedComputer: false, created: false, viaApp: true, appFlow: true, linkCode: null });
-  assert.ok(Date.now() - Date.parse(authAt()) < 60_000, "the app's connection is recently authenticated");
+  // Someone else's identity at the provider isn't the account's: refused in the browser, as a page for the app.
+  setClaims({ sub: "intruder", email: "i@example.org", email_verified: true, auth_time: authNow() });
+  await assert.rejects(async () => finishOidc(app, "mock", await authorize(await startFromTicket(app, "mock", ticketFor(), "app-binder")), caller("app-binder")),
+    (e: unknown) => e instanceof OidcFlowError && e.code === "wrong_account");
 
-  // A browser session can't be given a ticket, and an expired or foreign one starts nothing.
-  assert.throws(() => issueAppTicket(app, "mock", "stepup", who.accountId, who.sessionId), rejected("not_device"));
-  const old = new URL(issueAppTicket(app, "mock", "stepup", who.accountId, deviceSession)).searchParams.get("ticket")!;
+  // A browser session can't be given a ticket; an expired, unknown or other provider's one starts nothing; the app's proof is required.
+  assert.throws(() => issueAppTicket(app, "mock", "stepup", who.accountId, who.sessionId, linkPair()), rejected("not_device"));
+  const old = ticketFor();
   app.db.run("UPDATE auth_challenges SET expires_at = ? WHERE id = ?", addSeconds(-1), `oidc-ticket:${sha256(old)}`);
   await assert.rejects(startFromTicket(app, "mock", old, "b"), rejected("expired"));
   await assert.rejects(startFromTicket(app, "mock", "no-such-ticket", "b"), rejected("expired"));
-  // The ticket was issued for one provider.
-  const mine = new URL(issueAppTicket(app, "mock", "link", who.accountId, deviceSession, { challenge: "A".repeat(43), state: "S".repeat(22) })).searchParams.get("ticket")!;
-  await assert.rejects(startFromTicket(app, "other", mine, "b"), rejected("expired"));
-  assert.throws(() => issueAppTicket(app, "mock", "stepup", makeOwner(app, { admin: false }).accountId, deviceSession), rejected("not_linked"));
+  await assert.rejects(startFromTicket(app, "other", ticketFor("link"), "b"), rejected("expired"));
+  assert.throws(() => issueAppTicket(app, "mock", "stepup", who.accountId, device), rejected("bad_request"));
+  assert.throws(() => issueAppTicket(app, "mock", "stepup", makeOwner(app, { admin: false }).accountId, device, linkPair()), rejected("not_linked"));
+});
+
+test("an app's confirmation is never made in the browser: the app redeems a code with its own token and verifier", async (t) => {
+  const { app, authorize, setClaims } = await hosted(t);
+  const iss: Issuer = { authorize, setClaims };
+  // The account's owner is the one who signs in at the provider; the app asking may be anyone's (a stolen token, a ticket handed on).
+  const who = await providerOnly(app, iss);
+  const theApp = appSessionOf(app, who.accountId);
+  const otherApp = appSessionOf(app, who.accountId);
+  const strangerAccount = makeOwner(app, { admin: false });
+  const strangerApp = appSessionOf(app, strangerAccount.accountId);
+  const deviceId = (session: string) => session.slice(DEVICE_SESSION_PREFIX.length);
+  const stale = () => { for (const s of [theApp, otherApp]) app.db.run("UPDATE device_tokens SET auth_at = ? WHERE id = ?", addSeconds(-3600), deviceId(s)); app.db.run("UPDATE sessions SET auth_at = ? WHERE id = ?", addSeconds(-3600), who.sessionId); };
+  const refreshed = (session: string) => Date.now() - Date.parse(app.db.get<{ auth_at: string }>("SELECT auth_at FROM device_tokens WHERE id = ?", deviceId(session))!.auth_at) < 60_000;
+  stale();
+  const owner = { sub: "g-step", email: "g-step@example.org", email_verified: true, name: "Step Up" };
+  /** The app asks to confirm; the owner opens the address in their browser and signs in at the provider. */
+  const handedOver = async (purpose: "stepup" | "link" = "stepup") => {
+    const pair = linkPair();
+    const ticket = new URL(issueAppTicket(app, "mock", purpose, who.accountId, theApp, pair)).searchParams.get("ticket")!;
+    const providerUrl = await startFromTicket(app, "mock", ticket, "owner-browser");
+    setClaims({ ...owner, auth_time: authNow() });
+    return { pair, out: await finishOidc(app, "mock", await authorize(providerUrl), caller("owner-browser")) };
+  };
+  const redeem = (session: string, accountId: string, code: string, verifier: string) => redeemConfirmCode(app, "mock", { accountId, sessionId: session }, code, verifier);
+  const mine = (code: string, verifier: string) => redeem(theApp, who.accountId, code, verifier);
+
+  // The browser's half refreshes nothing: the proof waits behind a code that goes back to the app.
+  const { pair, out } = await handedOver();
+  assert.equal(out.purpose, "stepup");
+  assert.ok(out.appCode, "a code for the app");
+  assert.equal(out.appCode.state, pair.state);
+  for (const session of [theApp, otherApp]) assert.equal(refreshed(session), false, "no connection was refreshed by the browser");
+  assert.equal(isStale(app, who.sessionId), true, "nor the account's session");
+  assert.equal(app.db.get("SELECT 1 FROM audit_events WHERE action = 'oidc_step_up' AND outcome = 'success'"), undefined);
+  assert.equal(JSON.stringify(app.db.all("SELECT * FROM auth_challenges")).includes(out.appCode.code), false, "only the code's hash is kept");
+
+  // Another connection of the same account, another account's app, a browser session: none can redeem it, and the attempt spends it.
+  assert.throws(() => redeem(otherApp, who.accountId, out.appCode!.code, pair.verifier), rejected("invalid_grant"), "another device");
+  assert.throws(() => mine(out.appCode!.code, pair.verifier), rejected("invalid_grant"), "spent by that attempt");
+  const second = await handedOver();
+  assert.throws(() => redeem(strangerApp, strangerAccount.accountId, second.out.appCode!.code, second.pair.verifier), rejected("invalid_grant"), "another account's app");
+  const third = await handedOver();
+  assert.throws(() => redeem(sessionIdOf(signIn(app, who.accountId)), who.accountId, third.out.appCode!.code, third.pair.verifier), rejected("invalid_grant"), "a browser session of the account");
+  for (const session of [theApp, otherApp]) assert.equal(refreshed(session), false);
+
+  // The verifier the app made is needed: not another, not none; the try spends the code.
+  const fourth = await handedOver();
+  assert.throws(() => mine(fourth.out.appCode!.code, linkPair().verifier), rejected("invalid_grant"), "a wrong verifier");
+  assert.throws(() => mine(fourth.out.appCode!.code, fourth.pair.verifier), rejected("invalid_grant"), "which spent the code");
+  const fifth = await handedOver();
+  assert.throws(() => mine(fifth.out.appCode!.code, ""), rejected("invalid_grant"), "no verifier");
+  // A code that waited too long, and a link's code for a confirmation (or the other way round).
+  const sixth = await handedOver();
+  app.db.run("UPDATE auth_challenges SET expires_at = ? WHERE purpose = 'oidc-confirm-code'", addSeconds(-1));
+  assert.throws(() => mine(sixth.out.appCode!.code, sixth.pair.verifier), rejected("invalid_grant"), "expired");
+  const link = await handedOver("link");
+  assert.throws(() => mine(link.out.appCode!.code, link.pair.verifier), rejected("invalid_grant"), "a link's code isn't a confirmation's");
+  const confirm = await handedOver();
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: who.accountId, sessionId: theApp }, confirm.out.appCode!.code, confirm.pair.verifier), rejected("invalid_grant"), "nor the other way round");
+  for (const session of [theApp, otherApp]) assert.equal(refreshed(session), false, "none of those refreshed anything");
+  assert.equal(isStale(app, who.sessionId), true);
+
+  // The identity unlinked between the browser and the app: the code no longer confirms.
+  const seventh = await handedOver();
+  app.db.run("UPDATE sign_in_methods SET subject = 'moved' WHERE account_id = ? AND kind = 'oidc'", who.accountId);
+  assert.throws(() => mine(seventh.out.appCode!.code, seventh.pair.verifier), rejected("invalid_grant"));
+  app.db.run("UPDATE sign_in_methods SET subject = 'g-step' WHERE account_id = ? AND kind = 'oidc'", who.accountId);
+  assert.equal(refreshed(theApp), false);
+
+  // The app that asked, with its verifier: that connection and no other is refreshed, once.
+  const eighth = await handedOver();
+  mine(eighth.out.appCode!.code, eighth.pair.verifier);
+  assert.equal(refreshed(theApp), true, "the app that asked is recently authenticated");
+  assert.equal(refreshed(otherApp), false, "the account's other connection is not");
+  assert.equal(isStale(app, who.sessionId), true, "nor is its browser session");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'oidc_step_up' AND outcome = 'success'")!.n, 1);
+  assert.throws(() => mine(eighth.out.appCode!.code, eighth.pair.verifier), rejected("invalid_grant"), "a code works once");
+});
+
+test("an app's confirmation is refused at redemption when the account has since gained a password", async (t) => {
+  const { app, authorize, setClaims } = await hosted(t, {}, { stepUp: "choose-account" });
+  const who = await providerOnly(app, { authorize, setClaims });
+  const device = appSessionOf(app, who.accountId);
+  const deviceId = device.slice(DEVICE_SESSION_PREFIX.length);
+  app.db.run("UPDATE device_tokens SET auth_at = ? WHERE id = ?", addSeconds(-3600), deviceId);
+  const pair = linkPair();
+  const ticket = new URL(issueAppTicket(app, "mock", "stepup", who.accountId, device, pair)).searchParams.get("ticket")!;
+  const out = await finishOidc(app, "mock", await authorize(await startFromTicket(app, "mock", ticket, "b")), caller("b"));
+  app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw', ?, 'password', 'late-pw', 'x', ?)", who.accountId, nowIso());
+  assert.throws(() => redeemConfirmCode(app, "mock", { accountId: who.accountId, sessionId: device }, out.appCode!.code, pair.verifier), rejected("confirm_another_way"));
+  assert.ok(Date.now() - Date.parse(app.db.get<{ auth_at: string }>("SELECT auth_at FROM device_tokens WHERE id = ?", deviceId)!.auth_at) > 10 * 60_000, "nothing refreshed");
 });
 
 // ---------- over HTTP ----------
@@ -529,7 +608,7 @@ test("over HTTP: the last way in can't be unlinked; with a password added the pr
   assert.deepEqual((await methods()).map((m) => m.kind), ["password"]);
 });
 
-test("over HTTP: starting step-up or linking needs the right session, and an app asks for a ticket instead", async (t) => {
+test("over HTTP: starting step-up needs the right session; an app confirms through a ticket, the browser and a code it redeems", async (t) => {
   const { b, authorize, setClaims } = await boot(t);
   setClaims({ sub: "g-routes", email: "routes@example.org", email_verified: true, auth_time: authNow() });
   const made = await browse(b, { authorize }, "");
@@ -542,30 +621,77 @@ test("over HTTP: starting step-up or linking needs the right session, and an app
   assert.equal((await fetch(`${b.base}/api/auth/oidc/mock/start?stepup=1`, { redirect: "manual", headers: { cookie: otherSession.cookie } })).status, 409);
   assert.ok(made.session);
 
-  // Browsers don't get tickets; connected apps do, and a link needs a recent sign-in first.
-  assert.equal((await b.api(made.session, "POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup" })).status, 400);
+  // Browsers don't get tickets; connected apps do, with their own challenge and state, and a link needs a recent sign-in first.
+  const pair = linkPair();
+  const proof = { codeChallenge: pair.challenge, state: pair.state };
+  assert.equal((await b.api(made.session, "POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup", ...proof })).status, 400);
   const phone = createDeviceToken(b.app, accountId, "mobile", "Phone", "connect");
-  const asApp = (method: string, path: string, body?: unknown) => call(b.app, b.base, method, path, null, body, { headers: { authorization: `Bearer ${phone.secret}` } });
-  const ticket = await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup" });
+  const asApp = (method: string, path: string, body?: unknown, token = phone.secret) => call(b.app, b.base, method, path, null, body, { headers: { authorization: `Bearer ${token}` } });
+  assert.equal((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup" })).json.error.code, "bad_request", "an app's challenge and state are required");
+  const ticket = await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup", ...proof });
   assert.equal(ticket.status, 200, ticket.text);
   assert.match(ticket.json.url, /\/api\/auth\/oidc\/mock\/start\?ticket=/);
-  // The system browser follows it; the callback ends on a page for the person to go back to the app (no redirect into PURSS).
+
+  // Whoever opens the address in a browser signs in at the provider as the account's identity; the page sends a code back to the
+  // app (purss://connect), and the browser has confirmed nothing.
   b.app.db.run("UPDATE device_tokens SET auth_at = ? WHERE account_id = ?", addSeconds(-3600), accountId);
   assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, false);
-  const browserStart = await fetch(b.base + new URL(ticket.json.url).pathname + new URL(ticket.json.url).search, { redirect: "manual" });
-  assert.equal(browserStart.status, 302);
-  const callback = await authorize(browserStart.headers.get("location")!);
-  const done = await fetch(b.base + callback.pathname + callback.search, { redirect: "manual", headers: { cookie: setCookie(browserStart, "purss_oidc")!.pair, "x-forwarded-for": freshAddress() } });
+  const open = (url: string) => fetch(b.base + new URL(url).pathname + new URL(url).search, { redirect: "manual" });
+  const finishInBrowser = async (url: string) => {
+    const started = await open(url);
+    assert.equal(started.status, 302);
+    const callback = await authorize(started.headers.get("location")!);
+    return fetch(b.base + callback.pathname + callback.search, { redirect: "manual", headers: { cookie: setCookie(started, "purss_oidc")!.pair, "x-forwarded-for": freshAddress() } });
+  };
+  const codeOf = async (page: Response, param: string) => {
+    const html = await page.text();
+    const href = /<meta http-equiv="refresh" content="0;url=(purss:\/\/connect\?[^"]+)">/.exec(html)?.[1];
+    assert.ok(href, "the page goes back to the app");
+    assert.match(html, /<a href="purss:\/\/connect\?[^"]+">Go back to the PURSS app<\/a>/, "and offers the link if the browser doesn't follow it");
+    const back = new URL(href.replaceAll("&amp;", "&"));
+    assert.deepEqual([back.protocol, back.host, back.searchParams.get("state"), back.searchParams.get("iss"), back.searchParams.get("link_code")], ["purss:", "connect", pair.state, b.app.config.publicOrigin, null]);
+    return back.searchParams.get(param)!;
+  };
+  const done = await finishInBrowser(ticket.json.url);
   assert.equal(done.status, 200);
-  assert.match(await done.text(), /Go back to the PURSS app/);
-  assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, true, "the app asks and finds itself confirmed");
-  const replay = await fetch(b.base + new URL(ticket.json.url).pathname + new URL(ticket.json.url).search, { redirect: "manual" });
+  const code = await codeOf(done, "confirm_code");
+  assert.ok(code);
+  assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, false, "the browser's half confirmed nothing");
+
+  // The app redeems it: not with another connection's token, not with another account's, not without its verifier.
+  const otherPhone = createDeviceToken(b.app, accountId, "mobile", "Tablet", "connect");
+  const stranger = createDeviceToken(b.app, (await member(b.app, "Stranger")).accountId, "mobile", "Phone", "connect");
+  const redeem = (token: string, verifier: string, c = code) => asApp("POST", "/api/auth/oidc/mock/confirm", { code: c, codeVerifier: verifier }, token);
+  assert.equal((await redeem(otherPhone.secret, pair.verifier)).json.error.code, "invalid_grant", "another device of the account");
+  assert.equal((await redeem(phone.secret, pair.verifier)).json.error.code, "invalid_grant", "which spent the code");
+  assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, false);
+  const again = await codeOf(await finishInBrowser((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup", ...proof })).json.url), "confirm_code");
+  assert.equal((await redeem(stranger.secret, pair.verifier, again)).json.error.code, "invalid_grant", "another account's app");
+  const third = await codeOf(await finishInBrowser((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup", ...proof })).json.url), "confirm_code");
+  assert.equal((await redeem(phone.secret, linkPair().verifier, third)).status, 400, "a wrong verifier");
+  assert.equal((await redeem(phone.secret, pair.verifier, third)).status, 400, "which spent the code");
+  assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, false, "none of those confirmed it");
+  // Browsers have no use for it.
+  const session = signIn(b.app, accountId);
+  assert.equal((await b.api({ ...session, csrf: (await b.api(session, "GET", "/api/session")).json.csrf }, "POST", "/api/auth/oidc/mock/confirm", { code, codeVerifier: pair.verifier })).status, 400);
+
+  // The app that asked, with its verifier: confirmed, once, and only that connection.
+  const fourth = await codeOf(await finishInBrowser((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "stepup", ...proof })).json.url), "confirm_code");
+  b.app.db.run("UPDATE device_tokens SET auth_at = ? WHERE account_id = ?", addSeconds(-3600), accountId);
+  const confirmed = await redeem(phone.secret, pair.verifier, fourth);
+  assert.equal(confirmed.status, 200, confirmed.text);
+  assert.equal((await asApp("GET", "/api/account/security")).json.recentAuth, true, "the app that asked is confirmed");
+  assert.equal((await asApp("GET", "/api/account/security", undefined, otherPhone.secret)).json.recentAuth, false, "the account's other app is not");
+  assert.equal((await redeem(phone.secret, pair.verifier, fourth)).status, 400, "a code works once");
+
+  // The ticket was spent by the browser; a second visit is said as a page for the app, not as JSON.
+  const replay = await open(ticket.json.url);
   assert.equal(replay.status, 400, "the ticket was spent");
-  assert.match(replay.headers.get("content-type") ?? "", /text\/html/, "and said as a page for the app, not as JSON");
+  assert.match(replay.headers.get("content-type") ?? "", /text\/html/);
   assert.match(await replay.text(), /Go back to the PURSS app/);
   // Linking from an app needs recent authentication at the start, like the browser's link.
   b.app.db.run("UPDATE device_tokens SET auth_at = ? WHERE account_id = ?", addSeconds(-3600), accountId);
-  assert.equal((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "link" })).json.error.code, "step_up");
+  assert.equal((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "link", ...proof })).json.error.code, "step_up");
 });
 
 // ---------- an app's link ----------
@@ -575,10 +701,7 @@ function linkPair() {
   const verifier = randomBytes(32).toString("base64url");
   return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url"), state: randomBytes(16).toString("base64url") };
 }
-const appSessionOf = (app: App, accountId: string): string => {
-  createDeviceToken(app, accountId, "mobile", "Phone", "connect");
-  return `${DEVICE_SESSION_PREFIX}${app.db.get<{ id: string }>("SELECT id FROM device_tokens WHERE account_id = ? ORDER BY created_at DESC", accountId)!.id}`;
-};
+const appSessionOf = (app: App, accountId: string): string => `${DEVICE_SESSION_PREFIX}${createDeviceToken(app, accountId, "mobile", "Phone", "connect").device.id}`;
 const oidcRows = (app: App, subject: string) => app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = ?", subject)!.n;
 
 test("an app's provider link is never made in the browser: the app redeems a code with its own token and verifier", async (t) => {
@@ -599,39 +722,39 @@ test("an app's provider link is never made in the browser: the app redeems a cod
   // The victim's half yields nothing: the identity waits behind a code that goes back to the app, and nothing is linked.
   const { pair, out } = await handedOver();
   assert.equal(out.purpose, "link");
-  assert.ok(out.linkCode, "a code for the app");
-  assert.equal(out.linkCode.state, pair.state);
+  assert.ok(out.appCode, "a code for the app");
+  assert.equal(out.appCode.state, pair.state);
   assert.equal(oidcRows(app, "victim-google"), 0, "nothing linked by the browser");
-  assert.equal(JSON.stringify(app.db.all("SELECT * FROM auth_challenges")).includes(out.linkCode.code), false, "only the code's hash is kept");
+  assert.equal(JSON.stringify(app.db.all("SELECT * FROM auth_challenges")).includes(out.appCode.code), false, "only the code's hash is kept");
   assert.equal(app.db.get("SELECT 1 FROM audit_events WHERE action = 'oidc_link' AND outcome = 'success'"), undefined);
 
   // Another account's app can't redeem it, and the code is spent by the attempt.
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: bystander.accountId, sessionId: bystanderApp }, out.linkCode!.code, pair.verifier), rejected("invalid_grant"));
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, out.linkCode!.code, pair.verifier), rejected("invalid_grant"), "spent");
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: bystander.accountId, sessionId: bystanderApp }, out.appCode!.code, pair.verifier), rejected("invalid_grant"));
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, out.appCode!.code, pair.verifier), rejected("invalid_grant"), "spent");
   assert.equal(oidcRows(app, "victim-google"), 0);
 
   // Without the verifier the app made (nor with another), it fails too.
   const second = await handedOver();
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, second.out.linkCode!.code, linkPair().verifier), rejected("invalid_grant"));
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, second.out.linkCode!.code, second.pair.verifier), rejected("invalid_grant"), "a wrong verifier spends the code");
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, second.out.appCode!.code, linkPair().verifier), rejected("invalid_grant"));
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, second.out.appCode!.code, second.pair.verifier), rejected("invalid_grant"), "a wrong verifier spends the code");
   const third = await handedOver();
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, third.out.linkCode!.code, ""), rejected("invalid_grant"));
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, third.out.appCode!.code, ""), rejected("invalid_grant"));
 
   // A browser session of the same account isn't the app that asked.
   const fourth = await handedOver();
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: sessionIdOf(signIn(app, attacker.accountId)) }, fourth.out.linkCode!.code, fourth.pair.verifier), rejected("invalid_grant"));
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: sessionIdOf(signIn(app, attacker.accountId)) }, fourth.out.appCode!.code, fourth.pair.verifier), rejected("invalid_grant"));
   // A code that waited too long is no good either.
   const fifth = await handedOver();
   app.db.run("UPDATE auth_challenges SET expires_at = ? WHERE purpose = 'oidc-link-code'", addSeconds(-1));
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, fifth.out.linkCode!.code, fifth.pair.verifier), rejected("invalid_grant"));
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, fifth.out.appCode!.code, fifth.pair.verifier), rejected("invalid_grant"));
   assert.equal(oidcRows(app, "victim-google"), 0, "none of those linked anything");
 
   // The app that asked, with its verifier, links what was signed in (here by the person themself, on their own device).
   const sixth = await handedOver();
-  redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, sixth.out.linkCode!.code, sixth.pair.verifier);
+  redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, sixth.out.appCode!.code, sixth.pair.verifier);
   assert.deepEqual(app.db.all<{ account_id: string }>("SELECT account_id FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'victim-google'").map((r) => r.account_id), [attacker.accountId]);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'oidc_link' AND outcome = 'success'")!.n, 1);
-  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, sixth.out.linkCode!.code, sixth.pair.verifier), rejected("invalid_grant"), "a code works once");
+  assert.throws(() => redeemLinkCode(app, "mock", { accountId: attacker.accountId, sessionId: attackerApp }, sixth.out.appCode!.code, sixth.pair.verifier), rejected("invalid_grant"), "a code works once");
 
   // An identity another account already has is refused in the browser already, as a page for the app.
   const takenBy = makeOwner(app, { admin: false });
@@ -642,15 +765,19 @@ test("an app's provider link is never made in the browser: the app redeems a cod
   }, (e: unknown) => e instanceof OidcFlowError && e.code === "linked_elsewhere");
 });
 
-test("an app's link ticket needs the app's own challenge and state", async (t) => {
+test("an app's ticket, for a link or a confirmation, needs the app's own challenge and state", async (t) => {
   const { app } = await hosted(t);
   const owner = makeOwner(app, { admin: false });
   const device = appSessionOf(app, owner.accountId);
   const good = linkPair();
-  for (const link of [undefined, { challenge: "", state: good.state }, { challenge: good.challenge, state: "short" }, { challenge: "not base64url!".padEnd(43, "x"), state: good.state }, { challenge: `${good.challenge}x`, state: good.state }]) {
-    assert.throws(() => issueAppTicket(app, "mock", "link", owner.accountId, device, link), rejected("bad_request"), JSON.stringify(link));
+  // (An account that has the provider linked, for the confirmation's ticket.)
+  app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES ('sim_o', ?, 'oidc', 'Mock ID', ?, 'sub-1', ?)", owner.accountId, app.config.oidc[0]!.issuer, nowIso());
+  for (const purpose of ["link", "stepup"] as const) {
+    for (const link of [undefined, { challenge: "", state: good.state }, { challenge: good.challenge, state: "short" }, { challenge: "not base64url!".padEnd(43, "x"), state: good.state }, { challenge: `${good.challenge}x`, state: good.state }]) {
+      assert.throws(() => issueAppTicket(app, "mock", purpose, owner.accountId, device, link), rejected("bad_request"), `${purpose} ${JSON.stringify(link)}`);
+    }
+    assert.match(issueAppTicket(app, "mock", purpose, owner.accountId, device, good), /\/start\?ticket=/);
   }
-  assert.match(issueAppTicket(app, "mock", "link", owner.accountId, device, good), /\/start\?ticket=/);
 });
 
 // ---------- which accounts a provider may confirm, and issuer addresses ----------
@@ -669,7 +796,7 @@ test("a provider that only shows its account chooser confirms an account with no
   assert.equal(canConfirm(app, who.accountId, p), false);
   await assert.rejects(attempt("b1"), rejected("confirm_another_way"));
   const device = appSessionOf(app, who.accountId);
-  assert.throws(() => issueAppTicket(app, "mock", "stepup", who.accountId, device), rejected("confirm_another_way"));
+  assert.throws(() => issueAppTicket(app, "mock", "stepup", who.accountId, device, linkPair()), rejected("confirm_another_way"));
   app.db.run("DELETE FROM sign_in_methods WHERE id = 'sim_pk'");
 
   // A password: likewise, and one added while the provider's page was open is caught when it comes back.
@@ -776,7 +903,7 @@ test("a refusal in a flow an app started is a plain page that leads back to the 
   const made = await browse(b, { authorize }, "");
   const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts WHERE display_name = 'Page'")!.id;
   const phone = createDeviceToken(b.app, accountId, "mobile", "Phone", "connect");
-  const ticket = async () => (await call(b.app, b.base, "POST", "/api/auth/oidc/mock/ticket", null, { purpose: "stepup" }, { headers: { authorization: `Bearer ${phone.secret}` } })).json.url as string;
+  const ticket = async () => (await call(b.app, b.base, "POST", "/api/auth/oidc/mock/ticket", null, { purpose: "stepup", codeChallenge: linkPair().challenge, state: linkPair().state }, { headers: { authorization: `Bearer ${phone.secret}` } })).json.url as string;
   assert.ok(made.session);
   const first = await ticket();
   const open = (url: string) => fetch(b.base + new URL(url).pathname + new URL(url).search, { redirect: "manual" });

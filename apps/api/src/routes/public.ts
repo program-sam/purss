@@ -22,7 +22,7 @@ import {
   refreshAuth, recentAuthAvailable, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
-import { OidcFlowError, finishOidc, issueAppTicket, redeemLinkCode, startFromTicket, startOidc } from "../auth/oidc.ts";
+import { OidcFlowError, finishOidc, issueAppTicket, redeemConfirmCode, redeemLinkCode, startFromTicket, startOidc } from "../auth/oidc.ts";
 import { deviceIdOf } from "../connect/devices.ts";
 import { PASSWORD_MAX, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
 import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
@@ -66,23 +66,22 @@ function appPage(title: string, paragraphs: string[], head = ""): string {
     + `${paragraphs.map((t) => `<p>${t}</p>`).join("")}</body></html>`;
 }
 
-/** What the system browser shows after it finished an app's confirmation (the app, waiting, carries on by itself). */
-const appConfirmedPage = () => appPage("You're confirmed.", ["Go back to the PURSS app. You can close this page."]);
-
 /** What it shows when an app's flow was refused: the reason, and the way back. */
 const appErrorPage = (message: string) => appPage("That didn't work", [escapeHtml(message), "Go back to the PURSS app and try again. You can close this page."]);
 
 /**
- * What it shows once an app's link was signed in at the provider: the browser goes back to the app (purss://connect) with a code only
- * the app can redeem; nothing is linked until it does. The link is there too if the browser doesn't follow the redirect by itself.
+ * What it shows once an app's link or confirmation was signed in at the provider: the browser goes back to the app (purss://connect)
+ * with a code only the app can redeem, and nothing happens until it does. The link is there too if the browser doesn't follow the
+ * redirect by itself. A link's code and a confirmation's are different parameters.
  */
-function appLinkPage(origin: string, linkCode: { code: string; state: string }): string {
+function appCodePage(origin: string, purpose: "link" | "stepup", appCode: { code: string; state: string }): string {
   const back = new URL("purss://connect");
-  back.searchParams.set("link_code", linkCode.code);
-  back.searchParams.set("state", linkCode.state);
+  back.searchParams.set(purpose === "link" ? "link_code" : "confirm_code", appCode.code);
+  back.searchParams.set("state", appCode.state);
   back.searchParams.set("iss", origin);
   const href = escapeHtml(back.href);
-  return appPage("Almost done", ["Going back to the PURSS app to finish connecting.", `<a href="${href}">Go back to the PURSS app</a>`], `<meta http-equiv="refresh" content="0;url=${href}">`);
+  const what = purpose === "link" ? "connecting" : "confirming it's you";
+  return appPage("Almost done", [`Going back to the PURSS app to finish ${escapeHtml(what)}.`, `<a href="${href}">Go back to the PURSS app</a>`], `<meta http-equiv="refresh" content="0;url=${href}">`);
 }
 
 /** A sign-in the phone or desktop app opened ends on its approval page: `next` is that /connect request. */
@@ -225,8 +224,7 @@ export function publicRouter(): Router<Ctx> {
       });
       fromApp = out.appFlow;
       if (out.purpose === "signin") startSession(ctx.app, res, req.raw, out.accountId, "oidc", { sharedComputer: out.sharedComputer });
-      if (out.linkCode) page = { status: 200, html: appLinkPage(ctx.app.config.publicOrigin, out.linkCode) };
-      else if (out.viaApp) page = { status: 200, html: appConfirmedPage() };
+      if (out.appCode && out.purpose !== "signin") page = { status: 200, html: appCodePage(ctx.app.config.publicOrigin, out.purpose, out.appCode) };
       target = appUrl(out.purpose === "link" ? "/?dialog=security" : safeReturnPath(req.cookies[OIDC_NEXT_COOKIE]) ?? "/");
     } catch (err) {
       const code = err instanceof HttpError ? err.code : "oidc_failed";
@@ -247,15 +245,17 @@ export function publicRouter(): Router<Ctx> {
     res.end();
     return undefined;
   });
-  /** A connected app asks for a ticket to open an external sign-in in the system browser: to add it (with the challenge of a verifier it keeps), or to confirm it's you with it. */
+  /**
+   * A connected app asks for a ticket to open an external sign-in in the system browser: to add it, or to confirm it's you with it.
+   * It sends the S256 challenge of a verifier it keeps and a state; the browser's answer comes back to it as a code it redeems.
+   */
   r.post("/api/auth/oidc/:provider/ticket", (req, ctx) => {
     const p = requirePrincipal(ctx);
     if (!deviceIdOf(p)) throw badRequest("Browsers start this themselves.", "not_device");
     limit(`oidc-ticket:${p.accountId}`, 30);
     const body = parse(z.object({ purpose: z.enum(["link", "stepup"]), codeChallenge: z.string().max(200).optional(), state: z.string().max(200).optional() }), req.body);
     if (body.purpose === "link") requireRecentAuth(p);
-    const link = body.purpose === "link" ? { challenge: body.codeChallenge ?? "", state: body.state ?? "" } : undefined;
-    return { url: issueAppTicket(ctx.app, req.params.provider!, body.purpose, p.accountId, p.sessionId, link) };
+    return { url: issueAppTicket(ctx.app, req.params.provider!, body.purpose, p.accountId, p.sessionId, { challenge: body.codeChallenge ?? "", state: body.state ?? "" }) };
   });
   /** The app finishes linking: the code the browser handed it and the verifier it made. Only then is the provider sign-in added. */
   r.post("/api/auth/oidc/:provider/link", (req, ctx) => {
@@ -264,6 +264,15 @@ export function publicRouter(): Router<Ctx> {
     limit(`oidc-link:${p.accountId}`, 30);
     const body = parse(z.object({ code: z.string().min(1).max(200), codeVerifier: z.string().min(1).max(200) }), req.body);
     redeemLinkCode(ctx.app, req.params.provider!, p, body.code, body.codeVerifier);
+    return { ok: true };
+  });
+  /** The app finishes confirming it's you: the code the browser handed it and the verifier it made. Only then is its connection's recent sign-in refreshed. */
+  r.post("/api/auth/oidc/:provider/confirm", (req, ctx) => {
+    const p = requirePrincipal(ctx);
+    if (!deviceIdOf(p)) throw badRequest("Browsers confirm in the browser.", "not_device");
+    limit(`oidc-confirm:${p.accountId}`, 30);
+    const body = parse(z.object({ code: z.string().min(1).max(200), codeVerifier: z.string().min(1).max(200) }), req.body);
+    redeemConfirmCode(ctx.app, req.params.provider!, p, body.code, body.codeVerifier);
     return { ok: true };
   });
 

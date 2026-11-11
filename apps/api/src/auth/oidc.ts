@@ -18,11 +18,12 @@ import { DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
  * issuer + subject, never by email. Three purposes:
  * - signin: an identity already linked to an account signs in. An identity nobody linked creates an account when
  *   sign-up is open and the provider vouches for an email address no account has; there is no automatic linking.
- * - link: a signed-in account adds the identity as a way to sign in (recent authentication required). A connected app's link
- *   never completes in the browser: the browser hands the app a single-use code, and the app redeems it with its own token and
- *   the verifier it made, so only the app that asked (on the device that opened the browser) can link what was signed in.
+ * - link: a signed-in account adds the identity as a way to sign in (recent authentication required).
  * - stepup: a signed-in account proves again that it is the person behind a linked identity, which refreshes the
- *   session's (or connected app's) recent authentication ("confirm it's you"), for an account with no password or passkey too.
+ *   session's recent authentication ("confirm it's you"), for an account with no password or passkey too.
+ * A connected app's link or confirmation never completes in the browser, whose address can be handed to anyone: the browser hands
+ * the app a single-use code, and the app redeems it with its own token and the verifier it made, so only the app that asked (on the
+ * device that opened the browser) links what was signed in, or has its connection refreshed.
  */
 
 export type OidcPurpose = "signin" | "link" | "stepup";
@@ -52,9 +53,12 @@ const callbackUrl = (app: App, id: string) => `${app.config.publicOrigin}/api/au
 
 /** A provider's ID token may be dated a little before the request was sent (clock differences). */
 const AUTH_TIME_SKEW_MS = 60_000;
-/** How long an app's ticket for opening the system browser, and the code the browser hands back for a link, stay good. */
+/** How long an app's ticket for opening the system browser, and the code the browser hands back, stay good. */
 const TICKET_SECONDS = 5 * 60;
-const LINK_CODE_SECONDS = 5 * 60;
+const APP_CODE_SECONDS = 5 * 60;
+
+/** What an app sends with its ticket: the S256 challenge of a verifier only it holds, and a state it recognises the browser's answer by. */
+export type AppProof = { challenge: string; state: string };
 
 type ChallengeData = {
   verifier: string; providerId: string; binder: string; sharedComputer?: boolean; sessionId?: string | null;
@@ -62,8 +66,8 @@ type ChallengeData = {
   startedAt?: number; stepUp?: "reauthenticate" | "choose-account";
   /** Started from a connected app's ticket: the browser that finishes it has no session of its own. */
   viaApp?: boolean;
-  /** An app's link: what the app will redeem the code with (the challenge of its verifier) and the state it matches the answer by. */
-  appLink?: { challenge: string; state: string };
+  /** An app's link or confirmation: what the app will redeem the code with (the challenge of its verifier) and the state it matches the answer by. */
+  appProof?: AppProof;
   /** A sign-in the phone app or desktop app opened (it ends on the approval page): its failures are shown for the app, not as the web page. */
   appReturn?: boolean;
 };
@@ -87,7 +91,7 @@ function assertMayConfirm(app: App, accountId: string | null, p: OidcProviderCon
  */
 export async function startOidc(
   app: App, providerId: string, purpose: OidcPurpose, accountId: string | null, binder: string,
-  options: { sharedComputer?: boolean; sessionId?: string | null; viaApp?: boolean; appLink?: ChallengeData["appLink"]; appReturn?: boolean } = {},
+  options: { sharedComputer?: boolean; sessionId?: string | null; viaApp?: boolean; appProof?: AppProof; appReturn?: boolean } = {},
 ): Promise<string> {
   const p = provider(app, providerId);
   if (purpose === "stepup") assertMayConfirm(app, accountId, p);
@@ -99,7 +103,7 @@ export async function startOidc(
   const data: ChallengeData = {
     verifier, providerId, binder: sha256(binder), sharedComputer: options.sharedComputer === true, sessionId: options.sessionId ?? null,
     startedAt: Date.now(), ...(purpose === "stepup" ? { stepUp } : {}), ...(options.viaApp ? { viaApp: true } : {}),
-    ...(options.appLink ? { appLink: options.appLink } : {}), ...(options.appReturn ? { appReturn: true } : {}),
+    ...(options.appProof ? { appProof: options.appProof } : {}), ...(options.appReturn ? { appReturn: true } : {}),
   };
   app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, data, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
     `oidc:${state}`, `oidc-${purpose}`, accountId, nonce, JSON.stringify(data), addSeconds(600));
@@ -121,22 +125,20 @@ const B64URL = /^[A-Za-z0-9_-]+$/;
 
 /**
  * A connected app can't run the provider's page itself (Google refuses embedded web views), so it asks for a single-use ticket
- * and opens `/api/auth/oidc/<id>/start?ticket=…` in the system browser. The ticket names the app's connection. Confirming
- * refreshes that connection once the identity that signs in is one linked to its account. Linking takes a `link` of the app's own
- * (the S256 challenge of a verifier only it holds, and a state): the browser can't link anything; see redeemLinkCode.
+ * and opens `/api/auth/oidc/<id>/start?ticket=…` in the system browser. The ticket names the app's connection and carries the
+ * app's `proof`. The browser can neither link nor confirm anything: the identity that signs in waits behind a code that goes
+ * back to the app, which redeems it (redeemLinkCode, redeemConfirmCode).
  */
-export function issueAppTicket(
-  app: App, providerId: string, purpose: "link" | "stepup", accountId: string, appSessionId: string, link?: { challenge: string; state: string },
-): string {
+export function issueAppTicket(app: App, providerId: string, purpose: "link" | "stepup", accountId: string, appSessionId: string, proof?: AppProof): string {
   const p = provider(app, providerId);
   if (!appSessionId.startsWith(DEVICE_SESSION_PREFIX)) throw new HttpError(400, "not_device", "This is for connected apps.");
   if (purpose === "stepup") assertMayConfirm(app, accountId, p);
-  if (purpose === "link" && (!link || link.challenge.length !== 43 || !B64URL.test(link.challenge) || link.state.length < 16 || link.state.length > 128 || !B64URL.test(link.state))) {
-    throw new HttpError(400, "bad_request", "Linking from an app needs its code challenge and state.");
+  if (!proof || proof.challenge.length !== 43 || !B64URL.test(proof.challenge) || proof.state.length < 16 || proof.state.length > 128 || !B64URL.test(proof.state)) {
+    throw new HttpError(400, "bad_request", "An app needs to send its code challenge and state.");
   }
   const ticket = randomToken(24);
   app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, data, expires_at) VALUES (?, 'oidc-ticket', ?, '', ?, ?)",
-    `oidc-ticket:${sha256(ticket)}`, accountId, JSON.stringify({ providerId, purpose, sessionId: appSessionId, ...(purpose === "link" ? { appLink: link } : {}) }), addSeconds(TICKET_SECONDS));
+    `oidc-ticket:${sha256(ticket)}`, accountId, JSON.stringify({ providerId, purpose, sessionId: appSessionId, appProof: proof }), addSeconds(TICKET_SECONDS));
   return `${app.config.publicOrigin}/api/auth/oidc/${encodeURIComponent(providerId)}/start?ticket=${encodeURIComponent(ticket)}`;
 }
 
@@ -145,33 +147,57 @@ export async function startFromTicket(app: App, providerId: string, ticket: stri
   const id = `oidc-ticket:${sha256(ticket)}`;
   const row = app.db.get<{ account_id: string; data: string; expires_at: string }>("SELECT account_id, data, expires_at FROM auth_challenges WHERE id = ? AND purpose = 'oidc-ticket'", id);
   app.db.run("DELETE FROM auth_challenges WHERE id = ?", id);
-  const data = row ? JSON.parse(row.data) as { providerId: string; purpose: "link" | "stepup"; sessionId: string; appLink?: ChallengeData["appLink"] } : null;
+  const data = row ? JSON.parse(row.data) as { providerId: string; purpose: "link" | "stepup"; sessionId: string; appProof: AppProof } : null;
   if (!row || !data || row.expires_at < nowIso() || data.providerId !== providerId) {
     throw new HttpError(400, "expired", "That link has expired or was already used. Start again from the app.");
   }
-  return startOidc(app, providerId, data.purpose, row.account_id, binder, { sessionId: data.sessionId, viaApp: true, appLink: data.appLink });
+  return startOidc(app, providerId, data.purpose, row.account_id, binder, { sessionId: data.sessionId, viaApp: true, appProof: data.appProof });
+}
+
+type AppCode = { providerId: string; issuer: string; subject: string; sessionId: string };
+
+/** What a code is kept as: a link's and a confirmation's are different things, and one never redeems as the other. */
+const APP_CODE = {
+  link: { purpose: "oidc-link-code", prefix: "oidc-link", audit: "oidc_link" },
+  confirm: { purpose: "oidc-confirm-code", prefix: "oidc-confirm", audit: "oidc_step_up" },
+} as const;
+
+function storeAppCode(app: App, kind: keyof typeof APP_CODE, accountId: string, proof: AppProof, data: AppCode): string {
+  const code = randomToken(24);
+  app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, data, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+    `${APP_CODE[kind].prefix}:${sha256(code)}`, APP_CODE[kind].purpose, accountId, proof.challenge, JSON.stringify(data), addSeconds(APP_CODE_SECONDS));
+  return code;
 }
 
 /**
- * The app redeems what the browser handed it (purss://connect?link_code=…) with its own token, the account the ticket was made for and
- * the verifier whose challenge the ticket carried. Only then is the provider sign-in linked; a code that fails any check is spent.
+ * Takes a code back: it must exist, be fresh, be for this provider, this account and this connection, and come with the verifier whose
+ * challenge the ticket carried. Any attempt spends it.
  */
-export function redeemLinkCode(app: App, providerId: string, caller: { accountId: string; sessionId: string }, code: string, verifier: string): void {
-  const p = provider(app, providerId);
-  const id = `oidc-link:${sha256(code)}`;
-  const row = app.db.get<{ account_id: string | null; challenge: string; data: string; expires_at: string }>("SELECT account_id, challenge, data, expires_at FROM auth_challenges WHERE id = ? AND purpose = 'oidc-link-code'", id);
+function takeAppCode(app: App, kind: keyof typeof APP_CODE, providerId: string, caller: { accountId: string; sessionId: string }, code: string, verifier: string): AppCode {
+  const id = `${APP_CODE[kind].prefix}:${sha256(code)}`;
+  const row = app.db.get<{ account_id: string | null; challenge: string; data: string; expires_at: string }>("SELECT account_id, challenge, data, expires_at FROM auth_challenges WHERE id = ? AND purpose = ?", id, APP_CODE[kind].purpose);
   app.db.run("DELETE FROM auth_challenges WHERE id = ?", id);
-  const invalid = () => new HttpError(400, "invalid_grant", "That code isn't valid any more. Start linking again from the app.");
+  const invalid = () => new HttpError(400, "invalid_grant", "That code isn't valid any more. Start again from the app.");
   if (!row || row.expires_at < nowIso()) throw invalid();
-  const data = JSON.parse(row.data) as { providerId: string; issuer: string; subject: string; sessionId: string };
+  const data = JSON.parse(row.data) as AppCode;
   if (data.providerId !== providerId || row.account_id !== caller.accountId || data.sessionId !== caller.sessionId) {
-    audit(app, caller.accountId, "oidc_link", providerId, "failure", "code for another account or app");
+    audit(app, caller.accountId, APP_CODE[kind].audit, providerId, "failure", "code for another account or app");
     throw invalid();
   }
   if (!safeEqual(createHash("sha256").update(verifier).digest("base64url"), row.challenge)) {
-    audit(app, caller.accountId, "oidc_link", providerId, "failure", "wrong verifier");
+    audit(app, caller.accountId, APP_CODE[kind].audit, providerId, "failure", "wrong verifier");
     throw invalid();
   }
+  return data;
+}
+
+/**
+ * The app finishes linking with what the browser handed it (purss://connect?link_code=…), its own token and its verifier. Only then is
+ * the provider sign-in linked.
+ */
+export function redeemLinkCode(app: App, providerId: string, caller: { accountId: string; sessionId: string }, code: string, verifier: string): void {
+  const p = provider(app, providerId);
+  const data = takeAppCode(app, "link", providerId, caller, code, verifier);
   sessionWrite(app, caller.accountId, caller.sessionId, () => {
     const existing = app.db.get<{ account_id: string }>("SELECT account_id FROM sign_in_methods WHERE kind = 'oidc' AND issuer = ? AND subject = ?", data.issuer, data.subject);
     if (existing && existing.account_id !== caller.accountId) throw new HttpError(409, "linked_elsewhere", "That external account is already used by another PURSS.");
@@ -183,6 +209,24 @@ export function redeemLinkCode(app: App, providerId: string, caller: { accountId
   });
 }
 
+/**
+ * The app finishes confirming it's you with what the browser handed it (purss://connect?confirm_code=…), its own token and its
+ * verifier. Only then is that connection's recent authentication refreshed, and no other's: not the account's other connections or sessions.
+ */
+export function redeemConfirmCode(app: App, providerId: string, caller: { accountId: string; sessionId: string }, code: string, verifier: string): void {
+  const p = provider(app, providerId);
+  const data = takeAppCode(app, "confirm", providerId, caller, code, verifier);
+  sessionWrite(app, caller.accountId, caller.sessionId, () => {
+    // Still the identity that signed in, linked to this account, and still something that may confirm it.
+    const stillLinked = app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'oidc' AND issuer = ? AND subject = ?", caller.accountId, data.issuer, data.subject);
+    if (!stillLinked) throw new HttpError(400, "invalid_grant", "That code isn't valid any more. Start again from the app.");
+    assertMayConfirm(app, caller.accountId, p);
+    refreshAuth(app, caller.sessionId);
+    app.db.run("UPDATE sign_in_methods SET last_used_at = ? WHERE kind = 'oidc' AND issuer = ? AND subject = ?", nowIso(), data.issuer, data.subject);
+    audit(app, caller.accountId, "oidc_step_up", providerId, "success");
+  });
+}
+
 export type OidcResult = {
   purpose: OidcPurpose; accountId: string; sharedComputer: boolean;
   /** The sign-in made a new account. */
@@ -191,8 +235,8 @@ export type OidcResult = {
   viaApp: boolean;
   /** The flow was an app's (its ticket, or its sign-in that ends on the approval page): any refusal is shown as a page for the app. */
   appFlow: boolean;
-  /** An app's link, signed in at the provider: what the browser hands back to the app to redeem (never linked until it does). */
-  linkCode: { code: string; state: string } | null;
+  /** An app's link or confirmation, signed in at the provider: what the browser hands back to the app to redeem (nothing happens until it does). */
+  appCode: { code: string; state: string } | null;
 };
 
 /** A refusal in a flow an app started: the system browser shows it as a page for the app, not as the web sign-in page. */
@@ -267,7 +311,7 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
   }
   if (!claims?.sub || !claims.iss) throw failed();
   const existing = app.db.get<{ account_id: string }>("SELECT account_id FROM sign_in_methods WHERE kind = 'oidc' AND issuer = ? AND subject = ?", claims.iss, claims.sub);
-  const result = (r: Pick<OidcResult, "accountId" | "sharedComputer" | "created"> & Partial<Pick<OidcResult, "viaApp" | "linkCode">>): OidcResult => ({ purpose, viaApp, appFlow: flow.fromApp, linkCode: null, ...r });
+  const result = (r: Pick<OidcResult, "accountId" | "sharedComputer" | "created"> & Partial<Pick<OidcResult, "viaApp" | "appCode">>): OidcResult => ({ purpose, viaApp, appFlow: flow.fromApp, appCode: null, ...r });
 
   if (purpose === "link") {
     if (!row.account_id || !data.sessionId) throw new HttpError(400, "expired", "Please sign in first.");
@@ -275,12 +319,10 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
     if (viaApp) {
       // An app's link never completes here: whoever signs in at the provider in this browser may not be the person whose app asked
       // (an app's ticket can be handed to anyone). The identity waits behind a code that only goes back to the app.
-      if (!data.appLink) throw new HttpError(400, "expired", "Start linking again from the app.");
+      if (!data.appProof) throw new HttpError(400, "expired", "Start linking again from the app.");
       if (existing && existing.account_id !== accountId) throw new HttpError(409, "linked_elsewhere", "That external account is already used by another PURSS.");
-      const code = randomToken(24);
-      app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, data, expires_at) VALUES (?, 'oidc-link-code', ?, ?, ?, ?)",
-        `oidc-link:${sha256(code)}`, accountId, data.appLink.challenge, JSON.stringify({ providerId, issuer: claims.iss, subject: claims.sub, sessionId: data.sessionId }), addSeconds(LINK_CODE_SECONDS));
-      return result({ accountId, sharedComputer: false, created: false, linkCode: { code, state: data.appLink.state } });
+      const code = storeAppCode(app, "link", accountId, data.appProof, { providerId, issuer: claims.iss, subject: claims.sub, sessionId: data.sessionId });
+      return result({ accountId, sharedComputer: false, created: false, appCode: { code, state: data.appProof.state } });
     }
     if (caller.sessionId !== data.sessionId) throw new HttpError(401, "signed_out", "Please sign in again.");
     sessionWrite(app, accountId, data.sessionId, () => {
@@ -314,6 +356,13 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
         audit(app, accountId, "oidc_step_up", providerId, "failure", stale);
         throw new HttpError(401, "stale_auth", `${p.label} didn't confirm that you just signed in again, so it can't confirm it's you. Try again.`);
       }
+    }
+    if (viaApp) {
+      // Likewise an app's confirmation: the browser refreshes nothing. The proof that the right person signed in waits behind a code
+      // that only goes back to the app, which redeems it for its own connection.
+      if (!data.appProof) throw new HttpError(400, "expired", "Start confirming again from the app.");
+      const code = storeAppCode(app, "confirm", accountId, data.appProof, { providerId, issuer: claims.iss, subject: claims.sub, sessionId: data.sessionId });
+      return result({ accountId, sharedComputer: false, created: false, appCode: { code, state: data.appProof.state } });
     }
     const sessionId = data.sessionId;
     sessionWrite(app, accountId, sessionId, () => refreshAuth(app, sessionId));
