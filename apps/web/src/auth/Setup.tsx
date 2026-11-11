@@ -9,7 +9,6 @@ import { sessionQuery } from "../api/queries.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 import { PasskeyStep } from "./PasskeyStep.tsx";
 import { passkeysAvailable, usePasswordFields } from "./PasswordForm.tsx";
-import { finishSignupAttempt, signupAttempt } from "./signup-attempt.ts";
 
 type Step = "account" | "passkey";
 
@@ -34,7 +33,7 @@ export function SetupPage({ mode = "setup", initialCode = "" }: { mode?: "setup"
     sending.current = true;
     setBusy(true); setError("");
     try {
-      if (mode === "signup") await post("/api/signup", { displayName: name.trim() || null, email: email.trim(), username, password, sharedComputer, attempt: signupAttempt() });
+      if (mode === "signup") await post("/api/signup", { displayName: name.trim() || null, email: email.trim(), username, password, sharedComputer });
       else await post(mode === "setup" ? "/api/setup/claim" : "/api/invites/accept", { code: code.trim(), displayName: name.trim() || null, username, password, sharedComputer });
     } catch (err) {
       if (mode === "signup" && err instanceof ApiError && err.retryAfterSeconds !== null) {
@@ -53,7 +52,6 @@ export function SetupPage({ mode = "setup", initialCode = "" }: { mode?: "setup"
       return;
     }
     // The account exists now: the button stays busy from here.
-    if (mode === "signup") finishSignupAttempt();
     // The server started a session; fetch it so later requests carry the page's CSRF token (they fetch it again if this fails).
     await qc.fetchQuery({ ...sessionQuery, staleTime: 0 }).catch(() => undefined);
     // Fingerprint, face or screen lock is offered only where the browser can do it.

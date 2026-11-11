@@ -32,5 +32,4 @@ CREATE UNIQUE INDEX sign_in_methods_username ON sign_in_methods(label) WHERE kin
 DROP TABLE account_enrollment;
 ALTER TABLE sessions DROP COLUMN setup_permission_expires_at;
 ALTER TABLE sessions DROP COLUMN setup_permission_used_at;
--- A repeated sign-up attempt starts a session like a sign-in, so it no longer needs the session the first press made.
-ALTER TABLE signup_attempts DROP COLUMN session_id;
+DROP TABLE signup_attempts;

@@ -5,7 +5,7 @@ import { SESSION_COOKIE } from "./accounts.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
-import { hashPassword, verifyPassword } from "./passwords.ts";
+import { checkPassword, hashPassword, preparePassword, storePassword, verifyPassword, writePassword } from "./passwords.ts";
 
 async function boot() {
   const { app, cleanup } = makeTestApp({});
@@ -155,4 +155,17 @@ test("password guessing is rate limited, and then even the right password waits"
   assert.ok(first >= 0 && first <= 10, `limited within 11 attempts: ${statuses.join(",")}`);
   assert.ok(statuses.slice(0, first).every((x) => x === 401) && statuses.slice(first).every((x) => x === 429), statuses.join(","));
   assert.equal((await b.req("POST", "/api/auth/password", null, { username: "target", password: "target long secret" })).status, 429, "even the right password waits");
+});
+
+test("a password changed while a sign-in is being checked wins: the old password doesn't sign in", async () => {
+  const { app, cleanup } = makeTestApp({});
+  try {
+    const owner = makeOwner(app, { admin: true });
+    await writePassword(app, owner.accountId, "parent", "an old harbour password");
+    const next = await preparePassword("parent", "a new harbour password");
+    const checking = checkPassword(app, "parent", "an old harbour password");
+    storePassword(app, owner.accountId, next); // committed while the old one is still being hashed
+    assert.equal(await checking, null);
+    assert.equal(await checkPassword(app, "parent", "a new harbour password"), owner.accountId);
+  } finally { cleanup(); }
 });
