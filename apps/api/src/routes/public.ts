@@ -18,8 +18,8 @@ const OIDC_COOKIE = "purss_oidc";
 /** Where to return after a linked sign-in, e.g. an app's connection request (plan/24). */
 const OIDC_NEXT_COOKIE = "purss_oidc_next";
 import {
-  acceptInvite, assertSignupCapacity, claim, endSession, openSignupAttempt, recordSignupAttempt,
-  refreshAuth, recentAuthAvailable, resumeSignup, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
+  acceptInvite, assertSignupCapacity, claim, endSession, openSignupAttempt,
+  refreshAuth, recentAuthAvailable, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
 import { finishOidc, startOidc } from "../auth/oidc.ts";
@@ -66,33 +66,16 @@ const signupHandler: Handler<Ctx> = async (req, ctx, res) => {
   // Open sign-up is hosted-only and needs working email: every account gets an address to confirm.
   const body = parse(z.object({
     displayName: z.string().trim().max(60).nullable().default(null), email: emailSchema, ...newAccountSchema, sharedComputer: z.boolean().default(false),
-    // The browser's random id for this attempt: pressing the button again, or again after closing the page, finds the account it made.
-    attempt: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/).optional(),
   }), req.body);
   // Checked and hashed before anything is written: hashing is slow, and a refused password must leave nothing behind.
   const password = await preparePassword(body.username, body.password);
-  // A repeat of the same attempt with the same address and password signs in to the account it made; anything else is a new sign-up.
-  const resume = async (): Promise<boolean> => {
-    const accountId = body.attempt ? await resumeSignup(ctx.app, body.attempt, body.email, body.password) : null;
-    if (accountId) startSession(ctx.app, res, req.raw, accountId, "signup", { sharedComputer: body.sharedComputer });
-    return accountId !== null;
-  };
-  if (await resume()) return { ok: true };
   assertSignupCapacity(ctx.app, address, attemptRetryAt);
-  let out;
-  try {
-    out = ctx.app.db.tx(() => {
-      const created = selfSignup(ctx.app, body.displayName, address, password, attemptRetryAt);
-      setAccountEmail(ctx.app, created.accountId, body.email);
-      return created;
-    });
-  } catch (err) {
-    // Two presses can be hashing at once: the one that finishes second finds the account the first made.
-    if (err instanceof HttpError && err.code === "username_taken" && await resume()) return { ok: true };
-    throw err;
-  }
+  const out = ctx.app.db.tx(() => {
+    const created = selfSignup(ctx.app, body.displayName, address, password, attemptRetryAt);
+    setAccountEmail(ctx.app, created.accountId, body.email);
+    return created;
+  });
   startSession(ctx.app, res, req.raw, out.accountId, "signup", { sharedComputer: body.sharedComputer });
-  if (body.attempt) recordSignupAttempt(ctx.app, body.attempt, out.accountId);
   return { ok: true };
 };
 

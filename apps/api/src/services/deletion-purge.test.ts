@@ -68,7 +68,6 @@ function populate(app: App, m: Member, owner: Member): string[] {
   app.db.run("INSERT INTO reminders (id, workspace_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, '2026-11-05', ?)", newId("rem"), m.workspaceId, lib.keptIds[0]!, lib.baskets.reading, nowIso(), nowIso());
   app.db.run("INSERT INTO item_reminders (id, account_id, workspace_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, '2026-11-20', 'Ask again', ?)", newId("irm"), m.accountId, m.workspaceId, lib.keptIds[0]!, nowIso()); // "Remind me"
   app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) VALUES (?, 'example.org/not-for-me.xml', ?)", m.workspaceId, nowIso()); // "Not interested" in Discover
-  app.db.run("INSERT INTO signup_attempts (attempt_hash, account_id, created_at) VALUES (?, ?, ?)", newId("hash"), m.accountId, nowIso()); // a sign-up attempt that can still be picked up
   app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'New', 'n1', ?)", newId("ntf"), m.workspaceId, nowIso());
   app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?)", m.workspaceId, nowIso()); // digest watermark
   app.db.run("INSERT OR IGNORE INTO signup_creations (account_id, address_hash, created_at) VALUES (?, 'address', ?)", m.accountId, nowIso()); // counted against the sign-up limit

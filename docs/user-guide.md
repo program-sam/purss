@@ -27,8 +27,7 @@ password; the rest is the same as above. A hosted installation may also offer *c
 account* on the sign-in page when its operator has turned open sign-up on. That page asks for an
 email address, which a link in a message confirms (no card needed); the confirmed address is the one a
 password reset is sent to. The button stays busy while the account is
-made. If you press it twice, or press it again after closing the page, with the same email address and
-password, you get the account the first press made and one confirmation message, not a second account.
+made; if the page was closed before it finished, sign in with the username and password you chose.
 A confirmation link opened in a browser where you aren't signed in confirms the address and offers
 the sign-in page.
 

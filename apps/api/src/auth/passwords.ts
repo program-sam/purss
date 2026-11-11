@@ -111,8 +111,9 @@ export async function checkPassword(app: App, rawName: string, password: string,
     return null;
   }
   if (!(await verifyPassword(password, row.secret_hash))) return null;
-  app.db.run("UPDATE sign_in_methods SET last_used_at = ? WHERE id = ?", nowIso(), row.id);
-  return row.account_id;
+  // Checking took a while: a password changed or reset meanwhile (which also signs out everywhere) wins.
+  const current = app.db.run("UPDATE sign_in_methods SET last_used_at = ? WHERE id = ? AND secret_hash = ?", nowIso(), row.id, row.secret_hash);
+  return current.changes ? row.account_id : null;
 }
 
 export function passwordUsername(app: App, accountId: string): string | null {

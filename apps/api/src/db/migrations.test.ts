@@ -92,7 +92,7 @@ test("008 keeps every existing passkey and linked sign-in and accepts passwords 
   }
 });
 
-test("054 deletes the recovery codes and what only they needed, and keeps every other sign-in method, session and sign-up attempt", () => {
+test("054 deletes the recovery codes and what only they needed, and keeps every other sign-in method and session", () => {
   const db = new Database(":memory:");
   try {
     db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
@@ -114,7 +114,6 @@ test("054 deletes the recovery codes and what only they needed, and keeps every 
     const methods = db.all(`SELECT ${kept} FROM sign_in_methods WHERE kind <> 'recovery' ORDER BY id`);
     const sessionColumns = "id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class";
     const sessions = db.all(`SELECT ${sessionColumns} FROM sessions`);
-    const attempts = db.all("SELECT attempt_hash, account_id, created_at FROM signup_attempts");
     const indexes = () => db.all("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'sign_in_methods' AND sql IS NOT NULL ORDER BY name");
     const indexesBefore = indexes();
 
@@ -127,8 +126,7 @@ test("054 deletes the recovery codes and what only they needed, and keeps every 
     assert.ok(!columns("sign_in_methods").includes("used_at"), "the single-use mark is gone");
     assert.ok(!columns("sessions").some((c) => c.startsWith("setup_permission")), "so is the setup permission");
     assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = 'account_enrollment'"), undefined, "and the enrollment table");
-    assert.deepEqual(db.all("SELECT attempt_hash, account_id, created_at FROM signup_attempts"), attempts, "a sign-up attempt keeps what a repeat needs");
-    assert.ok(!columns("signup_attempts").includes("session_id"));
+    assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = 'signup_attempts'"), undefined, "and the sign-up attempts");
 
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_rc3', 'acc_1', 'recovery', 'abcd', 'h', ?)", at), /CHECK/, "no recovery code can be made again");
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'parent', 'h', ?)", at), /UNIQUE/, "usernames are still unique");

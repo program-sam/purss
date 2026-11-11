@@ -321,31 +321,6 @@ export function selfSignup(app: App, displayName: string | null, address: string
   });
 }
 
-/** Remember which account a browser's sign-up attempt made (only a hash of its random attempt id is kept). */
-export function recordSignupAttempt(app: App, attemptId: string, accountId: string): void {
-  app.db.run("DELETE FROM signup_attempts WHERE created_at < ?", addSeconds(-86400));
-  app.db.run("INSERT OR REPLACE INTO signup_attempts (attempt_hash, account_id, created_at) VALUES (?, ?, ?)", sha256(attemptId), accountId, nowIso());
-}
-
-/**
- * The account an earlier press of the sign-up button made for the same attempt, so a second press (or a new try after the page
- * was closed) signs in to it instead of making another account and sending another confirmation. It is found only when the same
- * email address is given and the password verifies against the account's own, as at any sign-in; anything else is an ordinary
- * new sign-up with its ordinary errors (such as a username already taken). Null when there is none.
- */
-export async function resumeSignup(app: App, attemptId: string, email: string, password: string): Promise<string | null> {
-  const row = app.db.get<{ account_id: string; secret_hash: string }>(
-    `SELECT t.account_id, m.secret_hash
-     FROM signup_attempts t
-     JOIN accounts a ON a.id = t.account_id
-     JOIN sign_in_methods m ON m.account_id = t.account_id AND m.kind = 'password'
-     WHERE t.attempt_hash = ? AND t.created_at >= ? AND a.status = 'active' AND lower(a.email) = lower(?)`,
-    sha256(attemptId), addSeconds(-86400), email);
-  if (!row || !(await verifyPassword(password, row.secret_hash))) return null;
-  audit(app, row.account_id, "signup_resume", null, "success", "repeated sign-up attempt signed in");
-  return row.account_id;
-}
-
 /** Extend the browser cookie along with the session, so active people stay signed in. */
 export function renewSessionCookie(app: App, res: ServerResponse, token: string): void {
   const session = app.db.get<{ session_class: string }>("SELECT session_class FROM sessions WHERE id = ?", sha256(token));
