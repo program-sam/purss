@@ -40,13 +40,13 @@ public class PurssPushPlugin extends Plugin {
             call.reject("That isn't a PURSS address and notification credential.");
             return;
         }
-        PushFetcher.setTarget(getContext(), origin, token);
+        PushTarget.set(getContext(), origin, token);
         call.resolve();
     }
 
     @PluginMethod
     public void clearTarget(PluginCall call) {
-        PushFetcher.clearTarget(getContext());
+        PushTarget.clear(getContext());
         call.resolve();
     }
 }

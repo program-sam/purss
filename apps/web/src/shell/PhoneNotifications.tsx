@@ -36,7 +36,7 @@ export function PhoneNotificationsSection() {
   return (
     <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Notifications on this phone</legend>
       <Check checked={s?.state === "on"} disabled={!s || p.busy || blocked} onChange={(v) => void p.set(v)}
-        hint="When something new reaches the bell, following your notification settings and quiet hours. The phone asks your PURSS for the text; Google or Apple only pass on that there is something new.">
+        hint="When available, your phone follows your notification settings and quiet hours, and asks your PURSS for the text before showing it.">
         Notifications on this phone
       </Check>
       {s?.detail ? <p className="state note"><Icon name="info" /><span>{s.detail}</span></p> : null}

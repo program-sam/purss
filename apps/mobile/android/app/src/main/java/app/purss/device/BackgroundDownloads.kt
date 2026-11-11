@@ -15,7 +15,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Date
 import java.util.concurrent.TimeUnit
-import app.purss.PushFetcher
+import app.purss.PushTarget
 
 /**
  * Automatic downloads while the app is closed (plan/38): a periodic WorkManager job. It asks the
@@ -105,7 +105,7 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
             Log.i(TAG, "The workspace refused the token; removing what the app kept")
             BackgroundDownloads.forget(ctx, downloadsToo = true)
             // The notification fetcher's credential belongs to the same refused connection (plan/37).
-            PushFetcher.clearTarget(ctx)
+            PushTarget.clear(ctx)
             DeviceStore.markLost(ctx)
         } catch (e: Exception) {
             // Offline or the PURSS is busy: the next run tries again.

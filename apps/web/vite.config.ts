@@ -101,7 +101,10 @@ export default defineConfig({
   // apps serve the build from their own root: they build it with PURSS_WEB_BASE=/.
   base: process.env.PURSS_WEB_BASE ?? `${APP_PATH}/`,
   plugins: [react(), serviceWorker(), pagePolicy(), appBuildFile()],
-  define: { __PURSS_VERSION__: JSON.stringify(release) },
+  define: {
+    __PURSS_VERSION__: JSON.stringify(release),
+    __PURSS_PHONE_PUSH_ENABLED__: JSON.stringify(process.env.VITE_PURSS_PHONE_PUSH !== "disabled"),
+  },
   server: {
     port,
     strictPort: true,

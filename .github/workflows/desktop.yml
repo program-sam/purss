@@ -126,10 +126,10 @@ jobs:
           printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" > keystore.properties
       - name: Build
         working-directory: apps/mobile/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleFullRelease --no-daemon
       - name: Name the file
         if: env.ANDROID_KEYSTORE_BASE64 != ''
-        run: mkdir -p out && cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk out/PURSS-android.apk
+        run: mkdir -p out && cp apps/mobile/android/app/build/outputs/apk/full/release/app-full-release.apk out/PURSS-android.apk
       - uses: actions/upload-artifact@v7
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         with:

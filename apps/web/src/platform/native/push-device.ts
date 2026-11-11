@@ -1,10 +1,18 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { PushNotifications } from "@capacitor/push-notifications";
 import { OFFICIAL_PUSH_RELAY } from "@purss/domain/distribution";
 import { api } from "../../api/client.ts";
 import type { PhonePush } from "../types.ts";
 import { PushController } from "./push.ts";
 import type { PushPermission } from "./push.ts";
+
+declare const __PURSS_PHONE_PUSH_ENABLED__: boolean;
+const PHONE_PUSH_ENABLED = typeof __PURSS_PHONE_PUSH_ENABLED__ === "undefined" || __PURSS_PHONE_PUSH_ENABLED__;
+
+type PushNotificationsApi = typeof import("@capacitor/push-notifications").PushNotifications;
+async function pushNotifications(): Promise<PushNotificationsApi | null> {
+  if (!PHONE_PUSH_ENABLED) return null;
+  return (await import("@capacitor/push-notifications")).PushNotifications;
+}
 
 /*
  * The device side of notifications on this phone (plan/37): @capacitor/push-notifications for the system's
@@ -25,6 +33,7 @@ export type PushSetup = { relay: string; ready: boolean; debugToken: string };
 
 /** Which relay this build registers with, and whether it can receive pushes. */
 export async function pushSetup(): Promise<PushSetup> {
+  if (!PHONE_PUSH_ENABLED) return { relay: OFFICIAL_PUSH_RELAY, ready: false, debugToken: "" };
   try {
     const c = await PurssPush.config();
     return { relay: c.relay || OFFICIAL_PUSH_RELAY, ready: c.pushReady, debugToken: c.debugToken };
@@ -39,13 +48,15 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
   let lastToken: string | null = null;
 
   /** The phone's push address: the debug build's stand-in, or what the system hands out after register(). */
-  function token(): Promise<string> {
+  async function token(): Promise<string> {
     if (setup.debugToken) return Promise.resolve(setup.debugToken);
+    const notifications = await pushNotifications();
+    if (!notifications) throw new Error("This build of the app can't receive notifications.");
     return new Promise((resolve, reject) => {
       let done = false;
       const handles = [
-        PushNotifications.addListener("registration", (t) => finish(() => { lastToken = t.value; resolve(t.value); })),
-        PushNotifications.addListener("registrationError", (e) => finish(() => reject(new Error(e.error)))),
+        notifications.addListener("registration", (t) => finish(() => { lastToken = t.value; resolve(t.value); })),
+        notifications.addListener("registrationError", (e) => finish(() => reject(new Error(e.error)))),
       ];
       const timer = setTimeout(() => finish(() => reject(new Error("The phone didn't hand out a push address in time."))), 20_000);
       function finish(fn: () => void) {
@@ -55,7 +66,7 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
         for (const h of handles) void h.then((x) => x.remove());
         fn();
       }
-      PushNotifications.register().catch((e: unknown) => finish(() => reject(e instanceof Error ? e : new Error(String(e)))));
+      notifications.register().catch((e: unknown) => finish(() => reject(e instanceof Error ? e : new Error(String(e)))));
     });
   }
 
@@ -73,8 +84,14 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
       const res = await fetch(`${setup.relay}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), credentials: "omit", signal: AbortSignal.timeout(10_000) });
       return { status: res.status, json: await res.json().catch(() => null) };
     },
-    permission: async () => mapPermission((await PushNotifications.checkPermissions()).receive),
-    requestPermission: async () => mapPermission((await PushNotifications.requestPermissions()).receive),
+    permission: async () => {
+      const notifications = await pushNotifications();
+      return notifications ? mapPermission((await notifications.checkPermissions()).receive) : "prompt";
+    },
+    requestPermission: async () => {
+      const notifications = await pushNotifications();
+      return notifications ? mapPermission((await notifications.requestPermissions()).receive) : "prompt";
+    },
     token,
     setTarget: (fetchToken) => PurssPush.setTarget({ origin, fetchToken }),
     clearTarget: () => PurssPush.clearTarget(),
@@ -82,10 +99,13 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
   });
 
   if (setup.ready) {
-    // A new push address from the system (Firebase rotates them now and then): register it.
-    void PushNotifications.addListener("registration", (t) => { if (lastToken !== null && t.value !== lastToken) { lastToken = t.value; void controller.refresh().catch(() => undefined); } });
-    // Once the app has started (the platform must be in place before the first request), quietly bring the registration up to date.
-    setTimeout(() => void controller.refresh().catch(() => undefined), 2000);
+    void pushNotifications().then((notifications) => {
+      if (!notifications) return;
+      // A new push address from the system (Firebase rotates them now and then): register it.
+      void notifications.addListener("registration", (t) => { if (lastToken !== null && t.value !== lastToken) { lastToken = t.value; void controller.refresh().catch(() => undefined); } });
+      // Once the app has started (the platform must be in place before the first request), quietly bring the registration up to date.
+      setTimeout(() => void controller.refresh().catch(() => undefined), 2000);
+    }).catch(() => undefined);
   }
 
   const push: PhonePush = {
@@ -95,8 +115,18 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
   };
   /** iOS: a tapped notification arrives with the `purss://open` link its extension put in it (Android's opens the link itself). */
   const onTap = (open: (link: unknown) => void) => {
-    const handle = PushNotifications.addListener("pushNotificationActionPerformed", (a) => open((a.notification.data as Record<string, unknown> | undefined)?.purssOpen));
-    return () => { void handle.then((h) => h.remove()); };
+    if (!setup.ready) return () => {};
+    let active = true;
+    let remove: (() => void) | null = null;
+    void pushNotifications().then((notifications) => {
+      if (!notifications || !active) return;
+      return notifications.addListener("pushNotificationActionPerformed", (a) => open((a.notification.data as Record<string, unknown> | undefined)?.purssOpen))
+        .then((handle) => {
+          if (active) remove = () => { void handle.remove(); };
+          else void handle.remove();
+        });
+    }).catch(() => undefined);
+    return () => { active = false; remove?.(); };
   };
   return { push, forget: () => controller.forget(), onTap };
 }
