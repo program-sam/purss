@@ -163,7 +163,7 @@ test("linking an OIDC identity whose provider round trip straddles the deletion 
   const atIssuer = await fetch(linkUrl, { redirect: "manual" });
   const callback = new URL(atIssuer.headers.get("location")!);
 
-  const pending = finishOidc(b.app, "mock", callback, "binder", p.accountId, p.sessionId);
+  const pending = finishOidc(b.app, "mock", callback, { binder: "binder", accountId: p.accountId, sessionId: p.sessionId, address: "198.51.100.250" });
   requestDeletion(b.app, signedInPrincipal(b.app, m.accountId), "Rae");
   await assert.rejects(pending, isSignedOut);
   assert.equal(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'oidc'", m.accountId), undefined);

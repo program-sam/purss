@@ -52,13 +52,16 @@ export function ensureClaimCode(app: App): string | null {
 
 // ---------- accounts ----------
 
-/** Every account is made with its username and password (hashed beforehand: preparePassword), so none exists without one. */
-export function createAccount(app: App, opts: { displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword }): { accountId: string; workspaceId: string } {
+/**
+ * Every account is made with its username and password (hashed beforehand: preparePassword), except one made by signing in
+ * with a provider (signupWithProvider), which has no password until its owner adds one.
+ */
+export function createAccount(app: App, opts: { displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string; workspaceId: string } {
   const accountId = newId("acc");
   const workspaceId = newId("wsp");
   const now = nowIso();
   app.db.run("INSERT INTO accounts (id, display_name, plan, created_at) VALUES (?, ?, ?, ?)", accountId, opts.displayName, initialPlan(app), now);
-  storePassword(app, accountId, opts.password);
+  if (opts.password) storePassword(app, accountId, opts.password);
   app.db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES (?, ?, ?)", workspaceId, accountId, now);
   app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?)", accountId, opts.allocationBytes);
   if (opts.admin) app.db.run("INSERT INTO role_grants (account_id, role, granted_at, granted_by) VALUES (?, 'admin', ?, ?)", accountId, now, opts.grantedBy);
@@ -186,11 +189,13 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
   const a = app.db.get<{ display_name: string | null }>("SELECT display_name FROM accounts WHERE id = ?", p.accountId)!;
   const hasPasskey = !!app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'passkey'", p.accountId);
   const hasPassword = !!app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", p.accountId);
+  const linkedIssuers = new Set(app.db.all<{ issuer: string }>("SELECT issuer FROM sign_in_methods WHERE account_id = ? AND kind = 'oidc'", p.accountId).map((m) => m.issuer));
   return {
     state: "signed_in",
     csrf: p.csrf,
     account: {
       id: p.accountId, displayName: a.display_name, isAdmin: p.isAdmin, hasPasskey, hasPassword,
+      linkedProviders: app.config.oidc.filter((o) => linkedIssuers.has(o.issuer)).map((o) => ({ id: o.id, label: o.label })),
       sharedComputer: app.db.get<{ session_class: string }>("SELECT session_class FROM sessions WHERE id = ?", p.sessionId)?.session_class === "shared",
     },
     installation,
@@ -306,18 +311,51 @@ export function openSignupAttempt(app: App, address: string): number | null {
 }
 
 /**
- * Hosted mode with open signup: anyone can create an ordinary account (never an admin), with the
- * installation's default allocation, if it sets one. Rate-limited per address by the route and capped per day here.
+ * Open sign-up's shared part: refuses when sign-up is closed or the day's capacity is used, then runs `create`, which makes the
+ * account, in one transaction with its signup_creations row and the audit event the day's count reads.
  */
-export function selfSignup(app: App, displayName: string | null, address: string, password: PreparedPassword, attemptRetryAt: number | null = null): { accountId: string } {
+function openSignup(app: App, address: string, attemptRetryAt: number | null, create: () => string): { accountId: string } {
   if (!signupOpen(app)) throw new HttpError(403, "closed", "New accounts are by invitation only here.");
   return app.db.tx(() => {
     assertSignupCapacity(app, address, attemptRetryAt);
     const addressHash = signupAddressHash(app, address);
-    const { accountId } = createAccount(app, { displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password });
+    const accountId = create();
     app.db.run("INSERT INTO signup_creations (account_id, address_hash, created_at) VALUES (?, ?, ?)", accountId, addressHash, nowIso());
     audit(app, accountId, "signup", accountId, "success");
     return { accountId };
+  });
+}
+
+/**
+ * Hosted mode with open signup: anyone can create an ordinary account (never an admin), with the
+ * installation's default allocation, if it sets one. Rate-limited per address by the route and capped per day here.
+ */
+export function selfSignup(app: App, displayName: string | null, address: string, password: PreparedPassword, attemptRetryAt: number | null = null): { accountId: string } {
+  return openSignup(app, address, attemptRetryAt, () => createAccount(app, { displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password }).accountId);
+}
+
+/** Whether any account has this email address, confirmed or not (compared without regard to case). */
+export function emailInUse(app: App, email: string): boolean {
+  return !!app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?)", email);
+}
+
+/**
+ * Open sign-up through an external provider: the same limits and bookkeeping as selfSignup, but the account has no password.
+ * The provider vouched for `email` (the caller checked email_verified), so it is stored confirmed and no message is sent. An
+ * address that already belongs to an account is refused (409 email_in_use): sign-in never links or duplicates by email.
+ */
+export function signupWithProvider(
+  app: App, who: { displayName: string | null; email: string; label: string; issuer: string; subject: string }, address: string, attemptRetryAt: number | null = null,
+): { accountId: string } {
+  return openSignup(app, address, attemptRetryAt, () => {
+    if (emailInUse(app, who.email)) throw new HttpError(409, "email_in_use", "An account with this email address already exists.");
+    const { accountId } = createAccount(app, { displayName: who.displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password: null });
+    const now = nowIso();
+    app.db.run("UPDATE accounts SET email = ?, email_verified_at = ? WHERE id = ?", who.email, now, accountId);
+    app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at, last_used_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?, ?)",
+      newId("sim"), accountId, who.label, who.issuer, who.subject, now, now);
+    audit(app, accountId, "email_verify", accountId, "success", "provider");
+    return accountId;
   });
 }
 

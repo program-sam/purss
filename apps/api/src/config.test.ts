@@ -15,6 +15,15 @@ test("a variable passed through empty, as Compose does for one the operator didn
   assert.equal(loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test", PURSS_DISK_RESERVE_BYTES: "0" }).diskReserveBytes, 0, "an explicit 0 is still 0");
 });
 
+test("PURSS_OIDC providers keep their step-up mode, and a mode that doesn't exist is refused", () => {
+  const google = { id: "google", label: "Google", issuer: "https://accounts.google.com", clientId: "id.apps.googleusercontent.com", clientSecret: "s" };
+  const load = (providers: unknown[]) => loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test", PURSS_OIDC: JSON.stringify(providers) });
+  assert.deepEqual(load([google]).oidc, [google], "Google is an ordinary entry");
+  assert.equal(load([{ ...google, stepUp: "choose-account" }]).oidc[0]!.stepUp, "choose-account");
+  assert.equal(load([{ ...google, stepUp: "reauthenticate" }]).oidc[0]!.stepUp, "reauthenticate");
+  assert.throws(() => load([{ ...google, stepUp: "sometimes" }]), /stepUp for "google"/);
+});
+
 test("every API setting documented for operators reaches the api container in Compose", () => {
   const docs = repoFile("docs/self-hosting.md");
   const table = docs.slice(docs.indexOf("**API** (`apps/api/src/config.ts`)"), docs.indexOf("**Worker** ("));

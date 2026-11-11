@@ -32,6 +32,8 @@ export type SessionInfo = {
     isAdmin: boolean;
     hasPasskey: boolean;
     hasPassword: boolean;
+    /** The external sign-ins (providers set up here) this account has linked, which can also confirm it's you. */
+    linkedProviders: { id: string; label: string }[];
     /** This browser signed in as a shared computer: it signs out when it closes and after 8 hours. */
     sharedComputer: boolean;
   } | null;
@@ -780,7 +782,11 @@ export type ConnectInfo = {
    * `passwordReset` (POST { identifier }) emails a reset link and `passwordResetConfirm` (POST { token,
    * password }) sets the new password from it; both null where this PURSS doesn't use email for accounts.
    */
-  signin: { endpoint: string; methods: ("password" | "passkey")[]; passkeyOptions: string | null; passwordReset: string | null; passwordResetConfirm: string | null };
+  signin: {
+    endpoint: string; methods: ("password" | "passkey")[]; passkeyOptions: string | null; passwordReset: string | null; passwordResetConfirm: string | null;
+    /** External sign-ins set up here; each `start` opens in the system browser (`?next=` an in-app path to return to) and, once signed in, leads to `connect.page`. */
+    providers?: { id: string; label: string; start: string }[];
+  };
   features: { urlLookup: true; browserCapture: true };
 };
 
