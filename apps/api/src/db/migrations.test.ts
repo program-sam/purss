@@ -64,7 +64,7 @@ test("006 drops saved searches and leaves filter collections, which keep their o
   }
 });
 
-test("008 keeps every existing passkey and linked sign-in and accepts passwords with unique usernames", () => {
+test("008 keeps every existing passkey and linked sign-in and accepts one password per account", () => {
   const db = new Database(":memory:");
   try {
     db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
@@ -84,9 +84,9 @@ test("008 keeps every existing passkey and linked sign-in and accepts passwords 
     assert.equal(migrate(db), files.filter((f) => f >= "008").length);
     assert.deepEqual(db.all(`SELECT ${kept} FROM sign_in_methods ORDER BY id`), before, "rows survive the rebuild unchanged");
 
-    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw1', 'acc_1', 'password', 'parent', 'h', '2026-01-02T00:00:00.000Z')");
-    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'parent', 'h', '2026-01-02T00:00:00.000Z')"), /UNIQUE/, "usernames are unique");
-    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw3', 'acc_1', 'password', 'other', 'h', '2026-01-02T00:00:00.000Z')"), /UNIQUE/, "one password per account");
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, secret_hash, created_at) VALUES ('sim_pw1', 'acc_1', 'password', 'h', '2026-01-02T00:00:00.000Z')");
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'h', '2026-01-02T00:00:00.000Z')");
+    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, secret_hash, created_at) VALUES ('sim_pw3', 'acc_1', 'password', 'h', '2026-01-02T00:00:00.000Z')"), /UNIQUE/, "one password per account");
   } finally {
     db.close();
   }
@@ -111,15 +111,16 @@ test("054 deletes the recovery codes and what only they needed, and keeps every 
     db.run("INSERT INTO sessions (id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class, setup_permission_expires_at) VALUES ('ses_1', 'acc_1', 'c', ?, '2027-01-01T00:00:00.000Z', ?, ?, 'recovery', 'ua', 'shared', ?)", at, at, at, at);
     db.run("INSERT INTO signup_attempts (attempt_hash, account_id, session_id, created_at) VALUES ('hash1', 'acc_1', 'ses_1', ?)", at);
     const kept = "id, account_id, kind, label, credential_id, public_key, counter, transports, issuer, subject, secret_hash, created_at, last_used_at";
-    const methods = db.all(`SELECT ${kept} FROM sign_in_methods WHERE kind <> 'recovery' ORDER BY id`);
+    // Usernames went later (055): a password's label is cleared then, and the index that kept them unique dropped.
+    const methods = db.all<Record<string, unknown>>(`SELECT ${kept} FROM sign_in_methods WHERE kind <> 'recovery' ORDER BY id`).map((m) => ({ ...m, ...(m.kind === "password" ? { label: null } : {}) }));
     const sessionColumns = "id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class";
     const sessions = db.all(`SELECT ${sessionColumns} FROM sessions`);
     const indexes = () => db.all("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'sign_in_methods' AND sql IS NOT NULL ORDER BY name");
-    const indexesBefore = indexes();
+    const indexesBefore = indexes().filter((i) => (i as { name: string }).name !== "sign_in_methods_username");
 
     assert.equal(migrate(db), files.filter((f) => f >= "054").length);
     assert.equal(db.get("SELECT 1 FROM sign_in_methods WHERE kind = 'recovery'"), undefined, "the recovery codes are deleted, used or not");
-    assert.deepEqual(db.all(`SELECT ${kept} FROM sign_in_methods ORDER BY id`), methods, "the passkey, password and linked sign-in are as they were");
+    assert.deepEqual(db.all<object>(`SELECT ${kept} FROM sign_in_methods ORDER BY id`).map((m) => ({ ...m })), methods, "the passkey, password and linked sign-in are as they were");
     assert.deepEqual(db.all(`SELECT ${sessionColumns} FROM sessions`), sessions, "sessions are as they were");
     assert.deepEqual(indexes(), indexesBefore, "and so are the table's indexes");
     const columns = (t: string) => db.all<{ name: string }>(`SELECT name FROM pragma_table_info('${t}')`).map((c) => c.name);
@@ -129,11 +130,52 @@ test("054 deletes the recovery codes and what only they needed, and keeps every 
     assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = 'signup_attempts'"), undefined, "and the sign-up attempts");
 
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_rc3', 'acc_1', 'recovery', 'abcd', 'h', ?)", at), /CHECK/, "no recovery code can be made again");
-    assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw2', 'acc_2', 'password', 'parent', 'h', ?)", at), /UNIQUE/, "usernames are still unique");
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw3', 'acc_1', 'password', 'other', 'h', ?)", at), /UNIQUE/, "and an account still has one password");
     assert.throws(() => db.run("INSERT INTO sign_in_methods (id, account_id, kind, issuer, subject, created_at) VALUES ('sim_oi2', 'acc_1', 'oidc', 'https://id.example', 'sub1', ?)", at), /UNIQUE/, "and a linked identity belongs to one account");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(migrate(db), 0, "and it does not run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("055 makes the address the sign-in: the first to confirm a shared address keeps it, usernames and address-less invitations go", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "055")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    const account = (id: string, email: string | null, verified: string | null, created: string) =>
+      db.run("INSERT INTO accounts (id, email, email_verified_at, created_at) VALUES (?, ?, ?, ?)", id, email, verified, created);
+    // Three share an address in different cases: the one that confirmed it first keeps it, though another is older.
+    account("acc_old", "Pat@Example.org", null, "2026-01-01T00:00:00.000Z");
+    account("acc_late", "pat@example.org", "2026-03-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z");
+    account("acc_first", "PAT@example.org", "2026-02-01T00:00:00.000Z", "2026-01-03T00:00:00.000Z");
+    // Two share one nobody confirmed: the older keeps it.
+    account("acc_a", "sam@example.org", null, "2026-01-01T00:00:00.000Z");
+    account("acc_b", "Sam@example.org", null, "2026-01-02T00:00:00.000Z");
+    account("acc_solo", "solo@example.org", null, "2026-01-01T00:00:00.000Z");
+    account("acc_none", null, null, "2026-01-01T00:00:00.000Z");
+    db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES ('sim_pw', 'acc_solo', 'password', 'solo', 'h', '2026-01-01T00:00:00.000Z')");
+    db.run("INSERT INTO invites (id, created_by, created_at, expires_at, used_at, used_by) VALUES ('inv_used', 'acc_solo', '2026-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'acc_a'), ('inv_open', 'acc_solo', '2026-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z', NULL, NULL)");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "055").length);
+    const emails = Object.fromEntries(db.all<{ id: string; email: string | null; email_verified_at: string | null }>("SELECT id, email, email_verified_at FROM accounts").map((a) => [a.id, [a.email, a.email_verified_at]]));
+    assert.deepEqual(emails, {
+      acc_old: [null, null], acc_late: [null, null], acc_first: ["PAT@example.org", "2026-02-01T00:00:00.000Z"],
+      acc_a: ["sam@example.org", null], acc_b: [null, null], acc_solo: ["solo@example.org", null], acc_none: [null, null],
+    });
+    assert.equal(db.get<{ label: string | null }>("SELECT label FROM sign_in_methods WHERE id = 'sim_pw'")!.label, null, "the username is gone");
+    assert.deepEqual(db.all<{ id: string }>("SELECT id FROM invites").map((i) => i.id), ["inv_used"], "an unused invitation without an address ends");
+    assert.throws(() => db.run("UPDATE accounts SET email = 'SOLO@example.org' WHERE id = 'acc_none'"), /UNIQUE/, "an address belongs to one account, in any case");
+    db.run("UPDATE accounts SET email = NULL WHERE id = 'acc_solo'");
+    db.run("UPDATE accounts SET email = NULL WHERE id = 'acc_a'");
+    assert.equal(db.all("SELECT 1 FROM accounts WHERE email IS NULL").length, 6, "any number of accounts may have none (their data was removed)");
+    assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
+    assert.equal(migrate(db), 0);
   } finally {
     db.close();
   }
@@ -334,8 +376,10 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
       assert.deepEqual(rowsOf(t, kept), was, `${t}: every row as it was`);
     }
     const after = new Map(objects().map((o) => [(o as { name: string }).name, o]));
+    // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
+    const droppedIndexes = new Set(["sign_in_methods_username"]);
     for (const o of objectsBefore) {
-      if (removed.has((o as { tbl_name: string }).tbl_name)) continue;
+      if (removed.has((o as { tbl_name: string }).tbl_name) || droppedIndexes.has((o as { name: string }).name)) continue;
       assert.deepEqual(after.get((o as { name: string }).name), o, `${(o as { name: string }).name} is unchanged`);
     }
     assert.equal(db.get<{ url_key: string }>("SELECT url_key FROM items WHERE id = 'itm_1'")!.url_key, "example.org/a");

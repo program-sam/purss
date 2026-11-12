@@ -55,7 +55,7 @@ test("a password reset by email ends sessions, connected apps, pending codes, as
   useTransport(app, { send: async () => {}, verify: async () => {} });
   const pat = makeOwner(app, { admin: false });
   const bystander = makeOwner(app, { admin: false });
-  await writePassword(app, pat.accountId, "pat", "a long old password");
+  await writePassword(app, pat.accountId, "a long old password");
   app.db.run("UPDATE accounts SET email = 'pat@example.org', email_verified_at = ? WHERE id = ?", nowIso(), pat.accountId);
   credentials(app, pat.accountId);
   credentials(app, bystander.accountId);

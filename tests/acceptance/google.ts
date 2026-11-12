@@ -1,6 +1,6 @@
 // Acceptance journey for signing in with Google (an external OpenID Connect provider, here a local fake issuer), against the
 // real API serving the built web app on a hosted installation with open sign-up and a local SMTP server (no FreshRSS, worker or
-// network): a stranger makes an account with "Continue with Google" (no username or password), reaches Home, signs out and in
+// network): a stranger makes an account with "Continue with Google" (no password), reaches Home, signs out and in
 // again with Google, and — with the sign-in older than the step-up window — adds a password after confirming it's them with
 // Google. Someone whose Google email already belongs to an account is refused, with nothing linked or made. The phone app's
 // browser path (what ConnectScreen opens) signs a third person up through Google, lands on the approval page, hands the code
@@ -69,6 +69,7 @@ function withDb<T>(fn: (db: DatabaseSync) => T): T {
   try { return fn(db); } finally { db.close(); }
 }
 const count = (sql: string) => withDb((db) => (db.prepare(sql).get() as { n: number }).n);
+const ANA_PASSWORDS = "SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'password' AND account_id = (SELECT id FROM accounts WHERE email = 'Ana@Example.org')";
 const makeStale = () => withDb((db) => {
   const old = new Date(Date.now() - 11 * 60_000).toISOString();
   db.prepare("UPDATE sessions SET auth_at = ?").run(old);
@@ -99,9 +100,8 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
   // The operator's account, and Dana, who already has an account with a confirmed email address.
   const prepared = createApp(loadConfig(env));
   try {
-    claim(prepared, ensureClaimCode(prepared)!, "Operator", testPassword("operator"));
-    const dana = prepared.db.tx(() => createAccount(prepared, { displayName: "Dana", admin: false, allocationBytes: null, grantedBy: null, password: testPassword("dana") }));
-    prepared.db.run("UPDATE accounts SET email = 'dana@example.org', email_verified_at = ? WHERE id = ?", new Date().toISOString(), dana.accountId);
+    claim(prepared, ensureClaimCode(prepared)!, "operator@example.test", "Operator", testPassword());
+    prepared.db.tx(() => createAccount(prepared, { email: "dana@example.org", emailConfirmed: true, displayName: "Dana", admin: false, allocationBytes: null, grantedBy: null, password: testPassword() }));
   } finally { prepared.db.close(); }
   startApi(env);
   await waitFor("open sign-up", async () => (await (await fetch(`${origin}/api/session`)).json()).installation.signup === "open", 30_000);
@@ -142,7 +142,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await page.waitForURL(`${origin}/app/`);
     await dismissFirstVisit(page);
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), accounts + 1);
-    step("Continue with Google made an account (no username or password) and shows Home");
+    step("Continue with Google made an account (no password) and shows Home");
 
     await page.goto(`${origin}/app/?dialog=security`);
     const security = page.getByRole("dialog");
@@ -153,7 +153,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const ana = withDb((db) => db.prepare("SELECT display_name, email, email_verified_at FROM accounts WHERE email = 'Ana@Example.org'").get() as { display_name: string; email: string; email_verified_at: string | null });
     assert.equal(ana.display_name, "Ana Reader");
     assert.ok(ana.email_verified_at, "the address came confirmed");
-    assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'password' AND label = 'ana'"), 0);
+    assert.equal(count(ANA_PASSWORDS), 0, "no password was made with the account");
     await security.getByRole("button", { name: "Remove google" }).click();
     await security.getByText("This is your last way to sign in. Add a password first.").waitFor();
     step("Settings → Security lists Google as the way in; removing the last way in is refused");
@@ -180,13 +180,12 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await page.locator("#toasts").getByText("Confirmed with Google.").waitFor();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Add a password" }).click();
-    await page.getByLabel("Username").fill("ana");
     await page.getByLabel("Password", { exact: true }).fill("tidal flats at low water");
     await page.getByLabel("Password again").fill("tidal flats at low water");
     await page.getByRole("button", { name: "Add password" }).click();
     await page.locator("#toasts").getByText("Password added").waitFor();
-    await dialog.getByText("Username · added").waitFor();
-    assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'password' AND label = 'ana'"), 1);
+    await dialog.getByText(/For Ana@Example\.org · Added/).waitFor();
+    assert.equal(count(ANA_PASSWORDS), 1);
     step("Confirm with Google refreshed the sign-in and the account added a password");
 
     // ---- an email that already belongs to an account is refused
@@ -196,7 +195,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await stranger.goto(`${origin}/app/signin`);
     await stranger.getByRole("link", { name: "Continue with Google" }).click();
     const refusal = stranger.getByRole("alert");
-    await refusal.getByText("An account with this email address already exists. Sign in with your username and password, then connect Google in Settings → Security.").waitFor();
+    await refusal.getByText("An account with this email address already exists. Sign in with your email address and password, then connect Google in Settings → Security.").waitFor();
     await stranger.screenshot({ path: path.join(shots, "05-email-in-use.png") });
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), before, "no second account");
     assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana'"), 0, "and nothing linked");
@@ -279,7 +278,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
 
     // ---- the app links Google: whoever signs in in the browser links nothing; the app redeems the code that came back
     const signedIn = await fetch(`${origin}/api/connect/signin`, { method: "POST", headers: { "content-type": "application/json", origin: "capacitor://localhost" },
-      body: JSON.stringify({ method: "password", username: "dana", password: TEST_PASSWORD, client: "mobile", deviceName: "Dana's phone" }) });
+      body: JSON.stringify({ method: "password", email: "dana@example.org", password: TEST_PASSWORD, client: "mobile", deviceName: "Dana's phone" }) });
     assert.equal(signedIn.status, 200);
     const danaToken = ((await signedIn.json()) as { token: string }).token;
     const asDana = (method: string, pathname: string, body?: unknown) => fetch(`${origin}${pathname}`, {

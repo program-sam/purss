@@ -8,9 +8,9 @@ import { HttpError, Router, badRequest, clientAddress, parse, rateLimit } from "
 import { CODE_TTL_SECONDS, issueCode, redeemCode } from "../connect/codes.ts";
 import { REDIRECT_PATTERNS, checkRedirect, cleanDeviceName } from "../connect/clients.ts";
 import { MAX_DEVICES, createDeviceToken, deviceCount, deviceIdOf, listDevices, revokeDevice, tooMany } from "../connect/devices.ts";
-import { acceptInvite, assertSignupCapacity, openSignupAttempt, selfSignup } from "../auth/accounts.ts";
-import { PASSWORD_MIN, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
-import { accountEmailAvailable, setAccountEmail } from "../services/account-email.ts";
+import { acceptInvite } from "../auth/accounts.ts";
+import { PASSWORD_MIN, checkPassword, normalizeEmail, preparePassword } from "../auth/passwords.ts";
+import { accountEmailAvailable } from "../services/account-email.ts";
 import { signupOpen } from "../mail/mailer.ts";
 import { endDeletion, keepTokenFor } from "../services/deletion.ts";
 import { authenticationOptions, verifyAuthentication } from "../auth/passkeys.ts";
@@ -64,7 +64,7 @@ export function connectInfo(app: App): ConnectInfo {
     hosted: app.config.mode === "hosted",
     version: app.config.version?.version ?? null,
     connect: { page: `${app.config.publicOrigin}${appUrl("/connect")}`, token: `${app.config.publicOrigin}/api/connect/token`, codeChallengeMethods: ["S256"], clients },
-    signup: { endpoint: `${app.config.publicOrigin}/api/connect/signup`, invitation: true, open: signupOpen(app), passwordMin: PASSWORD_MIN },
+    signup: { endpoint: `${app.config.publicOrigin}/api/connect/signup`, start: signupOpen(app) ? `${app.config.publicOrigin}/api/signup/start` : null, passwordMin: PASSWORD_MIN },
     signin: {
       endpoint: `${app.config.publicOrigin}/api/connect/signin`,
       methods: appPasskeys(app) ? ["password", "passkey"] : ["password"],
@@ -109,7 +109,7 @@ export function connectRouter(): Router<Ctx> {
   });
 
   /**
-   * Sign in from the mobile app with a username and password (or a passkey), and connect it: the same
+   * Sign in from the mobile app with an email address and password (or a passkey), and connect it: the same
    * checks, limits and answers as signing in in a browser, but the result is the app's device token, not a
    * cookie.
    */
@@ -135,11 +135,11 @@ export function connectRouter(): Router<Ctx> {
       return answer(app.db.tx(() => connect(accountId)));
     }
     rateLimit(`password:${address}`, 10);
-    rateLimit(`password-user:${normalizeUsername(body.username)}`, 10, 15 * 60_000);
-    const accountId = await checkPassword(app, body.username, body.password);
+    rateLimit(`password-user:${normalizeEmail(body.email)}`, 10, 15 * 60_000);
+    const accountId = await checkPassword(app, body.email, body.password);
     if (!accountId) {
       audit(app, null, "sign_in", method, "failure");
-      throw new HttpError(401, "bad_password", "That username and password don't match.");
+      throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
     return answer(app.db.tx(() => connect(accountId)));
   });
@@ -163,24 +163,22 @@ export function connectRouter(): Router<Ctx> {
   });
 
   /**
-   * Create an account from the mobile app and connect it in one step: with an invitation code, or an email address
-   * where sign-up is open, plus a username and password to sign in with. The account, its password and the app's
-   * device token are written in one transaction, so nothing is left half made.
+   * Accept an invitation from the mobile app and connect it in one step: the code, the address it is for, and the password
+   * to sign in with. The account, its password and the app's device token are written in one transaction, so nothing is
+   * left half made. Open sign-up starts with the address instead (signup.start in /api/connect/info) and is finished on the
+   * page its emailed link opens.
    */
   r.post("/api/connect/signup", async (req, ctx): Promise<ConnectTokenResult> => {
     const { app } = ctx;
     const address = clientAddress(req.raw, app.config.trustProxy);
     const body = parse(connectSignupSchema, req.body);
-    // The same limits as accepting an invitation or signing up in a browser.
-    const attemptRetryAt = body.invitation !== undefined ? (rateLimit(`invite:${address}`, 10), null) : openSignupAttempt(app, address);
-    if (body.invitation === undefined) assertSignupCapacity(app, address, attemptRetryAt);
-    const password = await preparePassword(body.username, body.password);
+    // The same limit as accepting an invitation in a browser.
+    rateLimit(`invite:${address}`, 10);
+    const password = await preparePassword(body.password, body.email);
     const deviceName = cleanDeviceName("mobile", body.deviceName);
     return app.db.tx(() => {
-      const created = body.invitation !== undefined ? acceptInvite(app, body.invitation, body.displayName, password) : selfSignup(app, body.displayName, address, password, attemptRetryAt);
-      const made = createDeviceToken(app, created.accountId, "mobile", deviceName, body.invitation !== undefined ? "invite" : "signup");
-      // Last: the confirmation email goes out at once, so nothing may refuse the sign-up after it.
-      if (body.email !== undefined) setAccountEmail(app, created.accountId, body.email);
+      const created = acceptInvite(app, body.invitation, body.email, body.displayName, password);
+      const made = createDeviceToken(app, created.accountId, "mobile", deviceName, "invite");
       return { token: made.secret, tokenType: "Bearer", device: made.device };
     });
   });

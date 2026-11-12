@@ -73,7 +73,7 @@ export type UsageReport = { checkedAt: string; accounts: { accountId: string; le
  */
 export type AdminAccountDeletion = { dueAt: string; state: "pending" | "purging"; engineReview: boolean };
 /** `plan` is the chosen plan and `capacity.plan` the one that applies (Unlimited while an administrator); both null on self-hosted installs, which have no plans. */
-export type AdminAccountDTO = { id: string; displayName: string | null; status: "active" | "suspended"; createdAt: string; isAdmin: boolean; usedBytes: number; allocationBytes: number | null; plan: Plan | null; capacity: Capacity; deletion: AdminAccountDeletion | null;
+export type AdminAccountDTO = { id: string; displayName: string | null; email: string | null; status: "active" | "suspended"; createdAt: string; isAdmin: boolean; usedBytes: number; allocationBytes: number | null; plan: Plan | null; capacity: Capacity; deletion: AdminAccountDeletion | null;
   /** Hosted only: Smart filter tokens used on the server's key this week (plan/36); null when self-hosted. */
   smartFilterTokens: number | null };
 

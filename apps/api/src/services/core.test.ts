@@ -489,8 +489,8 @@ test("claiming makes the owner with a password and removes the setup-code file",
   const { existsSync } = await import("node:fs");
   const code = ensureClaimCode(app)!;
   assert.ok(existsSync(`${app.config.secretsDir}/setup-code`));
-  const owner = claim(app, code, null, testPassword("first-owner"));
+  const owner = claim(app, code, "owner@example.org", null, testPassword());
   assert.ok(!existsSync(`${app.config.secretsDir}/setup-code`), "the code file goes with the claim");
-  assert.equal(await checkPassword(app, "first-owner", TEST_PASSWORD), owner.accountId, "the owner signs in with the username and password chosen at setup");
+  assert.equal(await checkPassword(app, "owner@example.org", TEST_PASSWORD), owner.accountId, "the owner signs in with the address and password chosen at setup");
   assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", owner.accountId) !== undefined, true);
 });

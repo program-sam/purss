@@ -34,10 +34,13 @@ export function signinOffered(info: ConnectInfo): boolean {
   return !!s && Array.isArray(s.methods) && s.methods.includes("password");
 }
 
-/** What PURSS lets the app do to create an account; null when it can't (an older PURSS). */
-export function signupOffer(info: ConnectInfo): { open: boolean; passwordMin: number } | null {
+/**
+ * What PURSS lets the app do to create an account: accept an invitation, and where sign-up is open (`start`) have a link emailed
+ * that finishes it in the browser. Null when it can't (an older PURSS, which sign-up here would not suit).
+ */
+export function signupOffer(info: ConnectInfo): { start: string | null; passwordMin: number } | null {
   const s = (info as Partial<ConnectInfo>).signup;
-  return s && s.invitation === true && typeof s.passwordMin === "number" ? { open: s.open === true, passwordMin: s.passwordMin } : null;
+  return s && typeof s.passwordMin === "number" && (s.start === null || typeof s.start === "string") ? { start: s.start, passwordMin: s.passwordMin } : null;
 }
 
 /** The external sign-ins this PURSS offers (an older one lists none). */

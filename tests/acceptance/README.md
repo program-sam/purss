@@ -4,13 +4,13 @@
 a separate FreshRSS container (`purss-freshrss-acceptance`), the egress proxy, API and
 worker on their own ports (189xx) and a throwaway data directory, driven in Chromium.
 
-Set up with the one-time code and a username and password → add a passkey (virtual
+Set up with the one-time code, an email address and a password → add a passkey (virtual
 authenticator) → paste and follow two real public sources → items arrive through
 FreshRSS, egress and the worker → browse a collection in every view → open an item
 with the keyboard → To read → keep in a text basket and wait for the readable-text
 capture → search finds it → restart API and worker → sign out and back in with the
-passkey → the kept item is in its basket → storage counts it → an invited second account (username
-and password, passkey skipped) asks to be deleted, is signed out, and keeps its account by signing in
+passkey → the kept item is in its basket → storage counts it → an invited second account (its invitation link names the
+email address; password, passkey skipped) asks to be deleted, is signed out, and keeps its account by signing in
 again with its password.
 
 Needs Node 26, podman with the pinned FreshRSS image, network access to the public
@@ -31,12 +31,12 @@ test:e2e` builds the web app and runs it after the core journey, and `node tests
 (after `npm run build`) runs it alone. It needs only Node 26 and Playwright's Chromium: no podman, FreshRSS or network. It
 starts the API on its own ports (199xx) with a throwaway data directory and a copy of the web build,
 and seeds a small library from the API's own test fixtures, posted through the same sync path the
-worker uses. The hermetic journeys make their account in-process with a username and the shared test
+worker uses. The hermetic journeys make their account in-process with an email address and the shared test
 password (`testPassword` and `TEST_PASSWORD` in `apps/api/src/testing.ts`) and sign in with them on the
 sign-in page.
 
 It checks that the manifest, icons, `/sw.js` and the page's install tags are served with the right
-types and caching; signs in with a username and password; marks an item To read; highlights a passage with the
+types and caching; signs in with an email address and password; marks an item To read; highlights a passage with the
 selection bar and comments on another with the keyboard, reopens both and finds the item by its
 comment; turns offline reading on
 and waits for the pack to save; goes offline, reloads and reads the item's text with its highlights; writes a note offline that
@@ -59,7 +59,7 @@ refused elsewhere; the phone app's code arrives at `purss://connect` (seen throu
 navigation events) and a decline sends `access_denied`; a foreign return address is refused on the
 page; Settings → Connected apps lists both and disconnecting stops a token at once. Once the session's
 sign-in is older than the ten-minute step-up window (the journey ages it in the database), Settings →
-Security → *Change username or password* asks to confirm it's you: a wrong password is refused, the right
+Security → *Change password* asks to confirm it's you: a wrong password is refused, the right
 one opens the password form.
 
 ## Assistants signing in with OAuth
@@ -70,7 +70,7 @@ one opens the password form.
 runs the API in its own process on free ports with OAuth turned on, so the client metadata document
 can come from a local HTTPS server through the safe fetcher's in-process test hooks. The script acts
 as the assistant: `/mcp`'s 401 leads it to the protected resource and authorization server
-metadata; the browser opens the consent page signed out, signs in with the username and password and comes
+metadata; the browser opens the consent page signed out, signs in with the email address and password and comes
 back; the person turns assistant access on from the page, unticks organising and allows; the browser
 arrives at the assistant's callback with the code, `state` and `iss`; the code and PKCE verifier give
 a read-only token that lists only reading tools and finds an item; refreshing rotates the tokens;
@@ -105,11 +105,12 @@ screen. Screenshots of each look go to the system temp directory (`purss-eink-*.
 `tests/acceptance/email.ts` runs last in `npm run test:e2e` (alone: `node tests/acceptance/email.ts`
 after `npm run build`; ports 19980 and 19988). It starts a local SMTP server (`apps/api/src/mail/testing.ts`)
 and a hosted installation with open sign-up, waits for sign-up to open once the mail check passes,
-signs a new person up with an address, a username and a password (skipping the passkey offer), confirms
-the address from the received message, follows *Reset your password by email* from the sign-in page and
-asks for a reset with an unknown username (same answer, no message) and with the address,
-sets a new password from the emailed link, checks the notice, that the first browser was signed out,
-and that only the new password works.
+asks a new person for just an address and finishes their account from the emailed link with a password (the link
+confirms the address; the passkey offer is skipped), changes the address (the new one takes over only once its link is
+used, and the old one is told), opens the spent sign-up link and signs up again with an address that has an account
+(the same page, and an email saying so), follows *Reset your password by email* from the sign-in page and asks for a
+reset with an unknown address (same answer, no message) and with the address, sets a new password from the emailed
+link, checks the notice, that the first browser was signed out, and that only the new password works.
 
 ## Browser extension and bookmarklets
 
@@ -136,8 +137,8 @@ keyword can't be driven from Playwright; their logic has unit tests.
 ([plan/21](../../plan/21-identity-and-administration.md)); `npm run test:e2e` runs it after the email journey, and
 `node tests/acceptance/google.ts` (after `npm run build`) runs it alone. It needs only Node 26 and Playwright's
 Chromium: a hosted API with open sign-up, a local SMTP server (open sign-up needs working email) and a local fake issuer
-(`oauth2-mock-server`) configured as Google. A stranger makes an account with *Continue with Google* (no username or
-password) and reaches Home; Settings → Security lists Google and refuses to remove the last way in; signing out and in
+(`oauth2-mock-server`) configured as Google. A stranger makes an account with *Continue with Google* (no password) and
+reaches Home; Settings → Security lists Google and refuses to remove the last way in; signing out and in
 again with Google uses the same account; with the sign-in older than ten minutes, *Add a password* asks to confirm
 it's you, *Confirm with Google* does, and the password is added. Someone whose Google email already belongs to an
 account, or whom Google doesn't vouch for, is refused with nothing made or linked. The phone app's browser path

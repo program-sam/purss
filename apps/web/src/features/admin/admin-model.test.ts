@@ -46,8 +46,8 @@ test("ids are shortened, the system actor is named, engine states have words", (
   assert.equal(engineLabel("odd"), "odd");
 });
 
-test("the invitation link carries the code in the address the app already reads", () => {
-  assert.equal(inviteLink("https://example.org", "AB-12 3"), "https://example.org/app/invite?code=AB-12%203");
+test("the invitation link carries the code and the address it is for in the address the app already reads", () => {
+  assert.equal(inviteLink("https://example.org", "AB-12 3", "new.reader+x@example.org"), "https://example.org/app/invite?code=AB-12%203&email=new.reader%2Bx%40example.org");
 });
 
 test("a bridged source's failure is told in plain words, and an unknown one is not made up", () => {

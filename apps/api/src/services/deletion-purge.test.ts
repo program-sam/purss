@@ -78,8 +78,8 @@ function populate(app: App, m: Member, owner: Member): string[] {
   app.db.run("INSERT INTO assistant_tokens (id, account_id, name, access, token_hash, created_at) VALUES (?, ?, 'T', 'read', ?, ?)", newId("tok"), m.accountId, newId("hash"), nowIso());
   app.db.run("INSERT INTO role_grants (account_id, role, granted_at, granted_by) VALUES (?, 'admin', ?, NULL)", m.accountId, nowIso());
   app.db.run("UPDATE role_grants SET granted_by = ? WHERE account_id = ?", m.accountId, owner.accountId); // the member once made the owner an administrator
-  createInvite(app, m.accountId, "from the member", null);
-  createInvite(app, owner.accountId, "for the member", null);
+  createInvite(app, m.accountId, "invited@example.test", "from the member", null);
+  createInvite(app, owner.accountId, "invited@example.test", "for the member", null);
   app.db.run("UPDATE invites SET used_at = ?, used_by = ? WHERE note = 'for the member'", nowIso(), m.accountId);
   reserve(app, m.accountId, 10, "test", `res:${m.accountId}`);
   recordSyncSuccess(app, m.engineUserId);

@@ -5,12 +5,12 @@ import { audit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
 
 /*
- * Username and password sign-in: every account has one, made with the account. Stored as a 'password'
- * sign-in method: the label is the lower-case username, secret_hash an scrypt hash with its parameters.
- * It can be changed or reset but never removed; a passkey or a linked provider is only an extra way in.
+ * Email address and password sign-in: every account has a password made with it, except one made by signing in with a
+ * provider. Stored as a 'password' sign-in method whose secret_hash is an scrypt hash with its parameters; the address
+ * it goes with is the account's own (accounts.email). It can be changed or reset but never removed; a passkey or a linked
+ * provider is only an extra way in.
  */
 
-export const USERNAME_RULE = /^[a-z0-9][a-z0-9._-]{2,39}$/;
 export const PASSWORD_MIN = 10;
 export const PASSWORD_MAX = 256;
 
@@ -37,44 +37,47 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(actual, expected);
 }
 
-export function normalizeUsername(raw: string): string {
+/**
+ * An address as JavaScript compares it. SQL compares with lower() on both sides instead, as the accounts_email index
+ * does (SQLite's lower() folds only ASCII letters).
+ */
+export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
-export function checkNewPassword(username: string, password: string): void {
-  if (!USERNAME_RULE.test(username)) {
-    throw new HttpError(400, "bad_username", "Use 3 to 40 letters, digits, dots, dashes or underscores for the username, starting with a letter or digit.");
-  }
+export function checkNewPassword(password: string, email: string | null): void {
   if ([...password].length < PASSWORD_MIN) throw new HttpError(400, "short_password", `Use at least ${PASSWORD_MIN} characters for the password.`);
   if ([...password].length > PASSWORD_MAX) throw new HttpError(400, "long_password", `Use at most ${PASSWORD_MAX} characters for the password.`);
-  if (password.toLowerCase() === username) throw new HttpError(400, "weak_password", "The password can't be the same as the username.");
+  if (email !== null && password.toLowerCase() === normalizeEmail(email)) throw new HttpError(400, "weak_password", "The password can't be the same as your email address.");
+}
+
+/** The account's address, which a new password is checked against. */
+export function accountEmail(app: App, accountId: string): string | null {
+  return app.db.get<{ email: string | null }>("SELECT email FROM accounts WHERE id = ?", accountId)?.email ?? null;
 }
 
 /**
- * Set or replace an account's username and password. `inTransaction` runs the write in the caller's
- * transaction, after the hash, so it can re-check what the hashing may have outlived.
+ * Set or replace an account's password. `inTransaction` runs the write in the caller's transaction, after the hash,
+ * so it can re-check what the hashing may have outlived.
  */
-export async function writePassword(app: App, accountId: string, rawUsername: string, password: string, inTransaction: (write: () => void) => void = (write) => app.db.tx(write)): Promise<void> {
-  const prepared = await preparePassword(rawUsername, password);
+export async function writePassword(app: App, accountId: string, password: string, inTransaction: (write: () => void) => void = (write) => app.db.tx(write)): Promise<void> {
+  const prepared = await preparePassword(password, accountEmail(app, accountId));
   inTransaction(() => storePassword(app, accountId, prepared));
 }
 
-/** A checked username and the password's hash, made before a transaction (hashing is slow). */
-export type PreparedPassword = { username: string; hash: string };
+/** A checked password's hash, made before a transaction (hashing is slow). */
+export type PreparedPassword = { hash: string };
 
-export async function preparePassword(rawUsername: string, password: string): Promise<PreparedPassword> {
-  const username = normalizeUsername(rawUsername);
-  checkNewPassword(username, password);
-  return { username, hash: await hashPassword(password) };
+export async function preparePassword(password: string, email: string | null): Promise<PreparedPassword> {
+  checkNewPassword(password, email);
+  return { hash: await hashPassword(password) };
 }
 
 /** Set or replace the account's password, inside the caller's transaction. */
-export function storePassword(app: App, accountId: string, { username, hash }: PreparedPassword): void {
-  const taken = app.db.get<{ account_id: string }>("SELECT account_id FROM sign_in_methods WHERE kind = 'password' AND label = ?", username);
-  if (taken && taken.account_id !== accountId) throw new HttpError(409, "username_taken", "That username is already in use. Choose another one.");
+export function storePassword(app: App, accountId: string, { hash }: PreparedPassword): void {
   const had = app.db.get<{ id: string }>("SELECT id FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", accountId);
-  if (had) app.db.run("UPDATE sign_in_methods SET label = ?, secret_hash = ? WHERE id = ?", username, hash, had.id);
-  else app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, secret_hash, created_at) VALUES (?, ?, 'password', ?, ?, ?)", newId("sim"), accountId, username, hash, nowIso());
+  if (had) app.db.run("UPDATE sign_in_methods SET secret_hash = ? WHERE id = ?", hash, had.id);
+  else app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, secret_hash, created_at) VALUES (?, ?, 'password', ?, ?)", newId("sim"), accountId, hash, nowIso());
   audit(app, accountId, had ? "password_change" : "password_add", null, "success");
 }
 
@@ -83,28 +86,15 @@ let dummyHash: Promise<string> | null = null;
 type PasswordRow = { id: string; account_id: string; secret_hash: string };
 
 /**
- * The password sign-in a name belongs to: a username, or a confirmed account email address (names with "@" are
- * never usernames). An address is used only when exactly one account has it confirmed and a password; with none
- * or several it names nobody, and the caller treats it like an unknown username.
+ * The account an email address and password belong to, or null. Unknown addresses cost the same time as known ones.
+ * With `onlyAccountId` the address is ignored and that account's own password is checked.
  */
-function passwordRow(app: App, name: string): PasswordRow | null {
-  if (name.includes("@")) {
-    const rows = app.db.all<PasswordRow>(
-      `SELECT m.id, m.account_id, m.secret_hash FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password'
-       WHERE lower(a.email) = ? AND a.email_verified_at IS NOT NULL LIMIT 2`, name);
-    return rows.length === 1 ? rows[0]! : null;
-  }
-  return app.db.get<PasswordRow>("SELECT id, account_id, secret_hash FROM sign_in_methods WHERE kind = 'password' AND label = ?", name) ?? null;
-}
-
-/**
- * The account a username (or confirmed email address) and password belong to, or null. Unknown names cost the same
- * time as known ones. With `onlyAccountId` the name is ignored and that account's own password is checked.
- */
-export async function checkPassword(app: App, rawName: string, password: string, onlyAccountId?: string): Promise<string | null> {
+export async function checkPassword(app: App, rawEmail: string, password: string, onlyAccountId?: string): Promise<string | null> {
   const row = onlyAccountId
     ? app.db.get<PasswordRow>("SELECT id, account_id, secret_hash FROM sign_in_methods WHERE kind = 'password' AND account_id = ?", onlyAccountId) ?? null
-    : passwordRow(app, normalizeUsername(rawName));
+    : app.db.get<PasswordRow>(
+      `SELECT m.id, m.account_id, m.secret_hash FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password'
+       WHERE lower(a.email) = lower(?)`, rawEmail.trim()) ?? null;
   if (!row) {
     dummyHash ??= hashPassword(randomBytes(12).toString("base64url"));
     await verifyPassword(password, await dummyHash);
@@ -114,8 +104,4 @@ export async function checkPassword(app: App, rawName: string, password: string,
   // Checking took a while: a password changed or reset meanwhile (which also signs out everywhere) wins.
   const current = app.db.run("UPDATE sign_in_methods SET last_used_at = ? WHERE id = ? AND secret_hash = ?", nowIso(), row.id, row.secret_hash);
   return current.changes ? row.account_id : null;
-}
-
-export function passwordUsername(app: App, accountId: string): string | null {
-  return app.db.get<{ label: string }>("SELECT label FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", accountId)?.label ?? null;
 }

@@ -34,12 +34,12 @@ export function VerifyEmailPage() {
     <AuthFrame title="Confirm your email address">
       <div aria-live="polite" style={{ display: "grid", gap: 14 }}>
         {state === "working" ? <p className="state"><span className="spin" aria-hidden="true" />Confirming…</p> : null}
-        {state === "done" ? <p className="state"><Icon name="check" /><span>Your email address is confirmed. Messages about your account will go there.</span></p> : null}
+        {state === "done" ? <p className="state"><Icon name="check" /><span>Your email address is confirmed. It is the one you sign in with, and messages about your account go there.</span></p> : null}
         {state === "failed" ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>Go to your PURSS</a></div> : null}
         {state !== "working" && !signedIn ? (
           <>
-            <p>Sign in with your password (username or email address) or your fingerprint, face or screen lock.</p>
+            <p>Sign in with your email address and password, or your fingerprint, face or screen lock.</p>
             <div><a className="btn primary" href={inApp("/signin")}>Sign in</a></div>
           </>
         ) : null}
@@ -51,7 +51,7 @@ export function VerifyEmailPage() {
 /** /reset-password: ask for a link; /reset-password?token=…: choose a new password. */
 export function ResetPasswordPage() {
   const token = useToken();
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,7 +61,7 @@ export function ResetPasswordPage() {
   async function ask(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setError("");
-    try { await post("/api/password-reset", { identifier: identifier.trim() }); setDone(true); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
+    try { await post("/api/password-reset", { email: email.trim() }); setDone(true); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   async function choose(e: FormEvent) {
     e.preventDefault();
@@ -73,19 +73,19 @@ export function ResetPasswordPage() {
   const alert = error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null;
   if (!token) {
     return (
-      <AuthFrame title="Reset your password" intro={done ? undefined : "Enter your username or email address. If the account has a confirmed email, we'll send a link to choose a new password."}>
+      <AuthFrame title="Reset your password" intro={done ? undefined : "Enter your email address. If it has an account, we'll send a link to choose a new password."}>
         {done ? (
           <div style={{ display: "grid", gap: 14 }}>
-            <p className="state"><Icon name="check" /><span>If that account has a confirmed email, we've sent a link. It works once, for an hour. Check your spam folder.</span></p>
+            <p className="state"><Icon name="check" /><span>If that email address has an account, we've sent a link. It works once, for an hour. Check your spam folder.</span></p>
             <div><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
           </div>
         ) : (
           <form onSubmit={ask} style={{ display: "grid", gap: 14 }}>
-            <Field label="Username or email address" htmlFor="rp-id">
-              <TextInput id="rp-id" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus maxLength={300} />
+            <Field label="Email address" htmlFor="rp-id">
+              <TextInput id="rp-id" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus maxLength={300} />
             </Field>
             {alert}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !identifier.trim()}>Send a link</Button><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !email.trim()}>Send a link</Button><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
             <p className="fine">Administrators get a reset link from the server's operator tool instead.</p>
           </form>
         )}
@@ -101,7 +101,7 @@ export function ResetPasswordPage() {
         </div>
       ) : (
         <form onSubmit={choose} style={{ display: "grid", gap: 14 }}>
-          <Field label="New password" htmlFor="rp-new" hint="At least 10 characters.">
+          <Field label="New password" htmlFor="rp-new" hint="10+ characters">
             <TextInput id="rp-new" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus />
           </Field>
           <Field label="New password again" htmlFor="rp-again">

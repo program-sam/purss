@@ -91,7 +91,7 @@ test("a password change whose hashing straddles the deletion request is not save
   const m = await member(b.app, "Pia");
   const p = signedInPrincipal(b.app, m.accountId);
   const before = b.app.db.get<{ label: string; secret_hash: string }>("SELECT label, secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", m.accountId)!;
-  const pending = setPassword(b.app, p.accountId, p.sessionId, "pia-new-name", "a whole new password");
+  const pending = setPassword(b.app, p.accountId, p.sessionId, "a whole new password", { expectedHash: before.secret_hash, requireRecent: false });
   requestDeletion(b.app, signedInPrincipal(b.app, m.accountId), "Pia");
   await assert.rejects(pending, isSignedOut);
   const after = b.app.db.get<{ label: string; secret_hash: string }>("SELECT label, secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", m.accountId)!;

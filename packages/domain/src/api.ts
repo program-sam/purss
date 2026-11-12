@@ -29,6 +29,8 @@ export type SessionInfo = {
   account: {
     id: string;
     displayName: string | null;
+    /** The address the account signs in with; null only for an account whose operator hasn't given it one (cli.ts set-email). */
+    email: string | null;
     isAdmin: boolean;
     hasPasskey: boolean;
     hasPassword: boolean;
@@ -49,14 +51,18 @@ export type SessionInfo = {
     mail: boolean;
     /** This server's version (plan/40), e.g. "2631214"; null when it was built without one. */
     version: string | null;
-    /** Accounts have an email address, confirmed by a link, that can receive a password-reset link (hosted, with email). */
+    /** Addresses are confirmed by a link and can receive a password-reset link (wherever outgoing email is set up). */
     accountEmail: boolean;
     /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
     billing: boolean;
   };
 };
 /** The signed-in account's email address (plan/27). */
-export type AccountEmail = { available: boolean; address: string | null; confirmed: boolean };
+/**
+ * The account's sign-in address. `available`: the server sends email (confirmation and reset links). `pending`: a new
+ * address waiting for its confirmation link; until then `address` stays the account's.
+ */
+export type AccountEmail = { available: boolean; address: string | null; confirmed: boolean; pending: string | null };
 
 // ---------- sidebar/bootstrap ----------
 export type SourceHealth = "ok" | "pending" | "error" | "login" | "quiet" | "paused" | "reconnect";
@@ -775,11 +781,10 @@ export type ConnectInfo = {
     clients: Record<ConnectClientKind, { redirectUris: string[]; typedCode: true }>;
   };
   /**
-   * The mobile app can create an account itself: POST `endpoint` (ConnectSignupInput) answers with a
-   * device token. `invitation` always; `open` when this PURSS takes new
-   * accounts without one (then an email address is needed instead of an invitation code).
+   * The mobile app can accept an invitation itself: POST `endpoint` (ConnectSignupInput) answers with a device token.
+   * `start`, where sign-up is open, takes `{ email }` and emails a link whose page finishes the account in the browser.
    */
-  signup: { endpoint: string; invitation: true; open: boolean; passwordMin: number };
+  signup: { endpoint: string; start: string | null; passwordMin: number };
   /**
    * The mobile app signs in itself: POST `endpoint` (ConnectSigninInput) answers with a device token.
    * `passkey` is offered where PURSS vouches for the app (its passkeys work there); its challenge
@@ -818,24 +823,23 @@ export const connectRequestSchema = z.object({
   device_name: z.string().max(200).optional(),
 });
 export const connectApproveSchema = connectRequestSchema.extend({ device_name: z.string().trim().min(1).max(80) });
-/** Signing in from the mobile app: a username and password, or a passkey. */
+/** Signing in from the mobile app: an email address and password, or a passkey. */
 export const connectSigninSchema = z.discriminatedUnion("method", [
-  z.object({ client: z.literal("mobile"), method: z.literal("password"), username: z.string().max(80), password: z.string().min(1).max(1024), deviceName: z.string().max(200).optional() }),
+  z.object({ client: z.literal("mobile"), method: z.literal("password"), email: z.string().max(300), password: z.string().min(1).max(1024), deviceName: z.string().max(200).optional() }),
   // A passkey answer to the challenge from POST /api/connect/passkey/options.
   z.object({ client: z.literal("mobile"), method: z.literal("passkey"), challengeId: z.string().max(100), response: z.record(z.string(), z.unknown()), deviceName: z.string().max(200).optional() }),
 ]);
 export type ConnectSigninInput = z.input<typeof connectSigninSchema>;
 
-/** Creating an account from the mobile app: an invitation code, or an email address where sign-up is open. */
+/** Accepting an invitation from the mobile app: the code and the address it is for. */
 export const connectSignupSchema = z.object({
   client: z.literal("mobile"),
-  invitation: z.string().trim().min(4).max(60).optional(),
-  email: z.string().trim().max(254).optional(),
+  invitation: z.string().trim().min(4).max(60),
+  email: z.string().trim().max(254),
   displayName: z.string().trim().max(60).nullable().default(null),
-  username: z.string().max(80),
   password: z.string().min(1).max(1024),
   deviceName: z.string().max(200).optional(),
-}).refine((v) => (v.invitation === undefined) !== (v.email === undefined), { message: "Give an invitation code or an email address." });
+});
 export type ConnectSignupInput = z.input<typeof connectSignupSchema>;
 
 export const connectTokenSchema = z.object({

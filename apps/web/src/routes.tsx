@@ -21,7 +21,7 @@ const SetupPage = lazyRouteComponent(() => import("./auth/Setup.tsx"), "SetupPag
 const ConnectPage = lazyRouteComponent(() => import("./features/connect/ConnectPage.tsx"), "ConnectPage");
 const AuthorizePage = lazyRouteComponent(() => import("./features/assistant/AuthorizePage.tsx"), "AuthorizePage");
 const InvitePage = lazyRouteComponent(() => import("./auth/Invite.tsx"), "InvitePage");
-const SignupPage = lazyRouteComponent(() => import("./auth/Invite.tsx"), "SignupPage");
+const SignupPage = lazyRouteComponent(() => import("./auth/Signup.tsx"), "SignupPage");
 const VerifyEmailPage = lazyRouteComponent(() => import("./auth/EmailLinks.tsx"), "VerifyEmailPage");
 const ResetPasswordPage = lazyRouteComponent(() => import("./auth/EmailLinks.tsx"), "ResetPasswordPage");
 const StatsPage = lazyRouteComponent(() => import("./pages/Stats.tsx"), "StatsPage");
@@ -125,14 +125,14 @@ const authorizeRoute = createRoute({
   },
 });
 const inviteRoute = createRoute({
-  getParentRoute: () => rootRoute, path: "/invite", component: InvitePage, validateSearch: (s: Record<string, unknown>) => compact({ code: str(s.code) }),
+  getParentRoute: () => rootRoute, path: "/invite", component: InvitePage, validateSearch: (s: Record<string, unknown>) => compact({ code: str(s.code), email: str(s.email) }),
   beforeLoad: async ({ context }) => {
     const s = await sessionOf(context.queryClient);
     if (s.state !== "signed_out") throw redirect({ to: whereTo(s) });
   },
 });
 const signupRoute = createRoute({
-  getParentRoute: () => rootRoute, path: "/signup", component: SignupPage,
+  getParentRoute: () => rootRoute, path: "/signup", component: SignupPage, validateSearch: (s: Record<string, unknown>) => compact({ token: str(s.token) }),
   beforeLoad: async ({ context }) => {
     const s = await sessionOf(context.queryClient);
     if (s.state !== "signed_out" || s.installation.signup !== "open") throw redirect({ to: whereTo(s) });

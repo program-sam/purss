@@ -6,7 +6,7 @@ import type { AdminBridgeHealth, AdminHealth, AdminJob, AuditEventDTO, BridgeFai
 import type { App, Principal } from "../app.ts";
 import { audit, emit } from "../app.ts";
 import { HttpError, addSeconds, conflict, notFound, nowIso } from "../http.ts";
-import { createInvite } from "../auth/accounts.ts";
+import { createInvite, inviteDelivered } from "../auth/accounts.ts";
 import { mailConfigured, mailHealth, sendMail, signupOpen } from "../mail/mailer.ts";
 import { invitationMail } from "../mail/templates.ts";
 import { cancelJob, retryJob } from "./jobs.ts";
@@ -238,25 +238,35 @@ function requireHosted(app: App, what: string): void {
 
 /** Minimal account metadata: no content, no sign-in details. */
 export function listAccounts(app: App): AdminAccountDTO[] {
-  return app.db.all<{ id: string; display_name: string | null; status: "active" | "suspended"; created_at: string; is_admin: number; due_at: string | null; state: "pending" | "purging" | null; engine_review_at: string | null }>(
-    `SELECT a.id, a.display_name, a.status, a.created_at, EXISTS (SELECT 1 FROM role_grants r WHERE r.account_id = a.id AND r.role = 'admin') AS is_admin,
+  return app.db.all<{ id: string; display_name: string | null; email: string | null; status: "active" | "suspended"; created_at: string; is_admin: number; due_at: string | null; state: "pending" | "purging" | null; engine_review_at: string | null }>(
+    `SELECT a.id, a.display_name, a.email, a.status, a.created_at, EXISTS (SELECT 1 FROM role_grants r WHERE r.account_id = a.id AND r.role = 'admin') AS is_admin,
        d.due_at, d.state, d.engine_review_at
      FROM accounts a LEFT JOIN account_deletions d ON d.account_id = a.id ORDER BY a.created_at, a.id`,
   ).map((a) => ({
-    id: a.id, displayName: a.display_name, status: a.status, createdAt: a.created_at, isAdmin: a.is_admin === 1, usedBytes: usedBytes(app, a.id), allocationBytes: allocation(app, a.id), plan: app.config.mode === "hosted" ? storedPlan(app, a.id) : null, capacity: capacity(app, a.id), smartFilterTokens: serverTokensOf(app, a.id),
+    id: a.id, displayName: a.display_name, email: a.email, status: a.status, createdAt: a.created_at, isAdmin: a.is_admin === 1, usedBytes: usedBytes(app, a.id), allocationBytes: allocation(app, a.id), plan: app.config.mode === "hosted" ? storedPlan(app, a.id) : null, capacity: capacity(app, a.id), smartFilterTokens: serverTokensOf(app, a.id),
     deletion: a.state && a.due_at ? { dueAt: a.due_at, state: a.state, engineReview: a.engine_review_at !== null } : null,
   }));
 }
 
-/** Create an invitation; with an address, also email the link (the code is shown either way). */
-export async function adminInvite(app: App, admin: Principal, note: string | null, allocationBytes: number | null, days: number, email: string | null = null): Promise<{ code: string; expiresInDays: number; emailed: boolean | null }> {
+/**
+ * Make an invitation for an address. Where email is set up the code goes only to that address, by email, so using it proves
+ * the address (acceptInvite marks it confirmed); if it can't be sent, the invitation is withdrawn and nothing is returned.
+ * Without email the code is returned for the administrator to share.
+ */
+export async function issueInvite(app: App, adminId: string, email: string, note: string | null, allocationBytes: number | null, days: number): Promise<{ code: string | null }> {
+  const code = createInvite(app, adminId, email, note, allocationBytes, days);
+  if (!mailConfigured(app)) return { code };
+  const link = `${app.config.publicOrigin}${appUrl("/invite")}?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
+  const sent = await sendMail(app, "invitation", null, invitationMail(email, { link, days, origin: app.config.publicOrigin }));
+  inviteDelivered(app, code, sent);
+  if (sent) return { code: null };
+  throw new HttpError(502, "invite_not_sent", "The invitation couldn't be emailed, so it wasn't made. Check the address, or the mail server under Health, and try again.");
+}
+
+/** Create an invitation from the dashboard. `code` is null where it was emailed (the administrator never sees it). */
+export async function adminInvite(app: App, admin: Principal, email: string, note: string | null, allocationBytes: number | null, days: number): Promise<{ code: string | null; expiresInDays: number }> {
   if (allocationBytes !== null) requireHosted(app, "Storage allowances");
-  if (email !== null && !mailConfigured(app)) throw new HttpError(400, "no_mail", "This server can't send email, so the invitation can't be emailed. Share the link yourself.");
-  const code = createInvite(app, admin.accountId, note, allocationBytes, days);
-  if (email === null) return { code, expiresInDays: days, emailed: null };
-  const link = `${app.config.publicOrigin}${appUrl("/invite")}?code=${encodeURIComponent(code)}`;
-  const emailed = await sendMail(app, "invitation", null, invitationMail(email, { link, days, origin: app.config.publicOrigin }));
-  return { code, expiresInDays: days, emailed };
+  return { ...(await issueInvite(app, admin.accountId, email, note, allocationBytes, days)), expiresInDays: days };
 }
 
 export function updateAccount(app: App, admin: Principal, id: string, patch: { allocationBytes?: number | null; plan?: Plan; status?: "active" | "suspended"; isAdmin?: boolean }): AdminAccountDTO {
@@ -332,14 +342,14 @@ export function confirmDeletionEngine(app: App, admin: Principal, accountId: str
   return { ok: true };
 }
 
-export type AdminInviteDTO = { id: string; note: string | null; createdAt: string; expiresAt: string; usedAt: string | null; status: "pending" | "used" | "expired" };
+export type AdminInviteDTO = { id: string; email: string | null; note: string | null; createdAt: string; expiresAt: string; usedAt: string | null; status: "pending" | "used" | "expired" };
 
 /** Invitations without their codes (only a hash is stored). */
 export function listInvites(app: App): AdminInviteDTO[] {
   const now = nowIso();
-  return app.db.all<{ id: string; note: string | null; created_at: string; expires_at: string; used_at: string | null }>(
-    "SELECT id, note, created_at, expires_at, used_at FROM invites ORDER BY created_at DESC LIMIT 100",
-  ).map((i) => ({ id: i.id.slice(0, 16), note: i.note, createdAt: i.created_at, expiresAt: i.expires_at, usedAt: i.used_at, status: i.used_at ? "used" : i.expires_at < now ? "expired" : "pending" }));
+  return app.db.all<{ id: string; email: string | null; note: string | null; created_at: string; expires_at: string; used_at: string | null }>(
+    "SELECT id, email, note, created_at, expires_at, used_at FROM invites ORDER BY created_at DESC LIMIT 100",
+  ).map((i) => ({ id: i.id.slice(0, 16), email: i.email, note: i.note, createdAt: i.created_at, expiresAt: i.expires_at, usedAt: i.used_at, status: i.used_at ? "used" : i.expires_at < now ? "expired" : "pending" }));
 }
 
 export function revokeInvite(app: App, admin: Principal, shortId: string): { ok: true } {

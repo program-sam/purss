@@ -74,7 +74,7 @@ export function splitAllocation(bytes: number | null): { text: string; unit: Uni
   return { text: String(Math.round((bytes / UNIT_BYTES.MB) * 1000) / 1000), unit: "MB" };
 }
 
-/** The sign-in link for an invitation code. */
-export function inviteLink(origin: string, code: string): string {
-  return `${origin}${appUrl("/invite")}?code=${encodeURIComponent(code)}`;
+/** The sign-in link for an invitation code, with the address it is for filled in. */
+export function inviteLink(origin: string, code: string, email: string): string {
+  return `${origin}${appUrl("/invite")}?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
 }

@@ -1,107 +1,47 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { Button, Check, Field, TextInput } from "@purss/ui";
-import { ApiError, messageOf, post } from "../api/client.ts";
-import { useSession } from "../api/hooks.ts";
-import { sessionQuery } from "../api/queries.ts";
+import { post } from "../api/client.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
-import { PasskeyStep } from "./PasskeyStep.tsx";
-import { ProviderButton } from "./ProviderButton.tsx";
-import { passkeysAvailable, usePasswordFields } from "./PasswordForm.tsx";
+import { useNewAccount } from "./new-account.tsx";
+import { usePasswordFields } from "./PasswordForm.tsx";
 
-type Step = "account" | "passkey";
-
-/** First run, an invitation or open sign-up: make the account with a username and password, then optionally add a passkey. */
-export function SetupPage({ mode = "setup", initialCode = "" }: { mode?: "setup" | "invite" | "signup"; initialCode?: string }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [step, setStep] = useState<Step>("account");
-  const { fields, username, password, valid } = usePasswordFields();
+/** First run, or an invitation: make the account with an email address and a password, then optionally add a passkey. */
+export function SetupPage({ mode = "setup", initialCode = "", initialEmail = "" }: { mode?: "setup" | "invite"; initialCode?: string; initialEmail?: string }) {
   const [code, setCode] = useState(initialCode);
+  const [email, setEmail] = useState(initialEmail);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [sharedComputer, setSharedComputer] = useState(false);
-  // Open sign-up also takes an account made by signing in with a provider (no username or password).
-  const providers = useSession().data?.installation.oidcProviders ?? [];
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  // The button stays busy until the account is made or refused, and a second press (or Enter) while it works does nothing.
-  const sending = useRef(false);
+  const { fields, password, valid } = usePasswordFields(email);
+  const account = useNewAccount();
 
-  async function submit(e: FormEvent) {
+  function submit(e: FormEvent) {
     e.preventDefault();
-    if (sending.current) return;
-    sending.current = true;
-    setBusy(true); setError("");
-    try {
-      if (mode === "signup") await post("/api/signup", { displayName: name.trim() || null, email: email.trim(), username, password, sharedComputer });
-      else await post(mode === "setup" ? "/api/setup/claim" : "/api/invites/accept", { code: code.trim(), displayName: name.trim() || null, username, password, sharedComputer });
-    } catch (err) {
-      if (mode === "signup" && err instanceof ApiError && err.retryAfterSeconds !== null) {
-        const now = new Date();
-        const retryAt = new Date(now.getTime() + err.retryAfterSeconds * 1000);
-        const dateKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const day = dateKey(retryAt) === dateKey(now) ? ""
-          : dateKey(retryAt) === dateKey(tomorrow) ? " tomorrow"
-          : ` on ${retryAt.toLocaleDateString()}`;
-        setError(`Try again after ${retryAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${day}`);
-      } else setError(messageOf(err));
-      sending.current = false;
-      setBusy(false);
-      return;
-    }
-    // The account exists now: the button stays busy from here.
-    // The server started a session; fetch it so later requests carry the page's CSRF token (they fetch it again if this fails).
-    await qc.fetchQuery({ ...sessionQuery, staleTime: 0 }).catch(() => undefined);
-    // Fingerprint, face or screen lock is offered only where the browser can do it.
-    if (passkeysAvailable()) setStep("passkey");
-    else await finish();
+    void account.submit(() => post(mode === "setup" ? "/api/setup/claim" : "/api/invites/accept", { code: code.trim(), email: email.trim(), displayName: name.trim() || null, password, sharedComputer }));
   }
 
-  async function finish() {
-    await qc.invalidateQueries({ queryKey: sessionQuery.queryKey });
-    void navigate({ to: "/" });
-  }
-
-  if (step === "passkey") {
-    return <AuthFrame title="Fingerprint, face or screen lock"><PasskeyStep onDone={finish} /></AuthFrame>;
-  }
+  if (account.passkey) return account.passkey;
   return (
     <AuthFrame
-      title={mode === "setup" ? "Set up your PURSS" : mode === "invite" ? "Accept your invitation" : "Create your account"}
+      title={mode === "setup" ? "Set up your PURSS" : "Accept your invitation"}
       intro={mode === "setup"
         ? "Enter the setup code from the server. It was printed when the server started and is saved in the secrets folder of its data directory."
-        : mode === "invite" ? "Enter the invitation code you were sent to create your account."
-        : "We'll email you a link to confirm your address. It's used if you ever need to reset your password."}
-      footer={<Button variant="primary" type="submit" form="setup-form" disabled={busy || !valid || (mode !== "signup" ? !code.trim() : !email.trim())}>{busy ? (mode === "signup" ? "Creating your account…" : "Checking…") : "Continue"}</Button>}
+        : "Enter the invitation code you were sent, and the email address it was sent to, to create your account."}
+      footer={<Button variant="primary" type="submit" form="setup-form" disabled={account.busy || !valid || !code.trim() || !email.trim()}>{account.busy ? "Checking…" : "Continue"}</Button>}
     >
       <form id="setup-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
-        {mode === "signup" && providers.length ? (
-          <>
-            {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${sharedComputer ? "?shared=1" : ""}`} />)}
-            <p className="fine" style={{ textAlign: "center", marginTop: -4 }}>Or make an account with an email address and a password:</p>
-          </>
-        ) : null}
-        {mode !== "signup" ? (
-          <Field label={mode === "setup" ? "Setup code" : "Invitation code"} htmlFor="auth-code">
-            <TextInput id="auth-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoFocus aria-invalid={!!error} aria-describedby={error ? "auth-error" : undefined} />
-          </Field>
-        ) : null}
-        {mode === "signup" ? (
-          <Field label="Email address" htmlFor="auth-email" hint="Used only for account messages, such as password resets.">
-            <TextInput id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" autoFocus maxLength={254} />
-          </Field>
-        ) : null}
-        {fields}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint="You'll be signed out when you close this browser, or after 8 hours.">This is a shared computer</Check>
-        <Field label="Display name (optional)" htmlFor="auth-name" hint="Only used to tell accounts apart.">
+        <Field label={mode === "setup" ? "Setup code" : "Invitation code"} htmlFor="auth-code">
+          <TextInput id="auth-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoFocus={!initialCode} aria-invalid={!!account.error} aria-describedby={account.error ? "auth-error" : undefined} />
+        </Field>
+        <Field label="Email address" htmlFor="auth-email" hint={mode === "setup" ? undefined : "The one you were invited with"}>
+          <TextInput id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus={!!initialCode && !initialEmail} maxLength={254} />
+        </Field>
+        <Field label="Display name (optional)" htmlFor="auth-name">
           <TextInput id="auth-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={60} />
         </Field>
-        {error ? <p id="auth-error" className="state note" role="alert">{error}</p> : null}
+        {fields}
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint="Signs out when the browser closes, or after 8 hours">This is a shared computer</Check>
+        {account.error ? <p id="auth-error" className="state note" role="alert">{account.error}</p> : null}
       </form>
     </AuthFrame>
   );

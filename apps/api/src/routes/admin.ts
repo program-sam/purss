@@ -44,10 +44,10 @@ export function adminRouter(): Router<Ctx> {
       note: z.string().trim().max(120).nullable().default(null),
       allocationBytes: z.number().int().min(0).nullable().default(null),
       days: z.number().int().min(1).max(60).default(14),
-      // Where to send the link; used for this one message and not stored.
-      email: emailSchema.nullable().default(null),
+      // The address the account will have; the invitation is emailed there where email is set up.
+      email: emailSchema,
     }), req.body);
-    return adminInvite(ctx.app, admin, body.note, body.allocationBytes, body.days, body.email);
+    return adminInvite(ctx.app, admin, body.email, body.note, body.allocationBytes, body.days);
   });
   r.patch("/api/admin/accounts/:id", (req, ctx) => {
     const admin = requireAdmin(ctx, { stepUp: true });

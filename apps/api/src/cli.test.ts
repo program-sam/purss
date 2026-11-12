@@ -9,7 +9,7 @@ import type { App } from "./app.ts";
 import { seedLibrary, signIn } from "./features-testing.ts";
 import { main } from "./cli.ts";
 import { acceptInvite } from "./auth/accounts.ts";
-import { checkPassword, passwordUsername } from "./auth/passwords.ts";
+import { checkPassword } from "./auth/passwords.ts";
 import { HttpError } from "./http.ts";
 import { resetPassword } from "./services/account-email.ts";
 import { createDeviceToken, resolveDeviceToken } from "./connect/devices.ts";
@@ -79,7 +79,7 @@ test("password-reset-link prints a link that sets a new password once, signs the
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
-  const username = passwordUsername(app, p.accountId)!;
+  const email = app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", p.accountId)!.email;
   signIn(app, p.accountId);
   const phone = createDeviceToken(app, p.accountId, "mobile", "Phone").secret;
   app.db.run("INSERT INTO connect_codes (code_hash, account_id, kind, redirect_uri, code_challenge, label, created_at, expires_at) VALUES ('h', ?, 'mobile', 'purss://connect', 'c', 'Phone', ?, ?)", p.accountId, new Date().toISOString(), new Date(Date.now() + 300_000).toISOString());
@@ -93,18 +93,18 @@ test("password-reset-link prints a link that sets a new password once, signs the
   const token = new URL(link).searchParams.get("token")!;
   // Nothing has changed until the link is used.
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?", p.accountId)!.n, 1);
-  assert.equal(await checkPassword(app, username, TEST_PASSWORD), p.accountId);
+  assert.equal(await checkPassword(app, email, TEST_PASSWORD), p.accountId);
 
-  // The link works without outgoing email, for an administrator, with the account's own username.
+  // The link works without outgoing email, for an administrator, and the account keeps its address.
   await resetPassword(app, token, "a brand new password");
-  assert.equal(await checkPassword(app, username, "a brand new password"), p.accountId);
-  assert.equal(await checkPassword(app, username, TEST_PASSWORD), null, "the old password is gone");
+  assert.equal(await checkPassword(app, email, "a brand new password"), p.accountId);
+  assert.equal(await checkPassword(app, email, TEST_PASSWORD), null, "the old password is gone");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?", p.accountId)!.n, 0, "all sessions revoked");
   assert.equal(resolveDeviceToken(app, phone), null, "connected apps disconnected");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM connect_codes")!.n, 0, "a connection waiting for its code exchange ends too");
   // ...and only once.
   await assert.rejects(resetPassword(app, token, "yet another password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent");
-  assert.equal(await checkPassword(app, username, "a brand new password"), p.accountId);
+  assert.equal(await checkPassword(app, email, "a brand new password"), p.accountId);
 
   const event = app.db.get<{ actor_account_id: string | null; target: string; detail: string }>("SELECT actor_account_id, target, detail FROM audit_events WHERE action = 'cli_password_reset_link'")!;
   assert.deepEqual([event.actor_account_id, event.target, event.detail], [null, p.accountId, "host-level"]);
@@ -122,7 +122,7 @@ test("a password reset link made at the server expires, and a newer one replaces
   await assert.rejects(resetPassword(app, first, "a first new password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent", "the older link was replaced");
   app.db.run("UPDATE email_tokens SET expires_at = ? WHERE purpose = 'reset'", new Date(Date.now() - 1000).toISOString());
   await assert.rejects(resetPassword(app, second, "a second new password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent", "an hour later it has expired");
-  assert.equal(await checkPassword(app, passwordUsername(app, p.accountId)!, TEST_PASSWORD), p.accountId, "the password never changed");
+  assert.equal(await checkPassword(app, app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", p.accountId)!.email, TEST_PASSWORD), p.accountId, "the password never changed");
 });
 
 test("password-reset-link refuses an account that doesn't exist, has no password or is being deleted", async (t) => {
@@ -146,23 +146,47 @@ test("password-reset-link refuses an account that doesn't exist, has no password
 test("create-invite prints a one-time code that a hosted installation accepts", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted" });
   t.after(cleanup);
-  assert.equal((await run(app, ["create-invite"], { PURSS_MODE: "hosted" })).code, 1, "no administrator to attribute it to yet");
+  assert.equal((await run(app, ["create-invite", "alex@example.org"], { PURSS_MODE: "hosted" })).code, 1, "no administrator to attribute it to yet");
   const p = makeOwner(app);
-  const bad = (await run(app, ["create-invite", "--days", "99"], { PURSS_MODE: "hosted" }));
+  assert.equal((await run(app, ["create-invite"], { PURSS_MODE: "hosted" })).code, 2, "an invitation is for an address");
+  const bad = (await run(app, ["create-invite", "alex@example.org", "--days", "99"], { PURSS_MODE: "hosted" }));
   assert.equal(bad.code, 2);
-  const r = (await run(app, ["create-invite", "--note", "for Alex", "--allocation", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
+  const taken = app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", p.accountId)!.email;
+  assert.match((await run(app, ["create-invite", taken], { PURSS_MODE: "hosted" })).err, /already exists/);
+  const r = (await run(app, ["create-invite", "alex@example.org", "--note", "for Alex", "--allocation", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
   assert.equal(r.code, 0);
+  assert.match(r.out, /for alex@example\.org/);
   const code = /: ([a-z0-9-]{24})$/.exec(r.out)![1]!;
-  const joined = acceptInvite(app, code, "Alex", testPassword());
+  const joined = acceptInvite(app, code, "alex@example.org", "Alex", testPassword());
   assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allocation_bytes, 777);
   assert.equal(app.db.get("SELECT created_by FROM invites")!.created_by, p.accountId);
   assert.equal(app.db.get("SELECT actor_account_id FROM audit_events WHERE action = 'cli_create_invite'")!.actor_account_id, null);
   assert.ok(!JSON.stringify(app.db.all("SELECT * FROM audit_events")).includes(code));
   // Self-hosted installations accept invitations too; only a storage allowance is a hosted feature.
-  const self = (await run(app, ["create-invite"], { PURSS_MODE: "self" }));
+  const self = (await run(app, ["create-invite", "sam@example.org"], { PURSS_MODE: "self" }));
   assert.equal(self.code, 0);
   assert.equal(self.err, "");
-  assert.match((await run(app, ["create-invite", "--allocation", "1000"], { PURSS_MODE: "self" })).err, /only apply on hosted installations/);
+  assert.match((await run(app, ["create-invite", "kim@example.org", "--allocation", "1000"], { PURSS_MODE: "self" })).err, /only apply on hosted installations/);
+});
+
+test("set-email gives an account the address it signs in with, never one another account has, and is audited", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const q = makeOwner(app, { admin: false });
+  app.db.run("UPDATE accounts SET email = NULL WHERE id = ?", p.accountId);
+  assert.equal((await run(app, ["set-email", p.accountId])).code, 2);
+  assert.equal((await run(app, ["set-email", p.accountId, "not an address"])).code, 2);
+  const qEmail = app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", q.accountId)!.email;
+  const clash = await run(app, ["set-email", p.accountId, qEmail.toUpperCase()]);
+  assert.equal(clash.code, 1);
+  assert.match(clash.err, /Another account already uses/);
+  const r = await run(app, ["set-email", p.accountId, "Owner@Example.org"]);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(await checkPassword(app, "owner@example.org", TEST_PASSWORD), p.accountId, "it signs in with that address now");
+  assert.equal((await run(app, ["set-email", "owner@example.org", "owner2@example.org"])).code, 0, "an account can be named by its address");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'cli_set_email' AND actor_account_id IS NULL")!.n, 2);
+  assert.ok(!JSON.stringify(app.db.all("SELECT * FROM audit_events")).includes("Owner@Example.org"), "the audit log keeps no address");
 });
 
 test("reconcile-usage reports ledger differences and exits non-zero, changing no object, and corrects a drifted used-bytes total", async (t) => {

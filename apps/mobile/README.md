@@ -146,20 +146,20 @@ passkeys a browser uses on the PURSS's address, once the PURSS vouches for the a
 - **iOS:** the PURSS sets `PURSS_APP_IOS_APP_ID` (`TEAMID.app.purss`), and the app has to be built with that
   domain: `PURSS_APP_PASSKEY_DOMAINS=purss.example npm run sync -w @purss/mobile`.
 
-Elsewhere the app signs in with a username and password; links from emails (password reset,
+Elsewhere the app signs in with an email address and password; links from emails (password reset,
 confirming an address, invitations) are pasted into the app.
 
 ## Try it on the emulator
 
 ```sh
 npm run build                                           # the PURSS's own build, served at /app/
-node apps/mobile/scripts/emulator-workspace.ts 19990   # prints a username and password; Ctrl+C deletes everything
+node apps/mobile/scripts/emulator-workspace.ts 19990   # prints an email address and password; Ctrl+C deletes everything
 adb reverse tcp:19990 tcp:19990                          # the emulator's localhost is this computer
 adb install -r apps/mobile/android/app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
 The app opens on the official server's sign-in; press **Use another server**, type
-`http://localhost:19990`, and sign in with the username and password it printed. The app
+`http://localhost:19990`, and sign in with the email address and password it printed. The app
 remembers that server for next time. Plain HTTP works only for addresses on this device or the local network
 (the rule in `packages/domain/src/workspace-address.ts`, shared with the extension); a PURSS
 elsewhere needs HTTPS. Debug builds let Chrome's

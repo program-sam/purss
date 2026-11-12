@@ -41,7 +41,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: webDist,
   PURSS_DISK_RESERVE_BYTES: "0",
 };
-const USERNAME = "reader";
+const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -79,7 +79,7 @@ function prepare(): Seed {
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
+    const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
@@ -118,7 +118,7 @@ function prepare(): Seed {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });

@@ -35,7 +35,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_DISK_RESERVE_BYTES: "0",
 };
 const shots = os.tmpdir();
-const USERNAME = "reader";
+const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 let api: ChildProcess | null = null;
@@ -68,7 +68,7 @@ function prepare(): { sourceId: string; longItemId: string } {
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
+    const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
@@ -94,7 +94,7 @@ function prepare(): { sourceId: string; longItemId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Add source" }).first().waitFor();

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { invitationMail, reminderMail, resetMail, verifyMail } from "./templates.ts";
+import { accountExistsMail, invitationMail, reminderMail, resetMail, signupMail, verifyMail } from "./templates.ts";
 
 const URL_ON_ITS_OWN_LINE = /^https?:\/\/\S+$/;
 /** Every address in the text is a whole line: nothing before it on the line, and no full stop or word after it. */
@@ -17,7 +17,9 @@ function linksAreAlone(text: string): string[] {
 test("every link stands alone on its own line, so no full stop is glued to it", () => {
   const link = "https://ws.example.org/app/verify-email?token=abc_DEF-123";
   assert.deepEqual(linksAreAlone(verifyMail("a@example.org", { link, hours: 48 }).text), [link]);
-  assert.deepEqual(linksAreAlone(resetMail("a@example.org", { link, username: "pat", minutes: 60 }).text), [link]);
+  assert.deepEqual(linksAreAlone(resetMail("a@example.org", { link, minutes: 60 }).text), [link]);
+  assert.deepEqual(linksAreAlone(signupMail("a@example.org", { link, hours: 48, origin: "https://ws.example.org" }).text), [link]);
+  assert.deepEqual(linksAreAlone(accountExistsMail("a@example.org", { signIn: `${link}1`, reset: `${link}2`, origin: "https://ws.example.org" }).text), [`${link}1`, `${link}2`]);
   assert.deepEqual(linksAreAlone(invitationMail("a@example.org", { link, days: 7, origin: "https://ws.example.org" }).text), [link]);
   const reminder = reminderMail("a@example.org", { items: [{ title: null, note: null, link: `${link}1` }, { title: "Grant call", note: "Closes Friday", link: `${link}2` }] });
   assert.deepEqual(linksAreAlone(reminder.text), [`${link}1`, `${link}2`]);
