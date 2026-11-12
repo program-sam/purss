@@ -52,7 +52,7 @@ connection in the PURSS. The extension remembers the server it last connected to
 | `src/options/` | Connecting, disconnecting, settings |
 | `src/content/` | The two scripts injected into a page on request: feed hints, readable text |
 | `src/lib/` | Address rules and deep links, the workspace client, connecting (PKCE), feed detection, capture, popup wording, menus, the mark's cache; each with tests |
-| `src/packaging/` | Manifests per browser, the ZIP writer, the build script |
+| `src/packaging/` | Manifests per browser, the ZIP writer, the build script, the store uploads |
 
 The extension imports only types from `@purss/domain` and the design tokens and primitives (CSS) from
 `@purss/ui`. Tests run with the repository's `npm test`; the browser journey is
@@ -63,7 +63,13 @@ The extension imports only types from `@purss/domain` and the design tokens and 
 Store accounts, signing keys and API keys belong to the owner and never go into the repository.
 The version is the product's ([plan/40](../../plan/40-versions.md)), spelled `26.312.14`, so every build
 from main is higher than the last, as the stores require: build from an up-to-date checkout of main and
-upload the matching ZIP. Once a listing is live, put its address in
+upload the matching ZIP. Once a listing is live, the *Browser extension* workflow
+(`.github/workflows/extension.yml`, monthly and on demand) sends new versions to the Chrome Web Store and
+addons.mozilla.org for review: only when the extension changed, and not while an earlier version waits for
+review (`src/packaging/stores.ts`). Its keys are the repository secrets `CHROME_WEBSTORE_SERVICE_ACCOUNT`
+(a Google Cloud service account's JSON key; add the account under *Account* in the Chrome Web Store
+dashboard) and `AMO_JWT_ISSUER` with `AMO_JWT_SECRET` (addons.mozilla.org → Tools → Manage API Keys). When a
+listing is live, put its address in
 `STORE_LISTINGS` in `packages/domain/src/distribution.ts`: Settings → Connected apps and the website
 then show its store button instead of "Not in the stores yet".
 

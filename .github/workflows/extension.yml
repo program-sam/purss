@@ -1,0 +1,44 @@
+# Sends the browser extension to the Chrome Web Store and addons.mozilla.org for review, monthly with the apps and on
+# demand. A store gets the build only when its extension differs from what the store has and no earlier upload is
+# still in review (apps/extension/src/packaging/stores.ts). Keys, as repository secrets: CHROME_WEBSTORE_SERVICE_ACCOUNT
+# (the service account's JSON key) and AMO_JWT_ISSUER with AMO_JWT_SECRET; a store without its keys is skipped.
+name: Browser extension
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-stores
+  cancel-in-progress: false
+
+jobs:
+  stores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The version (plan/40) counts the commit among its day's commits on main.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm run build:extension
+      # AMO asks for the source of bundled code: the repository at this commit, with its version.
+      - name: Source archive
+        run: |
+          node scripts/version.ts --write
+          git archive --format=tar.gz --add-file=version.json -o "$RUNNER_TEMP/purss-source.tar.gz" HEAD
+      - name: Send to the stores
+        env:
+          CHROME_WEBSTORE_SERVICE_ACCOUNT: ${{ secrets.CHROME_WEBSTORE_SERVICE_ACCOUNT }}
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: node apps/extension/src/packaging/stores.ts "$RUNNER_TEMP/purss-source.tar.gz"
