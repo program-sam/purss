@@ -2,12 +2,12 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react
 import { forwardRef } from "react";
 import { Icon } from "./icons.tsx";
 
+/** A labelled control. A short `hint` sits beside the label, and wraps under it where there isn't room. */
 export function Field({ label, hint, children, htmlFor }: { label: ReactNode; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
     <div className="field">
-      <label htmlFor={htmlFor}>{label}</label>
+      {hint ? <div className="field-h"><label htmlFor={htmlFor}>{label}</label><span className="fine">{hint}</span></div> : <label htmlFor={htmlFor}>{label}</label>}
       {children}
-      {hint ? <p className="fine">{hint}</p> : null}
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function RenameSourceDialog({ id }: { id: string }) {
     <Dialog title="Rename source" size="sm" onClose={ov.close} initialFocus="#rn-title"
       footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" type="submit" form="rn-form" disabled={busy || !title.trim()}>Save</Button></>}>
       <form id="rn-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <Field label="Name" htmlFor="rn-title" hint="Only changes the name you see. The feed is unchanged.">
+        <Field label="Name" htmlFor="rn-title" hint="Only you see it">
           <TextInput id="rn-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} autoComplete="off" />
         </Field>
       </form>

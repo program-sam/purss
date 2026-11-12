@@ -84,10 +84,10 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
         {!route ? (
           <p className="state note" role="status"><Icon name="info" /><span>{!settings.serverKey ? "This server hasn't set up Smart filters yet. Ask your administrator." : settings.allowanceUsedUp ? "You've used this week's Smart filter allowance. Contact your administrator to change your limits." : "Smart filters are included in the Pro plan. Move to Pro to use a filter."}</span></p>
         ) : null}
-        <Field label="Keep posts that…" htmlFor="aif-keep" hint="For example: are about Rust compiler internals or language design">
+        <Field label="Keep posts that…" htmlFor="aif-keep" hint="e.g. are about Rust compiler internals">
           <TextInput id="aif-keep" value={keep} maxLength={AI_FILTER_TEXT_MAX} onChange={(e) => edit(() => setKeep(e.target.value))} autoComplete="off" />
         </Field>
-        <Field label="Drop posts that… (optional)" htmlFor="aif-drop" hint="For example: are job ads, sponsored posts or release notes">
+        <Field label="Drop posts that… (optional)" htmlFor="aif-drop" hint="e.g. are job ads or sponsored posts">
           <TextInput id="aif-drop" value={drop} maxLength={AI_FILTER_TEXT_MAX} onChange={(e) => edit(() => setDrop(e.target.value))} autoComplete="off" />
         </Field>
         <div className="field"><div className="lbl" id="aif-unsure">When Jev isn't sure</div>

@@ -54,7 +54,7 @@ function PageDialog({ pub, onClose }: { pub: Pub; onClose: () => void }) {
         {pub.takenDown
           ? <p className="fine">Taken down {timeAgo(pub.takenDown.at) || "just now"}: <span dir="auto">{pub.takenDown.reason}</span> Restoring lets its owner publish it again; it stays paused until they do.</p>
           : (
-            <Field label="Reason the owner will see" htmlFor="td-reason" hint="Taking it down stops the page and feed at once and closes its open reports. The owner keeps the collection but can't publish it until you restore it.">
+            <Field label="Reason the owner will see" htmlFor="td-reason" hint="Stops the page and feed until you restore it">
               <textarea id="td-reason" className="in fx-textarea" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
             </Field>
           )}

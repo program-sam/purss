@@ -33,10 +33,10 @@ function Settings({ kind, id, share, onSaved, onCancel }: { kind: ShareTarget; i
   }
   return (
     <>
-      <Field label="Your name as the author" htmlFor="sh-curator" hint="This names you, not the collection: the page and its feed say “shared by” this name. A pseudonym or a first name is fine. It is never filled in from your account.">
+      <Field label="Your name as the author" htmlFor="sh-curator" hint="Shown as “shared by”; a first name is fine">
         <TextInput id="sh-curator" value={curator} onChange={(e) => setCurator(e.target.value)} maxLength={60} autoComplete="off" />
       </Field>
-      <Field label="Description (optional)" htmlFor="sh-desc" hint="A sentence or two for people who open the page.">
+      <Field label="Description (optional)" htmlFor="sh-desc" hint="A sentence or two">
         <textarea id="sh-desc" className="in fx-textarea" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={2} />
       </Field>
       <div className="field">
