@@ -4,11 +4,11 @@ import { loadConfig } from "./config.ts";
 import type { App } from "./app.ts";
 import { audit } from "./app.ts";
 import { openDatabase } from "./db/database.ts";
-import { createInvite } from "./auth/accounts.ts";
 import { StorageFull, allocation, checkGrowth, databaseBytes, markPaused, recountCurrentFlags, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
 import { checkMail, mailHealth, sendMail } from "./mail/mailer.ts";
 import { testMail } from "./mail/templates.ts";
-import { emailSchema, hostResetLink } from "./services/account-email.ts";
+import { emailSchema, hostResetLink, resendVerification, setAccountEmail } from "./services/account-email.ts";
+import { issueInvite } from "./services/admin.ts";
 import { usableAccountSql } from "./services/deletion.ts";
 import { PLAN_NAMES } from "@purss/domain";
 import { HttpError } from "./http.ts";
@@ -20,14 +20,15 @@ import { capacity, storedPlan } from "./services/plans.ts";
  * every change it makes is recorded in the audit log with no actor (a host-level action).
  *
  *   node apps/api/src/cli.ts status
- *   node apps/api/src/cli.ts create-invite [--note "text"] [--allocation <bytes>] [--days <n>]
+ *   node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
+ *   node apps/api/src/cli.ts set-email <account> <address>
  *   node apps/api/src/cli.ts set-allocation <account> <bytes|none>
  *   node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
  *   node apps/api/src/cli.ts password-reset-link <account>
  *   node apps/api/src/cli.ts reconcile-usage
  *   node apps/api/src/cli.ts test-email <address>
  *
- * <account> is an account id (acc_...) or a unique display name.
+ * <account> is an account id (acc_...), its email address, or a unique display name.
  */
 
 export class CliError extends Error {
@@ -46,8 +47,8 @@ function flag(args: string[], name: string): string | undefined {
 }
 
 function resolveAccount(app: App, ref: string | undefined): { id: string; displayName: string | null } {
-  if (!ref) throw new CliError("Name the account: its id (acc_…) or its display name.", 2);
-  const byId = app.db.get<{ id: string; display_name: string | null }>("SELECT id, display_name FROM accounts WHERE id = ?", ref);
+  if (!ref) throw new CliError("Name the account: its id (acc_…), its email address or its display name.", 2);
+  const byId = app.db.get<{ id: string; display_name: string | null }>("SELECT id, display_name FROM accounts WHERE id = ? OR lower(email) = lower(?)", ref, ref.trim());
   if (byId) return { id: byId.id, displayName: byId.display_name };
   const named = app.db.all<{ id: string; display_name: string | null }>("SELECT id, display_name FROM accounts WHERE lower(display_name) = lower(?)", ref);
   if (named.length === 1) return { id: named[0]!.id, displayName: named[0]!.display_name };
@@ -79,6 +80,8 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       return 0;
     }
     case "create-invite": {
+      const parsed = emailSchema.safeParse(rest[0] ?? "");
+      if (!parsed.success) throw new CliError("Give the email address the invitation is for.", 2);
       const admin = app.db.get<{ account_id: string }>(`SELECT r.account_id FROM role_grants r WHERE r.role = 'admin' AND ${usableAccountSql("r.account_id")} ORDER BY r.granted_at LIMIT 1`);
       if (!admin) throw new CliError("There is no active administrator account to attribute the invitation to. Claim the installation first.");
       const allocationArg = flag(rest, "--allocation");
@@ -86,12 +89,14 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       if (bytes !== null && (!Number.isInteger(bytes) || bytes < 0)) throw new CliError("--allocation must be a whole number of bytes.", 2);
       const days = flag(rest, "--days") === undefined ? 14 : Number(flag(rest, "--days"));
       if (!Number.isInteger(days) || days < 1 || days > 60) throw new CliError("--days must be between 1 and 60.", 2);
-      const code = app.db.tx(() => {
-        const c = createInvite(app, admin.account_id, flag(rest, "--note") ?? null, bytes, days);
-        audit(app, null, "cli_create_invite", null, "success", "host-level");
-        return c;
-      });
-      io.out(`Invitation code (shown once, valid ${days} days): ${code}`);
+      let code;
+      try { ({ code } = await issueInvite(app, admin.account_id, parsed.data, flag(rest, "--note") ?? null, bytes, days)); } catch (err) {
+        if (err instanceof HttpError) throw new CliError(err.message);
+        throw err;
+      }
+      audit(app, null, "cli_create_invite", null, "success", "host-level");
+      // Where email is set up the code went only to the address, so using it proves the address.
+      io.out(code === null ? `The invitation was emailed to ${parsed.data} (valid ${days} days).` : `Invitation code for ${parsed.data} (shown once, valid ${days} days): ${code}`);
       if (bytes !== null && app.config.mode !== "hosted") io.err("Note: storage allowances only apply on hosted installations; this account will have no limit.");
       return 0;
     }
@@ -130,6 +135,31 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       });
       const c = capacity(app, acct.id);
       io.out(`Plan for ${acct.displayName ?? acct.id}: ${before} -> ${value} (${c.sources.used} sources, ${c.collections.used} collections).`);
+      return 0;
+    }
+    case "set-email": {
+      const acct = resolveAccount(app, rest[0]);
+      const parsed = emailSchema.safeParse(rest[1] ?? "");
+      if (!parsed.success) throw new CliError("Give the email address the account signs in with.", 2);
+      if (deletionState(app, acct.id) === "purging") throw new CliError(`${acct.displayName ?? acct.id} is being deleted.`);
+      const current = app.db.get<{ email: string | null }>("SELECT email FROM accounts WHERE id = ?", acct.id)!.email;
+      if (app.config.mail && current) {
+        // Where email is set up an address the account signs in with is replaced only once the new one is confirmed, as in Settings.
+        if (app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?) AND id <> ?", parsed.data, acct.id)) throw new CliError("Another account already uses that email address.");
+        setAccountEmail(app, acct.id, parsed.data);
+        audit(app, null, "cli_set_email", acct.id, "success", "host-level, pending confirmation");
+        io.out(`A confirmation link was sent to ${parsed.data}. ${acct.displayName ?? acct.id} keeps signing in with ${current} until it is used.`);
+        return 0;
+      }
+      app.db.tx(() => {
+        if (app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?) AND id <> ?", parsed.data, acct.id)) throw new CliError("Another account already uses that email address.");
+        app.db.run("UPDATE accounts SET email = ?, email_verified_at = NULL WHERE id = ?", parsed.data, acct.id);
+        app.db.run("DELETE FROM email_tokens WHERE account_id = ? AND used_at IS NULL", acct.id);
+        audit(app, null, "cli_set_email", acct.id, "success", "host-level");
+      });
+      // An account without an address gets one at once; where email is set up it is sent a link to confirm it.
+      if (app.config.mail) resendVerification(app, acct.id);
+      io.out(`${acct.displayName ?? acct.id} now signs in with ${parsed.data}${app.config.mail ? "; a confirmation link was sent there" : ""}.`);
       return 0;
     }
     case "password-reset-link": {
@@ -180,7 +210,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       return 0;
     }
     default:
-      io.err("Usage: node apps/api/src/cli.ts <status | create-invite | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
+      io.err("Usage: node apps/api/src/cli.ts <status | create-invite <address> | set-email <account> <address> | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
       return 2;
   }
 }

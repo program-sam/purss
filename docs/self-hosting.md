@@ -125,7 +125,7 @@ PURSS_PUBLIC_ORIGIN=http://192.168.1.20:8940
 ```
 
 Browsers refuse passkeys on plain HTTP outside `localhost`, so on such an address the app
-doesn't offer fingerprint, face or screen lock: everyone signs in with their **username and
+doesn't offer fingerprint, face or screen lock: everyone signs in with their **email address and
 password**, chosen during setup or when they accept an invitation. Anyone on the network can see traffic to a
 plain-HTTP address; keep it to a network you trust, or put it behind HTTPS (below) to use
 passkeys. Browsers also install the app and keep offline copies only over HTTPS or at
@@ -189,7 +189,7 @@ redacted. FreshRSS's access log is off. The API logs plain lines.
 
 On start, an API with no accounts writes a one-time **setup code** to `secrets/setup-code`
 (mode 0600) and stores only its hash. Whoever enters it at `/app/setup` becomes the owner and the
-administrator. The setup page asks for the code and for a **username and password** (typed twice),
+administrator. The setup page asks for the code, the owner's **email address** and a **password** (typed twice),
 and then, where the browser supports it, offers fingerprint, face or screen lock (a passkey), which
 can be skipped and added later in *Settings → Security*. The code works once; the
 file is removed the next time the API starts. There is no first-visitor-wins page and no other
@@ -197,7 +197,7 @@ way to become administrator: invitations never grant administration.
 
 ## Forgotten passwords
 
-Every account made with a username and password keeps one: it can be changed (*Settings → Security*)
+Every account made with a password keeps one: it can be changed (*Settings → Security*)
 or reset but never removed. (An account made by [signing in with a provider](#signing-in-with-google-or-another-provider)
 has no password until it adds one there, so it has none to forget or reset.) Someone who has forgotten theirs gets back in in one of two ways:
 
@@ -212,12 +212,12 @@ has no password until it adds one there, so it has none to forget or reset.) Som
   ```
 
   (Locally: `node apps/api/src/cli.ts password-reset-link "Alex"`, with `PURSS_DATA_DIR` set if the
-  data isn't in `./data`.) The account is an id (`acc_…`) or a unique display name. The command needs only the data
+  data isn't in `./data`.) The account is an id (`acc_…`), its email address, or a unique display name. The command needs only the data
   directory, like the other [operator commands](#operator-cli). It
   prints a single-use link such as `https://purss.example/app/reset-password?token=…`, which is
   shown once and valid for 60 minutes. Give it only to the person it is for, by a channel you
   trust. Opening the link shows the ordinary **Choose a new password** page: they keep their
-  username and choose a new password, then sign in with it. Choosing it signs the account out
+  email address and choose a new password, then sign in with it. Choosing it signs the account out
   everywhere: browser sessions, connected apps and assistant tokens. It works whether or not
   email is set up, and is recorded in the audit log as a host-level action. It refuses an account
   that has no password or whose removal has already started.
@@ -227,7 +227,7 @@ administrator for a password reset link.
 
 ## Signing in with Google or another provider
 
-`PURSS_OIDC` lets people sign in with an OpenID Connect provider instead of a username and password.
+`PURSS_OIDC` lets people sign in with an OpenID Connect provider instead of an email address and password.
 PURSS ships no provider and needs none: Google is just one entry in the list. Each entry shows a
 **Continue with …** button on the sign-in page (and the sign-up page when sign-up is open), and in
 the phone and desktop apps, where it opens the system browser, because Google refuses to sign
@@ -245,9 +245,8 @@ What a provider can do:
   name, the provider as its way to sign in, and no password. It counts against the same limits as
   signing up with a password (30 attempts an hour and 10 accounts an hour per address,
   `PURSS_SIGNUP_DAILY_LIMIT` a day). If an account with that email address exists, confirmed or not, no
-  second account is made and nothing is linked: the person is told to sign in with their username and
-  password and connect the provider in *Settings → Security*. (An address someone typed but never confirmed
-  doesn't count, since the provider vouched for its own.) Where sign-up is closed, a provider account
+  second account is made and nothing is linked: the person is told to sign in with their email address and
+  password and connect the provider in *Settings → Security*. Where sign-up is closed, a provider account
   that isn't linked signs in to nothing.
 - **Confirm it's you.** An account made this way has no password and perhaps no passkey, so for sensitive
   changes (adding a sign-in method, deleting the account, connecting an app) *Confirm with Google* sends the
@@ -338,8 +337,10 @@ set up, outgoing email. Two more sections show how well following works:
 An administrator creates invitations under **Administration → Invitations** (confirming with
 fingerprint, face or screen lock or a password) or with the CLI, and can list and
 revoke open ones there. An
-invitation is a code, valid 1 to 60 days (14 by default), delivered as a link
-`/app/invite?code=…`; it can be used once and never grants administration. Under **Accounts** an
+invitation is for one email address, which must not have an account yet, and is a code valid 1 to
+60 days (14 by default), delivered as a link `/app/invite?code=…`: emailed to the address where
+outgoing email is set up (only then; the administrator never sees it), otherwise passed on by the administrator. The person types the address to
+accept it; it can be used once and never grants administration. Under **Accounts** an
 administrator can suspend an account or grant and remove the administrator role; nobody can
 remove their own role or the last administrator.
 
@@ -365,19 +366,26 @@ tooling and a public launch are *not built*.
 
 ## Outgoing email
 
-Optional. Without it everything works as before. With it set, the API can send a few account
-messages through a mail server you name:
+Optional. Every account signs in with its email address either way, one account per address
+(capital letters don't matter). Without a mail server you make every account by invitation, so an
+address is taken as the administrator typed it and changes in *Settings → Security* apply at once.
+With one set, the API proves addresses with links and sends a few account messages through a mail
+server you name:
 
-- **Invitations:** an administrator can type an address when making an invitation, and the link
-  is sent there (the address isn't stored).
-- **Account addresses:** each account can add an email address in *Settings → Security* (hosted
-  open sign-up asks for one), confirmed by a link; a forgotten password can be reset with a link
-  sent to a confirmed address (**Can't sign in?** on the sign-in page). Resetting signs the account out everywhere,
-  revokes its assistant tokens and tells the address. Administrators don't get reset links by email: the operator
-  makes one with `password-reset-link` ([forgotten passwords](#forgotten-passwords)). A confirmed address can be typed in place of the
-  username when signing in with a password (with the same limits and the same error for every
-  name that isn't known; an address that several accounts share signs in none of them); it is never
-  used to link accounts or grant anything.
+- **Invitations:** the code goes only by email, to the address the administrator typed (neither the
+  dashboard nor `create-invite` shows it); the person types that address again to accept it, and it
+  counts as confirmed. One that can't be sent is withdrawn, and the administrator is told.
+- **Open sign-up** (hosted only) starts with the address: the account is made only when the link
+  sent there is used. An address that already has an account is sent a note with sign-in and reset
+  links instead, so the page answers the same either way.
+- **Account addresses:** a new address in *Settings → Security* gets a confirmation link and takes
+  over only once it is opened; the old address keeps signing in until then and is told afterwards. An
+  account made before email was set up confirms its address from there. A forgotten password can be
+  reset with a link sent to a confirmed address (**Can't sign in?** on the sign-in page). Resetting
+  signs the account out everywhere, revokes its assistant tokens and tells the address.
+  Administrators don't get reset links by email: the operator makes one with `password-reset-link`
+  ([forgotten passwords](#forgotten-passwords)). The address is never used to link accounts or grant
+  anything.
 - **Reminders:** a person can ask for the days they set with *Remind me* to be emailed too
   (*Settings → Notifications and New*, off by default); it needs a confirmed address.
 - **Digests:** the daily or weekly digest is also emailed to an account's confirmed address, unless
@@ -435,7 +443,8 @@ only the data directory; every change is written to the audit log as a host-leve
 
 ```sh
 node apps/api/src/cli.ts status
-node apps/api/src/cli.ts create-invite [--note "text"] [--allocation <bytes>] [--days <n>]
+node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
+node apps/api/src/cli.ts set-email <account> <address>
 node apps/api/src/cli.ts set-allocation <account> <bytes|none>
 node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
 node apps/api/src/cli.ts password-reset-link <account>
@@ -443,20 +452,25 @@ node apps/api/src/cli.ts reconcile-usage
 node apps/api/src/cli.ts test-email <address>
 ```
 
-`<account>` is an account id (`acc_…`) or a unique display name.
+`<account>` is an account id (`acc_…`), its email address, or a unique display name.
 
 - `status`: data directory, mode, database and log size, migrations, counts of accounts
   (administrators, suspended, being deleted), sources, items, kept items, jobs and open review
   entries, and the outgoing email server if any.
-- `create-invite`: prints a code once. `--allocation` only takes effect in hosted mode; the CLI
-  warns when it is given elsewhere.
+- `create-invite`: makes an invitation for an address that has no account. With outgoing email set up
+  it is emailed there and the code isn't printed; otherwise the code is printed once. `--allocation` only takes effect in hosted
+  mode; the CLI warns when it is given elsewhere.
+- `set-email`: gives an account the address it signs in with, refused when another account has it.
+  With outgoing email set up, an account that has an address keeps it until the new one's confirmation
+  link is used, as in Settings; one without an address gets it at once, with a link to confirm it. Use it for an account that has no
+  address, or one whose owner can no longer use theirs.
 - `set-allocation`: changes an account's allocation; over the new limit, growth pauses and
   nothing is deleted. Refused for an account that is being deleted.
 - `set-plan` (hosted only): changes an account's plan. Over the new plan's limits nothing is
   removed; new follows and collections wait until the account is under them.
 - `password-reset-link`: prints a single-use link, shown once and valid for 60 minutes, to
   `<public origin>/app/reset-password?token=…`, the ordinary *Choose a new password* page. Using it
-  sets a new password for the account's existing username, signs the account out everywhere,
+  sets a new password for the account, signs the account out everywhere,
   revokes its assistant tokens and OAuth grants, disconnects its connected apps and ends connections
   still waiting for their code. Use it for someone who forgot their password on a server without
   email, and for administrators ([forgotten passwords](#forgotten-passwords)). It is refused for an
@@ -668,8 +682,8 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   them and fetches nothing for them ([plan/32](../plan/32-browser-extension.md)).
   CORS is answered only for the apps' own origins and only for token requests, never with
   credentials. See [plan/24](../plan/24-connected-apps.md).
-- **Passwords:** stored only as salted scrypt hashes. Sign-in attempts are limited per address
-  and per username, and an unknown username takes as long to refuse as a wrong password.
+- **Passwords:** stored only as salted scrypt hashes. Sign-in attempts are limited per network address
+  and per email address, and an unknown address takes as long to refuse as a wrong password.
 - **Egress:** FreshRSS fetches every feed through the egress proxy, which refuses loopback,
   private, link-local, metadata and other internal destinations on every request and redirect,
   and pins each connection to the address it checked. Discovery (in the API) and readable-text

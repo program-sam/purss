@@ -20,7 +20,6 @@ import { checkRedirect, cleanDeviceName, deviceMayUse, isClientOrigin } from "./
 import { issueCode, redeemCode, s256, verifierMatches } from "./codes.ts";
 import { MAX_DEVICES, createDeviceToken, purgeIdleDevices, resolveDeviceToken } from "./devices.ts";
 import { createInvite } from "../auth/accounts.ts";
-import { passwordUsername } from "../auth/passwords.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 
 // RFC 7636 appendix B.
@@ -230,14 +229,14 @@ test("the phone app is a full sign-in: an administrator, confirm-it's-you like a
 
   // Ten minutes later it has to confirm it's you, and the app does that itself, as a session would.
   b.app.db.run("UPDATE device_tokens SET auth_at = ?", addSeconds(-3600));
-  const change = { username: passwordUsername(b.app, b.owner.accountId)!, password: "a new long password" };
-  const stale = await asApp(b, token, "PUT", "/api/account/password", change);
+  const change = { email: "app-changed@example.test" };
+  const stale = await asApp(b, token, "PUT", "/api/account/email", change);
   assert.deepEqual([stale.status, stale.json.error.code], [403, "step_up"]);
   assert.equal((await asApp(b, token, "GET", "/api/account/security")).json.recentAuth, false);
   assert.equal((await asApp(b, token, "POST", "/api/auth/step-up/password", { password: "not the password" })).status, 401);
   assert.equal((await asApp(b, token, "POST", "/api/auth/step-up/password", { password: TEST_PASSWORD })).status, 200);
   assert.equal((await asApp(b, token, "GET", "/api/account/security")).json.recentAuth, true);
-  const fresh = await asApp(b, token, "PUT", "/api/account/password", change);
+  const fresh = await asApp(b, token, "PUT", "/api/account/email", change);
   assert.equal(fresh.status, 200, fresh.text);
 
   // A connection with no recent sign-in recorded has to confirm first.
@@ -505,7 +504,7 @@ test("connect info tells an app it found a PURSS, with no secrets and no sign-in
   assert.deepEqual(r.json.connect.clients.mobile.redirectUris, ["purss://connect"]);
   assert.equal(r.json.connect.token, `${b.app.config.publicOrigin}/api/connect/token`);
   assert.deepEqual(r.json.features, { urlLookup: true, browserCapture: true });
-  assert.deepEqual(r.json.signup, { endpoint: `${b.app.config.publicOrigin}/api/connect/signup`, invitation: true, open: false, passwordMin: 10 });
+  assert.deepEqual(r.json.signup, { endpoint: `${b.app.config.publicOrigin}/api/connect/signup`, start: null, passwordMin: 10 });
   assert.ok(!r.text.includes(b.owner.accountId), "nothing about the person, even with a cookie");
 });
 
@@ -561,12 +560,12 @@ test("a linked sign-in returns only to a path on this PURSS", () => {
   for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/a\nb", "", null, undefined]) assert.equal(safeReturnPath(bad), null, String(bad));
 });
 
-const signupBody = (invitation: string, over: Record<string, unknown> = {}) => ({ client: "mobile", invitation, displayName: "Robin", username: "robin", password: "a long enough secret", deviceName: "Pixel 8", ...over });
+const signupBody = (invitation: string, over: Record<string, unknown> = {}) => ({ client: "mobile", invitation, email: "invited@example.test", displayName: "Robin", password: "a long enough secret", deviceName: "Pixel 8", ...over });
 
 test("the app creates an account with an invitation and is connected at once, with its password for the browser and no recovery codes", async (t) => {
   const b = await boot();
   t.after(b.close);
-  const code = createInvite(b.app, b.owner.accountId, null, null);
+  const code = createInvite(b.app, b.owner.accountId, "invited@example.test", null, null);
   const r = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", cookie: b.session.cookie, body: signupBody(code) });
   assert.equal(r.status, 200, r.text);
   assert.equal(r.headers.get("access-control-allow-origin"), "capacitor://localhost");
@@ -575,7 +574,8 @@ test("the app creates an account with an invitation and is connected at once, wi
   const acct = b.app.db.get<{ account_id: string }>("SELECT account_id FROM device_tokens WHERE id = ?", r.json.device.id)!.account_id;
   assert.notEqual(acct, b.owner.accountId, "a new account, not the one whose cookie came along");
   assert.equal(b.app.db.get<{ display_name: string }>("SELECT display_name FROM accounts WHERE id = ?", acct)!.display_name, "Robin");
-  assert.deepEqual(b.app.db.all<{ kind: string; label: string }>("SELECT kind, label FROM sign_in_methods WHERE account_id = ?", acct).map((m) => [m.kind, m.label]), [["password", "robin"]], "made with its password and nothing else");
+  assert.deepEqual(b.app.db.all<{ kind: string; label: string | null }>("SELECT kind, label FROM sign_in_methods WHERE account_id = ?", acct).map((m) => [m.kind, m.label]), [["password", null]], "made with its password and nothing else");
+  assert.equal(b.app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", acct)!.email, "invited@example.test", "and the invited address");
   assert.equal(b.app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", acct), undefined, "never an administrator");
 
   const me = await asApp(b, r.json.token, "GET", "/api/session");
@@ -584,32 +584,36 @@ test("the app creates an account with an invitation and is connected at once, wi
   requireRecentAuth(resolveDeviceToken(b.app, r.json.token)!.principal); // choosing the password counts as signing in
 
   // The password works in a browser.
-  const signedIn = await raw(b, "POST", "/api/auth/password", { origin: b.app.config.publicOrigin, body: { username: "Robin", password: "a long enough secret" } });
+  const signedIn = await raw(b, "POST", "/api/auth/password", { origin: b.app.config.publicOrigin, body: { email: "Invited@Example.test", password: "a long enough secret" } });
   assert.equal(signedIn.status, 200, signedIn.text);
   // The invitation is used up.
-  const again = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(code, { username: "robin2" }) });
+  const again = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(code) });
   assert.equal(again.status, 403);
 });
 
-test("a refused sign-up leaves nothing behind: a taken username, a bad invitation, a weak password, closed open sign-up", async (t) => {
+test("a refused sign-up leaves nothing behind: another address, a taken address, a bad invitation, a weak password", async (t) => {
   const b = await boot();
   t.after(b.close);
   const accounts = () => b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n;
   const before = accounts();
-  const first = createInvite(b.app, b.owner.accountId, null, null);
+  const first = createInvite(b.app, b.owner.accountId, "invited@example.test", null, null);
+  const second = createInvite(b.app, b.owner.accountId, "second@example.test", null, null);
+  const unused = () => b.app.db.get("SELECT used_at FROM invites WHERE id = ?", sha256(normalizeCode(second)))?.used_at ?? null;
   assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(first) })).status, 200);
-  const second = createInvite(b.app, b.owner.accountId, null, null);
-  const taken = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second) });
-  assert.equal(taken.json.error.code, "username_taken");
-  assert.equal(accounts(), before + 1, "the account for the taken username was rolled back");
-  assert.equal(b.app.db.get("SELECT used_at FROM invites WHERE id = ?", sha256(normalizeCode(second)))?.used_at ?? null, null, "and its invitation still works");
-  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { username: "sam", password: "short" }) })).json.error.code, "short_password");
-  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody("NOPE-NOPE", { username: "sam" }) })).status, 403);
-  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: { ...signupBody("x"), invitation: undefined, email: "a@example.org", username: "sam" } })).json.error.code, "closed");
-  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: { ...signupBody(second), email: "a@example.org" } })).status, 400, "one of invitation or email, not both");
+  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second) })).json.error.code, "invite_email", "only the address it was made for");
+  b.app.db.run("UPDATE accounts SET email = 'second@example.test' WHERE id = ?", b.owner.accountId);
+  const taken = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { email: "second@example.test" }) });
+  assert.equal(taken.json.error.code, "email_in_use");
+  assert.equal(accounts(), before + 1, "the account for the taken address was rolled back");
+  assert.equal(unused(), null, "and its invitation still works");
+  b.app.db.run("UPDATE accounts SET email = 'owner@example.test' WHERE id = ?", b.owner.accountId);
+  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { email: "second@example.test", password: "short" }) })).json.error.code, "short_password");
+  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody("NOPE-NOPE", { email: "second@example.test" }) })).status, 403);
+  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: { ...signupBody("x"), invitation: undefined } })).status, 400, "an invitation is needed: open sign-up starts by email");
   assert.equal(accounts(), before + 1);
   // It used up the invitation only once it worked.
-  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { username: "sam" }) })).status, 200);
+  assert.equal(unused(), null);
+  assert.equal((await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(second, { email: "second@example.test" }) })).status, 200);
 });
 
 test("the recovery-code endpoints are gone, for the browser and for the app", async (t) => {
@@ -625,39 +629,34 @@ test("the recovery-code endpoints are gone, for the browser and for the app", as
   assert.deepEqual(info.json.signin.methods, ["password"]);
 });
 
-test("open sign-up from the app sends the confirmation email only for an account it really made", async (t) => {
+test("open sign-up from the app starts by email, like the browser, and the link finishes it", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_TRUST_PROXY: "1", PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" });
-  const sent: string[] = [];
-  useTransport(app, { send: async (m) => { sent.push(String(m.to)); }, verify: async () => {} });
+  const sent: { to: string; subject: string }[] = [];
+  useTransport(app, { send: async (m) => { sent.push({ to: String(m.to), subject: m.subject }); }, verify: async () => {} });
   await checkMail(app);
   const server = await startTestServer(app, [publicRouter(), ...extraRouters.api()], extraRouters.pages());
   t.after(async () => { await settleMail(app); await server.close(); cleanup(); });
-  const post = (body: unknown) => fetch(`${server.base}/api/connect/signup`, { method: "POST", headers: { origin: "capacitor://localhost", "content-type": "application/json", "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 250) + 1}` }, body: JSON.stringify(body) });
-  const open = (email: string, username: string) => ({ client: "mobile", email, displayName: null, username, password: "a long enough secret" });
-
-  const info = await (await fetch(`${server.base}/api/connect/info`)).json() as { signup: { open: boolean } };
-  assert.equal(info.signup.open, true);
-  assert.equal((await post(open("first@example.org", "robin"))).status, 200);
+  const info = await (await fetch(`${server.base}/api/connect/info`)).json() as { signup: { start: string | null } };
+  assert.equal(info.signup.start, `${app.config.publicOrigin}/api/signup/start`);
+  const r = await fetch(`${server.base}/api/signup/start`, { method: "POST", headers: { origin: "capacitor://localhost", "content-type": "application/json", "x-forwarded-for": "198.51.100.7" }, body: JSON.stringify({ email: "first@example.org" }) });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("access-control-allow-origin"), "capacitor://localhost", "the app may call it before it is connected");
   await settleMail(app);
-  assert.equal(sent.length, 1);
-  const taken = await post(open("second@example.org", "robin"));
-  assert.equal(taken.status, 409);
-  await settleMail(app);
-  assert.deepEqual(sent.length, 1, "no link for an account that was never made");
-  assert.equal(app.db.get("SELECT 1 FROM accounts WHERE email = 'second@example.org'"), undefined);
+  assert.deepEqual(sent, [{ to: "first@example.org", subject: "Finish creating your PURSS account" }]);
+  assert.equal(app.db.get("SELECT 1 FROM accounts WHERE email = 'first@example.org'"), undefined, "no account until the link is used");
 });
 
-test("the app signs in with a username and password and is connected, with the browser's checks", async (t) => {
+test("the app signs in with an email address and password and is connected, with the browser's checks", async (t) => {
   const b = await boot();
   t.after(b.close);
-  const code = createInvite(b.app, b.owner.accountId, null, null);
+  const code = createInvite(b.app, b.owner.accountId, "invited@example.test", null, null);
   const made = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(code) });
   const acct = b.app.db.get<{ account_id: string }>("SELECT account_id FROM device_tokens WHERE id = ?", made.json.device.id)!.account_id;
   const signin = (body: unknown) => raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", cookie: b.session.cookie, body });
 
-  const wrong = await signin({ client: "mobile", method: "password", username: "robin", password: "not the secret" });
+  const wrong = await signin({ client: "mobile", method: "password", email: "invited@example.test", password: "not the secret" });
   assert.equal(wrong.json.error.code, "bad_password");
-  const ok = await signin({ client: "mobile", method: "password", username: "Robin", password: "a long enough secret", deviceName: "Tablet" });
+  const ok = await signin({ client: "mobile", method: "password", email: "Invited@Example.test", password: "a long enough secret", deviceName: "Tablet" });
   assert.equal(ok.status, 200, ok.text);
   assert.equal(ok.headers.get("access-control-allow-origin"), "capacitor://localhost");
   assert.equal((await asApp(b, ok.json.token, "GET", "/api/session")).json.account.id, acct, "the account that signed in, not the cookie's");
@@ -665,26 +664,27 @@ test("the app signs in with a username and password and is connected, with the b
 
   // A suspended account isn't signed in to, and nothing is spent by the refusal.
   b.app.db.run("UPDATE accounts SET status = 'suspended' WHERE id = ?", acct);
-  assert.equal((await signin({ client: "mobile", method: "password", username: "robin", password: "a long enough secret" })).json.error.code, "suspended");
+  assert.equal((await signin({ client: "mobile", method: "password", email: "invited@example.test", password: "a long enough secret" })).json.error.code, "suspended");
   b.app.db.run("UPDATE accounts SET status = 'active' WHERE id = ?", acct);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'sign_in' AND target = 'app-password' AND outcome = 'failure'")!.n, 1, "only the wrong password was a failure");
 
   // Signing in counts as confirming it's you, for ten minutes, as in a browser.
-  const change = { username: "robin", password: "another long enough secret" };
-  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/password", change)).status, 200);
+  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/email", { email: "robin2@example.test" })).status, 200);
   b.app.db.run("UPDATE device_tokens SET auth_at = ?", addSeconds(-3600));
-  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/password", change)).json.error.code, "step_up");
+  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/email", { email: "robin3@example.test" })).json.error.code, "step_up");
+  // Changing the password takes the current one instead, however long ago it signed in.
+  assert.equal((await asApp(b, ok.json.token, "PUT", "/api/account/password", { currentPassword: "a long enough secret", password: "another long enough secret" })).status, 200);
 });
 
-test("signing in from the app shares the browser's limits per address and per username", async (t) => {
+test("signing in from the app shares the browser's limits per network address and per email address", async (t) => {
   const b = await boot();
   t.after(b.close);
-  for (let i = 0; i < 10; i++) await raw(b, "POST", "/api/auth/password", { origin: b.app.config.publicOrigin, body: { username: "someone", password: "guess" } });
-  const r = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: { client: "mobile", method: "password", username: "someone", password: "guess" } });
+  for (let i = 0; i < 10; i++) await raw(b, "POST", "/api/auth/password", { origin: b.app.config.publicOrigin, body: { email: "someone@example.org", password: "guess" } });
+  const r = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: { client: "mobile", method: "password", email: "SOMEONE@example.org", password: "guess" } });
   assert.equal(r.status, 429);
 });
 
-test("the app can ask for a password reset email where accounts use email, with the same answer whether or not the account exists", async (t) => {
+test("the app can ask for a password reset email where the server sends email, with the same answer whether or not the account exists", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_TRUST_PROXY: "1", PURSS_MODE: "hosted", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" });
   useTransport(app, { send: async () => {}, verify: async () => {} });
   await checkMail(app);
@@ -692,7 +692,7 @@ test("the app can ask for a password reset email where accounts use email, with 
   t.after(async () => { await settleMail(app); await server.close(); cleanup(); });
   const info = await (await fetch(`${server.base}/api/connect/info`)).json() as { signin: { passwordReset: string | null } };
   assert.equal(info.signin.passwordReset, `${app.config.publicOrigin}/api/password-reset`);
-  const r = await fetch(`${server.base}/api/password-reset`, { method: "POST", headers: { origin: "capacitor://localhost", "content-type": "application/json" }, body: JSON.stringify({ identifier: "nobody" }) });
+  const r = await fetch(`${server.base}/api/password-reset`, { method: "POST", headers: { origin: "capacitor://localhost", "content-type": "application/json" }, body: JSON.stringify({ email: "nobody@example.org" }) });
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("access-control-allow-origin"), "capacitor://localhost");
   assert.deepEqual(await r.json(), { ok: true });
@@ -707,13 +707,13 @@ test("a PURSS without email for accounts doesn't offer the app a password reset"
 test("signing in from the app to an account set to be deleted offers to keep it, and keeping it connects the app", async (t) => {
   const b = await boot();
   t.after(b.close);
-  const made = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(createInvite(b.app, b.owner.accountId, null, null)) });
+  const made = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(createInvite(b.app, b.owner.accountId, "invited@example.test", null, null)) });
   const acct = b.app.db.get<{ account_id: string }>("SELECT account_id FROM device_tokens WHERE id = ?", made.json.device.id)!.account_id;
   const del = await asApp(b, made.json.token, "POST", "/api/account/deletion", { confirm: "Robin" });
   assert.equal(del.status, 200, del.text);
   assert.equal((await asApp(b, made.json.token, "GET", "/api/session")).status, 401, "deleting signs the app out");
 
-  const signin = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: { client: "mobile", method: "password", username: "robin", password: "a long enough secret" } });
+  const signin = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: { client: "mobile", method: "password", email: "invited@example.test", password: "a long enough secret" } });
   assert.equal(signin.status, 409);
   assert.equal(signin.json.error.code, "deletion_pending");
   assert.ok(signin.json.error.keepToken && signin.json.error.dueAt);

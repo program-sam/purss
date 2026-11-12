@@ -29,18 +29,31 @@ Keep provider tokens server-side, encrypt with keys outside the data store, and
 define refresh serialization/rotation, expiry, revocation, and recovery behavior.
 Never automatically link accounts or grant admin by matching email/domain/profile
 claims. Adding/removing a sign-in method requires authenticated confirmation and
-recent reauthentication; prevent lockout when removing the last usable method (a password
+recent reauthentication, and changing the password takes the current one, however recent the sign-in; prevent lockout when removing the last usable method (a password
 cannot be removed, so an account that has one always keeps it; one made by a provider keeps
 the provider until it has another way in).
 
 Self-hosting must not require a particular commercial identity provider. The
-provider-independent sign-in is a username and password, chosen when the account is made
-(first-run claim, invitation, open sign-up, the phone app's sign-up): the password is created
-together with the account, and it can be changed or reset but never removed, so every such account
-keeps a way in that depends on no provider, device or origin. The one account without a password is
+provider-independent sign-in is an email address and password (owner decision): the address is the
+account's sign-in identity, each address belongs to one account (compared without regard to case),
+and the internal account id stays the stable key, so the address can change. There are no
+usernames; a display name is optional. The password is chosen when the account is made (first-run
+claim, invitation, open sign-up, the phone app's invitation) and can be changed or reset but never
+removed, so every such account keeps a way in that depends on no provider, device or origin.
+Where outgoing email is set up, addresses are proven by a link they received, so bulk or spam
+accounts can't be made with addresses nobody controls: open sign-up starts with the address and
+makes the account only when the emailed link is used; an invitation is for an address the
+administrator types, whose code is emailed there and nowhere else (an undeliverable one is withdrawn),
+and the person types the address again to accept it; a new
+address takes effect only once its link is used, and until then the old one keeps signing in.
+Without outgoing email (self-hosting only) the administrator makes every account, through
+invitations, so addresses are taken as typed and changes apply at once. Answers to signing in,
+starting sign-up and asking for a reset never reveal whether an address has an account: starting
+sign-up with an address that has one sends that address a note with sign-in and reset links instead
+of a sign-up link. The one account without a password is
 one made by signing in with a provider (below), which can add a password in Settings → Security.
 Fingerprint, face or screen lock (a passkey) is offered right after, can be skipped and added later in Settings → Security;
-passkeys and linked provider sign-ins can be removed. Enrollment is therefore the username and
+passkeys and linked provider sign-ins can be removed. Enrollment is therefore the email address and
 password, then optionally a passkey, and "confirm it's you" accepts the password, a passkey or a linked provider.
 Prove enrollment, lost-device, provider-outage and public-origin-change recovery before account
 creation ships: a lost device or a provider outage is answered by signing in with the password
@@ -49,8 +62,9 @@ on another device, and a changed public origin leaves the password working while
 Guided origin changes warn before applying, preserve an independent recovery path,
 and guide callback re-registration and sign-in-method re-enrollment as required;
 never temporarily turn authentication off to restore access. A one-time installation
-claim is not the permanent everyday login method: it chooses the owner's username and
-password. Hosted recovery must not bypass tenant identity or allow an admin to impersonate
+claim is not the permanent everyday login method: it chooses the owner's email address and
+password (the setup code proves control of the server, so the address is taken as typed; where email
+is set up it is sent a confirmation link). Hosted recovery must not bypass tenant identity or allow an admin to impersonate
 users without an explicit policy.
 A forgotten password is recovered by an email link where the installation sends email (always
 on the hosted service), sent to the address confirmed at sign-up (or added later in
@@ -64,7 +78,7 @@ account on request. The dashboard has no direct attach/rebind-sign-in control.
 Self-host recovery, and recovery for administrators (who do not reset by email), is an
 audited host-level procedure: `node apps/api/src/cli.ts password-reset-link <account>` prints a
 single-use link, shown once and valid for 60 minutes, that opens the ordinary "Choose a new
-password" page for the existing account's username. Using it signs the account out everywhere.
+password" page for the existing account. Using it signs the account out everywhere.
 It is not a dashboard rebind and creates no other user. It verifies operator control without
 requiring an existing verified email channel or the old public origin, works whether or not
 email is set up, and refuses an account without a password or one already being deleted;
@@ -78,9 +92,9 @@ Where hosted open sign-up is on, a sign-in whose identity (issuer and subject) i
 the same rate limits, daily capacity and `signup_creations` bookkeeping as sign-up with a password, provided the ID
 token carries an email with `email_verified` true. The account has the provider's `name` as its display name, that
 email confirmed (no mail is sent), the provider sign-in linked, no password and no administrator role. If another
-account has that email *confirmed* (compared without regard to case), nothing is created or linked: the page says to
-sign in with the username and password and connect the provider in Settings → Security. An address someone only
-typed and never confirmed proves nothing and doesn't block the provider, which vouched for its own. Where sign-up is
+account has that email (compared without regard to case), nothing is created or linked: the page says to
+sign in with the email address and password and connect the provider in Settings → Security. That holds for an
+address another account has whether or not it was confirmed: each address belongs to one account. Where sign-up is
 closed an unlinked identity is refused (`not_linked`). Linking stays an action of a signed-in account with recent
 authentication. A provider-only account can export its data, delete itself and add a password (after "confirm it's
 you"). A provider sign-in can be removed only while a password remains, and a passkey can be removed only while a password or a

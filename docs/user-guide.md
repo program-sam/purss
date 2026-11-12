@@ -11,8 +11,8 @@ yet.
 2. Enter the **setup code**. The operator reads it from the server (see
    [self-hosting](self-hosting.md#the-first-administrator)). Whoever enters it first becomes the
    owner and administrator, and the code stops working.
-3. Choose a **username** and a **password**, and type the password again. The password works on
-   any computer, including borrowed ones.
+3. Enter your **email address** and choose a **password** (typed twice); a name is optional. You
+   sign in with the address and password on any computer, including borrowed ones.
 4. Add **fingerprint, face or screen lock** if you like. Use Touch ID, Face ID, Windows Hello,
    your phone's screen lock or a password manager. You can skip this and add it later in
    *Settings → Security*.
@@ -21,21 +21,22 @@ Fingerprint, face or screen lock works over **HTTPS**, or at `http://localhost`.
 over plain HTTP at another address, such as a LAN IP. It is tied to the exact host name you use,
 so one added at `localhost` won't work at `127.0.0.1`.
 
-**Joining an existing installation:** an administrator sends you an invitation link
-(`/app/invite?code=…`), on a home server as well as a hosted one. You choose your own name, username and
-password; the rest is the same as above. A hosted installation may also offer *create an
-account* on the sign-in page when its operator has turned open sign-up on. That page asks for an
-email address, which a link in a message confirms (no card needed); the confirmed address is the one a
-password reset is sent to. The button stays busy while the account is
-made; if the page was closed before it finished, sign in with the username and password you chose.
-A confirmation link opened in a browser where you aren't signed in confirms the address and offers
-the sign-in page.
+**Joining an existing installation:** an administrator invites you by your email address, on a home
+server as well as a hosted one. Where the server sends email the invitation arrives as a link
+(`/app/invite?code=…`); otherwise the administrator gives you the link or code. Type the address you
+were invited with, choose a password and, if you like, a name; the rest is the same as above.
+
+A hosted installation may also offer *create an account* on the sign-in page when its operator has
+turned open sign-up on. It starts with your email address: a link arrives there, and opening it lets
+you choose your password and finish (no card needed). No account exists until you open the link. If
+the address already has an account, the message says so and links to signing in and resetting the
+password instead. The button stays busy while the account is made; if the page was closed before it
+finished, sign in with your address and password.
 
 ## Signing in
 
-- **Password:** works on any computer, including borrowed ones. Type your username, or the email
-  address of your account once you have confirmed it. (An address that belongs to several accounts
-  works for none of them: use the username.)
+- **Email address and password:** works on any computer, including borrowed ones. Each address
+  belongs to one account; capital letters don't matter.
 - **Fingerprint, face or screen lock:** sign in with Touch ID, Face ID, Windows Hello, your
   phone's screen lock or a password manager, once you have added it in *Settings → Security*.
 - **External sign-in** (OpenID Connect) appears only when the operator has configured a
@@ -48,27 +49,28 @@ header shows **Sign out** so leaving takes one press. *Settings
 → Security* lists the browser, system and approximate last use for each signed-in device, marks
 this device, and lets you sign out one device or **Sign out everywhere else**.
 
-*Settings → Security* is also where you change your username or password, add or remove
+*Settings → Security* is also where you change your email address or password, add or remove
 fingerprint, face or screen lock, and link or remove an external sign-in. The password can be
-changed but not removed. Changing any of these needs a recent sign-in: the screen asks you to
-confirm it's you with your password or with fingerprint, face or screen lock, then carries on.
+changed but not removed; changing it asks for your current password. The other changes need a
+recent sign-in: the screen asks you to confirm it's you with your password or with fingerprint, face
+or screen lock, then carries on.
 
 **Forgotten your password?** On the sign-in page, **Can't sign in?** leads to a password reset by
 email where the installation sends email (always on the hosted service). Otherwise it says to ask
 the server's administrator for a password reset link; the administrator's side is described in
 [forgotten passwords](self-hosting.md#forgotten-passwords).
 
-**Where the installation sends email** (always on the hosted service) your account can also have
-an email address, given when you sign up on the hosted service or added and changed in *Settings →
-Security* (that asks you to confirm it's you). A link in an email confirms it. If you forget your password, the reset by email sends
-a link to your confirmed address; it works once, for an hour. Choosing a new password signs you out
-everywhere, disconnects your connected apps and assistants, and the address is told. Once it is confirmed, the
-address can be typed in place of your username when you sign in with your password; it never signs you in
-on its own. Otherwise it is used for messages about your account and, if you choose that in
-*Settings → Notifications and New*, for [reminders](#reminders). Every link in a message is on a line of its
-own, so nothing gets stuck to its end. Administrator accounts get a password reset link from the
-operator at the server instead. On an installation whose operator set up outgoing email, an invitation may also arrive by
-email.
+**Your email address** is the one you sign in with. Change it in *Settings → Security* (that asks you
+to confirm it's you). Where the installation sends email (always on the hosted service), the new
+address gets a confirmation link and takes over only once you open it; until then you keep signing in
+with the old one, which is told about the change afterwards. On a server without email the change
+applies at once. Another account's address can't be taken. If you forget your password, the reset by
+email sends a link to your confirmed address; it works once, for an hour. Choosing a new password
+signs you out everywhere, disconnects your connected apps and assistants, and the address is told.
+The address is otherwise used for messages about your account and, if you choose that in
+*Settings → Notifications and New*, for [reminders](#reminders). Every link in a message is on a line
+of its own, so nothing gets stuck to its end. Administrator accounts get a password reset link from
+the operator at the server instead.
 
 ## Adding sources
 
@@ -832,7 +834,7 @@ open it Windows asks you to confirm (*More info*, then *Run anyway*) and a Mac a
 *System Settings → Privacy & Security*.
 
 **Connecting.** As in the phone app: sign in to the official server, or choose *Use another server*, with your
-username and password. To use a passkey or a linked account, choose *Sign in in your browser*:
+email address and password. To use a passkey or a linked account, choose *Sign in in your browser*:
 your browser opens the server's Connect page, and the app connects when you press *Connect* there. Your connection
 is kept in your computer's keyring (on a Linux computer without one, in a file only your user account can read).
 The app connects only to servers updated for it; to the app an older one looks unreachable.
@@ -862,15 +864,16 @@ as in the phone app.
 The Android and iOS app is the same PURSS as in the browser, made for a phone. It connects to
 the official server unless you choose another one: your own, or another hosted one.
 
-**Signing in.** The app opens on the official server's sign-in: sign in with your username and
+**Signing in.** The app opens on the official server's sign-in: sign in with your email address and
 password. Where the server sends email, *Forgot your password?* emails you a link to set a
 new one; on a server that doesn't, its administrator can give you a reset link to open in a browser. To sign in with your fingerprint, face or screen lock, or a linked account, choose *Use fingerprint, face or a linked account*:
 a sign-in tab opens the server's Connect page; sign in there, check that it names this device, and
 press *Connect* (see [Connected apps](#connected-apps)).
 
-**New here?** Choose *Create an account*. Enter the invitation code you were given (or, where the
-server lets anyone sign up, your email address), your name, and a username and password. The app
-connects straight away.
+**New here?** Choose *Create an account*. With an invitation, enter its code, the email address you
+were invited with, your name if you like, and a password; the app connects straight away. Where the
+server lets anyone sign up, enter your email address instead: open the link that arrives, finish
+creating the account in the browser, then sign in in the app.
 
 **Another server.** Press **Use another server** under the sign-in and type the address you open
 your PURSS at (it needs **https://**, except on your own computer or home network, where the

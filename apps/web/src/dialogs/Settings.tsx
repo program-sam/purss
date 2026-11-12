@@ -182,8 +182,10 @@ function SecurityTab() {
   // Adding a sign-in method needs a recent sign-in.
   const addPasskey = () => withStepUp(async () => { await registerPasskey(null); await refreshQueries(); toast("Fingerprint, face or screen lock added"); });
   const removeMethod = (m: SecurityMethod) => withStepUp(async () => { await del(`/api/account/methods/${encodeURIComponent(m.id)}`); refresh(); toast("Sign-in method removed"); });
-  // The form needs a recent sign-in when saved; confirm first so nothing typed is lost.
-  const openPassword = () => withStepUp(async () => {
+  // Changing the password takes the current one in the form. Adding a first one needs a recent sign-in when saved, so that is
+  // confirmed first and nothing typed is lost.
+  const hadPassword = !!sec.data?.methods.some((m) => m.kind === "password");
+  const openPassword = () => hadPassword ? setStep({ kind: "password" }) : withStepUp(async () => {
     const s = await qc.fetchQuery({ ...securityQuery, staleTime: 0 });
     if (!s.recentAuth) throw new ApiError(403, "step_up", "Please confirm it's you again before doing this.");
     setStep({ kind: "password" });
@@ -204,8 +206,7 @@ function SecurityTab() {
   }
 
   if (step.kind === "password") {
-    const current = sec.data?.methods.find((m) => m.kind === "password")?.label ?? null;
-    return <PasswordForm current={current} submitLabel={current ? "Save new password" : "Add password"} onDone={() => { refresh(); setStep({ kind: "main" }); toast(current ? "Password changed" : "Password added"); }} onCancel={() => setStep({ kind: "main" })} />;
+    return <PasswordForm email={session?.account?.email ?? null} hasPassword={hadPassword} submitLabel={hadPassword ? "Save new password" : "Add password"} onDone={() => { refresh(); setStep({ kind: "main" }); toast(hadPassword ? "Password changed" : "Password added"); }} onCancel={() => setStep({ kind: "main" })} />;
   }
   if (step.kind === "stepup") {
     const then = step.then;
@@ -236,12 +237,12 @@ function SecurityTab() {
               <ul className="seclist">
                 <li>
                   <Icon name="user" />
-                  <span className="tx"><b>{password.label}</b><small>Username · added {shortDate(password.createdAt, Date.now(), ws.prefs.timezone)}{password.lastUsedAt ? ` · last used ${timeAgo(password.lastUsedAt)}` : ""}</small></span>
+                  <span className="tx"><b>Password</b><small>{session?.account?.email ? `For ${session.account.email} · ` : ""}Added {shortDate(password.createdAt, Date.now(), ws.prefs.timezone)}{password.lastUsedAt ? ` · last used ${timeAgo(password.lastUsedAt)}` : ""}</small></span>
                 </li>
               </ul>
             ) : null}
-            {!password ? <p className="fine">You sign in without a password, with {(sec.data?.methods ?? []).filter((m) => m.kind === "oidc").map((m) => m.label).join(" and ") || "a linked sign-in"}. Add one to also sign in with a username and password, and to be able to remove that sign-in.</p> : null}
-            <div><Button onClick={() => void openPassword()}>{password ? "Change username or password" : "Add a password"}</Button></div>
+            {!password ? <p className="fine">You sign in without a password, with {(sec.data?.methods ?? []).filter((m) => m.kind === "oidc").map((m) => m.label).join(" and ") || "a linked sign-in"}. Add one to also sign in with your email address and a password, and to be able to remove that sign-in.</p> : null}
+            <div><Button onClick={() => void openPassword()}>{password ? "Change password" : "Add a password"}</Button></div>
           </section>
           <section className="field" aria-labelledby="sec-m">
             <div className="lbl" id="sec-m">Fingerprint, face or screen lock, and linked sign-ins</div>
@@ -268,7 +269,7 @@ function SecurityTab() {
           {passkeysAvailable() ? null : <p className="fine">{platform.connection
             ? "Fingerprint, face or screen lock works in the app once this PURSS's operator sets it up (see the app section of the self-hosting guide)."
             : "Fingerprint, face or screen lock needs a secure (https) address, so it can't be added here."}</p>}
-          {session?.installation.accountEmail ? <AccountEmailSection withStepUp={withStepUp} /> : null}
+          <AccountEmailSection withStepUp={withStepUp} />
           <section className="field" aria-labelledby="sec-s">
             <div className="lbl" id="sec-s">Signed-in devices</div>
             <ul className="seclist">

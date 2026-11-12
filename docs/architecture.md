@@ -328,11 +328,13 @@ browser captures, imports, OPML) is first read once by `assertShallowMarkup` in
 reads them, in linear time; stored content beyond the bounds keeps only its text, as paragraphs.
 
 **Outgoing email.** Optional (`PURSS_SMTP_*`, `PURSS_MAIL_FROM`; `apps/api/src/mail`). The API sends
-through nodemailer: invitation links, and account address confirmation, password-reset links and
-change notices. Account addresses exist only where email is set up (`accountEmailAvailable`), in
-any mode; only hosted open sign-up requires one. Messages that must not reveal whether an account
+through nodemailer: invitation links, sign-up links, address confirmation, password-reset links and
+change notices. Every account signs in with its email address, one account per address
+(`accounts_email`, without regard to case); where email is set up (`accountEmailAvailable`) addresses
+are proven by links: open sign-up makes the account only from its link (`signup_requests`), and a new
+address takes over only once confirmed. Messages that must not reveal whether an account
 exists are sent after the response, through a queue in the database (`mail_queue`, sealed with a key
-from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens` (the operator's `password-reset-link` command makes the same kind of reset token at the server and sends nothing); `mail_log` keeps kind,
+from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens` and `signup_requests` (the operator's `password-reset-link` command makes the same kind of reset token at the server and sends nothing); `mail_log` keeps kind,
 masked recipient, outcome and error code, never a body. The server is checked at start and every 10
 minutes while failing; hosted open sign-up is open only while that check passes. See
 [plan/27](../plan/27-outbound-email.md).
@@ -346,7 +348,7 @@ minutes while failing; hosted open sign-up is open only while that check passes.
 | Assistants connected with OAuth | `product.db`, `oauth_grants` (what was approved, the SHA-256 of its current refresh token and that token's generation), `oauth_access_tokens` (SHA-256 only), `oauth_refreshes` (the last hour's refreshes, for the limits); pending codes in `connect_codes` |
 | Connected apps | `product.db`, `device_tokens` (SHA-256 only) and `connect_codes` (pending one-time codes, SHA-256 only, minutes long) |
 | Phones' notification registrations | `product.db`, `push_devices` (relay handle, SHA-256 of the fetch credential, what was handed; goes with its device token); the push relay keeps its own `relay.db` |
-| Account email | `product.db`: `accounts.email` (optional), `email_tokens` (SHA-256 of each link), `mail_queue` (messages waiting to be sent, sealed with `secrets/mail-queue-key`, at most a day), `mail_log` (no bodies, 90 days) |
+| Account email | `product.db`: `accounts.email` (the sign-in address), `email_tokens` and `signup_requests` (SHA-256 of each link), `mail_queue` (messages waiting to be sent, sealed with `secrets/mail-queue-key`, at most a day), `mail_log` (no bodies, 90 days) |
 | Account deletions | `product.db`, `account_deletions` (one row per account being deleted, gone with the account) |
 | Installation news | `product.db`: `news_posts` (posts; the author link is cleared when that account is deleted), `news_deliveries` (which workspace got which post, for its copy and the counts) |
 | Sites people couldn't follow | `product.db`, `discovery_misses`: per UTC day, the site (registrable domain) and the failure reason, with a count; 180 days. No account, workspace or address is stored, so it is no part of any account's data or export |

@@ -52,7 +52,7 @@ export function SignInPage() {
   const [notice, setNotice] = useState(search.notice === "deletion_requested" && search.due ? `Your account will be deleted on ${shortDate(search.due)}. Sign in before then to keep it.` : "");
   const [pending, setPending] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sharedComputer, setSharedComputer] = useState(false);
 
@@ -83,7 +83,7 @@ export function SignInPage() {
   async function withPassword(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setError("");
-    try { await post("/api/auth/password", { username: username.trim(), password, sharedComputer }); await done(); } catch (err) { failed(err); setPassword(""); } finally { setBusy(false); }
+    try { await post("/api/auth/password", { email: email.trim(), password, sharedComputer }); await done(); } catch (err) { failed(err); setPassword(""); } finally { setBusy(false); }
   }
 
   const providers = session?.installation.oidcProviders ?? [];
@@ -101,15 +101,15 @@ export function SignInPage() {
       <div style={{ display: "grid", gap: 14 }}>
         {notice ? <p className="state" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint="You'll be signed out when you close this browser, or after 8 hours.">This is a shared computer</Check>
-        <form onSubmit={withPassword} style={{ display: "grid", gap: 10 }} aria-label="Sign in with a username and password">
-          <Field label={session?.installation.accountEmail ? "Username or email address" : "Username"} htmlFor="si-u" hint={session?.installation.accountEmail ? "An email address works once you have confirmed it." : undefined}>
-            <TextInput id="si-u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus />
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint="Signs out when the browser closes, or after 8 hours">This is a shared computer</Check>
+        <form onSubmit={withPassword} style={{ display: "grid", gap: 10 }} aria-label="Sign in with an email address and password">
+          <Field label="Email address" htmlFor="si-u">
+            <TextInput id="si-u" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus />
           </Field>
           <Field label="Password" htmlFor="si-p">
             <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
-          <div><Button variant="primary" type="submit" disabled={busy || !username.trim() || !password}>Sign in</Button></div>
+          <div><Button variant="primary" type="submit" disabled={busy || !email.trim() || !password}>Sign in</Button></div>
         </form>
         {supported ? (
           <>

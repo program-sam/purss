@@ -1,5 +1,5 @@
 // Acceptance journey for installing the app and reading offline, against the real API serving the
-// built web app (no FreshRSS, egress or worker, so no podman and no network): sign in with a username
+// built web app (no FreshRSS, egress or worker, so no podman and no network): sign in with an email address
 // and password, mark an item To read, turn offline reading on, let the pack save, go offline, reload, read the
 // item's text, see that changes fail plainly, come back online, switch to a new build, turn the
 // setting off and on, sign out, and check that no copies stay. Along the way: highlight and comment on
@@ -39,7 +39,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: webDist,
   PURSS_DISK_RESERVE_BYTES: "0",
 };
-const USERNAME = "reader";
+const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 let api: ChildProcess | null = null;
@@ -77,7 +77,7 @@ function prepare(): { accountId: string } {
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
+    const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
@@ -101,7 +101,7 @@ function prepare(): { accountId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
@@ -240,7 +240,7 @@ async function main(): Promise<void> {
     await waitFor("the worker to take charge of the page", () => hasWorkerControl(page), 20_000);
     assert.deepEqual((await cacheNames(page)).filter((n) => n.startsWith("purss-api:")), [], "an ordinary browser tab keeps nothing until offline reading is turned on");
     assert.ok((await cacheNames(page)).some((n) => n.startsWith("purss-shell:")), "the app itself is saved");
-    step("signed in with a username and password; the app shell is saved and no personal data is");
+    step("signed in with an email address and password; the app shell is saved and no personal data is");
 
     // The browser itself agrees the page is installable.
     const cdp = await context.newCDPSession(page);

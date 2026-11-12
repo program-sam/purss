@@ -31,7 +31,9 @@ function takeChallenge(app: App, id: string, purpose: string): { challenge: stri
 
 export async function registrationOptions(app: App, accountId: string) {
   const existing = app.db.all<{ credential_id: string; transports: string | null }>("SELECT credential_id, transports FROM sign_in_methods WHERE account_id = ? AND kind = 'passkey'", accountId);
-  const name = app.db.get<{ display_name: string | null }>("SELECT display_name FROM accounts WHERE id = ?", accountId)?.display_name ?? "PURSS";
+  const row = app.db.get<{ display_name: string | null; email: string | null }>("SELECT display_name, email FROM accounts WHERE id = ?", accountId);
+  // What the device shows when offering the passkey: the address the account signs in with.
+  const name = row?.email ?? row?.display_name ?? "PURSS";
   const options = await generateRegistrationOptions({
     rpName: "PURSS",
     rpID: app.config.rpId,
@@ -94,7 +96,7 @@ export async function verifyAuthentication(app: App, challengeId: string, respon
 export function listMethods(app: App, accountId: string) {
   return app.db.all<{ id: string; kind: string; label: string | null; issuer: string | null; created_at: string; last_used_at: string | null }>(
     "SELECT id, kind, label, issuer, created_at, last_used_at FROM sign_in_methods WHERE account_id = ? ORDER BY created_at", accountId,
-  ).map((m) => ({ id: m.id, kind: m.kind as "passkey" | "oidc" | "password", label: m.label ?? (m.kind === "oidc" ? m.issuer : "Fingerprint, face or screen lock"), createdAt: m.created_at, lastUsedAt: m.last_used_at }));
+  ).map((m) => ({ id: m.id, kind: m.kind as "passkey" | "oidc" | "password", label: m.kind === "password" ? "Password" : m.label ?? (m.kind === "oidc" ? m.issuer : "Fingerprint, face or screen lock"), createdAt: m.created_at, lastUsedAt: m.last_used_at }));
 }
 
 /**

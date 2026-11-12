@@ -4,7 +4,8 @@
 // code with PKCE; its token looks up a kept page, keeps links without duplicates and is refused
 // elsewhere. The phone app's request is approved and declined through its purss:// return address.
 // Settings → Connected apps lists both and disconnects them. Once the sign-in is more than ten minutes
-// old, changing the password asks the person to confirm it's you, and the password does. Run:
+// old, changing the address asks the person to confirm it's you, and the password does; changing the password
+// takes the current one. Run:
 // node tests/acceptance/connect.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -47,7 +48,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_WEB_DIST: path.join(repo, "apps/web/dist"),
   PURSS_DISK_RESERVE_BYTES: "0",
 };
-const USERNAME = "reader";
+const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 // RFC 7636 appendix B.
 const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -83,7 +84,7 @@ function prepare(): void {
   try {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
-    const { accountId } = claim(app, code, "Reader", testPassword(USERNAME));
+    const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
     setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
     const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
@@ -129,7 +130,7 @@ async function main(): Promise<void> {
     // The extension asks to connect (no return address: it will take a typed code) while signed out.
     await page.goto(connectUrl({ client: "extension", device_name: "Firefox on the laptop" }));
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("textbox", { name: "Username" }).fill(USERNAME);
+    await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL(/\/connect\?/);
@@ -197,19 +198,33 @@ async function main(): Promise<void> {
     assert.equal((await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${phoneToken}` } })).status, 200, "the other app stays connected");
     step("Settings lists both apps; disconnecting the extension stops its token at once");
 
-    // A sign-in older than the step-up window (made so here) asks to confirm it's you before the password can change.
+    // A sign-in older than the step-up window (made so here) asks to confirm it's you before the address can change.
     const db = new DatabaseSync(path.join(dataDir, "product.db"), { timeout: 5000 });
     try { db.prepare("UPDATE sessions SET auth_at = ?").run(new Date(Date.now() - 11 * 60_000).toISOString()); } finally { db.close(); }
     await page.getByRole("button", { name: "Security" }).click();
-    await page.getByRole("button", { name: "Change username or password" }).click();
+    await page.getByRole("button", { name: "Change address" }).click();
+    await page.getByLabel("New email address").fill("reader2@example.test");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByText("For your safety, confirm it's you before this change.").waitFor();
     await page.getByLabel("Your password").fill("not the password");
     await page.getByRole("button", { name: "Confirm with password" }).click();
     await page.getByText("That password isn't right.").waitFor();
     await page.getByLabel("Your password").fill(TEST_PASSWORD);
     await page.getByRole("button", { name: "Confirm with password" }).click();
-    await page.getByRole("button", { name: "Save new password" }).waitFor();
-    step("an older sign-in asks to confirm it's you before the password can change; the password does, and a wrong one does not");
+    await page.locator("#toasts").getByText("Email address saved").waitFor();
+    step("an older sign-in asks to confirm it's you before the address can change; the password does, and a wrong one does not");
+
+    // Changing the password takes the current one, whenever the sign-in was.
+    await page.getByRole("button", { name: "Change password" }).click();
+    await page.getByLabel("Current password").fill("not the password");
+    await page.getByLabel("New password", { exact: true }).fill("a brand new long password");
+    await page.getByLabel("New password again").fill("a brand new long password");
+    await page.getByRole("button", { name: "Save new password" }).click();
+    await page.getByText("Your current password isn't right.").waitFor();
+    await page.getByLabel("Current password").fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: "Save new password" }).click();
+    await page.locator("#toasts").getByText("Password changed").waitFor();
+    step("changing the password takes the current one: a wrong one is refused, the right one changes it");
 
     assert.deepEqual(errors, [], "no uncaught page errors");
   } catch (err) {

@@ -11,7 +11,6 @@ import type { RegistrationResponseJSON, AuthenticationResponseJSON } from "@simp
 import type { Ctx } from "../app.ts";
 import { audit, requirePrincipal, requireRecentAuth } from "../app.ts";
 import { badRequest, consumeRateLimit, HttpError, Router, notFound, nowIso, parse, rateLimit, setCookie } from "../http.ts";
-import type { Handler } from "../http.ts";
 import { randomToken } from "../secrets.ts";
 
 const OIDC_COOKIE = "purss_oidc";
@@ -19,12 +18,13 @@ const OIDC_COOKIE = "purss_oidc";
 const OIDC_NEXT_COOKIE = "purss_oidc_next";
 import {
   acceptInvite, assertSignupCapacity, claim, endSession, openSignupAttempt,
-  refreshAuth, recentAuthAvailable, selfSignup, sessionInfo, sessionWrite, setPassword, startSession,
+  refreshAuth, recentAuthAvailable, sessionInfo, sessionWrite, setPassword, startSession,
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
 import { OidcFlowError, finishOidc, issueAppTicket, redeemConfirmCode, redeemLinkCode, startFromTicket, startOidc } from "../auth/oidc.ts";
 import { deviceIdOf } from "../connect/devices.ts";
-import { PASSWORD_MAX, checkPassword, normalizeUsername, preparePassword } from "../auth/passwords.ts";
+import { PASSWORD_MAX, checkPassword, normalizeEmail, preparePassword, verifyPassword } from "../auth/passwords.ts";
+import { finishSignup, signupRequestEmail, startSignup } from "../auth/signup.ts";
 import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
@@ -39,7 +39,7 @@ import { summary } from "../services/storage.ts";
 import { capacity } from "../services/plans.ts";
 import { listNotifications, markNotificationsRead, unreadCount } from "../services/notifications.ts";
 import { readIcon } from "../services/icons.ts";
-import { emailSchema, setAccountEmail } from "../services/account-email.ts";
+import { emailSchema } from "../services/account-email.ts";
 import { DELETION_COOKIE, keepAccount, leaveDeletion, pendingDeletion, requestDeletion } from "../services/deletion.ts";
 
 const limit = rateLimit;
@@ -95,28 +95,9 @@ function opensApp(next: string | null): boolean {
 
 const HTML = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" };
 
-/** The username and password every new account is made with, from sign-up, setup and invitations. */
-const newAccountSchema = { username: z.string().max(80), password: z.string().max(PASSWORD_MAX * 4) };
-
-/** Keep the public sign-up flow isolated so hosted email enrollment can be added alongside it. */
-const signupHandler: Handler<Ctx> = async (req, ctx, res) => {
-  const address = clientAddress(req.raw, ctx.app.config.trustProxy);
-  const attemptRetryAt = openSignupAttempt(ctx.app, address);
-  // Open sign-up is hosted-only and needs working email: every account gets an address to confirm.
-  const body = parse(z.object({
-    displayName: z.string().trim().max(60).nullable().default(null), email: emailSchema, ...newAccountSchema, sharedComputer: z.boolean().default(false),
-  }), req.body);
-  // Checked and hashed before anything is written: hashing is slow, and a refused password must leave nothing behind.
-  const password = await preparePassword(body.username, body.password);
-  assertSignupCapacity(ctx.app, address, attemptRetryAt);
-  const out = ctx.app.db.tx(() => {
-    const created = selfSignup(ctx.app, body.displayName, address, password, attemptRetryAt);
-    setAccountEmail(ctx.app, created.accountId, body.email);
-    return created;
-  });
-  startSession(ctx.app, res, req.raw, out.accountId, "signup", { sharedComputer: body.sharedComputer });
-  return { ok: true };
-};
+/** What every new account is made with, from setup and invitations: its display name and password. */
+const newAccountSchema = { displayName: z.string().trim().max(60).nullable().default(null), password: z.string().max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) };
+const signupToken = z.string().min(20).max(200);
 
 export function publicRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
@@ -126,21 +107,42 @@ export function publicRouter(): Router<Ctx> {
 
   r.post("/api/setup/claim", async (req, ctx, res) => {
     limit(`claim:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), ...newAccountSchema, sharedComputer: z.boolean().default(false) }), req.body);
-    const out = claim(ctx.app, body.code, body.displayName, await preparePassword(body.username, body.password));
+    const body = parse(z.object({ code: z.string().min(4).max(60), email: emailSchema, ...newAccountSchema }), req.body);
+    const out = claim(ctx.app, body.code, body.email, body.displayName, await preparePassword(body.password, body.email));
     startSession(ctx.app, res, req.raw, out.accountId, "setup", { sharedComputer: body.sharedComputer });
     return { ok: true };
   });
 
   r.post("/api/invites/accept", async (req, ctx, res) => {
     limit(`invite:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    const body = parse(z.object({ code: z.string().min(4).max(60), displayName: z.string().trim().max(60).nullable().default(null), ...newAccountSchema, sharedComputer: z.boolean().default(false) }), req.body);
-    const out = acceptInvite(ctx.app, body.code, body.displayName, await preparePassword(body.username, body.password));
+    const body = parse(z.object({ code: z.string().min(4).max(60), email: emailSchema, ...newAccountSchema }), req.body);
+    const out = acceptInvite(ctx.app, body.code, body.email, body.displayName, await preparePassword(body.password, body.email));
     startSession(ctx.app, res, req.raw, out.accountId, "invite", { sharedComputer: body.sharedComputer });
     return { ok: true };
   });
 
-  r.post("/api/signup", signupHandler);
+  // Open sign-up, email first (auth/signup.ts): the address gets a link, the link's page finishes the account.
+  r.post("/api/signup/start", (req, ctx) => {
+    const address = clientAddress(req.raw, ctx.app.config.trustProxy);
+    const attemptRetryAt = openSignupAttempt(ctx.app, address);
+    assertSignupCapacity(ctx.app, address, attemptRetryAt);
+    startSignup(ctx.app, parse(z.object({ email: emailSchema }), req.body).email);
+    return { ok: true };
+  });
+  r.post("/api/signup/check", (req, ctx) => {
+    limit(`signup-link:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 30);
+    return { email: signupRequestEmail(ctx.app, parse(z.object({ token: signupToken }), req.body).token) };
+  });
+  r.post("/api/signup", async (req, ctx, res) => {
+    const address = clientAddress(req.raw, ctx.app.config.trustProxy);
+    limit(`signup-link:${address}`, 30);
+    const body = parse(z.object({ token: signupToken, ...newAccountSchema }), req.body);
+    // Checked and hashed before anything is written: hashing is slow, and a refused password must leave nothing behind.
+    const password = await preparePassword(body.password, signupRequestEmail(ctx.app, body.token));
+    const out = finishSignup(ctx.app, body.token, body.displayName, password, address);
+    startSession(ctx.app, res, req.raw, out.accountId, "signup", { sharedComputer: body.sharedComputer });
+    return { ok: true };
+  });
 
   r.post("/api/auth/passkey/login/options", (req, ctx) => {
     limit(`passkey:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 60);
@@ -155,16 +157,14 @@ export function publicRouter(): Router<Ctx> {
   });
 
   r.post("/api/auth/password", async (req, ctx, res) => {
-    // A username, or the account's confirmed email address.
-    const body = parse(z.object({ username: z.string().max(254), password: z.string().min(1).max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) }), req.body);
+    const body = parse(z.object({ email: z.string().max(300), password: z.string().min(1).max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) }), req.body);
     limit(`password:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    // Also per name as typed, so spreading guesses over many addresses doesn't help. An address keeps its own count:
-    // sharing its username's count would let anyone tell which address belongs to which username from the answers.
-    limit(`password-user:${normalizeUsername(body.username)}`, 10, 15 * 60_000);
-    const accountId = await checkPassword(ctx.app, body.username, body.password);
+    // Also per address, so spreading guesses over many network addresses doesn't help.
+    limit(`password-user:${normalizeEmail(body.email)}`, 10, 15 * 60_000);
+    const accountId = await checkPassword(ctx.app, body.email, body.password);
     if (!accountId) {
       audit(ctx.app, null, "sign_in", "password", "failure");
-      throw new HttpError(401, "bad_password", "That username and password don't match.");
+      throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
     startSession(ctx.app, res, req.raw, accountId, "password", { sharedComputer: body.sharedComputer });
     return { ok: true };
@@ -306,12 +306,23 @@ export function publicRouter(): Router<Ctx> {
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
     return { ok: true };
   });
-  // Changing the password needs recent authentication, like adding a passkey.
+  // Changing the password takes the current one, however recent the sign-in. Adding a first password (an account made with a
+  // provider) needs a recent sign-in instead, like adding a passkey.
   r.put("/api/account/password", async (req, ctx) => {
     const p = requirePrincipal(ctx);
-    requireRecentAuth(p);
-    const body = parse(z.object({ username: z.string().max(80), password: z.string().max(PASSWORD_MAX * 4) }), req.body);
-    await setPassword(ctx.app, p.accountId, p.sessionId, body.username, body.password);
+    const body = parse(z.object({ currentPassword: z.string().max(PASSWORD_MAX * 4).optional(), password: z.string().max(PASSWORD_MAX * 4) }), req.body);
+    // The change is allowed against this stored password (or its absence); setPassword refuses it if that changes meanwhile.
+    const stored = ctx.app.db.get<{ secret_hash: string }>("SELECT secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", p.accountId)?.secret_hash ?? null;
+    if (stored === null) {
+      requireRecentAuth(p);
+      await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: null, requireRecent: true });
+      return { ok: true };
+    }
+    limit(`stepup-password:${p.accountId}`, 10); // the same guesses as confirming it's you with the password
+    if (!body.currentPassword || !(await verifyPassword(body.currentPassword, stored))) {
+      throw new HttpError(401, "bad_current_password", "Your current password isn't right.");
+    }
+    await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: stored, requireRecent: false });
     return { ok: true };
   });
   // Deleting the account: a recent sign-in plus typing the display name (or "delete").

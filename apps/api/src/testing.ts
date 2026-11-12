@@ -24,14 +24,19 @@ export function makeTestApp(env: Record<string, string> = {}): { app: App; clean
 export const TEST_PASSWORD = "correct horse battery staple";
 // A hash of TEST_PASSWORD at a low scrypt cost, so tests that need many accounts don't spend a second each hashing.
 const TEST_HASH = "scrypt$1024$8$1$GnuUuWPbHDqwnElYXKC--Q$Z2tIGr5IkvymvbvhZPH5ldSC4PYRS12snDfxGmvonko";
-let usernames = 0;
-/** What createAccount needs to give an account a username and TEST_PASSWORD. Each call without a name makes a new username. */
-export function testPassword(username = `tester${++usernames}`): PreparedPassword {
-  return { username, hash: TEST_HASH };
+/** What createAccount needs to give an account TEST_PASSWORD. */
+export function testPassword(): PreparedPassword {
+  return { hash: TEST_HASH };
+}
+
+let addresses = 0;
+/** A new address for a test account. */
+export function testEmail(name = "tester"): string {
+  return `${name}${++addresses}@example.test`;
 }
 
 export function makeOwner(app: App, opts: { allocationBytes?: number | null; admin?: boolean } = {}): Principal & { engineUserId: string } {
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
+  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { email: testEmail(), emailConfirmed: false, displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   return { accountId, workspaceId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };

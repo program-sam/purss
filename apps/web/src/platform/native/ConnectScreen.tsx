@@ -14,8 +14,8 @@ import type { Passkeys } from "../types.ts";
  * The apps' first screen (plan/31): straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
  * on the server chosen before; an address is asked only after *Use another server*, or when there is no official
  * server. After a check that the server is a PURSS: signing in right
- * here (a username and password; a forgotten password is reset by email) or creating an
- * account (an invitation code, or an email address where sign-up is open). A passkey or a linked account
+ * here (an email address and password; a forgotten password is reset by email) or creating an
+ * account (an invitation code; where sign-up is open, a link emailed to the address, which finishes in the browser). A passkey or a linked account
  * needs the system browser: PURSS's Connect page, with the code back at purss://connect.
  *
  * The phone apps and the desktop app (plan/42) share this screen; what differs is their `ConnectShell`.
@@ -57,14 +57,14 @@ async function getJson(url: string, init: RequestInit = {}): Promise<{ status: n
 }
 
 /** A PURSS the address led to, and what it lets the app do itself. */
-type Workspace = { origin: string; info: ConnectInfo; signup: { open: boolean; passwordMin: number } | null; passkeys: boolean; providers: { id: string; label: string; start: string }[] };
-type SigninFields = { method: "password"; username: string; password: string } | { method: "passkey" };
+type Workspace = { origin: string; info: ConnectInfo; signup: { start: string | null; passwordMin: number } | null; passkeys: boolean; providers: { id: string; label: string; start: string }[] };
+type SigninFields = { method: "password"; email: string; password: string } | { method: "passkey" };
 /** What signing in came to: an error to show, an account set to be deleted that can still be kept, or (empty) connected. */
 type SigninAnswer = { error?: string; keep?: { token: string; dueAt: string } };
 
 type Phase = { kind: "address" } | { kind: "checking" } | { kind: "opening"; origin: string } | { kind: "unreachable"; origin: string } | { kind: "waiting"; pending: Pending; page: string } | { kind: "finishing" }
   | { kind: "signin"; ws: Workspace }
-  | { kind: "signup"; ws: Workspace; open: boolean; passwordMin: number };
+  | { kind: "signup"; ws: Workspace; start: string | null; passwordMin: number };
 
 const errorMessage = (body: unknown, fallback: string) => (body as { error?: { message?: string } } | null)?.error?.message ?? fallback;
 const offline = (err: unknown) => !(err instanceof Error) || !err.message || /fetch|network|abort/i.test(err.message);
@@ -205,15 +205,26 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     }
   }
 
-  async function requestReset(origin: string, identifier: string): Promise<string | null> {
+  async function requestReset(origin: string, email: string): Promise<string | null> {
     try {
-      const out = await getJson(`${origin}/api/password-reset`, { method: "POST", body: JSON.stringify({ identifier }) });
+      const out = await getJson(`${origin}/api/password-reset`, { method: "POST", body: JSON.stringify({ email }) });
       return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? "Too many requests. Wait a while and try again." : "PURSS didn't take the request. Try again.");
     } catch {
       return "Couldn't reach PURSS. Check your connection and try again.";
     }
   }
 
+  /** Open sign-up: PURSS emails a link that finishes the account in the browser. It answers the same for any address. */
+  async function startSignup(start: string, email: string): Promise<string | null> {
+    try {
+      const out = await getJson(start, { method: "POST", body: JSON.stringify({ email }) });
+      return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't take the request. Try again.");
+    } catch {
+      return "Couldn't reach PURSS. Check your connection and try again.";
+    }
+  }
+
+  /** Accept an invitation and connect. */
   async function createAccount(ws: Workspace, input: Omit<ConnectSignupInput, "client" | "deviceName">): Promise<string | null> {
     const origin = ws.origin;
     try {
@@ -257,7 +268,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
           {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
           {phase.kind === "address" || phase.kind === "checking" ? (
             <form onSubmit={start} style={{ display: "grid", gap: 12 }}>
-              <Field label="PURSS address" htmlFor="cn-a" hint="The address you open the PURSS at in a browser, for example purss.example.org.">
+              <Field label="PURSS address" htmlFor="cn-a" hint="e.g. purss.example.org">
                 <TextInput id="cn-a" type="url" inputMode="url" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="url" spellCheck={false} autoCapitalize="none" placeholder="purss.example.org" />
               </Field>
               {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
@@ -280,9 +291,8 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
               onSignup={phase.ws.signup ? () => setPhase({ kind: "signup", ws: phase.ws, ...phase.ws.signup! }) : null}
               server={serverLine(phase.ws.origin)} />
           ) : phase.kind === "signup" ? (
-            <SignupForm open={phase.open} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })}
-              providers={phase.open ? phase.ws.providers : []} onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signup", ws: phase.ws, open: phase.open, passwordMin: phase.passwordMin }); setError("Couldn't open the browser. Try again."); })} />
-
+            <SignupForm start={phase.start} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onStart={(email) => startSignup(phase.start!, email)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })}
+              providers={phase.start !== null ? phase.ws.providers : []} onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signup", ws: phase.ws, start: phase.start, passwordMin: phase.passwordMin }); setError("Couldn't open the browser. Try again."); })} />
           ) : phase.kind === "waiting" ? (
             <div style={{ display: "grid", gap: 12 }}>
               <p className="state" role="status"><span className="spin" aria-hidden="true" />Waiting for you to approve this app in the browser…</p>
@@ -301,70 +311,88 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   );
 }
 
-/** A new account: an invitation code (or an email address where sign-up is open), a name, and the username and password to sign in with later. */
-function SignupForm({ open, passwordMin, onSubmit, onBack, providers, onProvider }: {
-  open: boolean; passwordMin: number; onSubmit: (input: Omit<ConnectSignupInput, "client" | "deviceName">) => Promise<string | null>; onBack: () => void;
+/**
+ * A new account: with an invitation code, the address it was sent to, a name and a password; where sign-up is open (`start`), with an
+ * email address, which PURSS sends a link to that finishes the account in the browser.
+ */
+function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, onProvider }: {
+  start: string | null; passwordMin: number; onSubmit: (input: Omit<ConnectSignupInput, "client" | "deviceName">) => Promise<string | null>; onStart: (email: string) => Promise<string | null>; onBack: () => void;
   providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
 }) {
-  // Where anyone may sign up, an email address is asked; someone with an invitation can still use it (it may carry more room).
-  const [withInvite, setWithInvite] = useState(!open);
+  // Where anyone may sign up, an email address is asked; someone with an invitation can use it instead (it may carry more room).
+  const [withInvite, setWithInvite] = useState(start === null);
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const ready = (withInvite ? inviteFromLink(code).length >= 4 : email.trim()) && username.trim().length >= 3 && [...password].length >= passwordMin;
+  const ready = email.trim() !== "" && (!withInvite || (inviteFromLink(code).length >= 4 && [...password].length >= passwordMin));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!ready || busy) return;
     setBusy(true); setError("");
-    const failed = await onSubmit({ ...(withInvite ? { invitation: inviteFromLink(code) } : { email: email.trim() }), displayName: name.trim() || null, username: username.trim(), password });
-    if (failed) { setError(failed); setBusy(false); }
+    const failed = withInvite
+      ? await onSubmit({ invitation: inviteFromLink(code), email: email.trim(), displayName: name.trim() || null, password })
+      : await onStart(email.trim());
+    if (failed) setError(failed); else if (!withInvite) setSent(email.trim());
+    setBusy(false);
   }
 
+  if (sent !== null) {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        <p className="state" role="status"><Icon name="check" /><span>Check your inbox: we sent a link to finish creating your account to {sent}.</span></p>
+        <p className="fine">Open the link on this device. It finishes in your browser; then come back here and sign in with that email address and the password you chose.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button variant="primary" onClick={onBack}>Back to signing in</Button>
+          <Button onClick={() => setSent(null)}>Use a different email address</Button>
+        </div>
+      </div>
+    );
+  }
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }} aria-label="Create an account">
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       {providers.length ? (
         <>
           {providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />)}
-          <p className="fine" style={{ textAlign: "center" }}>Opens in your browser. Or make an account here with an email address and a password:</p>
+          <p className="fine" style={{ textAlign: "center" }}>Opens in your browser. Or make an account here with an email address:</p>
         </>
       ) : null}
-      {!withInvite ? (
-        <Field label="Email address" htmlFor="su-e" hint="We send a link to confirm it. It's also how you reset a forgotten password.">
-          <TextInput id="su-e" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" maxLength={254} />
-        </Field>
-      ) : (
-        <Field label="Invitation code" htmlFor="su-c" hint="From the person who runs this PURSS. You can paste the invitation link too.">
+      {withInvite ? (
+        <Field label="Invitation code" htmlFor="su-c" hint="Or paste the invitation link">
           <TextInput id="su-c" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" maxLength={300} />
         </Field>
-      )}
-      {open ? <p className="fine"><button type="button" className="link" onClick={() => setWithInvite(!withInvite)}>{withInvite ? "Sign up with an email address instead" : "I have an invitation code"}</button></p> : null}
-      <Field label="Your name (optional)" htmlFor="su-n" hint="Shown to you and to the administrator.">
-        <TextInput id="su-n" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={60} />
+      ) : null}
+      <Field label="Email address" htmlFor="su-e" hint={withInvite ? "The one you were invited with" : "We'll email you a link"}>
+        <TextInput id="su-e" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={withInvite ? "username" : "email"} spellCheck={false} autoCapitalize="none" maxLength={254} />
       </Field>
-      <Field label="Username" htmlFor="su-u" hint="3 to 40 letters, digits, dots, dashes or underscores.">
-        <TextInput id="su-u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={40} />
-      </Field>
-      <Field label="Password" htmlFor="su-p" hint={`At least ${passwordMin} characters. You sign in with it in a browser; this device stays connected.`}>
-        <TextInput id="su-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={256} />
-      </Field>
+      {start !== null ? <p className="fine"><button type="button" className="link" onClick={() => setWithInvite(!withInvite)}>{withInvite ? "Sign up with an email address instead" : "I have an invitation code"}</button></p> : null}
+      {withInvite ? (
+        <>
+          <Field label="Your name (optional)" htmlFor="su-n">
+            <TextInput id="su-n" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={60} />
+          </Field>
+          <Field label="Password" htmlFor="su-p" hint={`${passwordMin}+ characters`}>
+            <TextInput id="su-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={256} />
+          </Field>
+        </>
+      ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? "Creating…" : "Create account"}</Button>
+        <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? "Creating…" : "Create account") : busy ? "Sending…" : "Send me the link"}</Button>
         <Button onClick={onBack} disabled={busy}>Back</Button>
       </div>
-      <p className="fine">You can add fingerprint, face or screen lock later, under Settings → Security.</p>
+      {withInvite ? <p className="fine">You can add fingerprint, face or screen lock later, under Settings → Security.</p> : null}
     </form>
   );
 }
 
-/** Signing in here: a username and password; a passkey or linked account through the browser. */
+/** Signing in here: an email address and password; a passkey or linked account through the browser. */
 function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLabel, providers, onProvider, onSignup, server }: {
-  ws: Workspace; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (identifier: string) => Promise<string | null>;
+  ws: Workspace; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (email: string) => Promise<string | null>;
   onNewPassword: (token: string, password: string) => Promise<string | null>;
   onBrowser: () => void; browserLabel: string; providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
   onSignup: (() => void) | null; server: ReactNode;
@@ -373,12 +401,11 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
   const [link, setLink] = useState("");
   const [newPassword, setNewPasswordText] = useState("");
   const [keep, setKeep] = useState<{ token: string; dueAt: string } | null>(null);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [identifier, setIdentifier] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const ready = mode === "password" ? username.trim() !== "" && password !== "" : identifier.trim() !== "";
+  const ready = mode === "password" ? email.trim() !== "" && password !== "" : email.trim() !== "";
   const go = (m: typeof mode) => { setMode(m); setError(""); };
 
   async function submit(e: FormEvent) {
@@ -386,12 +413,12 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
     if (!ready || busy) return;
     setBusy(true); setError("");
     if (mode === "reset") {
-      const failed = await onReset(identifier.trim());
+      const failed = await onReset(email.trim());
       setBusy(false);
       if (failed) setError(failed); else go("reset-sent");
       return;
     }
-    const out = await onSignIn({ method: "password", username: username.trim(), password });
+    const out = await onSignIn({ method: "password", email: email.trim(), password });
     if (out.keep) { setKeep(out.keep); setBusy(false); return; }
     if (out.error) { setError(out.error); setBusy(false); if (mode === "password") setPassword(""); }
   }
@@ -438,13 +465,13 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
     const token = tokenFromLink(link);
     return (
       <form onSubmit={choosePassword} style={{ display: "grid", gap: 12 }} aria-label="Choose a new password">
-        <p className="state" role="status"><Icon name="check" /><span>If that account has a confirmed email address, a link to set a new password is on its way.</span></p>
+        <p className="state" role="status"><Icon name="check" /><span>If that email address has an account, a link to set a new password is on its way.</span></p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Field label="The link from the email" htmlFor="si-l" hint="Copy the link in the email and paste it here.">
+        <Field label="The link from the email" htmlFor="si-l" hint="Paste it from the email">
           <TextInput id="si-l" value={link} onChange={(e) => setLink(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" inputMode="url" />
         </Field>
         {link && !token ? <p className="fine" role="alert">That isn't the link from the email. Copy the whole link and try again.</p> : null}
-        <Field label="New password" htmlFor="si-np" hint={ws.signup ? `At least ${ws.signup.passwordMin} characters.` : undefined}>
+        <Field label="New password" htmlFor="si-np" hint={ws.signup ? `${ws.signup.passwordMin}+ characters` : undefined}>
           <TextInput id="si-np" type="password" value={newPassword} onChange={(e) => setNewPasswordText(e.target.value)} autoComplete="new-password" maxLength={256} />
         </Field>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -465,27 +492,21 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }} aria-label="Sign in">
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+      <Field label="Email address" htmlFor="si-u" hint={mode === "reset" ? "We'll email a reset link" : undefined}>
+        <TextInput id="si-u" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={300} />
+      </Field>
       {mode === "password" ? (
-        <>
-          <Field label="Username" htmlFor="si-u">
-            <TextInput id="si-u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={80} />
-          </Field>
-          <Field label="Password" htmlFor="si-p">
-            <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={256} />
-          </Field>
-        </>
-      ) : (
-        <Field label="Username or email address" htmlFor="si-i" hint="We email a link to set a new password, if the account has a confirmed address.">
-          <TextInput id="si-i" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={300} />
+        <Field label="Password" htmlFor="si-p">
+          <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={256} />
         </Field>
-      )}
+      ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? "Sending…" : "Signing in…") : mode === "reset" ? "Send the link" : "Sign in"}</Button>
       </div>
       {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with fingerprint, face or screen lock</Button></div> : null}
       {mode !== "reset" ? providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />) : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
-        {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use a username and password</button> : null}
+        {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use an email address and password</button> : null}
         {mode === "password" && ws.info.signin.passwordReset ? <button type="button" className="link" onClick={() => go("reset")}>Forgot your password?</button> : null}
         {mode === "reset" ? <button type="button" className="link" onClick={() => go("reset-sent")}>I already have a link</button> : null}
         <button type="button" className="link" onClick={onBrowser}>{browserLabel}</button>

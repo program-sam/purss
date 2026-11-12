@@ -49,8 +49,8 @@ freshrss (container, internal network only; all fetches through egress)
 ## Data model (first migration)
 
 All product tables carry `account_id` and `workspace_id`; queries go through a scoped
-repository that requires a resolved session principal. Tables: accounts, workspaces,
-sign_in_methods (password hash with the username, passkey, oidc issuer+subject), sessions,
+repository that requires a resolved session principal. Tables: accounts (with the email address each
+signs in with), workspaces, sign_in_methods (password hash, passkey, oidc issuer+subject), sessions,
 role_grants, audit_events, engine_connections, engine_users, sources, feeds,
 subscriptions, items, item_versions (immutable content versions), external_ids,
 collections (mode: sources | query), collection_sources,
@@ -73,7 +73,7 @@ transaction as the mutation, a bounded control headroom, and a physical disk res
 | --- | --- | --- |
 | 1 Engine | Provisioning of a pinned FreshRSS (install + API user), GReader login, subscribe/unsubscribe/rename, paged incremental sync with continuation and checkpoints, replay-safe import, read/star outbox mirroring, purge-tolerant (absence never deletes), capability matrix recorded in tests, replacement-engine reconciliation queue | Recipes via extended OPML (generator exists, not wired to engine) |
 | 2 Design | A3 implemented as the real UI | — |
-| 3 Slice | Protected bootstrap (one-time claim secret), username and password sign-in with optional passkeys, sessions, CSRF, central capability checks, discovery (feeds, alternate links, YouTube channel/handle), follow, collections (sources and query), list/cards/board, workflow, New markers, atomic Keep, FTS search, storage ledger + indicator + breakdown, confirmed permanent delete of unkept items, disk-reserve pause, admin health | — |
+| 3 Slice | Protected bootstrap (one-time claim secret), email address and password sign-in with optional passkeys, sessions, CSRF, central capability checks, discovery (feeds, alternate links, YouTube channel/handle), follow, collections (sources and query), list/cards/board, workflow, New markers, atomic Keep, FTS search, storage ledger + indicator + breakdown, confirmed permanent delete of unkept items, disk-reserve pause, admin health | — |
 | 4 Organize | Table and timeline views, query collections, Home layouts as dashboard sections, manual URL keep, full-text capture job, export/import (JSON + manifest, secret-free), SQLite backup/restore scripts, bulk actions, undo, storage page, in-app notifications with mute/quiet hours and browser notifications while open, anniversary reminders (on by default, hide/snooze/off), private statistics per source and per collection (counts, 26-week rhythm by publication date, states, opened/kept, storage, Finished/Ignored in the last 30 days from an own-change log that is exported and imported) | Web Push delivery to closed browsers |
 | 5 Deploy | Docker Compose packaging (engine isolated behind egress, admin helper instead of exec, reverse-proxy mode), dev runner, egress proxy, admin area (health, sources, jobs retry/cancel, usage reconciliation, audit log, step-up), OPML subscription import/export through validated product fields, connector catalog (native feed, YouTube resolver), private feed gateway with token auth exercised by a controlled test adapter | Any real proprietary service adapter (none approved); a guided single-command installer |
 | 6 Hosted | Accounts on every installation: admins invite people (e.g. a household), suspend, and grant or remove the admin role; each account has its own PURSS and FreshRSS user. Hosted mode adds storage allowances and optional open signup (`PURSS_SIGNUP=open`, rate-limited and capped per day; off by default; needs working outgoing email, [plan/27](27-outbound-email.md)) | Payments, abuse/verification tooling beyond rate limits, launch |

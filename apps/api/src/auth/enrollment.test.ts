@@ -30,8 +30,6 @@ function insertSession(app: ReturnType<typeof makeTestApp>["app"], accountId: st
   return { id, token };
 }
 
-/** The username and password every sign-up is made with. */
-const NEW_ACCOUNT = { username: "newcomer", password: "a long enough password" };
 
 /** Hosted open sign-up needs working outgoing email (plan/27): a mail server that answers and sends nowhere. */
 async function hostedSignup(env: Record<string, string>) {
@@ -47,7 +45,7 @@ test("a password change whose session ended while hashing cannot commit", async 
   const owner = makeOwner(app, { admin: false });
   const before = app.db.get<{ secret_hash: string }>("SELECT secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", owner.accountId)!.secret_hash;
   const session = insertSession(app, owner.accountId);
-  const pending = setPassword(app, owner.accountId, session.id, "revokeduser", "a password hashing secret");
+  const pending = setPassword(app, owner.accountId, session.id, "a password hashing secret", { expectedHash: before, requireRecent: false });
   // setPassword has started async scrypt and has not reached its write transaction.
   app.db.run("DELETE FROM sessions WHERE id = ?", session.id);
   await assert.rejects(pending, (e: unknown) => e instanceof HttpError && e.code === "signed_out");
@@ -159,7 +157,7 @@ test("Retry-After is the latest release among the attempt and installation signu
 
   let response;
   for (let i = 0; i < 31; i++) {
-    response = await call(app, server.base, "POST", "/api/signup", null, { email: "new@example.org", ...NEW_ACCOUNT }, { headers: { "x-forwarded-for": address } });
+    response = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, { headers: { "x-forwarded-for": address } });
   }
   assert.equal(response!.status, 429);
   assert.equal(response!.json.error.code, "signup_rate_limited");
@@ -175,7 +173,7 @@ test("the 30th allowed signup attempt reports the latest release when account ca
   const address = `203.0.113.${randomToken(16)}`;
   const firstAttemptAt = Date.now();
   for (let i = 0; i < 29; i++) {
-    const invalid = await call(app, server.base, "POST", "/api/signup", null, { displayName: "x".repeat(61) }, { headers: { "x-forwarded-for": address } });
+    const invalid = await call(app, server.base, "POST", "/api/signup/start", null, { email: "not an address" }, { headers: { "x-forwarded-for": address } });
     assert.equal(invalid.status, 400, `attempt ${i + 1} was charged before input validation`);
   }
 
@@ -187,7 +185,7 @@ test("the 30th allowed signup attempt reports the latest release when account ca
     app.db.run("INSERT INTO signup_creations (account_id, address_hash, created_at) VALUES (?, ?, ?)", accountId, addressHash, capacityTime);
   }
 
-  const response = await call(app, server.base, "POST", "/api/signup", null, { email: "new@example.org", ...NEW_ACCOUNT }, { headers: { "x-forwarded-for": address } });
+  const response = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, { headers: { "x-forwarded-for": address } });
   assert.equal(response.status, 429);
   assert.equal(response.json.error.code, "signup_full");
   const retryAfter = Number(response.headers.get("retry-after"));
@@ -203,13 +201,13 @@ test("a zero installation signup cap fails closed without a misleading retry tim
   t.after(async () => { await server.close(); await cleanup(); });
   const address = `203.0.113.${randomToken(16)}`;
   const options = { headers: { "x-forwarded-for": address } };
-  const first = await call(app, server.base, "POST", "/api/signup", null, { email: "new@example.org", ...NEW_ACCOUNT }, options);
+  const first = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, options);
   assert.equal(first.status, 429);
   assert.equal(first.json.error.code, "signup_full");
   assert.equal(first.headers.get("retry-after"), null, "an operator pause has no automatic release time");
 
   let last = first;
-  for (let i = 1; i < 31; i++) last = await call(app, server.base, "POST", "/api/signup", null, { email: "new@example.org", ...NEW_ACCOUNT }, options);
+  for (let i = 1; i < 31; i++) last = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, options);
   assert.equal(last.status, 429);
   assert.equal(last.json.error.code, "signup_rate_limited");
   assert.equal(last.headers.get("retry-after"), null, "the attempt window cannot override the installation-wide pause");
@@ -227,7 +225,7 @@ test("a blocked daily signup cap fails closed when its release time is unavailab
   };
   const server = await startTestServer(app, [publicRouter()]);
   t.after(async () => { await server.close(); db.get = originalGet; await cleanup(); });
-  const response = await call(app, server.base, "POST", "/api/signup", null, { email: "new@example.org", ...NEW_ACCOUNT }, { headers: { "x-forwarded-for": `203.0.113.${randomToken(16)}` } });
+  const response = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, { headers: { "x-forwarded-for": `203.0.113.${randomToken(16)}` } });
   assert.equal(response.status, 429);
   assert.equal(response.json.error.code, "signup_full");
   assert.equal(response.headers.get("retry-after"), null, "an unknown release time must not be guessed");

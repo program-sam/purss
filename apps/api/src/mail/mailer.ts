@@ -18,7 +18,7 @@ import { ensureSecret, readSecret, seal, unseal } from "../secrets.ts";
  * The key is made at startup (prepareMail), so queueing in a request never writes a file.
  */
 
-export type MailKind = "invitation" | "verify" | "reset" | "password_changed" | "email_changed" | "reminder" | "digest" | "test";
+export type MailKind = "invitation" | "signup" | "account_exists" | "verify" | "reset" | "password_changed" | "email_changed" | "reminder" | "digest" | "test";
 export type Message = { to: string; subject: string; text: string; html: string };
 
 /** The part that talks to a mail server. Tests swap in their own. */
@@ -271,8 +271,9 @@ export async function settleMail(app: App, timeoutMs?: number): Promise<void> {
   }
 }
 
-/** Old log entries and spent links go after 90 days and a day respectively. */
+/** Old log entries and spent links (email and sign-up links) go after 90 days and a day respectively. */
 export function purgeMail(app: App): void {
   app.db.run("DELETE FROM mail_log WHERE at < ?", addSeconds(-90 * 86400));
   app.db.run("DELETE FROM email_tokens WHERE expires_at < ? OR (used_at IS NOT NULL AND used_at < ?)", addSeconds(-86400), addSeconds(-86400));
+  app.db.run("DELETE FROM signup_requests WHERE expires_at < ? OR (used_at IS NOT NULL AND used_at < ?)", addSeconds(-86400), addSeconds(-86400));
 }

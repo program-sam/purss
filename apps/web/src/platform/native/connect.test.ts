@@ -63,12 +63,14 @@ test("a waiting connection lasts ten minutes; the saved connection must be a dev
   assert.equal(parseConnection(null), null);
 });
 
-test("the app offers its own sign-up only where PURSS says it can, with open sign-up only when it's on", () => {
+test("the app offers its own sign-up only where PURSS says it can, and an emailed link only where sign-up is open", () => {
   const checked = (v: unknown) => { const c = checkInfo(v); assert.ok(c.ok); return c.info; };
   assert.equal(signupOffer(checked(info)), null, "an older PURSS: sign up in the browser");
-  const signup = { endpoint: "https://ws.example/api/connect/signup", invitation: true, open: false, passwordMin: 10 };
-  assert.deepEqual(signupOffer(checked({ ...info, signup })), { open: false, passwordMin: 10 });
-  assert.deepEqual(signupOffer(checked({ ...info, signup: { ...signup, open: true } })), { open: true, passwordMin: 10 });
+  const older = { endpoint: "https://ws.example/api/connect/signup", invitation: true, open: true, passwordMin: 10 };
+  assert.equal(signupOffer(checked({ ...info, signup: older })), null, "an older PURSS with another kind of sign-up: sign up in the browser");
+  const signup = { endpoint: "https://ws.example/api/connect/signup", start: null, passwordMin: 10 };
+  assert.deepEqual(signupOffer(checked({ ...info, signup })), { start: null, passwordMin: 10 });
+  assert.deepEqual(signupOffer(checked({ ...info, signup: { ...signup, start: "https://ws.example/api/signup/start" } })), { start: "https://ws.example/api/signup/start", passwordMin: 10 });
 });
 
 test("the app signs in itself only where PURSS offers a password", () => {

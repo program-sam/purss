@@ -4,7 +4,7 @@ const DELETING = "This account is being deleted. It can't be signed in to or kep
 export function oidcError(code: string, label?: string): string {
   switch (code) {
     case "account_deleting": return DELETING;
-    case "email_in_use": return `An account with this email address already exists. Sign in with your username and password, then connect ${label ?? "it"} in Settings → Security.`;
+    case "email_in_use": return `An account with this email address already exists. Sign in with your email address and password, then connect ${label ?? "it"} in Settings → Security.`;
     case "email_unverified": return `${label ?? "The provider"} didn't give PURSS a verified email address, so an account can't be made from it.`;
     case "not_linked": return `That ${label ?? "external"} account isn't connected to an account here. Sign in another way and connect it in Settings → Security first.`;
     case "signup_full": return "New accounts are full for now. Try again later.";

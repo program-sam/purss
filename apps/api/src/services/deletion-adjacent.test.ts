@@ -134,7 +134,7 @@ test("during the grace period a password reset by email works and signing in off
 
   link("reset-in-grace");
   await resetPassword(b.app, "reset-in-grace", "a brand new password");
-  const signin = await b.api(null, "POST", "/api/auth/password", { username: m.username, password: "a brand new password" });
+  const signin = await b.api(null, "POST", "/api/auth/password", { email: "gus@example.org", password: "a brand new password" });
   assert.equal(signin.status, 409);
   assert.equal(signin.json.error.code, "deletion_pending", "signing in offers to keep the account");
   assert.ok(setCookie(signin, "purss_deletion"));
@@ -143,7 +143,7 @@ test("during the grace period a password reset by email works and signing in off
   assert.ok(claimDeletion(b.app, m.accountId));
   link("reset-while-purging");
   await assert.rejects(resetPassword(b.app, "reset-while-purging", "another new password"), (e: unknown) => e instanceof HttpError && e.code === "link_spent");
-  assert.equal(await checkPassword(b.app, m.username, "another new password"), null, "the password isn't changed");
-  const refused = await b.api(null, "POST", "/api/auth/password", { username: m.username, password: "a brand new password" });
+  assert.equal(await checkPassword(b.app, "gus@example.org", "another new password"), null, "the password isn't changed");
+  const refused = await b.api(null, "POST", "/api/auth/password", { email: "gus@example.org", password: "a brand new password" });
   assert.equal(refused.json.error.code, "account_deleting", "and signing in is refused");
 });

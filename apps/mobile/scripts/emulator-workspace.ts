@@ -7,7 +7,7 @@
 //   npm run build && node apps/mobile/scripts/emulator-workspace.ts [port]
 //   adb reverse tcp:<port> tcp:<port>     # the emulator's localhost is then this computer's
 //
-// Connect the app to http://localhost:<port> and sign in with the username and password it prints. Ctrl+C stops it.
+// Connect the app to http://localhost:<port> and sign in with the email address and password it prints. Ctrl+C stops it.
 import { spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -23,7 +23,7 @@ import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../api
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PORT = Number(process.argv[2] ?? 19990);
-const USERNAME = "phone-tester";
+const EMAIL = "phone-tester@example.test";
 const INTERNAL = PORT + 8;
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-emulator-"));
 const dataDir = path.join(work, "data");
@@ -41,7 +41,7 @@ function prepare(): void {
   const app = createApp(loadConfig(env as Record<string, string>));
   try {
     const code = ensureClaimCode(app)!;
-    const { accountId } = claim(app, code, "Phone tester", testPassword(USERNAME));
+    const { accountId } = claim(app, code, EMAIL, "Phone tester", testPassword());
     const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     if (Date.now() > until) throw new Error("The API didn't start");
     await new Promise((r) => setTimeout(r, 200));
   }
-  console.log(`\nWorkspace ready at ${origin}\nSign in with the username ${USERNAME} and the password ${TEST_PASSWORD}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
+  console.log(`\nWorkspace ready at ${origin}\nSign in with the email address ${EMAIL} and the password ${TEST_PASSWORD}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => void stop().then(() => process.exit(0)));
 }
 

@@ -197,28 +197,22 @@ test("an email the provider doesn't vouch for makes no account", async (t) => {
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods")!.n, 0);
 });
 
-test("an email another account has confirmed is neither linked nor duplicated; one only typed in doesn't count", async (t) => {
+test("an address another account has, confirmed or not, is neither linked nor duplicated", async (t) => {
   const { app, authorize, setClaims } = await hosted(t);
   const typed = makeOwner(app, { admin: false });
   app.db.run("UPDATE accounts SET email = 'Ana@Example.org', email_verified_at = NULL WHERE id = ?", typed.accountId);
   const confirmed = makeOwner(app, { admin: false });
   app.db.run("UPDATE accounts SET email = 'bo@example.org', email_verified_at = ? WHERE id = ?", nowIso(), confirmed.accountId);
   const before = accountCount(app);
-  for (const [sub, email] of [["u1", "bo@example.org"], ["u2", "BO@EXAMPLE.ORG"]] as const) {
+  for (const [sub, email] of [["u1", "bo@example.org"], ["u2", "BO@EXAMPLE.ORG"], ["u3", "ana@example.org"]] as const) {
     setClaims({ sub, email, email_verified: true });
     await assert.rejects(finishOidc(app, "mock", await authorize(await startOidc(app, "mock", "signin", null, `b-${sub}`)), caller(`b-${sub}`)),
-      (e: unknown) => e instanceof HttpError && e.code === "email_in_use" && /username and password/.test(e.message) && /connect Mock ID in Settings → Security/.test(e.message));
+      (e: unknown) => e instanceof HttpError && e.code === "email_in_use" && /email address and password/.test(e.message) && /connect Mock ID in Settings → Security/.test(e.message));
   }
   assert.equal(accountCount(app), before, "no second account");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc'")!.n, 0, "and nothing linked");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM signup_creations")!.n, 0, "no capacity used");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'oidc' AND detail = 'email in use'")!.n, 2, "each refusal is recorded");
-
-  // The address on the first account was never confirmed: the provider, which vouched for it, may make its own account.
-  setClaims({ sub: "u3", email: "ana@example.org", email_verified: true });
-  const made = await finishOidc(app, "mock", await authorize(await startOidc(app, "mock", "signin", null, "b-u3")), caller("b-u3"));
-  assert.equal(made.created, true);
-  assert.equal(accountCount(app), before + 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'oidc' AND detail = 'email in use'")!.n, 3, "each refusal is recorded");
   assert.equal(app.db.get<{ email_verified_at: string | null }>("SELECT email_verified_at FROM accounts WHERE id = ?", typed.accountId)!.email_verified_at, null, "and the unconfirmed one is left as it was");
 });
 
@@ -554,7 +548,7 @@ test("over HTTP: step-up confirms the sensitive actions of a provider-only accou
   assert.ok(made.session);
   assert.equal((await b.api(session, "GET", "/api/account/security")).json.recentAuth, false);
   assert.equal((await b.api(session, "POST", "/api/account/deletion", { confirm: "Only Provider" })).json.error.code, "step_up");
-  assert.equal((await b.api(session, "PUT", "/api/account/password", { username: "only-provider", password: "a long enough password" })).json.error.code, "step_up");
+  assert.equal((await b.api(session, "PUT", "/api/account/password", { password: "a long enough password" })).json.error.code, "step_up");
   // The way out of that for an account with no password and no passkey: the provider, in this browser, in this session.
   const bad = await browse(b, { authorize }, "?stepup=1&next=%2F%3Fdialog%3Dsecurity", { session, cookieAs: { cookie: signIn(b.app, accountId).cookie, csrf: "" } });
   assert.equal(bad.answer!.headers.get("location"), "/app/signin?error=signed_out&provider=mock", "another session can't finish it");
@@ -564,7 +558,7 @@ test("over HTTP: step-up confirms the sensitive actions of a provider-only accou
   assert.equal((await b.api(session, "GET", "/api/account/security")).json.recentAuth, true);
 
   // Add a password without having one, then the rest.
-  const added = await b.api(session, "PUT", "/api/account/password", { username: "only-provider", password: "a long enough password" });
+  const added = await b.api(session, "PUT", "/api/account/password", { password: "a long enough password" });
   assert.equal(added.status, 200, added.text);
   const methods = (await b.api(session, "GET", "/api/account/security")).json.methods as { id: string; kind: string }[];
   assert.deepEqual(methods.map((m) => m.kind).sort(), ["oidc", "password"]);
@@ -603,7 +597,7 @@ test("over HTTP: the last way in can't be unlinked; with a password added the pr
   assert.equal(refused.status, 409);
   assert.equal(refused.json.error.code, "last_method");
   assert.equal((await methods()).length, 1);
-  assert.equal((await b.api(session, "PUT", "/api/account/password", { username: "last-way", password: "a long enough password" })).status, 200);
+  assert.equal((await b.api(session, "PUT", "/api/account/password", { password: "a long enough password" })).status, 200);
   assert.equal((await b.api(session, "DELETE", `/api/account/methods/${oidc.id}`)).status, 200);
   assert.deepEqual((await methods()).map((m) => m.kind), ["password"]);
 });
@@ -817,7 +811,7 @@ test("the session says which linked providers may confirm it's you", async (t) =
   const made = await browse(b, { authorize }, "");
   const linked = async () => (await b.api(made.session, "GET", "/api/session")).json.account.linkedProviders;
   assert.deepEqual(await linked(), [{ id: "mock", label: "Mock ID", canConfirm: true }]);
-  assert.equal((await b.api(made.session, "PUT", "/api/account/password", { username: "flagged", password: "a long enough password" })).status, 200);
+  assert.equal((await b.api(made.session, "PUT", "/api/account/password", { password: "a long enough password" })).status, 200);
   assert.deepEqual(await linked(), [{ id: "mock", label: "Mock ID", canConfirm: false }], "a password confirms it instead");
   const refused = await fetch(`${b.base}/api/auth/oidc/mock/start?stepup=1`, { redirect: "manual", headers: { cookie: made.session!.cookie } });
   assert.equal(refused.status, 409);
@@ -861,7 +855,7 @@ test("a provider can be removed only while a password remains; a passkey isn't a
   assert.equal((await remove("sim_pk")).status, 200);
 
   // With a password, any of them can go.
-  assert.equal((await b.api(session, "PUT", "/api/account/password", { username: "removal-way", password: "a long enough password" })).status, 200);
+  assert.equal((await b.api(session, "PUT", "/api/account/password", { password: "a long enough password" })).status, 200);
   assert.equal((await remove(oidc.id)).status, 200);
   assert.deepEqual((await methods()).map((m) => m.kind).sort(), ["oidc", "password"], "the provider that was gone is still listed; the password stays");
 });

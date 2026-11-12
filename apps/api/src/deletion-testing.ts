@@ -28,7 +28,7 @@ import { applySyncBatch } from "./services/sync.ts";
  * sign in with a password, and requests whose body is held back while something else happens.
  */
 
-export type Member = { accountId: string; workspaceId: string; engineUserId: string; username: string; password: string };
+export type Member = { accountId: string; workspaceId: string; engineUserId: string; email: string; password: string };
 
 export async function bootDeletion(env: Record<string, string> = {}) {
   const { app, cleanup } = makeTestApp(env);
@@ -60,13 +60,13 @@ export type DeletionBoot = Awaited<ReturnType<typeof bootDeletion>>;
 let n = 0;
 /** An account with a display name (or none), a ready engine user and a password to sign in with. */
 export async function member(app: App, displayName: string | null, opts: { admin?: boolean } = {}): Promise<Member> {
-  const username = `member${++n}${Date.now().toString(36)}`;
+  const email = `member${++n}${Date.now().toString(36)}@example.test`;
   const password = "correct horse battery";
-  const prepared = await preparePassword(username, password);
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null, password: prepared }));
+  const prepared = await preparePassword(password, email);
+  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { email, emailConfirmed: false, displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null, password: prepared }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-  return { accountId, workspaceId, engineUserId: eu.id, username, password };
+  return { accountId, workspaceId, engineUserId: eu.id, email, password };
 }
 
 /** The `name=value` pair of a cookie the response set, or null. */
@@ -75,7 +75,7 @@ export function setCookie(r: Reply | Response, name: string): { pair: string; he
   return header ? { pair: header.split(";")[0]!, header } : null;
 }
 
-export const signInWithPassword = (b: DeletionBoot, m: Member) => b.api(null, "POST", "/api/auth/password", { username: m.username, password: m.password });
+export const signInWithPassword = (b: DeletionBoot, m: Member) => b.api(null, "POST", "/api/auth/password", { email: m.email, password: m.password });
 
 /** Make a deletion due now (as if the grace period had passed). */
 export function makeDue(app: App, accountId: string): void {

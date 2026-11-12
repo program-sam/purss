@@ -2,7 +2,7 @@ import type { Message } from "./mailer.ts";
 
 /*
  * The messages, in the product's plain language: plain text plus a simple HTML version with the
- * same words. Nothing a person typed goes into a message except the recipient's own username,
+ * same words. Nothing a person typed goes into a message except the recipient's own address,
  * for a reminder the person asked for, what they wrote on it, and in a digest, their collections' names and the titles of new items. Every link stands alone on
  * its own line, so no full stop or word can end up glued to its address.
  */
@@ -73,6 +73,24 @@ export function invitationMail(to: string, opts: { link: string; days: number; o
   ]);
 }
 
+export function signupMail(to: string, opts: { link: string; hours: number; origin: string }): Message {
+  return compose(to, `Finish creating your ${NAME} account`, [
+    `Someone asked to create a ${NAME} account at ${host(opts.origin)} with this email address. To finish and choose your password, open this link:`,
+    { href: opts.link, label: "Create your account" },
+    `The link works once, for ${opts.hours} hours. If it wasn't you, ignore this email: no account is made.`,
+  ]);
+}
+
+export function accountExistsMail(to: string, opts: { signIn: string; reset: string; origin: string }): Message {
+  return compose(to, `You already have a ${NAME} account`, [
+    `Someone asked to create a ${NAME} account at ${host(opts.origin)} with this email address, but it already has one. Sign in with this address and your password:`,
+    { href: opts.signIn, label: "Sign in" },
+    "Forgot your password? Choose a new one here:",
+    { href: opts.reset, label: "Reset your password" },
+    "If it wasn't you, ignore this email: nothing has changed.",
+  ]);
+}
+
 export function verifyMail(to: string, opts: { link: string; hours: number }): Message {
   return compose(to, "Confirm your email address", [
     `Please confirm that this is the email address for your ${NAME} account. Open this link:`,
@@ -82,9 +100,9 @@ export function verifyMail(to: string, opts: { link: string; hours: number }): M
   ]);
 }
 
-export function resetMail(to: string, opts: { link: string; username: string; minutes: number }): Message {
+export function resetMail(to: string, opts: { link: string; minutes: number }): Message {
   return compose(to, "Reset your password", [
-    `Someone asked to reset the password for the username ${opts.username}. To choose a new password, open this link:`,
+    `Someone asked to reset the password for the ${NAME} account with this email address. To choose a new password, open this link:`,
     { href: opts.link, label: "Choose a new password" },
     `The link works once, for ${opts.minutes} minutes. Choosing a new password signs the account out everywhere.`,
     "If it wasn't you, ignore this email: your password stays as it is.",

@@ -149,7 +149,7 @@ test("jobs resume intact when the account is kept, including one leased on its l
   assert.deepEqual({ ...b.app.db.get("SELECT status, attempts FROM jobs WHERE id = ?", last)! }, { status: "queued", attempts: 0 });
 
   // Kept before the old lease would even have expired: the job runs its last attempt and completes.
-  const signin = await b.api(null, "POST", "/api/auth/password", { username: m.username, password: m.password });
+  const signin = await b.api(null, "POST", "/api/auth/password", { email: m.email, password: m.password });
   assert.equal(signin.status, 409);
   const cookie = setCookie(signin, "purss_deletion")!.pair;
   assert.equal((await b.api(null, "POST", "/api/auth/deletion/cancel", {}, { cookie })).status, 200);

@@ -39,7 +39,7 @@ export type Gate =
  * narrow credential (purss_push_…, checked by the route; plan/37).
  */
 const OPEN = new Set(["GET /api/connect/info", "GET /api/app/bundle", "POST /api/connect/token", "POST /api/connect/signin", "POST /api/connect/passkey/options", "POST /api/connect/signup", "POST /api/connect/keep-account",
-  "POST /api/password-reset", "POST /api/password-reset/confirm", "POST /api/email/verify", "POST /api/push/pending"]);
+  "POST /api/signup/start", "POST /api/password-reset", "POST /api/password-reset/confirm", "POST /api/email/verify", "POST /api/push/pending"]);
 /** The interface's zip (plan/39): the desktop app's page fetches it itself (plan/42), the phones' updater natively. */
 const BUNDLE_FILE = /^\/api\/app\/bundle\/[\w.-]+\.zip$/;
 const isOpen = (method: string, path: string): boolean => OPEN.has(`${method} ${path}`) || (method === "GET" && BUNDLE_FILE.test(path));

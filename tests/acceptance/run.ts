@@ -1,6 +1,6 @@
 // Acceptance journey against the real stack: a separate FreshRSS container, egress proxy,
 // API and worker on their own ports and a throwaway data directory, following real public
-// feeds (network required). Journey: set up with a username and password -> passkey -> paste & follow -> items arrive ->
+// feeds (network required). Journey: set up with an email address and password -> passkey -> paste & follow -> items arrive ->
 // browse views -> To read -> keep with text capture -> search -> restart -> sign in again
 // with the passkey -> find the kept item -> the sidebar counts the sources -> an invited second account
 // asks to be deleted and keeps its account by signing in again with its password. Run: npm run test:e2e
@@ -160,11 +160,11 @@ async function main(): Promise<void> {
     const cdp = await context.newCDPSession(page);
     const authenticatorId = await addPasskeyAuthenticator(cdp);
 
-    // Set up with the one-time code, a username and a password, then add a passkey.
+    // Set up with the one-time code, an email address and a password, then add a passkey.
     await page.goto(`${origin}/app/`);
     await page.waitForURL(/\/setup/);
     await page.getByLabel("Setup code").fill(readFileSync(path.join(dataDir, "secrets/setup-code"), "utf8").trim());
-    await page.locator("#pw-u").fill("first-reader");
+    await page.getByLabel("Email address").fill("first.reader@example.test");
     await page.locator("#pw-p").fill(PASSWORD);
     await page.locator("#pw-a").fill(PASSWORD);
     await page.getByRole("button", { name: "Continue" }).click();
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
       await firstVisit.waitFor({ state: "hidden" });
     }
     await page.getByRole("button", { name: "Add source" }).first().waitFor();
-    step("claimed with the setup code, a username and a password, and registered a passkey");
+    step("claimed with the setup code, an email address and a password, and registered a passkey");
 
     // Paste, preview, follow; the engine collects through the egress proxy and items arrive.
     for (const f of FEEDS) await follow(page, f.url, f.collection);
@@ -330,16 +330,17 @@ async function main(): Promise<void> {
     step("the sidebar shows the followed sources, without limits on a self-hosted PURSS");
 
     // A second, invited account asks to be deleted, is signed out, signs in again and keeps its account.
-    const invite = spawnSync(process.execPath, ["apps/api/src/cli.ts", "create-invite", "--note", "acceptance"], { cwd: repo, env, encoding: "utf8" });
+    const invite = spawnSync(process.execPath, ["apps/api/src/cli.ts", "create-invite", "second.reader@example.test", "--note", "acceptance"], { cwd: repo, env, encoding: "utf8" });
     assert.equal(invite.status, 0, invite.stderr);
     const inviteCode = /: (\S+)$/.exec(invite.stdout.trim())![1]!;
     const second = await browser.newContext({ viewport: { width: 1280, height: 860 } });
     const p2 = await second.newPage();
     currentPage = p2;
     p2.on("pageerror", (e) => errors.push(e.message));
-    await p2.goto(`${origin}/app/invite?code=${encodeURIComponent(inviteCode)}`);
+    await p2.goto(`${origin}/app/invite?code=${encodeURIComponent(inviteCode)}&email=${encodeURIComponent("second.reader@example.test")}`);
+    // The invitation link names the address it is for.
+    assert.equal(await p2.getByLabel("Email address").inputValue(), "second.reader@example.test");
     await p2.locator("#auth-name").fill("Second Reader");
-    await p2.locator("#pw-u").fill("second-reader");
     await p2.locator("#pw-p").fill(PASSWORD);
     await p2.locator("#pw-a").fill(PASSWORD);
     await p2.getByRole("button", { name: "Continue" }).click();
@@ -358,7 +359,7 @@ async function main(): Promise<void> {
     await p2.getByText(/Your account will be deleted on/).waitFor();
     step("a second account asked to be deleted and was signed out");
 
-    await p2.getByRole("textbox", { name: "Username" }).fill("second-reader");
+    await p2.getByRole("textbox", { name: "Email address" }).fill("SECOND.reader@example.test");
     await p2.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await p2.getByRole("button", { name: "Sign in", exact: true }).click();
     await p2.getByRole("button", { name: "Keep my account" }).click();
