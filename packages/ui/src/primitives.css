@@ -172,7 +172,9 @@ kbd{font:700 0.6875rem/1 var(--font);padding:3px 6px;border-radius:6px;border:1p
 .dlg-b{padding:18px 20px 24px;overflow:auto;display:grid;gap:16px}
 .dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface-2);box-shadow:0 -8px 14px -10px hsl(var(--h) 40% 20% / .18);position:relative}
 .field{display:grid;gap:6px}
-.field>label,.field>.lbl,legend.lbl{font-weight:800;font-size:0.8125rem;color:var(--ink)}
+.field>label,.field-h>label,.field>.lbl,legend.lbl{font-weight:800;font-size:0.8125rem;color:var(--ink)}
+.field-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;column-gap:12px;row-gap:2px}
+.field-h>.fine{margin:0}
 .in,.sel-in{width:100%;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-weight:600;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
 .in::placeholder{color:var(--ink-3);opacity:1;font-weight:500}
 .in:focus-visible,.sel-in:focus-visible{outline-offset:0;border-color:var(--focus)}

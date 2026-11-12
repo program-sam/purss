@@ -224,7 +224,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
         </SelectInput>
         {basketChoice === NEW ? <input className="in" placeholder="Name your basket" aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus={ws.data.baskets.length > 0} /> : null}
       </Field>
-      <Field label="Title (optional)" htmlFor="kl-t" hint="Leave it empty to use the page's own title. You can rename the link later.">
+      <Field label="Title (optional)" htmlFor="kl-t" hint="Empty uses the page's title">
         <TextInput id="kl-t" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} maxLength={300} autoComplete="off" placeholder={keeping?.title ?? ""} />
       </Field>
       {keeping?.kind === "video" ? null : (
