@@ -255,7 +255,15 @@ and the previous button skips back 15.
 - **Where it plays from:** the publisher's site (or, in the phone apps, the download on your phone when
   you have one). The player says which. PURSS never stores audio or video files: it only plays the
   publisher's own file, so if the publisher removes it, it is gone. Streaming from the publisher works like
-  loading their images: they see your address. YouTube videos aren't files; they still open on YouTube.
+  loading their images: they see your address.
+- **Videos on YouTube, Vimeo, Dailymotion, Odysee and Twitch** aren't files: pressing the picture in
+  the panel plays the video right there, in that site's own player. Nothing loads from the site until you
+  press play; then it counts the view and shows its ads as on its own site. The video stops when you close
+  the panel, and your place in it isn't kept. Some videos can't be played outside their site (the player
+  says so); *Open on YouTube* (or the other site) beside it always opens the video's own page. Twitch plays
+  here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
+  in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
+  videos open on the site. Other sites, PeerTube included, open in a new tab.
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
   it is back; whichever position was reached last wins. Near the end counts as finished, and it starts from the beginning next time.

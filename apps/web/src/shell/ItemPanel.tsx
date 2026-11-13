@@ -7,6 +7,8 @@ import { messageOf, post } from "../api/client.ts";
 import { itemDetailQuery, keys } from "../api/queries.ts";
 import { LoadingBlocks } from "../components/Loading.tsx";
 import { Art, NewTab, Progress, useFace, videoLink } from "../components/item-bits.tsx";
+import { VideoEmbed } from "../components/VideoEmbed.tsx";
+import { embedFor } from "../lib/embeds.ts";
 import { RenameTitle } from "./RenameTitle.tsx";
 import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { statusButton } from "../lib/status-label.ts";
@@ -94,6 +96,8 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const video = item.kind === "video";
   const media = isTimeBased(item.kind);
   const play = videoLink(item);
+  // A video page plays here in its platform's own player; a publisher's file plays in PURSS's player instead (MediaSection).
+  const embed = item.media ? null : embedFor(item.url);
   const href = safeHref(item.url);
   const pending = usePending(item.id);
   const seen = useSeenNotice(item.id);
@@ -182,7 +186,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
         <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
       </div>
       <div className="panel-body" id="panel-body" ref={bodyRef} tabIndex={-1}>
-        {video ? <div>{play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
+        {video || embed ? <div>{embed ? <VideoEmbed key={item.id} item={item} face={face} embed={embed} /> : play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
         <div style={{ display: "grid", gap: 6 }}>
           {renaming ? <RenameTitle itemId={item.id} title={item.title} onDone={() => setRenaming(false)} /> : <h2 className="p-title" ref={titleRef} tabIndex={-1} dir="auto">{item.title}</h2>}
           {item.author ? <p className="p-by" dir="auto">{displayAuthors(item.author)}</p> : null}
@@ -204,7 +208,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
             <Icon name="bookmark" />{kept ? <><span className="kin">Kept in</span><span className="k" dir="auto">{keptName}</span></> : "Keep"}<Icon name="chev" size="sm" />
           </button>
-          {href ? <a className={`mbtn${detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer">{video && play ? play.label : "Open original"}<NewTab /><Icon name="ext" size="sm" /></a> : null}
+          {href ? <a className={`mbtn${detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer">{embed ? `Open on ${embed.platform}` : video && play ? play.label : "Open original"}<NewTab /><Icon name="ext" size="sm" /></a> : null}
           {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">Open the audio<NewTab /><Icon name="ext" size="sm" /></a> : null}
         </div>
         {kept ? <ItemReminder itemId={item.id} /> : null}

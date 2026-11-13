@@ -1,3 +1,5 @@
+import { EMBED_ORIGINS } from "../lib/embeds.ts";
+
 /**
  * Content-Security-Policy for the bundled page (plan/31). A page enforces every policy it carries,
  * so in a browser the server's stricter header (apps/api/src/server.ts) still decides: this policy
@@ -5,7 +7,8 @@
  * page as built allows any http(s) PURSS (`PAGE_POLICY`, put in index.html by the build); once
  * the app is connected, `workspacePolicy` narrows requests and images to that PURSS and https
  * publishers and media to https publishers (PURSS serves none), and the app's transport
- * refuses any other origin. The desktop app (plan/42) calls its own code through Tauri's IPC (`ipc:`,
+ * refuses any other origin. Frames come only from the video players the reader embeds (lib/embeds.ts).
+ * The desktop app (plan/42) calls its own code through Tauri's IPC (`ipc:`,
  * `http://ipc.localhost` on Windows) and plays downloads from its server on 127.0.0.1.
  */
 const TAURI_IPC = "ipc: http://ipc.localhost";
@@ -18,7 +21,7 @@ export const PAGE_POLICY = [
   "font-src 'self'",
   "script-src 'self'",
   `connect-src 'self' https: http: ${TAURI_IPC}`,
-  "frame-src 'none'",
+  `frame-src ${EMBED_ORIGINS.join(" ")}`,
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",

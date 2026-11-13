@@ -149,7 +149,7 @@ export function Art({ item, face, playable = false }: { item: ItemDTO; face: Fac
   );
 }
 
-/** Where a video plays: its own page (YouTube, Vimeo, ...), in a new tab. Nothing is embedded or started here. */
+/** A video's own page (YouTube, Vimeo, ...), opened in a new tab; the reader may play it in the platform's player instead (VideoEmbed). */
 export function videoLink(item: ItemDTO): { href: string; label: string } | null {
   if (item.kind !== "video") return null;
   const href = safeHref(item.url);

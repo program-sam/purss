@@ -23,7 +23,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
 };
 // Feed images and publishers' audio and video files may load from anywhere over https; everything else is same-origin.
-export const CSP = "default-src 'self'; img-src 'self' https: data:; media-src https:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+export const CSP = "default-src 'self'; img-src 'self' https: data:; media-src https:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://geo.dailymotion.com https://odysee.com https://player.twitch.tv https://clips.twitch.tv; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",

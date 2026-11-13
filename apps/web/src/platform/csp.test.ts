@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PAGE_POLICY, workspacePolicy } from "./csp.ts";
+import { EMBED_ORIGINS } from "../lib/embeds.ts";
 
 test("once connected, requests and images are limited to PURSS and https publishers, and media to https publishers", () => {
   assert.equal(workspacePolicy("https://ws.example:8443"), "connect-src 'self' https://ws.example:8443; img-src 'self' https: data: https://ws.example:8443; media-src 'self' https:");
@@ -18,9 +19,10 @@ test("the desktop app adds its IPC to requests and its own server on 127.0.0.1 t
   assert.match(PAGE_POLICY, /connect-src 'self' https: http: ipc: http:\/\/ipc\.localhost;/);
 });
 
-test("the page's policy loads scripts only from the app itself and embeds nothing", () => {
+test("the page's policy loads scripts only from the app itself and frames only the video players the reader embeds", () => {
   assert.match(PAGE_POLICY, /script-src 'self';/);
   assert.match(PAGE_POLICY, /object-src 'none'/);
-  assert.match(PAGE_POLICY, /frame-src 'none'/);
+  assert.match(PAGE_POLICY, new RegExp(`frame-src ${EMBED_ORIGINS.join(" ")};`));
+  for (const o of EMBED_ORIGINS) assert.match(o, /^https:\/\/[a-z0-9.-]+$/, "a frame source is one https origin, never a scheme or a wildcard");
   assert.doesNotMatch(PAGE_POLICY, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });
