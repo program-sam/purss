@@ -136,7 +136,8 @@ export function connectRouter(): Router<Ctx> {
       return answer(app.db.tx(() => connect(accountId)));
     }
     // As in a browser (auth/sign-in-limits.ts): an app that signed in to this address before has tries of its own.
-    const { bucket: tries, known } = triesKey(app, body.email, body.known);
+    const tries = triesKey(app, body.email, body.known);
+    const { known } = tries;
     if (!known) rateLimit(`password:${address}`, 10);
     takeTry(tries);
     const accountId = await checkPassword(app, body.email, body.password);
@@ -144,7 +145,7 @@ export function connectRouter(): Router<Ctx> {
       audit(app, null, "sign_in", method, "failure");
       throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
-    const keep = signedIn(app, null, tries, body.email, body.known);
+    const keep = signedIn(app, null, tries.bucket, body.email, body.known);
     return { ...answer(app.db.tx(() => connect(accountId))), known: keep };
   });
 

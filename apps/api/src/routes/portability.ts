@@ -84,7 +84,7 @@ export function portabilityRouter(): Router<Ctx> {
     return undefined;
   });
 
-  // The file goes to disk as it arrives. Once it's all there it is checked in a worker thread with a memory limit of its
+  // The file goes to disk as it arrives. Once it's all there it is checked in a child process with a memory limit of its
   // own (checkUploadApart), and checks and imports take turns, so the API's memory and responsiveness stay its own.
   r.post("/api/import/preview", async (req, ctx, res) => {
     const p = requirePrincipal(ctx);
@@ -103,9 +103,16 @@ export function portabilityRouter(): Router<Ctx> {
     let file: string | null = null;
     try {
       const upload = (file = uploadFile(ctx.app));
-      const bytes = await saveUpload(req.raw, upload, IMPORT_LIMIT, IMPORT_UPLOAD_PACE);
+      // Other content keeps growing while this arrives: every 8 MB, the rest of it must still fit above the reserve.
+      let checkedAt = 0;
+      const bytes = await saveUpload(req.raw, upload, IMPORT_LIMIT, IMPORT_UPLOAD_PACE, (size) => {
+        if (size - checkedAt < 8 * 1024 * 1024) return;
+        checkedAt = size;
+        assertDiskRoom(ctx.app, Math.max(0, room - size));
+      });
       if (!bytes) throw badRequest("Choose an export file to upload.");
       return await oneImportAtATime(async () => {
+        assertStillUsable(ctx.app, p); // it may have waited its turn
         const { check, sha256 } = await checkUploadApart(ctx.app, p, upload, undefined, gone.signal);
         assertStillUsable(ctx.app, p); // the upload and the check can take minutes
         return stageChecked(ctx.app, p, check, { bytes, sha256, place: (dest) => renameSync(upload, dest) });
@@ -121,7 +128,11 @@ export function portabilityRouter(): Router<Ctx> {
     const p = requirePrincipal(ctx);
     // Applying runs in one transaction on the API's own thread, so a large import holds everything else for its length.
     rateLimit(`import-apply:${p.accountId}`, 5, 86_400_000);
-    return oneImportAtATime(() => applyImport(ctx.app, p, token));
+    return oneImportAtATime(() => {
+      // Checked when its turn comes, not only when it asked: a session ended or an account deleted meanwhile imports nothing.
+      assertStillUsable(ctx.app, p);
+      return applyImport(ctx.app, p, token);
+    });
   });
 
   r.get("/api/opml", (_req, ctx, res) => {

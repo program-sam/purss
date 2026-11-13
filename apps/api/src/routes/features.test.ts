@@ -8,7 +8,7 @@ import { call, PRIVATE_FEED_URL, seedLibrary, signIn, startTestServer } from "..
 import type { TestSession } from "../features-testing.ts";
 import { extraRouters } from "./index.ts";
 import { countJsonValues, parseArchive, sha256Hex } from "../services/archive-format.ts";
-import { MAX_IMPORT_VALUES, checkUploadApart, purgeUploads, uploadFile } from "../services/portability.ts";
+import { MAX_IMPORT_VALUES, checkUploadApart, oneImportAtATime, purgeUploads, uploadFile } from "../services/portability.ts";
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "../services/sync.ts";
 import { createBasket } from "../services/collections.ts";
@@ -183,7 +183,11 @@ test("an upload too big to check is refused by the worker checking it, and the A
   doc.manifest.sections.preferences = { count: 1, sha256: sha256Hex(JSON.stringify(doc.preferences)) };
   const file = path.join(b.app.config.dataDir, "big-upload.json");
   writeFileSync(file, JSON.stringify(doc));
-  await assert.rejects(checkUploadApart(b.app, b.owner, file, 16), (e: unknown) => e instanceof HttpError && e.status === 413 && e.code === "import_too_large");
+  // The check's own heap holds even under the API's larger --max-old-space-size (which a worker thread's limit doesn't).
+  const small = path.join(b.app.config.dataDir, "small-upload.json");
+  writeFileSync(small, (await b.api("GET", "/api/export")).text);
+  assert.ok((await checkUploadApart(b.app, b.owner, small, 32)).check.counts, "a 32 MB check starts and checks an ordinary export");
+  await assert.rejects(checkUploadApart(b.app, b.owner, file, 32), (e: unknown) => e instanceof HttpError && e.status === 413 && e.code === "import_too_large");
   const stop = new AbortController();
   const stopped = checkUploadApart(b.app, b.owner, file, undefined, stop.signal);
   stop.abort();
@@ -293,4 +297,41 @@ test("a body that stops arriving is answered 408, not just cut off", async (t) =
   assert.equal(answer.status, 408);
   assert.equal(JSON.parse(answer.body).error.code, "upload_stalled");
   assert.ok(Date.now() - started >= 4500, "after the signed-out pause allowed (5 s)");
+});
+
+test("an import waiting its turn checks the session again when the turn comes: signed out meanwhile, nothing is imported", async (t) => {
+  const a = await boot();
+  const b = await boot();
+  t.after(async () => { await a.close(); await b.close(); });
+  seedLibrary(a.app, a.owner);
+  const preview = await b.api("POST", "/api/import/preview", (await a.api("GET", "/api/export")).text, { contentType: "application/json" });
+  assert.equal(preview.status, 200, preview.text);
+  let release!: () => void;
+  void oneImportAtATime(() => new Promise<void>((r) => { release = r; }));
+  const applying = b.api("POST", "/api/import", { token: preview.json.token });
+  await new Promise((r) => setTimeout(r, 100));
+  b.app.db.run("DELETE FROM sessions");
+  release();
+  assert.equal((await applying).status, 401);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 0, "nothing was imported");
+});
+
+test("an upload stops when other content takes the disk room it set aside while it arrives", async (t) => {
+  const b = await boot();
+  t.after(async () => { diskOverride.freeBytes = null; await b.close(); });
+  const size = 20 * 1024 * 1024;
+  diskOverride.freeBytes = b.app.config.diskReserveBytes + size * 2;
+  const req = request(b.server.base + "/api/import/preview", { method: "POST", headers: { origin: b.app.config.publicOrigin, cookie: b.session.cookie, "x-purss-csrf": b.session.csrf, "content-type": "application/json", "content-length": String(size) } });
+  const answer = new Promise<{ status: number; body: string }>((resolve, reject) => {
+    req.on("response", (res) => { let body = ""; res.on("data", (d) => (body += d)); res.on("end", () => resolve({ status: res.statusCode!, body })); });
+    req.on("error", reject);
+  });
+  req.write(Buffer.alloc(1024 * 1024, 32));
+  await new Promise((r) => setTimeout(r, 100));
+  diskOverride.freeBytes = b.app.config.diskReserveBytes + 1024 * 1024; // something else filled the disk meanwhile
+  req.write(Buffer.alloc(9 * 1024 * 1024, 32));
+  const r = await within(answer, 5000);
+  req.destroy();
+  assert.equal(r.status, 507);
+  assert.equal(JSON.parse(r.body).error.code, "disk_reserve");
 });

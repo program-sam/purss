@@ -3,7 +3,8 @@ import type { ImportResult } from "@purss/domain";
 export type { ImportResult };
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
-import { Worker } from "node:worker_threads";
+import { fork } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sanitizeHtml from "sanitize-html";
@@ -859,32 +860,48 @@ export function stageImport(app: App, p: Principal, upload: unknown): ImportPrev
 export const IMPORT_CHECK_SECONDS = 120;
 
 /**
- * Checks an uploaded file in a worker thread (import-check-worker.ts), so neither its memory nor its time holds up the
- * API. Memory goes with how much a file holds, not its size (a file of a million tiny entries is small), so the worker
- * stops at `heapMb` (config importCheckHeapMb) and the file is refused as too large to import here.
+ * Checks an uploaded file in a child process (import-check-worker.ts), so neither its memory nor its time holds up the
+ * API. Memory goes with how much a file holds, not its size (a file of a million tiny entries is small), so the child
+ * runs with a heap of `heapMb` (config importCheckHeapMb) and a file that needs more is refused as too large to import
+ * here. A process, not a worker thread: a worker's own heap limit is overruled by the API's --max-old-space-size. The
+ * answer comes once the child has exited, so the import turn (oneImportAtATime) is never held by two at once.
  */
 export function checkUploadApart(app: App, p: Principal, file: string, heapMb = app.config.importCheckHeapMb, signal?: AbortSignal): Promise<{ check: UploadCheck; sha256: string }> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { reject(new HttpError(400, "upload_aborted", "The upload was cut off.")); return; }
-    const worker = new Worker(new URL("./import-check-worker.ts", import.meta.url), {
-      workerData: { config: app.config, principal: p, file },
-      resourceLimits: { maxOldGenerationSizeMb: heapMb, maxYoungGenerationSizeMb: Math.min(32, heapMb) },
+    const child = fork(fileURLToPath(new URL("./import-check-worker.ts", import.meta.url)), [], {
+      execArgv: [`--max-old-space-size=${heapMb}`, "--no-warnings"],
+      env: { ...process.env, NODE_OPTIONS: "" },
+      serialization: "advanced",
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
     });
-    let settled = false;
-    const done = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
-    worker.once("message", (m: { ok: true; check: UploadCheck; sha256: string } | { ok: false; status: number; code: string; message: string }) => done(() => {
-      if (m.ok) resolve({ check: m.check, sha256: m.sha256 });
-      else reject(new HttpError(m.status, m.code, m.message));
-    }));
-    worker.once("error", (err: NodeJS.ErrnoException) => done(() => reject(err.code === "ERR_WORKER_OUT_OF_MEMORY"
-      ? new HttpError(413, "import_too_large", "That export has more in it than this server can check at once.")
-      : err)));
-    worker.once("exit", (code) => done(() => reject(new Error(`The import check stopped (${code}).`))));
-    const timer = setTimeout(() => done(() => { void worker.terminate(); reject(new HttpError(413, "import_too_large", "That export took too long to check on this server.")); }), IMPORT_CHECK_SECONDS * 1000);
+    // The child's own notes reach the log; V8's "heap out of memory" report doesn't (the line below says it plainly).
+    let errText = "";
+    child.stderr?.on("data", (d: Buffer) => { errText = (errText + d.toString()).slice(-4000); });
+    child.stderr?.on("end", () => { for (const line of errText.split("\n")) if (line.startsWith("[api]")) console.error(line); });
+    type Answer = { ok: true; check: UploadCheck; sha256: string } | { ok: false; status: number; code: string; message: string };
+    let answer: Answer | null = null;
+    let stopped: HttpError | null = null;
+    const stop = (err: HttpError) => { if (!stopped && !answer) { stopped = err; child.kill("SIGKILL"); } };
+    child.once("message", (m: Answer) => { answer = m; });
+    child.once("error", (err) => { if (!stopped) stopped = new HttpError(500, "internal", "Something went wrong checking that file."); console.error("[api] import check could not run:", err.message); });
+    const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", "That export took too long to check on this server.")), IMPORT_CHECK_SECONDS * 1000);
     timer.unref();
-    worker.once("exit", () => clearTimeout(timer));
     // The person went away: stop checking, so their next upload and everyone else's turn needn't wait for it.
-    signal?.addEventListener("abort", () => done(() => { void worker.terminate(); reject(new HttpError(400, "upload_aborted", "The upload was cut off.")); }), { once: true });
+    const onAbort = () => stop(new HttpError(400, "upload_aborted", "The upload was cut off."));
+    signal?.addEventListener("abort", onAbort, { once: true });
+    child.once("exit", (code, sig) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      const a = answer as Answer | null;
+      if (a?.ok) resolve({ check: a.check, sha256: a.sha256 });
+      else if (a) reject(new HttpError(a.status, a.code, a.message));
+      else if (stopped) reject(stopped);
+      // Out of its heap (or killed for memory): the file needs more than this server checks at once.
+      else reject(new HttpError(413, "import_too_large", `That export has more in it than this server can check at once.`));
+      if (!a && !stopped && code !== 0) console.error(`[api] an import check ran out of its ${heapMb} MB (${sig ?? code}); the file was refused as too large`);
+    });
+    child.send({ config: app.config, principal: p, file });
   });
 }
 

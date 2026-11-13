@@ -13,6 +13,7 @@ import { normalizeEmail } from "./passwords.ts";
  * A browser that never signed in to the account shares the account's tries: that much lockout is the price of the limit.
  */
 const TRIES = 10;
+const KNOWN_CHECKS = 30;
 const WINDOW_MS = 15 * 60_000;
 export const KNOWN_COOKIE = "purss_known";
 const KNOWN_DAYS = 400;
@@ -30,18 +31,26 @@ const mac = (app: App, nonce: string, email: string) => createHmac("sha256", key
  * otherwise the shared one. A known browser also skips the per-network-address limit: its own tries already
  * bound it, and others failing on the same network (shared Wi-Fi, an office) mustn't keep it out.
  */
-export function triesKey(app: App, email: string, knownCookie: string | undefined): { bucket: string; known: boolean } {
+export type Tries = { bucket: string; known: boolean; address: string };
+export function triesKey(app: App, email: string, knownCookie: string | undefined): Tries {
   const address = normalizeEmail(email);
   for (const entry of (knownCookie ?? "").split(",").slice(0, 8)) {
     const [nonce, sig] = entry.split(".");
-    if (nonce && sig && safeEqual(sig, mac(app, nonce, address))) return { bucket: `password-user:${address}:${nonce}`, known: true };
+    if (nonce && sig && safeEqual(sig, mac(app, nonce, address))) return { bucket: `password-user:${address}:${nonce}`, known: true, address };
   }
-  return { bucket: `password-user:${address}`, known: false };
+  return { bucket: `password-user:${address}`, known: false, address };
 }
 
-/** Takes one try, or refuses with 429 when none are left. */
-export function takeTry(bucket: string): void {
-  rateLimit(bucket, TRIES, WINDOW_MS);
+/**
+ * Takes one try, or refuses with 429 when none are left. A known browser or app, which skips the per-network-address
+ * limit and gets its tries back with each correct password, also has a fixed number of password checks per window that
+ * nothing gives back: signing in over and over with its own password can't keep the server hashing or pile up sessions.
+ */
+export function takeTry(tries: Tries): void {
+  // Per address, not per known value: each sign-in hands out a fresh value. Only callers holding a valid value for the
+  // address (someone who signed in with its password) count here, so nobody else can spend it.
+  if (tries.known) rateLimit(`password-checks:${tries.address}`, KNOWN_CHECKS, WINDOW_MS);
+  rateLimit(tries.bucket, TRIES, WINDOW_MS);
 }
 
 /**
