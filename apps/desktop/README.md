@@ -56,8 +56,10 @@ then `cargo run` in `src-tauri`. Rust tests: `cargo test` in `src-tauri`.
 (AppImage, deb, rpm) on the 1st of every month and when started by hand (*Actions → Desktop app → Run workflow*),
 and publishes a release `desktop-<version>` with the fixed file names and `latest.json`. When main hasn't changed
 since the last release, it publishes nothing. A push to main that changes `apps/desktop` builds all three without
-publishing. Installed apps look for a new version at start and every six hours, download it in the background, and
-install it when the person chooses *Restart to update* (Settings → This device) or quits from the tray.
+publishing. Installed apps look for a new version at start and every six hours, download it in the background into
+their cache folder (`update/<version>.bin`), announce it with a notification and *Restart to update to …* in the tray's
+menu, and install it when the person chooses *Restart to update* (tray or Settings → This device) or quits from the
+tray. A version still waiting at the next start (the session ended with the app running) is installed then.
 
 **The updater key.** Updates are signed with the project's own key (minisign), whatever the systems' signing. Its
 public half is `plugins.updater.pubkey` in `tauri.conf.json`; the private half and its password are the repository

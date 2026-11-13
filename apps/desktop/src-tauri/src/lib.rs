@@ -18,7 +18,7 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, WindowEvent};
@@ -42,6 +42,40 @@ pub fn appimage() -> Option<std::path::PathBuf> {
     let dir = std::env::var_os("APPDIR")?;
     let exe = std::env::current_exe().ok()?;
     exe.starts_with(&dir).then(|| image.into())
+}
+
+/// A list of paths (`PATH`, `LD_LIBRARY_PATH`, …) without those inside `dir`; None when nothing else is left.
+fn without_dir(value: &str, dir: &str) -> Option<String> {
+    let inside = |p: &str| p == dir || p.strip_prefix(dir).is_some_and(|rest| rest.starts_with('/'));
+    let kept: Vec<&str> = value.split(':').filter(|p| !p.is_empty() && !inside(p)).collect();
+    (!kept.is_empty()).then(|| kept.join(":"))
+}
+
+/// Before this AppImage starts the next version: take its own mount out of the environment its runtime filled in
+/// (`PATH`, `LD_LIBRARY_PATH`, the GTK and GIO module paths, …), and keep the next version from inheriting what the runtime
+/// handed this one (a handle on the mount, the pipe the runtime waits on). Otherwise this AppImage's runtime keeps running
+/// for as long as the next version does.
+fn leave_appimage() {
+    if appimage().is_none() {
+        return;
+    }
+    let Some(dir) = std::env::var("APPDIR").ok() else { return };
+    for (key, value) in std::env::vars() {
+        if value.contains(&dir) {
+            match without_dir(&value, &dir) {
+                Some(v) => std::env::set_var(&key, v),
+                None => std::env::remove_var(&key),
+            }
+        }
+    }
+    // The next version needs only standard input and output; this process exits right after starting it.
+    #[cfg(target_os = "linux")]
+    for fd in std::fs::read_dir("/proc/self/fd").into_iter().flatten().flatten().filter_map(|e| e.file_name().to_str()?.parse::<i32>().ok()) {
+        if fd > 2 {
+            // SAFETY: only sets the close-on-exec flag; a descriptor that isn't open just fails.
+            unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
+        }
+    }
 }
 
 pub fn show_window<R: Runtime>(app: &AppHandle<R>) {
@@ -143,6 +177,11 @@ struct Click {
 /// notification's default action; Windows and macOS start or focus the app, which shows the window).
 #[tauri::command]
 fn notify(tag: String, title: String, body: Option<String>, app: AppHandle) {
+    show_notification(&app, tag, title, body);
+}
+
+fn show_notification(app: &AppHandle, tag: String, title: String, body: Option<String>) {
+    let app = app.clone();
     let title: String = title.chars().take(200).collect();
     let body: Option<String> = body.map(|b| b.chars().take(500).collect());
     #[cfg(target_os = "linux")]
@@ -347,31 +386,120 @@ fn set_update(app: &AppHandle, state: UpdateState) {
     let _ = app.emit("purss://app-update", state);
 }
 
-/// Look for a new version now and then; download it in the background, to be installed at the next restart.
+/// Where a downloaded version waits to be installed, as `<version>.bin`: kept on disk, so a version the person never
+/// installed (the computer shut down with the app running) is installed at the next start rather than downloaded again.
+fn pending_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_cache_dir().ok().map(|d| d.join("update"))
+}
+
+fn pending_file(dir: &std::path::Path, version: &str) -> Option<std::path::PathBuf> {
+    let plain = !version.is_empty() && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
+    plain.then(|| dir.join(format!("{version}.bin")))
+}
+
+/// Remove every waiting version but `keep`.
+fn tidy_pending(dir: &std::path::Path, keep: Option<&std::path::Path>) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        if Some(entry.path().as_path()) != keep {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+fn keep_pending(dir: &std::path::Path, file: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let part = file.with_extension("part");
+    std::fs::write(&part, bytes)?;
+    std::fs::rename(&part, file)?;
+    tidy_pending(dir, Some(file));
+    Ok(())
+}
+
+/// Look for a new version now and then; download it in the background, to be installed at the next restart. A version
+/// downloaded by an earlier run and never installed is installed as soon as this run finds it is still the newest.
 fn watch_updates(app: AppHandle) {
     // A development build or one without a version (plan/40) never updates itself.
     if cfg!(debug_assertions) || app.package_info().version.major == 0 {
         return;
     }
     tauri::async_runtime::spawn(async move {
+        let dir = pending_dir(&app);
+        let mut starting = true;
         loop {
             let ready_version = app.state::<AppUpdate>().ready.lock().unwrap().as_ref().map(|(u, _)| u.version.clone());
-            if let Ok(Some(update)) = async { app.updater()?.check().await }.await {
-                if ready_version.as_deref() != Some(update.version.as_str()) {
-                    set_update(&app, UpdateState::Downloading { version: update.version.clone() });
-                    match update.download(|_, _| {}, || {}).await {
-                        Ok(bytes) => {
-                            let version = update.version.clone();
-                            *app.state::<AppUpdate>().ready.lock().unwrap() = Some((update, bytes));
-                            set_update(&app, UpdateState::Ready { version });
+            match async { app.updater()?.check().await }.await {
+                Ok(Some(update)) => {
+                    let file = dir.as_deref().and_then(|d| pending_file(d, &update.version));
+                    if starting {
+                        if let Some(bytes) = file.as_deref().and_then(|f| std::fs::read(f).ok()) {
+                            // install() checks the signature again; a file that fails is removed and downloaded anew.
+                            match update.install(&bytes) {
+                                Ok(()) => {
+                                    leave_appimage();
+                                    app.restart()
+                                }
+                                Err(_) => {
+                                    if let Some(f) = &file {
+                                        let _ = std::fs::remove_file(f);
+                                    }
+                                }
+                            }
                         }
-                        Err(e) => set_update(&app, UpdateState::Failed { detail: format!("{e}.") }),
+                    }
+                    if ready_version.as_deref() != Some(update.version.as_str()) {
+                        set_update(&app, UpdateState::Downloading { version: update.version.clone() });
+                        match update.download(|_, _| {}, || {}).await {
+                            Ok(bytes) => {
+                                if let (Some(d), Some(f)) = (&dir, &file) {
+                                    let _ = keep_pending(d, f, &bytes);
+                                }
+                                let version = update.version.clone();
+                                *app.state::<AppUpdate>().ready.lock().unwrap() = Some((update, bytes));
+                                set_update(&app, UpdateState::Ready { version: version.clone() });
+                                announce_ready(&app, &version);
+                            }
+                            Err(e) => set_update(&app, UpdateState::Failed { detail: format!("{e}.") }),
+                        }
                     }
                 }
+                // Up to date: whatever waits on disk was installed, or is no longer the newest.
+                Ok(None) => {
+                    if let Some(d) = &dir {
+                        tidy_pending(d, None);
+                    }
+                }
+                Err(_) => {}
             }
+            starting = false;
             tokio::time::sleep(UPDATE_EVERY).await;
         }
     });
+}
+
+/// Say that a new version is ready: a notification, and *Restart to update* at the top of the tray's menu.
+fn announce_ready(app: &AppHandle, version: &str) {
+    show_notification(
+        app,
+        "app-update".into(),
+        "A new version of PURSS is ready".into(),
+        Some(format!("Version {version} is installed when you restart the app, or when you quit it from the tray.")),
+    );
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id(MAIN), tray_menu(app, Some(version))) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+/// The tray's menu; with a downloaded version, *Restart to update* first.
+fn tray_menu<R: Runtime, M: Manager<R>>(app: &M, ready: Option<&str>) -> tauri::Result<Menu<R>> {
+    let open = MenuItem::with_id(app, "open", "Open PURSS", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    match ready {
+        Some(version) => {
+            let restart = MenuItem::with_id(app, "restart", format!("Restart to update to {version}"), true, None::<&str>)?;
+            Menu::with_items(app, &[&restart, &PredefinedMenuItem::separator(app)?, &open, &quit_item])
+        }
+        None => Menu::with_items(app, &[&open, &quit_item]),
+    }
 }
 
 /// Install the downloaded version, if there is one. True when it was installed. `restart`: start the new version
@@ -390,7 +518,10 @@ fn app_update_state(u: State<'_, AppUpdate>) -> UpdateState {
 #[tauri::command]
 fn app_update_restart(app: AppHandle) -> Result<(), String> {
     match install_update(&app, true) {
-        Ok(true) => app.restart(),
+        Ok(true) => {
+            leave_appimage();
+            app.restart()
+        }
         Ok(false) => Ok(()),
         Err(e) => {
             set_update(&app, UpdateState::Failed { detail: format!("{e}.") });
@@ -551,9 +682,7 @@ pub fn run() {
             files.serve()?;
             app.manage(files);
 
-            let open = MenuItem::with_id(app, "open", "Open PURSS", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit_item])?;
+            let menu = tray_menu(app, None)?;
             let mut tray = TrayIconBuilder::with_id(MAIN).tooltip("PURSS").menu(&menu).show_menu_on_left_click(false);
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
@@ -561,6 +690,9 @@ pub fn run() {
             tray.on_menu_event(|app, e| match e.id.as_ref() {
                 "open" => show_window(app),
                 "quit" => quit(app),
+                "restart" => {
+                    let _ = app_update_restart(app.clone());
+                }
                 _ => {}
             })
             .on_tray_icon_event(|tray, e| {
@@ -607,4 +739,45 @@ pub fn run() {
         }
         let _ = (app, event);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn without_dir_drops_only_the_mount() {
+        let dir = "/tmp/.mount_PURSS.ab12";
+        assert_eq!(without_dir("/tmp/.mount_PURSS.ab12/usr/bin/:/usr/local/bin:/usr/bin", dir), Some("/usr/local/bin:/usr/bin".into()));
+        assert_eq!(without_dir("/tmp/.mount_PURSS.ab12/usr/lib/:/tmp/.mount_PURSS.ab12/usr/lib32/", dir), None);
+        assert_eq!(without_dir("/tmp/.mount_PURSS.ab12", dir), None);
+        assert_eq!(without_dir("/tmp/.mount_PURSS.ab12x/usr/lib:/opt/lib", dir), Some("/tmp/.mount_PURSS.ab12x/usr/lib:/opt/lib".into()), "another mount whose name starts the same");
+        assert_eq!(without_dir("/usr/share::/tmp/.mount_PURSS.ab12/usr/share", dir), Some("/usr/share".into()));
+    }
+
+    #[test]
+    fn pending_file_takes_only_plain_versions() {
+        let dir = std::path::Path::new("/cache/update");
+        assert_eq!(pending_file(dir, "26.315.32"), Some(dir.join("26.315.32.bin")));
+        assert_eq!(pending_file(dir, "1.0.0-rc.1+b2"), Some(dir.join("1.0.0-rc.1+b2.bin")));
+        assert_eq!(pending_file(dir, "../26.315.32"), None);
+        assert_eq!(pending_file(dir, "26/315"), None);
+        assert_eq!(pending_file(dir, ""), None);
+    }
+
+    #[test]
+    fn a_kept_version_replaces_the_others_and_up_to_date_removes_it() {
+        let dir = std::env::temp_dir().join(format!("purss-pending-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let old = pending_file(&dir, "26.315.24").unwrap();
+        keep_pending(&dir, &old, b"old").unwrap();
+        let new = pending_file(&dir, "26.315.32").unwrap();
+        keep_pending(&dir, &new, b"new").unwrap();
+        let names: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("26.315.32.bin")]);
+        assert_eq!(std::fs::read(&new).unwrap(), b"new");
+        tidy_pending(&dir, None);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
