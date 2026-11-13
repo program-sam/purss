@@ -10,7 +10,8 @@ import java.util.concurrent.Executors
 
 /**
  * The app's own plugin (plan/38; the page's side is apps/web/src/platform/native/device-plugin.ts):
- * downloads that stop on the wire when cancelled, the background job's state, and the widget's snapshot.
+ * downloads that stop on the wire when cancelled, the background job's state, and the home-screen panels'
+ * look and episode and their refresh.
  */
 @CapacitorPlugin(name = "PurssDevice")
 class PurssDevicePlugin : Plugin() {
@@ -85,9 +86,17 @@ class PurssDevicePlugin : Plugin() {
 
     @PluginMethod
     fun setWidget(call: PluginCall) {
-        DeviceStore.setWidget(context, call.getString("snapshot"))
+        // After a refusal the page may run on until it next starts: nothing it writes of the refused account is kept.
+        synchronized(WidgetData.lock) { if (!DeviceStore.isLost(context)) DeviceStore.setWidget(context, call.getString("snapshot")) }
         DeviceStore.pageAlive = true
-        WorkspaceWidget.redrawAll(context)
+        Panels.redrawAll(context)
+        call.resolve()
+    }
+
+    /** The page's items changed or it started: the panels' lists are fetched again soon (WidgetRefresh). */
+    @PluginMethod
+    fun refreshWidgets(call: PluginCall) {
+        WidgetRefresh.soon(context)
         call.resolve()
     }
 

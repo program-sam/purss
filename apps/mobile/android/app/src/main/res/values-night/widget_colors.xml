@@ -6,4 +6,10 @@
     <color name="widget_ink">#eceff4</color>
     <color name="widget_ink_2">#9da5af</color>
     <color name="widget_accent">#98c6fb</color>
+    <color name="widget_band_top">#273545</color>
+    <color name="widget_band_bottom">#212b36</color>
+    <color name="widget_band_line">#354150</color>
+    <color name="widget_avatar">#2c3a4a</color>
+    <color name="widget_avatar_ink">#d2e3f8</color>
+    <color name="widget_avatar_border">#43566b</color>
 </resources>

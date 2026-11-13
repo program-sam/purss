@@ -158,6 +158,10 @@ adb reverse tcp:19990 tcp:19990                          # the emulator's localh
 adb install -r apps/mobile/android/app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
+Where SELinux is enforcing (Fedora, for one), the emulator's default software renderer (SwiftShader) is blocked
+(`execheap`) and qemu crashes during boot: start it with `-gpu lavapipe`, e.g.
+`emulator -avd <avd> -no-window -no-audio -no-snapshot -gpu lavapipe`.
+
 The app opens on the official server's sign-in; press **Use another server**, type
 `http://localhost:19990`, and sign in with the email address and password it printed. The app
 remembers that server for next time. Plain HTTP works only for addresses on this device or the local network
@@ -166,7 +170,7 @@ elsewhere needs HTTPS. Debug builds let Chrome's
 `chrome://inspect` (or `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`) inspect
 the app's page.
 
-### Background downloads and the widget on the emulator
+### Background downloads and the panels on the emulator
 
 The background job is a WorkManager periodic job (namespace `androidx.work.systemjobscheduler`). With
 the app closed (Home, then `adb shell am kill app.purss`), find its id with
@@ -174,8 +178,10 @@ the app closed (Home, then `adb shell am kill app.purss`), find its id with
 `adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler app.purss <id>`.
 WorkManager skips a periodic run that comes before its hour is up ("executed before schedule" in
 logcat); on an emulator, `adb root` and moving the clock forward an hour lets it run. A force-stopped
-app has no jobs until it is opened again (Android's rule). Its log tag is `PurssBackground`. The widget
-is in the launcher's widget list as *PURSS*. Kotlin unit tests:
+app has no jobs until it is opened again (Android's rule). Its log tag is `PurssBackground`. The
+home-screen panels are in the launcher's widget list under *PURSS* (To read, To listen, New, Collection,
+Source); their refresh is its own periodic job (every 15 minutes, log tag `PurssWidgets`), run the same way.
+Kotlin unit tests:
 `./gradlew testFullDebugUnitTest`.
 
 ### Notifications on the emulator
@@ -213,12 +219,16 @@ The iOS project has not been compiled: it can't be on Linux. On a Mac with Xcode
 4. Set the version ([plan/40](../../plan/40-versions.md)) from the checkout, in `ios/App`:
    `xcrun agvtool new-marketing-version "$(node ../../../../scripts/version.ts --dotted)"` and
    `xcrun agvtool new-version -all "$(node ../../../../scripts/version.ts --plain)"`.
-5. Check *Background Modes → Audio* and *Background processing* on the App target (already in
-   `Info.plist`, with `BGTaskSchedulerPermittedIdentifiers` = `app.purss.downloads`) and that
+5. Check *Background Modes → Audio*, *Background fetch* and *Background processing* on the App target
+   (already in `Info.plist`, with `BGTaskSchedulerPermittedIdentifiers` = `app.purss.downloads` and
+   `app.purss.widget-refresh`) and that
    the `purss` URL type is listed under *Info → URL Types*.
 4a. The **Widgets** target (WidgetKit, `app.purss.Widgets`): choose your team and make sure it
-   lists the app group under *App Groups* (`Widgets/Widgets.entitlements`). Check the small and medium
-   widgets, light, dark and e-ink looks, and that tapping a row opens the item (`purss://open?item=…`).
+   lists the app group under *App Groups* (`Widgets/Widgets.entitlements`). Check the five panels (Collection
+   and Source on iOS 17: edit the widget to choose), small, medium and large, light, dark and e-ink looks, that
+   tapping a row opens the item (`purss://open?item=…`) and a heading its list (`purss://open?list=…`), and
+   that the panels refresh with the app closed
+   (`_simulateLaunchForTaskWithIdentifier:@"app.purss.widget-refresh"`).
 4b. The background job: with a connected PURSS and automatic downloads on, send the app to the
    background, pause in the debugger and run
    `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"app.purss.downloads"]`,

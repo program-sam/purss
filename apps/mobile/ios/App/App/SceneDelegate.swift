@@ -14,9 +14,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }
 
-    /// Asks for the next background run (the app's own delegate doesn't get didEnterBackground in a scene-based app).
+    /// Asks for the next background runs (the app's own delegate doesn't get didEnterBackground in a scene-based app).
     func sceneDidEnterBackground(_ scene: UIScene) {
         BackgroundJob.schedule()
+        WidgetRefresh.schedule()
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {

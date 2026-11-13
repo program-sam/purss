@@ -9,7 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The page's formats as the background job reads and writes them (apps/web/src/downloads/background.ts, device/widget.ts). */
+/** The page's formats as the background job reads and writes them (apps/web/src/downloads/background.ts). */
 class BackgroundLogicTest {
     private val stateJson = """{"accountId":"acc_1","origin":"https://ws.example","settings":{"autoToRead":true,"wifiOnly":true,"limitBytes":100,"removeFinished":false},"have":["itm_1"],"usedBytes":40}"""
     private val at = Date(1_762_400_000_000)
@@ -93,10 +93,6 @@ class BackgroundLogicTest {
         assertEquals(1000L, BackgroundLogic.downloadCap(1000))
     }
 
-    @Test fun theWidgetsRefreshLeavesOutPrivateSources() {
-        assertTrue(BackgroundLogic.WIDGET_TO_READ_PATH.contains("exceptPrivate=1"))
-    }
-
     @Test fun onlyA401WithTheSignedOutCodeCountsAsRefused() {
         assertTrue(BackgroundLogic.refusedWith("""{"error":{"code":"device_signed_out","message":"x"}}""", "device_signed_out"))
         assertTrue(BackgroundLogic.refusedWith("""{"error":{"code":"push_signed_out"}}""", "push_signed_out"))
@@ -105,18 +101,6 @@ class BackgroundLogicTest {
         assertFalse("a proxy's page", BackgroundLogic.refusedWith("<html>401 Authorization Required</html>", "device_signed_out"))
         assertFalse(BackgroundLogic.refusedWith("", "device_signed_out"))
         assertFalse(BackgroundLogic.refusedWith(null, "device_signed_out"))
-    }
-
-    @Test fun theWidgetsToReadListIsRefreshedAndNothingElse() {
-        val snapshot = """{"appearance":"dark","toRead":[],"toReadTotal":0,"episode":{"id":"itm_9","title":"E","sourceTitle":"S","playing":true,"loaded":true,"positionSeconds":60,"durationSeconds":null},"updatedAt":"x"}"""
-        val page = """{"items":[{"id":"itm_1","title":"  ","sourceTitle":"A"},{"id":"itm_2","title":"Two","sourceTitle":"B"}],"nextCursor":null,"total":7}"""
-        val out = JSONObject(BackgroundLogic.withToRead(snapshot, page, at)!!)
-        assertEquals(2, out.getJSONArray("toRead").length())
-        assertEquals("Untitled", out.getJSONArray("toRead").getJSONObject(0).getString("title"))
-        assertEquals(7L, out.getLong("toReadTotal"))
-        assertEquals("itm_9", out.getJSONObject("episode").getString("id"))
-        assertEquals("dark", out.getString("appearance"))
-        assertNull(BackgroundLogic.withToRead(null, page, at))
     }
 
     @Test fun storedConnections() {

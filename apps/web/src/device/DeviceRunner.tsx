@@ -1,22 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ItemPage } from "@purss/domain";
-import { get } from "../api/client.ts";
+import { useQueryClient } from "@tanstack/react-query";
 import { keys } from "../api/queries.ts";
 import { useDisplayMode } from "../lib/display.ts";
-import { onItemsChanged } from "../offline/signals.ts";
+import { onItemsChanged, onReadingChanged } from "../offline/signals.ts";
 import { platform } from "../platform/index.ts";
 import { usePlayer } from "../player/PlayerProvider.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
-import { buildWidgetSnapshot, sameWidget, WIDGET_TO_READ_QUERY } from "./widget.ts";
+import { buildWidgetSnapshot, sameWidget } from "./widget.ts";
 import type { WidgetSnapshot } from "./widget.ts";
 
-/** How often the widget's To read list is read again while the app is open, besides changes to items. */
-const EVERY_MS = 15 * 60_000;
+/** Changes to items come in bursts (a bulk action, a sync): the panels' lists are asked for once they settle. */
+const SETTLE_MS = 2_000;
 
 /**
- * Renders nothing. In the apps (plan/38): keeps the home-screen widget's snapshot in step with the To
- * read list, the player and the look. Its taps are opened by OpenLinks.
+ * Renders nothing. In the apps (plan/38): keeps the home-screen panels' look and episode in step with the app
+ * and the player, and asks the native side to fetch their lists again when the app starts and whenever the app's
+ * item lists go stale (the person's own changes and the server's alike). Their taps are opened by OpenLinks.
  */
 export function DeviceRunner() {
   const widget = platform.widget;
@@ -24,12 +23,6 @@ export function DeviceRunner() {
   const { snap } = usePlayer();
   const ws = useWorkspace();
   const eink = useDisplayMode() === "eink";
-  const toRead = useQuery({
-    queryKey: [...keys.items, "widget-toread"],
-    queryFn: () => get<ItemPage>("/api/items", WIDGET_TO_READ_QUERY),
-    enabled: !!widget,
-    refetchInterval: EVERY_MS,
-  });
   const last = useRef<WidgetSnapshot | null>(null);
   // The stored snapshot is read first: it keeps the last played episode across starts of the app.
   const [ready, setReady] = useState(false);
@@ -42,7 +35,19 @@ export function DeviceRunner() {
 
   useEffect(() => {
     if (!widget) return;
-    return onItemsChanged(() => { void qc.invalidateQueries({ queryKey: [...keys.items, "widget-toread"] }); });
+    widget.refresh();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = () => { clearTimeout(timer); timer = setTimeout(() => widget.refresh(), SETTLE_MS); };
+    // The server's changes and the person's own, once PURSS took them; and anything else that marks the item lists stale
+    // (state/actions.ts). The cache tells only of lists that weren't stale already, so it can't be the only signal.
+    const stops = [
+      onItemsChanged(ask),
+      onReadingChanged(ask),
+      qc.getQueryCache().subscribe((e) => {
+        if (e.type === "updated" && e.action.type === "invalidate" && e.query.queryKey[0] === keys.items[0]) ask();
+      }),
+    ];
+    return () => { clearTimeout(timer); stops.forEach((stop) => stop()); };
   }, [widget, qc]);
 
   const now = snap.now && snap.now.kind === "audio"
@@ -53,14 +58,13 @@ export function DeviceRunner() {
     const previous = last.current;
     const next = buildWidgetSnapshot({
       theme: ws.prefs.theme, eink,
-      toRead: toRead.data ? { items: toRead.data.items, total: toRead.data.total } : null,
       now, previous, at: Date.now(),
     });
     if (sameWidget(previous, next)) { last.current = previous; return; }
     last.current = next;
     widget.update(next);
   // `now` is rebuilt every render; its fields are what matter.
-  }, [widget, ready, ws.prefs.theme, eink, toRead.data, now?.itemId, now?.title, now?.sourceTitle, now?.playing, now && (now.playing ? Math.floor(now.position / 60) : Math.floor(now.position)), now?.duration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [widget, ready, ws.prefs.theme, eink, now?.itemId, now?.title, now?.sourceTitle, now?.playing, now && (now.playing ? Math.floor(now.position / 60) : Math.floor(now.position)), now?.duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

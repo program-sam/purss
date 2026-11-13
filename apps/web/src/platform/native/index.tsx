@@ -208,6 +208,9 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
       async current() {
         try { return parseWidgetSnapshot((await PurssDevice.getWidget()).snapshot); } catch { return null; }
       },
+      refresh() {
+        void PurssDevice.refreshWidgets().catch(() => undefined);
+      },
     } : null,
     push: phone?.push ?? null,
     interfaceUpdates: updates,

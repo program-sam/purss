@@ -2,8 +2,9 @@ import Foundation
 import BackgroundTasks
 import WidgetKit
 
-/// What the background download state, the widget snapshot and the downloads folders look like on disk
-/// (plan/38). Everything here is safe to call from any thread.
+/// What the background download state, the page's part of the widgets' data and the downloads folders look like on
+/// disk (plan/38). Everything here is safe to call from any thread. The widgets' lists and choices, and who may write
+/// them, are in WidgetRefresh.swift.
 
 /// The settings the page mirrors (DownloadSettings in packages/domain; fields the job doesn't use are ignored).
 struct BackgroundSettings: Codable {
@@ -25,9 +26,6 @@ struct BackgroundState: Codable {
 }
 
 enum DeviceStore {
-    /// Must match the App and Widgets entitlements and `plugins.CapacitorShareTarget.appGroupId` in capacitor.config.ts.
-    static let appGroupId = "group.app.purss"
-    static let widgetFileName = "widget.json"
     static let taskIdentifier = "app.purss.downloads"
 
     private static let stateKey = "app.purss.device.background"
@@ -110,6 +108,9 @@ enum DeviceStore {
 
     // MARK: Report
 
+    /// The token was found refused and the page hasn't taken the report yet.
+    static func isLost() -> Bool { UserDefaults.standard.bool(forKey: lostKey) }
+
     static func setLost() { UserDefaults.standard.set(true, forKey: lostKey) }
     static func clearLost() { UserDefaults.standard.removeObject(forKey: lostKey) }
 
@@ -124,16 +125,11 @@ enum DeviceStore {
     // MARK: Widget snapshot
 
     static var widgetFile: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId)?.appendingPathComponent(widgetFileName)
+        WidgetFiles.url(WidgetFiles.snapshotName)
     }
 
-    /// The snapshot as a JSON object, when there is one.
-    static func readWidget() -> [String: Any]? {
-        guard let url = widgetFile, let data = try? Data(contentsOf: url) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    }
-
-    /// Writes the snapshot, or removes it (the widget then shows "not connected"), and redraws the widgets.
+    /// Writes the page's snapshot (look and episode), or removes it (the widgets then show "not connected"), and
+    /// redraws the widgets. Callers go through `WidgetData.withLock`.
     static func writeWidget(_ data: Data?) throws {
         guard let url = widgetFile else {
             throw NSError(domain: "PurssDevice", code: 1, userInfo: [NSLocalizedDescriptionKey: "The app group is not available."])
@@ -148,13 +144,14 @@ enum DeviceStore {
 
     // MARK: Wiping
 
-    /// The PURSS refused the token: nothing of the account stays. The page finds the flag on its next start.
+    /// The PURSS refused the token: nothing of the account stays, the widgets' data included. The page finds the flag
+    /// on its next start. Called through `WidgetData.lost(since:)`, which checks the refusal isn't an old connection's.
     static func revoke() {
         BackgroundTransfers.shared.cancelAll()
         clearState()
         try? FileManager.default.removeItem(at: downloadsDirectory)
         try? FileManager.default.removeItem(at: incomingDirectory)
-        try? writeWidget(nil)
+        WidgetData.wipe()
         // The notification extension's credential belongs to the same refused connection (plan/37).
         PushTarget.delete()
         setLost()

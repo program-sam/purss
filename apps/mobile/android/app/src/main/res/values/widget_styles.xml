@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A panel row as the app's list rows: the title in bold over its source and age (plan/38). -->
+<resources>
+    <style name="WidgetRowTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textColor">@color/widget_ink</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="WidgetRowMeta">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/widget_ink_2</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+    <!-- A source's initials on a tinted tile, as the app's avatars (packages/ui primitives.css .av). -->
+    <style name="WidgetAvatar">
+        <item name="android:layout_width">28dp</item>
+        <item name="android:layout_height">28dp</item>
+        <item name="android:layout_marginEnd">10dp</item>
+        <item name="android:background">@drawable/widget_avatar</item>
+        <item name="android:gravity">center</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="android:textColor">@color/widget_avatar_ink</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <!-- Choosing a panel's collection or source: a dialog in the system's light or dark. -->
+    <style name="WidgetSetupTheme" parent="Theme.AppCompat.DayNight.Dialog">
+        <item name="windowNoTitle">true</item>
+        <item name="colorAccent">@color/widget_accent</item>
+        <item name="android:windowMinWidthMajor">80%</item>
+        <item name="android:windowMinWidthMinor">90%</item>
+    </style>
+</resources>

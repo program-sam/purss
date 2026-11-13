@@ -34,8 +34,8 @@ export interface Platform {
   publicOrigin(): string;
   /** Links and text shared into the app from other apps. Returns a function that stops listening. */
   onShare(listener: (shared: SharedContent) => void): () => void;
-  /** The home-screen widget (plan/38); null where there is none (the web app). */
-  readonly widget: { update(snapshot: WidgetSnapshot): void; current(): Promise<WidgetSnapshot | null> } | null;
+  /** The home-screen panels (plan/38): their look and episode, and a refresh of their lists; null where there are none (the web app). */
+  readonly widget: { update(snapshot: WidgetSnapshot): void; current(): Promise<WidgetSnapshot | null>; refresh(): void } | null;
   /** Notifications on this phone (plan/37); null where there are none (the web app). */
   readonly push: PhonePush | null;
   /** Where a tapped widget row or notification asks the app to go (`purss://open`). Returns a function that stops listening. */
