@@ -370,3 +370,21 @@ test("a small upload is checked against the disk reserve again once it has arriv
   assert.equal(r.status, 507);
   assert.deepEqual(readdirSync(path.join(b.app.config.dataDir, "staging")).filter((f) => f.startsWith("upload-") || f.startsWith("import-")), [], "nothing kept");
 });
+
+test("an upload waiting its turn is checked against the disk reserve again just before it's kept", async (t) => {
+  const a = await boot();
+  const b = await boot();
+  t.after(async () => { diskOverride.freeBytes = null; await a.close(); await b.close(); });
+  seedLibrary(a.app, a.owner);
+  const exported = (await a.api("GET", "/api/export")).text;
+  diskOverride.freeBytes = b.app.config.diskReserveBytes + 50 * 1024 * 1024;
+  let release!: () => void;
+  void oneImportAtATime(() => new Promise<void>((r) => { release = r; }));
+  const previewing = b.api("POST", "/api/import/preview", exported, { contentType: "application/json" });
+  await new Promise((r) => setTimeout(r, 300)); // arrived and checked once; now waiting for its turn
+  diskOverride.freeBytes = b.app.config.diskReserveBytes - 1;
+  release();
+  const r = await previewing;
+  assert.equal(r.status, 507);
+  assert.deepEqual(readdirSync(path.join(b.app.config.dataDir, "staging")).filter((f) => f.startsWith("import-") || f.startsWith("upload-")), [], "nothing kept");
+});

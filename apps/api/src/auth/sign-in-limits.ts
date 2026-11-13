@@ -31,7 +31,7 @@ function key(app: App): string {
 const mac = (app: App, nonce: string, email: string, epoch: string) => createHmac("sha256", key(app)).update(`${nonce}\n${email}\n${epoch}`).digest("base64url");
 function passwordEpoch(app: App, address: string): string {
   const row = app.db.get<{ secret_hash: string }>(
-    "SELECT m.secret_hash FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password' WHERE lower(a.email) = lower(?)", address);
+    "SELECT m.secret_hash FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password' WHERE a.email IS NOT NULL AND lower(a.email) = lower(?)", address);
   return row ? createHmac("sha256", key(app)).update(row.secret_hash).digest("base64url").slice(0, 16) : "";
 }
 
@@ -43,8 +43,10 @@ function passwordEpoch(app: App, address: string): string {
 export type Tries = { bucket: string; known: boolean; address: string };
 export function triesKey(app: App, email: string, knownCookie: string | undefined): Tries {
   const address = normalizeEmail(email);
+  // No known value sent: nothing to check against, so no lookup (this runs before the other limits).
+  if (!knownCookie) return { bucket: `password-user:${address}`, known: false, address };
   const epoch = passwordEpoch(app, address);
-  for (const entry of (knownCookie ?? "").split(",").slice(0, 8)) {
+  for (const entry of knownCookie.split(",").slice(0, 8)) {
     const [nonce, sig] = entry.split(".");
     if (nonce && sig && safeEqual(sig, mac(app, nonce, address, epoch))) return { bucket: `password-user:${address}:${nonce}`, known: true, address };
   }
