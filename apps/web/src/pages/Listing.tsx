@@ -251,7 +251,7 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
     try {
       const out = await get<ItemIds>("/api/items/ids", { ...params });
       sel.selectAll(out.ids);
-      if (out.total > out.ids.length) toast(`Selected the first ${plural(out.ids.length, "item")} of ${out.total}. Act on these, then select again for the rest.`);
+      if (out.total === null) toast(`Selected the first ${plural(out.ids.length, "item")}; there are more. Act on these, then select again for the rest.`);
     } catch (err) { toast(messageOf(err), { tone: "error" }); }
     finally { setGathering(false); }
   };

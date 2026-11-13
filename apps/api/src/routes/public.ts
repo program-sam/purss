@@ -8,7 +8,7 @@ import {
 import type { Bootstrap, SearchResult } from "@purss/domain";
 import { appUrl } from "@purss/domain";
 import type { RegistrationResponseJSON, AuthenticationResponseJSON } from "@simplewebauthn/server";
-import type { Ctx } from "../app.ts";
+import type { App, Ctx, Principal } from "../app.ts";
 import { audit, requirePrincipal, requireRecentAuth } from "../app.ts";
 import { badRequest, consumeRateLimit, HttpError, Router, notFound, nowIso, parse, rateLimit, setCookie } from "../http.ts";
 import { randomToken } from "../secrets.ts";
@@ -23,8 +23,9 @@ import {
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
 import { OidcFlowError, finishOidc, issueAppTicket, redeemConfirmCode, redeemLinkCode, startFromTicket, startOidc } from "../auth/oidc.ts";
 import { deviceIdOf } from "../connect/devices.ts";
-import { PASSWORD_MAX, checkPassword, normalizeEmail, preparePassword, verifyPassword } from "../auth/passwords.ts";
+import { PASSWORD_MAX, checkPassword, preparePassword, verifyPassword } from "../auth/passwords.ts";
 import { finishSignup, signupRequestEmail, startSignup } from "../auth/signup.ts";
+import { KNOWN_COOKIE, signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
 import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
@@ -43,6 +44,27 @@ import { emailSchema } from "../services/account-email.ts";
 import { DELETION_COOKIE, keepAccount, leaveDeletion, pendingDeletion, requestDeletion } from "../services/deletion.ts";
 
 const limit = rateLimit;
+
+/**
+ * A guess at the current password from a signed-in session (confirming it's you, changing the password). Counted per
+ * session, so one session left open on a shared computer can't lock its person out of the others; the account's own
+ * allowance (50 an hour) is larger and only many sessions together, each needing the password to start, could spend it.
+ */
+/** Ends every session of the account but this one, and closes their open event streams. */
+function signOutOthers(app: App, p: Principal): void {
+  const revoked = sessionWrite(app, p.accountId, p.sessionId, () => {
+    const rows = app.db.all<{ id: string }>("SELECT id FROM sessions WHERE account_id = ? AND id <> ?", p.accountId, p.sessionId);
+    app.db.run("DELETE FROM sessions WHERE account_id = ? AND id <> ?", p.accountId, p.sessionId);
+    audit(app, p.accountId, "sessions_revoke_others", null, "success");
+    return rows.map((r) => r.id);
+  });
+  for (const id of revoked) app.events.emit(`session:${id}`, "revoked");
+}
+
+function stepUpTry(p: Principal): void {
+  limit(`stepup-password:${p.sessionId}`, 10);
+  limit(`stepup-password-account:${p.accountId}`, 50, 3600_000);
+}
 
 /** A path on this PURSS only; "//host" and "/\host" would be read as another site. */
 export function safeReturnPath(v: string | null | undefined): string | null {
@@ -158,14 +180,16 @@ export function publicRouter(): Router<Ctx> {
 
   r.post("/api/auth/password", async (req, ctx, res) => {
     const body = parse(z.object({ email: z.string().max(300), password: z.string().min(1).max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) }), req.body);
-    limit(`password:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
-    // Also per address, so spreading guesses over many network addresses doesn't help.
-    limit(`password-user:${normalizeEmail(body.email)}`, 10, 15 * 60_000);
+    // Per network address, and per account so spreading guesses over many addresses doesn't help (auth/sign-in-limits.ts).
+    const { bucket: tries, known } = triesKey(ctx.app, body.email, req.cookies[KNOWN_COOKIE]);
+    if (!known) limit(`password:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
+    takeTry(tries);
     const accountId = await checkPassword(ctx.app, body.email, body.password);
     if (!accountId) {
       audit(ctx.app, null, "sign_in", "password", "failure");
       throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
+    signedIn(ctx.app, res, tries, body.email, req.cookies[KNOWN_COOKIE]);
     startSession(ctx.app, res, req.raw, accountId, "password", { sharedComputer: body.sharedComputer });
     return { ok: true };
   });
@@ -300,7 +324,7 @@ export function publicRouter(): Router<Ctx> {
   });
   r.post("/api/auth/step-up/password", async (req, ctx) => {
     const p = requirePrincipal(ctx);
-    limit(`stepup-password:${p.accountId}`, 10);
+    stepUpTry(p);
     const { password } = parse(z.object({ password: z.string().min(1).max(PASSWORD_MAX * 4) }), req.body);
     if ((await checkPassword(ctx.app, "", password, p.accountId)) !== p.accountId) throw new HttpError(401, "bad_password", "That password isn't right.");
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
@@ -318,11 +342,13 @@ export function publicRouter(): Router<Ctx> {
       await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: null, requireRecent: true });
       return { ok: true };
     }
-    limit(`stepup-password:${p.accountId}`, 10); // the same guesses as confirming it's you with the password
+    stepUpTry(p); // the same guesses as confirming it's you with the password
     if (!body.currentPassword || !(await verifyPassword(body.currentPassword, stored))) {
       throw new HttpError(401, "bad_current_password", "Your current password isn't right.");
     }
     await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: stored, requireRecent: false });
+    // As after a reset: a changed password ends the account's other sessions, so a cookie taken earlier stops working.
+    signOutOthers(ctx.app, p);
     return { ok: true };
   });
   // Deleting the account: a recent sign-in plus typing the display name (or "delete").
@@ -373,14 +399,7 @@ export function publicRouter(): Router<Ctx> {
     return { ok: true };
   });
   r.post("/api/account/sessions/sign-out-others", (_req, ctx) => {
-    const p = requirePrincipal(ctx);
-    const revoked = sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
-      const rows = ctx.app.db.all<{ id: string }>("SELECT id FROM sessions WHERE account_id = ? AND id <> ?", p.accountId, p.sessionId);
-      ctx.app.db.run("DELETE FROM sessions WHERE account_id = ? AND id <> ?", p.accountId, p.sessionId);
-      audit(ctx.app, p.accountId, "sessions_revoke_others", null, "success");
-      return rows.map((r) => r.id);
-    });
-    for (const id of revoked) ctx.app.events.emit(`session:${id}`, "revoked");
+    signOutOthers(ctx.app, requirePrincipal(ctx));
     return { ok: true };
   });
 
@@ -434,6 +453,7 @@ export function publicRouter(): Router<Ctx> {
   /** What the PURSS has for a page (the browser extension asks this). Before /api/items/:id, which would match it too. */
   r.get("/api/items/lookup", (req, ctx) => {
     const p = requirePrincipal(ctx);
+    limit(`lookup:${p.accountId}`, 600); // a page visit each: plenty for browsing, not for keeping the API busy
     const { url } = parse(z.object({ url: z.string().trim().min(1).max(2000) }), { url: req.query.get("url") ?? undefined });
     return lookupUrl(ctx.app, p, url);
   });
@@ -442,8 +462,11 @@ export function publicRouter(): Router<Ctx> {
   r.put("/api/items/:id/baskets/:basketId", (req, ctx) => keepWithUndo(ctx.app, requirePrincipal(ctx), req.params.id!, req.params.basketId!, true));
   r.delete("/api/items/:id/baskets/:basketId", (req, ctx) => keepWithUndo(ctx.app, requirePrincipal(ctx), req.params.id!, req.params.basketId!, false));
   r.post("/api/items/bulk", (req, ctx) => {
+    const p = requirePrincipal(ctx);
+    // Up to 5,000 items in one transaction on the API's thread (seconds when keeping that many): plenty for tidying up.
+    limit(`bulk:${p.accountId}`, 60);
     const body = parse(bulkActionSchema, req.body);
-    return bulk(ctx.app, requirePrincipal(ctx), body.itemIds, body.action);
+    return bulk(ctx.app, p, body.itemIds, body.action);
   });
   r.post("/api/items/clear-fresh", (req, ctx) => clearFreshAll(ctx.app, requirePrincipal(ctx), parse(clearFreshSchema, req.body).scope));
   r.post("/api/undo", (req, ctx) => applyUndo(ctx.app, requirePrincipal(ctx), parse(undoSchema, req.body).undoToken));

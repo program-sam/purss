@@ -2,13 +2,15 @@
 # with no host ports. Point the proxy at http://purss-workspace:8940 and set in .env:
 #   PURSS_PUBLIC_ORIGIN=https://purss.example.com   (the exact address people open)
 #   PURSS_PROXY_NETWORK=nginx_default                   (the proxy's network)
+#   PURSS_TRUST_PROXY=nginx-proxy-manager               (the proxy's container name: only it, not other
+#                                                        containers on that network, may say who the visitor is)
 #   docker compose -f infra/compose.yaml -f infra/compose.proxy.yaml up -d --build
 services:
   api:
     ports: !reset []
     environment:
       PURSS_PUBLIC_ORIGIN: ${PURSS_PUBLIC_ORIGIN:?set PURSS_PUBLIC_ORIGIN to the https address}
-      PURSS_TRUST_PROXY: "1"
+      PURSS_TRUST_PROXY: ${PURSS_TRUST_PROXY:?set PURSS_TRUST_PROXY to the proxy's container name}
     networks:
       proxy: { aliases: [purss-workspace] }
 

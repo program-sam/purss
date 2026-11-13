@@ -242,6 +242,9 @@ export function createProxyServer(deps: ProxyDeps): http.Server {
 
   server.on("connect", (req, duplex: Duplex, head: Buffer) => {
     const clientSocket = duplex as net.Socket;
+    // From the moment it's accepted: a client resetting while it's refused (or before the tunnel's own handlers are
+    // attached) must not be an unhandled error that stops the proxy.
+    clientSocket.on("error", () => clientSocket.destroy());
     void handleConnect(req, clientSocket, head).catch(() => {
       if (clientSocket.writable) rawResponse(clientSocket, 502, "Bad Gateway", "Proxy error.");
       else clientSocket.destroy();

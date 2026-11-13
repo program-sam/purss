@@ -4,6 +4,7 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import { applySyncBatch } from "./sync.ts";
 import { listItemIds, listItems } from "./items.ts";
 import { changeState } from "./state.ts";
+import { MAX_BULK_ITEMS } from "@purss/domain";
 
 test("Select all takes every item the list shows, past the loaded pages, in the list's order", (t) => {
   const { app, cleanup } = makeTestApp();
@@ -26,4 +27,15 @@ test("Select all takes every item the list shows, past the loaded pages, in the 
   assert.equal(listItemIds(app, p, { scope: "all" }).total, 7, "follows the list's state filter");
   const outsider = makeOwner(app, { admin: false });
   assert.deepEqual(listItemIds(app, outsider, { scope: "all", filter: "all" }), { ids: [], total: 0 }, "never another PURSS's items");
+});
+
+test("Select all past its limit says there are more instead of counting them all", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app, { allocationBytes: null });
+  makeSource(app, p, "Busy", "feed/1");
+  applySyncBatch(app, p.engineUserId, batch(Array.from({ length: MAX_BULK_ITEMS + 1 }, () => entry("feed/1"))));
+  const out = listItemIds(app, p, { scope: "all", filter: "all" });
+  assert.equal(out.ids.length, MAX_BULK_ITEMS);
+  assert.equal(out.total, null);
 });

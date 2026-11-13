@@ -4,8 +4,8 @@
 # set PURSS_BIND_ADDRESS to the host's LAN address for a home network (password sign-in over
 # plain HTTP), or run it behind an HTTPS reverse proxy with compose.proxy.yaml (no host ports).
 # FreshRSS has no route to the internet except the egress proxy, which refuses private and
-# internal destinations; the engine's admin helper and the API's internal listener are
-# reachable only on the internal network.
+# internal destinations; the engine's admin helper is reachable only on the internal network, and
+# the API's internal listener and egress control only on the services network, which FreshRSS is not on.
 name: purss
 
 x-app: &app
@@ -20,6 +20,11 @@ networks:
   internal:
     internal: true
     ipam: { config: [{ subnet: 172.31.88.0/24 }] }
+  # The product's own service routes: the API's internal listener (worker jobs) and egress control.
+  # FreshRSS is not on it, so code running there can't reach them even with a stolen token.
+  services:
+    internal: true
+    ipam: { config: [{ subnet: 172.31.90.0/24 }] }
   # The bridge container's only network: egress (proxy and DNS) is its one peer and way out (plan/41).
   bridge-net:
     internal: true
@@ -48,11 +53,11 @@ services:
       <<: *env
       EGRESS_PROXY_HOST: 172.31.88.10
       EGRESS_GATEWAY_HOST: 172.31.88.10
-      EGRESS_CONTROL_HOST: 172.31.88.10
+      EGRESS_CONTROL_HOST: 172.31.90.10
       EGRESS_BRIDGE_HOST: 172.31.88.10
       EGRESS_BRIDGE_BACKEND: http://172.31.89.20:80
       EGRESS_BRIDGE_NET_HOST: 172.31.89.10
-    networks: { internal: { ipv4_address: 172.31.88.10 }, bridge-net: { ipv4_address: 172.31.89.10 }, outside: {} }
+    networks: { internal: { ipv4_address: 172.31.88.10 }, services: { ipv4_address: 172.31.90.10 }, bridge-net: { ipv4_address: 172.31.89.10 }, outside: {} }
     # The DNS resolver for RSS-Bridge listens on port 53 as the unprivileged node user.
     sysctls: { net.ipv4.ip_unprivileged_port_start: 53 }
     volumes: [data:/data, secrets:/data/secrets:ro]
@@ -121,8 +126,12 @@ services:
     environment:
       <<: *env
       PURSS_HOST: 0.0.0.0
-      # The worker-only listener binds the internal network's address, never the proxy or outside ones.
-      PURSS_INTERNAL_HOST: 172.31.88.30
+      # The worker-only listener binds the services network's address, never the engine's, proxy or outside ones.
+      PURSS_INTERNAL_HOST: 172.31.90.30
+      # Node sizes its heap to a quarter of the container's memory; applying a large import needs more (mem_limit below).
+      # On a small server, lower all three together (docs/self-hosting.md#memory); larger imports are then refused.
+      NODE_OPTIONS: --max-old-space-size=${PURSS_API_HEAP_MB:-640}
+      PURSS_IMPORT_CHECK_HEAP_MB: ${PURSS_IMPORT_CHECK_HEAP_MB:-}
       PURSS_PUBLIC_ORIGIN: ${PURSS_PUBLIC_ORIGIN:-http://localhost:8940}
       # Accounts: "self" (invitations only) or "hosted" (adds allocations and optional open sign-up).
       PURSS_MODE: ${PURSS_MODE:-self}
@@ -153,24 +162,25 @@ services:
       PURSS_APP_ANDROID_CERT_SHA256: ${PURSS_APP_ANDROID_CERT_SHA256:-}
       PURSS_APP_IOS_APP_ID: ${PURSS_APP_IOS_APP_ID:-}
       PURSS_ENGINE_URL: http://engine
-      PURSS_EGRESS_CONTROL_URL: http://172.31.88.10:8949/status
+      PURSS_EGRESS_CONTROL_URL: http://172.31.90.10:8949/status
       PURSS_BRIDGE_URL: http://172.31.88.10:8945
     ports: ["${PURSS_BIND_ADDRESS:-127.0.0.1}:${PURSS_HOST_PORT:-8940}:8940"]
-    networks: { internal: { ipv4_address: 172.31.88.30 }, outside: {} }
+    networks: { internal: { ipv4_address: 172.31.88.30 }, services: { ipv4_address: 172.31.90.30 }, outside: {} }
     volumes: [data:/data, secrets:/data/secrets]
     depends_on: { engine-setup: { condition: service_completed_successfully } }
-    mem_limit: 256m
+    # Room for one large import: it is checked and applied whole (apps/api/src/services/portability.ts).
+    mem_limit: ${PURSS_API_MEMORY:-1g}
 
   worker:
     <<: *app
     command: ["node", "apps/worker/src/main.ts"]
     environment:
       <<: *env
-      PURSS_INTERNAL_URL: http://172.31.88.30:8948
+      PURSS_INTERNAL_URL: http://172.31.90.30:8948
       PURSS_ENGINE_ADMIN_URL: http://engine/purss/admin.php
       PURSS_JEV_URL: ${PURSS_JEV_URL:-}
       PURSS_JEV_MODEL: ${PURSS_JEV_MODEL:-}
-    networks: [internal, outside]
+    networks: [internal, services, outside]
     volumes: [data:/data, secrets:/data/secrets]
     depends_on: { api: { condition: service_started } }
     mem_limit: 192m

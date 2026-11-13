@@ -5,6 +5,7 @@ import type { JevConfig } from "@purss/connectors";
 import { OFFICIAL_PUSH_RELAY } from "@purss/domain/distribution";
 import type { BuildVersion } from "@purss/domain/version";
 import { readVersion } from "../../../scripts/version.ts";
+import { parseTrustProxy, type TrustProxy } from "./http.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -68,6 +69,8 @@ export type Config = {
   apps: { androidPackage: string; androidCerts: string[]; iosAppIds: string[] };
   mode: "self" | "hosted";
   diskReserveBytes: number;
+  /** The most memory checking one import may use, in MB (services/portability.ts checkUploadApart); larger files are refused. */
+  importCheckHeapMb: number;
   defaultAllocationBytes: number | null;
   oidc: OidcProviderConfig[];
   webDist: string;
@@ -82,8 +85,8 @@ export type Config = {
   /** The egress bridge router (plan/41), reached directly; null when this installation runs no bridge. */
   bridgeUrl: string | null;
   syncIntervalSeconds: number;
-  /** Behind a reverse proxy on a private network: take the client address from X-Real-IP / X-Forwarded-For. */
-  trustProxy: boolean;
+  /** Behind a reverse proxy: which peers may give the client address in X-Forwarded-For (http.ts). */
+  trustProxy: TrustProxy;
   /** Hosted mode only: "open" lets anyone create an account (rate-limited); otherwise invitations only. */
   signup: "invite" | "open";
   signupDailyLimit: number;
@@ -210,6 +213,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     apps: appsConfig(env),
     mode,
     diskReserveBytes: int(env.PURSS_DISK_RESERVE_BYTES, 1024 ** 3),
+    importCheckHeapMb: Math.max(64, int(env.PURSS_IMPORT_CHECK_HEAP_MB, 384)),
     defaultAllocationBytes: alloc ? int(alloc, 0) : null,
     oidc,
     webDist: env.PURSS_WEB_DIST ?? path.join(REPO, "apps/web/dist"),
@@ -220,7 +224,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     egressControlUrl: env.PURSS_EGRESS_CONTROL_URL ?? "http://127.0.0.1:8949/status",
     bridgeUrl: env.PURSS_BRIDGE_URL ? env.PURSS_BRIDGE_URL.replace(/\/+$/, "") : null,
     syncIntervalSeconds: int(env.PURSS_SYNC_INTERVAL, 120),
-    trustProxy: env.PURSS_TRUST_PROXY === "1",
+    trustProxy: parseTrustProxy(env.PURSS_TRUST_PROXY),
     signup: mode === "hosted" && env.PURSS_SIGNUP === "open" ? "open" : "invite",
     signupDailyLimit: int(env.PURSS_SIGNUP_DAILY_LIMIT, 50),
     mail: mailConfig(env),

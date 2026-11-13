@@ -1,7 +1,7 @@
 import type { ServerResponse } from "node:http";
 import type { Ctx } from "../app.ts";
 import { audit, requirePrincipal } from "../app.ts";
-import { Router } from "../http.ts";
+import { Router, rateLimit } from "../http.ts";
 import { keptLinksChunks } from "../services/kept-links-export.ts";
 
 /** Write a chunk, waiting for the socket to drain; rejects if the client went away. */
@@ -22,6 +22,7 @@ export function keptLinksRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   r.get("/api/export/kept-links", async (req, ctx, res) => {
     const p = requirePrincipal(ctx);
+    rateLimit(`export:${p.accountId}`, 6, 3600_000); // shares the full export's allowance: both read the whole account
     const format = req.query.get("format") === "md" ? "md" : "html";
     res.writeHead(200, {
       "content-type": format === "md" ? "text/markdown; charset=utf-8" : "text/html; charset=utf-8",

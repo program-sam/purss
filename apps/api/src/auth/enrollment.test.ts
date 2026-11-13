@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { makeOwner, makeTestApp } from "../testing.ts";
+import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
@@ -34,6 +34,7 @@ function insertSession(app: ReturnType<typeof makeTestApp>["app"], accountId: st
 /** Hosted open sign-up needs working outgoing email (plan/27): a mail server that answers and sends nowhere. */
 async function hostedSignup(env: Record<string, string>) {
   const made = makeTestApp({ PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>", ...env });
+  makeOperator(made.app); // claimed by its operator first (mail/mailer.ts signupOpen)
   useTransport(made.app, { send: async () => {}, verify: async () => {} });
   await checkMail(made.app);
   return { app: made.app, cleanup: async () => { await settleMail(made.app); made.cleanup(); } };
@@ -211,7 +212,7 @@ test("a zero installation signup cap fails closed without a misleading retry tim
   assert.equal(last.status, 429);
   assert.equal(last.json.error.code, "signup_rate_limited");
   assert.equal(last.headers.get("retry-after"), null, "the attempt window cannot override the installation-wide pause");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 0);
 });
 
 test("a blocked daily signup cap fails closed when its release time is unavailable", async (t) => {
@@ -229,6 +230,6 @@ test("a blocked daily signup cap fails closed when its release time is unavailab
   assert.equal(response.status, 429);
   assert.equal(response.json.error.code, "signup_full");
   assert.equal(response.headers.get("retry-after"), null, "an unknown release time must not be guessed");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 0);
 });
 

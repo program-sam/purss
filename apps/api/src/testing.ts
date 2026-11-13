@@ -42,6 +42,17 @@ export function makeOwner(app: App, opts: { allocationBytes?: number | null; adm
   return { accountId, workspaceId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };
 }
 
+/**
+ * The administrator who claimed an installation with its setup code. Open sign-up only works once there is one
+ * (mail/mailer.ts signupOpen); tests counting the accounts sign-up made leave this one out (`email <> OPERATOR_EMAIL`).
+ */
+export const OPERATOR_EMAIL = "operator@example.test";
+export function makeOperator(app: App): string {
+  const { accountId } = makeOwner(app, { admin: true });
+  app.db.run("UPDATE accounts SET email = ? WHERE id = ?", OPERATOR_EMAIL, accountId);
+  return accountId;
+}
+
 /** Insert a followed source with an engine stream, as if engine.subscribe had completed. */
 export function makeSource(app: App, p: Principal, title: string, streamId: string, extra: { kind?: string; isPrivate?: boolean; settled?: boolean } = {}): string {
   const id = newId("src");

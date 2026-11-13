@@ -13,18 +13,25 @@ export const CAPTURE_LEVELS = ["metadata", "feed", "fulltext", "pending", "faile
 const id = z.string().min(3).max(40).regex(/^[a-z]{1,8}_[0-9a-z]{26}$/);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+/**
+ * A list of values, each kept once: a repeated value adds nothing to what matches, only to what the query costs to run.
+ * Repeats are folded first, then at most `max` different values are allowed.
+ */
+const once = <T extends z.ZodType<string>>(value: T, max: number) =>
+  z.preprocess((v) => (Array.isArray(v) ? [...new Set(v)] : v), z.array(value).min(1).max(max));
+
 export const leafSchema = z.discriminatedUnion("field", [
   z.object({ field: z.literal("text"), value: z.string().trim().min(1).max(200) }),
-  z.object({ field: z.literal("source"), value: z.array(id).min(1).max(50) }),
-  z.object({ field: z.literal("collection"), value: z.array(id).min(1).max(20) }),
-  z.object({ field: z.literal("basket"), value: z.array(id).min(1).max(20) }),
-  z.object({ field: z.literal("kind"), value: z.array(z.enum(ITEM_KINDS)).min(1) }),
-  z.object({ field: z.literal("workflow"), value: z.array(z.enum(WORKFLOW_STATES)).min(1) }),
+  z.object({ field: z.literal("source"), value: once(id, 50) }),
+  z.object({ field: z.literal("collection"), value: once(id, 20) }),
+  z.object({ field: z.literal("basket"), value: once(id, 20) }),
+  z.object({ field: z.literal("kind"), value: once(z.enum(ITEM_KINDS), ITEM_KINDS.length) }),
+  z.object({ field: z.literal("workflow"), value: once(z.enum(WORKFLOW_STATES), WORKFLOW_STATES.length) }),
   z.object({ field: z.literal("author"), value: z.string().trim().min(1).max(120) }),
   z.object({ field: z.literal("fresh"), value: z.boolean() }),
   z.object({ field: z.literal("opened"), value: z.boolean() }),
   z.object({ field: z.literal("kept"), value: z.boolean() }),
-  z.object({ field: z.literal("capture"), value: z.array(z.enum(CAPTURE_LEVELS)).min(1) }),
+  z.object({ field: z.literal("capture"), value: once(z.enum(CAPTURE_LEVELS), CAPTURE_LEVELS.length) }),
   z.object({
     field: z.literal("date"),
     which: z.enum(["published", "discovered", "kept"]),

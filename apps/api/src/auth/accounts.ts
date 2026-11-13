@@ -30,8 +30,9 @@ export function setInstallation(app: App, key: string, value: string): void {
   app.db.run("INSERT INTO installation (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value);
 }
 
-export function accountCount(app: App): number {
-  return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n;
+/** Whether the installation has been claimed (any account at all); asked on every session check, so it stops at one. */
+export function hasAccounts(app: App): boolean {
+  return app.db.get("SELECT 1 FROM accounts LIMIT 1") !== undefined;
 }
 
 /**
@@ -39,7 +40,7 @@ export function accountCount(app: App): number {
  * to the secrets directory (readable only by the operator), never a first-visitor-wins page.
  */
 export function ensureClaimCode(app: App): string | null {
-  if (accountCount(app) > 0) {
+  if (hasAccounts(app)) {
     removeSecret(app.config.secretsDir, "setup-code");
     return null;
   }
@@ -204,7 +205,7 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
     accountEmail: accountEmailAvailable(app),
     billing: app.config.billing !== null,
   };
-  if (accountCount(app) === 0) return { state: "unclaimed", csrf: null, account: null, installation };
+  if (!hasAccounts(app)) return { state: "unclaimed", csrf: null, account: null, installation };
   const p = ctx.principal;
   if (!p) return { state: "signed_out", csrf: null, account: null, installation };
   const a = app.db.get<{ display_name: string | null; email: string | null }>("SELECT display_name, email FROM accounts WHERE id = ?", p.accountId)!;
@@ -228,7 +229,7 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
  */
 export function claim(app: App, code: string, email: string, displayName: string | null, password: PreparedPassword): { accountId: string } {
   const out = app.db.tx(() => {
-    if (accountCount(app) > 0) throw new HttpError(409, "claimed", "This installation is already set up. Please sign in.");
+    if (hasAccounts(app)) throw new HttpError(409, "claimed", "This installation is already set up. Please sign in.");
     const hash = getInstallation(app, "claim_hash");
     if (!hash || !verifySecret(normalizeCode(code), hash)) {
       audit(app, null, "claim", null, "failure");

@@ -19,6 +19,8 @@ test("YouTube video pages play in YouTube's no-cookie player, from where a link 
 test("Vimeo, Dailymotion and Odysee video pages play in their own players; other pages of theirs don't", () => {
   assert.equal(embedFor("https://vimeo.com/76979871", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1");
   assert.equal(embedFor("https://vimeo.com/76979871/abc123def", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1&h=abc123def", "an unlisted video keeps its key");
+  assert.equal(embedFor("https://player.vimeo.com/video/76979871?h=abc123def", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1&h=abc123def");
+  assert.equal(embedFor("https://player.vimeo.com/video/76979871?h=x%26dnt%3D0%26api%3D1", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1", "a key that isn't one can't add parameters to the player");
   assert.equal(embedFor("https://vimeo.com/channels/staffpicks/76979871", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1");
   assert.equal(embedFor("https://vimeo.com/showcase/123456/video/76979871", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1", "a video in a showcase is the video, not the showcase");
   assert.equal(embedFor("https://vimeo.com/groups/name/videos/76979871", https)?.src, "https://player.vimeo.com/video/76979871?autoplay=1&dnt=1");

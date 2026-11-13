@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { App } from "../app.ts";
-import { HttpError, rateLimit, readBody } from "../http.ts";
+import { HttpError, UPLOAD_PACE, accountSender, rateLimit, readBody } from "../http.ts";
 import { resolveToken } from "../services/assistant.ts";
 import type { AssistantCaller } from "../services/assistant.ts";
 import { ACCESS_TOKEN_PREFIX, resolveAccessToken } from "../oauth/grants.ts";
@@ -86,10 +86,14 @@ async function answer(app: App, raw: IncomingMessage): Promise<Answer> {
 
   let msg: unknown;
   try {
-    msg = await readBody(raw, BODY_LIMIT);
+    msg = await readBody(raw, BODY_LIMIT, UPLOAD_PACE, accountSender(caller.principal.accountId));
     if (typeof msg === "string") msg = JSON.parse(msg);
   } catch (err) {
     if (err instanceof HttpError && err.status === 413) return { status: 413, body: rpcError(null, -32600, "That request is too large.") };
+    // Busy, or the body stalled: say so (with when to try again), so an assistant waits instead of resending at once.
+    if (err instanceof HttpError && (err.status === 503 || err.status === 408)) {
+      return { status: err.status, headers: { "retry-after": err.status === 503 ? "5" : "1" }, body: rpcError(null, -32000, err.message) };
+    }
     return { status: 400, body: rpcError(null, -32700, "The body isn't valid JSON.") };
   }
   // The token may have been revoked, or the account deleted, while the body arrived.

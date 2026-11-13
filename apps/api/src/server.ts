@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createReadStream, existsSync, statSync } from "node:fs";
 import path from "node:path";
 import type { App, Ctx, Principal } from "./app.ts";
-import { HttpError, Router, parseCookies, readBody, sendJson, type Req } from "./http.ts";
+import { DEFAULT_BODY_LIMIT, HttpError, Router, SIGNED_OUT_PACE, SMALL_BODY_LIMIT, UPLOAD_PACE, accountSender, addressSender, clientAddress, type BodySender, parseCookies, readBody, sendJson, type Req, type RouteOptions } from "./http.ts";
 import { SESSION_COOKIE, renewSessionCookie, resolvePrincipal } from "./auth/accounts.ts";
 import { safeEqual } from "./secrets.ts";
 import { StorageFull, markPaused } from "./services/storage.ts";
@@ -48,8 +48,19 @@ function errorResponse(app: App, res: ServerResponse, err: unknown): void {
   sendJson(res, 500, { error: { code: "internal", message: "Something went wrong on our side. Nothing was changed; please try again." } });
 }
 
-async function toReq(raw: IncomingMessage, url: URL, params: Record<string, string>, bodyLimit?: number): Promise<Req> {
-  return { raw, method: raw.method ?? "GET", path: url.pathname, query: url.searchParams, params, cookies: parseCookies(raw.headers.cookie), body: await readBody(raw, bodyLimit ?? 1_000_000) };
+/** A route taking more than the default (a page's readable text from the browser, up to 8 MB) gives a slow uplink time to send it. */
+const LARGE_BODY_PACE = { ...UPLOAD_PACE, maxMs: 10 * 60_000 };
+
+/** What a caller who isn't signed in may send to a route without its own limit: sign-in forms and the like are small. */
+const SIGNED_OUT_BODY_LIMIT = SMALL_BODY_LIMIT;
+
+const bodySender = (app: App, raw: IncomingMessage, p: Principal | null): BodySender =>
+  p ? accountSender(p.accountId) : addressSender(clientAddress(raw, app.config.trustProxy));
+
+/** `from`: whose share of the public body budget this body counts against (null on the internal listener). */
+async function toReq(raw: IncomingMessage, url: URL, params: Record<string, string>, opts: RouteOptions = {}, signedIn = true, from: BodySender | null = null): Promise<Req> {
+  const limit = opts.bodyLimit ?? (signedIn ? DEFAULT_BODY_LIMIT : SIGNED_OUT_BODY_LIMIT);
+  return { raw, method: raw.method ?? "GET", path: url.pathname, query: url.searchParams, params, cookies: parseCookies(raw.headers.cookie), body: opts.ownBody ? undefined : await readBody(raw, limit, !signedIn ? SIGNED_OUT_PACE : limit > DEFAULT_BODY_LIMIT ? LARGE_BODY_PACE : UPLOAD_PACE, from) };
 }
 
 export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPages?: Router<Ctx>; events: (req: IncomingMessage, res: ServerResponse, ctx: Ctx) => void }): Server {
@@ -98,7 +109,9 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
           if (m === "method") throw new HttpError(405, "method", "That isn't supported here.");
           if (!m) continue;
           checkDeviceRoute(gate, method, m.pattern);
-          const req = await toReq(raw, url, m.params, m.options.bodyLimit);
+          // A large body costs memory before any handler could refuse it: only someone signed in may send one.
+          if (!principal && (m.options.bodyLimit ?? 0) > DEFAULT_BODY_LIMIT) throw new HttpError(401, "signed_out", "Please sign in again.");
+          const req = await toReq(raw, url, m.params, m.options, principal !== null, bodySender(app, raw, principal));
           if (gate.kind !== "browser") req.cookies = {};
           // Reading the body can take a while: the account may have been deleted or signed out meanwhile.
           if (principal) assertStillUsable(app, principal);
@@ -120,7 +133,7 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
       if (extra.publicPages) {
         const m = extra.publicPages.match(method, url.pathname);
         if (m && m !== "method") {
-          const req = await toReq(raw, url, m.params);
+          const req = await toReq(raw, url, m.params, {}, principal !== null, bodySender(app, raw, principal));
           await m.handler(req, ctx, res);
           return;
         }
@@ -172,7 +185,7 @@ export function internalServer(app: App, router: Router<{ app: App }>): Server {
       const url = new URL(raw.url ?? "/", "http://internal");
       const m = router.match(raw.method ?? "GET", url.pathname);
       if (!m || m === "method") throw new HttpError(404, "not_found", "Unknown internal route.");
-      const req = await toReq(raw, url, m.params, m.options.bodyLimit);
+      const req = await toReq(raw, url, m.params, m.options);
       const out = await m.handler(req, { app }, res);
       if (!res.headersSent) sendJson(res, 200, out ?? { ok: true });
     } catch (err) {

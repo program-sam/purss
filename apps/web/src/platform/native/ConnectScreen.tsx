@@ -183,11 +183,16 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
           return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
         }
       }
-      const out = await getJson(`${origin}/api/connect/${keeping ? "keep-account" : "signin"}`, { method: "POST", body: JSON.stringify({ ...body, client: "mobile", deviceName: await deviceName() }) });
+      // What this PURSS gave the app at its last password sign-in, for sign-in tries of its own (the server's auth/sign-in-limits.ts).
+      const knownKey = `purss-known:${origin}`;
+      const known = !keeping && input.method === "password" ? readKnown(knownKey) : null;
+      const out = await getJson(`${origin}/api/connect/${keeping ? "keep-account" : "signin"}`, { method: "POST", body: JSON.stringify({ ...body, client: "mobile", deviceName: await deviceName(), ...(known ? { known } : {}) }) });
       const error = (out.body as { error?: { code?: string; dueAt?: string; keepToken?: string } } | null)?.error;
       if (out.status === 409 && error?.code === "deletion_pending" && error.keepToken && error.dueAt) return { keep: { token: error.keepToken, dueAt: error.dueAt } };
       const token = (out.body as Partial<ConnectTokenResult> | null)?.token;
       if (out.status !== 200 || typeof token !== "string") return { error: errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't sign you in. Try again.") };
+      const keepKnown = (out.body as Partial<ConnectTokenResult>).known;
+      if (typeof keepKnown === "string") writeKnown(knownKey, keepKnown);
       await saveConnection({ origin, token, passkeys: ws.passkeys });
       location.reload();
       return {};
@@ -517,3 +522,9 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
   );
 }
 
+function readKnown(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeKnown(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* storage full: the next sign-in shares the account's tries */ }
+}

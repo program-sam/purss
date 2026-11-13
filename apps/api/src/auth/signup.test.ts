@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bootDeletion, setCookie } from "../deletion-testing.ts";
+import { OPERATOR_EMAIL, makeOperator } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 import type { Message } from "../mail/mailer.ts";
 import { checkPassword } from "./passwords.ts";
@@ -13,6 +14,7 @@ let n = 0;
 
 async function boot(env: Record<string, string> = HOSTED) {
   const b = await bootDeletion(env);
+  makeOperator(b.app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
   const sent: Message[] = [];
   useTransport(b.app, { send: async (m) => { sent.push(m); }, verify: async () => undefined });
   await checkMail(b.app);
@@ -20,7 +22,7 @@ async function boot(env: Record<string, string> = HOSTED) {
   const from = () => ({ "x-forwarded-for": `10.7.${Math.floor(++n / 250)}.${n % 250}` });
   const start = (email: string) => b.api(null, "POST", "/api/signup/start", { email }, from());
   const finish = (body: Record<string, unknown>) => b.api(null, "POST", "/api/signup", { password: PASSWORD, ...body }, from());
-  const accounts = () => b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts")!.n;
+  const accounts = () => b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n;
   const mail = async (subject: RegExp) => { await settleMail(b.app); return sent.filter((m) => subject.test(m.subject)); };
   /** The token in the newest "finish creating your account" message to `to`. */
   const linkFor = async (to: string) => {
@@ -48,7 +50,7 @@ test("sign-up emails a link and makes nothing; the link makes the account with t
   const out = await finish({ token, displayName: "Ana" });
   assert.equal(out.status, 200, out.text);
   assert.deepEqual(out.json, { ok: true }, "nothing but the answer: no recovery codes");
-  const acct = b.app.db.get<{ id: string; email: string; email_verified_at: string | null; display_name: string }>("SELECT id, email, email_verified_at, display_name FROM accounts")!;
+  const acct = b.app.db.get<{ id: string; email: string; email_verified_at: string | null; display_name: string }>("SELECT id, email, email_verified_at, display_name FROM accounts WHERE email IS NOT 'operator@example.test'")!;
   assert.equal(acct.email, "Ana0@Example.org");
   assert.ok(acct.email_verified_at, "the link proved the address");
   assert.equal(acct.display_name, "Ana");
@@ -141,6 +143,16 @@ test("a new hosted account has no storage limit", async (t) => {
   t.after(b.close);
   await start("ana7@example.org");
   assert.equal((await finish({ token: await linkFor("ana7@example.org") })).status, 200);
-  const rows = b.app.db.all<{ allocation_bytes: number | null }>("SELECT allocation_bytes FROM storage_accounts");
+  const rows = b.app.db.all<{ allocation_bytes: number | null }>("SELECT s.allocation_bytes FROM storage_accounts s JOIN accounts a ON a.id = s.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL);
   assert.deepEqual(rows.map((r) => r.allocation_bytes), [null], "no allocation unless an administrator sets one");
+});
+
+test("nobody can sign up before the installation is claimed: the setup code's administrator must come first", async (t) => {
+  const { b, start } = await boot();
+  t.after(b.close);
+  b.app.db.exec("PRAGMA foreign_keys = OFF; DELETE FROM sessions; DELETE FROM role_grants; DELETE FROM sign_in_methods; DELETE FROM accounts; PRAGMA foreign_keys = ON;");
+  const early = await start("early@example.org");
+  assert.equal(early.status, 403);
+  assert.equal(early.json.error.code, "closed");
+  assert.equal((await b.api(null, "GET", "/api/session")).json.state, "unclaimed", "the setup code still works");
 });

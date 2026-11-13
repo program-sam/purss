@@ -13,8 +13,8 @@ up.
 
 - A Linux machine that stays on, with **Docker Engine** and the **Docker Compose plugin**
   (Compose v2). Check with `docker compose version`.
-- About **1 GiB of free memory** (the containers are capped at roughly 870 MiB together) and a
-  few GiB of disk. PURSS pauses collecting when less than 1 GiB of disk is left.
+- About **1 GiB of free memory** for everyday use, and up to about 1 GiB more while a large export
+  is being imported (the containers are capped at about 1.6 GiB together), and a few GiB of disk. PURSS pauses collecting when less than 1 GiB of disk is left.
 - **Git**, and a copy of this repository.
 - Internet access from the machine, to fetch feeds.
 
@@ -71,9 +71,10 @@ PURSS_PUBLIC_ORIGIN=http://192.168.1.20:8940
 ```sh
 PURSS_PUBLIC_ORIGIN=https://purss.example.com
 PURSS_PROXY_NETWORK=<the Docker network your reverse proxy is on>
+PURSS_TRUST_PROXY=<your reverse proxy's container name>
 ```
 
-Find the proxy's network with `docker network ls`. Then, in the proxy, add a site for your
+Find the proxy's network with `docker network ls` and its container name with `docker ps`. Then, in the proxy, add a site for your
 domain that forwards to `http://purss-workspace:8940` and requests an HTTPS certificate. Leave
 buffering off for `/api/events` and allow uploads of at least 128 MiB, for imports. The
 [proxy section](self-hosting.md#behind-an-https-reverse-proxy) has the full list.

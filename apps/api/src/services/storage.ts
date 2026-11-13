@@ -101,6 +101,11 @@ function diskBlocks(app: App, bytes: number): boolean {
   return free - bytes < app.config.diskReserveBytes;
 }
 
+/** Refuses to store a file (an upload, a staged import) that would eat into the disk's reserve; it isn't account content, so nothing is paused. */
+export function assertDiskRoom(app: App, bytes: number): void {
+  if (diskBlocks(app, bytes)) throw new HttpError(507, "disk_reserve", "The server is low on disk space, so the file can't be stored. Nothing you kept was removed.");
+}
+
 /**
  * Check whether `bytes` of growth can be admitted. Control writes (workflow, progress,
  * pinning an existing item) may use a small bounded headroom beyond the allocation. `onDisk`:

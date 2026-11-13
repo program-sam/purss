@@ -1,7 +1,7 @@
 import { appUrl } from "@purss/domain";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { App } from "../app.ts";
-import { HttpError, readBody } from "../http.ts";
+import { HttpError, SIGNED_OUT_PACE, addressSender, clientAddress, readBody } from "../http.ts";
 import { endpointFor } from "../services/assistant.ts";
 import { isOurResource } from "./authorize.ts";
 import { exchangeCode, refreshTokens, revokeByToken } from "./grants.ts";
@@ -73,9 +73,9 @@ function send(res: ServerResponse, status: number, body: unknown, cache = "no-st
 const oauthError = (res: ServerResponse, error: string, description: string, status = 400) => send(res, status, { error, error_description: description });
 
 /** A form-encoded body as single-valued parameters; null when it isn't one or repeats a parameter (RFC 6749 §3.2). */
-async function formOf(raw: IncomingMessage): Promise<Record<string, string> | null> {
+async function formOf(app: App, raw: IncomingMessage): Promise<Record<string, string> | null> {
   if (!String(raw.headers["content-type"] ?? "").toLowerCase().startsWith("application/x-www-form-urlencoded")) return null;
-  const text = await readBody(raw, BODY_LIMIT);
+  const text = await readBody(raw, BODY_LIMIT, SIGNED_OUT_PACE, addressSender(clientAddress(raw, app.config.trustProxy)));
   const params = new URLSearchParams(typeof text === "string" ? text : "");
   const out: Record<string, string> = {};
   for (const [k, v] of params) {
@@ -96,7 +96,7 @@ export async function handleOAuth(app: App, raw: IncomingMessage, res: ServerRes
   }
   if (method !== "POST") { res.writeHead(405, { allow: "POST" }).end(); return; }
   let form: Record<string, string> | null;
-  try { form = await formOf(raw); } catch (err) {
+  try { form = await formOf(app, raw); } catch (err) {
     if (err instanceof HttpError && err.status === 413) return oauthError(res, "invalid_request", "The request is too large.");
     throw err;
   }

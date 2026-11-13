@@ -233,6 +233,37 @@ export const archiveSchema = z.object({
   }),
 });
 
+const ENTRY_SCHEMAS: Record<string, z.ZodType> = {
+  sources: sourceSchema, collections: collectionSchema, baskets: basketSchema, memberships: membershipSchema, items: itemSchema,
+  stateLog: stateLogSchema, annotations: annotationSchema, images: imageSchema, itemReminders: itemReminderSchema, shares: shareSchema,
+};
+
+/**
+ * About how many values a JSON text holds, counted without parsing it (a scan that allocates nothing): every
+ * object and array, plus one per comma between values or members. Parsing costs memory per value, not per byte
+ * (a file of millions of one-letter strings is small), so a budget on this keeps parsing an export's memory known.
+ * Nesting deeper than any export has (`maxDepth`) counts as over the budget: millions of brackets inside each other
+ * are few values but costly to parse.
+ */
+export function countJsonValues(text: string, stopAt = Infinity, maxDepth = Infinity): number {
+  let n = text.trim() ? 1 : 0;
+  let depth = 0;
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (inString) {
+      if (c === 92) i++; // backslash: skip the escaped character
+      else if (c === 34) inString = false;
+    } else if (c === 34) inString = true;
+    else if (c === 123 || c === 91) { // { [
+      if (++depth > maxDepth) return stopAt;
+      if (++n >= stopAt) return n;
+    } else if (c === 125 || c === 93) depth--; // } ]
+    else if (c === 44 && ++n >= stopAt) return n; // ,
+  }
+  return n;
+}
+
 export type Archive = z.infer<typeof archiveSchema>;
 export type ArchiveItem = z.infer<typeof itemSchema>;
 export type ArchiveSource = z.infer<typeof sourceSchema>;
@@ -274,6 +305,19 @@ export function parseArchive(raw: unknown): Archive {
   for (const name of SECTION_NAMES) verify(name, head[name], manifest.sections[name]);
   for (const name of OPTIONAL_SECTION_NAMES) {
     if (head[name] !== undefined || manifest.sections[name] !== undefined) verify(name, head[name], manifest.sections[name]);
+  }
+  // Entry by entry first, stopping at the first bad one: checking a whole section at once would build one
+  // issue per bad entry, and a file of a million bad entries would take far more memory than the file.
+  for (const [name, schema] of Object.entries(ENTRY_SCHEMAS)) {
+    const section = head[name];
+    if (!Array.isArray(section)) continue;
+    for (let i = 0; i < section.length; i++) {
+      const entry = schema.safeParse(section[i]);
+      if (!entry.success) {
+        const issue = entry.error.issues[0];
+        throw new ArchiveError("invalid", `That export file has details this version can't read (${[name, i, ...(issue?.path ?? [])].slice(0, 3).join(".")}).`);
+      }
+    }
   }
   const parsed = archiveSchema.safeParse(raw);
   if (!parsed.success) {

@@ -14,12 +14,12 @@ import { internalServer, publicServer } from "./server.ts";
 import { enqueue, expireLeases } from "./services/jobs.ts";
 import { settleFailedJob, syncDelaySeconds } from "./services/failures.ts";
 import { expireReservations, refreshPause } from "./services/storage.ts";
-import { addSeconds, nowIso } from "./http.ts";
+import { addSeconds, nowIso, watchTrustedProxies } from "./http.ts";
 import { runReminderPass } from "./services/reminders.ts";
 import { runReturningPass } from "./services/returning.ts";
 import { runOpmlImports } from "./services/opml-import.ts";
 import { backfillFeedKeys, checkEmptyFeeds } from "./services/sources.ts";
-import { purgeStages } from "./services/portability.ts";
+import { purgeStages, purgeUploads } from "./services/portability.ts";
 import { startCaptureCheck } from "./services/captures.ts";
 import { scheduleIconChecks } from "./services/icons.ts";
 import { purgeCodes } from "./connect/codes.ts";
@@ -164,7 +164,9 @@ export async function start(config = loadConfig()) {
   const app = createApp(config);
   void startSearchIndexRebuild(app); // only does anything after an upgrade that changed how search folds text
   void startCaptureCheck(app); // only does anything for readable copies saved before captures were checked
+  purgeUploads(app, 0); // nothing is uploading yet: whatever a stop left half-written goes
   const code = ensureClaimCode(app);
+  watchTrustedProxies(config.trustProxy);
   const pub = publicServer(app, [publicRouter(), ...extraRouters.api()], { publicPages: extraRouters.pages(), events: eventStream });
   const internal = internalServer(app, internalRouter(app));
   await new Promise<void>((resolve) => pub.listen(config.publicPort, config.publicHost, resolve));

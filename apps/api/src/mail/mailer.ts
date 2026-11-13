@@ -84,8 +84,13 @@ export function mailHealth(app: App): { status: MailStatus; checkedAt: string | 
  * Hosted open sign-up needs working email (to confirm addresses and reset passwords): it is
  * open only when configured as open, a mail server is set up and its last check succeeded.
  */
+/**
+ * Whether anyone may create an account. Never before the installation is claimed: the setup code makes the first account
+ * its administrator, and the claim is refused once any account exists, so an early sign-up would leave it without one.
+ */
 export function signupOpen(app: App): boolean {
-  return app.config.mode === "hosted" && app.config.signup === "open" && state(app)?.status === "ok";
+  return app.config.mode === "hosted" && app.config.signup === "open" && state(app)?.status === "ok"
+    && app.db.get("SELECT 1 FROM accounts LIMIT 1") !== undefined;
 }
 
 /** A short, secret-free description of a failure: the error code and the server's reply code. */
