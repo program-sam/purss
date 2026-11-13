@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { matchesMuted } from "../services/muted-match.ts";
-import { urlKey } from "../services/url-key.ts";
+import { linkKey, urlKey } from "../services/url-key.ts";
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
 
@@ -20,6 +20,7 @@ export class Database {
     this.raw.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
     // Migrations that (re)compute items.url_key call the same function the application uses.
     this.raw.function("purss_url_key", { deterministic: true }, (url) => urlKey(typeof url === "string" ? url : null));
+    this.raw.function("purss_link_key", { deterministic: true }, (url) => (typeof url === "string" ? linkKey(url) : null));
     // Whether muted words match an item's title or summary (services/muted-match.ts): the match is made on the row a query looks at.
     this.raw.function("purss_muted", { deterministic: true }, (patterns, title, excerpt) => (matchesMuted(String(patterns), title, excerpt) ? 1 : 0));
   }

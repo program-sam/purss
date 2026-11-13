@@ -49,3 +49,16 @@ export function urlKey(raw: string | null | undefined): string | null {
 function safeDecode(s: string): string {
   try { return decodeURIComponent(s.replace(/\+/g, " ")); } catch { return s; }
 }
+
+/**
+ * Looser than urlKey, for recognising a feed reissuing a post (services/sync.ts): the scheme, "www.", tracking
+ * parameters, their order and trailing slashes don't matter. Stored as items.link_key so the match is a lookup.
+ */
+export function linkKey(url: string): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+  const params = [...u.searchParams.entries()].filter(([k]) => !/^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|igshid$|ref$)/i.test(k)).sort(([a], [b]) => a.localeCompare(b));
+  const query = params.length ? `?${params.map(([k, v]) => `${k}=${v}`).join("&")}` : "";
+  return `${u.hostname.toLowerCase().replace(/^www\./, "")}${u.pathname.replace(/\/+$/, "")}${query}`;
+}

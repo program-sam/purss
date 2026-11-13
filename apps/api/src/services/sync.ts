@@ -6,7 +6,7 @@ import { HttpError, nowIso } from "../http.ts";
 import { admitObject, markPaused, releaseObject, StorageFull } from "./storage.ts";
 import { contentHash, detectKind, excerpt, findDoi, sanitize, toText } from "./content.ts";
 import { insertItem, reindex, versionBytes } from "./items.ts";
-import { urlKey } from "./url-key.ts";
+import { linkKey, urlKey } from "./url-key.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { queueNewPosts } from "./ai-filters.ts";
@@ -151,17 +151,22 @@ function matchByGuid(app: App, workspaceId: string, sourceId: string, entry: Syn
   if (!entry.originalGuid) return null;
   const rows = app.db.all<{ item_id: string }>(
     `SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id
-     WHERE e.workspace_id = ? AND i.source_id = ? AND e.original_guid = ?`, workspaceId, sourceId, entry.originalGuid);
+     WHERE e.workspace_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2`, workspaceId, sourceId, entry.originalGuid);
   return rows.length === 1 ? rows[0]!.item_id : null; // ambiguous (reused GUID) -> no automatic match
 }
 
-/** An item of this source (e.g. from an import) with the same link, or title and date, and no mapping from this engine user. */
+/**
+ * An item of this source (e.g. from an import) with the same link, or title and date, and no mapping from this engine user.
+ * Only the first UNMAPPED_CANDIDATES items with that link (or title and date) are looked at: a feed repeating one link
+ * thousands of times would otherwise have every new entry walk all the earlier ones.
+ */
+const UNMAPPED_CANDIDATES = 200;
 function matchUnmapped(app: App, eu: EngineUser, sourceId: string, entry: SyncEntry): string | null {
-  const unmapped = "NOT EXISTS (SELECT 1 FROM external_ids e WHERE e.item_id = i.id AND e.engine_user_id = ?)";
+  const unmapped = "NOT EXISTS (SELECT 1 FROM external_ids e WHERE e.item_id = c.id AND e.engine_user_id = ?)";
   const rows = entry.url
-    ? app.db.all<{ id: string }>(`SELECT i.id FROM items i WHERE i.source_id = ? AND i.url = ? AND ${unmapped} LIMIT 2`, sourceId, entry.url, eu.id)
+    ? app.db.all<{ id: string }>(`SELECT c.id FROM (SELECT i.id FROM items i WHERE i.source_id = ? AND i.url = ? LIMIT ${UNMAPPED_CANDIDATES}) c WHERE ${unmapped} LIMIT 2`, sourceId, entry.url, eu.id)
     : entry.publishedAt
-      ? app.db.all<{ id: string }>(`SELECT i.id FROM items i WHERE i.source_id = ? AND i.title = ? AND i.published_at = ? AND ${unmapped} LIMIT 2`, sourceId, entry.title.trim(), entry.publishedAt, eu.id)
+      ? app.db.all<{ id: string }>(`SELECT c.id FROM (SELECT i.id FROM items i WHERE i.source_id = ? AND i.title = ? AND i.published_at = ? LIMIT ${UNMAPPED_CANDIDATES}) c WHERE ${unmapped} LIMIT 2`, sourceId, entry.title.trim(), entry.publishedAt, eu.id)
       : [];
   return rows.length === 1 ? rows[0]!.id : null;
 }
@@ -183,16 +188,6 @@ export function isBackCatalogue(source: { created_at: string; backlog_settled_at
   return Number.isFinite(published) && published < Date.parse(source.created_at);
 }
 
-/** The same address in a form that doesn't depend on the scheme, "www.", tracking parameters or a trailing slash. */
-export function linkKey(url: string): string | null {
-  let u: URL;
-  try { u = new URL(url); } catch { return null; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-  const params = [...u.searchParams.entries()].filter(([k]) => !/^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|igshid$|ref$)/i.test(k)).sort(([a], [b]) => a.localeCompare(b));
-  const query = params.length ? `?${params.map(([k, v]) => `${k}=${v}`).join("&")}` : "";
-  return `${u.hostname.toLowerCase().replace(/^www\./, "")}${u.pathname.replace(/\/+$/, "")}${query}`;
-}
-
 const titleKey = (title: string) => title.replace(/\s+/g, " ").trim().toLowerCase();
 
 /**
@@ -205,11 +200,11 @@ function matchSameLink(app: App, workspaceId: string, sourceId: string, entry: S
   const title = titleKey(entry.title);
   if (!key || !title) return null;
   const since = new Date(Date.parse(entry.crawledAt) - 30 * 86_400_000).toISOString();
-  const needle = key.split("?")[0]!;
-  const rows = app.db.all<{ id: string; url: string; title: string }>(
-    "SELECT id, url, title FROM items WHERE workspace_id = ? AND source_id = ? AND discovered_at >= ? AND url IS NOT NULL AND instr(lower(url), ?) > 0 LIMIT 20",
-    workspaceId, sourceId, since, needle.toLowerCase());
-  return rows.find((r) => linkKey(r.url) === key && titleKey(r.title) === title)?.id ?? null;
+  // Looked up by the stored key (items.link_key, indexed): a source with many recent items is not scanned row by row.
+  const rows = app.db.all<{ id: string; title: string }>(
+    "SELECT id, title FROM items WHERE workspace_id = ? AND source_id = ? AND link_key = ? AND discovered_at >= ? LIMIT 20",
+    workspaceId, sourceId, key, since);
+  return rows.find((r) => titleKey(r.title) === title)?.id ?? null;
 }
 
 function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: string; curator: string | null }, entry: SyncEntry, fresh: boolean): string {
@@ -274,8 +269,8 @@ export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "worksp
         reason: "feed item update",
       });
       const text = toText(contentHtml ?? summaryHtml);
-      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), current_version_id = ?, updated_at = ? WHERE id = ?",
-        title, entry.url, urlKey(entry.url), entry.author, excerpt(toText(summaryHtml) || text), entry.imageUrl, versionId, now, itemId);
+      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), current_version_id = ?, updated_at = ? WHERE id = ?",
+        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, excerpt(toText(summaryHtml) || text), entry.imageUrl, versionId, now, itemId);
       const pinned = app.db.get("SELECT 1 FROM basket_items WHERE version_id = ?", cur.current_version_id);
       if (!pinned) {
         // The superseded version was never kept: it is replaced, not retained.
