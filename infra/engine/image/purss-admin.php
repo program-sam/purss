@@ -4,8 +4,8 @@
  * `podman exec`. It accepts exactly the command arrays the worker's EngineAdmin builds:
  *   php -f ./cli/<allowlisted script> -- <arguments>
  *   php -r <one of three allowlisted snippets, by sha256> <arguments>
- * Authenticated with the product's service token; the engine sits on an internal network
- * with no route from outside. Runs as Apache's user (www-data) with no shell.
+ * Authenticated with its own token (engine-helper-token), never the product's service token; the
+ * engine sits on an internal network with no route from outside and none to the product's service listeners. Runs as Apache's user (www-data) with no shell.
  */
 declare(strict_types=1);
 
@@ -18,7 +18,7 @@ function reply(int $status, array $body): never {
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') reply(405, ['error' => 'method']);
-$token = @file_get_contents('/run/purss-secrets/service-token');
+$token = @file_get_contents('/run/purss-secrets/engine-helper-token');
 $headers = function_exists('getallheaders') ? array_change_key_case(getallheaders()) : [];
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($headers['authorization'] ?? '');
 if ($token === false || strlen(trim($token)) < 32 || !hash_equals('Bearer ' . trim($token), $auth)) reply(401, ['error' => 'unauthorized']);

@@ -7,6 +7,7 @@
  * Environment: PURSS_INTERNAL_URL (http://127.0.0.1:8948), PURSS_DATA_DIR (<repo>/data), PURSS_ENGINE_ADMIN_URL or PURSS_ENGINE_EXEC
  * (podman exec --user www-data purss-freshrss), PURSS_WORKER_CONCURRENCY (4), see config.ts for the rest.
  */
+import { readFileSync } from "node:fs";
 import { captureReadable, fetchPictures, jevConfigFromEnv } from "@purss/connectors";
 import { EngineAdmin } from "@purss/freshrss";
 import { fileTokenProvider, loadWorkerConfig } from "./config.ts";
@@ -26,7 +27,7 @@ async function main(): Promise<void> {
     secrets: new EngineUserSecrets(config.engineUsersDir),
     secretsDir: config.secretsDir,
     bridgeEngineUrl: config.bridgeEngineUrl,
-    admin: EngineAdmin.fromEnv(process.env, process.env.PURSS_ENGINE_ADMIN_URL ? { adminToken: token.get() } : {}),
+    admin: EngineAdmin.fromEnv(process.env, process.env.PURSS_ENGINE_ADMIN_URL ? { adminToken: readFileSync(config.engineHelperTokenFile, "utf8").trim() } : {}),
     log,
     makeClient: defaultMakeClient(config.requestTimeoutMs),
     capture: captureReadable,

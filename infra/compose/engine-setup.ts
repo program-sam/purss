@@ -7,7 +7,7 @@ import { EngineAdmin, GReaderClient } from "@purss/freshrss";
 const dataDir = process.env.PURSS_DATA_DIR ?? "/data";
 const engineUrl = process.env.PURSS_ENGINE_URL ?? "http://engine";
 const proxy = process.env.PURSS_ENGINE_PROXY!;
-const token = readFileSync(path.join(dataDir, "secrets/service-token"), "utf8").trim();
+const token = readFileSync(path.join(dataDir, "secrets/engine-helper-token"), "utf8").trim();
 const operator = JSON.parse(readFileSync(path.join(dataDir, "secrets/engine-admin"), "utf8")) as { username: string; apiPassword: string };
 
 const admin = EngineAdmin.fromEnv({ ...process.env, PURSS_ENGINE_ADMIN_URL: `${engineUrl}/purss/admin.php` }, { adminToken: token });
