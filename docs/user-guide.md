@@ -863,8 +863,9 @@ Disconnecting removes them; anything else you put in that folder stays.
 **Feed links and subscription lists.** Links that start with `feed:` or `podcast:` open *Add source* with the
 address filled in, and OPML files open the list of their feeds to choose from, as an import does.
 
-**Updates.** New versions of the app download by themselves; *Settings → This device* offers *Restart to update*,
-and quitting from the tray installs it too. The PURSS you are connected to can also update the app's screens,
+**Updates.** New versions of the app download by themselves. A notification says when one is ready, and the
+tray's menu and *Settings → This device* offer *Restart to update*; quitting from the tray installs it too. If the
+computer shuts down with the app still running, the new version is installed the next time the app starts. The PURSS you are connected to can also update the app's screens,
 as in the phone app.
 
 ## The phone app

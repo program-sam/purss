@@ -3181,6 +3181,7 @@ dependencies = [
  "gethostname",
  "getrandom 0.3.4",
  "keyring",
+ "libc",
  "notify-rust",
  "reqwest",
  "rustls",
