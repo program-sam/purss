@@ -9,11 +9,12 @@ import { CODE_TTL_SECONDS, issueCode, redeemCode } from "../connect/codes.ts";
 import { REDIRECT_PATTERNS, checkRedirect, cleanDeviceName } from "../connect/clients.ts";
 import { MAX_DEVICES, createDeviceToken, deviceCount, deviceIdOf, listDevices, revokeDevice, tooMany } from "../connect/devices.ts";
 import { acceptInvite } from "../auth/accounts.ts";
-import { PASSWORD_MIN, checkPassword, normalizeEmail, preparePassword } from "../auth/passwords.ts";
+import { PASSWORD_MIN, checkPassword, preparePassword } from "../auth/passwords.ts";
 import { accountEmailAvailable } from "../services/account-email.ts";
 import { signupOpen } from "../mail/mailer.ts";
 import { endDeletion, keepTokenFor } from "../services/deletion.ts";
 import { authenticationOptions, verifyAuthentication } from "../auth/passkeys.ts";
+import { signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
 import { appPasskeys } from "../connect/app-association.ts";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 
@@ -134,14 +135,17 @@ export function connectRouter(): Router<Ctx> {
       const { accountId } = await verifyAuthentication(app, body.challengeId, body.response as unknown as AuthenticationResponseJSON);
       return answer(app.db.tx(() => connect(accountId)));
     }
-    rateLimit(`password:${address}`, 10);
-    rateLimit(`password-user:${normalizeEmail(body.email)}`, 10, 15 * 60_000);
+    // As in a browser (auth/sign-in-limits.ts): an app that signed in to this address before has tries of its own.
+    const { bucket: tries, known } = triesKey(app, body.email, body.known);
+    if (!known) rateLimit(`password:${address}`, 10);
+    takeTry(tries);
     const accountId = await checkPassword(app, body.email, body.password);
     if (!accountId) {
       audit(app, null, "sign_in", method, "failure");
       throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
-    return answer(app.db.tx(() => connect(accountId)));
+    const keep = signedIn(app, null, tries, body.email, body.known);
+    return { ...answer(app.db.tx(() => connect(accountId))), known: keep };
   });
 
   /** A passkey challenge for signing in from the phone app (where the PURSS vouches for it). */

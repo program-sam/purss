@@ -3,7 +3,8 @@ import type { ImportResult } from "@purss/domain";
 export type { ImportResult };
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { Worker } from "node:worker_threads";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sanitizeHtml from "sanitize-html";
 import { ANNOTATIONS_PER_ITEM, DEFAULT_PREFERENCES, ITEM_KINDS, checkQuery, measureBytes, newId } from "@purss/domain";
@@ -17,12 +18,12 @@ import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, 
 import { contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
 import { indexText, versionBytes } from "./items.ts";
 import { markMembershipChanged } from "./state.ts";
-import { urlKey } from "./url-key.ts";
+import { linkKey, urlKey } from "./url-key.ts";
 import { preferencesPatchSchema, setPreferences } from "./preferences.ts";
 import { makeSlug } from "./shares.ts";
 import { todayFor } from "./item-reminders.ts";
 import {
-  ARCHIVE_FORMAT, ARCHIVE_OMITTED, ARCHIVE_SCHEMA_VERSION, ArchiveError, parseArchive, sha256Hex,
+  ARCHIVE_FORMAT, ARCHIVE_OMITTED, ARCHIVE_SCHEMA_VERSION, ArchiveError, countJsonValues, parseArchive, sha256Hex,
 } from "./archive-format.ts";
 import type { Archive, ArchiveCollection, ArchiveItem, ArchiveSource, SectionName } from "./archive-format.ts";
 import { bridgeAddress, privateFeedKey } from "./feed-keys.ts";
@@ -477,15 +478,16 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   // ---- items
   const items = new Map<string, ItemDecision>();
   const seenKeys = new Map<string, Exclude<ItemDecision, { action: "alias" }>>(); // source|guid / source|url -> first decision
+  // Only none, one or several matter (one is matched, several are counted as ambiguous), so each look stops at two.
   const existingMatches = (sourceId: string, it: ArchiveItem, url: string | null): Set<string> => {
     const ids = new Set<string>();
     for (const g of it.originalGuids) {
       for (const r of app.db.all<{ item_id: string }>(
-        "SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id WHERE i.workspace_id = ? AND i.source_id = ? AND e.original_guid = ?", ws, sourceId, g)) ids.add(r.item_id);
+        "SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id WHERE e.workspace_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2", ws, sourceId, g)) ids.add(r.item_id);
     }
-    if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ?", ws, sourceId, url)) ids.add(r.id);
+    if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ? LIMIT 2", ws, sourceId, url)) ids.add(r.id);
     if (!url && !it.originalGuids.length) {
-      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ?", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
+      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ? LIMIT 2", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
     }
     return ids;
   };
@@ -765,9 +767,27 @@ export function wouldFit(app: App, accountId: string, bytes: number): boolean {
 // ---- staging
 
 const STAGE_TTL_SECONDS = 24 * 3600;
+
 export const stageFile = (app: App, token: string) => path.join(app.config.dataDir, "staging", `import-${token}.json`);
+/** Where an upload is written while it arrives (routes/portability.ts); removed when it's done, or by purgeStages after a crash. */
+export function uploadFile(app: App): string {
+  const dir = path.join(app.config.dataDir, "staging");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return path.join(dir, `upload-${randomToken(18)}.part`);
+}
+
+/** Removes uploads still arriving `olderThanMs` ago: all of them at start-up (none can be arriving), and abandoned ones after that. */
+export function purgeUploads(app: App, olderThanMs: number): void {
+  const dir = path.join(app.config.dataDir, "staging");
+  const before = Date.now() - olderThanMs;
+  for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+    if (/^upload-[A-Za-z0-9_-]+\.part$/.test(f) && (olderThanMs === 0 || statSync(path.join(dir, f)).mtimeMs < before)) rmSync(path.join(dir, f), { force: true });
+  }
+}
 
 export function purgeStages(app: App, workspaceId?: string): number {
+  // Uploads still arriving are written to at least every 20 s (UPLOAD_PACE); one untouched for an hour was abandoned.
+  if (!workspaceId) purgeUploads(app, 3600_000);
   const rows = workspaceId
     ? app.db.all<{ token: string }>("SELECT token FROM import_stages WHERE workspace_id = ?", workspaceId)
     : app.db.all<{ token: string }>("SELECT token FROM import_stages WHERE expires_at < ?", nowIso());
@@ -783,29 +803,97 @@ function fail(err: unknown): never {
   throw err;
 }
 
-/** Verify an uploaded export, stage it server-side, and describe what importing it would do. */
-export function stageImport(app: App, p: Principal, raw: unknown): ImportPreview {
-  if (raw === undefined || raw === null) throw badRequest("Choose an export file to upload.");
+export type UploadCheck = ReturnType<typeof previewImportPlan>;
+
+/**
+ * Values one export may hold to be imported here (countJsonValues). Parsing takes memory per value, and an export is
+ * parsed whole, when it's checked and again when it's applied, so this is what bounds an import's memory.
+ */
+export const MAX_IMPORT_VALUES = 6_000_000;
+/** Deeper than any export goes (preferences and filters nest a few levels): a file nested past this is refused unparsed. */
+export const MAX_IMPORT_DEPTH = 64;
+
+function parseExport(text: string): unknown {
+  if (countJsonValues(text, MAX_IMPORT_VALUES + 1, MAX_IMPORT_DEPTH) > MAX_IMPORT_VALUES) {
+    throw new HttpError(413, "import_too_large", "That export has more in it than this server can import at once.");
+  }
+  try { return JSON.parse(text); } catch { throw badRequest("That file isn't a PURSS export (it isn't valid JSON).", "not_archive"); }
+}
+
+/** Parse and verify an export (its text, or the parsed document) and work out what importing it would do. Reads only. */
+export function checkUpload(app: App, p: Principal, upload: unknown): UploadCheck {
+  if (upload === undefined || upload === null) throw badRequest("Choose an export file to upload.");
+  const raw = typeof upload === "string" ? parseExport(upload) : upload;
   let doc: Archive;
   try { doc = parseArchive(raw); } catch (err) { fail(err); }
+  return previewImportPlan(app, p, doc);
+}
+
+/** Records a checked upload as this PURSS's one staged import; `place` puts the file's text at the path it's given. */
+export function stageChecked(app: App, p: Principal, check: UploadCheck, file: { bytes: number; sha256: string; place: (dest: string) => void }): ImportPreview {
   purgeStages(app);
   purgeStages(app, p.workspaceId); // one staged import per PURSS
-  const plan = previewImportPlan(app, p, doc);
   const token = randomToken(18);
-  const dir = path.join(app.config.dataDir, "staging");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const json = JSON.stringify(raw);
-  const file = stageFile(app, token);
-  writeFileSync(file, json, { mode: 0o600 });
-  chmodSync(file, 0o600);
+  mkdirSync(path.join(app.config.dataDir, "staging"), { recursive: true, mode: 0o700 });
+  const dest = stageFile(app, token);
+  file.place(dest);
+  chmodSync(dest, 0o600);
   const preview: ImportPreview = {
-    token, counts: plan.counts, conflicts: plan.conflicts, omitted: plan.omitted, requiredBytes: plan.requiredBytes,
-    fits: wouldFit(app, p.accountId, plan.requiredBytes),
-    overPlan: plan.overPlan,
+    token, counts: check.counts, conflicts: check.conflicts, omitted: check.omitted, requiredBytes: check.requiredBytes,
+    fits: wouldFit(app, p.accountId, check.requiredBytes),
+    overPlan: check.overPlan,
   };
   app.db.run("INSERT INTO import_stages (token, account_id, workspace_id, bytes, sha256, summary, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    token, p.accountId, p.workspaceId, Buffer.byteLength(json), sha256Hex(json), JSON.stringify(preview), nowIso(), addSeconds(STAGE_TTL_SECONDS));
+    token, p.accountId, p.workspaceId, file.bytes, file.sha256, JSON.stringify(preview), nowIso(), addSeconds(STAGE_TTL_SECONDS));
   return preview;
+}
+
+/** Verify an export, stage it, and describe what importing it would do, all here (uploads use checkUploadApart instead). */
+export function stageImport(app: App, p: Principal, upload: unknown): ImportPreview {
+  const check = checkUpload(app, p, upload);
+  const json = typeof upload === "string" ? upload : JSON.stringify(upload);
+  return stageChecked(app, p, check, { bytes: Buffer.byteLength(json), sha256: sha256Hex(json), place: (dest) => writeFileSync(dest, json, { mode: 0o600 }) });
+}
+
+/** A check that takes longer than this is stopped: with the lookups indexed, a real one takes seconds. */
+export const IMPORT_CHECK_SECONDS = 120;
+
+/**
+ * Checks an uploaded file in a worker thread (import-check-worker.ts), so neither its memory nor its time holds up the
+ * API. Memory goes with how much a file holds, not its size (a file of a million tiny entries is small), so the worker
+ * stops at `heapMb` (config importCheckHeapMb) and the file is refused as too large to import here.
+ */
+export function checkUploadApart(app: App, p: Principal, file: string, heapMb = app.config.importCheckHeapMb, signal?: AbortSignal): Promise<{ check: UploadCheck; sha256: string }> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new HttpError(400, "upload_aborted", "The upload was cut off.")); return; }
+    const worker = new Worker(new URL("./import-check-worker.ts", import.meta.url), {
+      workerData: { config: app.config, principal: p, file },
+      resourceLimits: { maxOldGenerationSizeMb: heapMb, maxYoungGenerationSizeMb: Math.min(32, heapMb) },
+    });
+    let settled = false;
+    const done = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
+    worker.once("message", (m: { ok: true; check: UploadCheck; sha256: string } | { ok: false; status: number; code: string; message: string }) => done(() => {
+      if (m.ok) resolve({ check: m.check, sha256: m.sha256 });
+      else reject(new HttpError(m.status, m.code, m.message));
+    }));
+    worker.once("error", (err: NodeJS.ErrnoException) => done(() => reject(err.code === "ERR_WORKER_OUT_OF_MEMORY"
+      ? new HttpError(413, "import_too_large", "That export has more in it than this server can check at once.")
+      : err)));
+    worker.once("exit", (code) => done(() => reject(new Error(`The import check stopped (${code}).`))));
+    const timer = setTimeout(() => done(() => { void worker.terminate(); reject(new HttpError(413, "import_too_large", "That export took too long to check on this server.")); }), IMPORT_CHECK_SECONDS * 1000);
+    timer.unref();
+    worker.once("exit", () => clearTimeout(timer));
+    // The person went away: stop checking, so their next upload and everyone else's turn needn't wait for it.
+    signal?.addEventListener("abort", () => done(() => { void worker.terminate(); reject(new HttpError(400, "upload_aborted", "The upload was cut off.")); }), { once: true });
+  });
+}
+
+let importTurn: Promise<unknown> = Promise.resolve();
+/** Checking an upload and applying one each hold a whole file's worth of memory: they take turns, across all accounts. */
+export function oneImportAtATime<T>(fn: () => T | Promise<T>): Promise<T> {
+  const run = importTurn.then(fn);
+  importTurn = run.catch(() => undefined);
+  return run;
 }
 
 /** Apply a staged import in one transaction. Over the limit: nothing is written and the staged file stays for a retry. */
@@ -816,7 +904,7 @@ export function applyImport(app: App, p: Principal, token: string): ImportResult
   const json = readFileSync(file, "utf8");
   if (sha256Hex(json) !== stage.sha256) throw badRequest("The uploaded file changed on the server. Please upload it again.", "expired");
   let doc: Archive;
-  try { doc = parseArchive(JSON.parse(json)); } catch (err) { fail(err); }
+  try { doc = parseArchive(parseExport(json)); } catch (err) { fail(err); }
 
   let result: ImportResult;
   try {
@@ -940,10 +1028,10 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const { item: it, prepared: pr } = d;
     const cur = pr.versions.find((v) => v.id === pr.currentId)!;
     const row = app.db.run(
-      `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
+      `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
          published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      d.id, p.accountId, ws, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      d.id, p.accountId, ws, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
       it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
     for (const v of pr.versions) {
       app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

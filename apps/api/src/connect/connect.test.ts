@@ -5,7 +5,7 @@ import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";
 import { requireAdmin, requireRecentAuth } from "../app.ts";
-import { TEST_PASSWORD, makeOwner, makeTestApp } from "../testing.ts";
+import { makeOperator, makeOwner, makeTestApp, TEST_PASSWORD } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { publicRouter, safeReturnPath } from "../routes/public.ts";
@@ -631,6 +631,7 @@ test("the recovery-code endpoints are gone, for the browser and for the app", as
 
 test("open sign-up from the app starts by email, like the browser, and the link finishes it", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_TRUST_PROXY: "1", PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" });
+  makeOperator(app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
   const sent: { to: string; subject: string }[] = [];
   useTransport(app, { send: async (m) => { sent.push({ to: String(m.to), subject: m.subject }); }, verify: async () => {} });
   await checkMail(app);
@@ -724,4 +725,20 @@ test("signing in from the app to an account set to be deleted offers to keep it,
   assert.equal(b.app.db.get("SELECT 1 FROM account_deletions WHERE account_id = ?", acct), undefined, "the deletion is cancelled");
   assert.equal((await asApp(b, kept.json.token, "GET", "/api/session")).json.account.id, acct);
   assert.equal((await raw(b, "POST", "/api/connect/keep-account", { origin: "capacitor://localhost", body: { client: "mobile", keepToken: signin.json.error.keepToken } })).json.error.code, "cancel_expired", "the token works once");
+});
+
+test("the app keeps what its password sign-in gave it, so a stranger spending the account's tries can't keep it out", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const made = await raw(b, "POST", "/api/connect/signup", { origin: "capacitor://localhost", body: signupBody(createInvite(b.app, b.owner.accountId, "invited@example.test", null, null)) });
+  assert.equal(made.status, 200, made.text);
+  const body = (extra: Record<string, unknown> = {}) => ({ client: "mobile", method: "password", email: "invited@example.test", password: "a long enough secret", ...extra });
+  const first = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: body() });
+  assert.equal(first.status, 200, first.text);
+  assert.match(first.json.known, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  for (let i = 0; i < 10; i++) await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: body({ password: `guess ${i}` }), headers: { "x-forwarded-for": `198.51.100.${i}` } });
+  assert.equal((await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: body() })).status, 429, "without it, the account's tries are spent");
+  const again = await raw(b, "POST", "/api/connect/signin", { origin: "capacitor://localhost", body: body({ known: first.json.known }) });
+  assert.equal(again.status, 200, again.text);
+  assert.notEqual(again.json.known, first.json.known, "a fresh one each time");
 });

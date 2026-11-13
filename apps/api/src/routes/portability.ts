@@ -1,9 +1,12 @@
+import { renameSync, rmSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { z } from "zod";
 import type { Ctx } from "../app.ts";
 import { audit, requirePrincipal } from "../app.ts";
-import { HttpError, Router, badRequest, parse } from "../http.ts";
-import { applyImport, reconnectSource, stageImport, streamExport } from "../services/portability.ts";
+import { HttpError, Router, UPLOAD_PACE, badRequest, parse, rateLimit, saveUpload } from "../http.ts";
+import { applyImport, checkUploadApart, oneImportAtATime, reconnectSource, stageChecked, streamExport, uploadFile } from "../services/portability.ts";
+import { assertStillUsable } from "../services/deletion.ts";
+import { assertDiskRoom } from "../services/storage.ts";
 import { generateOpml, previewOpml } from "../services/opml.ts";
 import { dismissOpmlImport, getOpmlImport, listOpmlImports, runOpmlImports, startOpmlImport, stopOpmlImport } from "../services/opml-import.ts";
 
@@ -38,11 +41,13 @@ function sink(res: ServerResponse): (chunk: string) => Promise<void> {
 }
 
 /** The body of an upload: already-parsed JSON, or text that is JSON. */
-function uploadedJson(body: unknown): unknown {
-  if (body === undefined) throw badRequest("Choose an export file to upload.");
-  if (typeof body !== "string") return body;
-  try { return JSON.parse(body); } catch { throw badRequest("That file isn't a PURSS export (it isn't valid JSON).", "not_archive"); }
-}
+const IMPORT_LIMIT = 128 * 1024 * 1024;
+/** An upload holds one of the few slots: it must be done within 20 minutes (the largest file at about 110 KB/s). */
+const IMPORT_UPLOAD_PACE = { ...UPLOAD_PACE, maxMs: 20 * 60_000 };
+/** Uploads in progress, one per account and a few at once: each goes to disk first, so only disk holds them. */
+const uploading = new Set<string>();
+let uploadingBytes = 0;
+const MAX_UPLOADS = 4;
 
 /** Account export (works while over quota), import, OPML, and reconnecting a private source. */
 export function portabilityRouter(): Router<Ctx> {
@@ -50,6 +55,8 @@ export function portabilityRouter(): Router<Ctx> {
 
   r.get("/api/export", async (_req, ctx, res) => {
     const p = requirePrincipal(ctx);
+    // An export reads the whole account on the API's thread (tens of seconds for a large one): a few an hour, whatever the plan.
+    rateLimit(`export:${p.accountId}`, 6, 3600_000);
     // Fail before any bytes are sent when an export is already running.
     let started = false;
     const write = sink(res);
@@ -77,10 +84,44 @@ export function portabilityRouter(): Router<Ctx> {
     return undefined;
   });
 
-  r.post("/api/import/preview", (req, ctx) => stageImport(ctx.app, requirePrincipal(ctx), uploadedJson(req.body)), { bodyLimit: 128 * 1024 * 1024 });
+  // The file goes to disk as it arrives. Once it's all there it is checked in a worker thread with a memory limit of its
+  // own (checkUploadApart), and checks and imports take turns, so the API's memory and responsiveness stay its own.
+  r.post("/api/import/preview", async (req, ctx, res) => {
+    const p = requirePrincipal(ctx);
+    const gone = new AbortController();
+    res.once("close", () => { if (!res.writableFinished) gone.abort(); });
+    if (uploading.has(p.accountId)) throw new HttpError(429, "busy", "An export is already being uploaded for your account.");
+    // Checking a large export takes the import turn for a while: plenty for real use, not for keeping others waiting.
+    rateLimit(`import-check:${p.accountId}`, 20, 86_400_000);
+    if (uploading.size >= MAX_UPLOADS) throw new HttpError(429, "busy", "Several exports are being uploaded right now. Please try again in a minute.");
+    // Room for the whole file, as announced (or as large as allowed), on top of the uploads already arriving, before
+    // any of it is written; it stays set aside until this upload is done.
+    const room = Number(req.raw.headers["content-length"]) || IMPORT_LIMIT;
+    assertDiskRoom(ctx.app, uploadingBytes + room);
+    uploading.add(p.accountId);
+    uploadingBytes += room;
+    let file: string | null = null;
+    try {
+      const upload = (file = uploadFile(ctx.app));
+      const bytes = await saveUpload(req.raw, upload, IMPORT_LIMIT, IMPORT_UPLOAD_PACE);
+      if (!bytes) throw badRequest("Choose an export file to upload.");
+      return await oneImportAtATime(async () => {
+        const { check, sha256 } = await checkUploadApart(ctx.app, p, upload, undefined, gone.signal);
+        assertStillUsable(ctx.app, p); // the upload and the check can take minutes
+        return stageChecked(ctx.app, p, check, { bytes, sha256, place: (dest) => renameSync(upload, dest) });
+      });
+    } finally {
+      uploading.delete(p.accountId);
+      uploadingBytes -= room;
+      if (file) rmSync(file, { force: true });
+    }
+  }, { bodyLimit: IMPORT_LIMIT, ownBody: true });
   r.post("/api/import", (req, ctx) => {
     const { token } = parse(z.object({ token: z.string().min(1).max(200) }), req.body);
-    return applyImport(ctx.app, requirePrincipal(ctx), token);
+    const p = requirePrincipal(ctx);
+    // Applying runs in one transaction on the API's own thread, so a large import holds everything else for its length.
+    rateLimit(`import-apply:${p.accountId}`, 5, 86_400_000);
+    return oneImportAtATime(() => applyImport(ctx.app, p, token));
   });
 
   r.get("/api/opml", (_req, ctx, res) => {

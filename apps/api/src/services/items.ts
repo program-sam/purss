@@ -9,7 +9,7 @@ import { admitObject } from "./storage.ts";
 import { itemCounts } from "./counts.ts";
 import type { CellFilter } from "./counts.ts";
 import { contentHash, displayExcerpt, displayTitle, excerpt, readMinutes, sanitize, toText } from "./content.ts";
-import { urlKey } from "./url-key.ts";
+import { linkKey, urlKey } from "./url-key.ts";
 import { getPlayback, itemMedia } from "./media.ts";
 import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
 import { firstImage } from "./first-image.ts";
@@ -56,10 +56,10 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const text = toText(contentHtml ?? summaryHtml);
   const ex = excerpt(toText(summaryHtml) || text);
   const r = app.db.run(
-    `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, author, excerpt, image_url, duration_seconds,
+    `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
        read_minutes, doi, curator_note, published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.workspaceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, n.accountId, n.workspaceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
     n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, versionId,
     JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
@@ -145,8 +145,9 @@ export function compileQuery(node: QueryNode, params: SqlParam[], workspaceId: s
     case "fresh": return node.value ? "st.fresh = 1" : "st.fresh = 0";
     case "opened": return node.value ? "st.opened_at IS NOT NULL" : "st.opened_at IS NULL";
     case "kept": return `${node.value ? "" : "NOT "}EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)`;
-    case "basket": return `EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id AND b.basket_id IN (${list(node.value)}))`;
-    case "collection": return `i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id IN (${list(node.value)}))`;
+    // Only this PURSS's own baskets and collections count, whatever ids a filter names.
+    case "basket": { const ids = list(node.value); params.push(workspaceId); return `EXISTS (SELECT 1 FROM basket_items b JOIN baskets bk ON bk.id = b.basket_id WHERE b.item_id = i.id AND b.basket_id IN (${ids}) AND bk.workspace_id = ?)`; }
+    case "collection": { const ids = list(node.value); params.push(workspaceId); return `i.source_id IN (SELECT cs.source_id FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.collection_id IN (${ids}) AND c.workspace_id = ?)`; }
     case "capture": {
       const parts: string[] = [];
       for (const level of node.value) {
@@ -354,7 +355,8 @@ const LIST_FROM = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOI
 
 /**
  * Every item a list shows, in its order, for "Select all": the same conditions and muted words as its pages, at most
- * MAX_BULK_ITEMS, with how many there are in all.
+ * MAX_BULK_ITEMS, with how many there are in all when that's no more. Past it the total is null: counting the rest would
+ * read (and test the muted words against) every item in the list, seconds for a large library.
  */
 export function listItemIds(app: App, p: Principal, input: ItemIdsQuery, opts: ListOptions = {}): ItemIds {
   const q = itemIdsQuerySchema.parse(input);
@@ -365,8 +367,7 @@ export function listItemIds(app: App, p: Principal, input: ItemIdsQuery, opts: L
   const shown = muted ? `SELECT id FROM (${ordered} LIMIT -1) WHERE ${NOT_MUTED_ROW}` : `SELECT id FROM (${ordered} LIMIT -1)`;
   const args = muted ? [...params, muted] : params;
   const rows = app.db.all<{ id: string }>(`${shown} LIMIT ?`, ...args, MAX_BULK_ITEMS + 1);
-  const total = rows.length > MAX_BULK_ITEMS ? app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM (${shown})`, ...args)!.n : rows.length;
-  return { ids: rows.slice(0, MAX_BULK_ITEMS).map((r) => r.id), total };
+  return { ids: rows.slice(0, MAX_BULK_ITEMS).map((r) => r.id), total: rows.length > MAX_BULK_ITEMS ? null : rows.length };
 }
 
 type SortedRow = ItemRow & { sort_key: string };

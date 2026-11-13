@@ -51,9 +51,15 @@ const urls = (app: App, slug: string) => {
 };
 const takenDown = (r: Pick<ShareRow, "taken_down_at" | "takedown_reason">) => (r.taken_down_at ? { at: r.taken_down_at, reason: r.takedown_reason ?? "" } : null);
 
+const SLUG_LETTERS = "abcdefghijkmnpqrstuvwxyz23456789"; // 32 letters that don't look alike: 5 bits each, no bias
+
+/**
+ * The page's address: the title, then 12 random letters (60 bits). Unlisted pages aren't access control,
+ * but the address shouldn't be guessable either: at the public pages' rate limit nobody can walk 2^60.
+ */
 export function makeSlug(title: string): string {
   const base = title.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || "shared";
-  return `${base}-${randomBytes(4).toString("hex")}`;
+  return `${base}-${[...randomBytes(12)].map((b) => SLUG_LETTERS[b % 32]).join("")}`;
 }
 
 // ---------- what may be shared

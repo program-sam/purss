@@ -123,6 +123,17 @@ test("guessing the current password is limited like confirming it's you", async 
   assert.equal((await b.req("PUT", "/api/account/password", s, { currentPassword: CURRENT, password: "a long enough secret" })).status, 429, "even the right one waits");
 });
 
+test("a session guessing the current password can't lock its person out of their other sessions", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const leftOpen = signIn(b.app, b.owner.accountId);
+  for (let i = 0; i < 11; i++) await b.req("POST", "/api/auth/step-up/password", leftOpen, { password: `guess ${i}` });
+  assert.equal((await b.req("POST", "/api/auth/step-up/password", leftOpen, { password: CURRENT })).status, 429, "that session waits");
+  const own = signIn(b.app, b.owner.accountId);
+  assert.equal((await b.req("POST", "/api/auth/step-up/password", own, { password: CURRENT })).status, 200, "the person's own session doesn't");
+  assert.equal((await b.req("PUT", "/api/account/password", own, { currentPassword: CURRENT, password: "a long enough secret" })).status, 200);
+});
+
 test("the password can be changed but never removed, while a passkey can be removed", async (t) => {
   const b = await boot();
   t.after(b.close);
@@ -184,4 +195,14 @@ test("a password changed while a sign-in is being checked wins: the old password
     assert.equal(await checking, null);
     assert.equal(await checkPassword(app, email, "a new harbour password"), owner.accountId);
   } finally { cleanup(); }
+});
+
+test("changing the password ends the account's other sessions, as a reset does; the one making the change stays", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const here = signIn(b.app, b.owner.accountId);
+  const elsewhere = signIn(b.app, b.owner.accountId);
+  assert.equal((await b.req("PUT", "/api/account/password", here, { currentPassword: CURRENT, password: "a long enough secret" })).status, 200);
+  assert.equal((await b.req("GET", "/api/session", elsewhere)).json.state, "signed_out");
+  assert.equal((await b.req("GET", "/api/session", here)).json.state, "signed_in");
 });

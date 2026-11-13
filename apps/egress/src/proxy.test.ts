@@ -437,3 +437,21 @@ test("the proxy refuses to run with a wildcard or public bind address", async ()
   }
   assert.throws(() => assertInternalBind("10.0.0.1", "control", { loopbackOnly: true }), ConfigError);
 });
+
+test("a client that resets while its CONNECT is being refused doesn't stop the proxy", async () => {
+  const net = await import("node:net");
+  const slowFailure = async () => { await new Promise((r) => setTimeout(r, 50)); throw Object.assign(new Error("no such host"), { code: "ENOTFOUND" }); };
+  await withEgress(async (egress) => {
+    for (let i = 0; i < 5; i++) {
+      const s = net.connect(egress.ports.proxy, "127.0.0.1");
+      await new Promise((r) => s.once("connect", r));
+      s.on("error", () => undefined);
+      s.write("CONNECT nowhere.example:443 HTTP/1.1\r\nHost: nowhere.example:443\r\n\r\n");
+      s.resetAndDestroy();
+    }
+    await new Promise((r) => setTimeout(r, 200));
+    const after = await connectVia(egress.ports.proxy, "example.com:0");
+    assert.equal(after.status, 400, "the proxy still answers");
+    after.socket.destroy();
+  }, { resolver: slowFailure });
+});

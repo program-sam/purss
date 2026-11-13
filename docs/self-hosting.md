@@ -10,8 +10,16 @@ parts named here.
 - **Local run:** Node.js 26 or newer, and podman (rootless works). The pinned FreshRSS image
   is pulled on first start if it is missing.
 - **Docker Compose:** Docker Engine with a recent Compose v2 (the proxy overlay uses
-  `!reset`). The containers are limited to about 870 MiB of memory together (API 256 MiB,
-  worker 192 MiB, egress 160 MiB, FreshRSS 256 MiB).
+  `!reset`). The containers are limited to about 1.6 GiB of memory together (API 1 GiB,
+  worker 192 MiB, egress 160 MiB, FreshRSS 256 MiB). The API uses about 200 MiB; the rest is room for
+  importing a large export, which is checked and applied whole. An export too large for that (roughly
+  over 100,000 items) is refused with a message rather than imported. On a server with about 1 GiB of
+  memory in all, lower the API's share in `.env` so a large import can't starve the other containers, for
+  example `PURSS_API_MEMORY=384m`, `PURSS_API_HEAP_MB=256` and `PURSS_IMPORT_CHECK_HEAP_MB=128`: imports
+  then go up to roughly a quarter of that size, and larger ones are refused. Applying an import runs as one
+  transaction on the API's single thread, so the API answers nothing else meanwhile: seconds for most
+  imports, around half a minute at 100,000 items, up to about a minute for the largest. More CPU cores
+  don't shorten that pause. Each account may check 20 and apply 5 imports a day.
 - **Disk:** keep more than 1 GiB free on the data volume. Below that reserve, PURSS
   pauses growth (see `PURSS_DISK_RESERVE_BYTES`).
 - Outbound internet access for fetching feeds and pages.
@@ -75,8 +83,8 @@ and runs:
 | `worker` | Background jobs | internal, outside |
 
 Volumes: `data` (product database, gateway state, bridge fetch log, backups), `secrets` (service
-token, bridge key, engine operator credentials, engine-user passwords, private source links, the setup code) and
-`engine-data` (FreshRSS). FreshRSS can read only the service token and its operator secret.
+token, engine helper token, bridge key, engine operator credentials, engine-user passwords, private source links, the setup code) and
+`engine-data` (FreshRSS). FreshRSS can read only its admin helper's token and its operator secret.
 
 Settings go in a `.env` file at the repository root (ignored by Git). Compose reads only the
 variables `compose.yaml` refers to:
@@ -96,6 +104,7 @@ variables `compose.yaml` refers to:
 | `PURSS_PUSH_RELAY_URL` | unset | Phone notifications go through the project's relay; set it empty (`PURSS_PUSH_RELAY_URL=`) or `off` to turn them off |
 | `PURSS_APP_ANDROID_CERT_SHA256`, `PURSS_APP_ANDROID_PACKAGE`, `PURSS_APP_IOS_APP_ID` | empty | The phone apps this PURSS vouches for, so they can use its passkeys; see [Configuration](#configuration) |
 | `PURSS_DISK_RESERVE_BYTES` | empty | Free disk kept in reserve; empty means 1 GiB |
+| `PURSS_API_MEMORY`, `PURSS_API_HEAP_MB`, `PURSS_IMPORT_CHECK_HEAP_MB` | `1g`, `640`, empty (384) | The API container's memory limit, its JavaScript heap in MB, and the memory one import check may use; lower all three on a small server (see [Requirements](#requirements)) |
 | `PURSS_OIDC` | empty | Sign-in with other providers, such as Google; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_SYNC_INTERVAL` | empty | Seconds between scheduled syncs per account; empty means 120 |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | empty | Jev's address and model for Smart filters; empty means TypeSafe's and the newest Jev |
@@ -140,18 +149,20 @@ that it isn't encrypted; anywhere else they need HTTPS.
 # .env
 PURSS_PUBLIC_ORIGIN=https://purss.example.com
 PURSS_PROXY_NETWORK=<your proxy's Docker network>
+PURSS_TRUST_PROXY=<your proxy's container name, e.g. nginx-proxy-manager>
 
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.proxy.yaml up -d --build
 ```
 
 [compose.proxy.yaml](../infra/compose.proxy.yaml) removes the host port, joins the API to the
-proxy's (external) network under the alias `purss-workspace`, requires `PURSS_PUBLIC_ORIGIN`, and
-sets `PURSS_TRUST_PROXY=1`. Point the proxy at `http://purss-workspace:8940`. The proxy should:
+proxy's (external) network under the alias `purss-workspace`, and requires `PURSS_PUBLIC_ORIGIN` and
+`PURSS_TRUST_PROXY`, the proxy's container name (`docker ps` shows it): only that container, not others on
+the same network, can say which address a visitor has. Point the proxy at `http://purss-workspace:8940`. The proxy should:
 
 - serve HTTPS at exactly `PURSS_PUBLIC_ORIGIN` and pass the `Host` and `Origin` headers through;
 - append the client's address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For
   $proxy_add_x_forwarded_for;`, which Nginx Proxy Manager and Caddy do by default). Only the right-most hop is
-  used, for sign-in rate limits, and only from private addresses; `X-Real-IP` is ignored, since a proxy
+  used, for sign-in rate limits, and only from the named proxy; `X-Real-IP` is ignored, since a proxy
   that doesn't set it passes on whatever the client sent;
 - not buffer `/api/events` (a server-sent event stream; the API sends `X-Accel-Buffering: no`);
 - pass `/mcp` and its `Authorization` header through unchanged, if assistant access is used, and
@@ -354,8 +365,9 @@ removal…*: check that the user's folder under the engine's `data/users/` is go
 to finish the deletion. Administrators can't delete other people's accounts. Backups made before
 a deletion still contain the account.
 
-Open sign-up exists only in hosted mode and is off by default. `PURSS_SIGNUP=open` adds *create
-an account* to the sign-in page; attempts are limited to 30 per address an hour, successful
+Open sign-up exists only in hosted mode and is off by default, and stays closed until the installation is
+claimed with its setup code (so the operator's account is always the first, and its administrator).
+`PURSS_SIGNUP=open` adds *create an account* to the sign-in page; attempts are limited to 30 per address an hour, successful
 account creations to 10 per address an hour, and the installation-wide daily cap is
 `PURSS_SIGNUP_DAILY_LIMIT` (50 a day by default). When every blocking limit has a known release,
 refusals include the latest release time. It also needs
@@ -588,13 +600,14 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this PURSS's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
 | `PURSS_DEFAULT_ALLOCATION_BYTES` | none | Allocation for new hosted accounts; empty means no limit; not used in self mode |
 | `PURSS_DISK_RESERVE_BYTES` | 1 GiB | Free disk below which growth pauses |
+| `PURSS_IMPORT_CHECK_HEAP_MB` | `384` | Memory in MB one import check may use; an export needing more is refused as too large to import here |
 | `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_ENGINE_URL` | `http://127.0.0.1:8941` | FreshRSS address handed to the worker |
 | `PURSS_EGRESS_CONTROL_URL` | `http://127.0.0.1:8949/status` | Egress status for admin health |
 | `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest of [plan/41](../plan/41-source-bridges.md)) get the "no feeds" answer |
 | `PURSS_SYNC_INTERVAL` | `120` | Seconds between scheduled syncs per account |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | `https://api.typesafe.ai`, the newest Jev | Jev's address (`https://openrouter.ai/api` for OpenRouter keys) and the model Smart filters use (API and worker) |
-| `PURSS_TRUST_PROXY` | off | `1`: take the client address from the right-most `X-Forwarded-For` hop when the peer is private |
+| `PURSS_TRUST_PROXY` | off | A comma-separated list of the reverse proxy's addresses or host names (looked up every 30 seconds): the client address is taken from the right-most `X-Forwarded-For` hop only on connections from them. `1` accepts it from any private-network peer, which is safe only when nothing but the proxy can reach the API's port |
 | `PURSS_WEB_DIST` | `apps/web/dist` | Built web app, served at `/app/` |
 | `PURSS_SITE_DIST` | `apps/site/dist` | Built public website, served at `/` in hosted mode (signed in, `/` opens the app); self-hosted, `/` opens the app |
 
@@ -693,14 +706,15 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   address; the mobile apps' downloads also come straight from the publisher, only over `https`.
 - **FreshRSS isolation:** under Compose, FreshRSS sits on an internal network with no route out
   except egress, has no published port, and is administered only through a helper that runs a
-  fixed list of commands and requires the service token. Locally it listens on loopback and
+  fixed list of commands and requires its own token (`secrets/engine-helper-token`, the only product
+  secret FreshRSS can read). Locally it listens on loopback and
   reaches the egress proxy through podman's mapped host loopback, which also lets it address
   other loopback ports; that is a development convenience.
 - **Service token:** `secrets/service-token` authenticates the worker to the API's internal
-  listener, the API to egress control, and (under Compose) the worker to the engine helper. Anyone
-  holding it can drive those internal routes. Under Compose the internal listener (8948) binds
-  every interface of the API container: it is not published on the host, but other containers
-  on the same Docker networks, including the shared proxy network, can reach it.
+  listener and the API to egress control. Anyone holding it can drive those internal routes. Under
+  Compose only the product's containers can read it, and the internal listener (8948) and egress
+  control (8949) listen only on the `services` network, which FreshRSS and the shared proxy network
+  are not on.
 - **Feed key:** `secrets/feed-key` keys the fingerprints that recognise a private feed link followed a second
   time. Back it up with the rest of `secrets/`; if it is lost, the API warns in its log and makes the
   fingerprints again from the private link files, so nothing is lost as long as those files are there.
@@ -708,6 +722,11 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   same-origin; feed and article images load directly from publishers over HTTPS), same-origin check
   plus a per-session CSRF token on every change, HttpOnly SameSite=Lax session cookies, and
   in-memory rate limits on sign-in, setup and invitation attempts.
+- **Request bodies:** a body must keep arriving (a stalled or trickling one is dropped), large uploads go
+  to disk, and the bodies being read into memory are capped: 64 MiB for sign-in-sized forms and 64 MiB for
+  everything else, with each signed-in account limited to 16 MiB of it and each network address (an IPv6
+  /64) to 1 MiB. That keeps the API's memory bounded; the price is that someone holding several accounts or
+  dozens of networks can briefly make others' changes answer "busy, try again".
 - **Secrets on disk:** the database holds only hashes of the setup code and
   invitations (the setup code's plain text is the operator's file). Private source links and
   engine passwords are files under `secrets/` (0600), never in the database or job payloads.

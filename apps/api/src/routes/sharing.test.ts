@@ -71,7 +71,7 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   const draft = (await b.api("PUT", `/api/shares/for/basket/${lib.baskets.later}`, { curatorName: "Sam Q.", description: "Things about <sediment> & silt." })).json;
   assert.equal(draft.status, "draft");
   assert.equal(draft.title, "Later", "the page is titled after the basket");
-  assert.match(draft.slug, /^later-[0-9a-f]{8}$/);
+  assert.match(draft.slug, /^later-[a-km-z2-9]{12}$/);
   const drafted = await b.anon(`/p/${draft.slug}`);
   assert.equal(drafted.status, 404);
   assert.equal(drafted.text, (await b.anon("/p/does-not-exist-12345678")).text, "a draft looks exactly like a page that doesn't exist");

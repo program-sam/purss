@@ -72,3 +72,19 @@ test("phone notifications use the project's relay unless the operator names anot
     assert.throws(() => loadConfig({ ...base, PURSS_PUSH_RELAY_URL: bad }), /PURSS_PUSH_RELAY_URL/, bad);
   }
 });
+
+test("Compose keeps FreshRSS away from the service token and the product's service listeners", () => {
+  const compose = repoFile("infra/compose.yaml");
+  const service = (name: string) => compose.slice(compose.indexOf(`\n  ${name}:\n`), compose.indexOf("\n\n", compose.indexOf(`\n  ${name}:\n`)));
+  const subnet = /services:\n\s+internal: true\n\s+ipam: \{ config: \[\{ subnet: (\d+\.\d+\.\d+)\.0\/24 \}\] \}/.exec(compose)?.[1];
+  assert.ok(subnet, "a services network");
+  assert.ok(!/services/.test(/networks: (.*)/.exec(service("engine"))![1]!), "the engine isn't on it");
+  assert.match(service("api"), new RegExp(`PURSS_INTERNAL_HOST: ${subnet.replace(/\./g, "\\.")}\\.\\d+`), "the API's internal listener binds it");
+  assert.match(service("egress"), new RegExp(`EGRESS_CONTROL_HOST: ${subnet.replace(/\./g, "\\.")}\\.\\d+`), "egress control binds it");
+  assert.match(service("worker"), new RegExp(`PURSS_INTERNAL_URL: http://${subnet.replace(/\./g, "\\.")}\\.`), "the worker reaches the API there");
+  const init = repoFile("infra/compose/init.ts");
+  assert.match(init, /chownSync\(path\.join\(secrets, "service-token"\), NODE, NODE\);\nchmodSync\(path\.join\(secrets, "service-token"\), 0o600\);/, "only the product's user reads the service token");
+  assert.match(init, /for \(const f of \["engine-helper-token", "engine-admin"\]\)/, "the engine's web user reads only its own two files");
+  const helper = repoFile("infra/engine/image/purss-admin.php");
+  assert.ok(helper.includes("/run/purss-secrets/engine-helper-token") && !helper.includes("/run/purss-secrets/service-token"));
+});

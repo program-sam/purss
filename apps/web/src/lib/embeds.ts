@@ -49,7 +49,9 @@ function vimeo(u: URL): string | null {
   const h = host(u);
   const seg = u.pathname.split("/").filter(Boolean);
   const num = (s: string | undefined) => !!s && /^\d+$/.test(s);
-  if (h === "player.vimeo.com") return seg[0] === "video" && num(seg[1]) && seg.length === 2 ? player(seg[1]!, u.searchParams.get("h")) : null;
+  // An unlisted video's hash is hex, as in the vimeo.com/123/abcdef form below: anything else could add parameters to the player's address.
+  const given = u.searchParams.get("h");
+  if (h === "player.vimeo.com") return seg[0] === "video" && num(seg[1]) && seg.length === 2 ? player(seg[1]!, given && /^[a-f0-9]{6,}$/i.test(given) ? given : null) : null;
   if (h !== "vimeo.com") return null;
   // vimeo.com/123, vimeo.com/123/abcdef (unlisted), /channels/name/123, /groups/name/videos/123, /showcase/1/video/123, /album/1/video/123
   if (num(seg[0]) && seg.length === 1) return player(seg[0]!, null);
@@ -60,7 +62,7 @@ function vimeo(u: URL): string | null {
   return null;
 
   function player(id: string, hash: string | null): string {
-    return `https://player.vimeo.com/video/${id}?autoplay=1&dnt=1${hash ? `&h=${hash}` : ""}`;
+    return `https://player.vimeo.com/video/${id}?autoplay=1&dnt=1${hash ? `&h=${encodeURIComponent(hash)}` : ""}`;
   }
 }
 

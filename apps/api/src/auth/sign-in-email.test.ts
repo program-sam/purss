@@ -75,6 +75,75 @@ test("ten tries per address in fifteen minutes, known or not, in any case", asyn
   assert.equal(slowKnown.json.error.message, slow.json.error.message, "a known address is slowed down like an unknown one");
 });
 
+test("someone spending an address's tries can't keep its person out of a browser they signed in from", async (t) => {
+  const { b, setEmail, signIn } = await boot();
+  t.after(b.close);
+  const ana = await member(b.app, "Ana");
+  setEmail(ana.accountId, "ana@example.org");
+  const first = await signIn("ana@example.org", ana.password);
+  assert.equal(first.status, 200);
+  const known = setCookie(first, "purss_known");
+  assert.ok(known && /Path=\/api\/auth\//.test(known.header) && /HttpOnly/.test(known.header), known?.header ?? "no purss_known cookie");
+  const withKnown = (password: string) => b.api(null, "POST", "/api/auth/password", { email: "ana@example.org", password }, { ...from(), cookie: known!.pair });
+
+  // A stranger spends the address's shared tries; without the cookie even the right password waits.
+  for (let i = 0; i < 10; i++) assert.equal((await signIn("ana@example.org", `guess ${i}`)).status, 401);
+  assert.equal((await signIn("ana@example.org", ana.password)).status, 429);
+  // Ana's browser has tries of its own, and a correct password gives them back.
+  assert.equal((await withKnown(ana.password)).status, 200, "the browser Ana used before still signs in");
+  for (let i = 0; i < 9; i++) assert.equal((await withKnown(`typo ${i}`)).status, 401);
+  assert.equal((await withKnown(ana.password)).status, 200, "nine typos and then the right password");
+  for (let i = 0; i < 10; i++) await withKnown(`typo ${i}`);
+  assert.equal((await withKnown(ana.password)).status, 429, "the browser's own tries are limited too");
+
+  // Others failing on the same network address (shared Wi-Fi) use up that address's tries, not the known browser's.
+  const cafe = { "x-forwarded-for": "10.77.0.1" };
+  for (let i = 0; i < 10; i++) await b.api(null, "POST", "/api/auth/password", { email: `stranger${i}@example.org`, password: "x" }, cafe);
+  assert.equal((await b.api(null, "POST", "/api/auth/password", { email: "someone@example.org", password: "x" }, cafe)).status, 429, "the café's address is spent");
+  const ana2 = await b.api(null, "POST", "/api/auth/password", { email: "ana2@example.org", password: "x" }, { ...cafe, cookie: known!.pair });
+  assert.equal(ana2.status, 429, "a cookie for another address doesn't lift the network limit");
+
+  // The cookie is only good for the address it was given for, and a forged one counts as none.
+  const bo = await member(b.app, "Bo");
+  setEmail(bo.accountId, "bo@example.org");
+  for (let i = 0; i < 10; i++) await signIn("bo@example.org", `guess ${i}`);
+  const borrowed = await b.api(null, "POST", "/api/auth/password", { email: "bo@example.org", password: bo.password }, { ...from(), cookie: known!.pair });
+  assert.equal(borrowed.status, 429, "Ana's cookie gives no tries for Bo's address");
+  const forged = await b.api(null, "POST", "/api/auth/password", { email: "bo@example.org", password: bo.password }, { ...from(), cookie: "purss_known=abc.def" });
+  assert.equal(forged.status, 429);
+});
+
+test("a browser that signed in before isn't kept out by others failing on the same network address", async (t) => {
+  const { b, setEmail } = await boot();
+  t.after(b.close);
+  const dee = await member(b.app, "Dee");
+  setEmail(dee.accountId, "dee@example.org");
+  const office = { "x-forwarded-for": "10.88.0.1" };
+  const first = await b.api(null, "POST", "/api/auth/password", { email: "dee@example.org", password: dee.password }, office);
+  const known = setCookie(first, "purss_known")!;
+  for (let i = 0; i < 10; i++) await b.api(null, "POST", "/api/auth/password", { email: `colleague${i}@example.org`, password: "x" }, office);
+  assert.equal((await b.api(null, "POST", "/api/auth/password", { email: "dee@example.org", password: dee.password }, office)).status, 429, "without the cookie, the office's address is spent");
+  assert.equal((await b.api(null, "POST", "/api/auth/password", { email: "dee@example.org", password: dee.password }, { ...office, cookie: known.pair })).status, 200);
+});
+
+test("someone not signed in can send only a small body: sign-in forms are small, and many large ones would add up", async (t) => {
+  const { b, signIn } = await boot();
+  t.after(b.close);
+  const big = await signIn("small-body@example.org", "x".repeat(70 * 1024));
+  assert.equal(big.status, 413);
+  assert.equal((await signIn("small-body@example.org", "x".repeat(1000))).status, 401, "an ordinary attempt is read");
+});
+
+test("parallel guesses can't get past the limit while the password is being checked", async (t) => {
+  const { b, setEmail, signIn } = await boot();
+  t.after(b.close);
+  const ana = await member(b.app, "Ana");
+  setEmail(ana.accountId, "parallel@example.org");
+  const statuses = (await Promise.all(Array.from({ length: 30 }, (_, i) => signIn("parallel@example.org", `guess ${i}`)))).map((r) => r.status);
+  assert.equal(statuses.filter((s) => s === 401).length, 10, statuses.join(","));
+  assert.equal(statuses.filter((s) => s === 429).length, 20);
+});
+
 test("an unknown address costs the same work as a wrong password: the dummy hash runs", async (t) => {
   const { b, setEmail } = await boot();
   t.after(b.close);

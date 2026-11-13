@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Plan } from "@purss/domain";
 import { appUrl } from "@purss/domain/paths";
 import type { App } from "./app.ts";
-import { HttpError, parse, readBody, sendJson } from "./http.ts";
+import { HttpError, SIGNED_OUT_PACE, addressSender, clientAddress, parse, readBody, sendJson } from "./http.ts";
 import { safeEqual } from "./secrets.ts";
 import { planOf, storedPlan } from "./services/plans.ts";
 
@@ -59,7 +59,7 @@ export async function handleBillingPlan(app: App, raw: IncomingMessage, res: Ser
   const cfg = app.config.billing;
   if (!cfg) throw new HttpError(404, "not_found", "Unknown route.");
   if (raw.method !== "POST") throw new HttpError(405, "method", "Use POST.");
-  const body = parse(planBody, await readBody(raw, 4096));
+  const body = parse(planBody, await readBody(raw, 4096, SIGNED_OUT_PACE, addressSender(clientAddress(raw, app.config.trustProxy))));
   const sig = String(raw.headers["x-purss-billing-signature"] ?? "");
   const message = `${body.at}\n${body.accountId}\n${body.plan}`;
   if (!safeEqual(sig, mac(cfg.secret, "plan", message))) throw new HttpError(401, "unauthorized", "Bad signature.");

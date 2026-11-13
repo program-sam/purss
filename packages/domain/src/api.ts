@@ -345,7 +345,8 @@ export const MAX_BULK_ITEMS = 5000;
 export const itemIdsQuerySchema = itemListQuerySchema.omit({ cursor: true, limit: true });
 export type ItemIdsQuery = z.input<typeof itemIdsQuerySchema>;
 /** The items' ids in the list's order, at most MAX_BULK_ITEMS, and how many the list holds. */
-export type ItemIds = { ids: string[]; total: number };
+/** `total`: how many the list holds, or null when that's more than MAX_BULK_ITEMS (counting further would read them all). */
+export type ItemIds = { ids: string[]; total: number | null };
 export type { Sort };
 
 export const stateChangeSchema = z.object({
@@ -812,7 +813,8 @@ export type ConnectRequestSummary = {
 export type ConnectApproveResult = { redirectTo: string; code?: undefined } | { code: string; expiresInMinutes: number; redirectTo?: undefined };
 
 export type DeviceDTO = { id: string; kind: ConnectClientKind; name: string; createdAt: string; lastUsedAt: string; current: boolean };
-export type ConnectTokenResult = { token: string; tokenType: "Bearer"; device: DeviceDTO };
+/** `known`, after a password sign-in: the app keeps it and sends it with its next one, for sign-in tries of its own. */
+export type ConnectTokenResult = { token: string; tokenType: "Bearer"; device: DeviceDTO; known?: string };
 
 export const connectRequestSchema = z.object({
   client: z.enum(CONNECT_CLIENT_KINDS),
@@ -825,7 +827,7 @@ export const connectRequestSchema = z.object({
 export const connectApproveSchema = connectRequestSchema.extend({ device_name: z.string().trim().min(1).max(80) });
 /** Signing in from the mobile app: an email address and password, or a passkey. */
 export const connectSigninSchema = z.discriminatedUnion("method", [
-  z.object({ client: z.literal("mobile"), method: z.literal("password"), email: z.string().max(300), password: z.string().min(1).max(1024), deviceName: z.string().max(200).optional() }),
+  z.object({ client: z.literal("mobile"), method: z.literal("password"), email: z.string().max(300), password: z.string().min(1).max(1024), deviceName: z.string().max(200).optional(), known: z.string().max(2000).optional() }),
   // A passkey answer to the challenge from POST /api/connect/passkey/options.
   z.object({ client: z.literal("mobile"), method: z.literal("passkey"), challengeId: z.string().max(100), response: z.record(z.string(), z.unknown()), deviceName: z.string().max(200).optional() }),
 ]);

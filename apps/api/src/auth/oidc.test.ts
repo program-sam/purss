@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
-import { makeOwner, makeTestApp } from "../testing.ts";
+import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
 import { call, signIn } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
@@ -60,6 +60,7 @@ const sessionIdOf = (s: TestSession) => sha256(decodeURIComponent(/purss_session
 async function hosted(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}, issuerSuffix = "") {
   const iss = await issuer(t);
   const made = makeTestApp({ ...HOSTED, PURSS_OIDC: provider(iss.url + issuerSuffix, providerExtra), ...env });
+  makeOperator(made.app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
   useTransport(made.app, { send: async () => {}, verify: async () => {} });
   await checkMail(made.app);
   t.after(async () => { await settleMail(made.app); made.cleanup(); });
@@ -73,7 +74,7 @@ async function signInWith(app: App, iss: Issuer, c: OidcCaller, purpose: OidcPur
 }
 
 const rejected = (code: string) => (e: unknown) => e instanceof HttpError && e.code === code;
-const accountCount = (app: App) => app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts")!.n;
+const accountCount = (app: App) => app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts WHERE email IS NOT ?", OPERATOR_EMAIL)!.n;
 
 test("OIDC: link while signed in, then sign in with it; binding by issuer + subject", async (t) => {
   const iss = await issuer(t);
@@ -153,7 +154,7 @@ test("sign-up through a provider creates one account: confirmed email, name from
   assert.equal(out.created, true);
   assert.equal(out.purpose, "signin");
   assert.equal(accountCount(app), 1);
-  const account = app.db.get<{ id: string; display_name: string; email: string; email_verified_at: string | null }>("SELECT id, display_name, email, email_verified_at FROM accounts")!;
+  const account = app.db.get<{ id: string; display_name: string; email: string; email_verified_at: string | null }>("SELECT id, display_name, email, email_verified_at FROM accounts WHERE email IS NOT 'operator@example.test'")!;
   assert.equal(account.id, out.accountId);
   assert.equal(account.display_name, "Ana Reader");
   assert.equal(account.email, "Ana.Reader@Example.org");
@@ -194,7 +195,7 @@ test("an email the provider doesn't vouch for makes no account", async (t) => {
   await attempt({ sub: "u3" });
   await attempt({ sub: "u4", email: "not an address", email_verified: true });
   assert.equal(accountCount(app), 0);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods m JOIN accounts a ON a.id = m.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL)!.n, 0);
 });
 
 test("an address another account has, confirmed or not, is neither linked nor duplicated", async (t) => {
@@ -476,6 +477,7 @@ test("an app's confirmation is refused at redemption when the account has since 
 async function boot(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}) {
   const iss = await issuer(t);
   const b = await bootDeletion({ ...HOSTED, PURSS_OIDC: provider(iss.url, providerExtra), ...env });
+  makeOperator(b.app);
   useTransport(b.app, { send: async () => {}, verify: async () => {} });
   await checkMail(b.app);
   t.after(async () => { await b.close(); });
@@ -517,7 +519,7 @@ test("over HTTP: a provider creates an account and its session reaches Home; the
   const again = await browse(b, { authorize }, "");
   assert.equal(again.answer!.headers.get("location"), "/app/");
   assert.ok(again.session);
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts")!.n, 1, "no second account");
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 1, "no second account");
 });
 
 test("over HTTP: an existing email is refused with a message that says what to do, and a closed sign-up says not_linked", async (t) => {
@@ -528,20 +530,20 @@ test("over HTTP: an existing email is refused with a message that says what to d
   const refused = await browse(b, { authorize }, "");
   assert.equal(refused.answer!.headers.get("location"), "/app/signin?error=email_in_use&provider=mock");
   assert.equal(refused.session, null);
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts")!.n, 1);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 1);
 
   const closed = await boot(t, { PURSS_SIGNUP: "invite" });
   closed.setClaims({ sub: "g-closed", email: "new@example.org", email_verified: true });
   const out = await browse(closed.b, closed, "");
   assert.equal(out.answer!.headers.get("location"), "/app/signin?error=not_linked&provider=mock");
-  assert.equal(closed.b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts")!.n, 0);
+  assert.equal(closed.b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 0);
 });
 
 test("over HTTP: step-up confirms the sensitive actions of a provider-only account; delete, export and add-a-password all work", async (t) => {
   const { b, authorize, setClaims } = await boot(t);
   setClaims({ sub: "g-only", email: "only@example.org", email_verified: true, name: "Only Provider", auth_time: authNow() });
   const made = await browse(b, { authorize }, "");
-  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts")!.id;
+  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts WHERE email IS NOT 'operator@example.test'")!.id;
   // The session made by signing in a while ago: nothing sensitive is allowed until it confirms.
   const session = { ...signIn(b.app, accountId, { authAgeSeconds: 3600 }), csrf: "" };
   session.csrf = (await b.api(session, "GET", "/api/session")).json.csrf;
@@ -583,7 +585,7 @@ test("over HTTP: a provider-only account exports and deletes itself, and can kee
   assert.equal(back.answer!.headers.get("location"), "/app/signin?notice=deletion_pending");
   assert.ok(setCookie(back.answer!, "purss_deletion"));
   assert.equal(back.session, null);
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts")!.n, 1, "the same account, not a second one made at the sign-in");
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n, 1, "the same account, not a second one made at the sign-in");
 });
 
 test("over HTTP: the last way in can't be unlinked; with a password added the provider can go", async (t) => {
@@ -606,7 +608,7 @@ test("over HTTP: starting step-up needs the right session; an app confirms throu
   const { b, authorize, setClaims } = await boot(t);
   setClaims({ sub: "g-routes", email: "routes@example.org", email_verified: true, auth_time: authNow() });
   const made = await browse(b, { authorize }, "");
-  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts")!.id;
+  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts WHERE email IS NOT 'operator@example.test'")!.id;
   const signedOut = await fetch(`${b.base}/api/auth/oidc/mock/start?stepup=1`, { redirect: "manual" });
   assert.equal(signedOut.status, 401);
   // A linked provider that isn't this account's.
@@ -835,7 +837,7 @@ test("a provider can be removed only while a password remains; a passkey isn't a
   setClaims({ sub: "g-removal", email: "removal@example.org", email_verified: true });
   const made = await browse(b, { authorize }, "");
   const session = made.session!;
-  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts")!.id;
+  const accountId = b.app.db.get<{ id: string }>("SELECT id FROM accounts WHERE email IS NOT 'operator@example.test'")!.id;
   const methods = async () => (await b.api(session, "GET", "/api/account/security")).json.methods as { id: string; kind: string }[];
   const remove = async (id: string) => b.api(session, "DELETE", `/api/account/methods/${id}`);
   const oidc = (await methods()).find((m) => m.kind === "oidc")!;
