@@ -10,9 +10,10 @@ import { HttpError } from "../http.ts";
 import { checkUpload } from "./portability.ts";
 
 process.once("message", (job: { config: Config; principal: Principal; file: string }) => {
-  const db = new Database(job.config.dbFile);
+  let db: Database | null = null;
   let answer: unknown;
   try {
+    db = new Database(job.config.dbFile);
     const text = readFileSync(job.file, "utf8");
     const sha256 = createHash("sha256").update(text).digest("hex");
     answer = { ok: true, check: checkUpload({ db, config: job.config, events: new EventEmitter(), serviceToken: "" }, job.principal, text), sha256 };
@@ -22,7 +23,7 @@ process.once("message", (job: { config: Config; principal: Principal; file: stri
       : { ok: false, status: 500, code: "internal", message: "Something went wrong checking that file." };
     if (!(err instanceof HttpError)) console.error("[api] import check failed:", err instanceof Error ? err.message : "unknown error");
   } finally {
-    db.raw.close();
+    db?.raw.close();
   }
   process.send?.(answer, () => process.disconnect?.());
 });

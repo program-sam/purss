@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import type { DeletionBoot } from "../deletion-testing.ts";
-import { checkPassword } from "./passwords.ts";
+import { checkPassword, writePassword } from "./passwords.ts";
 
 /*
  * Password sign-in is by email address. These tests pin what must not change: the address matches in any case, one
@@ -190,4 +190,31 @@ test("a browser that signed in before can't sign in over and over without end: e
   }
   assert.equal(statuses.filter((s) => s === 200).length, 30, statuses.join(","));
   assert.equal(statuses.at(-1), 429);
+});
+
+test("a known value from before the password changed is no longer known", async (t) => {
+  const { b, setEmail } = await boot();
+  t.after(b.close);
+  const fay = await member(b.app, "Fay");
+  setEmail(fay.accountId, "fay@example.org");
+  const signInAs = (password: string, cookie?: string) => b.api(null, "POST", "/api/auth/password", { email: "fay@example.org", password }, { ...from(), ...(cookie ? { cookie } : {}) });
+  const old = setCookie(await signInAs(fay.password), "purss_known")!.pair;
+  // The password is reset (as after "forgot password"): the value handed out before it counts for nothing now.
+  await writePassword(b.app, fay.accountId, "a brand new password here");
+  for (let i = 0; i < 10; i++) assert.equal((await signInAs(`wrong ${i}`, old)).status, 401, "the stale value shares the account's tries");
+  assert.equal((await signInAs("a brand new password here", old)).status, 429, "and is limited with them");
+});
+
+test("a known browser whose own tries are spent can't use up the account's checks for another known browser", async (t) => {
+  const { b, setEmail } = await boot();
+  t.after(b.close);
+  const gus = await member(b.app, "Gus");
+  setEmail(gus.accountId, "gus@example.org");
+  const signInAs = (password: string, cookie?: string) => b.api(null, "POST", "/api/auth/password", { email: "gus@example.org", password }, { ...from(), ...(cookie ? { cookie } : {}) });
+  const one = setCookie(await signInAs(gus.password), "purss_known")!.pair;
+  const two = setCookie(await signInAs(gus.password), "purss_known")!.pair;
+  const statuses: number[] = [];
+  for (let i = 0; i < 30; i++) statuses.push((await signInAs(`wrong ${i}`, one)).status);
+  assert.deepEqual([statuses.filter((x) => x === 401).length, statuses.filter((x) => x === 429).length], [10, 20], "ten tries, then refused");
+  assert.equal((await signInAs(gus.password, two)).status, 200, "the other browser still has the account's checks");
 });

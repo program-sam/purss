@@ -24,7 +24,16 @@ function key(app: App): string {
   if (!k) keys.set(app, (k = ensureSecret(app.config.secretsDir, "sign-in-key")));
   return k;
 }
-const mac = (app: App, nonce: string, email: string) => createHmac("sha256", key(app)).update(`${nonce}\n${email}`).digest("base64url");
+/**
+ * A known value is signed for the address and for the account's password as it is now (a fingerprint of its hash): a
+ * password changed or reset voids every value given before, so one copied earlier stops counting as a known browser.
+ */
+const mac = (app: App, nonce: string, email: string, epoch: string) => createHmac("sha256", key(app)).update(`${nonce}\n${email}\n${epoch}`).digest("base64url");
+function passwordEpoch(app: App, address: string): string {
+  const row = app.db.get<{ secret_hash: string }>(
+    "SELECT m.secret_hash FROM accounts a JOIN sign_in_methods m ON m.account_id = a.id AND m.kind = 'password' WHERE lower(a.email) = lower(?)", address);
+  return row ? createHmac("sha256", key(app)).update(row.secret_hash).digest("base64url").slice(0, 16) : "";
+}
 
 /**
  * The tries bucket for this sign-in: the browser's own when its cookie was given for this address (`known`),
@@ -34,9 +43,10 @@ const mac = (app: App, nonce: string, email: string) => createHmac("sha256", key
 export type Tries = { bucket: string; known: boolean; address: string };
 export function triesKey(app: App, email: string, knownCookie: string | undefined): Tries {
   const address = normalizeEmail(email);
+  const epoch = passwordEpoch(app, address);
   for (const entry of (knownCookie ?? "").split(",").slice(0, 8)) {
     const [nonce, sig] = entry.split(".");
-    if (nonce && sig && safeEqual(sig, mac(app, nonce, address))) return { bucket: `password-user:${address}:${nonce}`, known: true, address };
+    if (nonce && sig && safeEqual(sig, mac(app, nonce, address, epoch))) return { bucket: `password-user:${address}:${nonce}`, known: true, address };
   }
   return { bucket: `password-user:${address}`, known: false, address };
 }
@@ -47,10 +57,11 @@ export function triesKey(app: App, email: string, knownCookie: string | undefine
  * nothing gives back: signing in over and over with its own password can't keep the server hashing or pile up sessions.
  */
 export function takeTry(tries: Tries): void {
-  // Per address, not per known value: each sign-in hands out a fresh value. Only callers holding a valid value for the
-  // address (someone who signed in with its password) count here, so nobody else can spend it.
-  if (tries.known) rateLimit(`password-checks:${tries.address}`, KNOWN_CHECKS, WINDOW_MS);
+  // The browser's own tries first: one whose tries are spent is refused before it can draw on the address's checks.
   rateLimit(tries.bucket, TRIES, WINDOW_MS);
+  // Per address, not per known value: each sign-in hands out a fresh value. Only callers holding a valid value for the
+  // address and its current password (someone who signed in with it) count here.
+  if (tries.known) rateLimit(`password-checks:${tries.address}`, KNOWN_CHECKS, WINDOW_MS);
 }
 
 /**
@@ -60,13 +71,14 @@ export function takeTry(tries: Tries): void {
 export function signedIn(app: App, res: ServerResponse | null, bucket: string, email: string, knownCookie: string | undefined): string {
   clearRateLimit(bucket);
   const address = normalizeEmail(email);
+  const epoch = passwordEpoch(app, address);
   // One entry per address signed in from this browser, newest first, at most 8.
   const kept = (knownCookie ?? "").split(",").filter((e) => {
     const [nonce, sig] = e.split(".");
-    return nonce && sig && !safeEqual(sig, mac(app, nonce, address));
+    return nonce && sig && !safeEqual(sig, mac(app, nonce, address, epoch));
   }).slice(0, 7);
   const nonce = randomToken(12);
-  const value = [`${nonce}.${mac(app, nonce, address)}`, ...kept].join(",");
+  const value = [`${nonce}.${mac(app, nonce, address, epoch)}`, ...kept].join(",");
   if (res) setCookie(res, KNOWN_COOKIE, value, { maxAge: KNOWN_DAYS * 86400, secure: app.config.publicOrigin.startsWith("https:"), path: "/api/auth/" });
   return value;
 }

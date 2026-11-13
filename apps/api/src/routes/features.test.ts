@@ -335,3 +335,38 @@ test("an upload stops when other content takes the disk room it set aside while 
   assert.equal(r.status, 507);
   assert.equal(JSON.parse(r.body).error.code, "disk_reserve");
 });
+
+test("a check that can't start, or can't open the database, is answered as a failure and frees the turn", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const file = path.join(b.app.config.dataDir, "export.json");
+  writeFileSync(file, (await b.api("GET", "/api/export")).text);
+  const realExec = process.execPath;
+  process.execPath = "/nonexistent/node";
+  let failed: unknown;
+  try { failed = await within(checkUploadApart(b.app, b.owner, file).then(() => null, (e: unknown) => e), 10000); } finally { process.execPath = realExec; }
+  assert.ok(failed instanceof HttpError && failed.status === 500, `no process: a failure, not a hang (${String(failed)})`);
+  assert.equal(await within(oneImportAtATime(() => "next"), 5000), "next", "and the next import gets its turn");
+  const broken = { ...b.app, config: { ...b.app.config, dbFile: path.join(b.app.config.dataDir, "no-such-dir", "product.db") } };
+  const unopened = await checkUploadApart(broken, b.owner, file).then(() => null, (e: unknown) => e);
+  assert.ok(unopened instanceof HttpError && unopened.status === 500 && unopened.code === "internal", "a database it can't open isn't called too large");
+});
+
+test("a small upload is checked against the disk reserve again once it has arrived", async (t) => {
+  const b = await boot();
+  t.after(async () => { diskOverride.freeBytes = null; await b.close(); });
+  const size = 2 * 1024 * 1024;
+  diskOverride.freeBytes = b.app.config.diskReserveBytes + size * 2;
+  const req = request(b.server.base + "/api/import/preview", { method: "POST", headers: { origin: b.app.config.publicOrigin, cookie: b.session.cookie, "x-purss-csrf": b.session.csrf, "content-type": "application/json", "content-length": String(size) } });
+  const answer = new Promise<{ status: number; body: string }>((resolve, reject) => {
+    req.on("response", (res) => { let body = ""; res.on("data", (d) => (body += d)); res.on("end", () => resolve({ status: res.statusCode!, body })); });
+    req.on("error", reject);
+  });
+  req.write(Buffer.alloc(size / 2, 32));
+  await new Promise((r) => setTimeout(r, 100));
+  diskOverride.freeBytes = b.app.config.diskReserveBytes - 1; // filled by something else while it arrived
+  req.end(Buffer.alloc(size / 2, 32));
+  const r = await within(answer, 5000);
+  assert.equal(r.status, 507);
+  assert.deepEqual(readdirSync(path.join(b.app.config.dataDir, "staging")).filter((f) => f.startsWith("upload-") || f.startsWith("import-")), [], "nothing kept");
+});

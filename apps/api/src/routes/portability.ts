@@ -111,6 +111,7 @@ export function portabilityRouter(): Router<Ctx> {
         assertDiskRoom(ctx.app, Math.max(0, room - size));
       });
       if (!bytes) throw badRequest("Choose an export file to upload.");
+      assertDiskRoom(ctx.app, 0); // all of it written: the disk must still be above its reserve before it's kept
       return await oneImportAtATime(async () => {
         assertStillUsable(ctx.app, p); // it may have waited its turn
         const { check, sha256 } = await checkUploadApart(ctx.app, p, upload, undefined, gone.signal);
