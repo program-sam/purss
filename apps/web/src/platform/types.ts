@@ -46,6 +46,8 @@ export interface Platform {
   appVersion(): Promise<string | null>;
   /** Updates of the app's interface from the connected PURSS (plan/39); null where there are none (the web app, an app not connected). */
   readonly interfaceUpdates: InterfaceUpdates | null;
+  /** New versions of the phone app itself and where they come from (plan/39); null elsewhere (the desktop app's are `desktop`). */
+  readonly appUpdates: AppUpdates | null;
   /** System notifications for the alerts the person chose (Settings → Notifications): the browser's, or the desktop app's. */
   readonly notifier: Notifier;
   /** Show the bell's unread count on the app's icon (dock, launcher, tray); null where there is no such icon. */
@@ -92,13 +94,44 @@ export interface DesktopApp {
  * Whether the connected PURSS may update the app's interface. The official server may; any other is asked
  * about once, the first time it offers an update (`asking`), and the answer can be changed in Settings → This device.
  */
-export type InterfaceUpdateState = { official: boolean; consent: "yes" | "no" | null; asking: boolean };
+export type InterfaceUpdateState = {
+  official: boolean;
+  consent: "yes" | "no" | null;
+  asking: boolean;
+  /** The server offers screens made for a newer version of the app than this one, so they can't be installed. */
+  needsNewerApp: boolean;
+};
 
 export interface InterfaceUpdates {
   state(): InterfaceUpdateState;
   subscribe(listener: () => void): () => void;
   /** Allow or refuse updates from this server; an update it offers is then fetched, or the installed interface comes back. */
   answer(allow: boolean): Promise<void>;
+}
+
+/** Where the phone app was installed from, which is where its new versions come from. */
+export type AppSource = "github" | "play" | "fdroid" | "appstore";
+
+export type AppUpdateState = {
+  /** The source and installed version have been read; nothing is announced before. */
+  known: boolean;
+  /** Null when the app can't tell (built before it could). */
+  source: AppSource | null;
+  /** A newer version that is out (plain, plan/40). Known only for the APK from the GitHub releases: the stores update by themselves. */
+  newer: string | null;
+  /** The installed version (plain); null for a build without one. */
+  installed: string | null;
+  /** The person was told about `newer` already. */
+  toldNewer: boolean;
+  /** The person was told, with this installed version, that the server's screens need a newer app. */
+  toldNeeded: boolean;
+};
+
+export interface AppUpdates {
+  state(): AppUpdateState;
+  subscribe(listener: () => void): () => void;
+  /** Remember that the person was told, so each is announced once: a newer version once per version, the server's need once per installed version. */
+  markTold(what: "newer" | "needed"): void;
 }
 
 /**

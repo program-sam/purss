@@ -7,13 +7,14 @@ import { bytesLabel } from "../lib/format.ts";
 import { platform } from "../platform/index.ts";
 import { PhoneNotificationsSection } from "../shell/PhoneNotifications.tsx";
 import { InterfaceUpdatesSection } from "../shell/InterfaceUpdates.tsx";
+import { AppUpdateSection } from "../shell/AppUpdates.tsx";
 import { DesktopAppSection } from "../shell/DesktopApp.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
 import { LIMIT_CHOICES } from "./types.ts";
 
 /**
- * Settings → This device, in the apps: the server this app is connected to, updates of the app from it, notifications on this phone, automatic downloads and
+ * Settings → This device, in the apps: the server this app is connected to, updates of the app from it and new versions of it, notifications on this phone, automatic downloads and
  * what they take on this device, the way to the browser for what stays there, and disconnecting.
  */
 export function DeviceTab() {
@@ -72,6 +73,8 @@ export function DeviceTab() {
       </section>
 
       <InterfaceUpdatesSection />
+
+      <AppUpdateSection />
 
       <DesktopAppSection />
 

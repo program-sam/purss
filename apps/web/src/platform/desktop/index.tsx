@@ -274,6 +274,7 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
     widget: null,
     push: null,
     interfaceUpdates: updates,
+    appUpdates: null,
     appVersion: async () => { try { return plainVersion(await desktop.appVersion()); } catch { return null; } },
     onConnectReturn: (listener) => incoming.subscribe((i) => {
       if (i.kind !== "url" || !/^purss:\/\/connect\b/i.test(i.url)) return false;

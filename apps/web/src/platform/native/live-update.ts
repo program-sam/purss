@@ -49,6 +49,14 @@ export function chooseTarget(o: { offer: AppBundleOffer | null; nativeLevel: num
   return { kind: "offer", offer };
 }
 
+/**
+ * Whether the server's screens need a newer app than this one: they were made for a higher native level. Not when the
+ * person refused this server's updates, since a newer app wouldn't install them either.
+ */
+export function needsNewerAppFor(offer: AppBundleOffer | null, nativeLevel: number | null, consent: Consent): boolean {
+  return !!offer && nativeLevel !== null && offer.native > nativeLevel && consent !== "no";
+}
+
 export type KeyValue = { get(key: string): string | null; set(key: string, value: string): void; remove(key: string): void };
 
 /** The queued interface, if it still exists and isn't the one running. */
@@ -125,7 +133,7 @@ export function createInterfaceUpdates(deps: Deps): InterfaceUpdates & {
   shown(awayMs: number): Promise<void>;
 } {
   const listeners = new Set<() => void>();
-  let state: InterfaceUpdateState = { official: deps.official, consent: consentOf(), asking: false };
+  let state: InterfaceUpdateState = { official: deps.official, consent: consentOf(), asking: false, needsNewerApp: false };
   let running: Promise<void> | null = null;
   let lastCheck = -Infinity;
 
@@ -175,8 +183,9 @@ export function createInterfaceUpdates(deps: Deps): InterfaceUpdates & {
     if (offer === undefined) return;
     const nativeLevel = parseBundleVersion(await deps.updater.builtinVersion())?.native ?? null;
     const target = chooseTarget({ offer, nativeLevel, failed, consent: consentOf() });
-    if (target.kind === "ask") { setState({ asking: true, consent: null }); return; }
-    setState({ asking: false, consent: consentOf() });
+    const needsNewerApp = needsNewerAppFor(offer, nativeLevel, consentOf());
+    if (target.kind === "ask") { setState({ asking: true, consent: null, needsNewerApp }); return; }
+    setState({ asking: false, consent: consentOf(), needsNewerApp });
     const current = await deps.updater.current();
     const queued = await queuedOther(deps.updater, deps.store);
     const queue = (id: string | null) => { if (id) deps.store.set(QUEUE_KEY, id); else deps.store.remove(QUEUE_KEY); };
@@ -206,7 +215,8 @@ export function createInterfaceUpdates(deps: Deps): InterfaceUpdates & {
       const all = readJson<Record<string, Consent>>(deps.store, CONSENT_KEY, {});
       all[deps.origin] = allow ? "yes" : "no";
       deps.store.set(CONSENT_KEY, JSON.stringify(all));
-      setState({ consent: allow ? "yes" : "no", asking: false });
+      // Refused: a newer app wouldn't install this server's screens either, so stop asking for one now, not at the next check.
+      setState({ consent: allow ? "yes" : "no", asking: false, ...(allow ? {} : { needsNewerApp: false }) });
       // A check already running decided with the old answer: let it finish, then decide again with the new one.
       if (running) await running;
       await check();

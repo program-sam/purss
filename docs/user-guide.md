@@ -895,7 +895,11 @@ you open the app, or when you come back to it after an hour away (never while so
 A server other than the official one asks first: *Let this server update the app?* That code runs in
 the app with your sign-in, so allow it only for a server you trust. You can change your answer in
 *Settings → This device → Updates of the app*. Changes to the app itself (new permissions and the
-like) still come through the app store.
+like) come as a new version of the app: Google Play, F-Droid and the App Store install it as they do for
+other apps. If you installed the app from the PURSS-android.apk file, the app checks once a day for a newer
+one and says *Version … of the app is out*: press **Download** and open the file, and Android installs it
+over the app, keeping everything in it. When the server's newest screens need a newer app than yours,
+the app tells you once, and *Settings → This device → New version of the app* keeps saying so until you update.
 
 **What is different in the app.**
 

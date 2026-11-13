@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AppBundleOffer } from "@purss/domain/app-bundle";
 import { bundleVersion } from "@purss/domain/app-bundle";
-import { AWAY_MS, BUILTIN, chooseTarget, createInterfaceUpdates, forgetQueued, removeDownloads, startQueued } from "./live-update.ts";
+import { AWAY_MS, BUILTIN, chooseTarget, createInterfaceUpdates, forgetQueued, needsNewerAppFor, removeDownloads, startQueued } from "./live-update.ts";
 import type { BundleRef, Updater } from "./live-update.ts";
 
 const ORIGIN = "https://self.example";
@@ -237,4 +237,33 @@ test("shown again: the server is asked again only every half hour", async () => 
   s.advance(30 * 60_000);
   await s.updates.shown(0);
   assert.equal(s.asked.length, 2);
+});
+
+test("screens made for a newer app say so, unless the person refused this server's updates", async () => {
+  assert.equal(needsNewerAppFor(offerOf(3, 100), 2, "yes"), true);
+  assert.equal(needsNewerAppFor(offerOf(3, 100), 2, null), true, "updating the app doesn't wait for the question");
+  assert.equal(needsNewerAppFor(offerOf(3, 100), 2, "no"), false, "a newer app wouldn't install them either");
+  assert.equal(needsNewerAppFor(offerOf(2, 100), 2, "yes"), false, "they fit");
+  assert.equal(needsNewerAppFor(offerOf(1, 100), 2, "yes"), false, "made for an older app: a newer app doesn't help");
+  assert.equal(needsNewerAppFor(offerOf(3, 100), null, "yes"), false, "the app's own level unknown");
+  assert.equal(needsNewerAppFor(null, 2, "yes"), false);
+
+  const s = setup({ offer: offerOf(3, 100), official: true });
+  await s.updates.check();
+  assert.equal(s.updates.state().needsNewerApp, true);
+  assert.deepEqual(s.updater.calls, [], "nothing is downloaded");
+  s.setOffer(offerOf(2, 101));
+  s.advance(60 * 60_000);
+  await s.updates.check();
+  assert.equal(s.updates.state().needsNewerApp, false, "the server went back to screens that fit");
+});
+
+test("refusing this server's updates stops asking for a newer app at once, offline too", async () => {
+  const s = setup({ offer: offerOf(3, 100) });
+  await s.updates.check();
+  assert.equal(s.updates.state().needsNewerApp, true);
+  s.setOffer("down");
+  await s.updates.answer(false);
+  assert.equal(s.updates.state().consent, "no");
+  assert.equal(s.updates.state().needsNewerApp, false);
 });

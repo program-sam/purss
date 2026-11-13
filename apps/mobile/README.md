@@ -132,8 +132,13 @@ way the interface depends on.
 `native-level.json` holds that level and a fingerprint of the native side. When you change anything under
 `android/` or `ios/`, a plugin in `package.json` or `capacitor.config.ts`, `npm test` fails and names the new
 fingerprint. Put it in the file, and raise `level` if the interface now needs the change (a plugin added, removed or
-upgraded, a method of `PurssDevice` or `PurssPush`). Builds made at the new level then reach only apps built with it;
-apps already installed keep the interface they have until they are updated from the store.
+upgraded, a method of `PurssDevice` or `PurssPush` it can't do without; a method whose absence it handles, such as
+`installSource`, needs no new level). Builds made at the new level then reach only apps built with it; apps already
+installed keep the interface they have until they are updated, and the app tells people so.
+
+The app's own new versions (plan/39, `platform/native/app-updates.ts`): Google Play, F-Droid and the App Store update
+it themselves. The full build installed any other way is taken to be the APK from the GitHub releases: it reads the
+newest release's `latest.json` once a day and offers *Download* when its version is newer than the installed one.
 
 ## Passkeys in the app
 
