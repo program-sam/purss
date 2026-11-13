@@ -24,16 +24,19 @@ type Owner = Pick<Principal, "accountId" | "workspaceId">;
 /** An AI filter setting an item to one of these has dealt with it, so it is no longer New. (The person's own changes always clear it.) */
 const SEEN_WORKFLOWS: ReadonlySet<WorkflowState> = new Set<WorkflowState>(["finished", "ignored"]);
 
-function ownItem(app: App, p: Principal, itemId: string) {
-  const row = app.db.get<{ id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; fresh: number; revision: number; progress: number; opened_at: string | null; is_private: number | null }>(
+type OwnedItem = { id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; fresh: number; revision: number; progress: number; opened_at: string | null; is_private: number | null };
+type OwnedBasket = { id: string; capture_mode: "metadata" | "text"; name: string };
+
+function ownItem(app: App, p: Principal, itemId: string): OwnedItem {
+  const row = app.db.get<OwnedItem>(
     `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.progress, st.opened_at, s.is_private
      FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, itemId, p.workspaceId);
   if (!row) throw notFound("That item");
   return row;
 }
 
-function ownBasket(app: App, p: Principal, basketId: string) {
-  const b = app.db.get<{ id: string; capture_mode: "metadata" | "text"; name: string }>("SELECT id, capture_mode, name FROM baskets WHERE id = ? AND workspace_id = ?", basketId, p.workspaceId);
+function ownBasket(app: App, p: Principal, basketId: string): OwnedBasket {
+  const b = app.db.get<OwnedBasket>("SELECT id, capture_mode, name FROM baskets WHERE id = ? AND workspace_id = ?", basketId, p.workspaceId);
   if (!b) throw notFound("That basket");
   return b;
 }
@@ -126,55 +129,69 @@ function mirrorRead(app: App, p: Owner, itemIds: string[], workflow: WorkflowSta
 /**
  * Which baskets hold an item is part of the copy that caches and the offline pack keep (`basketIds`), so a change to it moves the
  * state version like any other change to the item. The revision stays where it is, and `updated_at` too: Home orders the items
- * in progress by it, and keeping an item is not reading it. Call in the transaction that adds or removes the membership.
+ * in progress by it, and keeping an item is not reading it. It also stores again when the item was last kept, which lists sorted
+ * by kept time read (migration 058). Call in the transaction that adds or removes the membership, after it.
  */
 export function markMembershipChanged(app: App, workspaceId: string, itemId: string): void {
   app.db.run("UPDATE item_state SET state_version = state_version + 1 WHERE item_id = ? AND workspace_id = ?", itemId, workspaceId);
+  app.db.run("UPDATE items SET kept_key = COALESCE((SELECT MAX(kept_at) FROM basket_items WHERE item_id = ?), '') WHERE id = ?", itemId, itemId);
 }
 
 export function keepItem(app: App, p: Principal, itemId: string, basketId: string, ops?: UndoOp[]): { captureQueued: boolean; captureNote: string | null } {
-  return app.db.tx(() => {
-    const item = ownItem(app, p, itemId);
-    const basket = ownBasket(app, p, basketId);
-    if (app.db.get("SELECT 1 FROM basket_items WHERE basket_id = ? AND item_id = ?", basketId, itemId)) return { captureQueued: false, captureNote: null };
-    const keptAt = nowIso();
-    const key = `basket:${basketId}:${itemId}`;
-    // The membership pins the existing immutable version; only the small record is new growth.
-    admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, itemId, bytes: measureBytes({ basketId, itemId, keptAt }), reason: "keep", control: true });
-    app.db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", basketId, itemId, p.workspaceId, item.current_version_id, keptAt);
-    markMembershipChanged(app, p.workspaceId, itemId);
-    ops?.push({ type: "unkeep", itemId, basketId });
+  return app.db.tx(() => keepOwned(app, p, ownItem(app, p, itemId), ownBasket(app, p, basketId), ops));
+}
 
-    let captureQueued = false;
-    let captureNote: string | null = null;
-    if (basket.capture_mode === "text" && item.url && !item.is_private) {
-      try {
-        captureQueued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId, url: item.url });
-      } catch (err) {
-        if (!(err instanceof StorageFull)) throw err;
-        markPaused(app, err);
-        captureNote = "Kept with its details and feed content. A readable copy wasn't made because this PURSS is out of space.";
-      }
+/**
+ * Keep an item that is this PURSS's in a basket that is, in the caller's transaction. The bulk action calls it straight from its
+ * own transaction, with the item as it read it: anything that fails there undoes the whole action, so a savepoint per item would
+ * only add work.
+ */
+function keepOwned(app: App, p: Principal, item: OwnedItem, basket: OwnedBasket, ops?: UndoOp[]): { captureQueued: boolean; captureNote: string | null } {
+  const itemId = item.id;
+  const basketId = basket.id;
+  if (app.db.get("SELECT 1 FROM basket_items WHERE basket_id = ? AND item_id = ?", basketId, itemId)) return { captureQueued: false, captureNote: null };
+  const keptAt = nowIso();
+  const key = `basket:${basketId}:${itemId}`;
+  // The membership pins the existing immutable version; only the small record is new growth.
+  admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, itemId, bytes: measureBytes({ basketId, itemId, keptAt }), reason: "keep", control: true });
+  app.db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", basketId, itemId, p.workspaceId, item.current_version_id, keptAt);
+  markMembershipChanged(app, p.workspaceId, itemId);
+  ops?.push({ type: "unkeep", itemId, basketId });
+
+  let captureQueued = false;
+  let captureNote: string | null = null;
+  if (basket.capture_mode === "text" && item.url && !item.is_private) {
+    try {
+      captureQueued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId, url: item.url });
+    } catch (err) {
+      if (!(err instanceof StorageFull)) throw err;
+      markPaused(app, err);
+      captureNote = "Kept with its details and feed content. A readable copy wasn't made because this PURSS is out of space.";
     }
-    // The pictures of the kept copy follow its readable copy when one is on the way, and are fetched now otherwise.
-    if (basket.capture_mode === "text" && !captureQueued) queueItemImages(app, itemId);
-    return { captureQueued, captureNote };
-  });
+  }
+  // The pictures of the kept copy follow its readable copy when one is on the way, and are fetched now otherwise.
+  if (basket.capture_mode === "text" && !captureQueued) queueItemImages(app, itemId);
+  return { captureQueued, captureNote };
 }
 
 export function unkeepItem(app: App, p: Principal, itemId: string, basketId: string, ops?: UndoOp[]): boolean {
   return app.db.tx(() => {
     ownItem(app, p, itemId);
     ownBasket(app, p, basketId);
-    const r = app.db.run("DELETE FROM basket_items WHERE basket_id = ? AND item_id = ?", basketId, itemId);
-    if (r.changes) {
-      markMembershipChanged(app, p.workspaceId, itemId);
-      releaseObject(app, "record", `basket:${basketId}:${itemId}`, "unkeep");
-      pruneUnreferencedVersions(app, itemId);
-      ops?.push({ type: "keep", itemId, basketId });
-    }
-    return r.changes > 0;
+    return unkeepOwned(app, p, itemId, basketId, ops);
   });
+}
+
+/** Take an item out of a basket, both known to be this PURSS's, in the caller's transaction (see `keepOwned`). */
+function unkeepOwned(app: App, p: Principal, itemId: string, basketId: string, ops?: UndoOp[]): boolean {
+  const r = app.db.run("DELETE FROM basket_items WHERE basket_id = ? AND item_id = ?", basketId, itemId);
+  if (r.changes) {
+    markMembershipChanged(app, p.workspaceId, itemId);
+    releaseObject(app, "record", `basket:${basketId}:${itemId}`, "unkeep");
+    pruneUnreferencedVersions(app, itemId);
+    ops?.push({ type: "keep", itemId, basketId });
+  }
+  return r.changes > 0;
 }
 
 /**
@@ -214,6 +231,8 @@ export function bulk(app: App, p: Principal, itemIds: string[], action:
   const ops: UndoOp[] = [];
   let changed = 0;
   const undoToken = app.db.tx(() => {
+    // Asked for after the first item, as keeping that item would: a missing item is reported before a missing basket.
+    let basket: OwnedBasket | undefined;
     for (const itemId of itemIds) {
       const cur = ownItem(app, p, itemId);
       if (action.type === "workflow" && cur.workflow !== action.workflow) {
@@ -229,10 +248,13 @@ export function bulk(app: App, p: Principal, itemIds: string[], action:
         changed++;
       } else if (action.type === "keep") {
         const before = ops.length;
-        keepItem(app, p, itemId, action.basketId, ops);
-        if (ops.length > before) { clearFreshOnKeep(app, itemId, ops); changed++; }
+        basket ??= ownBasket(app, p, action.basketId);
+        keepOwned(app, p, cur, basket, ops);
+        // Keeping never touches the New marker itself, so an item that wasn't New has none to clear.
+        if (ops.length > before) { if (cur.fresh) clearFreshOnKeep(app, itemId, ops); changed++; }
       } else if (action.type === "unkeep") {
-        if (unkeepItem(app, p, itemId, action.basketId, ops)) { clearFreshOnKeep(app, itemId, ops); changed++; }
+        basket ??= ownBasket(app, p, action.basketId);
+        if (unkeepOwned(app, p, itemId, action.basketId, ops)) { if (cur.fresh) clearFreshOnKeep(app, itemId, ops); changed++; }
       }
     }
     if (action.type === "workflow" && changed) mirrorRead(app, p, itemIds, action.workflow);
