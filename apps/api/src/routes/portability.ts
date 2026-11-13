@@ -116,6 +116,7 @@ export function portabilityRouter(): Router<Ctx> {
         assertStillUsable(ctx.app, p); // it may have waited its turn
         const { check, sha256 } = await checkUploadApart(ctx.app, p, upload, undefined, gone.signal);
         assertStillUsable(ctx.app, p); // the upload and the check can take minutes
+        assertDiskRoom(ctx.app, 0); // the turn and the check took a while: still above the reserve as it's kept
         return stageChecked(ctx.app, p, check, { bytes, sha256, place: (dest) => renameSync(upload, dest) });
       });
     } finally {
