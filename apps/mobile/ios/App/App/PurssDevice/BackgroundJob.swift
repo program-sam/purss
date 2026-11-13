@@ -5,9 +5,9 @@ import Network
 import Security
 import WidgetKit
 
-/// The automatic downloads and widget refresh that run while the app is closed (plan/38): a BGProcessingTask
-/// that reads the device token from the keychain, asks the PURSS what to fetch, and leaves the results in
-/// the downloads folder for the page to adopt.
+/// The automatic downloads that run while the app is closed (plan/38): a BGProcessingTask that reads the device
+/// token from the keychain, asks the PURSS what to fetch, and leaves the results in the downloads folder for the
+/// page to adopt. The home-screen panels have their own refresh (WidgetRefresh).
 enum BackgroundJob {
     /// Registers the handler. Must run before the app finishes launching.
     static func register() {
@@ -38,7 +38,8 @@ enum BackgroundJob {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: DeviceStore.taskIdentifier)
     }
 
-    private final class Completion {
+    /// Completes a background task once, whichever of the run and the expiration comes first.
+    final class Completion {
         private let lock = NSLock()
         private var done = false
         private let task: BGTask
@@ -74,19 +75,19 @@ private enum RunOutcome {
     case stop
 }
 
-private enum JobError: Error {
+enum JobError: Error {
     case refused
     case status(Int)
     case network
 }
 
-private struct Connection {
+struct Connection {
     let origin: URL
     let originText: String
     let token: String
 }
 
-private enum ConnectionResult {
+enum ConnectionResult {
     case found(Connection)
     case missing
     /// The keychain can't be read now (the device hasn't been unlocked since it started).
@@ -94,7 +95,7 @@ private enum ConnectionResult {
 }
 
 /// Reads the item `@aparajita/capacitor-secure-storage` keeps the connection in (KeychainSwift, no key prefix).
-private enum ConnectionKeychain {
+enum ConnectionKeychain {
     static func read() -> ConnectionResult {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -125,56 +126,37 @@ private enum ConnectionKeychain {
     }
 }
 
-/// One run of the job. The token lives in this object only.
-private final class JobRunner {
-    private let api: URLSession = {
+/// Requests to the connected PURSS with the device token, from the background jobs. The token lives in this object
+/// only, and its requests are never followed to another address.
+final class WorkspaceAPI {
+    struct Answer {
+        let status: Int
+        let data: Data
+    }
+
+    private let connection: Connection
+    private let session: URLSession
+
+    init(_ connection: Connection) {
+        self.connection = connection
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 30
         config.waitsForConnectivity = false
-        // Its requests carry the device token: never followed to another address.
-        return URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
-    }()
-    private var connection: Connection!
-
-    func run() async -> RunOutcome {
-        guard await JobRunner.inBackground() else { return .reschedule }
-
-        switch ConnectionKeychain.read() {
-        case .found(let found):
-            connection = found
-        case .missing:
-            DeviceStore.clearState()
-            BackgroundJob.cancelRequest()
-            return .stop
-        case .unavailable:
-            return .reschedule
-        }
-        guard let state = DeviceStore.readState() else { return .stop }
-        guard DeviceStore.sameOrigin(state.origin, connection.originText) else { return .reschedule }
-
-        do {
-            if await refreshWidget() { return .stop }
-            try Task.checkCancellation()
-            guard state.settings.autoToRead else { return .reschedule }
-            guard await connectionAllowsDownloads(wifiOnly: state.settings.wifiOnly) else { return .reschedule }
-            try await downloadPlanned(state)
-            return .reschedule
-        } catch JobError.refused {
-            DeviceStore.revoke()
-            return .stop
-        } catch {
-            return .reschedule
-        }
+        session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
     }
 
-    // MARK: Requests
-
-    private func url(_ path: String) -> URL? {
-        URL(string: connection.originText + path)
+    deinit {
+        session.finishTasksAndInvalidate()
     }
 
-    private func call(_ method: String, _ path: String, body: Data? = nil) async throws -> Data {
-        guard let url = url(path) else { throw JobError.network }
+    func get(_ path: String) async throws -> Answer {
+        try await send("GET", path)
+    }
+
+    /// The PURSS's answer, whatever its status; a 401 `device_signed_out` is `JobError.refused`, a connection that
+    /// fails `JobError.network`.
+    func send(_ method: String, _ path: String, body: Data? = nil) async throws -> Answer {
+        guard let url = URL(string: connection.originText + path) else { throw JobError.network }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(connection.token)", forHTTPHeaderField: "Authorization")
@@ -185,7 +167,7 @@ private final class JobRunner {
         }
         let result: (Data, URLResponse)
         do {
-            result = try await api.data(for: request)
+            result = try await session.data(for: request)
         } catch {
             if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
             throw JobError.network
@@ -193,8 +175,56 @@ private final class JobRunner {
         let data = result.0
         let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
         if status == 401 && SignedOut.says(data, code: "device_signed_out") { throw JobError.refused }
-        guard (200...299).contains(status) else { throw JobError.status(status) }
-        return data
+        return Answer(status: status, data: data)
+    }
+}
+
+/// One run of the job. The token lives in this object only.
+private final class JobRunner {
+    private var connection: Connection!
+    private var client: WorkspaceAPI!
+
+    func run() async -> RunOutcome {
+        // What the panels' data was when this run started: a refusal that comes in after a disconnect is the old connection's.
+        let since = WidgetData.generation
+        guard await JobRunner.inBackground() else { return .reschedule }
+
+        switch ConnectionKeychain.read() {
+        case .found(let found):
+            connection = found
+            client = WorkspaceAPI(found)
+        case .missing:
+            DeviceStore.clearState()
+            BackgroundJob.cancelRequest()
+            // Nothing is connected (or the page removed the token): nothing of the account stays in the panels either.
+            WidgetData.wipe()
+            return .stop
+        case .unavailable:
+            return .reschedule
+        }
+        guard let state = DeviceStore.readState() else { return .stop }
+        guard DeviceStore.sameOrigin(state.origin, connection.originText) else { return .reschedule }
+
+        do {
+            try Task.checkCancellation()
+            guard state.settings.autoToRead else { return .reschedule }
+            guard await connectionAllowsDownloads(wifiOnly: state.settings.wifiOnly) else { return .reschedule }
+            try await downloadPlanned(state)
+            return .reschedule
+        } catch JobError.refused {
+            WidgetData.lost(since: since)
+            return .stop
+        } catch {
+            return .reschedule
+        }
+    }
+
+    // MARK: Requests
+
+    private func call(_ method: String, _ path: String, body: Data? = nil) async throws -> Data {
+        let answer = try await client.send(method, path, body: body)
+        guard (200...299).contains(answer.status) else { throw JobError.status(answer.status) }
+        return answer.data
     }
 
     private static func inBackground() async -> Bool {
@@ -203,40 +233,6 @@ private final class JobRunner {
 
     private static func encode(_ id: String) -> String {
         id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
-    }
-
-    // MARK: Widget
-
-    /// Replaces the To read part of the widget's snapshot with a fresh list. True when the token was refused
-    /// (everything is already wiped and the run ends).
-    private func refreshWidget() async -> Bool {
-        guard var snapshot = DeviceStore.readWidget() else { return false }
-        let data: Data
-        do {
-            data = try await call("GET", "/api/items?scope=toread&filter=active&sort=newest&limit=5&exceptPrivate=1")
-        } catch JobError.refused {
-            DeviceStore.revoke()
-            return true
-        } catch {
-            return false
-        }
-        guard let page = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], let items = page["items"] as? [[String: Any]] else { return false }
-        func clip(_ s: String) -> String { s.count > 200 ? String(s.prefix(199)) + "…" : s }
-        snapshot["toRead"] = items.prefix(5).compactMap { item -> [String: String]? in
-            guard let id = item["id"] as? String else { return nil }
-            let title = (item["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return ["id": id, "title": clip(title.isEmpty ? "Untitled" : title), "sourceTitle": clip(item["sourceTitle"] as? String ?? "")]
-        }
-        if let total = page["total"] as? NSNumber {
-            snapshot["toReadTotal"] = total
-        } else {
-            snapshot["toReadTotal"] = NSNull()
-        }
-        let stamp = ISO8601DateFormatter()
-        stamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        snapshot["updatedAt"] = stamp.string(from: Date())
-        if let out = try? JSONSerialization.data(withJSONObject: snapshot) { try? DeviceStore.writeWidget(out) }
-        return false
     }
 
     // MARK: Downloads

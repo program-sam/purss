@@ -47,7 +47,7 @@ an official hosted option with free storage is part of the product direction.
 | [35 Discovery](35-discover.md) | Hosted-only source suggestions from a co-follow graph, for readers who share: minimum of 10 readers, no counts, scoring with daily chance |
 | [36 Smart filters](36-ai-filters.md) | Optional Jev filters per source or collection: preview, Ignored outcome, server key (admin only) and Hosted Pro, usage cap |
 | [37 Push notifications](37-push-notifications.md) | Notifications on the phone through a content-free push relay: registration, waking, fetching, who sees what, owner setup |
-| [38 Phone background and widgets](38-phone-background-and-widgets.md) | Automatic downloads while the app is closed, downloads stopped on the wire, home-screen widgets, the plan endpoint |
+| [38 Phone background and widgets](38-phone-background-and-widgets.md) | Automatic downloads while the app is closed, downloads stopped on the wire, home-screen panels (To read, To listen, New, a collection, a source), the plan endpoint |
 | [39 Live updates](39-live-updates.md) | The phone apps load the interface from the server they are connected to: native level, the question for other servers, when an update takes over |
 | [40 Versions](40-versions.md) | One number per commit on main (2631214: year, day of the year, that day's commit): where builds get it, where it shows, release notes |
 | [41 Source bridges](41-source-bridges.md) | Bundled RSS-Bridge behind the egress bridge router: signed source addresses, post ids that survive a backend change, fetch log, isolation |

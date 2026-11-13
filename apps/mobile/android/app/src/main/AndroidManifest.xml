@@ -64,10 +64,10 @@
             </intent-filter>
         </service>
 
-        <!-- The home-screen widget and its play/pause (plan/38). -->
+        <!-- The home-screen panels, their setup and the To listen panel's play/pause (plan/38). -->
         <receiver
             android:name=".device.WorkspaceWidget"
-            android:label="@string/app_name"
+            android:label="@string/widget_to_read"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -76,6 +76,60 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/workspace_widget" />
         </receiver>
+        <receiver
+            android:name=".device.ToListenWidget"
+            android:label="@string/widget_to_listen"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_to_listen" />
+        </receiver>
+        <receiver
+            android:name=".device.NewWidget"
+            android:label="@string/widget_new"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_new" />
+        </receiver>
+        <receiver
+            android:name=".device.CollectionWidget"
+            android:label="@string/widget_collection"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_collection" />
+        </receiver>
+        <receiver
+            android:name=".device.SourceWidget"
+            android:label="@string/widget_source"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_source" />
+        </receiver>
+        <activity
+            android:name=".device.WidgetSetupActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/WidgetSetupTheme">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
         <receiver
             android:name=".device.WidgetPlayback"
             android:exported="false" />

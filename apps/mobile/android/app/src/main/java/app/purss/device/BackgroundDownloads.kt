@@ -15,14 +15,13 @@ import java.io.File
 import java.io.IOException
 import java.util.Date
 import java.util.concurrent.TimeUnit
-import app.purss.PushTarget
 
 /**
  * Automatic downloads while the app is closed (plan/38): a periodic WorkManager job. It asks the
  * PURSS which items to fetch (the same plan the open app asks for), fetches each item's details,
  * notes and file into `downloads-incoming/`, writes record.json last and moves the folder into the
- * downloads folder, where the page adopts it as its own download. It also refreshes the widget's To read
- * list. It keeps out of the way while the app is on screen.
+ * downloads folder, where the page adopts it as its own download. It keeps out of the way while the app
+ * is on screen. The home-screen panels have their own refresh (WidgetRefresh).
  */
 object BackgroundDownloads {
     const val WORK = "purss-background-downloads"
@@ -48,14 +47,15 @@ object BackgroundDownloads {
     /** Disconnected, or the token was refused: nothing of the account stays with the native side. */
     fun forget(ctx: Context, downloadsToo: Boolean) {
         cancel(ctx)
+        WidgetRefresh.cancel(ctx)
         BackgroundDownloadWorker.current?.cancel()
         synchronized(moving) {
             DeviceStore.setBackground(ctx, null)
-            DeviceStore.setWidget(ctx, null)
             DeviceStore.incomingRoot(ctx).deleteRecursively()
             if (downloadsToo) DeviceStore.downloadsRoot(ctx).deleteRecursively()
         }
-        WorkspaceWidget.redrawAll(ctx)
+        WidgetData.wipe(ctx)
+        Panels.redrawAll(ctx)
     }
 }
 
@@ -75,6 +75,7 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
     private fun yielding() = isStopped || DeviceStore.appVisible
 
     override fun doWork(): Result {
+        val since = WidgetData.generation
         if (DeviceStore.appVisible) { Log.i(TAG, "The app is open; it downloads by itself"); return Result.success() }
         val conn = StoredConnection.read(ctx)
         if (conn == null) {
@@ -87,7 +88,6 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
         if (state == null || state.origin != conn.origin) { Log.i(TAG, "No download settings for this connection"); return Result.success() }
         val api = WorkspaceApi(conn)
         try {
-            refreshWidget(api)
             if (!state.wantsDownloads || yielding()) return Result.success()
             if (state.wifiOnly && !onWifi()) { Log.i(TAG, "Waiting for Wi-Fi"); return Result.success() }
             val plan = api.post("/api/downloads/plan", BackgroundLogic.planRequest(state))
@@ -103,25 +103,12 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
             Log.i(TAG, "Finished $done of ${items.size}")
         } catch (e: Refused) {
             Log.i(TAG, "The workspace refused the token; removing what the app kept")
-            BackgroundDownloads.forget(ctx, downloadsToo = true)
-            // The notification fetcher's credential belongs to the same refused connection (plan/37).
-            PushTarget.clear(ctx)
-            DeviceStore.markLost(ctx)
+            WidgetData.lost(ctx, since)
         } catch (e: Exception) {
             // Offline or the PURSS is busy: the next run tries again.
             Log.i(TAG, "Background downloads stopped: ${e.javaClass.simpleName}")
         }
         return Result.success()
-    }
-
-    private fun refreshWidget(api: WorkspaceApi) {
-        val snapshot = DeviceStore.widget(ctx) ?: return
-        val page = api.get(BackgroundLogic.WIDGET_TO_READ_PATH)
-        if (page.status != 200) return
-        BackgroundLogic.withToRead(snapshot, page.text, Date())?.let {
-            DeviceStore.setWidget(ctx, it)
-            WorkspaceWidget.redrawAll(ctx)
-        }
     }
 
     private fun onWifi(): Boolean {

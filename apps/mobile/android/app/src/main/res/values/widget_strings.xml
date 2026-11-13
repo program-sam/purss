@@ -1,13 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Your next To read items and the episode you\'re listening to</string>
     <string name="widget_to_read">To read</string>
+    <string name="widget_to_listen">To listen</string>
+    <string name="widget_new">New</string>
+    <string name="widget_collection">Collection</string>
+    <string name="widget_source">Source</string>
+    <string name="widget_to_read_description">The items you marked To read</string>
+    <string name="widget_to_listen_description">Your To read podcast episodes and the one you\'re listening to</string>
+    <string name="widget_new_description">New items from all your sources</string>
+    <string name="widget_collection_description">The newest items of a collection you choose</string>
+    <string name="widget_source_description">The newest items of a source you choose</string>
     <string name="widget_not_connected">Open the app to connect it to your PURSS.</string>
+    <string name="widget_loading">Loading…</string>
     <string name="widget_nothing">Nothing To read.</string>
+    <string name="widget_nothing_to_listen">Nothing To listen to.</string>
+    <string name="widget_nothing_new">Nothing New.</string>
+    <string name="widget_nothing_here">Nothing here yet.</string>
+    <string name="widget_choose_collection">Tap to choose a collection.</string>
+    <string name="widget_choose_source">Tap to choose a source.</string>
+    <string name="widget_choose_collection_title">Choose a collection</string>
+    <string name="widget_choose_source_title">Choose a source</string>
+    <string name="widget_no_collections">You have no collections yet. Make one in the app.</string>
+    <string name="widget_no_sources">You follow no sources that can show here. Private sources never show on the home screen.</string>
+    <string name="widget_setup_failed">Your PURSS couldn\'t be reached. Try again in a moment.</string>
+    <string name="widget_collection_gone">This collection is gone. Tap to choose another.</string>
+    <string name="widget_source_gone">You don\'t follow this source any more. Tap to choose another.</string>
+    <string name="widget_private_source">This source is private, so it isn\'t shown on the home screen. Tap to choose another.</string>
     <string name="widget_play">Play %1$s</string>
     <string name="widget_pause">Pause %1$s</string>
     <string name="widget_open">Open %1$s</string>
-    <string name="widget_row">%1$s, from %2$s</string>
+    <string name="widget_row">%1$s, %2$s</string>
     <string name="widget_playing">Playing</string>
     <string name="widget_paused_at">Paused at %1$s</string>
     <string name="widget_paused">Paused</string>

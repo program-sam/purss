@@ -10,17 +10,12 @@ import org.json.JSONObject
 /**
  * The background job's reading and writing of the page's formats (plan/38), apart from Android, so it
  * is unit-tested on the JVM. The formats are defined by the page: BackgroundState and record.json in
- * apps/web/src/downloads/background.ts, the widget's snapshot in apps/web/src/device/widget.ts, and
- * the plan in packages/domain/src/downloads.ts. Which items to download is the PURSS's answer to
+ * apps/web/src/downloads/background.ts, and the plan in packages/domain/src/downloads.ts. Which items to download is the PURSS's answer to
  * the plan request; nothing here decides that.
  */
 object BackgroundLogic {
     /** The largest file the apps download (MAX_DOWNLOAD_BYTES). */
     const val MAX_DOWNLOAD_BYTES = 4L * 1024 * 1024 * 1024
-    /** The widget's To read request: the To read page's order, never items of private sources (WIDGET_TO_READ_QUERY). */
-    const val WIDGET_TO_READ_PATH = "/api/items?scope=toread&filter=active&sort=newest&limit=5&exceptPrivate=1"
-    const val WIDGET_TO_READ = 5
-
     data class State(
         val accountId: String,
         val origin: String,
@@ -115,26 +110,6 @@ object BackgroundLogic {
         .put("state", "failed").put("status", status).put("media", JSONObject.NULL)
         .put("textBytes", 0).put("savedAt", iso(now))
         .toString()
-
-    /** The widget's snapshot with a fresh To read list (the answer of WIDGET_TO_READ_PATH); null when there is no snapshot to refresh. */
-    fun withToRead(snapshot: String?, page: String, now: Date): String? {
-        if (snapshot == null) return null
-        val s = JSONObject(snapshot)
-        val p = JSONObject(page)
-        val items = p.getJSONArray("items")
-        val list = JSONArray()
-        for (i in 0 until minOf(items.length(), WIDGET_TO_READ)) {
-            val it = items.getJSONObject(i)
-            val title = it.optString("title").trim().ifEmpty { "Untitled" }
-            list.put(JSONObject().put("id", it.getString("id")).put("title", clip(title)).put("sourceTitle", clip(it.optString("sourceTitle"))))
-        }
-        s.put("toRead", list)
-        s.put("toReadTotal", if (p.isNull("total")) JSONObject.NULL else p.getLong("total"))
-        s.put("updatedAt", iso(now))
-        return s.toString()
-    }
-
-    private fun clip(s: String) = if (s.length > 200) s.substring(0, 199) + "…" else s
 
     /**
      * Whether a 401 answer says the credential is gone for good: its error code must be `code`

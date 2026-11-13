@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A panel's header as the app's card headers (packages/ui .dlg-h): a soft tint from top to bottom. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="@color/widget_band_top" android:endColor="@color/widget_band_bottom" />
+    <corners android:topLeftRadius="16dp" android:topRightRadius="16dp" android:bottomLeftRadius="0dp" android:bottomRightRadius="0dp" />
+</shape>

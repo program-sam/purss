@@ -4,7 +4,8 @@ import BackgroundTasks
 import WidgetKit
 
 /// The app's own native plugin (plan/38, apps/web/src/platform/native/device-plugin.ts): foreground downloads
-/// that can be cancelled on the wire, the state the background job needs, and the widget's snapshot.
+/// that can be cancelled on the wire, the state the background job needs, and the home-screen widgets' look and
+/// episode and their refresh.
 @objc(PurssDevicePlugin)
 public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PurssDevicePlugin"
@@ -14,6 +15,7 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBackground", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWidget", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "refreshWidgets", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getWidget", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "takeBackgroundReport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
@@ -71,15 +73,26 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func setWidget(_ call: CAPPluginCall) {
         do {
-            if let json = call.getString("snapshot") {
-                try DeviceStore.writeWidget(json.data(using: .utf8))
-            } else {
-                try DeviceStore.writeWidget(nil)
+            // Under the lock every write of the widgets' data takes, so a wipe never sees half of one.
+            try WidgetData.withLock {
+                // After a refusal the page may run on until it next starts: nothing it writes of the refused account is kept.
+                if DeviceStore.isLost() { return }
+                if let json = call.getString("snapshot") {
+                    try DeviceStore.writeWidget(json.data(using: .utf8))
+                } else {
+                    try DeviceStore.writeWidget(nil)
+                }
             }
             call.resolve()
         } catch {
             call.reject(error.localizedDescription, "io")
         }
+    }
+
+    /// The page's items changed or it started: the widgets' lists are fetched again soon (WidgetRefresh).
+    @objc func refreshWidgets(_ call: CAPPluginCall) {
+        call.resolve()
+        WidgetRefresh.requestFromApp()
     }
 
     @objc func getWidget(_ call: CAPPluginCall) {
@@ -96,12 +109,14 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func reset(_ call: CAPPluginCall) {
         BackgroundJob.cancelRequest()
+        WidgetRefresh.cancelRequest()
         DeviceStore.clearState()
         DeviceStore.clearLost()
         Task {
             await BackgroundTransfers.shared.cancelAllAndWait()
             try? FileManager.default.removeItem(at: DeviceStore.incomingDirectory)
-            try? DeviceStore.writeWidget(nil)
+            // The widgets' snapshot, lists and choices go, and nothing that started before may write them back.
+            WidgetData.wipe()
             call.resolve()
         }
     }

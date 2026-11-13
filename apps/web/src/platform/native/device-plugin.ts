@@ -4,7 +4,7 @@ import type { PluginListenerHandle } from "@capacitor/core";
 /**
  * The app's own native plugin (plan/38): Android `app.purss.device.PurssDevicePlugin`, iOS
  * `App/PurssDevice/PurssDevicePlugin.swift`. Downloads that can really be stopped, the state the background
- * job needs, and the home-screen widget's snapshot. Paths are relative to the downloads folder (the
+ * job needs, and the home-screen panels' look, episode and refresh. Paths are relative to the downloads folder (the
  * same one `@capacitor/filesystem` reaches as `downloads/` in `Directory.LibraryNoCloud`).
  */
 export type DownloadFailure = { code: "http" | "network" | "too_large" | "cancelled" | "io" | "insecure"; status?: number };
@@ -22,13 +22,15 @@ export interface PurssDevicePlugin {
   addListener(event: "progress", listener: (p: { id: string; bytes: number; total: number }) => void): Promise<PluginListenerHandle>;
   /** The background job's state (JSON of BackgroundState plus `origin`), or null to stop it. Schedules or cancels the job. */
   setBackground(options: { state: string | null }): Promise<void>;
-  /** The widget's snapshot (JSON of WidgetSnapshot), or null for "not connected". Redraws the widgets. */
+  /** The panels' look and episode (JSON of WidgetSnapshot), or null for "not connected". Redraws the panels. */
   setWidget(options: { snapshot: string | null }): Promise<void>;
-  /** The widget's snapshot as stored now (the page's last, as refreshed by the background job), or null. */
+  /** The snapshot as stored now (the page's last), or null. */
   getWidget(): Promise<{ snapshot: string | null }>;
+  /** Fetch the placed panels' lists again soon (the native side knows which lists they show). */
+  refreshWidgets(): Promise<void>;
   /** Whether the background job found the token refused since last asked (the flag is cleared). */
   takeBackgroundReport(): Promise<{ lost: boolean }>;
-  /** Disconnect: stop and unschedule the job, delete its unfinished files, its state and the widget's snapshot. */
+  /** Disconnect: stop and unschedule the job, delete its unfinished files, its state, and everything the home-screen panels kept (lists, chosen collections and sources, snapshot). */
   reset(): Promise<void>;
 }
 

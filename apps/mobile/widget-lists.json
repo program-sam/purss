@@ -1,0 +1,31 @@
+{
+  "about": "The home-screen panels' lists (plan/38): each key's request and where its header leads. Read by the Kotlin unit test (WidgetListsTest) and the page's (device/widget.test.ts); the Swift copy (Widgets/WidgetLists.swift) follows the same table.",
+  "lists": [
+    {
+      "key": "toread",
+      "path": "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "r", "id": "toread" }, "search": { "type": "articles,videos" } }
+    },
+    {
+      "key": "tolisten",
+      "path": "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "r", "id": "toread" }, "search": { "type": "podcasts", "sort": "oldest" } }
+    },
+    {
+      "key": "new",
+      "path": "/api/items?scope=all&filter=fresh&sort=newest&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "home" } }
+    },
+    {
+      "key": "collection:col_01jc8x2v5k7m9n3p4q6r8s0t1w",
+      "path": "/api/items?scope=collection%3Acol_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=active&sort=newest&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "c", "id": "col_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "active" } }
+    },
+    {
+      "key": "source:src_01jc8x2v5k7m9n3p4q6r8s0t1w",
+      "path": "/api/items?scope=source%3Asrc_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=active&sort=newest&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "s", "id": "src_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "active" } }
+    }
+  ],
+  "invalid": ["", "toread:x", "collection:", "collection:../x", "source:SRC_01JC8X2V5K7M9N3P4Q6R8S0T1W", "basket:bsk_01jc8x2v5k7m9n3p4q6r8s0t1w", "new?x=1"]
+}

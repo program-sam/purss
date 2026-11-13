@@ -52,7 +52,7 @@ exists at all: `downloads` (device copies), `connection` (the app's connected PU
 | Deleted items | A refresh that finds the item gone (404) removes its download | The device follows the PURSS |
 | Accounts | Downloads are kept per account; signing in as another account deletes the previous account's | Tenant isolation on a shared device |
 | Share intake | Android `ACTION_SEND text/plain` and an iOS share extension, both through `@capgo/capacitor-share-target` 8.0.65. The app finds the first web address in what was shared and asks: **Keep link** (the *Keep this page* dialog that the extension's deep link also opens, plan/32: what the PURSS already has, basket choice, title prefilled, `POST /api/items/manual`, which keeps an existing item instead of a duplicate) or **Add as source** (prefilled; discovery starts only when the person presses Find) | The Capacitor-supported route; nothing leaves the device until the person chooses |
-| Deep links | `purss://connect` (connection), `purss://share` (the iOS extension opening the app) and `purss://open` (a tapped home-screen widget row, plan/38, or notification, plan/37: one reader, `platform/open-link.ts`, navigation only) | Nothing else was asked for |
+| Deep links | `purss://connect` (connection), `purss://share` (the iOS extension opening the app) and `purss://open` (a tapped home-screen panel's row or heading, plan/38, or notification, plan/37: one reader, `platform/open-link.ts`, navigation only) | Nothing else was asked for |
 | Notifications | System notifications through the project's push relay, content-free; see [plan/37](37-push-notifications.md) | Self-hosters need no account or setup |
 
 ### Audio plugin
