@@ -25,3 +25,11 @@ test("the policy built into the web page never narrows what the server's header 
     for (const s of sources) assert.ok(allowed.includes(s) || (s === "'none'" && allowed.length === 1 && allowed[0] === "'none'"), `${name} ${s}`);
   }
 });
+
+test("the server's header frames exactly the video players the reader embeds", async () => {
+  const { CSP } = await import("./server.ts");
+  const { EMBED_ORIGINS } = await import("../../web/src/lib/embeds.ts");
+  const frames = /frame-src ([^;]+);/.exec(CSP)![1]!.split(" ");
+  assert.deepEqual(frames, [...EMBED_ORIGINS]);
+});
+
