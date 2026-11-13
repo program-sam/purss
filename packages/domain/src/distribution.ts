@@ -82,6 +82,12 @@ export const ANDROID_APK = "PURSS-android.apk";
 export const DESKTOP_RELEASES_URL = `${SOURCE_URL}/releases/latest`;
 export const desktopDownloadUrl = (file: string): string => `${SOURCE_URL}/releases/latest/download/${file}`;
 
+/**
+ * What the newest release holds: the desktop updater's manifest, whose `version` (dotted, plan/40) is also the
+ * version of the APK published with it. The Android app installed from the releases checks it (plan/39).
+ */
+export const APPS_RELEASE_MANIFEST = desktopDownloadUrl("latest.json");
+
 /** The user guide's section on all of them. */
 export const APPS_GUIDE_URL = doc("docs/user-guide.md", "apps-and-extensions");
 

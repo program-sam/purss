@@ -1,5 +1,7 @@
 package app.purss.device
 
+import android.os.Build
+import app.purss.BuildConfig
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -10,8 +12,8 @@ import java.util.concurrent.Executors
 
 /**
  * The app's own plugin (plan/38; the page's side is apps/web/src/platform/native/device-plugin.ts):
- * downloads that stop on the wire when cancelled, the background job's state, and the home-screen panels'
- * look and episode and their refresh.
+ * downloads that stop on the wire when cancelled, the background job's state, the home-screen panels'
+ * look and episode and their refresh, and where the app was installed from.
  */
 @CapacitorPlugin(name = "PurssDevice")
 class PurssDevicePlugin : Plugin() {
@@ -108,6 +110,19 @@ class PurssDevicePlugin : Plugin() {
     @PluginMethod
     fun takeBackgroundReport(call: PluginCall) {
         call.resolve(JSObject().put("lost", DeviceStore.takeLost(context)))
+    }
+
+    /** The build's flavor and the app that installed it (null for a file installed by hand or with adb), so the page knows where updates of the app come from. */
+    @PluginMethod
+    fun installSource(call: PluginCall) {
+        val installer = try {
+            val pm = context.packageManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) pm.getInstallSourceInfo(context.packageName).installingPackageName
+            else @Suppress("DEPRECATION") pm.getInstallerPackageName(context.packageName)
+        } catch (_: Exception) {
+            null
+        }
+        call.resolve(JSObject().put("flavor", BuildConfig.FLAVOR).put("installer", installer ?: JSObject.NULL))
     }
 
     @PluginMethod

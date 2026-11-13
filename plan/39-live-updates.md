@@ -41,6 +41,18 @@ app (apps/web/src/platform/native/live-update.ts, @capgo/capacitor-updater 8.54.
 | Capgo's service | Not used: no update checks, statistics or channels go anywhere (`updateUrl`, `statsUrl` and `channelUrl` empty, `autoUpdate` off). The plugin's code was checked: with `statsUrl` empty it sends nothing | Privacy; the app talks only to the connected PURSS and the push relay |
 | Plugin | `@capgo/capacitor-updater` 8.54.2 (MPL-2.0), in manual mode | Maintained for Capacitor 8 on Android and iOS, with checksum checks, rollback and resumable downloads. A plugin of our own would mean more native code to maintain and test on two platforms |
 
+## New versions of the app itself
+
+The screens follow the server; the app around them (its native code) comes from where it was installed. When the
+native level goes up, only a new version of the app brings the server's newest screens.
+
+| Concern | Decision | Reason |
+| --- | --- | --- |
+| Where it was installed from | `PurssDevice.installSource()` gives the build's flavor and the installing package (`app-updates.ts`, `sourceOf`). The FOSS build: F-Droid. Installed by Google Play (`com.android.vending`): Google Play. Any other full build (a browser, the package installer, adb, an APK updater): the GitHub releases. iOS: the App Store. An app built before the method existed can't tell, and is never told to download anything | Each source updates differently, and the GitHub APK can't replace an F-Droid build (another signing key) |
+| The APK from the releases | Once a day (at start and when shown again) the app reads the newest release's `latest.json` through Capacitor's native HTTP (the page's own policy allows only the connected PURSS and the push relay); its `version` is the APK's, published with it. When it is newer than the installed version, a message says so once per version (*Version 2631532 of the app is out*, **Download**), and *Settings → This device → New version of the app* keeps it, with **Download version …**. Download opens `PURSS-android.apk` in the in-app browser and Android's installer installs it over the app, keeping its data. The last answer is kept, so an offline start still knows | Nothing else updates a downloaded APK. Installing it itself would need the *install unknown apps* permission, which the owner didn't ask for |
+| Screens made for a newer app | `needsNewerApp` (live-update.ts): the server offers a build above the app's native level, and the person hasn't refused this server's updates. For a store, F-Droid or unknown source a message says so once per installed version (*… Update it in Google Play.*, with a button when the store listing is known), and Settings keeps it. For the GitHub APK, the newer-version message covers it; while no newer release is out, Settings says it isn't out yet | The person learns why the app's screens stay older than the server's |
+| Stores | Google Play, F-Droid and the App Store update the app themselves; the app never asks them | Their own updates are the reliable path |
+
 ## App stores
 
 Google Play allows apps to download JavaScript that runs in a WebView. Apple's guidelines (2.5.2,
@@ -66,7 +78,19 @@ the iOS app with live updates is unverified until a store submission.
 - Found on the device and fixed: the plugin's *next bundle* is installed when the app goes to the background
   (after a "kill" delay is met at launch), which would stop the player; the app now keeps its own queue.
 
+- New versions of the app (2026-11-13), Android 15 emulator, a full debug build labelled 2631524 and connected to the
+  emulator PURSS: installed with adb (no installer), the app read the real newest release (2631532) and showed
+  *Version 2631532 of the app is out* with **Download**, and *Settings → This device → New version of the app*.
+  **Download** opened `PURSS-android.apk` in the in-app browser; after Chrome's warning for APKs and Android's
+  one-time *install unknown apps* permission, the system installer asked *Do you want to update this app?* (it then
+  refused the release APK over a debug build: another signing key). The release APK 2631532 installed over the
+  release 2631524 as an update (first install time kept). Reinstalled as if from Google Play (`-i com.android.vending`)
+  with the PURSS offering screens for native level 3: *This server's newest screens need a newer version of the app.
+  Update it in Google Play.* (no button: no listing yet), Settings said the same, and the message didn't come back
+  after a restart.
+
 ## Not verified
 
 - Switching when the app is shown after an hour away, and *Don't allow*: unit-tested only.
+- New versions of the app from F-Droid and on iOS: unit-tested only.
 - iOS: not built (no Mac), as for the rest of the app.

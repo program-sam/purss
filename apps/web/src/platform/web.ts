@@ -21,6 +21,7 @@ export const browserNotifier: Notifier = {
 export const webPlatform: Platform = {
   kind: "web",
   interfaceUpdates: null,
+  appUpdates: null,
   appVersion: async () => null,
   transport: {
     fetch: (path, init) => fetch(path, { ...init, credentials: "same-origin" }),

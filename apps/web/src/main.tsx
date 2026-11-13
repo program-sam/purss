@@ -18,6 +18,7 @@ import { initSounds } from "./lib/sound.ts";
 import { applyDisplayMode, displayMode } from "./lib/display.ts";
 import { initTextSize } from "./lib/text-size.ts";
 import { OfflineController } from "./offline/OfflineController.tsx";
+import { AppUpdateNotice } from "./shell/AppUpdates.tsx";
 import { OutboxController } from "./outbox/OutboxController.tsx";
 import { wipeOfflineCopies } from "./offline/worker-link.ts";
 import { AnnotationSync } from "./annotations/use-annotations.ts";
@@ -80,6 +81,7 @@ if (boot.screen) {
         <ToastProvider>
           <OverlayProvider>
             <OfflineController />
+            <AppUpdateNotice />
             <OutboxController />
             <AnnotationSync keepOtherAccounts={platform.kind === "app"} />
             <LateProgressSync keepOtherAccounts={platform.kind === "app"} />

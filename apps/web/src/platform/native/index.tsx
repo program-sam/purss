@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { focusManager } from "@tanstack/react-query";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import type { BundleInfo } from "@capgo/capacitor-updater";
-import { OFFICIAL_WORKSPACE_ORIGIN, startingServer } from "@purss/domain";
+import { APPS_RELEASE_MANIFEST, OFFICIAL_WORKSPACE_ORIGIN, startingServer } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
 import { CapacitorShareTarget } from "@capgo/capacitor-share-target";
 import { AudioPlayer } from "@mediagrid/capacitor-native-audio";
@@ -41,6 +42,7 @@ import { shareFile } from "./files.ts";
 import { nativePasskeys } from "./passkeys.ts";
 import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQueued } from "./live-update.ts";
 import type { BundleRef, Updater } from "./live-update.ts";
+import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
 
 /**
@@ -88,6 +90,31 @@ const updater: Updater = {
   failed: async () => ref((await CapacitorUpdater.getFailedUpdate())?.bundle)?.version ?? null,
 };
 
+/** The installed app's version (plan/40), as its store build says; null for a build without one. */
+async function installedVersion(): Promise<string | null> {
+  try { return plainVersion((await App.getInfo()).version); } catch { return null; }
+}
+
+/**
+ * New versions of the app itself (app-updates.ts). The releases are read through Capacitor's native HTTP: the page's
+ * own policy allows only the connected PURSS and the push relay.
+ */
+const appUpdates = createAppUpdates({
+  async source() {
+    const platform = Capacitor.getPlatform();
+    if (platform !== "android") return sourceOf({ platform });
+    try { return sourceOf({ platform, ...(await PurssDevice.installSource()) }); } catch { return null; }
+  },
+  installed: installedVersion,
+  async latest() {
+    const res = await CapacitorHttp.get({ url: APPS_RELEASE_MANIFEST, responseType: "text", connectTimeout: 15_000, readTimeout: 15_000 });
+    if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+    return manifestVersion(typeof res.data === "string" ? JSON.parse(res.data) : res.data);
+  },
+  store: localKv,
+  now: () => Date.now(),
+});
+
 /** Back to the interface the app was installed with, at the first screen (the page reloads). */
 function restartInstalled(): void {
   forgetQueued(localKv);
@@ -126,12 +153,14 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
   }) : null;
   if (updates) {
     void updates.check();
+    void appUpdates.check();
     let hiddenAt: number | null = null;
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
       const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
       hiddenAt = null;
       void updates.shown(away);
+      void appUpdates.check();
     });
   }
 
@@ -214,12 +243,13 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     } : null,
     push: phone?.push ?? null,
     interfaceUpdates: updates,
+    appUpdates: conn ? appUpdates : null,
     // The phones show notifications through the relay (plan/37); Settings doesn't offer alerts there.
     notifier: browserNotifier,
     badge: null,
     onIntake: () => () => {},
     desktop: null,
-    appVersion: async () => { try { return plainVersion((await App.getInfo()).version); } catch { return null; } },
+    appVersion: installedVersion,
     onConnectReturn(listener) {
       const handle = App.addListener("appUrlOpen", (e) => { if (/^purss:\/\/connect\b/i.test(e.url)) listener(e.url); });
       return () => { void handle.then((h) => h.remove()); };

@@ -30,6 +30,11 @@ export interface PurssDevicePlugin {
   refreshWidgets(): Promise<void>;
   /** Whether the background job found the token refused since last asked (the flag is cleared). */
   takeBackgroundReport(): Promise<{ lost: boolean }>;
+  /**
+   * Android only: the build's flavor ("full" or "foss") and the package that installed the app (null when installed by
+   * hand or with adb). Apps built before this method reject the call.
+   */
+  installSource(): Promise<{ flavor: string; installer: string | null }>;
   /** Disconnect: stop and unschedule the job, delete its unfinished files, its state, and everything the home-screen panels kept (lists, chosen collections and sources, snapshot). */
   reset(): Promise<void>;
 }
