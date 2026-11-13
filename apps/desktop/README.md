@@ -26,7 +26,7 @@ The design and what isn't built are in [plan/42](../../plan/42-desktop-app.md).
 The newest release is at
 [github.com/program-sam/purss/releases/latest](https://github.com/program-sam/purss/releases/latest),
 and the website's download button picks the visitor's system. The file names are the same in every release
-(`packages/domain/src/distribution.ts`). They download only once the repository is public.
+(`packages/domain/src/distribution.ts`).
 
 Windows and macOS packages are not signed by Microsoft or Apple yet (an owner to-do, below): Windows SmartScreen
 says *Windows protected your PC* (choose *More info*, then *Run anyway*), and macOS says the app can't be checked

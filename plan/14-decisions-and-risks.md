@@ -18,7 +18,7 @@
 - Optional shareable collections that others can subscribe to, including selections
   made by friends and admired creators; private by default, later delivery gate.
 - T3 Code as a design-language reference, alongside the previous case studies.
-- Private GitHub repository and a planning/scaffold phase before further work.
+- A public GitHub repository under the AGPL-3.0 ([LICENSE](../LICENSE)).
 - Visible storage ownership, feed/basket usage breakdown, and manageable capacity.
 - Official hosted accounts with free storage; optional paid capacity and/or donations
   are funding possibilities, with details still to be decided.
@@ -39,7 +39,6 @@ versions remain open until the spike demonstrates what is needed.
 | Collections versus baskets labels | Collections organize; baskets pin durable items | Design usability review |
 | Capture scope | Minimum snapshot plus existing feed text; publishers' audio and video files are never stored on the server, only played from the publisher and, in the apps, downloaded to the device ([plan/25](25-media-playback.md)); never platform pages | Before retention implementation |
 | Product item pruning | No automatic product-item deletion in the first slice; any later policy is opt-in and pin-aware | Before adding cleanup |
-| License for original code | Undecided; private repo grants no redistribution license | Before external distribution |
 | External FreshRSS support | Managed engine first | After single-owner slice |
 | Account model | One owner first; scoped schema and later hosted account/signup gate | Before hosted launch |
 | Free hosted allocation | Amount undecided; measure cost/capacity first | Before hosted beta |
