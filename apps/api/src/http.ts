@@ -246,13 +246,15 @@ export async function readBody(req: IncomingMessage, limit = DEFAULT_BODY_LIMIT,
 
 /**
  * Writes the body to `file` (created 0600) as it arrives, so a large upload never sits in memory; returns its size.
- * A file that can't be written (a full disk, no permission) is an answer, never an unhandled stream error.
+ * A file that can't be written (a full disk, no permission) is an answer, never an unhandled stream error. `onProgress`
+ * sees the size so far and may throw (an HttpError) to stop the upload.
  */
-export async function saveUpload(req: IncomingMessage, file: string, limit: number, pace = UPLOAD_PACE): Promise<number> {
+export async function saveUpload(req: IncomingMessage, file: string, limit: number, pace = UPLOAD_PACE, onProgress?: (size: number) => void): Promise<number> {
   let size = 0;
   async function* counted() {
     for await (const chunk of bodyChunks(req, limit, pace)) {
       size += chunk.length;
+      onProgress?.(size);
       yield chunk;
     }
   }

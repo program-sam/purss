@@ -181,7 +181,8 @@ export function publicRouter(): Router<Ctx> {
   r.post("/api/auth/password", async (req, ctx, res) => {
     const body = parse(z.object({ email: z.string().max(300), password: z.string().min(1).max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) }), req.body);
     // Per network address, and per account so spreading guesses over many addresses doesn't help (auth/sign-in-limits.ts).
-    const { bucket: tries, known } = triesKey(ctx.app, body.email, req.cookies[KNOWN_COOKIE]);
+    const tries = triesKey(ctx.app, body.email, req.cookies[KNOWN_COOKIE]);
+    const { known } = tries;
     if (!known) limit(`password:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 10);
     takeTry(tries);
     const accountId = await checkPassword(ctx.app, body.email, body.password);
@@ -189,7 +190,7 @@ export function publicRouter(): Router<Ctx> {
       audit(ctx.app, null, "sign_in", "password", "failure");
       throw new HttpError(401, "bad_password", "That email address and password don't match.");
     }
-    signedIn(ctx.app, res, tries, body.email, req.cookies[KNOWN_COOKIE]);
+    signedIn(ctx.app, res, tries.bucket, body.email, req.cookies[KNOWN_COOKIE]);
     startSession(ctx.app, res, req.raw, accountId, "password", { sharedComputer: body.sharedComputer });
     return { ok: true };
   });

@@ -175,3 +175,19 @@ test("the session says whether this is a shared computer", async (t) => {
     assert.equal(session.json.account.email, ana.email);
   }
 });
+
+test("a browser that signed in before can't sign in over and over without end: each one costs a password check", async (t) => {
+  const { b, setEmail } = await boot();
+  t.after(b.close);
+  const eve = await member(b.app, "Eve");
+  setEmail(eve.accountId, "loop@example.org");
+  let cookie = setCookie(await b.api(null, "POST", "/api/auth/password", { email: "loop@example.org", password: eve.password }, from()), "purss_known")!.pair;
+  const statuses: number[] = [];
+  for (let i = 0; i < 31; i++) {
+    const r = await b.api(null, "POST", "/api/auth/password", { email: "loop@example.org", password: eve.password }, { ...from(), cookie });
+    statuses.push(r.status);
+    cookie = setCookie(r, "purss_known")?.pair ?? cookie; // fresh values don't buy fresh checks
+  }
+  assert.equal(statuses.filter((s) => s === 200).length, 30, statuses.join(","));
+  assert.equal(statuses.at(-1), 429);
+});

@@ -157,18 +157,21 @@ function matchByGuid(app: App, workspaceId: string, sourceId: string, entry: Syn
 
 /**
  * An item of this source (e.g. from an import) with the same link, or title and date, and no mapping from this engine user.
- * Only the first UNMAPPED_CANDIDATES items with that link (or title and date) are looked at: a feed repeating one link
- * thousands of times would otherwise have every new entry walk all the earlier ones.
+ * At most UNMAPPED_CANDIDATES items with that link (or title and date) are looked at: a feed repeating one link thousands
+ * of times would otherwise have every new entry walk all the earlier ones. With more than that, the match is ambiguous
+ * (some went unseen), so none is made and the entry becomes an item of its own: never a post taken for one it isn't.
  */
 const UNMAPPED_CANDIDATES = 200;
 function matchUnmapped(app: App, eu: EngineUser, sourceId: string, entry: SyncEntry): string | null {
-  const unmapped = "NOT EXISTS (SELECT 1 FROM external_ids e WHERE e.item_id = c.id AND e.engine_user_id = ?)";
+  const unmapped = "NOT EXISTS (SELECT 1 FROM external_ids e WHERE e.item_id = i.id AND e.engine_user_id = ?)";
   const rows = entry.url
-    ? app.db.all<{ id: string }>(`SELECT c.id FROM (SELECT i.id FROM items i WHERE i.source_id = ? AND i.url = ? LIMIT ${UNMAPPED_CANDIDATES}) c WHERE ${unmapped} LIMIT 2`, sourceId, entry.url, eu.id)
+    ? app.db.all<{ id: string; unmapped: number }>(`SELECT i.id, ${unmapped} AS unmapped FROM items i WHERE i.source_id = ? AND i.url = ? LIMIT ${UNMAPPED_CANDIDATES + 1}`, eu.id, sourceId, entry.url)
     : entry.publishedAt
-      ? app.db.all<{ id: string }>(`SELECT c.id FROM (SELECT i.id FROM items i WHERE i.source_id = ? AND i.title = ? AND i.published_at = ? LIMIT ${UNMAPPED_CANDIDATES}) c WHERE ${unmapped} LIMIT 2`, sourceId, entry.title.trim(), entry.publishedAt, eu.id)
+      ? app.db.all<{ id: string; unmapped: number }>(`SELECT i.id, ${unmapped} AS unmapped FROM items i WHERE i.source_id = ? AND i.title = ? AND i.published_at = ? LIMIT ${UNMAPPED_CANDIDATES + 1}`, eu.id, sourceId, entry.title.trim(), entry.publishedAt)
       : [];
-  return rows.length === 1 ? rows[0]!.id : null;
+  if (rows.length > UNMAPPED_CANDIDATES) return null;
+  const free = rows.filter((r) => r.unmapped === 1);
+  return free.length === 1 ? free[0]!.id : null;
 }
 
 function addMapping(app: App, eu: EngineUser, itemId: string, entry: SyncEntry): void {
