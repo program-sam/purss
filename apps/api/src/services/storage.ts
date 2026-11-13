@@ -114,7 +114,7 @@ export function assertDiskRoom(app: App, bytes: number): void {
  */
 export function checkGrowth(app: App, accountId: string, bytes: number, opts: { control?: boolean; reservationId?: string; onDisk?: boolean } = {}): void {
   if (bytes <= 0) return;
-  if (diskBlocks(app, opts.onDisk ? 0 : bytes) && !opts.control) throw new StorageFull("disk", accountId);
+  if (!opts.control && diskBlocks(app, opts.onDisk ? 0 : bytes)) throw new StorageFull("disk", accountId);
   const alloc = allocation(app, accountId);
   if (alloc === null) return;
   const own = opts.reservationId

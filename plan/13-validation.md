@@ -68,11 +68,13 @@ Measure with the app serving the dataset, with a write between requests (so noth
 served from a reused count) and without, warm and cold, interleaved with the previous
 version when comparing, and record the host and the numbers. The listing and count queries
 are guarded in `apps/api/src/services/performance.test.ts`: no query behind bootstrap or the
-sync path may read a whole table to find rows, the counts, the storage split and the
-default and title orders must plan as designed (partial index, covering index, ordered index
-read), and a generated 20,000-item account must stay well under a second. Counts, totals and
+sync path may read a whole table to find rows, the counts, the storage split, Home's
+queries and the default, title, kept-time and source orders must plan as designed (partial
+index, covering index, ordered index read; a few sources' items sorted from their own rows),
+and a generated 20,000-item account must stay well under a second. Counts, totals and
 the storage split are compared with the queries they replaced in `counts.test.ts` and
-`storage-split.test.ts`, with random operations.
+`storage-split.test.ts`, with random operations; the kept-time and source orders with the
+keys as defined, through every writer of them, in `list-sort-keys.test.ts`.
 
 ## Release proof
 

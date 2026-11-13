@@ -63,9 +63,10 @@ export function boxesBySource(app: App, workspaceId: string): Map<string, BoxLin
 
 function itemsByIds(app: App, workspaceId: string, ids: string[]): ItemDTO[] {
   if (!ids.length) return [];
+  // Looked up by id (the `+` keeps the planner from walking every item of the PURSS to find these few).
   const rows = app.db.all<ItemRow>(
     `SELECT ${ITEM_COLUMNS} FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE i.workspace_id = ? AND i.id IN (${ids.map(() => "?").join(",")})`, workspaceId, ...ids);
+     WHERE i.id IN (${ids.map(() => "?").join(",")}) AND +i.workspace_id = ?`, ...ids, workspaceId);
   const byId = new Map(rows.map((r) => [r.id, toDTO(r)]));
   return ids.flatMap((id) => byId.get(id) ?? []);
 }
@@ -83,10 +84,12 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   if (lastVisitAt) {
     const prefs = getPreferences(app, ws);
     const links = boxesBySource(app, ws);
+    // Read from the New items (few: the marker expires), not from everything that arrived since, which after a long absence or a
+    // first follow is most of the PURSS.
     const rows = app.db.all<{ source_id: string; n: number }>(
-      `SELECT i.source_id, COUNT(*) AS n ${FROM_VISIBLE}
-       WHERE i.workspace_id = ? AND i.discovered_at > ? AND st.fresh = 1 AND s.followed = 1 AND s.kind <> 'manual'
-       GROUP BY i.source_id`, ws, lastVisitAt);
+      `SELECT i.source_id, COUNT(*) AS n FROM item_state st CROSS JOIN items i ON i.id = st.item_id LEFT JOIN sources s ON s.id = i.source_id
+       WHERE st.workspace_id = ? AND st.fresh = 1 AND i.workspace_id = ? AND i.discovered_at > ? AND s.followed = 1 AND s.kind <> 'manual'
+       GROUP BY i.source_id`, ws, ws, lastVisitAt);
     const boxes = new Map<string, { id: string; name: string; count: number }>();
     let total = 0;
     for (const r of rows) {
@@ -148,8 +151,11 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const onBoxes = app.db.all<{ id: string }>(`SELECT s.id FROM sources s WHERE s.workspace_id = ? AND s.followed = 1 AND ${inHomeBox(app, ws, boxParams)}`, ...boxParams).map((r) => r.id);
   const unread = counts.sum(onBoxes, (w, isNew) => w === "new" && !isNew);
   // What the muted words left out of Home: the newest open items it would show, counted among the first thousand (see `mutedScan`).
+  // The items are read newest first from the date index and stop at the thousandth; led by the state instead, the planner sorts
+  // every open item first.
   const hidden = muted
-    ? countMuted(app, muted, FROM_VISIBLE, `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND ${VISIBLE_SOURCE} AND ${onHome}`,
+    ? countMuted(app, muted, "FROM items i CROSS JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id",
+      `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND ${VISIBLE_SOURCE} AND ${onHome}`,
       [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 

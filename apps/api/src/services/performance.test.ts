@@ -13,7 +13,10 @@ import { listSources } from "./sources.ts";
 import { insertItem, listItems } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { completeCapture } from "./captures.ts";
-import { getPreferences } from "./preferences.ts";
+import { getPreferences, setPreferences } from "./preferences.ts";
+import { homeOverview } from "./home.ts";
+import { mutedScan } from "./muted.ts";
+import { matchesMuted, mutedPatterns } from "./muted-match.ts";
 import { unreadCount } from "./notifications.ts";
 
 /*
@@ -251,4 +254,58 @@ test("after a sync a source's newest item time is the latest date among its item
     assert.equal(stored(a), latest(a), "a later item moves it; an older one would not");
     assert.equal(stored(a), day(15));
   } finally { cleanup(); }
+});
+
+test("Home reads New items, the newest open items and its rows by id, and the kept and source orders read their indexes in order", (t) => {
+  const { app, p, cleanup } = populated();
+  t.after(cleanup);
+  const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
+  const planned = (queries: Seen[], pattern: RegExp, expected: RegExp, what: string) => {
+    const hits = queries.filter((q) => pattern.test(q.sql));
+    assert.ok(hits.length > 0, `runs ${what}`);
+    for (const q of hits) {
+      const lines = planOf(q);
+      assert.ok(lines.some((l) => expected.test(l)) && !lines.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), `${what} should plan as ${expected}, unsorted:\n${lines.join("\n")}`);
+    }
+  };
+  // Back from a long absence, with a muted word: "since the last visit" is read from the New items, not from everything that
+  // arrived since; what the muted words hid is counted among the newest open items, read newest first; the rows' items by id.
+  app.db.run("UPDATE workspaces SET last_visit_at = '2020-01-01T00:00:00.000Z' WHERE id = ?", p.workspaceId);
+  app.db.run("UPDATE item_state SET workflow = 'toread' WHERE item_id IN (SELECT id FROM items ORDER BY seq LIMIT 3)");
+  app.db.run("UPDATE items SET title = 'Garden notes' WHERE id IN (SELECT id FROM items ORDER BY seq DESC LIMIT 4)");
+  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "garden", until: null }] });
+  const { result, seen } = recordQueries(app, () => homeOverview(app, p));
+  assert.ok(result.since && result.toRead.items.length > 0 && result.mutedHidden > 0, "every part of Home is in play");
+  planned(seen, /SELECT i\.source_id, COUNT\(\*\) AS n FROM item_state st/, /SEARCH st USING INDEX item_state_fresh/, "New since the last visit");
+  planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_ws_sortkey/, "what the muted words hid");
+  planned(seen, /AND \+i\.workspace_id = \?/, /USING INDEX sqlite_autoindex_(items|item_state)_1 \((id|item_id)=\?\)/, "the rows' items");
+
+  // Counted among the first candidates only, newest first and by id within the same date: the muted items straddle the cut.
+  app.db.run("UPDATE items SET published_at = '2027-01-01T00:00:00.000Z' WHERE id IN (SELECT id FROM items ORDER BY seq DESC LIMIT 8)");
+  const was = mutedScan.rows;
+  mutedScan.rows = 5;
+  try {
+    const candidates = app.db.all<{ id: string; title: string; excerpt: string | null; key: string }>(
+      `SELECT i.id, i.title, i.excerpt, COALESCE(i.published_at, i.discovered_at) AS key FROM items i JOIN item_state st ON st.item_id = i.id
+       WHERE i.workspace_id = ? AND st.workflow IN ('new', 'toread')`, p.workspaceId)
+      .sort((a, b) => (a.key === b.key ? (a.id < b.id ? 1 : -1) : a.key < b.key ? 1 : -1)).slice(0, mutedScan.rows + 1);
+    const patterns = mutedPatterns(["garden"])!;
+    const home = homeOverview(app, p);
+    assert.deepEqual([home.mutedHidden, home.mutedHiddenAtLeast], [candidates.filter((c) => matchesMuted(patterns, c.title, c.excerpt)).length, true]);
+  } finally { mutedScan.rows = was; }
+
+  // A page sorted by kept time or by source is read from its index in order, like the date orders; a source with few items is
+  // sorted from its own rows instead of looked for along the whole PURSS's index.
+  const source = app.db.get<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? ORDER BY title LIMIT 1", p.workspaceId)!.id;
+  for (const [sort, index] of [["kept", "items_ws_kept"], ["source", "items_ws_source_title"]] as const) {
+    const { seen: pageQueries } = recordQueries(app, () => listItems(app, p, { scope: "all", sort, limit: 5, muted: "show" }));
+    planned(pageQueries, /ORDER BY sort_key/, new RegExp(`SEARCH i USING (COVERING )?INDEX ${index}`), `the ${sort} order`);
+    for (const query of [{ scope: `source:${source}` }, { scope: "all", source }]) {
+      const { seen: fewQueries } = recordQueries(app, () => listItems(app, p, { ...query, sort, limit: 5, muted: "show" }));
+      const page = fewQueries.find((q) => /ORDER BY \+\(sort_key\)/.test(q.sql));
+      assert.ok(page, `a source's few items, sort ${sort}: sorted, not read in index order`);
+      const lines = planOf(page);
+      assert.ok(lines.some((l) => /SEARCH i USING (COVERING )?INDEX \w+ \(workspace_id=\? AND source_id=\?\)/.test(l)) && !lines.some((l) => l.includes(index)), `${JSON.stringify(query)} sort ${sort}:\n${lines.join("\n")}`);
+    }
+  }
 });

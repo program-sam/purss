@@ -1050,10 +1050,10 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const { item: it, prepared: pr } = d;
     const cur = pr.versions.find((v) => v.id === pr.currentId)!;
     const row = app.db.run(
-      `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
+      `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
          published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      d.id, p.accountId, ws, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
+       VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      d.id, p.accountId, ws, d.sourceId, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
       it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
     for (const v of pr.versions) {
       app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

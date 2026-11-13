@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Database, migrate } from "./database.ts";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
+/** The triggers 058 adds to keep the stored source titles current: the tests below about rebuilt tables leave them aside. */
+const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed"]);
 
 test("005 removes hand-picked collections and their membership table and leaves the other collections alone", () => {
   const db = new Database(":memory:");
@@ -225,7 +227,8 @@ test("026 keeps every storage ledger row, its is_current flags and 022's trigger
     db.run("INSERT INTO items (id, account_id, workspace_id, kind, title, discovered_at, current_version_id, created_at, updated_at) VALUES ('itm_1', 'acc_1', 'wsp_1', 'article', 't', 'x', 'ver_1', 'x', 'x')");
     db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at, is_current) VALUES ('obj_v1', 'acc_1', 'wsp_1', 'item_version', 'ver_1', 'itm_1', 30, 'x', 1), ('obj_v2', 'acc_1', 'wsp_1', 'item_version', 'ver_2', 'itm_1', 40, 'x', 0)");
     db.exec("PRAGMA foreign_keys = ON");
-    const schema = () => db.all("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE (type = 'index' AND tbl_name = 'stored_objects') OR type = 'trigger' ORDER BY type, name");
+    const schema = () => db.all<{ name: string }>("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE (type = 'index' AND tbl_name = 'stored_objects') OR type = 'trigger' ORDER BY type, name")
+      .filter((o) => !SORT_KEY_TRIGGERS.has(o.name));
     const before = db.all("SELECT * FROM stored_objects ORDER BY id");
     const schemaBefore = schema();
     assert.equal(migrate(db), files.filter((f) => f >= "026").length);
@@ -378,9 +381,12 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const after = new Map(objects().map((o) => [(o as { name: string }).name, o]));
     // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
     const droppedIndexes = new Set(["sign_in_methods_username"]);
+    // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone.
+    const widened: Record<string, string> = { reservations_open: "CREATE INDEX reservations_open ON reservations(account_id, settled_at, released_at, expires_at, bytes)" };
     for (const o of objectsBefore) {
-      if (removed.has((o as { tbl_name: string }).tbl_name) || droppedIndexes.has((o as { name: string }).name)) continue;
-      assert.deepEqual(after.get((o as { name: string }).name), o, `${(o as { name: string }).name} is unchanged`);
+      const name = (o as { name: string }).name;
+      if (removed.has((o as { tbl_name: string }).tbl_name) || droppedIndexes.has(name)) continue;
+      assert.deepEqual(after.get(name), widened[name] ? Object.assign(Object.create(null), o, { sql: widened[name] }) : o, `${name} is unchanged`);
     }
     assert.equal(db.get<{ url_key: string }>("SELECT url_key FROM items WHERE id = 'itm_1'")!.url_key, "example.org/a");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
@@ -518,7 +524,8 @@ test("035 keeps every stored object, its indexes and triggers while teaching the
     db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at, released_at) VALUES ('obj_2', 'acc_1', 'wsp_1', 'media', 'med_1', 'itm_1', 9, 'x', 'y')");
     const objects = () => db.all("SELECT * FROM stored_objects ORDER BY id");
     const before = objects();
-    const schema = () => db.all<{ type: string; name: string; sql: string }>("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND (tbl_name = 'stored_objects' OR (type = 'trigger' AND tbl_name = 'items')) ORDER BY name");
+    const schema = () => db.all<{ type: string; name: string; sql: string }>("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND (tbl_name = 'stored_objects' OR (type = 'trigger' AND tbl_name = 'items')) ORDER BY name")
+      .filter((o) => !SORT_KEY_TRIGGERS.has(o.name));
     const schemaBefore = schema();
     assert.equal(migrate(db), files.filter((f) => f >= "035").length);
 
@@ -704,6 +711,51 @@ test("053 counts Smart filter use per ISO week, starting afresh", () => {
     assert.deepEqual(db.all<{ name: string }>("SELECT name FROM pragma_table_info('ai_usage')").map((c) => c.name), ["account_id", "week", "input_tokens", "requests"]);
     db.run("INSERT INTO ai_usage (account_id, week, input_tokens, requests) VALUES ('acc_1', '2026-W46', 10, 1)");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
+  } finally {
+    db.close();
+  }
+});
+
+test("058 stores each existing item's latest keep and source title, indexes the list orders on them and follows a renamed or moved source", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "058")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    const source = (id: string, title: string) =>
+      db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, created_at) VALUES (?, 'acc_1', 'ws_1', 'feed', ?, 'RSS feed', 'x')", id, title);
+    const item = (id: string, sourceId: string | null) =>
+      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', ?, 'article', 't', '2026-10-01T00:00:00.000Z', 'x', 'x')", id, sourceId);
+    const keep = (basketId: string, itemId: string, keptAt: string) =>
+      db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES (?, ?, 'ws_1', 'ver_1', ?)", basketId, itemId, keptAt);
+    source("src_1", "Sediment Letters");
+    source("src_2", "Tidal Notes");
+    item("itm_1", "src_1");
+    item("itm_2", "src_1");
+    item("itm_3", null);
+    keep("bsk_1", "itm_1", "2026-10-02T00:00:00.000Z");
+    keep("bsk_2", "itm_1", "2026-10-05T00:00:00.000Z");
+    keep("bsk_1", "itm_3", "2026-10-03T00:00:00.000Z");
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "058").length);
+    const keys = () => Object.fromEntries(db.all<{ id: string; kept_key: string; source_title: string }>("SELECT id, kept_key, source_title FROM items ORDER BY id").map((r) => [r.id, [r.kept_key, r.source_title]]));
+    assert.deepEqual(keys(), { itm_1: ["2026-10-05T00:00:00.000Z", "Sediment Letters"], itm_2: ["", "Sediment Letters"], itm_3: ["2026-10-03T00:00:00.000Z", ""] });
+    const plan = (sql: string) => db.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`).map((r) => r.detail).join(" | ");
+    assert.match(plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.kept_key DESC, i.id DESC LIMIT 5"), /items_ws_kept/);
+    const bySource = plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.source_title || char(1) || COALESCE(i.published_at, i.discovered_at), i.id LIMIT 5");
+    assert.match(bySource, /items_ws_source_title/);
+    assert.doesNotMatch(bySource, /TEMP B-TREE/);
+
+    db.run("UPDATE sources SET title = 'Sediment Weekly' WHERE id = 'src_1'");
+    db.run("UPDATE items SET source_id = 'src_2' WHERE id = 'itm_2'");
+    db.run("UPDATE items SET source_id = NULL WHERE id = 'itm_1'");
+    assert.deepEqual(keys(), { itm_1: ["2026-10-05T00:00:00.000Z", ""], itm_2: ["", "Tidal Notes"], itm_3: ["2026-10-03T00:00:00.000Z", ""] }, "a renamed source and items moved");
+    assert.equal(migrate(db), 0, "and it does not run twice");
   } finally {
     db.close();
   }

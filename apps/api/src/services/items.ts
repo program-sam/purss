@@ -56,10 +56,10 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const text = toText(contentHtml ?? summaryHtml);
   const ex = excerpt(toText(summaryHtml) || text);
   const r = app.db.run(
-    `INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
+    `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
        read_minutes, doi, curator_note, published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.workspaceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
+     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
     n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, versionId,
     JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
@@ -283,10 +283,35 @@ export const VISIBLE_SOURCE = `(i.source_id IS NULL OR s.followed = 1 OR s.kind 
 const SORT_SQL = {
   newest: { key: "COALESCE(i.published_at, i.discovered_at)", dir: "DESC" },
   oldest: { key: "COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
-  source: { key: "COALESCE(s.title, '') || char(1) || COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
+  // The source's title and the kept time are stored with the item (migration 058) and indexed in these orders.
+  source: { key: "i.source_title || char(1) || COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
   title: { key: "lower(i.title)", dir: "ASC" },
-  kept: { key: "COALESCE((SELECT MAX(b.kept_at) FROM basket_items b WHERE b.item_id = i.id), '')", dir: "DESC" },
+  kept: { key: "i.kept_key", dir: "DESC" },
 } as const;
+
+/** A list's order: its key and direction, and whether it is read in that order from an index (see `listTuning.sortFromRowsBelow`). */
+type ListSort = { key: string; dir: "ASC" | "DESC"; inOrder: boolean };
+
+/** The ORDER BY of a list's rows over `key` (the sort key or its alias); a `+` keeps the planner from reading it from the index. */
+const orderBy = (sort: ListSort, key: string) => `ORDER BY ${sort.inOrder ? key : `+(${key})`} ${sort.dir}, i.id ${sort.dir}`;
+
+function listSort(app: App, p: Principal, q: { scope: string; source?: string; sort: keyof typeof SORT_SQL }): ListSort {
+  const sort = SORT_SQL[q.sort];
+  const inOrder = { ...sort, inOrder: true };
+  if (q.sort !== "kept" && q.sort !== "source") return inOrder;
+  // The list's sources, if it is limited to some: a source, a collection of sources, those in no collection, the source chips.
+  const params: SqlParam[] = [p.workspaceId];
+  const where = ["i.workspace_id = ?"];
+  const [kind, id] = q.scope.split(":") as [string, string | undefined];
+  const ofSources = kind === "source" || kind === "loose"
+    || (kind === "collection" && app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND workspace_id = ?", id!, p.workspaceId)?.mode === "sources");
+  if (ofSources) where.push(scopeClause(app, p, q.scope, params));
+  if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
+  if (where.length === 1) return inOrder;
+  const below = listTuning.sortFromRowsBelow;
+  const few = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM items i WHERE ${where.join(" AND ")} LIMIT ?)`, ...params, below)!.n < below;
+  return few ? { ...sort, inOrder: false } : inOrder;
+}
 
 /**
  * Home's order: New items first, then the rest the filter allows (To read), newest first within each. Listed as two runs, each
@@ -362,8 +387,8 @@ export function listItemIds(app: App, p: Principal, input: ItemIdsQuery, opts: L
   const q = itemIdsQuerySchema.parse(input);
   const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : workspaceMuted(app, p.workspaceId);
   const { where, params } = listConditions(app, p, q, opts, null);
-  const sort = SORT_SQL[q.sort];
-  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${where.join(" AND ")} ORDER BY sort_key ${sort.dir}, i.id ${sort.dir}`;
+  const sort = listSort(app, p, q);
+  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${where.join(" AND ")} ${orderBy(sort, "sort_key")}`;
   const shown = muted ? `SELECT id FROM (${ordered} LIMIT -1) WHERE ${NOT_MUTED_ROW}` : `SELECT id FROM (${ordered} LIMIT -1)`;
   const args = muted ? [...params, muted] : params;
   const rows = app.db.all<{ id: string }>(`${shown} LIMIT ?`, ...args, MAX_BULK_ITEMS + 1);
@@ -377,7 +402,7 @@ type SortedRow = ItemRow & { sort_key: string };
  * after the rows are in order, not before: the words are then asked about only as many rows as it takes to fill the page. (A
  * subquery with a LIMIT is not folded into the query around it, so its WHERE does not run on every candidate.)
  */
-function sortedRows(app: App, where: string[], params: SqlParam[], sort: { key: string; dir: "ASC" | "DESC" }, cur: [string, string] | null, limit: number, muted: string | null): SortedRow[] {
+function sortedRows(app: App, where: string[], params: SqlParam[], sort: ListSort, cur: [string, string] | null, limit: number, muted: string | null): SortedRow[] {
   const w = [...where];
   const ps = [...params];
   if (cur) {
@@ -385,7 +410,7 @@ function sortedRows(app: App, where: string[], params: SqlParam[], sort: { key: 
     w.push(`(${sort.key} ${op} ? OR (${sort.key} = ? AND i.id ${op} ?))`);
     ps.push(cur[0], cur[0], cur[1]);
   }
-  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${w.join(" AND ")} ORDER BY sort_key ${sort.dir}, i.id ${sort.dir}`;
+  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${w.join(" AND ")} ${orderBy(sort, "sort_key")}`;
   return muted
     ? app.db.all<SortedRow>(`SELECT * FROM (${ordered} LIMIT -1) WHERE ${NOT_MUTED_ROW} LIMIT ?`, ...ps, muted, limit)
     : app.db.all<SortedRow>(`${ordered} LIMIT ?`, ...ps, limit);
@@ -412,7 +437,7 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
     snapshot = app.db.get<{ m: number | null }>("SELECT MAX(seq) AS m FROM items")?.m ?? 0;
   }
   const { where, params } = listConditions(app, p, q, opts, snapshot);
-  const sort = SORT_SQL[q.sort];
+  const sort = listSort(app, p, q);
   const want = q.limit + 1;
   let rows: (SortedRow & { run?: number })[] = [];
   if (home) {
@@ -435,7 +460,7 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
   if (muted && !q.cursor) {
     // What the list leaves out, counted among the first candidates it would hold without the muted words (see `mutedScan`).
     // In the date order, so the candidates are found the way the page finds them (by its scope's narrowest index).
-    const { hidden, atLeast } = countMuted(app, muted, LIST_FROM, where.join(" AND "), params, `ORDER BY ${sort.key} ${sort.dir}, i.id ${sort.dir}`);
+    const { hidden, atLeast } = countMuted(app, muted, LIST_FROM, where.join(" AND "), params, orderBy(sort, sort.key));
     out.mutedHidden = hidden;
     if (atLeast) out.mutedHiddenAtLeast = true;
   }
@@ -443,12 +468,19 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
 }
 
 /**
- * A collection that holds less than this share of the followed sources is counted from its rows; the rest from the
- * PURSS's counts. Adding up the counts costs the same whatever the collection (about 90 ms at 100,000 items); counting
- * rows costs in proportion (about 70 ms for a tenth of them). Sources are a cheap stand-in for items here: asking for
- * the items themselves costs about a quarter of the saving. A test hook, so the tests can use the counts for every collection.
+ * `countFromRowsBelowShare`: a collection that holds less than this share of the followed sources is counted from its rows; the
+ * rest from the PURSS's counts. Adding up the counts costs the same whatever the collection (about 90 ms at 100,000 items);
+ * counting rows costs in proportion (about 70 ms for a tenth of them). Sources are a cheap stand-in for items here: asking for
+ * the items themselves costs about a quarter of the saving.
+ *
+ * `sortFromRowsBelow`: a list sorted by kept time or by source is read in order from its PURSS-wide index (migration 058) and
+ * stops once the page is full; a list of a few sources' items would walk most of the PURSS to find them that way (a source of
+ * 80 items took 65 to 180 ms instead of 2 at 100,000 items), so one with fewer items than this sorts them instead, as every such
+ * list did before the keys were stored. Finding out reads at most this many entries of a source index.
+ *
+ * Test hooks, so the tests can take either way with few items.
  */
-export const listTuning = { countFromRowsBelowShare: 0.2 };
+export const listTuning = { countFromRowsBelowShare: 0.2, sortFromRowsBelow: 2000 };
 
 /** The part of a list's scope that depends on an item's state rather than on its source. */
 const SCOPE_STATE: Record<string, { sql: string; keep: CellFilter }> = {
