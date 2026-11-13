@@ -115,6 +115,5 @@ their source under the same license.
 
 ## Working rules
 
-See [AGENTS.md](AGENTS.md). Keep the repository private until the owner publishes it. Do not
-commit, push, publish or deploy without the owner's authorization.
+See [AGENTS.md](AGENTS.md). Do not commit, push, publish or deploy without the owner's authorization.
 No third-party application code has been copied; bundled dependency licences ship with the web build (`licenses.md`).
