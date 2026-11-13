@@ -875,33 +875,38 @@ export function checkUploadApart(app: App, p: Principal, file: string, heapMb = 
       serialization: "advanced",
       stdio: ["ignore", "ignore", "pipe", "ipc"],
     });
-    // The child's own notes reach the log; V8's "heap out of memory" report doesn't (the line below says it plainly).
+    // Its stderr is kept: the child's own notes go to the log, and a crash that isn't running out of memory is logged as is.
     let errText = "";
-    child.stderr?.on("data", (d: Buffer) => { errText = (errText + d.toString()).slice(-4000); });
-    child.stderr?.on("end", () => { for (const line of errText.split("\n")) if (line.startsWith("[api]")) console.error(line); });
+    child.stderr?.on("data", (d: Buffer) => { errText = (errText + d.toString()).slice(-8000); });
     type Answer = { ok: true; check: UploadCheck; sha256: string } | { ok: false; status: number; code: string; message: string };
     let answer: Answer | null = null;
     let stopped: HttpError | null = null;
-    const stop = (err: HttpError) => { if (!stopped && !answer) { stopped = err; child.kill("SIGKILL"); } };
+    const stop = (err: HttpError) => { if (!answer) { stopped ??= err; if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL"); } };
     child.once("message", (m: Answer) => { answer = m; });
-    child.once("error", (err) => { if (!stopped) stopped = new HttpError(500, "internal", "Something went wrong checking that file."); console.error("[api] import check could not run:", err.message); });
+    // Couldn't start (or the pipe broke): no "exit" may follow, but "close" always does.
+    child.on("error", (err) => { stopped ??= new HttpError(500, "internal", "Something went wrong checking that file."); console.error("[api] import check could not run:", err.message); });
     const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", "That export took too long to check on this server.")), IMPORT_CHECK_SECONDS * 1000);
     timer.unref();
     // The person went away: stop checking, so their next upload and everyone else's turn needn't wait for it.
     const onAbort = () => stop(new HttpError(400, "upload_aborted", "The upload was cut off."));
     signal?.addEventListener("abort", onAbort, { once: true });
-    child.once("exit", (code, sig) => {
+    // "close" comes once the process has ended and its pipes are shut, also when it never started: only then is the turn free.
+    child.once("close", (code, sig) => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+      for (const line of errText.split("\n")) if (line.startsWith("[api]")) console.error(line);
       const a = answer as Answer | null;
-      if (a?.ok) resolve({ check: a.check, sha256: a.sha256 });
-      else if (a) reject(new HttpError(a.status, a.code, a.message));
-      else if (stopped) reject(stopped);
-      // Out of its heap (or killed for memory): the file needs more than this server checks at once.
-      else reject(new HttpError(413, "import_too_large", `That export has more in it than this server can check at once.`));
-      if (!a && !stopped && code !== 0) console.error(`[api] an import check ran out of its ${heapMb} MB (${sig ?? code}); the file was refused as too large`);
+      if (a?.ok) return resolve({ check: a.check, sha256: a.sha256 });
+      if (a) return reject(new HttpError(a.status, a.code, a.message));
+      if (stopped) return reject(stopped);
+      if (/heap out of memory|Reached heap limit/i.test(errText)) {
+        console.error(`[api] an import check ran out of its ${heapMb} MB; the file was refused as too large`);
+        return reject(new HttpError(413, "import_too_large", "That export has more in it than this server can check at once."));
+      }
+      console.error(`[api] an import check ended without an answer (${sig ?? code}):`, errText.trim().split("\n").slice(-12).join("\n") || "no output");
+      reject(new HttpError(500, "internal", "Something went wrong checking that file."));
     });
-    child.send({ config: app.config, principal: p, file });
+    if (child.connected) child.send({ config: app.config, principal: p, file }, (err) => { if (err) stop(new HttpError(500, "internal", "Something went wrong checking that file.")); });
   });
 }
 
