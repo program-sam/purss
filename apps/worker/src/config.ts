@@ -14,6 +14,8 @@ export type WorkerConfig = {
   /** Where the engine reaches the bridge router (plan/41). */
   bridgeEngineUrl: string;
   serviceTokenFile: string;
+  /** The engine admin helper's own token (Compose only); the engine never holds the service token. */
+  engineHelperTokenFile: string;
   engineUsersDir: string;
   concurrency: number;
   pollIntervalMs: number;
@@ -40,6 +42,7 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerCo
     secretsDir,
     bridgeEngineUrl: env.PURSS_BRIDGE_ENGINE_URL ?? DEFAULT_BRIDGE_ENGINE_URL,
     serviceTokenFile: path.join(secretsDir, "service-token"),
+    engineHelperTokenFile: path.join(secretsDir, "engine-helper-token"),
     engineUsersDir: path.join(secretsDir, "engine-users"),
     concurrency: int(env.PURSS_WORKER_CONCURRENCY, 4, 1, 32),
     pollIntervalMs: int(env.PURSS_WORKER_POLL_MS, 2000, 50, 60_000),

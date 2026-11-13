@@ -25,7 +25,7 @@ How Compose differs from the dev setup:
 - `init` creates the secrets and the engine's install-time settings before the engine starts;
   `engine-setup` checks the proxy setting and operator sign-in once the engine is healthy.
 - Volumes: `data` (product database), `secrets` (tokens and passwords; the engine can read only
-  the service token and its operator secret), `engine-data` (FreshRSS).
+  its admin helper's token and its operator secret), `engine-data` (FreshRSS).
 
 Backups: `docker compose -f infra/compose.yaml exec api node scripts/backup.ts`. See
 [packaging and operations](../plan/11-packaging-and-operations.md).

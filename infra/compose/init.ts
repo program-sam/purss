@@ -19,6 +19,9 @@ if (!proxy || !/^\d{1,3}(\.\d{1,3}){3}:\d{1,5}$/.test(proxy)) {
 const secrets = path.join(dataDir, "secrets");
 ensureDir(secrets);
 ensureSecret(secrets, "service-token");
+// The worker's key to the engine's admin helper, the one product secret the engine reads. The engine never
+// gets the service token: whoever runs code in FreshRSS must not reach the API's or egress's service routes.
+ensureSecret(secrets, "engine-helper-token");
 // Signs the engine's bridge addresses (plan/41); egress, the API and the worker read it.
 ensureSecret(secrets, "bridge-key");
 const adminFile = path.join(secrets, "engine-admin");
@@ -45,7 +48,9 @@ for (const [name, body] of [
 }
 chownSync(path.join(secrets, "bridge-key"), NODE, NODE);
 chmodSync(path.join(secrets, "bridge-key"), 0o600);
-for (const f of ["service-token", "engine-admin"]) {
+chownSync(path.join(secrets, "service-token"), NODE, NODE);
+chmodSync(path.join(secrets, "service-token"), 0o600);
+for (const f of ["engine-helper-token", "engine-admin"]) {
   chownSync(path.join(secrets, f), NODE, WWW_DATA);
   chmodSync(path.join(secrets, f), 0o640);
 }

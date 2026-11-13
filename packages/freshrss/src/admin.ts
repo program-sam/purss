@@ -161,7 +161,7 @@ export class EngineAdmin {
   static fromEnv(env: NodeJS.ProcessEnv = process.env, extra: Omit<EngineAdminOptions, "prefix"> & { adminToken?: string } = {}): EngineAdmin {
     const { adminToken, ...rest } = extra;
     if (env.PURSS_ENGINE_ADMIN_URL) {
-      if (!adminToken) throw new EngineError("exec", "PURSS_ENGINE_ADMIN_URL needs the service token.", { retryable: false });
+      if (!adminToken) throw new EngineError("exec", "PURSS_ENGINE_ADMIN_URL needs the engine helper token.", { retryable: false });
       return new EngineAdmin({ prefix: [], run: httpExecRunner(env.PURSS_ENGINE_ADMIN_URL, adminToken), ...rest });
     }
     return new EngineAdmin({ prefix: parseExecPrefix(env.PURSS_ENGINE_EXEC), ...rest });
