@@ -1,6 +1,7 @@
 import { FULL_TEXT_BACKFILL, newId } from "@purss/domain";
 import type { DiscoveryResult, PodcastSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
 import { coreName, discover, searchPodcasts } from "@purss/connectors";
+import type { DiscoveryDraft } from "@purss/connectors";
 import type { PodcastSearchOptions } from "@purss/connectors";
 import type { z } from "zod";
 import type { followSchema, sourcePatchSchema } from "@purss/domain";
@@ -14,9 +15,9 @@ import { hueFor, initialsFor } from "./content.ts";
 import { iconUrl } from "./icons.ts";
 import { createCollection, deleteItemNow } from "./collections.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
-import { privateFeedKey } from "./feed-keys.ts";
+import { canonicalFeedKey, privateFeedKey } from "./feed-keys.ts";
 import { dropCandidate, holdCandidate, peekCandidate } from "./discovery-cache.ts";
-import { fullTextAvailable, queueAutoCapture } from "./captures.ts";
+import { failCapture, fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { HAS_ANNOTATIONS } from "./annotations.ts";
 import { itemCounts } from "./counts.ts";
 import { deleteSourceNotifications } from "./notifications.ts";
@@ -76,7 +77,8 @@ function toSourceDTO(r: SourceRow): SourceDTO {
     lastItemAt: r.last_item_at, lastSuccessAt: r.last_success_at, freshCount: r.fresh, itemCount: r.items, paused: r.paused === 1,
     pausedUntil: r.paused === 1 ? r.paused_until : null,
     hue: r.hue, initials: initialsFor(r.title), iconUrl: iconUrl(r.id, r.icon_digest), curator: r.curator, notify: r.notify,
-    fullText: r.full_text === 1 && fullTextAvailable(r), fullTextAvailable: fullTextAvailable(r), aiFiltered: r.ai_filtered === 1,
+    fullText: r.full_text === 1 && fullTextAvailable(r), fullTextAvailable: fullTextAvailable(r),
+    privacyChangeable: !r.builtin && r.health !== "reconnect" && (r.is_private === 1 || (!!r.feed_url && !r.feed_url.startsWith("bridge:"))), aiFiltered: r.ai_filtered === 1,
   };
 }
 
@@ -291,6 +293,76 @@ export function patchSource(app: App, p: Principal, id: string, patch: z.infer<t
       for (const cid of patch.collectionIds) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", cid, id);
     }
   });
+  emit(app, p.accountId, { type: "source", sourceId: id });
+  return getSource(app, p, id);
+}
+
+/** Subscriptions of a source still waiting to run (or to be tried again) use its link as it is now stored. */
+function pointSubscribeJobs(app: App, sourceId: string, feedUrl: string): void {
+  app.db.run("UPDATE jobs SET payload = json_set(payload, '$.feedUrl', ?), updated_at = ? WHERE kind = 'engine.subscribe' AND status IN ('queued', 'failed', 'cancelled') AND json_extract(payload, '$.sourceId') = ?",
+    feedUrl, nowIso(), sourceId);
+}
+
+/**
+ * Mark a followed source's link private, or show it again. Going private locks the link away as following a private link does
+ * (services/sources.ts followSource): the link moves to the secrets folder, only a keyed fingerprint and the site's origin stay, and
+ * full articles stop. Going public is the owner saying the link is an ordinary public feed: the link is looked up again, because a
+ * private source keeps neither its kind nor its site's full address, and it is shown, exported and listed like any other from then on.
+ * Shared pages and exports made while the link was public are not taken back.
+ */
+export async function setSourcePrivacy(app: App, p: Principal, id: string, makePrivate: boolean,
+  find: (url: string) => Promise<DiscoveryDraft> = (url) => discover(url, { bridge: bridgeClient(app) })): Promise<SourceDTO> {
+  const s = app.db.get<{ kind: string; feed_url: string | null; site_url: string | null; is_private: number; health: string; builtin: string | null }>(
+    "SELECT kind, feed_url, site_url, is_private, health, builtin FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
+  if (!s) throw notFound("That source");
+  if (!!s.is_private === makePrivate) return getSource(app, p, id);
+  const file = `source-urls/${id}`;
+  if (makePrivate) {
+    if (s.builtin || !s.feed_url || s.feed_url.startsWith("bridge:")) throw badRequest("This source has no link of its own to keep private.", "no_link");
+    const link = s.feed_url;
+    writeSecret(app.config.secretsDir, file, link);
+    try {
+      app.db.tx(() => {
+        app.db.run("UPDATE sources SET kind = 'private', is_private = 1, feed_url = NULL, feed_key = ?, site_url = ?, full_text = 0 WHERE id = ?",
+          privateFeedKey(app, p.workspaceId, link), siteOrigin(s.site_url), id);
+        pointSubscribeJobs(app, id, `secret:${file}`);
+        // Pages and pictures of its items are no longer fetched: those still on their way are dropped (finished ones stay).
+        for (const c of app.db.all<{ id: string }>("SELECT c.id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.kind = 'fulltext' AND c.status = 'pending'", id)) {
+          failCapture(app, c.id, "Readable copies aren't made for items from private sources.");
+          app.db.run("UPDATE jobs SET status = 'cancelled', lease_id = NULL, updated_at = ? WHERE kind = 'capture.fulltext' AND status IN ('queued', 'leased') AND json_extract(payload, '$.captureId') = ?", nowIso(), c.id);
+        }
+        // A worker holding one loses its lease: its result is refused, and the job doesn't come back after a crash.
+        app.db.run(`UPDATE jobs SET status = 'cancelled', lease_id = NULL, updated_at = ? WHERE kind = 'capture.images' AND status IN ('queued', 'leased')
+          AND json_extract(payload, '$.itemId') IN (SELECT id FROM items WHERE source_id = ?)`, nowIso(), id);
+        // Item titles already shown in its notifications are not shown again.
+        app.db.run("UPDATE notifications SET body = NULL WHERE source_id = ? AND kind = 'arrivals'", id);
+      });
+    } catch (err) {
+      removeSecret(app.config.secretsDir, file);
+      throw err;
+    }
+  } else {
+    const link = readSecret(app.config.secretsDir, file);
+    if (!link || s.health === "reconnect") throw badRequest("This source needs its link again before it can be made public. Reconnect it first.", "reconnect");
+    // A worker holding a subscription reads the link from its file; it goes only once nothing in flight still needs it.
+    if (app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe' AND status = 'leased' AND json_extract(payload, '$.sourceId') = ?", id)) {
+      throw badRequest("This source is still being set up. Try again in a minute.", "busy");
+    }
+    const result = await find(link).catch(() => null);
+    const key = canonicalFeedKey(link);
+    const same = result?.ok ? result.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } }) : undefined;
+    if (!same) throw badRequest("The feed couldn't be reached to check what it is, so its link stays private. Try again later.", "unreachable");
+    // The source may have been changed or unfollowed while the feed was looked up.
+    const changed = app.db.tx(() => {
+      const n = app.db.run("UPDATE sources SET kind = ?, origin = ?, is_private = 0, feed_url = ?, feed_key = NULL, site_url = ? WHERE id = ? AND is_private = 1 AND followed = 1",
+        same.kind, same.origin, link, same.siteUrl, id).changes;
+      if (n) pointSubscribeJobs(app, id, link);
+      return n;
+    });
+    if (changed && !app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe' AND status = 'leased' AND json_extract(payload, '$.sourceId') = ?", id)) {
+      removeSecret(app.config.secretsDir, file);
+    }
+  }
   emit(app, p.accountId, { type: "source", sourceId: id });
   return getSource(app, p, id);
 }

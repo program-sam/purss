@@ -5,7 +5,7 @@ import type { ItemDTO, ItemIds, SourceDTO } from "@purss/domain";
 import type { FULL_TEXT_BACKFILL as DomainFullTextBackfill } from "@purss/domain";
 import { Avatar, AvatarStack, Button, Icon, useBreakpoint } from "@purss/ui";
 import type { MenuEntry } from "@purss/ui";
-import { get, messageOf, patch } from "../api/client.ts";
+import { get, messageOf, patch, post } from "../api/client.ts";
 import type { ListParams } from "../api/queries.ts";
 import { itemListQuery, refreshWorkspace } from "../api/queries.ts";
 import { QUILT } from "./Home.tsx";
@@ -161,6 +161,15 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
         toast(fullText ? `Fetching full articles for ${isolate(s.title)}: new items and up to ${FULL_TEXT_BACKFILL} recent unfinished ones` : `Stopped fetching full articles for ${isolate(s.title)}. Saved copies stay`);
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
+    const isPrivate = s.kind === "private";
+    const setPrivate = async (makePrivate: boolean) => {
+      if (!makePrivate && !window.confirm(`Show the link of ${s.title} again? Only do this if it's an ordinary public feed, not one unique to you: the link will appear in the app, in exports and OPML, and its items can be shared and saved as readable copies.`)) return;
+      try {
+        await post(`/api/sources/${encodeURIComponent(s.id)}/privacy`, { private: makePrivate });
+        refreshWorkspace(qc);
+        toast(makePrivate ? `The link of ${isolate(s.title)} is now kept private` : `The link of ${isolate(s.title)} is now treated as public`);
+      } catch (err) { toast(messageOf(err), { tone: "error" }); }
+    };
     // What a phone's Manage menu holds besides Notifications, for the hint under the buttons.
     const manageHolds = [...(s.fullTextAvailable ? ["Full articles"] : []), "Notifications"];
     const collections = s.collectionIds.map((id) => ws.collectionById.get(id)).filter((c) => !!c);
@@ -180,6 +189,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
             { label: "Rename…", icon: "pencil", onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
             { label: "Change collections…", icon: "folder", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
             { label: "Smart filter…", icon: "filter", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
+            ...(s.privacyChangeable ? [{ type: "check" as const, label: "Feed link is personal to me", on: isPrivate, onSelect: () => void setPrivate(!isPrivate) }] : []),
             { type: "separator" },
             { label: "Unfollow…", icon: "trash", danger: true, onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
           ], `Manage ${s.title}`)}><Icon name="gear" />Manage<Icon name="chev" size="sm" /></button>

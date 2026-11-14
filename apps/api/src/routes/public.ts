@@ -2,7 +2,7 @@ import { clientAddress } from "../http.ts";
 import { z } from "zod";
 import {
   bulkActionSchema, basketCreateSchema, basketPatchSchema, clearFreshSchema, collectionCreateSchema,
-  browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, podcastSearchSchema, sourcePatchSchema,
+  browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, podcastSearchSchema, sourcePatchSchema, sourcePrivacySchema,
   stateChangeSchema, undoSchema,
 } from "@purss/domain";
 import type { Bootstrap, SearchResult } from "@purss/domain";
@@ -30,7 +30,7 @@ import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets }
 import { noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
 import { applyUndo, bulk, changeState, clearFreshAll, keepWithUndo } from "../services/state.ts";
-import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, unfollowSource } from "../services/sources.ts";
+import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
 import {
   basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection, deleteItems, deletePreview,
   listBaskets, listCollections, patchBasket, patchCollection,
@@ -544,6 +544,13 @@ export function publicRouter(): Router<Ctx> {
     return undefined;
   });
   r.patch("/api/sources/:id", (req, ctx) => patchSource(ctx.app, requirePrincipal(ctx), req.params.id!, parse(sourcePatchSchema, req.body)));
+  r.post("/api/sources/:id/privacy", async (req, ctx) => {
+    const p = requirePrincipal(ctx);
+    const { private: makePrivate } = parse(sourcePrivacySchema, req.body);
+    // Making a link public looks the feed up again, like discovery.
+    if (!makePrivate) limit(`discover:${p.accountId}`, 120);
+    return setSourcePrivacy(ctx.app, p, req.params.id!, makePrivate);
+  });
   r.post("/api/sources/:id/retry", (req, ctx) => retrySource(ctx.app, requirePrincipal(ctx), req.params.id!));
   r.delete("/api/sources/:id", (req, ctx) => unfollowSource(ctx.app, requirePrincipal(ctx), req.params.id!, { deleteUnkept: req.query.get("deleteUnkept") === "1" }));
 

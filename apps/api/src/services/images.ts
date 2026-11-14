@@ -121,9 +121,11 @@ const resultSchema = z.object({
  */
 export function completeImages(app: App, payload: { itemId: string; urls: string[] }, raw: unknown): void {
   const parsed = resultSchema.safeParse(raw);
-  const item = app.db.get<{ workspace_id: string; source_id: string | null; image_url: string | null; account_id: string }>(
-    "SELECT i.workspace_id, i.source_id, i.image_url, w.account_id FROM items i JOIN workspaces w ON w.id = i.workspace_id WHERE i.id = ?", payload.itemId);
-  if (!parsed.success || !item) return;
+  const item = app.db.get<{ workspace_id: string; source_id: string | null; image_url: string | null; account_id: string; is_private: number | null }>(
+    `SELECT i.workspace_id, i.source_id, i.image_url, w.account_id, s.is_private FROM items i JOIN workspaces w ON w.id = i.workspace_id
+     LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, payload.itemId);
+  // Its source may have been made private while the pictures were fetched.
+  if (!parsed.success || !item || item.is_private) return;
   const asked = new Set(payload.urls);
   let { n, bytes } = app.db.get<{ n: number; bytes: number }>("SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS bytes FROM item_images WHERE item_id = ?", payload.itemId)!;
   let saved = 0;

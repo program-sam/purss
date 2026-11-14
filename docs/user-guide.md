@@ -206,6 +206,10 @@ gives the browser's own menu).
   of following and is checked again weekly. Sources without one, including sites that turn
   automated visitors away, keep the coloured tile with their initials.
 - **Full articles:** see below.
+- **Private link:** *Manage → Feed link is personal to me* keeps a source's link private after
+  you've followed it, or shows it again if it was marked private by mistake. Showing it again
+  looks the feed up once more, so the feed has to be reachable; full articles stay off until you
+  turn them on. Shared pages and exports made while the link was public can't be taken back.
 - The source's status shows when something needs attention: still collecting the first items,
   quiet (nothing new for 30 days), failing, paused, or needs reconnecting (a private source
   whose link is missing, for example after an import).

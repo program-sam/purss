@@ -7,7 +7,9 @@ import { newId } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { holdCandidate } from "./discovery-cache.ts";
-import { backfillFeedKeys, checkEmptyFeeds, followSource, getSource, presentCandidates, unfollowSource } from "./sources.ts";
+import { backfillFeedKeys, checkEmptyFeeds, followSource, getSource, patchSource, presentCandidates, setSourcePrivacy, unfollowSource } from "./sources.ts";
+import { completeCapture } from "./captures.ts";
+import { completeImages } from "./images.ts";
 import { previewOpml } from "./opml.ts";
 import { applySyncBatch } from "./sync.ts";
 import { batch, entry } from "../testing.ts";
@@ -35,6 +37,109 @@ test("a link that only looks like it has a key starts private, and the person ca
   const open = followSource(app, p, { ...base, token: hold(p, plain), markPrivate: false });
   assert.equal(app.db.get<{ feed_url: string | null }>("SELECT feed_url FROM sources WHERE id = ?", open.id)!.feed_url, plain, "unticked: an ordinary source");
   assert.deepEqual(linkFiles(app.config.secretsDir), [kept.id], "and no link file for it");
+});
+
+test("a followed source's link can be kept private afterwards, and shown again once the feed is looked up", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const link = "https://journals.example/core/rss/product/id/3D5C40349E588565CAD30F5A7E08F68F";
+  const id = followSource(app, p, { ...base, token: hold(p, link, { kind: "publication", origin: "Journal", siteUrl: "https://journals.example/core/journals/x", privateWarning: null }), fullText: true }).id;
+  const row = () => app.db.get<{ kind: string; feed_url: string | null; feed_key: string | null; site_url: string | null; is_private: number; full_text: number }>(
+    "SELECT kind, feed_url, feed_key, site_url, is_private, full_text FROM sources WHERE id = ?", id)!;
+  assert.equal(row().full_text, 1);
+
+  const priv = await setSourcePrivacy(app, p, id, true, () => assert.fail("going private looks nothing up"));
+  assert.equal(priv.kind, "private");
+  assert.equal(priv.feedUrl, null);
+  assert.deepEqual({ ...row(), feed_key: row().feed_key !== null }, { kind: "private", feed_url: null, feed_key: true, site_url: "https://journals.example", is_private: 1, full_text: 0 });
+  assert.deepEqual(linkFiles(app.config.secretsDir), [id]);
+  assert.equal(presentCandidates(app, p, [draft(link)])[0]!.alreadyFollowingSourceId, id, "still found again by its fingerprint");
+
+  // The feed can't be reached: nothing changes.
+  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: false, url, reason: "unreachable", message: "down" })), /stays private/);
+  // A feed found there that isn't this link is not taken for it.
+  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: true, url, candidates: [{ ...draft("https://journals.example/other.xml"), privateWarning: null, alreadyFollowingSourceId: null }] })), /stays private/);
+  assert.equal(row().is_private, 1);
+
+  let looked = "";
+  const pub = await setSourcePrivacy(app, p, id, false, async (url) => {
+    looked = url;
+    return { ok: true, url, candidates: [{ ...draft(link), kind: "publication", origin: "Journal", siteUrl: "https://journals.example/core/journals/x", privateWarning: null, alreadyFollowingSourceId: null }] };
+  });
+  assert.equal(looked, link, "the stored link is what is looked up");
+  assert.equal(pub.feedUrl, link);
+  assert.equal(pub.kind, "publication");
+  assert.equal(pub.fullTextAvailable, true);
+  assert.equal(pub.fullText, false, "full articles stay off until turned on again");
+  assert.deepEqual({ ...row() }, { kind: "publication", feed_url: link, feed_key: null, site_url: "https://journals.example/core/journals/x", is_private: 0, full_text: 0 });
+  assert.deepEqual(linkFiles(app.config.secretsDir), [], "the link file goes");
+  assert.equal(presentCandidates(app, p, [draft(link)])[0]!.alreadyFollowingSourceId, id, "and it is found again by its address");
+});
+
+test("changing a link's privacy keeps waiting subscriptions working and stops what a private source never does", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  // A subscription still waiting reads the link from where it is stored now.
+  const followed = followSource(app, p, { ...base, token: hold(p, SECRET) }).id;
+  const subscribeLink = () => JSON.parse(app.db.get<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'engine.subscribe' AND json_extract(payload, '$.sourceId') = ?", followed)!.payload).feedUrl;
+  assert.equal(subscribeLink(), `secret:source-urls/${followed}`);
+  const found = async (url: string) => ({ ok: true as const, url, candidates: [{ ...draft(url), privateWarning: null, alreadyFollowingSourceId: null }] });
+  app.db.run("UPDATE jobs SET status = 'leased' WHERE kind = 'engine.subscribe'");
+  await assert.rejects(setSourcePrivacy(app, p, followed, false, found), /still being set up/, "not while a worker holds the link's file");
+  app.db.run("UPDATE jobs SET status = 'queued' WHERE kind = 'engine.subscribe'");
+  await setSourcePrivacy(app, p, followed, false, found);
+  assert.equal(subscribeLink(), SECRET);
+  await setSourcePrivacy(app, p, followed, true);
+  assert.equal(subscribeLink(), `secret:source-urls/${followed}`);
+
+  // Copies on their way are dropped, and so are titles kept for notifications.
+  const src = makeSource(app, p, "Sediment Letters", "feed/1");
+  patchSource(app, p, src, { fullText: true });
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
+  const pending = app.db.all<{ id: string }>("SELECT c.id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.status = 'pending'", src);
+  assert.equal(pending.length, 2);
+  app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'arrivals', 'New from Sediment Letters', 'A title', ?, 'k', NULL, ?)",
+    newId("ntf"), p.workspaceId, src, new Date().toISOString());
+  await setSourcePrivacy(app, p, src, true);
+  assert.deepEqual(app.db.all<{ status: string }>("SELECT c.status FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ?", src).map((r) => r.status), ["failed", "failed"]);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'capture.fulltext' AND status = 'queued'")!.n, 0);
+  app.db.tx(() => completeCapture(app, pending[0]!.id, { ok: true, title: null, text: "x".repeat(300), html: "<p>x</p>", finalUrl: "https://example.org/x", bytes: 10 }));
+  assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", pending[0]!.id)!.status, "failed", "a copy a worker was already making is not saved");
+  assert.equal(app.db.get<{ body: string | null }>("SELECT body FROM notifications WHERE source_id = ?", src)!.body, null);
+
+  // Pictures too: a waiting job is cancelled, and what a worker was already fetching is not stored.
+  const pictured = makeSource(app, p, "Pictured", "feed/pics");
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/pics")]));
+  const itemId = app.db.get<{ id: string }>("SELECT id FROM items WHERE source_id = ?", pictured)!.id;
+  app.db.run("INSERT INTO jobs (id, kind, payload, run_after, max_attempts, created_at, updated_at) VALUES (?, 'capture.images', ?, ?, 6, ?, ?)",
+    newId("job"), JSON.stringify({ itemId, urls: ["https://example.org/a.png"], maxBytes: 100000 }), new Date().toISOString(), new Date().toISOString(), new Date().toISOString());
+  // A second one a worker already holds.
+  app.db.run("INSERT INTO jobs (id, kind, payload, run_after, max_attempts, status, lease_id, lease_expires_at, created_at, updated_at) VALUES (?, 'capture.images', ?, ?, 6, 'leased', 'lease1', ?, ?, ?)",
+    newId("job"), JSON.stringify({ itemId, urls: ["https://example.org/b.png"], maxBytes: 100000 }), new Date().toISOString(), new Date(Date.now() + 60_000).toISOString(), new Date().toISOString(), new Date().toISOString());
+  await setSourcePrivacy(app, p, pictured, true);
+  assert.deepEqual(app.db.all<{ status: string; lease_id: string | null }>("SELECT status, lease_id FROM jobs WHERE kind = 'capture.images'").map((j) => [j.status, j.lease_id]),
+    [["cancelled", null], ["cancelled", null]], "neither runs again, not even after the worker holding one goes away");
+  const png = Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex").toString("base64");
+  app.db.tx(() => completeImages(app, { itemId, urls: ["https://example.org/a.png"] }, { images: [{ url: "https://example.org/a.png", contentType: "image/png", data: png }] }));
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_images WHERE item_id = ?", itemId)!.n, 0);
+});
+
+test("a source without a link of its own, or whose link was lost, can't change its privacy", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const lost = makeSource(app, p, "Lost link", "feed/lost", { kind: "private", isPrivate: true });
+  app.db.run("UPDATE sources SET health = 'reconnect' WHERE id = ?", lost);
+  assert.equal(getSource(app, p, lost).privacyChangeable, false);
+  await assert.rejects(setSourcePrivacy(app, p, lost, false, () => assert.fail("nothing to look up")), /Reconnect it first/);
+  const bridged = makeSource(app, p, "Bridged", "feed/bridged");
+  app.db.run("UPDATE sources SET feed_url = 'bridge:telegram/durov' WHERE id = ?", bridged);
+  assert.equal(getSource(app, p, bridged).privacyChangeable, false);
+  await assert.rejects(setSourcePrivacy(app, p, bridged, true), /no link of its own/);
+  const q = makeOwner(app, { admin: false });
+  await assert.rejects(setSourcePrivacy(app, q, makeSource(app, p, "Theirs", "feed/theirs"), true), /not found|That source/i, "another account's source");
 });
 
 test("a private link's file goes when following fails after it was written; nothing is left for a deletion to miss", (t) => {

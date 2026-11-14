@@ -93,6 +93,8 @@ export type SourceDTO = {
   fullText: boolean;
   /** Whether full articles can be turned on: ordinary feeds, never private ones. */
   fullTextAvailable: boolean;
+  /** Its link can be kept private or shown again (POST /api/sources/:id/privacy): feeds with a link of their own. */
+  privacyChangeable: boolean;
   /** The source's own Smart filter is on; a collection's filter is marked on the collection (plan/36). */
   aiFiltered: boolean;
 };
@@ -426,6 +428,8 @@ export const followSchema = z.object({
 });
 /** Items already in a source when full articles are turned on that also get a copy (newest unfinished first). */
 export const FULL_TEXT_BACKFILL = 20;
+/** POST /api/sources/:id/privacy: keep the source's link private, or show it as an ordinary public feed. */
+export const sourcePrivacySchema = z.object({ private: z.boolean() });
 export const sourcePatchSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   collectionIds: z.array(z.string()).max(20).optional(),
