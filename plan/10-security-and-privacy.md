@@ -22,7 +22,9 @@ the owner's server. A private deployment is not automatically a trusted network.
   application discovery validation does not secure FreshRSS's independent fetching.
 - Sanitize stored HTML on render; apply CSP and safe link behavior. No feed scripts,
   injected event handlers, automatic embedded players, or raw untrusted SVG. The only frames are the video
-  platforms' own players the reader loads when the person presses play ([25](25-media-playback.md)).
+  platforms' own players the reader loads when the person presses play ([25](25-media-playback.md)) and, in a
+  browser, originals whose own headers allow PURSS to frame them, sandboxed without top navigation
+  ([43](43-originals-in-the-reader.md)). The desktop app shows other pages in a web view that reaches no app command.
 - Smart filters ([36](36-ai-filters.md)) send post text only to the operator-fixed Jev address
   (redirects refused); the server's Jev key, set only by an administrator, lives in the secrets
   folder, never in the database, exports, logs or job payloads. People never hand over a key. Post text is untrusted: Jev answers only probabilities.

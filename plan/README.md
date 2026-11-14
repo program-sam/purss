@@ -52,6 +52,7 @@ an official hosted option with free storage is part of the product direction.
 | [40 Versions](40-versions.md) | One number per commit on main (2631214: year, day of the year, that day's commit): where builds get it, where it shows, release notes |
 | [41 Source bridges](41-source-bridges.md) | Bundled RSS-Bridge behind the egress bridge router: signed source addresses, post ids that survive a backend change, fetch log, isolation |
 | [42 Desktop app](42-desktop-app.md) | Windows, macOS and Linux app in Tauri: the phones' model (device token, live interface updates), its own updates from GitHub releases, tray, notifications without a relay, downloads as files, feed links and OPML files |
+| [43 Originals in the reader](43-originals-in-the-reader.md) | An original or a link in an article opens over the reader: the desktop app's own web view, a frame in the browser when the page's headers allow it, a new tab otherwise; credit, isolation, signed-out pages |
 
 ## How to use this plan
 
