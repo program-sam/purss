@@ -3,7 +3,8 @@
  * The reader loads one only when the person presses play, so opening an item asks nothing of the platform. The
  * player is the platform's own, so the play counts as a view on that platform and its ads play as on its site.
  * Any other page, PeerTube included (every instance has its own address), still opens on its own site.
- * The page policies allow frames from `EMBED_ORIGINS` only (apps/api/src/server.ts, platform/csp.ts).
+ * The apps' page policy allows frames from `EMBED_ORIGINS` only (platform/csp.ts); in a browser the reader also frames
+ * originals (plan/43).
  */
 export const EMBED_ORIGINS = [
   "https://www.youtube-nocookie.com",

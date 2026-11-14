@@ -249,6 +249,8 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     badge: null,
     onIntake: () => () => {},
     desktop: null,
+    webView: null,
+    frames: false,
     appVersion: installedVersion,
     onConnectReturn(listener) {
       const handle = App.addListener("appUrlOpen", (e) => { if (/^purss:\/\/connect\b/i.test(e.url)) listener(e.url); });

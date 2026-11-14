@@ -14,7 +14,8 @@ crate-type = ["rlib"]
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+# `unstable`: a second web view inside the main window, for other sites' pages (src/web.rs, plan/43).
+tauri = { version = "2.12", features = ["tray-icon", "image-png", "unstable"] }
 tauri-plugin-deep-link = "2.6"
 tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }
 tauri-plugin-dialog = "2.6"
@@ -35,6 +36,8 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 [target.'cfg(target_os = "linux")'.dependencies]
 notify-rust = "4"
 libc = "0.2"
+# Tauri's own GTK: the web view for other sites' pages is laid over the page in a GTK overlay (src/web.rs).
+gtk = "0.18"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 tauri-plugin-notification = "2.3"

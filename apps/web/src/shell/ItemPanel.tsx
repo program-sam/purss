@@ -1,5 +1,6 @@
 import { useItemActions } from "../state/actions.ts";
-import { Fragment, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { SyntheticEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ItemDetail } from "@purss/domain";
 import { Avatar, Button, Icon, IconButton } from "@purss/ui";
@@ -39,6 +40,9 @@ import { ItemReminder } from "../components/ItemReminder.tsx";
 import { DownloadedTag } from "../downloads/DownloadedTag.tsx";
 import { useDisplayMode } from "../lib/display.ts";
 import { useReadingProgress } from "../lib/reading-progress.ts";
+import { frameCheckQuery } from "../lib/originals.ts";
+import { platform } from "../platform/index.ts";
+import { WebPane } from "./WebPane.tsx";
 
 /** The reader: sanitised content, honest capture status, state and basket controls. */
 export function ItemPanel({ itemId }: { itemId: string }) {
@@ -106,6 +110,22 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const [showPartial, setShowPartial] = useState(false);
   const [renaming, setRenaming] = useState(false);
   useEffect(() => { setShowLatest(false); setShowPartial(false); setRenaming(false); }, [itemId]);
+  // A page from another site shown over the article (plan/43): the original, or a link in the article.
+  const [web, setWeb] = useState<string | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barBottom, setBarBottom] = useState(48);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const measure = () => setBarBottom(bar.offsetTop + bar.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
+  // In a browser the server says beforehand whether the original allows a frame, so pressing the button can decide at once.
+  const originalCheck = useQuery({ ...frameCheckQuery(href ?? ""), enabled: platform.frames && !!href && !embed });
+  const originalHere = !!platform.webView || (platform.frames && originalCheck.data?.frame === true);
   const latest = showLatest && !!detail?.latestHtml;
   // A capture that is only part of the page is not the article: the feed's own text comes first and the capture waits behind a toggle (it is shown when the feed sent no text).
   const partial = latest ? null : detail?.partialCopy ?? null;
@@ -127,6 +147,8 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   useEffect(() => { titleRef.current?.focus({ preventScroll: true }); }, [itemId]);
   // Once the title scrolls away, the bar names the item beside its source.
   const [titleGone, setTitleGone] = useState(false);
+  // Scrolled past, or under a page from another site: the bar names the item and keeps State and Keep within reach.
+  const titled = titleGone || !!web;
   useEffect(() => {
     const h = titleRef.current;
     if (!h || !bodyRef.current) return;
@@ -164,6 +186,36 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
     : detail?.keptVersionAt ? `Kept on ${dateTime(detail.keptVersionAt, tz)}.` : `Kept in ${keptName}.`;
   const summaryOnly = !!detail?.summaryOnly && !media;
   const excerpt = itemExcerpt(item);
+  /** The address to frame for `url`, when the server said its page allows it (a browser only); the link's own fragment stays. */
+  const frameAddress = (url: string): string | null => {
+    const c = qc.getQueryData(frameCheckQuery(url).queryKey);
+    if (!c?.frame) return null;
+    const framed = new URL(c.url);
+    if (!framed.hash) framed.hash = new URL(url).hash;
+    return framed.href;
+  };
+  /** A link to another site in the reader's own places for them (`data-inapp`): the original button, the article, the excerpt. */
+  const outsideLink = (target: EventTarget): string | null => {
+    const a = (target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
+    const url = a?.closest("[data-inapp]") ? safeHref(a.href) : null;
+    return url && new URL(url).origin !== location.origin ? url : null;
+  };
+  /** Such a link opens over the article where this app can show it; otherwise outside PURSS, as before. */
+  function openLink(e: MouseEvent<HTMLElement>) {
+    const url = e.defaultPrevented ? null : outsideLink(e.target);
+    if (!url) return;
+    const plain = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+    const here = !plain ? null : platform.webView ? url : platform.frames ? frameAddress(url) : null;
+    if (here) { e.preventDefault(); setWeb(here); return; }
+    // In a browser the link opens a new tab by itself; the apps open it outside PURSS.
+    if (!platform.frames) { e.preventDefault(); platform.openExternal(url); }
+  }
+  /** In a browser, a link about to be pressed is checked first, so the press can decide at once. */
+  function checkLink(e: SyntheticEvent<HTMLElement>) {
+    const url = platform.frames ? outsideLink(e.target) : null;
+    if (url) void qc.prefetchQuery(frameCheckQuery(url)).catch(() => undefined);
+  }
+
   async function retryCapture() {
     try {
       await post(`/api/items/${encodeURIComponent(item.id)}/capture/retry`);
@@ -174,15 +226,15 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
 
   return (
     <>
-      <div className={`panel-bar${titleGone ? " titled" : ""}`}>
+      <div ref={barRef} className={`panel-bar${titled ? " titled" : ""}`}>
         <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">Back</span></button>
         {source ? (
           <button type="button" className="src" aria-label={`Open source ${source.title}`} onClick={() => nav.go({ t: "s", id: source.id })}>
             <Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={26} /><span className="nm"><bdi>{source.title}</bdi></span>
           </button>
         ) : <span className="src"><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={26} /><span className="nm"><bdi>{face.name}</bdi></span></span>}
-        {titleGone ? <span className="pt" aria-hidden="true" dir="auto">{item.title}</span> : null}
-        {titleGone ? (
+        {titled ? <span className="pt" aria-hidden="true" dir="auto">{item.title}</span> : null}
+        {titled ? (
           // Scrolled past the actions: State and Keep stay within reach in the bar.
           <span className="pb-acts">
             {stateControl(false)}
@@ -196,7 +248,9 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           ], "More for this item")}><Icon name="more" /><span className="ml" aria-hidden="true">More</span></button>
         <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
       </div>
-      <div className="panel-body" id="panel-body" ref={bodyRef} tabIndex={-1}>
+      {/* Under a page from another site the article keeps its place, hidden. */}
+      <div className="panel-body" id="panel-body" ref={bodyRef} tabIndex={-1} onClick={openLink} onPointerOver={checkLink} onFocus={checkLink}
+        style={web ? { visibility: "hidden" } : undefined}>
         {video || embed ? <div>{embed ? <VideoEmbed key={item.id} item={item} face={face} embed={embed} /> : play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
         <div style={{ display: "grid", gap: 6 }}>
           {renaming ? <RenameTitle itemId={item.id} title={item.title} onDone={() => setRenaming(false)} /> : <h2 className="p-title" ref={titleRef} tabIndex={-1} dir="auto">{item.title}</h2>}
@@ -216,12 +270,12 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
             <Icon name="bookmark" />{kept ? <><span className="kin">Kept in</span><span className="k" dir="auto">{keptName}</span></> : "Keep"}<Icon name="chev" size="sm" />
           </button>
-          {href ? <a className={`mbtn${detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer">{embed ? `Open on ${embed.platform}` : video && play ? play.label : "Open original"}<NewTab /><Icon name="ext" size="sm" /></a> : null}
+          {href ? <a className={`mbtn${detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? `Open on ${embed.platform}` : video && play ? play.label : "Open original"}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
           {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">Open the audio<NewTab /><Icon name="ext" size="sm" /></a> : null}
         </div>
         {kept ? <ItemReminder itemId={item.id} /> : null}
         {markPending ? <p className="fine p-pend" role="status"><Icon name="clock" size="sm" />Not sent yet. Saved on this device. It'll be sent when PURSS is reachable.</p> : null}
-        {!html && !loading && excerpt ? <p className="p-ex" dir="auto">{splitLinks(excerpt).map((p, i) => (p.href ? <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow">{p.text}</a> : <Fragment key={i}>{p.text}</Fragment>))}</p> : null}
+        {!html && !loading && excerpt ? <p className="p-ex" dir="auto" data-inapp="">{splitLinks(excerpt).map((p, i) => (p.href ? <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow">{p.text}</a> : <Fragment key={i}>{p.text}</Fragment>))}</p> : null}
         {!loading && !fromDevice && (detail?.contentOmitted || summaryOnly) ? (
           <p className="p-warn p-sum" role="note"><Icon name="info" /><span>{detail?.contentOmitted ? "The feed's full text was too large to store; open the original." : "Summary only — the full article stays on the original site."}</span></p>
         ) : null}
@@ -243,7 +297,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
               <p className="fine kept-note" role="note">{partial.note}{" "}
                 {detail?.contentHtml ? <button type="button" className="link" onClick={() => setShowPartial((v) => !v)}>{partialShown ? "Show the feed's own text" : "Show what was saved of the page"}</button> : null}</p>
             ) : null}
-            <div className="prose" dir="auto" ref={proseRef} dangerouslySetInnerHTML={{ __html: highlighted.html ?? html }} />
+            <div className="prose" dir="auto" data-inapp="" ref={proseRef} dangerouslySetInnerHTML={{ __html: highlighted.html ?? html }} />
             {fromDevice ? null : <ReaderHighlights proseRef={proseRef} ann={ann} textRef={(partialShown ? partial!.ref : latest ? detail?.latestRef : detail?.contentRef) ?? null} />}</> : null}
         <hr />
         <NotesSection ann={ann} detached={highlighted.detached} hasText={!!html && !fromDevice} proseRef={proseRef} tz={tz} />
@@ -260,7 +314,8 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
             : <p className="fine">Keeping saves the link, title and summary. Baskets that save text also keep the page text. The original page may change or disappear.</p>}
         </section>
       </div>
-      {display === "eink" ? <PageNav target={bodyRef} what="article" /> : null}
+      {web ? <WebPane url={web} top={barBottom} onClose={() => { setWeb(null); bodyRef.current?.focus({ preventScroll: true }); }} /> : null}
+      {display === "eink" && !web ? <PageNav target={bodyRef} what="article" /> : null}
     </>
   );
 }

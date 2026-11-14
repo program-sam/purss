@@ -60,4 +60,6 @@ export const webPlatform: Platform = {
   badge: null,
   onIntake: () => () => {},
   desktop: null,
+  webView: null,
+  frames: true,
 };

@@ -56,6 +56,29 @@ export interface Platform {
   onIntake(listener: (intake: Intake) => void): () => void;
   /** What only the desktop app has (plan/42): its own updates, starting at sign-in, the downloads folder; null elsewhere. */
   readonly desktop: DesktopApp | null;
+  /**
+   * How the reader shows pages from other sites (plan/43): `webView` is the desktop app's own web view, which shows
+   * any page; `frames` says the reader may frame a page whose headers allow it (the web app, on PURSS's own origin).
+   * With neither, pages open outside PURSS (`openExternal`; on the phones a browser tab over the app).
+   */
+  readonly webView: WebView | null;
+  readonly frames: boolean;
+}
+
+/** A place in the page, in CSS pixels. */
+export type WebBounds = { x: number; y: number; width: number; height: number };
+
+/** The desktop app's web view for pages from other sites: drawn over a part of the window the page chooses. */
+export interface WebView {
+  /** Show `url` at `bounds`. */
+  open(url: string, bounds: WebBounds): Promise<void>;
+  /** Move it, or hide it (null) while something of PURSS's covers its place. */
+  place(bounds: WebBounds | null): void;
+  /** Take it away and unload its page. */
+  close(): void;
+  go(action: "back" | "forward" | "reload"): void;
+  /** The address it shows and whether it is loading, as it changes. Returns a function that stops listening. */
+  subscribe(listener: (state: { url: string; loading: boolean }) => void): () => void;
 }
 
 /** A feed link (`feed:`, `podcast:`) to add as a source, or an OPML file to import. */

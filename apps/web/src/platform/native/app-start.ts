@@ -35,13 +35,17 @@ export function takeStuck(): boolean {
   try { const stuck = sessionStorage.getItem(STUCK_KEY) !== null; sessionStorage.removeItem(STUCK_KEY); return stuck; } catch { return false; }
 }
 
-/** Links to other sites go to `open` (the system browser), never inside the app's own page. */
+/**
+ * Links to other sites go to `open` (the system browser), never inside the app's own page. The reader's own links
+ * (`data-inapp`: the original, the article, its excerpt) are left to the reader, which shows them in the desktop app's
+ * web view or hands them to `openExternal` (plan/43).
+ */
 export function sendLinksOut(open: (url: string) => void): void {
   const out = (url: string) => { if (/^https?:\/\//i.test(url)) open(url); };
   window.open = ((url?: string | URL) => { if (url) out(String(url)); return null; }) as typeof window.open;
   document.addEventListener("click", (e) => {
     const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-    if (!a || e.defaultPrevented) return;
+    if (!a || e.defaultPrevented || a.closest("[data-inapp]")) return;
     const href = a.href;
     if (/^https?:\/\//i.test(href) && new URL(href).origin !== location.origin) { e.preventDefault(); out(href); }
   }, true);

@@ -1,6 +1,7 @@
 //! The desktop app (plan/42): the web app's interface in a Tauri window, with the few things only a desktop app
 //! can do. Every power the page has is one of the commands below, and each checks its own arguments; no plugin is
-//! reachable from the page (capabilities/main.json allows only listening to events).
+//! reachable from the page (capabilities/main.json allows only listening to events). Only the main web view reaches
+//! them: the web view for other sites' pages (web.rs, plan/43) is refused every command.
 //!
 //! Closing the window hides it: the page keeps running in the tray, so the event stream, notifications and
 //! automatic downloads go on until the person quits from the tray icon.
@@ -9,6 +10,7 @@ mod connection;
 mod files;
 mod incoming;
 mod interfaces;
+mod web;
 
 use connection::ConnectionStore;
 use files::Files;
@@ -79,7 +81,8 @@ fn leave_appimage() {
 }
 
 pub fn show_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(w) = app.get_webview_window(MAIN) {
+    // The window, not `get_webview_window`: with the web view for other sites inside it, it holds two web views.
+    if let Some(w) = app.get_window(MAIN) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
@@ -215,7 +218,7 @@ fn show_notification(app: &AppHandle, tag: String, title: String, body: Option<S
 /// The bell's unread count on the dock or launcher icon (macOS, Linux launchers that support it) and in the tray's tooltip.
 #[tauri::command]
 fn set_badge(count: u32, app: AppHandle) {
-    if let Some(w) = app.get_webview_window(MAIN) {
+    if let Some(w) = app.get_window(MAIN) {
         let _ = w.set_badge_count(if count > 0 { Some(count as i64) } else { None });
     }
     if let Some(tray) = app.tray_by_id(MAIN) {
@@ -349,9 +352,9 @@ fn interface_remove(id: String, i: State<'_, Interfaces>) -> Result<(), String> 
 
 /// Switch to an interface; the page reloads at the root, served from it.
 #[tauri::command]
-fn interface_apply<R: Runtime>(id: String, i: State<'_, Interfaces>, window: tauri::WebviewWindow<R>) -> Result<(), String> {
+fn interface_apply<R: Runtime>(id: String, i: State<'_, Interfaces>, webview: tauri::Webview<R>) -> Result<(), String> {
     i.apply(&id)?;
-    window.eval("location.replace('/')").map_err(|e| e.to_string())
+    webview.eval("location.replace('/')").map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -636,22 +639,31 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])));
 
     let rollback = interfaces.clone();
+    let commands: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+        connection_read, connection_save, connection_forget, credential_store, device_name, app_version,
+        open_external, save_file, notify, set_badge, take_incoming,
+        files_download, files_cancel, files_list, files_write_text, files_read_text, files_read_bytes, files_remove,
+        files_media_base, files_folder, files_choose_folder, files_show_folder,
+        interface_builtin, interface_current, interface_install, interface_list, interface_remove, interface_apply,
+        interface_failed, interface_ready,
+        app_update_state, app_update_restart, autostart_get, autostart_set,
+        web::web_open, web::web_place, web::web_close, web::web_go,
+    ];
     let app = builder
         .manage(interfaces.clone())
         .manage(Queue::default())
         .manage(AppUpdate::default())
-        .invoke_handler(tauri::generate_handler![
-            connection_read, connection_save, connection_forget, credential_store, device_name, app_version,
-            open_external, save_file, notify, set_badge, take_incoming,
-            files_download, files_cancel, files_list, files_write_text, files_read_text, files_read_bytes, files_remove,
-            files_media_base, files_folder, files_choose_folder, files_show_folder,
-            interface_builtin, interface_current, interface_install, interface_list, interface_remove, interface_apply,
-            interface_failed, interface_ready,
-            app_update_state, app_update_restart, autostart_get, autostart_set,
-        ])
+        // The app's commands are for its own page only, never for the web view showing other sites (plan/43).
+        .invoke_handler(move |invoke| {
+            if invoke.message.webview_ref().label() != MAIN {
+                invoke.resolver.reject("not available here");
+                return true;
+            }
+            commands(invoke)
+        })
         // An interface switched to must report that it started; otherwise the previous one comes back (plan/39).
         .on_page_load(move |webview, payload| {
-            if payload.event() != PageLoadEvent::Finished || !rollback.on_trial() {
+            if webview.label() != MAIN || payload.event() != PageLoadEvent::Finished || !rollback.on_trial() {
                 return;
             }
             let interfaces = rollback.clone();

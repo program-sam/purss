@@ -45,11 +45,10 @@ test("the policy built into the web page never narrows what the server's header 
   }
 });
 
-test("the server's header frames exactly the video players the reader embeds", async () => {
+test("the server's header frames web pages only: the reader's video players and originals that allow it (plan/43)", async () => {
   const { CSP } = await import("./server.ts");
-  const { EMBED_ORIGINS } = await import("../../web/src/lib/embeds.ts");
-  const frames = /frame-src ([^;]+);/.exec(CSP)![1]!.split(" ");
-  assert.deepEqual(frames, [...EMBED_ORIGINS]);
+  assert.deepEqual(/frame-src ([^;]+);/.exec(CSP)![1]!.split(" "), ["https:", "http:"]);
+  assert.match(CSP, /frame-ancestors 'none'/, "PURSS itself is never framed");
 });
 
 test("a large upload that stalls or trickles is given up, so it can't hold the one-at-a-time slot", async () => {

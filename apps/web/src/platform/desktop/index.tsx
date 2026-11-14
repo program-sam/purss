@@ -15,7 +15,7 @@ import { OfflineWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
 import { workspacePolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
-import type { AppConnection, DesktopApp, DesktopUpdate, Intake, Notifier, OfflineHost, Platform, Transport } from "../types.ts";
+import type { AppConnection, DesktopApp, DesktopUpdate, Intake, Notifier, OfflineHost, Platform, Transport, WebView } from "../types.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "../native/app-start.ts";
 import { parseConnection } from "../native/connect.ts";
 import type { Connection } from "../native/connect.ts";
@@ -133,6 +133,19 @@ function desktopNotifier(): Notifier {
       if (actions.size > 50) actions.delete(actions.keys().next().value!);
       void desktop.notify(note.tag, note.title, note.body ?? null).catch(() => undefined);
     },
+  };
+}
+
+/** The app's web view for other sites' pages (plan/43); Rust checks every address and place. */
+function desktopWebView(): WebView {
+  const listeners = new Set<(s: { url: string; loading: boolean }) => void>();
+  void desktop.onWebState((s) => { for (const l of listeners) l(s); });
+  return {
+    open: (url, bounds) => desktop.webOpen(url, bounds),
+    place: (bounds) => { void desktop.webPlace(bounds).catch(() => undefined); },
+    close: () => { void desktop.webClose().catch(() => undefined); },
+    go: (action) => { void desktop.webGo(action).catch(() => undefined); },
+    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
   };
 }
 
@@ -292,6 +305,8 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
     badge: conn ? (count) => { void desktop.setBadge(count).catch(() => undefined); } : null,
     onIntake,
     desktop: desktopApp(),
+    webView: desktopWebView(),
+    frames: false,
   };
 }
 

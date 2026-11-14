@@ -52,6 +52,7 @@ const PATHS = {
   alert: "M12 8v5M12 16.5h.01",
   user: "M5 20a7 7 0 0 1 14 0",
   compass: "M15.5 8.5l-2 5-5 2 2-5z",
+  reload: "M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5",
 } as const;
 
 export type IconName = keyof typeof PATHS;

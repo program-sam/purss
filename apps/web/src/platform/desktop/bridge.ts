@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { DesktopUpdate } from "../types.ts";
+import type { DesktopUpdate, WebBounds } from "../types.ts";
 
 /*
  * The desktop app's commands (apps/desktop/src-tauri, plan/42), typed. Every power the page has over the
@@ -62,6 +62,13 @@ export const desktop = {
   startAtLogin: () => invoke<boolean>("autostart_get"),
   setStartAtLogin: (on: boolean) => invoke<void>("autostart_set", { on }),
   appVersion: () => invoke<string>("app_version"),
+
+  /** The web view for other sites' pages (plan/43): opened at a place in the window, moved, hidden (null) or closed. */
+  webOpen: (url: string, bounds: WebBounds) => invoke<void>("web_open", { url, bounds }),
+  webPlace: (bounds: WebBounds | null) => invoke<void>("web_place", { bounds }),
+  webClose: () => invoke<void>("web_close"),
+  webGo: (action: "back" | "forward" | "reload") => invoke<void>("web_go", { action }),
+  onWebState: (listener: (s: { url: string; loading: boolean }) => void) => listen<{ url: string; loading: boolean }>("purss://web", (e) => listener(e.payload)),
 
   /** Told when something is waiting in takeIncoming(). */
   onIncoming: (listener: () => void) => listen("purss://incoming", () => listener()),
