@@ -132,10 +132,10 @@ export function deleteCollection(app: App, p: Principal, id: string): void {
 // ---------- baskets ----------
 
 export function listBaskets(app: App, p: Principal): BasketDTO[] {
-  return app.db.all<{ id: string; name: string; capture_mode: BasketDTO["captureMode"]; position: number; n: number }>(
-    "SELECT b.id, b.name, b.capture_mode, b.position, (SELECT COUNT(*) FROM basket_items x WHERE x.basket_id = b.id) AS n FROM baskets b WHERE b.workspace_id = ? ORDER BY b.position, b.created_at",
+  return app.db.all<{ id: string; name: string; capture_mode: BasketDTO["captureMode"]; view: BasketDTO["view"]; position: number; n: number }>(
+    "SELECT b.id, b.name, b.capture_mode, b.view, b.position, (SELECT COUNT(*) FROM basket_items x WHERE x.basket_id = b.id) AS n FROM baskets b WHERE b.workspace_id = ? ORDER BY b.position, b.created_at",
     p.workspaceId,
-  ).map((b) => ({ id: b.id, name: b.name, captureMode: b.capture_mode, position: b.position, itemCount: b.n }));
+  ).map((b) => ({ id: b.id, name: b.name, captureMode: b.capture_mode, view: b.view, position: b.position, itemCount: b.n }));
 }
 
 export function createBasket(app: App, p: Principal, input: z.infer<typeof basketCreateSchema>): BasketDTO {
@@ -152,6 +152,7 @@ export function patchBasket(app: App, p: Principal, id: string, patch: z.infer<t
   app.db.tx(() => {
     if (patch.name !== undefined) { assertUniqueName(app, "baskets", p.workspaceId, patch.name, id); app.db.run("UPDATE baskets SET name = ? WHERE id = ?", patch.name, id); }
     if (patch.captureMode !== undefined) app.db.run("UPDATE baskets SET capture_mode = ? WHERE id = ?", patch.captureMode, id);
+    if (patch.view !== undefined) app.db.run("UPDATE baskets SET view = ? WHERE id = ?", patch.view, id);
     if (patch.position !== undefined && patch.position !== b.position) reorder(app, "baskets", p.workspaceId, id, patch.position);
   });
   return listBaskets(app, p).find((x) => x.id === id)!;

@@ -103,6 +103,7 @@ const basketSchema = z.object({
   id,
   name: text(80),
   captureMode: z.enum(["metadata", "text"]).default("text"),
+  view: z.enum(["list", "cards", "timeline"]).default("list"),
   position: z.number().int().min(0).default(0),
   createdAt: iso,
 });

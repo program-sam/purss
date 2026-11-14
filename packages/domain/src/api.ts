@@ -115,11 +115,16 @@ export type BasketDTO = {
   id: string;
   name: string;
   captureMode: "metadata" | "text";
+  /** The view it opens in: the one last chosen on it. */
+  view: BasketViewMode;
   position: number;
   itemCount: number;
 };
 export type ViewMode = "list" | "cards" | "board" | "table" | "timeline";
 export const VIEW_MODES: readonly ViewMode[] = ["list", "cards", "board", "table", "timeline"];
+/** A basket's views: no board (it has no workflow columns of its own) and no table. */
+export type BasketViewMode = "list" | "cards" | "timeline";
+export const BASKET_VIEW_MODES: readonly BasketViewMode[] = ["list", "cards", "timeline"];
 
 export type Preferences = {
   theme: "system" | "light" | "dark";
@@ -451,6 +456,7 @@ export const basketCreateSchema = z.object({ name: z.string().trim().min(1).max(
 export const basketPatchSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   captureMode: z.enum(["metadata", "text"]).optional(),
+  view: z.enum(["list", "cards", "timeline"]).optional(),
   position: z.number().int().min(0).optional(),
 });
 export const manualKeepSchema = z.object({

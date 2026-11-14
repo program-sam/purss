@@ -322,6 +322,21 @@ async function main(): Promise<void> {
     await page.keyboard.press("Escape");
     step("a basket shows an ignored item like any kept item and offers no Ignore");
 
+    // A basket opens in the view last chosen on it, after going elsewhere and after a reload.
+    const saved = page.waitForResponse((r) => r.url().includes("/api/bootstrap") && r.ok());
+    await page.getByRole("button", { name: "Cards", exact: true }).first().click();
+    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
+    await saved;
+    await page.getByText("Reading", { exact: true }).first().click();
+    await page.getByRole("button", { name: "List", exact: true, pressed: true }).first().waitFor();
+    await page.getByText("Read later", { exact: true }).first().click();
+    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
+    assert.doesNotMatch(page.url(), /view=/, "the basket's own view, not one carried in the address");
+    await page.reload();
+    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
+    await page.getByRole("button", { name: "List", exact: true }).first().click();
+    step("a basket keeps the view last chosen on it");
+
     const meter = page.locator(".side-foot .stor");
     assert.match(await meter.innerText(), /^[1-9]\d* sources?$/, "the sidebar counts the followed sources");
     await meter.click();

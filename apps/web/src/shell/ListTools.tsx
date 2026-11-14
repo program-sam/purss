@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { Sort, ViewMode } from "@purss/domain";
+import { BASKET_VIEW_MODES } from "@purss/domain";
+import type { BasketViewMode, Sort, ViewMode } from "@purss/domain";
 import { Icon, useBreakpoint } from "@purss/ui";
 import type { MenuEntry } from "@purss/ui";
 import { patch } from "../api/client.ts";
@@ -13,6 +14,8 @@ import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { useMainWidth } from "../lib/use-now.ts";
+
+const isBasketView = (v: ViewMode): v is BasketViewMode => (BASKET_VIEW_MODES as readonly ViewMode[]).includes(v);
 
 /** A list page's view, filter, sort and select controls; the page places them in its own header. */
 export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
@@ -31,6 +34,9 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
     if (place.t === "c" && ws.collectionById.get(place.id)?.view !== v) {
       // Remembered per collection: the collection's default view follows the last one chosen.
       void patch(`/api/collections/${encodeURIComponent(place.id)}`, { view: v }).then(() => qc.invalidateQueries({ queryKey: ["bootstrap"] }), () => undefined);
+    } else if (place.t === "b" && ws.basketById.get(place.id)?.view !== v && isBasketView(v)) {
+      // Baskets remember theirs the same way.
+      void patch(`/api/baskets/${encodeURIComponent(place.id)}`, { view: v }).then(() => qc.invalidateQueries({ queryKey: ["bootstrap"] }), () => undefined);
     }
   };
 

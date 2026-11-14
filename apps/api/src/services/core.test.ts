@@ -5,7 +5,7 @@ import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
 import { listItems, getItemDetail, insertItem, searchSnippets } from "./items.ts";
 import { applyUndo, bulk, changeState, keepItem, keepWithUndo, unkeepItem } from "./state.ts";
 import { admitObject, categories, reconcile, summary, usedBytes, diskOverride } from "./storage.ts";
-import { createBasket, createCollection, deleteItems, deletePreview } from "./collections.ts";
+import { createBasket, createCollection, deleteItems, deletePreview, listBaskets, patchBasket } from "./collections.ts";
 import { completeCapture, failCapture } from "./captures.ts";
 import { HttpError } from "../http.ts";
 
@@ -315,6 +315,20 @@ test("a long post that cites a DOI is an article; a DOI link or short abstract i
   ]));
   const kinds = Object.fromEntries(listItems(app, p, { scope: "all" }).items.map((i) => [i.title, i.kind]));
   assert.deepEqual(kinds, { Essay: "article", Abstract: "paper", Linked: "paper" });
+});
+
+test("a basket keeps the view last chosen on it, apart from other baskets and PURSSes", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const one = createBasket(app, p, { name: "One", captureMode: "metadata" });
+  const two = createBasket(app, p, { name: "Two", captureMode: "metadata" });
+  assert.equal(one.view, "list", "a new basket opens as a list");
+  assert.equal(patchBasket(app, p, one.id, { view: "cards" }).view, "cards");
+  assert.deepEqual(listBaskets(app, p).map((b) => [b.name, b.view]), [["One", "cards"], ["Two", "list"]]);
+  const other = makeOwner(app, { admin: false });
+  assert.throws(() => patchBasket(app, other, two.id, { view: "timeline" }), (e: unknown) => e instanceof HttpError && e.status === 404);
+  assert.equal(listBaskets(app, p).find((b) => b.id === two.id)!.view, "list");
+  assert.throws(() => app.db.run("UPDATE baskets SET view = 'board' WHERE id = ?", two.id), "a basket has no board view");
 });
 
 test("collection and basket names are unique per PURSS, ignoring case", (t) => {

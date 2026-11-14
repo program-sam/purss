@@ -1,4 +1,5 @@
 import { useSearch } from "@tanstack/react-router";
+import { BASKET_VIEW_MODES } from "@purss/domain";
 import type { Sort, ViewMode } from "@purss/domain";
 import { useBreakpoint } from "@purss/ui";
 import type { ListFilter } from "../lib/constants.ts";
@@ -37,7 +38,7 @@ export function scopeOf(place: Place): string {
 
 /** Views offered on a page: baskets keep to list, cards and timeline; phones drop the wide table. */
 export function modesFor(place: Place | null, xs: boolean): ViewMode[] {
-  if (place?.t === "b" || place?.t === "r") return ["list", "cards", "timeline"];
+  if (place?.t === "b" || place?.t === "r") return [...BASKET_VIEW_MODES];
   return xs ? ["list", "cards", "board", "timeline"] : ["list", "cards", "board", "table", "timeline"];
 }
 
@@ -47,7 +48,7 @@ export function useListState(place: Place | null): ListState {
   const ws = useWorkspace();
   const xs = useBreakpoint() === "xs";
   const modes = modesFor(place, xs);
-  const dflt: ViewMode = place?.t === "c" ? ws.collectionById.get(place.id)?.view ?? "list" : "list";
+  const dflt: ViewMode = place?.t === "c" ? ws.collectionById.get(place.id)?.view ?? "list" : place?.t === "b" ? ws.basketById.get(place.id)?.view ?? "list" : "list";
   const wanted = search.view ?? dflt;
   const view = modes.includes(wanted) ? wanted : "list";
   // The open item that was New still counts as New here until the panel closes, so the list behind does not switch.

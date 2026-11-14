@@ -9,7 +9,7 @@ import type { App, Principal } from "../app.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, seedLibrary, shareRow } from "../features-testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItem, listItems } from "./items.ts";
-import { createBasket, createCollection } from "./collections.ts";
+import { createBasket, createCollection, patchBasket } from "./collections.ts";
 import { changeState } from "./state.ts";
 import { reconcile, usedBytes } from "./storage.ts";
 import { applyImport, reconnectSource, stageImport, streamExport } from "./portability.ts";
@@ -169,6 +169,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   const lib = seedLibrary(a, pa);
   changeState(a, pa, lib.pinnedOld.itemId, { workflow: "toread", progress: 0.5, expectedRevision: 0 });
   createCollection(a, pa, { name: "Letters", emoji: "✉️", mode: "sources", sourceIds: [lib.publicSource], query: null, view: "cards" });
+  patchBasket(a, pa, lib.baskets.reading, { view: "timeline" });
   createCollection(a, pa, { name: "Reading filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "basket", value: [lib.baskets.reading] }, { field: "source", value: [lib.publicSource] }] }, view: "list" });
   const shareId = shareRow(a, pa, "basket", lib.baskets.reading, "published", "Sam Q.");
   a.db.run("UPDATE shares SET listed = 1, description = 'good ones' WHERE id = ?", shareId);
@@ -235,6 +236,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   const publicB = b.db.get<{ id: string }>("SELECT id FROM sources WHERE title = 'Sediment Letters'")!.id;
   assert.deepEqual(JSON.parse(b.db.get<{ query: string }>("SELECT query FROM collections WHERE name = 'Reading filter'")!.query), { all: [{ field: "basket", value: [readingB] }, { field: "source", value: [publicB] }] });
   assert.equal(b.db.all("SELECT 1 FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE c.name = 'Letters'").length, 1);
+  assert.deepEqual(b.db.all<{ name: string; view: string }>("SELECT name, view FROM baskets ORDER BY name").map((r) => [r.name, r.view]), [["Later", "list"], ["Reading", "timeline"]], "each basket's view travels");
 
   // Sharing settings come back switched off, on the matching basket, with a fresh address; nothing is shared.
   const shareB = b.db.get<{ status: string; slug: string; listed: number; target_id: string; curator_name: string; description: string }>("SELECT * FROM shares")!;

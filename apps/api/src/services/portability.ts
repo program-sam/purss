@@ -153,9 +153,9 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
       }
     })());
 
-    await array("baskets", all<{ id: string; name: string; capture_mode: string; position: number; created_at: string }>(
-      "SELECT id, name, capture_mode, position, created_at FROM baskets WHERE workspace_id = ? ORDER BY position, created_at", ws)
-      .map((b) => ({ id: b.id, name: b.name, captureMode: b.capture_mode, position: b.position, createdAt: b.created_at })));
+    await array("baskets", all<{ id: string; name: string; capture_mode: string; view: string; position: number; created_at: string }>(
+      "SELECT id, name, capture_mode, view, position, created_at FROM baskets WHERE workspace_id = ? ORDER BY position, created_at", ws)
+      .map((b) => ({ id: b.id, name: b.name, captureMode: b.capture_mode, view: b.view, position: b.position, createdAt: b.created_at })));
 
     await array("memberships", all<{ basket_id: string; item_id: string; version_id: string; kept_at: string }>(
       "SELECT basket_id, item_id, version_id, kept_at FROM basket_items WHERE workspace_id = ? ORDER BY kept_at, basket_id, item_id", ws)
@@ -1024,7 +1024,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   let basketPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM baskets WHERE workspace_id = ?", ws)!.n;
   for (const b of plan.baskets.values()) {
     if (!b.create) continue;
-    app.db.run("INSERT INTO baskets (id, workspace_id, name, capture_mode, position, created_at) VALUES (?, ?, ?, ?, ?, ?)", b.id, ws, b.create.name, b.create.captureMode, basketPos++, ISO_FALLBACK(b.create.createdAt, now));
+    app.db.run("INSERT INTO baskets (id, workspace_id, name, capture_mode, view, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", b.id, ws, b.create.name, b.create.captureMode, b.create.view, basketPos++, ISO_FALLBACK(b.create.createdAt, now));
     result.created.baskets++;
   }
   const maps: Maps = { sources: new Map([...plan.sources].map(([k, v]) => [k, v.id])), baskets: new Map([...plan.baskets].map(([k, v]) => [k, v.id])), collections: new Map([...plan.collections].map(([k, v]) => [k, v.id])) };
