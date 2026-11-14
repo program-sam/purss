@@ -1,5 +1,5 @@
 import { useItemActions } from "../state/actions.ts";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ItemDetail } from "@purss/domain";
 import { Avatar, Button, Icon, IconButton } from "@purss/ui";
@@ -147,6 +147,18 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const stateEntries = () => [...ACTIVE_STATES, ...(inBasket ? [] : ["ignored" as const])].map<MenuEntry>((k) => ({
     type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
   }));
+  // On the reading path one click moves the item a step on, and the chevron beside it opens every state; at the end it opens the menu.
+  const openStates = (e: MouseEvent<HTMLButtonElement>) => popups.menu(e.currentTarget, stateEntries(), "State");
+  const stateControl = (keyed: boolean) => status.next ? (
+    <span className={`st-split st st-${item.workflow}`}>
+      <button type="button" className="mbtn st-go" aria-label={status.aria} onClick={() => void actions.setWorkflow([item.id], status.next!)}>{status.text}</button>
+      <button type="button" className="mbtn st-more" aria-haspopup="menu" aria-label={status.menuAria} title={status.menuAria.split(".")[0]} onClick={openStates}><Icon name="chev" size="sm" /></button>
+    </span>
+  ) : (
+    <button type="button" className={`mbtn st st-${item.workflow}`} aria-haspopup="menu" aria-label={status.aria} onClick={openStates}>
+      {keyed && status.keyed ? <span className="k">State</span> : null}{status.text}<Icon name="chev" size="sm" />
+    </button>
+  );
   // Only PURSS's own answer says a copy was kept; until then the panel says so, and never prints a date it does not have.
   const keptLine = pending ? "Keeping this. Saved on this device until PURSS confirms."
     : detail?.keptVersionAt ? `Kept on ${dateTime(detail.keptVersionAt, tz)}.` : `Kept in ${keptName}.`;
@@ -173,8 +185,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
         {titleGone ? (
           // Scrolled past the actions: State and Keep stay within reach in the bar.
           <span className="pb-acts">
-            <button type="button" className={`mbtn st st-${item.workflow}`} aria-haspopup="menu" aria-label={status.aria}
-              onClick={(e) => popups.menu(e.currentTarget, stateEntries(), "State")}>{status.text}<Icon name="chev" size="sm" /></button>
+            {stateControl(false)}
             <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" aria-label={kept ? `Kept in ${keptName}. Change baskets` : "Keep in a basket"} onClick={(e) => menus.openKeep(item, e.currentTarget)}>
               <Icon name="bookmark" /><span className="pb-kl">{kept ? "Kept" : "Keep"}</span></button>
           </span>
@@ -201,10 +212,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           {seen ? <p className="fine p-seen">Marked as seen <button type="button" className="link" onClick={() => void actions.undoSeenMarker(seen)}>Undo</button></p> : null}
         </div>
         <div className="p-acts" role="group" aria-label="Item actions">
-          <button type="button" className={`mbtn st st-${item.workflow}`} aria-haspopup="menu" aria-label={status.aria}
-            onClick={(e) => popups.menu(e.currentTarget, stateEntries(), "State")}>
-            {status.keyed ? <span className="k">State</span> : null}{status.text}<Icon name="chev" size="sm" />
-          </button>
+          {stateControl(true)}
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
             <Icon name="bookmark" />{kept ? <><span className="kin">Kept in</span><span className="k" dir="auto">{keptName}</span></> : "Keep"}<Icon name="chev" size="sm" />
           </button>

@@ -2,10 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { statusButton } from "./status-label.ts";
 
-test("the status button invites a choice while nothing is set, and names the state otherwise", () => {
-  assert.deepEqual(statusButton("new", "article"), { text: "Set status", aria: "Set status", keyed: false });
-  assert.deepEqual(statusButton("toread", "article"), { text: "To read", aria: "State: To read. Change state", keyed: true });
-  assert.equal(statusButton("toread", "video").text, "To watch");
-  assert.equal(statusButton("toread", "podcast").text, "To listen");
-  assert.equal(statusButton("finished").text, "Finished");
+test("the status button steps an item along the reading path, and names the state at its end", () => {
+  assert.deepEqual(statusButton("new", "article"), { text: "Mark as to read", aria: "Mark as To read", keyed: false, next: "toread", menuAria: "State: Undecided. Change state" });
+  assert.deepEqual(statusButton("toread", "article"), { text: "Mark as in progress", aria: "Mark as In progress", keyed: false, next: "inprogress", menuAria: "State: To read. Change state" });
+  assert.equal(statusButton("inprogress").next, "finished");
+  assert.equal(statusButton("inprogress").text, "Mark as finished");
+  assert.equal(statusButton("new", "video").text, "Mark as to watch");
+  assert.equal(statusButton("toread", "podcast").menuAria, "State: To listen. Change state");
+  assert.deepEqual(statusButton("finished"), { text: "Finished", aria: "State: Finished. Change state", keyed: true, menuAria: "State: Finished. Change state" });
+  assert.equal(statusButton("ignored").next, undefined);
 });

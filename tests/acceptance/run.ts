@@ -202,10 +202,17 @@ async function main(): Promise<void> {
     await page.keyboard.press("o");
     await page.waitForURL(/item=/);
     const title = (await page.locator(".p-title").first().innerText()).trim();
-    await page.getByRole("button", { name: /^(State: |Set status)/ }).click();
+    await page.getByRole("button", { name: /^State: / }).click();
     await page.getByRole("menuitemradio", { name: "To read" }).click();
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step(`opened “${title.slice(0, 50)}” and marked it To read`);
+    // The status button steps along the reading path, one click a step, and names the state at its end.
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark as In progress", exact: true }).click();
+    await page.locator("#toasts").getByText("Marked In progress").waitFor();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark as Finished", exact: true }).click();
+    await page.locator("#toasts").getByText("Marked Finished").waitFor();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: "State: Finished. Change state", exact: true }).waitFor();
+    step("stepped it on to In progress and Finished with the status button, one click each");
 
     // Triage from the list itself: To read and Ignore each take one click on the row.
     const rowById = async (n: number) => {

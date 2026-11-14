@@ -426,8 +426,10 @@ else gets the sign-in page). You can also share a whole basket or collection as 
 Every item is in one state: **Undecided**, **To read**, **In progress**, **Finished** or **Ignored**.
 Change it from the item panel, the board, the keyboard, or for many items at once with
 **Select** (*Select all* takes every item the list shows, not only the ones loaded so far, up to
-5,000). In the item panel the status button says **Set status** while nothing is chosen
-(Undecided is what filters, the board and the status menu call it), and the state's name after that. Any state can move to any other. Finished doesn't delete anything; Ignored hides an
+5,000). In the item panel the status button moves the item one step along the reading path:
+**Mark as to read** while it is Undecided, then **Mark as in progress**, then **Mark as finished**
+(videos say *to watch*, podcasts *to listen*). The arrow beside it opens every state; once an item
+is Finished or Ignored the button names that state and opens the same menu. Any state can move to any other. Finished doesn't delete anything; Ignored hides an
 item from the usual lists (tick *Show ignored items* to see it) and doesn't unfollow its
 source.
 

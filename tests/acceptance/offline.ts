@@ -257,7 +257,7 @@ async function main(): Promise<void> {
     await tidalRow(page).first().click();
     await page.waitForURL(/item=/);
     await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
-    await page.getByRole("button", { name: /^(State: |Set status)/ }).click();
+    await page.getByRole("button", { name: /^State: / }).click();
     await page.getByRole("menuitemradio", { name: "To read" }).click();
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step("opened “Tidal flats and sediment” and marked it To read");
@@ -346,7 +346,7 @@ async function main(): Promise<void> {
     step("wrote a note offline: it shows as waiting to sync, and is still there after reloading offline");
 
     // A change made offline is kept on this device and sent once the PURSS can be reached.
-    await page.getByRole("button", { name: /^(State: |Set status)/ }).click();
+    await page.getByRole("button", { name: /^State: / }).click();
     await page.getByRole("menuitemradio", { name: "Finished" }).click();
     await page.locator("#toasts").getByText(/Not sent yet/).first().waitFor();
     await page.locator("#panel-in .p-pend").waitFor();
@@ -367,7 +367,7 @@ async function main(): Promise<void> {
     const notes = (await annotationsOf(page, itemId)).filter((a) => a.kind === "note").map((a) => a.body);
     assert.deepEqual(notes, ["Written on the train, offline"], "the server has the note written offline");
     // Back to To read, so the offline copy still has something to keep in the steps below.
-    await page.getByRole("button", { name: /^(State: |Set status)/ }).click();
+    await page.getByRole("button", { name: /^State: / }).click();
     await page.getByRole("menuitemradio", { name: "To read" }).click();
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step("back online: the notice goes away, and the change and the note made offline are sent");
