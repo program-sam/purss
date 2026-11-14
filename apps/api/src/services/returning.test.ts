@@ -157,7 +157,7 @@ test("following a source again starts a new episode: the old confirmation does n
   walk(app, p);
   unfollowSource(app, p, src);
   holdCandidate("dsc_again", p.workspaceId, { feedUrl: "https://example.org/feed/1.xml", siteUrl: null, title: "Back again", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null });
-  followSource(app, p, { token: "dsc_again", collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false, fullText: false });
+  followSource(app, p, { token: "dsc_again", collectionId: null, newCollectionName: null, markPrivate: false, fullText: false });
   const row = app.db.get<{ id: string; s: string | null; b: string | null; f: number }>("SELECT id, subscribed_at AS s, backlog_settled_at AS b, followed AS f FROM sources WHERE id = ?", src)!;
   assert.deepEqual({ ...row }, { id: src, s: null, b: null, f: 1 }, "the same source, followed from now, not yet confirmed by the engine");
 

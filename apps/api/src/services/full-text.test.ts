@@ -165,7 +165,7 @@ function hold(p: Principal, over: { kind?: "feed" | "youtube"; summariesOnly?: b
 test("following can turn full articles on, except for kinds and private links that can't have them", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  const base = { collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false };
+  const base = { collectionId: null, newCollectionName: null, markPrivate: false };
   assert.equal(followSource(app, p, { ...base, token: hold(p), fullText: true }).fullText, true);
   assert.equal(followSource(app, p, { ...base, token: hold(p), fullText: false }).fullText, false);
   assert.equal(followSource(app, p, { ...base, token: hold(p, { kind: "youtube" }), fullText: true }).fullText, false);

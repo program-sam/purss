@@ -417,7 +417,6 @@ export const followSchema = z.object({
   token: z.string(),
   collectionId: z.string().nullable(),
   newCollectionName: z.string().trim().min(1).max(80).nullable(),
-  showOnHome: z.boolean().default(true),
   title: z.string().trim().min(1).max(200).optional(),
   markPrivate: z.boolean().default(false),
   fullText: z.boolean().default(false),

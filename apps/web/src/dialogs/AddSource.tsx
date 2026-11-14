@@ -99,7 +99,6 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   // Following never needs a collection: it starts as "No collection", unless Add source was opened from one.
   const [colChoice, setColChoice] = useState<string>(collectionId && sourceCollections.some((c) => c.id === collectionId) ? collectionId : LOOSE);
   const [newName, setNewName] = useState("");
-  const [showOnHome, setShowOnHome] = useState(true);
   const [markPrivate, setMarkPrivate] = useState(false);
   /** Off until the person ticks it; looking up another link starts again from off. */
   const [fullTextChoice, setFullTextChoice] = useState<boolean | null>(null);
@@ -165,7 +164,6 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
         token: cand.token,
         collectionId: colChoice === NEW || colChoice === LOOSE ? null : colChoice,
         newCollectionName: colChoice === NEW ? newName.trim() : null,
-        showOnHome,
         markPrivate: isPrivate,
         fullText,
       });
@@ -317,7 +315,6 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                   {colChoice === NEW ? <input className="in" placeholder="Name your collection" aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
                   <p className="fine">{colChoice === LOOSE ? "Without a collection, it shows in “Other sources” on Home. You can group it later." : "A collection groups sources you read together. Home shows your collections."}</p>
                 </div>
-                {colChoice !== LOOSE ? <Check checked={showOnHome} onChange={setShowOnHome}>Show this collection on Home</Check> : null}
                 {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={markPrivate || !!cand.privateWarning} disabled={!!cand.privateWarning} onChange={setMarkPrivate}
                   hint={cand.privateWarning
                     ? "This link has a personal key in it, so it's kept private automatically."

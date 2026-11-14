@@ -346,7 +346,7 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
       app.db.tx(() => {
         const source = followSource(app, p, {
           token: held!.token, collectionId: where.target && "id" in where.target ? where.target.id : null, newCollectionName: where.target && "name" in where.target ? where.target.name : null,
-          showOnHome: true, markPrivate: entry.looks_private === 1 || !!chosen.privateWarning,
+          markPrivate: entry.looks_private === 1 || !!chosen.privateWarning,
           fullText: false, ...(named ? { title: entry.title } : {}),
         });
         made = source.id;

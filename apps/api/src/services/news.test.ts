@@ -16,7 +16,7 @@ type Owner = ReturnType<typeof makeOwner>;
 const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE workspace_id = ? AND builtin = 'news'", p.workspaceId);
 const copies = (app: App, p: Owner) => listItems(app, p, { scope: "all" }).items.filter((i) => i.sourceTitle === NEWS_TITLE);
 const publish = (app: App, admin: Owner, title: string, body = `About ${title}.`) => createNewsPost(app, admin, { title, body, publish: true });
-const follow = { collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false, fullText: false };
+const follow = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
 
 test("no PURSS gets a news source before anything is published; then every PURSS, new ones included, gets it", (t) => {
   const { app, cleanup } = makeTestApp();

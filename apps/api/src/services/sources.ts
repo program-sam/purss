@@ -191,10 +191,7 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
-      if (collectionId) {
-        app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
-        if (!input.showOnHome) app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ? AND show_on_home = 1 AND NOT EXISTS (SELECT 1 FROM collection_sources WHERE collection_id = ? AND source_id <> ?)", collectionId, collectionId, id);
-      }
+      if (collectionId) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
       if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     });
   } catch (err) {

@@ -12,7 +12,7 @@ import { applySyncBatch } from "./sync.ts";
 import { reconcile } from "./storage.ts";
 
 const FEED = "https://example.org/feed/1.xml";
-const base = { collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false, fullText: false };
+const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
 
 function hold(p: Principal, over: { feedUrl?: string; title?: string } = {}): string {
   const token = newId("dsc");

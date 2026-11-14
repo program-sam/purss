@@ -12,7 +12,7 @@ import { followSource, unfollowSource } from "./sources.ts";
 import { updateAccount } from "./admin.ts";
 import { OPTIONAL_SECTION_NAMES, SECTION_NAMES, sha256Hex } from "./archive-format.ts";
 
-const base = { collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false, fullText: false };
+const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
 const hosted = () => makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://workspace.example" });
 
 function hold(p: Principal, n: number): string {

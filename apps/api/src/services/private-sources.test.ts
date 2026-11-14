@@ -15,7 +15,7 @@ import { writeSecret } from "../secrets.ts";
 import { reconnectSource } from "./portability.ts";
 
 const SECRET = "https://feeds.example/private/3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c/feed.xml";
-const base = { collectionId: null, newCollectionName: null, showOnHome: true, markPrivate: false, fullText: false };
+const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");

@@ -268,7 +268,7 @@ export const TOOLS: Tool[] = [
     run: (ctx, a) => {
       const s = followSource(ctx.app, ctx.p, {
         token: a.followToken, collectionId: a.collectionId ?? null, newCollectionName: a.collectionId ? null : a.newCollectionName ?? null,
-        showOnHome: true, markPrivate: false, fullText: a.fullArticles ?? false,
+        markPrivate: false, fullText: a.fullArticles ?? false,
       });
       return sourceSummary(s);
     },
