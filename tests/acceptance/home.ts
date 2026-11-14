@@ -4,8 +4,8 @@
 //
 // Checks, in a desktop browser unless said: reading progress counts only a person's own scrolling (a script's jump to the end and
 // Tab moving focus to the bottom save nothing; the wheel does), reopening goes back to where the item was left, an item that fits
-// the screen counts after twenty seconds; Home's rows above the boxes start closed and stay open once opened; To read lists what was put aside, Recently kept leaves out a collection hidden on
-// Home, and the boxes below do not repeat what is above them; a muted word is saved in Settings and lists say how many items it
+// the screen counts after twenty seconds; Home's rows above the boxes start closed and stay open once opened; To read lists what was put aside, a collection hidden on Home is left out of
+// it, and the boxes below do not repeat what is above them; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened.
 // Run: node tests/acceptance/home.ts (after npm run build)
@@ -21,9 +21,9 @@ import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
-import { createBasket, createCollection } from "../../apps/api/src/services/collections.ts";
+import { createCollection } from "../../apps/api/src/services/collections.ts";
 import { applySyncBatch } from "../../apps/api/src/services/sync.ts";
-import { changeState, keepItem } from "../../apps/api/src/services/state.ts";
+import { changeState } from "../../apps/api/src/services/state.ts";
 import { TEST_PASSWORD, batch, entry, makeSource, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -104,9 +104,6 @@ function prepare(): Seed {
     const id = (title: string) => app.db.get<{ id: string }>("SELECT id FROM items WHERE title = ?", title)!.id;
     const rev = (itemId: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", itemId)!.revision;
     changeState(app, p, id("Night forecast"), { workflow: "inprogress", expectedRevision: rev(id("Night forecast")) });
-    const basket = createBasket(app, p, { name: "Keepers", captureMode: "metadata" });
-    keepItem(app, p, id("Night forecast"), basket.id);
-    keepItem(app, p, id("Wire story 3"), basket.id);
     changeState(app, p, id("Medium note"), { progress: 0.4, expectedRevision: rev(id("Medium note")) });
     changeState(app, p, id("Medium note"), { workflow: "toread", expectedRevision: rev(id("Medium note")) });
     return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id };
@@ -244,22 +241,20 @@ async function main(): Promise<void> {
     await page.getByRole("heading", { name: "Home" }).waitFor();
     const rowToggle = (name: string) => page.locator(`.wb h2:has(:text('${name}')) button`);
     await rowToggle("To read").waitFor();
-    for (const name of ["To read", "Recently kept"]) assert.equal(await rowToggle(name).getAttribute("aria-expanded"), "false", `${name} starts closed`);
+    assert.equal(await rowToggle("To read").getAttribute("aria-expanded"), "false", "To read starts closed");
     assert.equal(await page.locator(".wb .irow").count(), 0, "a closed row shows no items");
     await rowToggle("To read").click();
-    await rowToggle("Recently kept").click();
     await page.reload();
     await page.locator(".wb:has(h2 :text('To read')) .irow").first().waitFor();
-    assert.equal(await rowToggle("Recently kept").getAttribute("aria-expanded"), "true", "a row the user opened stays open");
-    step("Home's To read and Recently kept start closed; once opened they stay open");
+    assert.equal(await rowToggle("To read").getAttribute("aria-expanded"), "true", "a row the user opened stays open");
+    step("Home's To read starts closed; once opened it stays open");
     assert.equal(await page.locator(".ccard").count(), 0, "Home has no Continue row");
     const toRead = await homeTitles(page, ".wb:has(h2 :text('To read')) .irow .title");
     assert.deepEqual(toRead, ["Medium note"], "To read lists what was put aside");
-    const kept = await homeTitles(page, ".wb:has(h2 :text('Recently kept')) .irow .title");
-    assert.deepEqual(kept, ["Wire story 3"], "Recently kept leaves out the hidden collection's item");
     const boxes = await homeTitles(page, ".mod:not(.wb) .irow .title");
-    for (const title of [...toRead, ...kept]) assert.ok(!boxes.includes(title), `${title} is shown once, above the boxes`);
-    step("To read lists what was put aside; Recently kept leaves out a collection hidden on Home; the boxes do not repeat what is above");
+    for (const title of toRead) assert.ok(!boxes.includes(title), `${title} is shown once, above the boxes`);
+    for (const title of ["Night forecast", "Crackle on long wave", "Numbers stations"]) assert.ok(!boxes.includes(title), `${title} (a collection hidden on Home) is not on Home`);
+    step("To read lists what was put aside; a collection hidden on Home is left out; the boxes do not repeat what is above");
 
     // ---------- muted words, filters ----------
     await page.getByRole("button", { name: "Settings" }).first().click();

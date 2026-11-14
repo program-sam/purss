@@ -123,7 +123,7 @@ function Attention() {
 const isToRead = (i: ItemDTO) => i.workflow === "toread" && i.kind !== "podcast";
 const isToListen = (i: ItemDTO) => i.workflow === "toread" && i.kind === "podcast";
 
-/** The items To read, To listen and Recently kept show right now (a collapsed row shows none): the boxes below leave these out. */
+/** The items To read and To listen show right now (a collapsed row shows none): the boxes below leave these out. */
 export function useShownAbove(): ReadonlySet<string> {
   const o = useHomeOverview().data;
   const hints = useHints();
@@ -133,7 +133,6 @@ export function useShownAbove(): ReadonlySet<string> {
     const open = (row: string) => hints.opened.includes(`home:${row}`);
     if (open("toread")) for (const it of o.toRead.items) ids.add(it.id);
     if (open("tolisten")) for (const it of o.toListen.items) ids.add(it.id);
-    if (open("kept")) for (const it of o.recentlyKept) ids.add(it.id);
     return ids;
   }, [o, hints.opened]);
 }
@@ -170,26 +169,17 @@ function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: strin
   );
 }
 
-/** To read, To listen, Recently kept, Needs attention and Mark all as seen. */
+/** To read, To listen, Needs attention and Mark all as seen. */
 export function WelcomeRows() {
   const ws = useWorkspace();
   const actions = useItemActions();
   const o = useHomeOverview().data;
-  const rc = useRowCtx();
-  // Recently kept lists kept items whatever their state, so nothing leaves it from here.
-  const keptCtx = useMemo(() => ({ ...rc, leaves: () => "" }), [rc]);
-  const kept = useLive(o?.recentlyKept ?? []);
   const fresh = o?.fresh ?? 0;
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
   const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
     <PutAsideRow key="toread" id="toread" title="To read" row={o?.toRead} keeps={isToRead} type="articles,videos" />,
     <PutAsideRow key="tolisten" id="tolisten" title="To listen" row={o?.toListen} keeps={isToListen} type="podcasts" />,
-    kept.length ? (
-      <RowBox key="kept" id="kept" title="Recently kept">
-        <RowContext.Provider value={keptCtx}><ul className="mod-b">{kept.map((it) => <ItemRow key={it.id} item={it} />)}</ul></RowContext.Provider>
-      </RowBox>
-    ) : null,
     <Attention key="attention" />,
     offerFresh ? (
       <section key="fresh" className="mod wb wb-fresh" aria-label="Mark all as seen">

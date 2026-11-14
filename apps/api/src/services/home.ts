@@ -8,7 +8,7 @@ import type { ItemRow } from "./items.ts";
 import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
 import { itemCounts } from "./counts.ts";
-import { NOT_MUTED_ROW, countMuted, mutedAmong, mutedScan, workspaceMuted } from "./muted.ts";
+import { countMuted, mutedAmong, mutedScan, workspaceMuted } from "./muted.ts";
 
 /*
  * Home for someone coming back (plan/29 §2): when the last visit was, what is New since and what to pick up again.
@@ -18,7 +18,6 @@ import { NOT_MUTED_ROW, countMuted, mutedAmong, mutedScan, workspaceMuted } from
 /** A visit starts when activity resumes after this long without any. */
 export const VISIT_GAP_MS = 30 * 60_000;
 const ROW_ITEMS = 6;
-const RECENT_DAYS = 30;
 
 // ---------- visits ----------
 
@@ -106,13 +105,10 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     if (total) since = { total, boxes: [...boxes.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) };
   }
 
-  // Recently kept leaves out what Home leaves out (items of sources whose collections are all hidden on Home);
-  // To read and To listen are what the person put aside, wherever it came from. All leave out what the muted words match, and an
-  // item is listed in the first of them that has it.
+  // To read and To listen are what the person put aside, wherever it came from; both leave out what the muted words match.
   const homeParams: SqlParam[] = [];
   const onHome = onHomeItem(app, ws, homeParams);
   const muted = workspaceMuted(app, ws, now);
-  const recentCut = new Date(now.getTime() - RECENT_DAYS * 86_400_000).toISOString();
 
   // To read and To listen (podcasts) are two rows, each the oldest items of its kind and how many there are, in one pass over them.
   // With muted words the first thousand are read (see `mutedScan`) and each is asked about them, so a row takes the first unmuted
@@ -134,15 +130,6 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const toListen = putAside("i.kind = 'podcast'");
   const putAsideIds = [...toRead.ids, ...toListen.ids];
 
-  const keptIds: string[] = [];
-  const keptBase = `SELECT b.item_id AS item_id${muted ? ", i.title AS title, i.excerpt AS excerpt" : ""}
-     FROM basket_items b JOIN items i ON i.id = b.item_id JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE b.workspace_id = ? AND b.kept_at >= ? AND ${onHome} ORDER BY b.kept_at DESC`;
-  for (const r of muted
-    ? app.db.all<{ item_id: string }>(`SELECT item_id FROM (${keptBase} LIMIT -1) WHERE ${NOT_MUTED_ROW} LIMIT 30`, ws, recentCut, ...homeParams, muted)
-    : app.db.all<{ item_id: string }>(`${keptBase} LIMIT 30`, ws, recentCut, ...homeParams)) {
-    if (!keptIds.includes(r.item_id) && !putAsideIds.includes(r.item_id) && keptIds.length < ROW_ITEMS) keptIds.push(r.item_id);
-  }
   const fresh = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.workspace_id = ? AND st.fresh = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
   // Items on Home that were not looked at and are not New: the backlog a first follow brings, and what the New marker has outlived.
@@ -159,14 +146,13 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
       [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 
-  const dtos = new Map(itemsByIds(app, ws, [...new Set([...putAsideIds, ...keptIds])]).map((d) => [d.id, d]));
+  const dtos = new Map(itemsByIds(app, ws, putAsideIds).map((d) => [d.id, d]));
   const pick = (ids: string[]) => ids.flatMap((id) => dtos.get(id) ?? []);
   return {
     lastVisitAt,
     since,
     toRead: { items: pick(toRead.ids), total: toRead.total, totalAtMost: toRead.totalAtMost },
     toListen: { items: pick(toListen.ids), total: toListen.total, totalAtMost: toListen.totalAtMost },
-    recentlyKept: pick(keptIds),
     fresh,
     unread,
     mutedHidden: hidden.hidden,

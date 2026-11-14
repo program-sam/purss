@@ -5,8 +5,8 @@ import { getPreferences } from "./preferences.ts";
 /*
  * Which sources Home speaks for. A source has a box on Home when it is in a collection shown on Home, or in none while
  * "Other sources" is shown there; items kept by hand and kept items of sources no longer followed are always on Home's
- * side. Home's one feed, the sections above Home's boxes (To read, Recently kept) and filter collections all draw from
- * this set, so hiding a collection from Home hides it everywhere on Home.
+ * side. Home's one feed, its counts and filter collections all draw from this set, so hiding a collection from Home hides it
+ * everywhere on Home.
  */
 
 /** A condition over a source row `s`: the source has a box on Home. Appends its one parameter. */

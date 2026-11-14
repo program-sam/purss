@@ -15,8 +15,8 @@ import type { Message } from "../mail/mailer.ts";
 import { applySyncBatch } from "./sync.ts";
 import { insertItem, listItems } from "./items.ts";
 import type { NewItem } from "./items.ts";
-import { applyUndo, bulk, changeState, clearFreshAll, keepItem } from "./state.ts";
-import { createBasket, createCollection } from "./collections.ts";
+import { applyUndo, bulk, changeState, clearFreshAll } from "./state.ts";
+import { createCollection } from "./collections.ts";
 import { followSource, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "./preferences.ts";
@@ -399,7 +399,7 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   assert.equal(o.since!.total, 4, "essays 2 + news 1 + loose 1; hidden sources and older or seen items are left out");
   assert.deepEqual(o.since!.boxes.map((b) => [b.id, b.count]), [[col.id, 3], ["other", 1]]);
 
-  // To read, Recently kept.
+  // To read.
   const [a, b, c, d] = [addItem(app, p, essays, { discoveredAt: ago(9 * DAY), publishedAt: ago(9 * DAY) }), addItem(app, p, essays, { publishedAt: ago(8 * DAY) }),
     addItem(app, p, news, { publishedAt: ago(7 * DAY) }), addItem(app, p, news, { publishedAt: ago(6 * DAY) })] as [string, string, string, string];
   const work = (id: string, workflow: "toread" | "inprogress") => changeState(app, p, id, { workflow, expectedRevision: revision(app, id) });
@@ -419,9 +419,6 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   assert.deepEqual(split.toListen.items.map((i) => i.id), [e]);
   assert.equal(split.toListen.total, 1);
 
-  const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
-  keepItem(app, p, d, basket.id);
-  assert.deepEqual(homeOverview(app, p).recentlyKept.map((i) => i.id), [d]);
   assert.equal(homeOverview(app, p).fresh, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND fresh = 1", p.workspaceId)!.n);
 });
 
@@ -429,7 +426,7 @@ test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, recentlyKept: [], fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------

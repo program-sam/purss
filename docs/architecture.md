@@ -111,8 +111,8 @@ subscription has finished) is stored without one and tells no one. Opening an it
 tick (`services/returning.ts`, throttled: every five minutes and every hour) expires markers older than the person's
 choice, resumes sources whose pause ran out, makes the digest that has come due, tells about sources that stopped
 working and failed text saves, and prunes notifications. `POST /api/activity/visit`, sent by the web app from any page on foreground interaction, records the start of a visit (after 30
-minutes of quiet) and `GET /api/home` returns, read-only, what Home says before its boxes (Recently kept and filter collections
-leave out what Home leaves out, `services/home-sources.ts`; an item is in the first section that has it). `GET /api/items?mix=home` is a list as Home shows it (its boxes
+minutes of quiet) and `GET /api/home` returns, read-only, what Home says before its boxes (filter collections
+leave out what Home leaves out, `services/home-sources.ts`). `GET /api/items?mix=home` is a list as Home shows it (its boxes
 and its one feed, with `filter=open`: New and To read): only sources with a box on Home, New items first and then the rest, newest first within each, listed as two
 runs in date order and paged from a snapshot of the newest item when paging began. Lists also take `type`, `length`, `source`, `without` (one source left out) and
 `capture=failed`; with `mix=home` these narrow what Home would show (hidden collections stay out). Unless `muted=show`, lists leave out the items the PURSS's muted words match (title or summary, whole words, kept in the preferences; matched on the row

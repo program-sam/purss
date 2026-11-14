@@ -328,21 +328,19 @@ an **Other sources** box, which is listed there like a collection (shown by defa
 
 **Home when you come back.** Whatever the layout, Home starts with a summary line ("Since your
 last visit (3 days ago): 412 new in 6 collections") and, when there is something to say, these
-rows. To read, To listen, Recently kept and Needs attention start closed; one you open stays open
+rows. To read, To listen and Needs attention start closed; one you open stays open
 in that browser.
 
 - **Coming up:** the reminders you set on kept items for today and the next six days
   ([Reminders](#reminders)). Not there when you have none.
 - **To read:** the oldest items you marked To read, with *Show all*.
-- **Recently kept:** what you kept in the last month.
 - **Needs attention:** sources that are failing, paused or being limited by their site.
 - **Mark all as seen:** marks every New item as seen (Undo brings the markers back). Nothing is
   finished, ignored or deleted. Shown when you come back after more than 30 days, or when
   50 or more items are New.
 
-Recently kept and filter collections leave out items from collections you hide from
-Home, and an item is listed in one Home section
-only, the first that has it. A new filter collection starts off Home. Items that match your
+Filter collections leave out items from collections you hide from Home, and an item in To read
+or To listen is not listed again in the boxes below. A new filter collection starts off Home. Items that match your
 [muted words](#muted-words) are left out of Home too.
 
 A visit starts when you come back after half an hour away. **To read** in the sidebar lists every

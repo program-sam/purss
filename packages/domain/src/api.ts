@@ -634,7 +634,6 @@ export type HomeOverview = {
   toRead: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** To read podcast episodes ("To listen"), counted the same way. */
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
-  recentlyKept: ItemDTO[];
   /** Every New marker in PURSS, for "Start fresh". */
   fresh: number;
   /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. */

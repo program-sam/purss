@@ -18,8 +18,8 @@ import { activeMutedWords, mutedScan } from "./muted.ts";
 import { matchesMuted, mutedPatterns } from "./muted-match.ts";
 
 /*
- * What Home's sections and lists show (plan/34): items of collections hidden on Home stay out of Recently kept and
- * filter collections; an item is in one section only; the one feed is in strict date order;
+ * What Home's sections and lists show (plan/34): items of collections hidden on Home stay out of Home's feed and
+ * filter collections; the one feed is in strict date order;
  * muted words; type and length filters; hiding one source from a list.
  */
 
@@ -68,21 +68,21 @@ function twoCollections(app: App, p: Owner) {
   return { work, fun, workBox, funBox };
 }
 
-test("Recently kept leaves out items of collections hidden on Home, and brings them back when the collection is shown", (t) => {
+const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "open" }));
+
+test("Home leaves out items of collections hidden on Home, and brings them back when the collection is shown", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const { work, fun, workBox } = twoCollections(app, p);
-  const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   const wk = addItem(app, p, work), fk = addItem(app, p, fun);
-  keepItem(app, p, wk, basket.id); keepItem(app, p, fk, basket.id);
 
-  assert.deepEqual(new Set(ids(homeOverview(app, p).recentlyKept)), new Set([wk, fk]));
+  assert.deepEqual(homeFeed(app, p), new Set([wk, fk]));
 
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
-  assert.deepEqual(ids(homeOverview(app, p).recentlyKept), [fk], "the hidden collection's kept item is not on Home");
+  assert.deepEqual(homeFeed(app, p), new Set([fk]), "the hidden collection's item is not on Home");
 
   app.db.run("UPDATE collections SET show_on_home = 1 WHERE id = ?", workBox.id);
-  assert.equal(homeOverview(app, p).recentlyKept.length, 2);
+  assert.equal(homeFeed(app, p).size, 2);
 });
 
 test("an item of a source in no collection follows 'Other sources'; one kept by hand or from an unfollowed source is always on Home", (t) => {
@@ -96,9 +96,9 @@ test("an item of a source in no collection follows 'Other sources'; one kept by 
   for (const id of [a, b, c]) keepItem(app, p, id, basket.id);
   app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", gone);
 
-  assert.deepEqual(new Set(ids(homeOverview(app, p).recentlyKept)), new Set([a, b, c]));
+  assert.deepEqual(homeFeed(app, p), new Set([a, b, c]));
   setPreferences(app, p.workspaceId, { homeOther: false });
-  assert.deepEqual(new Set(ids(homeOverview(app, p).recentlyKept)), new Set([b, c]), "Other sources is hidden on Home");
+  assert.deepEqual(homeFeed(app, p), new Set([b, c]), "Other sources is hidden on Home");
 });
 
 test("a filter collection on Home leaves out items of collections hidden on Home; its own page lists them all", (t) => {
@@ -130,20 +130,6 @@ test("To read lists what was put aside, from any collection", (t) => {
   workflow(app, p, a, "toread");
   const o = homeOverview(app, p);
   assert.deepEqual(ids(o.toRead.items), [a]);
-  assert.equal(o.toRead.total, 1);
-});
-
-test("an item is in one of To read and Recently kept only: the first", (t) => {
-  const { app, p, cleanup } = setup();
-  t.after(cleanup);
-  const { work } = twoCollections(app, p);
-  const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
-  const a = addItem(app, p, work), b = addItem(app, p, work);
-  workflow(app, p, a, "toread");
-  for (const id of [a, b]) keepItem(app, p, id, basket.id);
-  const o = homeOverview(app, p);
-  assert.deepEqual(ids(o.toRead.items), [a]);
-  assert.deepEqual(ids(o.recentlyKept), [b], "kept, but already shown above");
   assert.equal(o.toRead.total, 1);
 });
 
