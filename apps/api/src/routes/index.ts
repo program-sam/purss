@@ -9,6 +9,7 @@ import { assistantRouter } from "./assistant.ts";
 import { billingRouter } from "./billing.ts";
 import { connectRouter } from "./connect.ts";
 import { downloadsRouter } from "./downloads.ts";
+import { frameCheckRouter } from "./frame-check.ts";
 import { discoverRouter } from "./discover.ts";
 import { capturesRouter } from "./captures.ts";
 import { homeRouter } from "./home.ts";
@@ -24,6 +25,6 @@ import { statisticsRouter } from "./statistics.ts";
 
 /** Feature route modules mounted after the core public router. */
 export const extraRouters = {
-  api: (): Router<Ctx>[] => [rediscoveryRouter(), portabilityRouter(), sharingRouter(), reconcileRouter(), adminRouter(), statisticsRouter(), assistantRouter(), capturesRouter(), homeRouter(), keptLinksRouter(), connectRouter(), playbackRouter(), annotationsRouter(), accountEmailRouter(), itemRemindersRouter(), discoverRouter(), aiFiltersRouter(), downloadsRouter(), pushRouter(), appBundleRouter(), billingRouter()],
+  api: (): Router<Ctx>[] => [rediscoveryRouter(), portabilityRouter(), sharingRouter(), reconcileRouter(), adminRouter(), statisticsRouter(), assistantRouter(), capturesRouter(), homeRouter(), keptLinksRouter(), connectRouter(), playbackRouter(), annotationsRouter(), accountEmailRouter(), itemRemindersRouter(), discoverRouter(), aiFiltersRouter(), downloadsRouter(), pushRouter(), appBundleRouter(), billingRouter(), frameCheckRouter()],
   pages: (): Router<Ctx> | undefined => publicPagesRouter(),
 };

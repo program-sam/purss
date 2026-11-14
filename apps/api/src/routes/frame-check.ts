@@ -1,0 +1,15 @@
+import type { Ctx } from "../app.ts";
+import { requirePrincipal } from "../app.ts";
+import { Router, badRequest } from "../http.ts";
+import { frameCheck } from "../services/frame-check.ts";
+
+/** Whether the reader can show a page from another site in a frame (plan/43). */
+export function frameCheckRouter(): Router<Ctx> {
+  const r = new Router<Ctx>();
+  r.get("/api/frame-check", (req, ctx) => {
+    const url = req.query.get("url");
+    if (!url || url.length > 2048) throw badRequest("A web address is needed.");
+    return frameCheck(ctx.app, requirePrincipal(ctx), url);
+  });
+  return r;
+}
