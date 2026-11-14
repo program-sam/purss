@@ -1,3 +1,4 @@
+import { journalFromUrl } from "./journals.ts";
 import { cleanLine, parseHtmlTree, TooComplexError } from "./text.ts";
 import type { XNode } from "./text.ts";
 
@@ -20,7 +21,13 @@ export type PageFacts = {
   canonicalUrl: string | null;
   /** An ActivityPub actor the page says it stands for (a fediverse profile or post). */
   actorUrl: string | null;
+  /** Links to a journal's page on a publishing platform (journals.ts), at most 20: a society's page for its journal links there. */
+  platformLinks: { url: string; title: string | null }[];
+  /** What the page's scholarly metadata says about the journal it belongs to (`citation_issn`, `prism.issn`). */
+  journal: { issns: string[]; publisher: string | null };
 };
+
+const MAX_PLATFORM_LINKS = 20;
 
 const FEED_TYPES = new Set(["application/rss+xml", "application/atom+xml", "application/feed+json", "application/json", "application/rdf+xml", "application/xml", "text/xml", "application/x-rss+xml"]);
 const FEED_PATH = /(?:^|\/)(?:feed|feeds|rss|atom|rss\.xml|atom\.xml|feed\.xml|index\.xml|rss2|rss\.php|feed\.rss|atom\.php)(?:\/|$)|\.(?:rss|atom)(?:$|\?)/i;
@@ -57,7 +64,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
   try {
     root = parseHtmlTree(html);
   } catch (error) {
-    if (error instanceof TooComplexError) return { title: null, siteName: null, baseUrl: pageUrl, links: [], canonicalUrl: null, actorUrl: null };
+    if (error instanceof TooComplexError) return { title: null, siteName: null, baseUrl: pageUrl, links: [], canonicalUrl: null, actorUrl: null, platformLinks: [], journal: { issns: [], publisher: null } };
     throw error;
   }
   let base = pageUrl;
@@ -67,6 +74,9 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
   let actor: string | null = null;
   const alternates: FoundLink[] = [];
   const anchors: FoundLink[] = [];
+  const platformLinks: { url: string; title: string | null }[] = [];
+  const issns: string[] = [];
+  let publisher: string | null = null;
   const stack: XNode[] = [root];
   let visited = 0;
   while (stack.length && visited++ < 200_000) {
@@ -82,6 +92,8 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
       } else if (name === "meta") {
         const key = (a.property ?? a.name ?? "").toLowerCase();
         if (siteName === null && (key === "og:site_name" || key === "application-name")) siteName = cleanLine(a.content, 100);
+        if ((key === "citation_issn" || key === "prism.issn" || key === "prism.eissn") && a.content && issns.length < 4) issns.push(a.content.trim().slice(0, 20));
+        if (publisher === null && (key === "citation_publisher" || key === "dc.publisher")) publisher = cleanLine(a.content, 200);
       } else if (name === "link") {
         const rel = (a.rel ?? "").toLowerCase().split(/\s+/);
         const type = (a.type ?? "").toLowerCase().split(";")[0]!.trim() || null;
@@ -106,6 +118,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
           }
           const feedishText = FEED_TEXT.test(label) || /\b(?:rss|atom)\b/i.test(a.title ?? "") || /\b(?:rss|atom)\b/i.test(a["aria-label"] ?? "");
           // A link to a feeds.example.org host is a feed whatever its text says (NOS lists them that way).
+          if (platformLinks.length < MAX_PLATFORM_LINKS && journalFromUrl(new URL(url))) platformLinks.push({ url, title: label ? cleanLine(label, 120) : null });
           if (FEED_PATH.test(path) || FEED_HOST.test(url) || (feedishText && /\.(?:xml|rss|atom|json)(?:$|\?)|\/(?:feed|rss|atom)/i.test(path)) || (feedishText && /\bfeeds?\./i.test(url))) {
             anchors.push({ url, title: label ? cleanLine(label, 120) : cleanLine(a.title, 120), type: null, source: "anchor" });
           }
@@ -123,7 +136,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
     seen.add(key);
     links.push(l);
   }
-  return { title, siteName, baseUrl: base, links, canonicalUrl: canonical, actorUrl: actor };
+  return { title, siteName, baseUrl: base, links, canonicalUrl: canonical, actorUrl: actor, platformLinks, journal: { issns, publisher } };
 }
 
 /** Where a page's own address ends for a page that lists a site's feeds: `/rss-feeds`, `/feeds`, `/rss`. */

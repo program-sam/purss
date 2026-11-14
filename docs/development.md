@@ -38,6 +38,7 @@ npm run build:extension  # browser extension: apps/extension/dist/<browser>/ and
 npm run dev          # whole stack locally; see self-hosting.md
 node scripts/version.ts                      # this checkout's version (plan/40), e.g. 2631214
 node scripts/release-notes.ts 2631201        # what changed after a version, as Markdown for an update post
+node scripts/journal-feeds-check.ts          # live check that journal pages, society pages and DOIs still find their journal's feed (network)
 ```
 
 Run `npm run check` and `npm test` for every change, and `test:engine` and `test:e2e` for

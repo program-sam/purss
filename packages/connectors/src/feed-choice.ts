@@ -1,3 +1,5 @@
+import type { ParsedFeed } from "./feed.ts";
+
 /*
  * Choosing and naming the feeds found on a page. Pure functions, so every rule can be tested
  * without a network: which feed a section page really means, what a feed is called when it
@@ -151,12 +153,7 @@ const tokensOf = (value: string): string[] =>
  * the feed's address (`/journal/ns` and `/feeds/ns`; `/journal/nursing-standard` and `/feeds/nursing-standard`). A site's front page has nothing to match, so nothing matches there.
  */
 export function linkMatchesPage(link: { url: string; title?: string | null }, page: { url: string; title?: string | null }): boolean {
-  const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-  const title = letters(link.title ?? "");
-  if (title.length >= 4) {
-    const names = [page.title ?? "", ...(page.title ?? "").split(/\s+[|–—·-]\s+|\s*[|·]\s*/)].map(letters).filter((n) => n.length >= 4);
-    if (names.some((n) => n === title)) return true;
-  }
+  if (nameMatchesTitle(link.title, page.title)) return true;
   let slug: string[] = [];
   let linkTokens: string[] = [];
   try {
@@ -168,6 +165,15 @@ export function linkMatchesPage(link: { url: string; title?: string | null }, pa
     return false;
   }
   return slug.join("").length >= 2 && containsRun(linkTokens, slug);
+}
+
+/** True when a name is the page's title, or one of the parts a title is made of ("Nursing Standard | RCNi"). */
+export function nameMatchesTitle(name: string | null | undefined, pageTitle: string | null | undefined): boolean {
+  const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  const wanted = letters(name ?? "");
+  if (wanted.length < 4) return false;
+  const names = [pageTitle ?? "", ...(pageTitle ?? "").split(/\s+[|–—·-]\s+|\s*[|·]\s*/)].map(letters).filter((n) => n.length >= 4);
+  return names.some((n) => n === wanted);
 }
 
 /** True when `run` appears in `list` as consecutive items, in order. */
@@ -260,11 +266,31 @@ export function probeLandedOnName(asked: string, landed: string): boolean {
 
 // ---------- order ----------
 
-const ORDER = ["Latest topics", "Posts feed", "Releases feed", "Podcast feed", "Channel feed", "Playlist feed", "Section feed", "Tags feed", "Whole site feed", "All replies", "Comments feed"];
+const ORDER = ["Latest topics", "Articles feed", "Early articles feed", "Issues feed", "Posts feed", "Releases feed", "Podcast feed", "Channel feed", "Playlist feed", "Section feed", "Tags feed", "Announcements feed", "Whole site feed", "All replies", "Comments feed"];
 
 export function viaRank(via: string): number {
   const i = ORDER.indexOf(via);
   return i === -1 ? 1 : i;
+}
+
+/** What identifies an entry across copies of a feed: its link, else its id. */
+function entryKeys(feed: ParsedFeed): Set<string> {
+  const byUrl = feed.items.map((i) => i.url?.split("#")[0] ?? "");
+  const keys = byUrl.every(Boolean) ? byUrl : feed.items.map((i) => i.guid ?? i.url ?? "");
+  return new Set(keys.filter(Boolean));
+}
+
+/**
+ * Two feeds carry the same entries, in any order: one is the other under another address or in another format (a journal's
+ * "most recent" and "current issue" feeds, a site's RSS and Atom). Only then are they one choice; a feed with other or
+ * fewer entries is a choice of its own. Feeds without entries are never called the same.
+ */
+export function sameEntries(a: ParsedFeed, b: ParsedFeed): boolean {
+  const ka = entryKeys(a);
+  const kb = entryKeys(b);
+  if (ka.size === 0 || ka.size !== kb.size) return false;
+  for (const k of ka) if (!kb.has(k)) return false;
+  return true;
 }
 
 /** Stable order by kind of feed. */

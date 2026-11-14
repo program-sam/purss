@@ -1,6 +1,7 @@
 import type { DraftCandidate } from "./discover.ts";
 import type { ParsedFeed } from "./feed.ts";
-import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed } from "./feed-choice.ts";
+import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed, sameEntries } from "./feed-choice.ts";
+import { planJournal } from "./journals.ts";
 import { hostOf as host, isHostOrSub, planServiceFeeds, segmentsOf as segments } from "./services.ts";
 
 /*
@@ -33,6 +34,12 @@ export type KnownFeed = {
   needsItems?: boolean;
   /** The feed counts only when its generator matches: the address shape alone doesn't say which software runs the site. */
   generator?: RegExp;
+  /** The name to use made from the feed's own title, when the feed decorates it ("Wiley: Oceania: Table of Contents"). */
+  retitle?: (feedTitle: string | null) => string | null;
+  /** Said of this feed whenever it is offered (what a journal's second feed covers). */
+  note?: string;
+  /** Named like the feed at this address in the same plan, when its own title names only the platform. */
+  nameLike?: string;
 };
 
 export type KnownPlan =
@@ -41,6 +48,8 @@ export type KnownPlan =
       feeds: KnownFeed[];
       /** Offer the feed with a note when the service is only busy or limiting requests right now. */
       tolerateBusy?: boolean;
+      /** The feeds are alternative addresses of one feed (a journal's ISSNs): offer only the first that answers. */
+      firstAnswer?: boolean;
     }
   | { service: "Apple Podcasts"; lookup: { id: string; country: string | null } };
 
@@ -203,6 +212,9 @@ function pinterest(url: URL): KnownPlan | null {
 /** The feed addresses to try for a page address of a known service, or null. */
 export function planKnownFeeds(url: URL): KnownPlan | null {
   const h = host(url);
+  // Before the feed-address check: a Berghahn journal page ends in .xml without being a feed.
+  const journal = planJournal(url);
+  if (journal) return journal;
   if (FEED_LIKE_PATH.test(url.pathname) && !/(?:^|\.)reddit\.com$/.test(h)) return null;
   if (isHostOrSub(h, "reddit.com")) return reddit(url);
   if (h === "theguardian.com" || h === "www.theguardian.com") return guardian(url);
@@ -285,17 +297,24 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
   const sectionAsked = plan.feeds.some((f) => f.section);
   const sectionAnswered = plan.feeds.some((f, i) => f.section && "feedUrl" in probes[i]!);
   const candidates: DraftCandidate[] = [];
+  /** Each answering feed's entries, to offer copies of one feed (another address, another format) only once. */
+  const offered: ParsedFeed[] = [];
+  const byAddress = new Map<string, DraftCandidate>();
   let blocked: { reason: KnownReason; message: string } | null = null;
   const trouble = { timeout: false, busy: false };
   const leadAnswered = plan.feeds.some((f, i) => f.lead && "feedUrl" in probes[i]!);
   plan.feeds.forEach((feed, i) => {
     const probe = probes[i]!;
     if ("feedUrl" in probe) {
+      if (offered.some((p) => sameEntries(p, probe.parsed))) return;
+      offered.push(probe.parsed);
       // Judged by what was asked for, not by where the answer ended up (a blog's feed often lives on another host).
       const wholeSite = !feed.section && (sectionAsked || isSiteWideFeed(feed.feedUrl, pageUrl));
+      const title = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? undefined;
       const c = deps.candidate(probe.feedUrl, probe.parsed, wholeSite
-        ? { title: feed.title, via: "Whole site feed", origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
-        : { title: feed.title, via: feed.via, origin: feed.origin, ...(leadAnswered && feed.alsoNote ? { note: feed.alsoNote } : feed.emptyNote && probe.parsed.items.length === 0 ? { note: feed.emptyNote } : {}) });
+        ? { title, via: "Whole site feed", origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
+        : { title, via: feed.via, origin: feed.origin, ...(leadAnswered && feed.alsoNote ? { note: feed.alsoNote } : feed.emptyNote && probe.parsed.items.length === 0 ? { note: feed.emptyNote } : feed.note ? { note: feed.note } : {}) });
+      byAddress.set(feed.feedUrl, c);
       // When one feed is the page's own, say which.
       candidates.push(leadAnswered ? { ...c, matchesPage: !!feed.lead } : c);
     } else if (probe.failed?.reason === "blocked") {
@@ -307,7 +326,7 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
       else trouble.busy = true;
     }
   });
-  if (candidates.length) return { candidates };
+  if (candidates.length) return { candidates: plan.firstAnswer ? candidates.slice(0, 1) : candidates };
   if (blocked) return { failure: blocked };
   return trouble.timeout || trouble.busy ? { trouble } : null;
 }

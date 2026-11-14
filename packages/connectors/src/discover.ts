@@ -4,12 +4,14 @@ import type { Noun } from "./cadence.ts";
 import { decodeBody, isFeedKind, sniffContent } from "./content-type.ts";
 import { FeedParseError, parseFeed } from "./feed.ts";
 import type { ParsedFeed } from "./feed.ts";
-import { isDiscourse, isGenericTitle, isSiteWideFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, orderByVia, probeLandedOnName, rankByPage, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
+import { isDiscourse, isGenericTitle, isSiteWideFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, nameMatchesTitle, orderByVia, probeLandedOnName, rankByPage, sameEntries, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
 import { extractPageFacts, findDirectoryLinks } from "./html-links.ts";
 import type { FoundLink } from "./html-links.ts";
-import { EMAIL_MESSAGE, normalizeInput, withoutCookieBounce } from "./input.ts";
+import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce } from "./input.ts";
+import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
+import type { CrossrefJournal } from "./journals.ts";
 import { planKnownFeeds, resolveKnown } from "./known-feeds.ts";
-import type { KnownDeps } from "./known-feeds.ts";
+import type { KnownDeps, KnownFeed, KnownPlan } from "./known-feeds.ts";
 import { bridgeDescriptor, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
 import type { BridgeTarget } from "./bridges.ts";
 import { noFeedPlatform } from "./platforms.ts";
@@ -170,7 +172,7 @@ function failFromStatus(url: string, status: number): Failure | null {
 }
 
 /** Fetch with an https-first attempt when the person gave no scheme or plain http. */
-async function getWithUpgrade(ctx: Ctx, url: string, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number }): Promise<SafeFetchResult> {
+async function getWithUpgrade(ctx: Ctx, url: string, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string }): Promise<SafeFetchResult> {
   const first = await ctx.get(url, o);
   if (!httpFallback) return first;
   if (first.ok && first.response.status < 400) return first;
@@ -337,17 +339,13 @@ async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedire
   }
 }
 
+/** Feeds that carry the same entries (one feed under two addresses or in two formats) are one choice: the first is kept. */
 function dedupeCandidates(list: DraftCandidate[], parsedList: ParsedFeed[]): DraftCandidate[] {
-  const seen = new Set<string>();
-  const out: DraftCandidate[] = [];
-  list.forEach((c, i) => {
-    const first = parsedList[i]!.items[0];
-    const key = `${(c.title || "").toLowerCase()}|${first?.url ?? first?.guid ?? c.feedUrl}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(c);
+  const kept: number[] = [];
+  list.forEach((_, i) => {
+    if (!kept.some((k) => sameEntries(parsedList[k]!, parsedList[i]!))) kept.push(i);
   });
-  return out;
+  return kept.map((i) => list[i]!);
 }
 
 // ---------- YouTube ----------
@@ -513,7 +511,7 @@ type Found = { c: DraftCandidate; parsed: ParsedFeed };
 type Trouble = { timeout: boolean; busy: boolean; failure: Failure | null };
 
 /** Where a found feed came from, which decides whether finding it says anything about the pasted page. */
-type FoundVia = "alternate" | "anchor" | "listed" | "path";
+type FoundVia = "alternate" | "anchor" | "listed" | "path" | "journal";
 
 /**
  * `prior`: trouble already met on the way here (a known service's feeds timing out), which an empty result must not hide.
@@ -534,7 +532,11 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   // A page that lists many sites' feeds (a publisher's hub) is cut short; the ones that are about this page go first.
   const anchors = rankByPage(facts.links.filter((l) => l.source === "anchor"), page).slice(0, 6);
   const probes: FoundLink[] = [...alternates.slice(0, max + 2), ...(alternates.length === 0 ? anchors : [])];
-  const found: (Found & { via: FoundVia; matches: boolean })[] = [];
+  /**
+   * `asked`: the journal feed address that was probed, so a later sign that it is the page's own can mark it, with `sibling`
+   * (the main feed of a journal's second feed) and `feedNote` (what the feed itself covers).
+   */
+  const found: (Found & { via: FoundVia; matches: boolean; asked?: string; sibling?: string; feedNote?: string })[] = [];
   const attempted = new Set<string>();
   const trouble: Trouble = { timeout: prior?.timeout ?? false, busy: prior?.busy ?? false, failure: null };
   /** An advertised feed for this very page or section did not answer. */
@@ -607,19 +609,92 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     // A forum's "latest posts" feed has an entry per reply; its latest topics are what people want.
     await tryPaths([`${origin}/latest.rss`]);
   }
-  // A section's own feed comes before any guess at the whole site.
-  if (section && !found.some((f) => !wholeSiteFeeds.has(f.c))) {
+
+  /** Probe a journal's feed; `matches` says whether it is shown to be this page's own journal. */
+  const tryJournal = async (feed: KnownFeed, matches: (journalName: string | null) => boolean): Promise<boolean> => {
+    if (attempted.has(feed.feedUrl)) {
+      // Already offered as a journal the page links to: now shown to be the page's own, with its second feed.
+      const seen = found.find((f) => f.asked === feed.feedUrl);
+      if (seen && !seen.matches && matches(seen.c.title)) {
+        for (const f of found) {
+          if (f !== seen && f.sibling !== feed.feedUrl) continue;
+          const { note: _linked, ...rest } = f.c;
+          f.c = f.feedNote ? { ...rest, note: f.feedNote } : rest;
+          f.matches = true;
+        }
+      }
+      return !!seen;
+    }
+    attempted.add(feed.feedUrl);
+    const probe = await probeFeed(ctx, feed.feedUrl, false);
+    if ("failed" in probe) {
+      record(probe);
+      return false;
+    }
+    if (feed.needsItems && probe.parsed.items.length === 0) return false;
+    const name = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameLike ? (found.find((f) => f.asked === feed.nameLike)?.c.title ?? null) : null);
+    const own = matches(name);
+    const note = [feed.note, own ? null : LINKED_JOURNAL_NOTE].filter(Boolean).join(" ");
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { via: feed.via, origin: feed.origin, ...(name ? { title: name } : {}), ...(note ? { note } : {}) });
+    found.push({ c, parsed: probe.parsed, via: "journal", matches: own, asked: feed.feedUrl, sibling: feed.nameLike, feedNote: feed.note });
+    return true;
+  };
+  /** A journal's feeds, its main feed first (a second feed is named like it); true when any answered. */
+  const tryJournalFeeds = async (feeds: KnownFeed[], matches: (journalName: string | null) => boolean): Promise<boolean> => {
+    let any = false;
+    for (const feed of feeds) if (await tryJournal(feed, matches)) any = true;
+    return any;
+  };
+  const publisherPage = isPublisherHost(new URL(pageUrl).hostname.toLowerCase());
+  const pageIssns = new Set(facts.journal.issns.map(normalIssn).filter((v): v is string => !!v));
+  if (!publisherPage && facts.platformLinks.length) {
+    // A society's page for its journal links to the journal on the publisher's platform; at most two journals, the page's own first.
+    const picks = new Map<string, { link: { url: string; title: string | null }; ref: NonNullable<ReturnType<typeof journalFromUrl>> }>();
+    for (const link of rankByPage(facts.platformLinks, page)) {
+      const ref = journalFromUrl(new URL(link.url));
+      if (!ref) continue;
+      const key = ref.platform === "sciencedirect" ? `sciencedirect:${ref.slug}` : `${ref.platform}:${ref.id}`;
+      if (!picks.has(key)) picks.set(key, { link, ref });
+      if (picks.size === 2) break;
+    }
+    // Shown to be the page's own journal only by its name or ISSN: the address words a publisher shares with the page (`/journals`) say nothing.
+    await mapLimit([...picks.values()], 3, async ({ link, ref }) => {
+      const own = (name: string | null) => nameMatchesTitle(link.title, page.title) || nameMatchesTitle(name, page.title) || (ref.platform === "wiley" && pageIssns.has(ref.id));
+      if (ref.platform !== "sciencedirect") return tryJournalFeeds(journalFeedsFor(ref), own);
+      const plan = await scienceDirectPlan(ctx, ref.slug);
+      if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, own)) return true;
+      return false;
+    });
+  }
+  // An Open Journal Systems journal: its announcements (news, calls for papers) are a feed of their own next to its articles.
+  const ojs = facts.links.find((l) => l.source === "alternate" && /\/gateway\/plugin\/WebFeedGatewayPlugin\//.test(l.url));
+  if (ojs && !publisherPage) {
+    const base = ojs.url.slice(0, ojs.url.indexOf("/gateway/plugin/"));
+    await tryJournal({ feedUrl: `${base}/gateway/plugin/AnnouncementFeedGatewayPlugin/atom`, via: "Announcements feed", note: OJS_ANNOUNCEMENTS_NOTE, needsItems: true }, () => true);
+  }
+  // Unless the page's own feed or journal was already found.
+  if (pageIssns.size && !found.some((f) => f.matches && !wholeSiteFeeds.has(f.c))) {
+    // The page's scholarly metadata names its journal; a publisher whose feeds are made from an ISSN gives the address.
+    const plan = planFromIssns(facts.journal.publisher, [...pageIssns]);
+    if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, () => true)) break;
+  }
+
+  // Journals answer in whatever order their probes finish: the page's own come before those it only links to.
+  found.sort((a, b) => Number(a.via === "journal" && !a.matches) - Number(b.via === "journal" && !b.matches));
+
+  // A section's own feed comes before any guess at the whole site. Publishers keep no feed at a blog's usual addresses.
+  if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c))) {
     await tryPaths(sectionFeedPaths(section).map((p) => `${origin}${p}`), { section: true });
   }
-  if (found.length === 0) {
+  if (found.length === 0 && !publisherPage) {
     // Conservative fallback: a handful of conventional paths on the same site only.
     await tryPaths(PROBE_PATHS.map((p) => `${origin}${p}`));
   }
-  if (found.length === 0 && !ctx.signal.aborted) {
+  if (found.length === 0 && !publisherPage && !ctx.signal.aborted) {
     // Publisher and webcomic software that keeps its feed one folder down or names it after its format.
     await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`));
   }
-  if (found.length === 0 && !ctx.signal.aborted) {
+  if (found.length === 0 && !publisherPage && !ctx.signal.aborted) {
     // Many news sites list their feeds on a page of their own ("RSS feeds"): look at the first two.
     for (const dir of findDirectoryLinks(html, pageUrl).filter((u) => !attempted.has(u)).slice(0, 2)) {
       attempted.add(dir);
@@ -644,6 +719,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   if (found.length === 0) {
     const first = trouble.failure;
     if (first?.reason === "blocked") return first;
+    if (isDuke(pageUrl)) return fail(inputUrl, "nofeed", DUKE_MESSAGE);
     if (unopened) return failFromStatus(inputUrl, unopened.status)!;
     if (ctx.spent()) return fail(inputUrl, "nofeed", CAP_MESSAGE);
     if (trouble.timeout || ctx.signal.aborted) return fail(inputUrl, "timeout", TIMEOUT_MESSAGE);
@@ -670,6 +746,109 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       ? ordered.map((c) => ({ ...c, note: [`${section ? "That page" : "The site's front page"} didn't open (error ${unopened.status}), but this feed does.`, c.note].filter(Boolean).join(" ") }))
       : ordered,
   };
+}
+
+/**
+ * Fetch an address and find its feeds: the address is a feed itself, or a page whose feeds are looked for. `url` is what
+ * is fetched, `inputUrl` what the person gave (the two differ for a DOI, fetched through doi.org).
+ */
+async function discoverAddress(ctx: Ctx, url: string, httpFallback: string | null, max: number, inputUrl: string, prior?: Pick<Trouble, "timeout" | "busy">, accept?: string): Promise<DiscoveryDraft> {
+  const first = await getWithUpgrade(ctx, url, httpFallback, accept ? { accept } : undefined);
+  if (!first.ok) return failFromFetch(inputUrl, first);
+  const response = first.response;
+  // Sent on to a journal's page (a DOI, a short link): its feed is made from that address, even when the page is walled.
+  let landedTrouble: { timeout: boolean; busy: boolean } | null = null;
+  if (response.url !== url) {
+    const landed = planJournal(new URL(response.url));
+    const known = landed ? await resolveKnown(landed, knownDeps(ctx), response.url) : null;
+    if (known && "candidates" in known) return { ok: true, url: inputUrl, candidates: known.candidates.slice(0, max) };
+    if (known && "trouble" in known) {
+      landedTrouble = known.trouble;
+      prior = { timeout: !!prior?.timeout || landedTrouble.timeout, busy: !!prior?.busy || landedTrouble.busy };
+    }
+  }
+  const statusFail = failFromStatus(inputUrl, response.status);
+  if (statusFail) {
+    // A front page that refuses automated readers (403) or is broken (5xx) often still serves its feed; look at the usual addresses before giving up.
+    if ((response.status === 403 || response.status >= 500) && !ctx.signal.aborted) {
+      const rescued = await discoverFromPage(ctx, response.url, "", max, inputUrl, prior, { status: response.status });
+      if (rescued.ok) return rescued;
+    }
+    if (response.status === 403 && isDuke(response.url)) return fail(inputUrl, "nofeed", DUKE_MESSAGE);
+    // The journal's feed didn't answer just now: the walled page says nothing more.
+    if (landedTrouble) return landedTrouble.timeout ? fail(inputUrl, "timeout", TIMEOUT_MESSAGE) : fail(inputUrl, "unreachable", BUSY_MESSAGE);
+    return statusFail;
+  }
+  const kind = sniffContent(response.body, response.contentType);
+  if (isFeedKind(kind)) {
+    let parsed: ParsedFeed;
+    try {
+      parsed = parseFeed(response.body, response.contentType, { baseUrl: response.url });
+    } catch (error) {
+      if (error instanceof FeedParseError) {
+        return fail(inputUrl, "invalid", error.code === "toolarge" ? "That feed is too large for us to read safely." : "That address looks like a feed, but we couldn't read it. The feed may be damaged.");
+      }
+      throw error;
+    }
+    // A YouTube feed pasted directly is still a YouTube source.
+    const feedUrl = stableFeedUrl(url, response.url);
+    const candidate = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx);
+    return { ok: true, url: inputUrl, candidates: [candidate] };
+  }
+  if (kind === "html") {
+    return await discoverFromPage(ctx, response.url, decodeBody(response.body, response.contentType), max, inputUrl, prior);
+  }
+  if (kind === "xml") {
+    const text = decodeBody(response.body.subarray(0, 4096), response.contentType);
+    if (/<opml[\s>]/i.test(text)) return fail(inputUrl, "unsupported", "That looks like an OPML list of subscriptions, not a single feed. Use Import to add the feeds in it.");
+    if (/<urlset[\s>]|<sitemapindex[\s>]/i.test(text)) return fail(inputUrl, "unsupported", "That's a sitemap, not a feed. Try the site's main page.");
+    return fail(inputUrl, "unsupported", "That address returns XML that isn't a feed we can read.");
+  }
+  if (kind === "json") return fail(inputUrl, "unsupported", "That address returns data, not a feed. A JSON Feed has \"version\": \"https://jsonfeed.org/version/1.1\".");
+  return fail(inputUrl, "unsupported", "That address isn't a web page or a feed (it looks like a file). Paste a website or feed address.");
+}
+
+// ---------- scholarly journals ----------
+
+export const LINKED_JOURNAL_NOTE = "Linked from that page.";
+export const OJS_ANNOUNCEMENTS_NOTE = "The journal's news and calls, not its articles.";
+
+function isDuke(url: string): boolean {
+  const h = bareHost(url);
+  return h === "dukeupress.edu" || h.endsWith(".dukeupress.edu");
+}
+
+/**
+ * A DOI (an article's identifier): Crossref names the journal, its publisher and ISSNs, and a publisher whose feed
+ * address is made from an ISSN (Wiley, Elsevier) gives the journal's feed. Otherwise the DOI's own page is looked at like
+ * any other, asked for as a web page: doi.org answers a feed reader's usual request with Crossref's metadata instead.
+ */
+async function discoverDoi(ctx: Ctx, doi: string, pageUrl: string, max: number, label: string): Promise<DiscoveryDraft> {
+  const deps = knownDeps(ctx);
+  const record = await deps.json(crossrefWorkUrl(doi));
+  const journal: CrossrefJournal | null = record.ok ? readCrossrefWork(record.data) : null;
+  const plan = journal ? planFromIssns(journal.publisher, journal.issns, journal.title) : null;
+  let trouble: { timeout: boolean; busy: boolean } | undefined;
+  if (plan) {
+    const known = await resolveKnown(plan, deps, pageUrl);
+    if (known && "candidates" in known) return { ok: true, url: label, candidates: known.candidates.slice(0, max) };
+    if (known && "trouble" in known) trouble = known.trouble;
+  }
+  const draft = await discoverAddress(ctx, pageUrl, null, max, label, trouble, HTML_ACCEPT);
+  if (draft.ok || !journal?.title) return draft;
+  // The journal's feed didn't answer just now: that is not "no feed".
+  if (trouble) return trouble.timeout ? fail(label, "timeout", TIMEOUT_MESSAGE) : fail(label, "unreachable", BUSY_MESSAGE);
+  // Only a conclusive miss (nothing found, the article page refused or missing) names the journal; a busy or slow site stays retryable.
+  const conclusive = draft.reason === "nofeed" || draft.reason === "unsupported" || [403, 404, 410].some((status) => draft.message === failFromStatus(label, status)!.message);
+  if (!conclusive) return draft;
+  return fail(label, "nofeed", `That article is in ${journal.title}${journal.publisher ? ` (${journal.publisher})` : ""}, but its feed can't be found from an article link. Paste the journal's own page instead.`);
+}
+
+/** The feed plan of a ScienceDirect journal, from Crossref's one Elsevier journal whose title is the address's name. */
+async function scienceDirectPlan(ctx: Ctx, slug: string): Promise<KnownPlan | null> {
+  const search = await knownDeps(ctx).json(crossrefJournalQueryUrl(slug));
+  const journal = search.ok ? readCrossrefJournalSearch(search.data, slug) : null;
+  return journal ? planFromIssns(journal.publisher, journal.issns, journal.title) : null;
 }
 
 /** The dependencies a known-service plan needs, bound to this discovery's budget and fetcher. */
@@ -842,6 +1021,20 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     if (!described || !opts.bridge) return fail(trimmed.slice(0, 200), "unsupported", "That source comes from a server bridge this installation doesn't run, so it can't be followed here.");
     return await discoverBridged(described, opts.bridge, makeCtx(opts), trimmed);
   }
+  // An article's DOI, bare (10.1111/…), as doi:10.1111/… or as a doi.org address. Read before the address rules: a bare DOI
+  // starts like a numeric (private) address.
+  const doi = typeof input === "string" ? doiFromInput(cleanPasted(input)) : null;
+  if (doi) {
+    const ctx = makeCtx(opts);
+    const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
+    const given = doi.viaResolver ? normalizeInput(input, { testAllowAddress: opts.testAllowAddress }) : null;
+    const pageUrl = given?.ok ? given.url : resolverUrl(doi.doi);
+    try {
+      return await discoverDoi(ctx, doi.doi, pageUrl, max, doi.viaResolver ? pageUrl : doi.doi);
+    } catch {
+      return fail(doi.doi.slice(0, 200), "unreachable", "Something went wrong while looking up that DOI. Try again in a moment.");
+    }
+  }
   const social = typeof input === "string" ? classifySocialInput(input) : null;
   if (social) {
     const ctx = makeCtx(opts);
@@ -868,6 +1061,16 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     // Services that publish no feeds are named as such, without asking them for one.
     const platform = noFeedPlatform(entry);
     if (platform) return fail(norm.url, "unsupported", platform.message);
+    // An article on a platform whose article pages refuse automated readers: its DOI names the journal.
+    const articleDoi = doiFromArticleUrl(entry);
+    if (articleDoi) return await discoverDoi(ctx, articleDoi, norm.url, max, norm.url);
+    // A ScienceDirect journal: its address carries only the journal's name, and the feed is made from its ISSN.
+    const sciencedirect = journalFromUrl(entry);
+    if (sciencedirect?.platform === "sciencedirect") {
+      const plan = await scienceDirectPlan(ctx, sciencedirect.slug);
+      const known = plan ? await resolveKnown(plan, knownDeps(ctx), norm.url) : null;
+      if (known && "candidates" in known) return { ok: true, url: norm.url, candidates: known.candidates.slice(0, max) };
+    }
     // Services whose feed addresses follow a fixed pattern.
     const plan = planKnownFeeds(entry);
     let prior: Pick<Trouble, "timeout" | "busy"> | undefined;
@@ -881,45 +1084,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
         return { ok: true, url: norm.url, candidates: [...ordered.filter((c) => c.matchesPage), ...ordered.filter((c) => !c.matchesPage)].slice(0, max) };
       }
     }
-    const first = await getWithUpgrade(ctx, norm.url, norm.httpFallback);
-    if (!first.ok) return failFromFetch(norm.url, first);
-    const response = first.response;
-    const statusFail = failFromStatus(norm.url, response.status);
-    if (statusFail) {
-      // A front page that refuses automated readers (403) or is broken (5xx) often still serves its feed; look at the usual addresses before giving up.
-      if ((response.status === 403 || response.status >= 500) && !ctx.signal.aborted) {
-        const rescued = await discoverFromPage(ctx, response.url, "", max, norm.url, prior, { status: response.status });
-        if (rescued.ok) return rescued;
-      }
-      return statusFail;
-    }
-    const kind = sniffContent(response.body, response.contentType);
-    if (isFeedKind(kind)) {
-      let parsed: ParsedFeed;
-      try {
-        parsed = parseFeed(response.body, response.contentType, { baseUrl: response.url });
-      } catch (error) {
-        if (error instanceof FeedParseError) {
-          return fail(norm.url, "invalid", error.code === "toolarge" ? "That feed is too large for us to read safely." : "That address looks like a feed, but we couldn't read it. The feed may be damaged.");
-        }
-        throw error;
-      }
-      // A YouTube feed pasted directly is still a YouTube source.
-      const feedUrl = stableFeedUrl(norm.url, response.url);
-      const candidate = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx);
-      return { ok: true, url: norm.url, candidates: [candidate] };
-    }
-    if (kind === "html") {
-      return await discoverFromPage(ctx, response.url, decodeBody(response.body, response.contentType), max, norm.url, prior);
-    }
-    if (kind === "xml") {
-      const text = decodeBody(response.body.subarray(0, 4096), response.contentType);
-      if (/<opml[\s>]/i.test(text)) return fail(norm.url, "unsupported", "That looks like an OPML list of subscriptions, not a single feed. Use Import to add the feeds in it.");
-      if (/<urlset[\s>]|<sitemapindex[\s>]/i.test(text)) return fail(norm.url, "unsupported", "That's a sitemap, not a feed. Try the site's main page.");
-      return fail(norm.url, "unsupported", "That address returns XML that isn't a feed we can read.");
-    }
-    if (kind === "json") return fail(norm.url, "unsupported", "That address returns data, not a feed. A JSON Feed has \"version\": \"https://jsonfeed.org/version/1.1\".");
-    return fail(norm.url, "unsupported", "That address isn't a web page or a feed (it looks like a file). Paste a website or feed address.");
+    return await discoverAddress(ctx, norm.url, norm.httpFallback, max, norm.url, prior);
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);

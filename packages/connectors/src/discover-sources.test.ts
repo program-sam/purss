@@ -14,7 +14,7 @@ function rss(title: string, dates = WEEKLY, link = "https://x.example"): string 
   const items = dates.map((d, i) => `<item><title>${title} ${i + 1}</title><link>${link}/p${i + 1}</link><guid>g${i + 1}</guid><pubDate>${d}</pubDate><description>A teaser</description></item>`).join("");
   return `<?xml version="1.0"?><rss version="2.0"><channel><title>${title}</title><link>${link}/</link><description>x</description>${items}</channel></rss>`;
 }
-const atom = (title: string) => `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>${title}</title><link href="https://github.com/"/><entry><title>v1</title><id>1</id><link href="https://github.com/a/b/releases/tag/v1"/><updated>2026-11-02T10:00:00Z</updated></entry></feed>`;
+const atom = (title: string, tag = "v1") => `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>${title}</title><link href="https://github.com/"/><entry><title>${tag}</title><id>${tag}</id><link href="https://github.com/a/b/releases/tag/${tag}"/><updated>2026-11-02T10:00:00Z</updated></entry></feed>`;
 
 type Routes = Record<string, SafeFetchResult | ((url: string) => SafeFetchResult)>;
 function stub(routes: Routes): { fetch: FetchFn; calls: string[] } {
@@ -92,12 +92,16 @@ test("Reddit limiting requests does not turn into 'nothing to follow'", async ()
 test("GitHub: a repository link offers Releases and Tags", async () => {
   const rel = "https://github.com/BurntSushi/ripgrep/releases.atom";
   const tags = "https://github.com/BurntSushi/ripgrep/tags.atom";
-  const { fetch } = stub({ [rel]: feedRes(rel, atom("Release notes from ripgrep"), "application/atom+xml"), [tags]: feedRes(tags, atom("Tags from ripgrep"), "application/atom+xml") });
+  // A tag without a release makes the Tags feed a choice of its own.
+  const { fetch } = stub({ [rel]: feedRes(rel, atom("Release notes from ripgrep"), "application/atom+xml"), [tags]: feedRes(tags, atom("Tags from ripgrep", "v1-rc"), "application/atom+xml") });
   const d = ok(await discover("https://github.com/BurntSushi/ripgrep", { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.feedUrl]), [
     ["BurntSushi/ripgrep releases", "Releases feed", rel],
     ["BurntSushi/ripgrep tags", "Tags feed", tags],
   ]);
+  // Every tag a release: the two feeds list the same entries, so they are one choice.
+  const same = stub({ [rel]: feedRes(rel, atom("Release notes from ripgrep"), "application/atom+xml"), [tags]: feedRes(tags, atom("Tags from ripgrep"), "application/atom+xml") });
+  assert.deepEqual(ok(await discover("https://github.com/BurntSushi/ripgrep", { fetch: same.fetch, now: NOW })).candidates.map((c) => c.via), ["Releases feed"]);
   // A repository that does not exist is the ordinary 404, in plain words.
   const missing = await discover("https://github.com/nobody/nothing-here", { fetch: stub({}).fetch, now: NOW });
   assert.ok(!missing.ok);
@@ -376,7 +380,7 @@ test("a category page of a known blog service offers the category's own feed fir
   // A Blogger label page works the same way.
   const label = "https://buzz.blogspot.com/feeds/posts/default/-/Tips";
   const base = "https://buzz.blogspot.com/feeds/posts/default";
-  const b = ok(await discover("https://buzz.blogspot.com/search/label/Tips", { fetch: stub({ [label]: feedRes(label, rss("Tips")), [base]: feedRes(base, rss("Buzz")) }).fetch, now: NOW })).candidates;
+  const b = ok(await discover("https://buzz.blogspot.com/search/label/Tips", { fetch: stub({ [label]: feedRes(label, rss("Tips", WEEKLY, "https://buzz.blogspot.com/tips")), [base]: feedRes(base, rss("Buzz", WEEKLY, "https://buzz.blogspot.com")) }).fetch, now: NOW })).candidates;
   assert.deepEqual(b.map((x) => x.via), ["Section feed", "Whole site feed"]);
 });
 
@@ -437,7 +441,7 @@ function hubRoutes(pageTitle: string, pageUrl = HUB_PAGE): Routes {
   return {
     [pageUrl]: page(pageUrl, `<html><head><title>${pageTitle}</title></head><body><a href="/webFeedsRss">RSS</a></body></html>`),
     [HUB_LIST]: page(HUB_LIST, list),
-    ...Object.fromEntries(hubFeeds.map(([id, name]) => [`https://journals.example/feeds/${id}`, feedRes(`https://journals.example/feeds/${id}`, rss(name, WEEKLY, "https://journals.example"))])),
+    ...Object.fromEntries(hubFeeds.map(([id, name]) => [`https://journals.example/feeds/${id}`, feedRes(`https://journals.example/feeds/${id}`, rss(name, WEEKLY, `https://journals.example/${id}`))])),
   };
 }
 
