@@ -160,7 +160,7 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
   // This installation's news comes from here, not from the engine (services/news.ts).
   const isNews = isNewsFeed(app, c.feedUrl);
   // A bridged source's address is a descriptor, not a link anyone holds, so it is never a private link.
-  const isPrivate = !isNews && !c.feedUrl.startsWith("bridge:") && (input.markPrivate || !!c.privateWarning);
+  const isPrivate = !isNews && !c.feedUrl.startsWith("bridge:") && (input.markPrivate ?? !!c.privateWarning);
   // An unfollowed source keeps its items. Following the same feed again takes that source up again; a second one
   // would hold a second copy of everything, and the first copy could no longer be reached or cleaned up.
   const former = isPrivate ? undefined : app.db.get<{ id: string; title: string }>(

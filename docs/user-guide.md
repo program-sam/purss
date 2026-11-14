@@ -159,8 +159,9 @@ or replies; Bluesky the most recent ones, without reposts or replies. Posts have
 the start of the text stands in. A post its author later deletes or edits stays in your
 PURSS as it was collected.
 
-**Private links.** If a feed address looks like it contains a secret, or you tick the option
-to mark it private, PURSS treats it as private: the address is stored apart from your
+**Private links.** If a feed address looks like it contains a secret, the option to mark it
+private starts ticked; untick it if the link is an ordinary public feed (a journal's feed address
+with a long product number, for example). A source marked private is treated as private: the address is stored apart from your
 data and never shown again; it's left out of exports and OPML; item titles never appear in
 notifications; readable copies aren't made; and its items can't be shared publicly. Pasting or
 listing the same private link again is recognised as already followed: PURSS keeps only a keyed

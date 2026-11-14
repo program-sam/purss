@@ -420,7 +420,8 @@ export const followSchema = z.object({
   collectionId: z.string().nullable(),
   newCollectionName: z.string().trim().min(1).max(80).nullable(),
   title: z.string().trim().min(1).max(200).optional(),
-  markPrivate: z.boolean().default(false),
+  /** Omitted: private when the link looks like it carries a key. The person can override that either way. */
+  markPrivate: z.boolean().optional(),
   fullText: z.boolean().default(false),
 });
 /** Items already in a source when full articles are turned on that also get a copy (newest unfinished first). */

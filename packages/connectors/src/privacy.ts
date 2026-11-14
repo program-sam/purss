@@ -12,6 +12,8 @@ const AMBIGUOUS_PARAM = /^(?:key|code)$/i;
 const SECRET_PATH_HINT = /^(?:private|secret|token|auth|passkey|apikey|api-key)$/i;
 /** Path pieces that announce a secret only when the next piece looks like one (`/access/updates/feed` is a section). */
 const AMBIGUOUS_PATH_HINT = /^(?:key|access)$/i;
+/** A path piece that names the next one as an identifier (`/product/id/3D5C…`): a hex id or uuid after it is not a secret. */
+const ID_PATH_HINT = /^ids?$/i;
 /** Public YouTube channel and playlist ids look random but are not credentials. */
 const PUBLIC_ID = /^(?:UC|UU)[A-Za-z0-9_-]{22}$|^(?:PL|FL|OLAK5uy_)[A-Za-z0-9_-]{10,}$/;
 /** A long run of letters and digits with at least one digit: base62 or base64 material. */
@@ -94,7 +96,8 @@ export function privateUrlReason(raw: string): string | null {
     const next = segments[i + 1];
     // Long random path pieces such as /feed/3f9a… are typical of per-reader secret links, but YouTube channel ids,
     // dated slugs, the ids of podcast hosts and file names are not.
-    if (!/\.(?:xml|rss|atom|json)$/i.test(seg) && looksRandom(seg, publicIds)) return "a long random value in the address";
+    const idPiece = publicIds || (i > 0 && ID_PATH_HINT.test(segments[i - 1]!));
+    if (!/\.(?:xml|rss|atom|json)$/i.test(seg) && looksRandom(seg, idPiece)) return "a long random value in the address";
     if (next !== undefined && (SECRET_PATH_HINT.test(seg) || (AMBIGUOUS_PATH_HINT.test(seg) && next.length >= 8 && !isPlainWord(next) && !isSlug(next)))) return `a "${seg}" section in the address`;
   }
   return null;
@@ -105,4 +108,4 @@ export function looksPrivateUrl(raw: string): boolean {
 }
 
 export const PRIVATE_URL_WARNING =
-  "This address looks like it contains a private access key. Treat it like a password: anyone with the link may be able to read your feed. Mark the source private so the link stays out of shared pages and exports.";
+  "This address may contain a private access key. If it does, treat it like a password: anyone with the link may be able to read your feed. It's kept private below; untick that if this is an ordinary public feed.";

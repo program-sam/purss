@@ -110,6 +110,7 @@ test("private URL heuristics are warnings with sensible boundaries", () => {
     "https://x.example/feed?id=3f9a1c7e5b2d4f8a9c0e1d2b3a4f5e6d3f9a1c7e",
     "https://u:p@x.example/feed",
     "https://x.example/rss/Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA",
+    "https://x.example/id/Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA",
   ]) {
     assert.ok(looksPrivateUrl(url), url);
   }
@@ -120,6 +121,7 @@ test("private URL heuristics are warnings with sensible boundaries", () => {
     "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv",
     "https://www.youtube.com/feeds/videos.xml?playlist_id=PLabcdefghijklmnopqrstuvwxyz0123",
     "https://x.example/feed?key=1",
+    "https://www.cambridge.org/core/rss/product/id/3D5C40349E588565CAD30F5A7E08F68F",
   ]) {
     assert.equal(privateUrlReason(url), null, url);
   }

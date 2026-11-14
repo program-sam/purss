@@ -99,7 +99,8 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   // Following never needs a collection: it starts as "No collection", unless Add source was opened from one.
   const [colChoice, setColChoice] = useState<string>(collectionId && sourceCollections.some((c) => c.id === collectionId) ? collectionId : LOOSE);
   const [newName, setNewName] = useState("");
-  const [markPrivate, setMarkPrivate] = useState(false);
+  /** Null until the person ticks or unticks it: then a link that looks like it carries a key starts private. */
+  const [markPrivate, setMarkPrivate] = useState<boolean | null>(null);
   /** Off until the person ticks it; looking up another link starts again from off. */
   const [fullTextChoice, setFullTextChoice] = useState<boolean | null>(null);
   const [error, setError] = useState("");
@@ -119,7 +120,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const candidates = result?.ok ? result.candidates : [];
   const cand = candidates[pick];
   // A bridged source (plan/41) has no link of its own to keep private.
-  const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate || !!cand?.privateWarning);
+  const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate ?? !!cand?.privateWarning);
   const canFullText = !!cand && (cand.kind === "feed" || cand.kind === "publication") && !isPrivate;
   const fullText = canFullText && (fullTextChoice ?? false); // off unless the person ticks it
   /** What was typed reads as a show's name, not an address: it can be searched for. */
@@ -130,7 +131,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
     e?.preventDefault();
     const target = address ?? url.trim();
     if (!target) return;
-    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setFromShow(address !== undefined);
+    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setFromShow(address !== undefined);
     try {
       const out = await post<DiscoveryResult>("/api/discover", { url: target });
       setResult(out);
@@ -294,7 +295,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
             <div className="field"><div className="lbl" id="fnd">{offer ? (candidates.length ? "Keep the video, or follow where it comes from" : "This link is a single video") : candidates.length === 1 ? "1 source found" : `${candidates.length} sources found`}</div>
               <div className="cands" role="radiogroup" aria-labelledby="fnd">
                 {offer ? <KeepOfferCard offer={offer} checked={mode === "keep"} onPick={() => setMode("keep")} /> : null}
-                {candidates.map((c, i) => <CandidateCard key={c.token} c={c} checked={mode === "follow" && pick === i} own={candidates.length > 1 && c.matchesPage === true} onPick={() => { setMode("follow"); setPick(i); setFullTextChoice(null); }} />)}
+                {candidates.map((c, i) => <CandidateCard key={c.token} c={c} checked={mode === "follow" && pick === i} own={candidates.length > 1 && c.matchesPage === true} onPick={() => { setMode("follow"); setPick(i); setFullTextChoice(null); setMarkPrivate(null); }} />)}
               </div>
               {pick < 0 && mode === "follow" && candidates.length ? <p className="fine">None of these clearly matches your link. Choose the one to follow.</p> : null}
             </div>
@@ -315,9 +316,9 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                   {colChoice === NEW ? <input className="in" placeholder="Name your collection" aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
                   <p className="fine">{colChoice === LOOSE ? "Without a collection, it shows in “Other sources” on Home. You can group it later." : "A collection groups sources you read together. Home shows your collections."}</p>
                 </div>
-                {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={markPrivate || !!cand.privateWarning} disabled={!!cand.privateWarning} onChange={setMarkPrivate}
+                {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={isPrivate} onChange={setMarkPrivate}
                   hint={cand.privateWarning
-                    ? "This link has a personal key in it, so it's kept private automatically."
+                    ? "This link looks like it has a personal key in it, so it starts ticked. Untick it if this is an ordinary public feed."
                     : "Tick this for members-only or paid feeds whose link is unique to you, such as a Patreon or private podcast feed. The full link is locked away: the app shows only the site's address, and exports leave the link out, so you'd paste it again after a restore."}>
                   This feed link is personal to me</Check>}
                 {canFullText ? (

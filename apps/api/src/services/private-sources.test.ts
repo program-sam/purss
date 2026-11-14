@@ -15,7 +15,7 @@ import { writeSecret } from "../secrets.ts";
 import { reconnectSource } from "./portability.ts";
 
 const SECRET = "https://feeds.example/private/3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c/feed.xml";
-const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
+const base = { collectionId: null, newCollectionName: null, fullText: false };
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");
@@ -24,6 +24,18 @@ function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {})
 }
 const draft = (feedUrl: string) => ({ feedUrl, siteUrl: null, title: "Private feed", kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: "This link has a secret in it." });
 const linkFiles = (dir: string) => { try { return readdirSync(path.join(dir, "source-urls")); } catch { return []; } };
+
+test("a link that only looks like it has a key starts private, and the person can follow it as an ordinary feed", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const kept = followSource(app, p, { ...base, token: hold(p, SECRET) });
+  assert.equal(app.db.get<{ feed_url: string | null }>("SELECT feed_url FROM sources WHERE id = ?", kept.id)!.feed_url, null, "private by default");
+  const plain = "https://journals.example/core/rss/product/id/3D5C40349E588565CAD30F5A7E08F68F";
+  const open = followSource(app, p, { ...base, token: hold(p, plain), markPrivate: false });
+  assert.equal(app.db.get<{ feed_url: string | null }>("SELECT feed_url FROM sources WHERE id = ?", open.id)!.feed_url, plain, "unticked: an ordinary source");
+  assert.deepEqual(linkFiles(app.config.secretsDir), [kept.id], "and no link file for it");
+});
 
 test("a private link's file goes when following fails after it was written; nothing is left for a deletion to miss", (t) => {
   const { app, cleanup } = makeTestApp();
