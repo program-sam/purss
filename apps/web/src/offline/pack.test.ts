@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
-import { DETAIL_MAX_AGE_MS, PACK_CHANGE_INTERVAL_MS, PACK_KEPT_LIMIT, PACK_MIN_INTERVAL_MS, PACK_REBUILD_INTERVAL_MS, annotationsToFetch, copiesMissing, itemsToFetch, packWait, parseRecord, savedItemNumbered, selectQueue, sourcesOf, waitBeforeRun } from "./pack.ts";
+import { DETAIL_MAX_AGE_MS, PACK_CHANGE_INTERVAL_MS, PACK_KEPT_LIMIT, PACK_MIN_INTERVAL_MS, PACK_REBUILD_INTERVAL_MS, annotationsToFetch, copiesMissing, itemsToFetch, packWait, parseRecord, savedItemNumbered, selectQueue, sourcesOf, waitBeforeRun, picturesIn, picturesToForget } from "./pack.ts";
 
 let n = 0;
 function item(over: Partial<ItemDTO> & { workflow: WorkflowState }): ItemDTO {
@@ -168,4 +168,14 @@ test("a saved item's number is remembered, so its short link finds it on this de
   assert.equal("number" in saved.itm_c! || "number" in saved.itm_d!, false, "anything that isn't a positive whole number is dropped");
   assert.equal(savedItemNumbered(saved, 12), "itm_a");
   assert.equal(savedItemNumbered(saved, 7), null, "not saved here: the PURSS is asked");
+});
+
+test("a kept item's own pictures are found in its text; another item's are not", () => {
+  const html = '<p><img src="/api/items/itm_1/images/img_a"><img src="/api/items/itm_2/images/img_x"><img src="https://pub.example/p.jpg"></p>';
+  assert.deepEqual(picturesIn("itm_1", [html, null, "/api/items/itm_1/images/img_a", "/api/items/itm_1/images/img_b"]), ["/api/items/itm_1/images/img_a", "/api/items/itm_1/images/img_b"]);
+});
+
+test("saved pictures no longer wanted are let go: old or unfollowed icons, and pictures of items no longer kept offline", () => {
+  const saved = ["/api/sources/src_1/icon?v=new", "/api/sources/src_1/icon?v=old", "/api/sources/src_9/icon?v=a", "/api/items/itm_1/images/a", "/api/items/itm_2/images/b"];
+  assert.deepEqual(picturesToForget(saved, new Set(["/api/sources/src_1/icon?v=new"]), new Set(["itm_1"])), ["/api/sources/src_1/icon?v=old", "/api/sources/src_9/icon?v=a", "/api/items/itm_2/images/b"]);
 });

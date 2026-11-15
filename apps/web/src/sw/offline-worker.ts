@@ -2,8 +2,8 @@ import { APP_PATH } from "@purss/domain/paths";
 import { copiesToEvict } from "./policy.ts";
 import type { Copy, RouteClass } from "./policy.ts";
 import {
-  EMPTY_STATE, MAX_COPIES, NETWORK_TIMEOUT_MS, OFFLINE_HEADER, SAVED_HEADER, STATE_CACHE, STATE_URL,
-  dataCacheName, foreignDataCaches, isDataCache, parseWorkerState, shellCacheName, staleShellCaches,
+  EMPTY_STATE, MAX_COPIES, MAX_PICTURES, NETWORK_TIMEOUT_MS, OFFLINE_HEADER, SAVED_HEADER, STATE_CACHE, STATE_URL,
+  dataCacheName, foreignDataCaches, isDataCache, parseWorkerState, pictureCacheName, shellCacheName, staleShellCaches,
 } from "./protocol.ts";
 import type { PageMessage, WorkerState } from "./protocol.ts";
 import type { CacheStorageLike } from "./cache-types.ts";
@@ -13,7 +13,8 @@ import type { CacheStorageLike } from "./cache-types.ts";
  * serve a saved copy, and when to forget. `sw.ts` wires it to the browser's events.
  *
  * Personal data (answers from /api) is kept only while offline reading is on for this device and an
- * account is known, in a cache that belongs to that account. The app shell holds no personal data.
+ * account is known, in a cache that belongs to that account; so are the pictures PURSS serves it (source icons, pictures
+ * kept with copies), in a second cache of its own. The app shell holds no personal data.
  */
 export type Env = {
   caches: CacheStorageLike;
@@ -40,6 +41,7 @@ export class OfflineWorker {
   /** Changes whenever copies are wiped or the account changes, so a slow answer never lands in the wrong place. */
   private generation = 0;
   private puts = 0;
+  private picturePuts = 0;
   private readonly env: Env;
 
   constructor(env: Env) {
@@ -125,7 +127,39 @@ export class OfflineWorker {
   handle(kind: Exclude<RouteClass, "bypass">, request: Request, waitUntil: Waiter): Promise<Response> {
     if (kind === "navigation") return this.navigation(request);
     if (kind === "static") return this.staticFile(request);
+    if (kind === "picture") return this.picture(request, waitUntil);
     return this.api(request, waitUntil);
+  }
+
+  /** A picture whose address changes with its bytes: the saved one when there is one, else the network's, kept for next time. */
+  private async picture(request: Request, waitUntil: Waiter): Promise<Response> {
+    await this.init();
+    const accountId = this.state.enabled ? this.state.accountId : null;
+    if (!accountId) return this.env.fetch(request);
+    const name = pictureCacheName(accountId);
+    if (await this.env.caches.has(name)) {
+      const hit = await (await this.env.caches.open(name)).match(request.url);
+      if (hit) return hit;
+    }
+    const generation = this.generation;
+    const response = await this.env.fetch(request);
+    // Only a picture is kept: never an error, a sign-in page, or whatever else a proxy might answer with.
+    if (response.status === 200 && /^image\//i.test(response.headers.get("content-type") ?? "")) {
+      waitUntil(this.savePicture(accountId, request.url, response.clone(), generation).catch(() => undefined));
+    }
+    return response;
+  }
+
+  private async savePicture(accountId: string, url: string, response: Response, generation: number): Promise<void> {
+    const headers = new Headers(response.headers);
+    headers.set(SAVED_HEADER, new Date(this.env.now()).toISOString());
+    const stamped = new Response(await response.arrayBuffer(), { status: 200, statusText: response.statusText, headers });
+    const current = () => this.state.enabled && this.state.accountId === accountId && this.generation === generation;
+    if (!current()) return;
+    const cache = await this.env.caches.open(pictureCacheName(accountId));
+    if (!current()) { await this.dropForeignCopies(); return; }
+    await cache.put(url, stamped);
+    if (++this.picturePuts % TRIM_EVERY === 0) await this.trimCache(pictureCacheName(accountId), MAX_PICTURES, () => false);
   }
 
   private async navigation(request: Request): Promise<Response> {
@@ -232,21 +266,20 @@ export class OfflineWorker {
     const cache = await this.env.caches.open(dataCacheName(accountId));
     if (!current()) { await this.dropForeignCopies(); return; }
     await cache.put(url, stamped);
-    if (++this.puts % TRIM_EVERY === 0) await this.trim(accountId);
+    if (++this.puts % TRIM_EVERY === 0) await this.trimCache(dataCacheName(accountId), MAX_COPIES, KEEP);
   }
 
-  private async trim(accountId: string): Promise<void> {
-    const name = dataCacheName(accountId);
+  private async trimCache(name: string, max: number, keep: (url: string) => boolean): Promise<void> {
     if (!(await this.env.caches.has(name))) return;
     const cache = await this.env.caches.open(name);
     const keys = await cache.keys();
-    if (keys.length <= MAX_COPIES) return;
+    if (keys.length <= max) return;
     const copies: Copy[] = [];
     for (const key of keys) {
       const hit = await cache.match(key);
       copies.push({ url: key.url, savedAt: Date.parse(hit?.headers.get(SAVED_HEADER) ?? "") || 0 });
     }
-    await Promise.all(copiesToEvict(copies, MAX_COPIES, KEEP).map((url) => cache.delete(url)));
+    await Promise.all(copiesToEvict(copies, max, keep).map((url) => cache.delete(url)));
   }
 
   /** The saved answer for a URL, marked with when it was saved. */

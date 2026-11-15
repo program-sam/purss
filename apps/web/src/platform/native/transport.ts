@@ -10,7 +10,7 @@ import type { Transport } from "../types.ts";
  * token, and never with cookies; a request for any other origin is refused. Reads worth keeping go through the same OfflineWorker the web's service
  * worker runs (network first, this device's copy when there is no network); when neither answers, an
  * item downloaded to the device still does. Pictures PURSS serves (icons, pictures kept with copies) are fetched the same
- * way and shown from this page's own copies (platform/pictures.ts).
+ * way, kept on the device by the same worker, and shown from this page's own copies (platform/pictures.ts).
  */
 export type AppTransportDeps = {
   origin: string;
@@ -45,7 +45,7 @@ export function createAppTransport(deps: AppTransportDeps): Transport {
       const request = new Request(resolve(path), { ...init, headers, credentials: "omit", mode: "cors" });
       const kind = noCopy ? "bypass" : classifyRequest({ method: request.method, url: request.url, mode: "cors", headers: request.headers }, origin, new Set());
       try {
-        return kind === "api" ? await deps.worker.handle("api", request, () => undefined) : await deps.fetch(request);
+        return kind === "api" || kind === "picture" ? await deps.worker.handle(kind, request, () => undefined) : await deps.fetch(request);
       } catch (err) {
         if (request.method === "GET" && deps.downloaded && !(err instanceof DOMException && err.name === "AbortError")) {
           const copy = await deps.downloaded(new URL(request.url).pathname);

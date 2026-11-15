@@ -249,7 +249,11 @@ minutes. Annotation changes alone go through an outbox in the page's IndexedDB (
 each is recorded there first, replaces any unsent change of the same annotation, and is sent in order
 when the connection allows; entries belong to an account and are deleted at sign-out or when another
 account signs in. Another account, sign-out, an expired session or
-turning the setting off deletes the copies. Article images are not saved.
+turning the setting off deletes the copies. Pictures PURSS serves whose address changes with their
+bytes (a source's icon, versioned by its digest, and a picture stored with a kept copy) are kept in a
+second cache of the account's (`purss-pictures:`), served from there before the network, and deleted
+with the copies; the pack saves every source's icon and the stored pictures of the kept items it saves,
+and lets go of the rest. Publishers' own images in an article are not saved.
 
 **Sharing.** A publication has its own membership and stores a share-safe snapshot per item.
 The public listener serves `/p/<slug>` and `/p/<slug>/feed.atom` for published ones only,

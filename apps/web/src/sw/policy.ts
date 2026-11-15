@@ -1,5 +1,5 @@
 import { APP_PATH } from "@purss/domain/paths";
-import { NO_COPY_HEADER } from "./protocol.ts";
+import { NO_COPY_HEADER, isSavedPicture } from "./protocol.ts";
 
 /**
  * Which requests the worker touches. Everything not listed here goes straight to the network:
@@ -12,6 +12,8 @@ export type RouteClass =
   | "static"
   /** A read of the person's own data: network first, this device's copy when there is no network. */
   | "api"
+  /** A picture PURSS serves whose address changes with its bytes: this device's copy first, the network when there is none. */
+  | "picture"
   | "bypass";
 
 export type RequestInfo = {
@@ -56,6 +58,7 @@ export function classifyRequest(req: RequestInfo, origin: string, precached: Rea
   const path = url.pathname;
   if (path === "/api" || path.startsWith("/api/")) {
     if (req.headers?.get(NO_COPY_HEADER)) return "bypass";
+    if (isSavedPicture(path, url.search)) return "picture";
     return isCopyableApi(path) ? "api" : "bypass";
   }
   if (path === "/p" || path.startsWith("/p/")) return "bypass";

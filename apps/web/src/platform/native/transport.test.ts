@@ -98,3 +98,25 @@ test("a picture PURSS serves is fetched with the device token and shown from a c
   assert.equal(t.picture("https://pub.example/art.jpg"), "https://pub.example/art.jpg", "a publisher's picture loads as it is");
   assert.ok(!seen.some((r) => r.url.startsWith("https://pub.example")), "and is never fetched with the token");
 });
+
+test("a picture stays on the device: after the app starts again it shows without a connection, and it goes with the account", async () => {
+  const backend = new MemoryCopyBackend();
+  const icon = "/api/sources/src_1/icon?v=abc";
+  const start = (fetch: (r: Request) => Promise<Response>) => {
+    const worker = new OfflineWorker({ caches: new StoredCaches(backend), fetch, now: () => 0, origin: ORIGIN, build: "app" });
+    return { worker, t: createAppTransport({ origin: ORIGIN, token: "purss_dev_secret", worker, downloaded: null, fetch, onLost: () => undefined }) };
+  };
+  const online = start(async () => new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/webp" } }));
+  await online.worker.message({ type: "state", accountId: "acc_1", enabled: true });
+  URL.revokeObjectURL(await online.t.picture(icon));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(await backend.urls("purss-pictures:acc_1"), [`${ORIGIN}${icon}`]);
+
+  const offline = start(async () => { throw new TypeError("Failed to fetch"); });
+  await offline.worker.message({ type: "state", accountId: "acc_1", enabled: true });
+  const shown = await offline.t.picture(icon);
+  assert.match(shown, /^blob:/, "shown from the device without the network");
+  URL.revokeObjectURL(shown);
+  await offline.worker.message({ type: "state", accountId: null, enabled: true });
+  assert.deepEqual((await backend.names()).filter((n) => n.startsWith("purss-pictures:")), [], "nobody signed in: no pictures stay");
+});

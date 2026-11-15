@@ -17,6 +17,15 @@ test("the person's own reads are kept, nothing else under /api", () => {
   }
 });
 
+test("pictures whose address changes with their bytes are kept; an icon without its version is not", () => {
+  assert.equal(kind("/api/sources/src_1/icon?v=0123abcd"), "picture");
+  assert.equal(kind("/api/items/itm_1/images/img_2"), "picture");
+  assert.equal(kind("/api/sources/src_1/icon"), "bypass");
+  assert.equal(kind("/api/sources/src_1/icon?v=1&x=2"), "bypass");
+  assert.equal(kind("/api/items/itm_1/images/img_2", { headers: new Headers({ "x-purss-no-copy": "1" }) }), "bypass");
+  assert.equal(kind("/api/items/itm_1/images/img_2", { method: "DELETE" }), "bypass");
+});
+
 test("changes are never intercepted", () => {
   for (const method of ["POST", "PATCH", "PUT", "DELETE", "HEAD"]) assert.equal(kind("/api/items/itm_1", { method }), "bypass", method);
   assert.equal(kind("/api/session", { method: "POST" }), "bypass");

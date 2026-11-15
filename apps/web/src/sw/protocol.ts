@@ -7,6 +7,8 @@
 export const SHELL_CACHE_PREFIX = "purss-shell:";
 /** Reading copies of API answers. One per account, so another account never sees them. */
 export const DATA_CACHE_PREFIX = "purss-api:";
+/** Pictures PURSS serves to the account (source icons, pictures kept with copies). One per account, beside its reading copies. */
+export const PICTURE_CACHE_PREFIX = "purss-pictures:";
 /** The worker's own small memory (which account, whether offline reading is on). */
 export const STATE_CACHE = "purss-worker-state";
 export const STATE_URL = "/__purss/worker-state";
@@ -22,6 +24,8 @@ export const NO_COPY_HEADER = "x-purss-no-copy";
 export const NETWORK_TIMEOUT_MS = 4000;
 /** Most saved API answers per account; the oldest go first. */
 export const MAX_COPIES = 600;
+/** Most saved pictures per account, a backstop to the offline pack's own tidying; the oldest go first. */
+export const MAX_PICTURES = 4000;
 
 export type WorkerState = { accountId: string | null; enabled: boolean };
 export const EMPTY_STATE: WorkerState = { accountId: null, enabled: false };
@@ -50,12 +54,30 @@ export function parseWorkerState(raw: unknown): WorkerState {
 export const shellCacheName = (build: string): string => `${SHELL_CACHE_PREFIX}${build}`;
 export const dataCacheName = (accountId: string): string => `${DATA_CACHE_PREFIX}${accountId}`;
 export const isShellCache = (name: string): boolean => name.startsWith(SHELL_CACHE_PREFIX);
-export const isDataCache = (name: string): boolean => name.startsWith(DATA_CACHE_PREFIX);
+export const pictureCacheName = (accountId: string): string => `${PICTURE_CACHE_PREFIX}${accountId}`;
+/** A cache holding an account's own data: its reading copies or its pictures. */
+export const isDataCache = (name: string): boolean => name.startsWith(DATA_CACHE_PREFIX) || name.startsWith(PICTURE_CACHE_PREFIX);
 
 /** The data caches that do not belong to this account (all of them when there is none). */
 export function foreignDataCaches(names: readonly string[], accountId: string | null): string[] {
-  const own = accountId ? dataCacheName(accountId) : null;
-  return names.filter((n) => isDataCache(n) && n !== own);
+  const own = accountId ? [dataCacheName(accountId), pictureCacheName(accountId)] : [];
+  return names.filter((n) => isDataCache(n) && !own.includes(n));
+}
+
+/**
+ * Pictures whose address changes with their bytes, so a saved one is good for good: a source's icon (its address carries
+ * the icon's digest) and a picture kept with a copy.
+ */
+const ICON = /^\/api\/sources\/[^/]+\/icon$/;
+const KEPT_PICTURE = /^\/api\/items\/([^/]+)\/images\/[^/]+$/;
+export function isSavedPicture(pathname: string, search: string): boolean {
+  return KEPT_PICTURE.test(pathname) || (ICON.test(pathname) && /^\?v=[\w-]+$/.test(search));
+}
+
+/** The item a kept picture belongs to, or null for any other address. */
+export function pictureItem(pathname: string): string | null {
+  const m = KEPT_PICTURE.exec(pathname);
+  return m ? decodeURIComponent(m[1]!) : null;
 }
 
 /** Shell caches left by other builds. */

@@ -6,8 +6,11 @@ import type { ListParams } from "../api/queries.ts";
 import { comingUpQuery } from "../api/reminder-queries.ts";
 import { homeRequests } from "../pages/Home.tsx";
 import { orderHome } from "../state/workspace.tsx";
-import { NO_COPY_HEADER } from "../sw/protocol.ts";
-import { PACK_CONCURRENCY, PACK_KEPT_LIMIT, PACK_LIMIT, annotationsToFetch, itemsToFetch, selectQueue, sourcesOf } from "./pack.ts";
+import { platform } from "../platform/index.ts";
+import { NO_COPY_HEADER, pictureCacheName } from "../sw/protocol.ts";
+import {
+  PACK_CONCURRENCY, PACK_ICONS_LIMIT, PACK_KEPT_LIMIT, PACK_LIMIT, annotationsToFetch, itemsToFetch, picturesIn, picturesToForget, selectQueue, sourcesOf,
+} from "./pack.ts";
 import type { SavedItems } from "./pack.ts";
 import { refreshPackStatus } from "./pack-status.ts";
 import { readRecord, savedItemIds, writeRecord } from "./store.ts";
@@ -35,7 +38,8 @@ const KEPT_BASKETS_MAX = 10;
  * Save the reading queue on this device: what is To read or In progress, what is kept in baskets that save readable text, and
  * New items not yet sorted. Everything goes through the worker, which keeps the answers: the app's start-up answers, the pages
  * that show the queue (not in a `light` save, made right after a change to what is read or kept), and the full text of each
- * queued item. Images are not saved; reading offline shows the text.
+ * queued item. The worker also keeps pictures: every source's icon, and the pictures kept with the copies of kept items;
+ * other pictures in an article are the publisher's and are not saved.
  */
 export async function runPack(qc: QueryClient, accountId: string, signal: AbortSignal, opts: { light?: boolean } = {}): Promise<void> {
   const started = Date.now();
@@ -59,7 +63,8 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   await pool(textBaskets, PACK_CONCURRENCY, signal, async (b) => {
     try { keptBy.set(b.id, (await lookup({ scope: `basket:${b.id}`, filter: "all", sort: "kept", limit: PACK_KEPT_LIMIT })).items); } catch (err) { if (lostConnection(err)) throw err; }
   });
-  const queue = selectQueue({ ...found, kept: textBaskets.flatMap((b) => keptBy.get(b.id) ?? []) });
+  const kept = textBaskets.flatMap((b) => keptBy.get(b.id) ?? []);
+  const queue = selectQueue({ ...found, kept });
 
   // The pages that show it: Home as the person has set it up, each collection, and the sources behind the queue.
   if (!opts.light) {
@@ -84,9 +89,12 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   const saved: SavedItems = {};
   for (const it of queue) if (before.items[it.id]) saved[it.id] = { ...before.items[it.id]!, number: it.number };
   const refetched = new Set<string>();
+  const keptIds = new Set(kept.map((it) => it.id));
+  const keptPictures: string[] = [];
   await pool(itemsToFetch(queue, before.items, present, started), PACK_CONCURRENCY, signal, async (it) => {
     try {
       const detail = await api<ItemDetail>(`/api/items/${encodeURIComponent(it.id)}`, { signal });
+      if (keptIds.has(it.id)) keptPictures.push(...picturesIn(it.id, [detail.contentHtml, detail.latestHtml, detail.partialCopy?.html, detail.keptPicture]));
       const textPending = detail.captures.some((c) => c.level === "pending");
       saved[it.id] = { stateVersion: detail.stateVersion, at: Date.now(), number: it.number, ...(textPending ? { textPending } : {}) };
       refetched.add(it.id);
@@ -107,7 +115,41 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
     }
   });
   if (signal.aborted) return;
+  const icons = boot.sources.flatMap((src) => (src.iconUrl ? [src.iconUrl] : [])).slice(0, PACK_ICONS_LIMIT);
+  await savePictures(accountId, signal, icons, keptPictures, new Set(queue.filter((it) => keptIds.has(it.id) && saved[it.id]).map((it) => it.id)));
+  if (signal.aborted) return;
 
   writeRecord(accountId, { startedAt: started, savedAt: new Date().toISOString(), items: saved });
   await refreshPackStatus(accountId);
+}
+
+/**
+ * Fetch the pictures not yet saved (the worker keeps each as it passes), then let go of the ones no longer wanted. Kept
+ * pictures of an item saved earlier stay as they are; they are looked at again when its text is next fetched.
+ */
+async function savePictures(accountId: string, signal: AbortSignal, icons: readonly string[], keptPictures: readonly string[], keptItems: ReadonlySet<string>): Promise<void> {
+  const caches = platform.offline.caches();
+  if (!caches) return;
+  const name = pictureCacheName(accountId);
+  const savedPaths = async () => {
+    if (!(await caches.has(name))) return new Map<string, Request>();
+    return new Map((await (await caches.open(name)).keys()).map((key) => { const u = new URL(key.url); return [u.pathname + u.search, key] as const; }));
+  };
+  const before = await savedPaths();
+  const missing = [...new Set([...icons, ...keptPictures])].filter((path) => !before.has(path));
+  await pool(missing, PACK_CONCURRENCY, signal, async (path) => {
+    try {
+      const res = await platform.transport.fetch(path, { signal });
+      await res.arrayBuffer();
+    } catch (err) {
+      if (lostConnection(err) || signal.aborted) throw err;
+      // Otherwise skip this one: the next save tries again.
+    }
+  });
+  if (signal.aborted) return;
+  const after = await savedPaths();
+  const forget = picturesToForget([...after.keys()], new Set(icons), keptItems);
+  if (forget.length === 0) return;
+  const cache = await caches.open(name);
+  await Promise.all(forget.map((path) => cache.delete(after.get(path)!)));
 }

@@ -1,5 +1,6 @@
 import type { ItemDTO } from "@purss/domain";
 import { itemDate } from "../lib/items.ts";
+import { pictureItem } from "../sw/protocol.ts";
 
 /**
  * The offline pack: the reading queue this device keeps so it can be read without a connection.
@@ -127,4 +128,27 @@ export function sourcesOf(queue: readonly ItemDTO[], max: number): string[] {
   const counts = new Map<string, number>();
   for (const it of queue) if (it.sourceId) counts.set(it.sourceId, (counts.get(it.sourceId) ?? 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, max).map(([id]) => id);
+}
+
+/** Most source icons saved on the device. */
+export const PACK_ICONS_LIMIT = 2000;
+
+/** The addresses of the pictures kept with this item's copy that its text shows. */
+export function picturesIn(itemId: string, texts: readonly (string | null | undefined)[]): string[] {
+  const found = new Set<string>();
+  for (const text of texts) {
+    for (const m of (text ?? "").matchAll(/\/api\/items\/[\w-]+\/images\/[\w-]+/g)) if (pictureItem(m[0]) === itemId) found.add(m[0]);
+  }
+  return [...found];
+}
+
+/**
+ * Saved pictures that are no longer wanted: icons of sources no longer followed (or of an icon since replaced), and kept
+ * pictures of items no longer saved for reading offline. `saved` are the saved pictures' paths with their query.
+ */
+export function picturesToForget(saved: readonly string[], icons: ReadonlySet<string>, keptItems: ReadonlySet<string>): string[] {
+  return saved.filter((path) => {
+    const item = pictureItem(path.split("?")[0]!);
+    return item === null ? !icons.has(path) : !keptItems.has(item);
+  });
 }

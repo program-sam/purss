@@ -14,7 +14,7 @@ function setup(over: Partial<Env> = {}) {
   const t = makeEnv(over);
   const worker = new OfflineWorker(t.env);
   const w = waiter();
-  const get = async (path: string, kind: "api" | "navigation" | "static" = "api", init?: RequestInit) => {
+  const get = async (path: string, kind: "api" | "navigation" | "static" | "picture" = "api", init?: RequestInit) => {
     const res = await worker.handle(kind, req(path, init), w.wait);
     await w.settle();
     return res;
@@ -297,4 +297,26 @@ test("the oldest copies are trimmed past the limit; the session and bootstrap st
   assert.ok(!cache.entries.has(`${ORIGIN}/api/items/old0`));
   assert.ok(cache.entries.has(`${ORIGIN}/api/items/old${MAX_COPIES + 19}`));
   assert.ok(cache.entries.has(`${ORIGIN}/api/items/fresh`));
+});
+
+test("pictures: the saved one first, kept only as a picture, only while offline reading is on for a known account", async () => {
+  const t = setup();
+  let served = 0;
+  t.network.routes.set("/api/items/itm_1/images/img_1", () => { served++; return new Response(new Uint8Array([7]), { headers: { "content-type": "image/png" } }); });
+  t.network.routes.set("/api/items/itm_1/images/img_2", () => json({ error: { code: "signed_out" } }, { status: 200 }));
+  await t.get("/api/items/itm_1/images/img_1", "picture");
+  assert.equal(t.caches.stores.get("purss-pictures:acc_1"), undefined, "setting off: nothing kept");
+
+  await t.worker.message(on("acc_1"));
+  await t.get("/api/items/itm_1/images/img_1", "picture");
+  await t.get("/api/items/itm_1/images/img_2", "picture");
+  assert.deepEqual([...t.caches.stores.get("purss-pictures:acc_1")!.entries.keys()], [`${ORIGIN}/api/items/itm_1/images/img_1`], "not an answer that isn't a picture");
+  t.network.offline = true;
+  const saved = await t.get("/api/items/itm_1/images/img_1", "picture");
+  assert.deepEqual(new Uint8Array(await saved.arrayBuffer()), new Uint8Array([7]));
+  assert.equal(served, 2, "the saved one, without asking the network");
+
+  await t.worker.message(on("acc_2"));
+  assert.equal(t.caches.stores.get("purss-pictures:acc_1"), undefined, "another account never sees them");
+  await assert.rejects(t.get("/api/items/itm_1/images/img_1", "picture"));
 });

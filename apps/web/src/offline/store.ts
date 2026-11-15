@@ -1,5 +1,5 @@
 import { platform } from "../platform/index.ts";
-import { DATA_CACHE_PREFIX, dataCacheName } from "../sw/protocol.ts";
+import { dataCacheName, isDataCache } from "../sw/protocol.ts";
 import { EMPTY_RECORD, parseRecord } from "./pack.ts";
 import type { PackRecord } from "./pack.ts";
 
@@ -39,7 +39,7 @@ export async function savedItemIds(accountId: string): Promise<Set<string>> {
 export async function deleteAllCopies(): Promise<void> {
   try {
     const caches = platform.offline.caches();
-    if (caches) for (const name of await caches.keys()) if (name.startsWith(DATA_CACHE_PREFIX)) await caches.delete(name);
+    if (caches) for (const name of await caches.keys()) if (isDataCache(name)) await caches.delete(name);
   } catch { /* no Cache Storage here */ }
   clearRecords();
 }

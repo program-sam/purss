@@ -41,7 +41,7 @@ export function OfflineField() {
   return (
     <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>App and offline reading</legend>
       <Check checked={enabled} disabled={!supported} onChange={toggle}
-        hint="Saves your To read and In progress items, items kept with their text, and new unsorted items on this device. You can read them offline. Article images still need a connection. Turning this off or signing out removes the copies.">
+        hint="Saves your To read and In progress items, items kept with their text, and new unsorted items on this device. You can read them offline, with source icons and the pictures saved with kept items. Other article images still need a connection. Turning this off or signing out removes the copies.">
         Offline reading on this device
       </Check>
       {!supported ? <p className="fine">This needs a secure address (HTTPS) and a browser that can keep offline copies, so it isn't available here.</p> : null}

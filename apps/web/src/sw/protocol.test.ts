@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dataCacheName, foreignDataCaches, isPageMessage, parseWorkerState, shellCacheName, staleShellCaches } from "./protocol.ts";
+import { dataCacheName, foreignDataCaches, pictureItem, isPageMessage, parseWorkerState, shellCacheName, staleShellCaches } from "./protocol.ts";
 
 test("cache names say what they hold and whose", () => {
   assert.equal(dataCacheName("acc_1"), "purss-api:acc_1");
@@ -36,4 +36,12 @@ test("a damaged remembered state means nothing is kept", () => {
   assert.deepEqual(parseWorkerState({ accountId: 7, enabled: "yes" }), { accountId: null, enabled: false });
   assert.deepEqual(parseWorkerState({ accountId: "a", enabled: true }), { accountId: "a", enabled: true });
   assert.deepEqual(parseWorkerState({ accountId: "", enabled: true }), { accountId: null, enabled: true });
+});
+
+test("an account's pictures are its own data: they stay with it and go with it", () => {
+  const names = ["purss-api:acc_1", "purss-pictures:acc_1", "purss-pictures:acc_2", "purss-shell:b1"];
+  assert.deepEqual(foreignDataCaches(names, "acc_1"), ["purss-pictures:acc_2"]);
+  assert.deepEqual(foreignDataCaches(names, null), ["purss-api:acc_1", "purss-pictures:acc_1", "purss-pictures:acc_2"]);
+  assert.equal(pictureItem("/api/items/itm_1/images/img_2"), "itm_1");
+  assert.equal(pictureItem("/api/sources/src_1/icon"), null);
 });
