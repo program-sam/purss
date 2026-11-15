@@ -165,18 +165,17 @@ export const home = {
 <div class="a-shot">${appWindow()}</div>
 <div class="a-follow"><span>${ic("rss")}Blogs &amp; news</span><span>${ic("book")}Journals</span><span>${ic("play")}YouTube</span><span>${ic("mic")}Podcasts</span><span>${ic("share")}Mastodon &amp; Bluesky</span><span>${ic("export")}Import from other readers</span></div>
 <p class="a-more">…and most other sites with a feed. <a href="${links(site).signUp}">Paste a link into a free account</a> to see if yours works.</p>
-<p class="a-for">Made for curious readers, hobbyists, students and researchers, video and podcast fans, and anyone who'd rather run it themselves.</p>
+<p class="a-for">Open source · No ads or trackers · Export everything, any time · On the web, desktop, Android and in your browser</p>
 </div></section>
 
 <section class="a-pitch" id="why"><div class="s-wrap s-center">
 <span class="s-kicker">${ic("heart")}Why we built it</span>
 <h2 class="s-h2">The web was yours once. Take it back.</h2>
-<p class="s-lead a-pitch-p">You used to choose what you read: a favorite blog, a journal, a channel you loved. Then feeds started choosing for you, ranked to keep you scrolling and tuned for outrage.</p>
-<p class="s-lead a-pitch-p">PURSS gives the choice back. You decide what comes in and in what order, so the time you spend reading is time you meant to spend.</p>
+<p class="s-lead a-pitch-p">You used to choose what you read. Then feeds started choosing for you, ranked to keep you scrolling. PURSS hands the choice back: you decide what comes in, in what order, and what's worth keeping.</p>
 <div class="a-vs"><div class="them"><h3>Algorithmic feeds</h3><ul>
 <li>${ic("x")}Ranked to keep you scrolling</li><li>${ic("x")}Strangers and ads in between</li><li>${ic("x")}Your attention is the product</li><li>${ic("x")}Gone when the platform changes its mind</li></ul></div>
 <div class="us"><h3>Your PURSS</h3><ul>
-<li>${ic("check")}Only the sources you chose, in your order</li><li>${ic("check")}No ads, no third-party trackers, no suggested posts</li><li>${ic("check")}You're the customer, not the product</li><li>${ic("check")}Nothing you keep expires; export any time</li></ul></div></div>
+<li>${ic("check")}Only the sources you chose, in your order</li><li>${ic("check")}No ads, no third-party trackers, no suggested posts</li><li>${ic("check")}Open source: read the code, or run it yourself</li><li>${ic("check")}What you keep stays put. Export it all, any time</li></ul></div></div>
 </div></section>
 
 <section class="s-sec s-tint" id="features"><div class="s-wrap"><div class="a-split">
@@ -233,7 +232,7 @@ ${([
 <div class="s-plans" style="margin-top:36px">${planCard(site, PLANS.free)}${planCard(site, PLANS.plus, { featured: true, badge: "Public sharing" })}${planCard(site, PLANS.pro, { badge: "Smart filters" })}</div>
 <div class="s-always">${ALWAYS.map((x) => `<span>${ic("check")}${x}</span>`).join("")}</div></div></section>
 
-<section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">Compare</span><h2 class="s-h2" style="margin-top:10px">The only one of the five you can run yourself.</h2><p class="s-lead" style="margin-top:12px">How we compare with the readers people switch from.</p></div>${compareTable()}<div class="a-beyond"><b>Beyond the price:</b><span>${ic("check")}Your copies outlive the feed</span><span>${ic("check")}A view for every collection</span><span>${ic("check")}YouTube and podcast discovery</span><span>${ic("check")}Move between hosted and self-hosted</span><span>${ic("check")}Highlights and notes</span><span>${ic("check")}Public pages anyone can follow</span><span>${ic("check")}Browser extension and phone apps</span></div><p class="a-opml">${ic("export")}Bring your list: import an OPML file (the export most readers offer) from Feedly, Inoreader or any reader.</p></div></section>
+<section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">Compare</span><h2 class="s-h2" style="margin-top:10px">The only one of the five you can run yourself.</h2><p class="s-lead" style="margin-top:12px">Hosted by us or on your own server, it's the same app, and one export moves you between them.</p></div>${compareTable()}<div class="a-beyond"><b>What the table can't show:</b><span>${ic("check")}Kept items outlive the feed</span><span>${ic("check")}Five views: list, cards, board, table, timeline</span><span>${ic("check")}Find podcasts by name, YouTube by channel link</span><span>${ic("check")}Highlights and notes, searchable</span><span>${ic("check")}Public pages anyone can follow</span><span>${ic("check")}Browser extension, desktop and Android apps</span></div><p class="a-opml">${ic("export")}Bring your list: import an OPML file (the export most readers offer) from Feedly, Inoreader or any reader.</p></div></section>
 
 <section class="s-sec tight" id="self-host"><div class="s-wrap"><div class="a-host">
 <div><span class="s-kicker">${ic("server")}Host it yourself</span><h2 class="s-h2">Prefer to run it yourself? It's free.</h2>
