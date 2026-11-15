@@ -799,3 +799,34 @@ test("062 numbers each workspace's items in the order they arrived, never again 
     db.close();
   }
 });
+
+test("063 gives stored enclosure addresses the & their feed meant and leaves other items alone", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "063")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    const item = (id: string, enclosures: string | null) =>
+      db.run("INSERT INTO items (id, account_id, workspace_id, kind, title, enclosures, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', 'audio', 't', ?, 'x', 'x', 'x')", id, enclosures);
+    const escaped = JSON.stringify([{ url: "https://traffic.example.fm/a.mp3?utm_source=Podcast&amp;in_playlist=p1", type: "audio/mpeg", length: 1 }]);
+    const plain = JSON.stringify([{ url: "https://cdn.example.org/b.mp3?x=1&y=2", type: "audio/mpeg", length: null }]);
+    item("itm_escaped", escaped);
+    item("itm_plain", plain);
+    item("itm_none", null);
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "063").length);
+    const stored = (id: string) => db.get<{ enclosures: string | null }>("SELECT enclosures FROM items WHERE id = ?", id)?.enclosures ?? null;
+    assert.equal((JSON.parse(stored("itm_escaped")!) as { url: string }[])[0]?.url, "https://traffic.example.fm/a.mp3?utm_source=Podcast&in_playlist=p1");
+    assert.equal(stored("itm_plain"), plain);
+    assert.equal(stored("itm_none"), null);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});

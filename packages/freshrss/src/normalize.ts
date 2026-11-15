@@ -70,8 +70,11 @@ function publishedIso(seconds: unknown): string | null {
 
 const THUMBNAIL = /<img class="enclosure-thumbnail" src="([^"]+)"/;
 
-function decodeAmp(v: string): string {
-  return v.replace(/&amp;/g, "&");
+const ESCAPED: Record<string, string> = { "&amp;": "&", "&quot;": '"', "&#039;": "'", "&#39;": "'", "&lt;": "<", "&gt;": ">" };
+
+/** The engine hands enclosure addresses and thumbnails HTML-escaped (`&amp;` in a query); the address itself has none of that. */
+function unescapeHtml(v: string): string {
+  return v.replace(/&(?:amp|quot|#0?39|lt|gt);/g, (m) => ESCAPED[m] ?? m);
 }
 
 function isHttpUrl(v: string | null | undefined): v is string {
@@ -86,6 +89,7 @@ export function normalizeItem(raw: RawStreamItem): NormalizedItem {
   const content = raw.summary?.content ?? raw.content?.content ?? null;
 
   const enclosures = (raw.enclosure ?? [])
+    .map((e) => ({ ...e, href: typeof e.href === "string" ? unescapeHtml(e.href) : e.href }))
     .filter((e): e is { href: string; type?: string; length?: number | string } => isHttpUrl(e.href))
     .slice(0, 10)
     .map((e) => {
@@ -99,7 +103,7 @@ export function normalizeItem(raw: RawStreamItem): NormalizedItem {
 
   const imageEnclosure = enclosures.find((e) => e.type?.toLowerCase().startsWith("image"));
   const thumb = content ? THUMBNAIL.exec(content)?.[1] : undefined;
-  const imageUrl = imageEnclosure?.url ?? (thumb && isHttpUrl(decodeAmp(thumb)) ? clamp(decodeAmp(thumb), 4000) : null);
+  const imageUrl = imageEnclosure?.url ?? (thumb && isHttpUrl(unescapeHtml(thumb)) ? clamp(unescapeHtml(thumb), 4000) : null);
 
   const entry: SyncEntry = {
     externalId: clamp(externalId, 200),

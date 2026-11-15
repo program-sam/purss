@@ -261,7 +261,7 @@ describe("entries: shape, paging, incremental sync", () => {
   test("stream entries map to the SyncEntry contract; the original GUID is not in the standard stream", async () => {
     const u = await engine.newUser("shape");
     const list = items(1, "shape");
-    list[0] = { ...list[0]!, link: `${engine.feeds.base}/articles/alpha`, title: "Q&A <tags> and “quotes”", html: "<p>Hello <b>world</b></p>", enclosure: { url: `${engine.feeds.base}/audio.mp3`, type: "audio/mpeg", length: 12345 } };
+    list[0] = { ...list[0]!, link: `${engine.feeds.base}/articles/alpha?a=1&b=2`, title: "Q&A <tags> and “quotes”", html: "<p>Hello <b>world</b></p>", enclosure: { url: `${engine.feeds.base}/audio.mp3?utm_source=Podcast&in_playlist=p1`, type: "audio/mpeg", length: 12345 } };
     const feed = newFeed("Shape", list);
     await subscribeAndFetch(u, feed.url);
     const page = await u.client.streamContents({ count: 10, order: "asc" });
@@ -275,8 +275,8 @@ describe("entries: shape, paging, incremental sync", () => {
     assert.equal(entry.contentHtml?.includes("<b>world</b>"), true);
     assert.equal(entry.author, "Test Author");
     assert.match(entry.streamId, /^feed\/\d+$/);
-    assert.equal(entry.url, `${engine.feeds.base}/articles/alpha`);
-    assert.equal(entry.enclosures.some((e) => e.url.endsWith("/audio.mp3") && e.type === "audio/mpeg"), true);
+    assert.equal(entry.url, `${engine.feeds.base}/articles/alpha?a=1&b=2`);
+    assert.deepEqual(entry.enclosures.map((e) => [e.url, e.type]), [[`${engine.feeds.base}/audio.mp3?utm_source=Podcast&in_playlist=p1`, "audio/mpeg"]], "an enclosure's address keeps its query exactly, with no HTML escaping");
     assert.match(entry.externalId, /^\d{16}$/, "decimal id = first-crawl time in microseconds");
     assert.equal(raw.timestampUsec, entry.externalId, "the engine id and the crawl timestamp are the same number");
   });

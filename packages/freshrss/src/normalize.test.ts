@@ -63,6 +63,14 @@ test("image comes from an image enclosure, else from the engine's thumbnail figu
   assert.equal(normalizeItem(base).entry.imageUrl, null);
 });
 
+test("an enclosure's address arrives HTML-escaped from the engine and is kept as the feed gave it", () => {
+  const { enclosures } = normalizeItem({
+    ...base,
+    enclosure: [{ href: "https://traffic.example.fm/audio.mp3?utm_source=Podcast&amp;in_playlist=p1&amp;x=&#039;&quot;&amp;amp;", type: "audio/mpeg" }],
+  }).entry;
+  assert.equal(enclosures[0]?.url, "https://traffic.example.fm/audio.mp3?utm_source=Podcast&in_playlist=p1&x='\"&amp;");
+});
+
 test("non-http links and enclosures are dropped, missing optional fields become null", () => {
   const { entry } = normalizeItem({
     id: base.id,
