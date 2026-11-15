@@ -26,9 +26,10 @@ sounds, backup and restore, and accounts with invitations on every installation.
 Docker Compose packaging runs it on a server (see [docs/self-hosting.md](docs/self-hosting.md)).
 Android and iOS apps reuse the web app through Capacitor ([plan/31](plan/31-mobile-apps.md); the
 Android app is checked on an emulator, the iOS project is not yet built), and a desktop app for Windows,
-macOS and Linux through Tauri ([plan/42](plan/42-desktop-app.md); checked on Linux). Open signup exists for hosted
-mode but is off by default and needs outgoing email; payments, Web Push, native push and proprietary
-service connectors are not built.
+macOS and Linux through Tauri ([plan/42](plan/42-desktop-app.md); checked on Linux). Open signup is on for the
+official hosted service and off by default elsewhere (it needs outgoing email); paying for a plan goes through a
+separate billing service, still in testing. Phone notifications go through a push relay ([plan/37](plan/37-push-notifications.md)), so far proven only against
+fakes; Web Push and proprietary service connectors are not built.
 
 ## Download the desktop app
 

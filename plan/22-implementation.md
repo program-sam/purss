@@ -5,8 +5,8 @@ The owner approved the A3 PURSS design (prototype branch `prototype/ui-direction
 preliminary, working state. This document fixes the build decisions. "Preliminary"
 means implemented end to end and tested locally on realistic data, not hardened for
 public exposure. Sharing baskets and collections is on for every installation (Plus on hosted
-ones) under the report and takedown policy in plan/19; hosted signup and deployment stay off until
-the owner approves them.
+ones) under the report and takedown policy in plan/19. The owner turned open signup on for the official
+hosted service (`infra/compose.official.yaml`); deploying it stays the owner's action.
 
 ## Stack
 
@@ -76,12 +76,12 @@ transaction as the mutation, a bounded control headroom, and a physical disk res
 | 3 Slice | Protected bootstrap (one-time claim secret), email address and password sign-in with optional passkeys, sessions, CSRF, central capability checks, discovery (feeds, alternate links, YouTube channel/handle), follow, collections (sources and query), list/cards/board, workflow, New markers, atomic Keep, FTS search, storage ledger + indicator + breakdown, confirmed permanent delete of unkept items, disk-reserve pause, admin health | — |
 | 4 Organize | Table and timeline views, query collections, Home layouts as dashboard sections, manual URL keep, full-text capture job, export/import (JSON + manifest, secret-free), SQLite backup/restore scripts, bulk actions, undo, storage page, in-app notifications with mute/quiet hours and browser notifications while open, anniversary reminders (on by default, hide/snooze/off), private statistics per source and per collection (counts, 26-week rhythm by publication date, states, opened/kept, storage, Finished/Ignored in the last 30 days from an own-change log that is exported and imported) | Web Push delivery to closed browsers |
 | 5 Deploy | Docker Compose packaging (engine isolated behind egress, admin helper instead of exec, reverse-proxy mode), dev runner, egress proxy, admin area (health, sources, jobs retry/cancel, usage reconciliation, audit log, step-up), OPML subscription import/export through validated product fields, connector catalog (native feed, YouTube resolver), private feed gateway with token auth exercised by a controlled test adapter | Any real proprietary service adapter (none approved); a guided single-command installer |
-| 6 Hosted | Accounts on every installation: admins invite people (e.g. a household), suspend, and grant or remove the admin role; each account has its own PURSS and FreshRSS user. Hosted mode adds storage allowances and optional open signup (`PURSS_SIGNUP=open`, rate-limited and capped per day; off by default; needs working outgoing email, [plan/27](27-outbound-email.md)) | Payments, abuse/verification tooling beyond rate limits, launch |
+| 6 Hosted | Accounts on every installation: admins invite people (e.g. a household), suspend, and grant or remove the admin role; each account has its own PURSS and FreshRSS user. Hosted mode adds storage allowances and optional open signup (`PURSS_SIGNUP=open`, rate-limited and capped per day; off by default, on for the official service; needs working outgoing email, [plan/27](27-outbound-email.md)); paying for a plan through the external billing service (plan/18), in testing | Abuse/verification tooling beyond rate limits, launch |
 | 7 Sharing | Share on baskets and collections (filters without reading-state rules): live public page and Atom feed, review of the page and of what becomes public, pause, stop, Follow by URL through Add source; public notes per item, opt-in search listing, the `/follow` page and Follow buttons, visitor reports and administrator takedowns; Plus on hosted installations | Source bundles for followers |
 
 OIDC sign-in, account creation through a provider (open sign-up) and "confirm it's you" with a provider are implemented and tested against a local mock issuer; no provider is
-configured by default (the hosted service sets Google). Real-service connectors, turning on open signup, payment, push delivery
-and any exposure beyond localhost remain owner decisions.
+configured by default (the hosted service sets Google). Real-service connectors, real push delivery,
+deploying and any further exposure remain owner decisions.
 
 ## Build order
 

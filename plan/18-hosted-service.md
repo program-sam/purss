@@ -5,8 +5,9 @@
 The owner intends an official hosted option: create an account, receive a free
 storage allocation, and use the same self-ownership-oriented product without a
 server. Optional extra paid capacity and/or donations may support it. This is an
-approved planning direction, not a service launch, pricing decision, payment
-integration, promise of free unlimited storage, or permission to enable signup now.
+approved planning direction, not a service launch or a promise of free unlimited storage. The owner
+has since turned open signup on for the official service; payment goes through the billing service
+below, still in testing.
 
 Self-hosting remains a complete supported path, not a deliberately degraded trial.
 Keep one product/domain model and portable exports. One account owns one workspace
@@ -112,6 +113,6 @@ silently contradict the kept-item contract or retroactively change it without co
 
 Run adversarial two-account tests, quota/concurrency/replay tests, resource-exhaustion
 exercises, restore/export and hosted-to-self-host migration, plus independent security
-review. Prove the consumer signup journey on real devices. Do not open registration
-until these gates and operator readiness are approved. Funding experiments are a
+review. Prove the consumer signup journey on real devices. The owner opened registration
+on the official service's configuration; these gates remain the bar for launch. Funding experiments are a
 later explicit decision, not a prerequisite for the first self-hosted vertical slice.

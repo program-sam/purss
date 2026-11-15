@@ -7,9 +7,12 @@
 # - the link to the hosted service's billing (plan/18, apps/api/src/billing.ts), set in the server's .env:
 #     PURSS_BILLING_URL=https://purss.app/billing
 #     PURSS_BILLING_SECRET=…  (the billing service's shared secret)
+# - open sign-up: anyone can create an account (plan/18). It stays closed until outgoing email works (PURSS_SMTP_HOST,
+#   PURSS_MAIL_FROM in the server's .env); set PURSS_SIGNUP=invite there to close it.
 services:
   api:
     environment:
+      PURSS_SIGNUP: ${PURSS_SIGNUP:-open}
       PURSS_BILLING_URL: ${PURSS_BILLING_URL:-}
       PURSS_BILLING_SECRET: ${PURSS_BILLING_SECRET:-}
 
