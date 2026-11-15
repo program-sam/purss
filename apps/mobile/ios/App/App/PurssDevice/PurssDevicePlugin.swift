@@ -3,8 +3,8 @@ import Capacitor
 import BackgroundTasks
 import WidgetKit
 
-/// The app's own native plugin (plan/38, apps/web/src/platform/native/device-plugin.ts): foreground downloads
-/// that can be cancelled on the wire, the state the background job needs, and the home-screen widgets' look and
+/// The app's own native plugin (plan/38, apps/web/src/platform/native/device-plugin.ts): the page's downloads,
+/// which go on when the app is closed and can be cancelled on the wire, the state the background job needs, and the home-screen widgets' look and
 /// episode and their refresh.
 @objc(PurssDevicePlugin)
 public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
@@ -21,8 +21,12 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
     ]
 
-    private lazy var downloads = ForegroundDownloads { [weak self] id, bytes, total in
-        self?.notifyListeners("progress", data: ["id": id, "bytes": bytes, "total": total])
+    private var downloads: ForegroundDownloads { ForegroundDownloads.shared }
+
+    override public func load() {
+        ForegroundDownloads.shared.onProgress = { [weak self] id, bytes, total in
+            self?.notifyListeners("progress", data: ["id": id, "bytes": bytes, "total": total])
+        }
     }
 
     @objc func download(_ call: CAPPluginCall) {
@@ -37,7 +41,7 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Only https addresses are downloaded.", "insecure")
             return
         }
-        guard let destination = ForegroundDownloads.destination(for: path) else {
+        guard ForegroundDownloads.destination(for: path) != nil else {
             call.reject("The path must be relative, without empty segments or '..'.", "io")
             return
         }
@@ -48,12 +52,12 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("The downloads folder can't be created.", "io")
             return
         }
-        downloads.start(id: id, url: url, destination: destination, maxBytes: maxBytes, call: call)
+        downloads.start(id: id, url: url, path: path, maxBytes: maxBytes, call: call)
     }
 
     @objc func cancel(_ call: CAPPluginCall) {
-        if let id = call.getString("id") { downloads.cancel(id: id) }
-        call.resolve()
+        guard let id = call.getString("id") else { return call.resolve() }
+        downloads.cancel(name: id) { call.resolve() }
     }
 
     @objc func setBackground(_ call: CAPPluginCall) {
@@ -114,6 +118,7 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         DeviceStore.clearLost()
         Task {
             await BackgroundTransfers.shared.cancelAllAndWait()
+            await ForegroundDownloads.shared.cancelAllAndWait()
             try? FileManager.default.removeItem(at: DeviceStore.incomingDirectory)
             // The widgets' snapshot, lists and choices go, and nothing that started before may write them back.
             WidgetData.wipe()

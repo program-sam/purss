@@ -272,10 +272,9 @@ final class BackgroundTransfers: NSObject, URLSessionDownloadDelegate {
         guard !wasHandled, let error = error, let meta = BackgroundTransfers.meta(of: task) else { return }
         if wasTooLarge {
             Staging.finishFailed(meta, status: -2)
-        } else if (error as? URLError)?.code == .cancelled {
-            Staging.remove(meta)
         } else {
-            Staging.finishFailed(meta, status: 0)
+            // Stopped, or cut off by the connection or the system: nothing is recorded, so the next run plans it again.
+            Staging.remove(meta)
         }
     }
 

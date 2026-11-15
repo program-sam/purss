@@ -4,7 +4,7 @@ import type { DeviceConnection as Connection, DownloadPlanRequest, ItemDetail } 
 import { chooseDownloads, downloadCandidate, expectedBytes, MAX_DOWNLOAD_BYTES, mediaToDownload } from "@purss/domain";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import type { BackgroundState } from "./background.ts";
-import { DownloadError, DownloadManager } from "./manager.ts";
+import { DownloadError, DownloadManager, MAX_TRIES } from "./manager.ts";
 import type { DeviceFiles, KeyValue, ManagerDeps } from "./manager.ts";
 import type { DownloadProgress } from "./types.ts";
 
@@ -95,9 +95,10 @@ function setup() {
   const mirrored: (BackgroundState | null)[] = [];
   const pages: string[] = [];
   let readPage: ManagerDeps["readPage"] = async (bytes, url) => { pages.push(url); return { ok: true, title: "Read", html: `<p>${new TextDecoder().decode(bytes)}</p>` }; };
-  const m = new DownloadManager({ files, get, plan, connection: async () => connection, readPage: (b, u) => readPage(b, u), store, now: () => Date.parse("2026-11-05T10:00:00Z"), mirror: (s) => mirrored.push(s) });
+  const deps: ManagerDeps = { files, get, plan, connection: async () => connection, readPage: (b, u) => readPage(b, u), store, now: () => Date.parse("2026-11-05T10:00:00Z"), mirror: (s) => mirrored.push(s) };
+  const m = new DownloadManager(deps);
   m.setAccount("acc_1");
-  return { m, files, store, items, calls, plans, lists, mirrored, pages, setHold: (p: Promise<void> | null) => { hold = p; }, setReadPage: (f: ManagerDeps["readPage"]) => { readPage = f; }, setConnection: (c: Connection) => { connection = c; }, setOffline: (v: boolean) => { offline = v; } };
+  return { m, deps, files, store, items, calls, plans, lists, mirrored, pages, setHold: (p: Promise<void> | null) => { hold = p; }, setReadPage: (f: ManagerDeps["readPage"]) => { readPage = f; }, setConnection: (c: Connection) => { connection = c; }, setOffline: (v: boolean) => { offline = v; } };
 }
 
 test("a download keeps the item's text, its highlights and notes, and the publisher's file", async () => {
@@ -234,12 +235,113 @@ test("failures leave nothing behind and say why in plain words", async () => {
   assert.match(t.m.get("itm_9")!.error!, /isn't in your PURSS/);
 });
 
-test("a download that was running when the app stopped shows as not finished", () => {
+/** The app closed and opened again: a new manager over the same storage and files. */
+async function reopen(t: ReturnType<typeof setup>): Promise<DownloadManager> {
+  const m = new DownloadManager(t.deps);
+  m.setAccount("acc_1");
+  await new Promise((r) => setTimeout(r, 0));
+  return m;
+}
+
+test("a download the app's closing cut off goes on when downloads are next brought up to date, keeping its partial file meanwhile", async () => {
   const t = setup();
-  t.store.set("purss:downloads:account:acc_2", JSON.stringify([{ itemId: "itm_1", state: "downloading", bytes: 0 }]));
-  const m2 = new DownloadManager({ files: t.files, get: async () => { throw new Error(); }, plan: async () => { throw new Error(); }, connection: async () => "wifi", readPage: async () => ({ ok: false, message: "" }), store: t.store });
-  m2.setAccount("acc_2");
-  assert.equal(m2.get("itm_1")!.state, "failed");
+  await new Promise((r) => setTimeout(r, 0));
+  t.items.set("itm_1", detail("itm_1"));
+  t.store.set("purss:downloads:account:acc_1", JSON.stringify([{ itemId: "itm_1", title: "Episode itm_1", sourceTitle: "Slow Radio", kind: "podcast", origin: "manual", state: "downloading", error: null, media: null, page: null, bytes: 0, savedAt: "2026-11-05T09:00:00Z" }]));
+  t.files.files.set("acc_1/itm_1/media.mp3.part", { bytes: 5 * MB });
+  const m = await reopen(t);
+  assert.equal(m.get("itm_1")!.state, "downloading");
+  assert.equal(m.queued("itm_1"), true, "shown as waiting to go on");
+  assert.deepEqual(t.files.names(), ["acc_1/itm_1/media.mp3.part"], "the start-up sweep keeps what it has fetched");
+  assert.deepEqual(t.mirrored.at(-1)!.have, ["itm_1"]);
+  await m.sync();
+  assert.equal(m.get("itm_1")!.state, "done");
+  assert.equal(m.queued("itm_1"), false);
+  assert.equal(t.store.get("purss:downloads:queue:acc_1"), null, "nothing left in the queue");
+});
+
+test("downloads still waiting their turn when the app closed run, in order, when it opens again", async () => {
+  const t = setup();
+  for (const id of ["itm_1", "itm_2", "itm_3"]) t.items.set(id, detail(id));
+  t.files.halfway = new Promise(() => {});
+  void t.m.download("itm_1");
+  void t.m.download("itm_2", "auto");
+  void t.m.download("itm_3");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(t.mirrored.at(-1)!.have, ["itm_1", "itm_2", "itm_3"], "the background job leaves queued items alone");
+  // The app is closed with itm_1 halfway.
+  t.files.halfway = null;
+  t.files.downloads = [];
+  const m = await reopen(t);
+  assert.deepEqual(["itm_1", "itm_2", "itm_3"].map((id) => m.queued(id)), [true, true, true]);
+  await m.sync();
+  assert.deepEqual(t.files.downloads.map((u) => new URL(u).pathname), ["/itm_1.mp3", "/itm_2.mp3", "/itm_3.mp3"]);
+  assert.deepEqual(m.list().map((r) => [r.itemId, r.state, r.origin]), [["itm_3", "done", "manual"], ["itm_2", "done", "auto"], ["itm_1", "done", "manual"]]);
+});
+
+test("a download the connection cuts off waits to go on, and shows as failed after the last try", async () => {
+  const t = setup();
+  t.items.set("itm_1", detail("itm_1"));
+  t.files.fail = new DownloadError(0, "network");
+  await t.m.download("itm_1");
+  assert.equal(t.m.get("itm_1")!.state, "downloading");
+  assert.equal(t.m.get("itm_1")!.title, "Episode itm_1");
+  assert.equal(t.m.queued("itm_1"), true);
+  for (let i = 2; i < MAX_TRIES; i++) await t.m.sync();
+  assert.equal(t.m.get("itm_1")!.state, "downloading", `still waiting after ${MAX_TRIES - 1} lost transfers`);
+  await t.m.sync();
+  assert.equal(t.m.get("itm_1")!.state, "failed");
+  assert.match(t.m.get("itm_1")!.error!, /Check your connection/);
+  assert.equal(t.m.queued("itm_1"), false);
+  assert.equal(t.files.downloads.length, MAX_TRIES);
+});
+
+test("an automatic download cut off waits for Wi-Fi when Wi-Fi only is on; one by hand goes on over mobile data", async () => {
+  const t = setup();
+  t.items.set("itm_1", detail("itm_1"));
+  t.items.set("itm_2", detail("itm_2"));
+  t.files.fail = new DownloadError(0, "network");
+  await t.m.download("itm_1", "auto");
+  await t.m.download("itm_2");
+  t.files.fail = null;
+  t.setConnection("cellular");
+  await t.m.sync();
+  assert.equal(t.m.get("itm_1")!.state, "downloading");
+  assert.equal(t.m.queued("itm_1"), true);
+  assert.equal(t.m.get("itm_2")!.state, "done");
+  t.setConnection("wifi");
+  await t.m.sync();
+  assert.equal(t.m.get("itm_1")!.state, "done");
+});
+
+test("PURSS out of reach doesn't count against a download: it waits until PURSS answers", async () => {
+  const t = setup();
+  t.items.set("itm_1", detail("itm_1"));
+  t.setOffline(true);
+  for (let i = 0; i < MAX_TRIES + 2; i++) await t.m.download("itm_1");
+  assert.equal(t.m.get("itm_1")!.state, "downloading");
+  assert.equal(t.m.queued("itm_1"), true);
+  t.setOffline(false);
+  await t.m.sync();
+  assert.equal(t.m.get("itm_1")!.state, "done");
+});
+
+test("one waiting to go on is taken out with nothing of it kept; removing all empties the queue", async () => {
+  const t = setup();
+  t.items.set("itm_1", detail("itm_1"));
+  t.items.set("itm_2", detail("itm_2"));
+  t.files.fail = new DownloadError(0, "network");
+  await t.m.download("itm_1");
+  t.files.files.set("acc_1/itm_1/media.mp3.part", { bytes: MB });
+  await t.m.cancel("itm_1");
+  assert.equal(t.m.get("itm_1"), undefined);
+  assert.equal(t.m.queued("itm_1"), false);
+  assert.deepEqual(t.files.names(), []);
+  await t.m.download("itm_2");
+  assert.equal(t.m.queued("itm_2"), true);
+  await t.m.removeAll();
+  assert.equal(t.m.queued("itm_2"), false);
+  assert.ok(!t.store.keys().some((k) => k.startsWith("purss:downloads:queue:")));
 });
 
 test("automatic downloads: To read episodes on Wi-Fi, within the limit, never on mobile data when Wi-Fi only", async () => {

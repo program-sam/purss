@@ -10,16 +10,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         excludeWebViewDataFromBackup()
         BackgroundJob.register()
         WidgetRefresh.register()
+        ForegroundDownloads.shared.wake()
         return true
     }
 
-    /// The system relaunched the app for background transfers that finished: the session's delegate completes the items.
+    /// The system relaunched the app for background transfers that ended: the background job's session completes its
+    /// items, the page's session moves finished files into place for the page to pick up when it next asks.
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
-        guard identifier == BackgroundTransfers.identifier else {
-            completionHandler()
-            return
+        switch identifier {
+        case BackgroundTransfers.identifier: BackgroundTransfers.shared.attach(completionHandler: completionHandler)
+        case ForegroundDownloads.identifier: ForegroundDownloads.shared.attach(completionHandler: completionHandler)
+        default: completionHandler()
         }
-        BackgroundTransfers.shared.attach(completionHandler: completionHandler)
     }
 
     /// The page's data (offline copies, unsent highlights and notes, settings) lives in Library/WebKit,

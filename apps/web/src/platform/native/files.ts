@@ -12,12 +12,13 @@ import type { DownloadFailure } from "./device-plugin.ts";
  * (Library/NoCloud on iOS, the app's files folder on Android, where backups are turned off in the
  * manifest). Removed with the app, and by Disconnect. The app's own plugin (device-plugin.ts) fetches
  * files into it and can stop a transfer on the wire; the background job (plan/38) writes there too.
+ * A transfer is known by its file's name, so the page, started again, joins one that went on while the
+ * app was closed.
  */
 const ROOT = "downloads";
 
 const DIR = Directory.LibraryNoCloud;
 const path = (name: string) => (name ? `${ROOT}/${name}` : ROOT);
-let nextId = 0;
 
 async function ensureParent(name: string): Promise<void> {
   const parent = path(name).split("/").slice(0, -1).join("/");
@@ -28,7 +29,7 @@ export const deviceFiles: DeviceFiles = {
   /** When `signal` aborts (the file became too large, or downloads were removed) the transfer is stopped and its partial file removed. */
   async download(url, name, onProgress, signal) {
     if (signal.aborted) throw new DOMException("The download was stopped.", "AbortError");
-    const id = `dl-${Date.now()}-${nextId++}`;
+    const id = name;
     const listener = await PurssDevice.addListener("progress", (p) => {
       if (p.id === id && !signal.aborted) onProgress(p.bytes, p.total > 0 ? p.total : null);
     });
@@ -74,7 +75,9 @@ export const deviceFiles: DeviceFiles = {
     } catch { return null; }
   },
 
+  /** A transfer into what is removed stops first, its partial file going with it. */
   async remove(name) {
+    await PurssDevice.cancel({ id: name }).catch(() => undefined);
     try {
       const info = await Filesystem.stat({ path: path(name), directory: DIR });
       if (info.type === "directory") await Filesystem.rmdir({ path: path(name), directory: DIR, recursive: true });

@@ -7,8 +7,6 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 
 /**
  * The app's own plugin (plan/38; the page's side is apps/web/src/platform/native/device-plugin.ts):
@@ -17,29 +15,30 @@ import java.util.concurrent.Executors
  */
 @CapacitorPlugin(name = "PurssDevice")
 class PurssDevicePlugin : Plugin() {
-    private val transfers = ConcurrentHashMap<String, Transfer>()
-    private val pool = Executors.newCachedThreadPool()
-
     override fun load() {
         DeviceStore.appVisible = true
     }
 
     override fun handleOnStart() {
         DeviceStore.appVisible = true
-        // The open app downloads by itself: a background transfer running now stops and is offered again later.
-        BackgroundDownloadWorker.current?.cancel()
+        // The open app downloads by itself: a background transfer running now stops; its partial file waits for the job's next run.
+        BackgroundDownloadWorker.current?.cancel(discard = false)
     }
 
     override fun handleOnStop() {
         DeviceStore.appVisible = false
     }
 
+    /**
+     * Fetched by PageDownloads' job, which goes on when the app is closed. Asked again for the same path
+     * (the page starting again after that), a finished file answers at once and one under way is joined.
+     */
     @PluginMethod
     fun download(call: PluginCall) {
         val id = call.getString("id")
         val url = call.getString("url")
-        val dest = call.getString("path")?.let { Paths.under(DeviceStore.downloadsRoot(context), it) }
-        if (id.isNullOrEmpty() || url.isNullOrEmpty() || dest == null) {
+        val path = call.getString("path")
+        if (id.isNullOrEmpty() || url.isNullOrEmpty() || path == null || Paths.under(DeviceStore.downloadsRoot(context), path) == null) {
             call.reject("A download needs an id, a web address and a path inside the downloads folder.", "io")
             return
         }
@@ -49,27 +48,22 @@ class PurssDevicePlugin : Plugin() {
             return
         }
         val max = BackgroundLogic.downloadCap(call.getLong("maxBytes"))
-        val transfer = Transfer(url, dest, max, onProgress = { bytes, total ->
-            notifyListeners("progress", JSObject().put("id", id).put("bytes", bytes).put("total", total))
-        })
-        transfers[id] = transfer
-        pool.execute {
-            try {
-                val bytes = transfer.run()
-                call.resolve(JSObject().put("bytes", bytes))
-            } catch (e: TransferFailure) {
+        PageDownloads.start(context, path, url, max, PageDownloads.Waiter(
+            id,
+            onProgress = { bytes, total -> notifyListeners("progress", JSObject().put("id", id).put("bytes", bytes).put("total", total)) },
+            onDone = { bytes -> call.resolve(JSObject().put("bytes", bytes)) },
+            onFailed = { e ->
                 val data = JSObject()
                 if (e.code == "http") data.put("status", e.status)
                 call.reject(e.message, e.code, null, data)
-            } finally {
-                transfers.remove(id)
-            }
-        }
+            },
+        ))
     }
 
+    /** Stop a download by its id, its path, or everything under a folder ("" for all): the partial file goes. */
     @PluginMethod
     fun cancel(call: PluginCall) {
-        call.getString("id")?.let { transfers[it]?.cancel() }
+        call.getString("id")?.let { PageDownloads.cancel(context, it) }
         call.resolve()
     }
 
@@ -133,8 +127,8 @@ class PurssDevicePlugin : Plugin() {
         call.resolve()
     }
 
+    /** The page goes away; the downloads it asked for go on and it asks for them again when it starts. */
     override fun handleOnDestroy() {
-        for (t in transfers.values) t.cancel()
-        pool.shutdown()
+        PageDownloads.detachAll()
     }
 }

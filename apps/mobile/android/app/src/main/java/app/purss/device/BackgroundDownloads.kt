@@ -21,7 +21,9 @@ import java.util.concurrent.TimeUnit
  * PURSS which items to fetch (the same plan the open app asks for), fetches each item's details,
  * notes and file into `downloads-incoming/`, writes record.json last and moves the folder into the
  * downloads folder, where the page adopts it as its own download. It keeps out of the way while the app
- * is on screen. The home-screen panels have their own refresh (WidgetRefresh).
+ * is on screen. A file cut off (the job's time limit, the app coming to the front, a lost connection)
+ * keeps its partial file in `downloads-incoming/` and the next run continues it (Transfer); a folder there
+ * for an item no longer planned is removed. The home-screen panels have their own refresh (WidgetRefresh).
  */
 object BackgroundDownloads {
     const val WORK = "purss-background-downloads"
@@ -47,6 +49,7 @@ object BackgroundDownloads {
     /** Disconnected, or the token was refused: nothing of the account stays with the native side. */
     fun forget(ctx: Context, downloadsToo: Boolean) {
         cancel(ctx)
+        PageDownloads.forget(ctx)
         WidgetRefresh.cancel(ctx)
         BackgroundDownloadWorker.current?.cancel()
         synchronized(moving) {
@@ -69,7 +72,7 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
     private val ctx get() = applicationContext
 
     override fun onStopped() {
-        current?.cancel()
+        current?.cancel(discard = false)
     }
 
     private fun yielding() = isStopped || DeviceStore.appVisible
@@ -94,6 +97,7 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
             if (plan.status != 200) { Log.i(TAG, "The workspace answered ${plan.status} to the plan"); return Result.success() }
             val items = BackgroundLogic.parsePlan(plan.text)
             Log.i(TAG, "${items.size} to download")
+            removeUnplanned(state.accountId, items.map { it.id }.toSet())
             var done = 0
             for (item in items) {
                 if (yielding()) break
@@ -111,6 +115,16 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
         return Result.success()
     }
 
+    /** Partial items of other accounts, or of items no longer planned, aren't continued: removed. */
+    private fun removeUnplanned(accountId: String, planned: Set<String>) {
+        synchronized(BackgroundDownloads.moving) {
+            for (f in DeviceStore.incomingRoot(ctx).listFiles() ?: emptyArray()) {
+                if (f.name != accountId) { f.deleteRecursively(); continue }
+                for (item in f.listFiles() ?: emptyArray()) if (item.name !in planned) item.deleteRecursively()
+            }
+        }
+    }
+
     private fun onWifi(): Boolean {
         val cm = ctx.getSystemService(ConnectivityManager::class.java) ?: return false
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
@@ -119,25 +133,27 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
 
     /**
      * One item, as the page's download manager does it. Returns false when the run should stop (the app
-     * came to the front, the job was stopped, the PURSS or the device couldn't go on); the item then
-     * leaves nothing behind and is offered again next time.
+     * came to the front, the job was stopped, the connection or the PURSS or the device couldn't go on);
+     * the item is offered again next time, its partial media file kept to be continued.
      */
     private fun fetch(api: WorkspaceApi, accountId: String, item: BackgroundLogic.PlanItem): Boolean {
         val staging = File(DeviceStore.incomingRoot(ctx), "$accountId/${item.id}")
         val target = File(DeviceStore.downloadsRoot(ctx), "$accountId/${item.id}")
-        staging.deleteRecursively()
-        if (target.exists()) return true
-        if (!staging.mkdirs()) return false
+        if (target.exists()) { staging.deleteRecursively(); return true }
+        // Only a partial media file of an earlier run stays, to be continued.
+        val partial = setOf("${item.file}.part", "${item.file}.part.json")
+        staging.listFiles()?.forEach { if (it.name !in partial) it.deleteRecursively() }
+        if (!staging.isDirectory && !staging.mkdirs()) return false
         try {
             val detailAnswer = api.get("/api/items/${WorkspaceApi.enc(item.id)}")
             if (detailAnswer.status == 404) { staging.deleteRecursively(); return true }
-            if (detailAnswer.status != 200) { staging.deleteRecursively(); return false }
+            if (detailAnswer.status != 200) return false
             File(staging, "item.json").writeBytes(detailAnswer.body)
             var textBytes = detailAnswer.body.size.toLong()
             val detail = BackgroundLogic.parseDetail(detailAnswer.text)
             if (detail.annotated) {
                 val notes = api.get("/api/items/${WorkspaceApi.enc(item.id)}/annotations")
-                if (notes.status != 200) { staging.deleteRecursively(); return false }
+                if (notes.status != 200) return false
                 File(staging, "annotations.json").writeBytes(notes.body)
                 textBytes += notes.body.size
             }
@@ -157,7 +173,9 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
                 } catch (e: TransferFailure) {
                     Log.i(TAG, "A file didn't download: ${e.code} ${e.status} ${e.message}")
                     failure = when (e.code) {
-                        "cancelled", "io" -> { staging.deleteRecursively(); return false }
+                        // Stopped or cut off: the partial file stays for the next run (Transfer keeps it).
+                        "cancelled", "network" -> return false
+                        "io" -> { staging.deleteRecursively(); return false }
                         "too_large" -> -2
                         "http" -> e.status
                         else -> 0
@@ -184,7 +202,7 @@ class BackgroundDownloadWorker(context: Context, params: WorkerParameters) : Wor
             staging.deleteRecursively()
             throw e
         } catch (e: IOException) {
-            staging.deleteRecursively()
+            // The PURSS's answers didn't come: what was fetched of the file stays for the next run.
             return false
         }
     }

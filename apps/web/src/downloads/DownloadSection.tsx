@@ -68,7 +68,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
         <div className="media-saved">
           <div className="dl-state" role="status">
             <DownloadRing progress={null} queued />
-            <p>Waiting to download, after the download in progress.</p>
+            <p>{record?.state === "downloading" ? "Waiting to go on downloading from where it stopped." : "Waiting to download, after the download in progress."}</p>
           </div>
           <Button onClick={() => void downloads.cancel(item.id)}>Take out of the queue</Button>
         </div>

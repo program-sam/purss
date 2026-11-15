@@ -15,9 +15,17 @@ export interface PurssDevicePlugin {
    * (see DownloadFailure; `data.status` for "http"). Stops with "too_large" as soon as the declared or
    * received size passes `maxBytes`. The plugin enforces its own rules too: only https addresses ("insecure"
    * otherwise), and never more than 4 GB, the default when `maxBytes` is left out.
+   *
+   * The transfer goes on when the app is closed (Android: a foreground job with a notification; iOS: a
+   * background URLSession), and a cut-off one keeps its partial file. Asked again for the same `path`,
+   * the plugin answers at once with a file finished meanwhile, joins a transfer under way, or continues
+   * the partial file.
    */
   download(options: { id: string; url: string; path: string; maxBytes?: number }): Promise<{ bytes: number }>;
-  /** Stop a download: the connection is closed and the partial file removed. Unknown ids are fine. */
+  /**
+   * Stop a download by its id, or every download into `id` as a path or a folder under it ("" for all):
+   * the connection is closed and the partial file removed. Unknown ids are fine.
+   */
   cancel(options: { id: string }): Promise<void>;
   addListener(event: "progress", listener: (p: { id: string; bytes: number; total: number }) => void): Promise<PluginListenerHandle>;
   /** The background job's state (JSON of BackgroundState plus `origin`), or null to stop it. Schedules or cancels the job. */

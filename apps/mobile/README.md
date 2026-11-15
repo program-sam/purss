@@ -183,7 +183,9 @@ the app closed (Home, then `adb shell am kill app.purss`), find its id with
 `adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler app.purss <id>`.
 WorkManager skips a periodic run that comes before its hour is up ("executed before schedule" in
 logcat); on an emulator, `adb root` and moving the clock forward an hour lets it run. A force-stopped
-app has no jobs until it is opened again (Android's rule). Its log tag is `PurssBackground`. The
+app has no jobs until it is opened again (Android's rule). Its log tag is `PurssBackground`.
+Downloads started in the app run in their own one-time job (`PageDownloads`, log tag `PurssDownloads`) as a
+foreground service with a *Downloading to this device* notification; swipe the app away during one and it goes on. The
 home-screen panels are in the launcher's widget list under *PURSS* (To read, To listen, New, Collection,
 Source); their refresh is its own periodic job (every 15 minutes, log tag `PurssWidgets`), run the same way.
 Kotlin unit tests:

@@ -148,6 +148,7 @@ enum DeviceStore {
     /// on its next start. Called through `WidgetData.lost(since:)`, which checks the refusal isn't an old connection's.
     static func revoke() {
         BackgroundTransfers.shared.cancelAll()
+        ForegroundDownloads.shared.cancelAll()
         clearState()
         try? FileManager.default.removeItem(at: downloadsDirectory)
         try? FileManager.default.removeItem(at: incomingDirectory)
