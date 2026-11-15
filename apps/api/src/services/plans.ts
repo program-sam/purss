@@ -2,6 +2,7 @@ import { PLAN_LIMITS, PLAN_NAMES } from "@purss/domain";
 import type { Capacity, Plan } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError } from "../http.ts";
+import { allocation, usedBytes } from "./storage.ts";
 
 /**
  * Hosted plans (packages/domain/src/plans.ts): the number of followed sources and of collections an
@@ -45,6 +46,7 @@ export function capacity(app: App, accountId: string): Capacity {
     plan,
     sources: { used: app.db.get<{ n: number }>(FOLLOWED_SOURCES, accountId)!.n, limit: limits.sources },
     collections: { used: app.db.get<{ n: number }>(COLLECTIONS, accountId)!.n, limit: limits.collections },
+    storage: { used: usedBytes(app, accountId), limit: allocation(app, accountId) },
   };
 }
 

@@ -158,8 +158,10 @@ kbd{font:700 0.6875rem/1 var(--font);padding:3px 6px;border-radius:6px;border:1p
 [aria-checked="true"]>.cb .ic,input:checked+.cb .ic{opacity:1}
 .meter-pop{width:280px;padding:14px}
 .meter-pop .meter{width:100%;height:8px;margin:10px 0 12px}
-.meter-pop dl{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center;font-size:0.8125rem;margin:0}
-.meter-pop dt{display:contents}
+.meter-pop dl{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center;font-size:0.8125rem;margin:0}
+.meter-pop strong+dl{margin-top:10px}
+.meter-pop dl>div{display:contents}
+.meter-pop dt{font-weight:600}
 .meter-pop dd{margin:0;font-weight:800;text-align:right}
 .meter-pop .fine{margin-top:12px;font-size:0.7812rem;color:var(--ink-3);font-weight:600;line-height:1.4}
 

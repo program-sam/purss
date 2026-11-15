@@ -1,7 +1,7 @@
 import { PLAN_LABELS } from "@purss/domain";
 import type { Capacity } from "@purss/domain";
 import { Icon } from "@purss/ui";
-import { formatCount, plural } from "../lib/format.ts";
+import { bytesLabel, formatCount, plural } from "../lib/format.ts";
 
 const n = (v: number) => formatCount(v, "en");
 
@@ -17,28 +17,45 @@ export function CapacityMeter({ capacity }: { capacity: Capacity }) {
   return <span className="meter" aria-hidden="true"><i className="feeds" style={{ width: `${Math.min(100, (used / limit) * 100)}%` }} /></span>;
 }
 
-const line = (used: number, limit: number | null, what: string) => (limit === null ? plural(used, what) : `${n(used)} of ${n(limit)}`);
+const line = (used: number, limit: number, what: string) => `${n(used)} of ${n(limit)}${what ? ` ${what}` : ""}`;
 
-/** What the plan allows and what is used, shown from the sidebar footer. */
+/** The panel's heading: "37 of 100 sources", or "2 sources in 2 collections" when sources have no limit. */
+function heading(c: Capacity): string {
+  return c.sources.limit === null ? `${plural(c.sources.used, "source")} in ${plural(c.collections.used, "collection")}` : capacityLine(c);
+}
+
+/** What limits this account (its plan's sources and collections, and any storage allowance set for it) and what it uses. */
 /** `onPlan` opens Settings → Plan (hosted installations). */
 export function CapacityPanel({ capacity, paused, onPlan }: { capacity: Capacity; paused: string | null; onPlan?: () => void }) {
   const full = (k: "sources" | "collections") => capacity[k].limit !== null && capacity[k].used >= capacity[k].limit!;
+  // A copy saved offline by an earlier version has no storage figures.
+  const storage = capacity.storage ?? { used: 0, limit: null };
+  const rows = [
+    capacity.sources.limit !== null ? { label: "Sources", value: line(capacity.sources.used, capacity.sources.limit, "") } : null,
+    capacity.collections.limit !== null ? { label: "Collections", value: line(capacity.collections.used, capacity.collections.limit, "") } : null,
+    storage.limit !== null ? { label: "Storage", value: `${bytesLabel(storage.used)} of ${bytesLabel(storage.limit)}` } : null,
+  ].filter((r) => r !== null);
+  const unlimited = [capacity.sources.limit === null ? "sources" : null, capacity.collections.limit === null ? "collections" : null, storage.limit === null ? "storage" : null].filter((w) => w !== null);
   return (
     <div className="meter-pop">
-      <strong style={{ fontSize: 15, fontWeight: 800 }}>{capacityLine(capacity)}</strong>
-      <CapacityMeter capacity={capacity} />
-      <dl>
-        <div style={{ display: "contents" }}><dt /><dd style={{ textAlign: "left", fontWeight: 600 }}>Sources</dd><dd>{line(capacity.sources.used, capacity.sources.limit, "source")}</dd></div>
-        <div style={{ display: "contents" }}><dt /><dd style={{ textAlign: "left", fontWeight: 600 }}>Collections</dd><dd>{line(capacity.collections.used, capacity.collections.limit, "collection")}</dd></div>
-      </dl>
+      <strong style={{ fontSize: 15, fontWeight: 800 }}>{heading(capacity)}</strong>
+      {capacity.sources.limit !== null ? <CapacityMeter capacity={capacity} /> : null}
+      {rows.length ? (
+        <dl>
+          {rows.map((r) => <div key={r.label}><dt>{r.label}</dt><dd>{r.value}</dd></div>)}
+        </dl>
+      ) : null}
       {paused ? <p className="state note" style={{ marginTop: 12 }}><Icon name="alert" /><span>{paused}</span></p> : null}
       <p className="fine">
-        {capacity.plan ? `Your plan: ${PLAN_LABELS[capacity.plan]}.` : "No limits are set on this server."}
+        {capacity.plan ? `Your plan: ${PLAN_LABELS[capacity.plan]}. ` : ""}
+        {unlimited.length ? `No limit on ${listWords(unlimited)} for your account.` : ""}
         {full("sources") ? " Unfollow a source to follow another." : ""}
         {full("collections") ? " Remove a collection to add another." : ""}
-        {" "}Saved links don't count as sources.
+        {capacity.sources.limit !== null ? " Saved links don't count as sources." : ""}
       </p>
       {onPlan && capacity.plan && capacity.plan !== "unlimited" ? <button type="button" className="link" onClick={onPlan}>{capacity.plan === "free" ? "See plans" : "Manage your plan"}</button> : null}
     </div>
   );
 }
+
+const listWords = (w: string[]) => (w.length < 2 ? w.join("") : `${w.slice(0, -1).join(", ")} or ${w.at(-1)}`);

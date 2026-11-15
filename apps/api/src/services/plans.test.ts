@@ -92,7 +92,8 @@ test("self-hosted installs have no plans or limits; administrators on hosted ins
   t.after(self.cleanup);
   const p = makeOwner(self.app, { admin: false });
   for (let i = 0; i < 6; i++) collection(self.app, p, `C${i}`);
-  assert.deepEqual(capacity(self.app, p.accountId), { plan: null, sources: { used: 0, limit: null }, collections: { used: 6, limit: null } });
+  const c = capacity(self.app, p.accountId);
+  assert.deepEqual({ ...c, storage: { ...c.storage, used: 0 } }, { plan: null, sources: { used: 0, limit: null }, collections: { used: 6, limit: null }, storage: { used: 0, limit: null } });
 
   const h = hosted();
   t.after(h.cleanup);
@@ -173,4 +174,15 @@ test("an import whose records land on one source counts that source once", async
   assert.equal(preview.overPlan, null);
   applyImport(app, p, preview.token);
   assert.deepEqual(capacity(app, p.accountId).sources, { used: 100, limit: 100 });
+});
+
+test("capacity carries the storage allowance set for the account, whatever the mode", (t) => {
+  const self = makeTestApp();
+  t.after(self.cleanup);
+  const p = makeOwner(self.app, { admin: false });
+  self.app.db.run("INSERT INTO storage_accounts (account_id, used_bytes, allocation_bytes) VALUES (?, 0, ?) ON CONFLICT (account_id) DO UPDATE SET allocation_bytes = excluded.allocation_bytes", p.accountId, 1024 ** 3);
+  const c = capacity(self.app, p.accountId);
+  assert.equal(c.plan, null);
+  assert.equal(c.sources.limit, null, "no plan: no source limit");
+  assert.equal(c.storage.limit, 1024 ** 3);
 });

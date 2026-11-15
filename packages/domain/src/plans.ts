@@ -33,4 +33,6 @@ export type Capacity = {
   plan: Plan | null;
   sources: { used: number; limit: number | null };
   collections: { used: number; limit: number | null };
+  /** Bytes the account stores, and the storage allowance set for it (null: none, in any mode). */
+  storage: { used: number; limit: number | null };
 };

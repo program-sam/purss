@@ -208,7 +208,7 @@ export type Bootstrap = {
   sources: SourceDTO[];
   baskets: BasketDTO[];
   preferences: Preferences;
-  /** Sources and collections used of the account's plan. */
+  /** Sources and collections used of the account's plan, and storage of its allowance. */
   capacity: Capacity;
   /** Why new items and copies are paused (PURSS is out of space), or null. */
   paused: string | null;

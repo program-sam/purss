@@ -347,7 +347,7 @@ async function main(): Promise<void> {
     const meter = page.locator(".side-foot .stor");
     assert.match(await meter.innerText(), /^[1-9]\d* sources?$/, "the sidebar counts the followed sources");
     await meter.click();
-    await page.getByText("No limits are set on this server.").waitFor();
+    await page.getByText(/^No limit on sources, collections or storage for your account\./).waitFor();
     await page.keyboard.press("Escape");
     step("the sidebar shows the followed sources, without limits on a self-hosted PURSS");
 
