@@ -491,7 +491,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .app[data-bp="xs"] .phead h1{font-size:1.4375rem}
 .app[data-bp="xs"] .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .app[data-bp="xs"] .row-t .title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
-.app[data-bp="xs"] .side-foot{padding-bottom:72px}
 .app[data-bp="xs"] #toasts,.app[data-bp="sm"] #toasts{left:12px;right:12px;justify-items:stretch}
 .app[data-bp="xs"] .toast{max-width:none}
 .app[data-bp="xs"] .selbar{padding:8px}
@@ -542,7 +541,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .row.dim .row-main .title{text-decoration:none;color:var(--ink-3);font-weight:600}
 .bcard.dim .title{text-decoration:none;color:var(--ink-3)}
 .tbl tr.dim td.ttl .title{text-decoration:none;color:var(--ink-3)}
-.app[data-sb="drawer"] .side-foot,.app[data-sb="hidden"] .side-foot{padding-bottom:72px}
 
 .srcacts{display:flex;gap:8px;flex-wrap:wrap}
 .plink{display:inline-flex;align-items:center;gap:5px;font-weight:700;color:var(--ink-2);border-radius:6px;padding:2px 6px;margin:-2px -6px}

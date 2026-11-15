@@ -7,7 +7,8 @@
 // the screen counts after twenty seconds; Home's rows above the boxes start closed and stay open once opened; To read lists what was put aside, a collection hidden on Home is left out of
 // it, and the boxes below do not repeat what is above them; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
-// action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened.
+// action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
+// phone the open drawer's Settings and capacity sit at its bottom.
 // Run: node tests/acceptance/home.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -346,6 +347,16 @@ async function main(): Promise<void> {
     await sleep(500);
     assert.equal(await phonePage.locator(".tip").count(), 0, "a tap shows no tip next to the button: the undo toast says what happened");
     step("hover and keyboard focus name a row action in a tip; a tap on a phone leaves only the undo toast");
+    // The open drawer covers the tab bar, so its foot (capacity and Settings) sits at the drawer's bottom with no gap kept for the bar.
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Collections" }).tap();
+    await phonePage.locator(".side-foot .set").waitFor({ state: "visible" });
+    await sleep(300);
+    const foot = await phonePage.evaluate(() => {
+      const side = document.querySelector(".side")!.getBoundingClientRect(), set = document.querySelector(".side-foot .set")!.getBoundingClientRect();
+      return { gap: side.bottom - set.bottom };
+    });
+    assert.ok(foot.gap <= 20, `Settings sits at the bottom of the phone drawer (gap ${foot.gap}px)`);
+    step("on a phone the drawer's Settings and capacity sit at its bottom");
     await phone.close();
   } finally {
     await browser.close();

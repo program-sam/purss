@@ -166,7 +166,8 @@ a.btn.lg{height:36px}
 .main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 #toasts { bottom: calc(72px + env(safe-area-inset-bottom)); }
 .app[data-bp="xs"] .panel-body, .app[data-bp="sm"] .panel-body { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
-.app[data-bp="xs"] .side-foot, .app[data-sb="drawer"] .side-foot, .app[data-sb="hidden"] .side-foot { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+/* The open drawer covers the tab bar, so its foot only clears the system inset. */
+.app[data-sb="drawer"] .side-foot, .app[data-sb="hidden"] .side-foot { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .auth-page { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 
 /* Text from feeds and from people can run right to left or mix scripts: each piece reads in its own direction
