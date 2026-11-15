@@ -765,12 +765,14 @@ under **Apps and extensions**; Add source, an empty basket and the command palet
 - **Install as an app**: your browser's own install, with offline reading. See
   [Install and offline reading](#install-and-offline-reading).
 
-**Not in the stores yet.** The extension and the phone app aren't published in any browser or
-app store yet (the desktop app is downloaded from this project's releases); Settings says so, and store buttons appear there once they are. Until then they are
-installed from the source code: the extension as described in
-[its README](../apps/extension/README.md#try-it-unpacked), the phone app by building it as described
-in [the mobile README](../apps/mobile/README.md#build). Bookmarklets, assistants, the e-ink display
-and installing the web app need nothing extra.
+**Where to get them.** The browser extension is in the
+[Chrome Web Store](https://chromewebstore.google.com/detail/purss/hbchpheipggpppbilgepkalcnnemnldl)
+and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/purss/), and updates itself from there.
+It isn't in Edge Add-ons yet; Edge can install it from the Chrome Web Store. The phone app isn't in
+any app store yet (the desktop app and the Android APK are downloaded from this project's releases);
+Settings shows a store button for each store it's in. Until then the phone app is built from the
+source code as described in [the mobile README](../apps/mobile/README.md#build). Bookmarklets,
+assistants, the e-ink display and installing the web app need nothing extra.
 
 ## Assistants (MCP)
 

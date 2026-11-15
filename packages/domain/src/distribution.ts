@@ -12,7 +12,7 @@ export type StoreId = "chrome" | "edge" | "firefox" | "safari" | "android" | "io
 export const STORE_LISTINGS: Readonly<Record<StoreId, string | null>> = {
   chrome: "https://chromewebstore.google.com/detail/purss/hbchpheipggpppbilgepkalcnnemnldl",
   edge: null,
-  firefox: null,
+  firefox: "https://addons.mozilla.org/firefox/addon/purss/",
   safari: null,
   android: null,
   ios: null,

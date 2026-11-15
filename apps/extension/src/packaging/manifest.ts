@@ -18,9 +18,8 @@ export function extensionVersion(version: string | null): string {
 }
 
 /**
- * Firefox's add-on id. It must stay the same once published (AMO ties the listing and updates to it),
- * and the PURSS's connect flow derives the extension's return address from it. Pick the final one
- * before the first upload to addons.mozilla.org.
+ * Firefox's add-on id, published on addons.mozilla.org. It can't change: AMO ties the listing and
+ * updates to it, and the PURSS's connect flow derives the extension's return address from it.
  */
 export const FIREFOX_ID = "purss@purss";
 

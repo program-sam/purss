@@ -80,11 +80,10 @@ then show its store button instead of "Not in the stores yet".
   request, page text are sent to the PURSS the user connects, not to the developer. Review takes
   days; there are no host permissions to slow it down.
 - **Microsoft Edge Add-ons:** in Partner Center, upload the same `purss-chromium.zip`.
-- **Firefox (addons.mozilla.org):** first make the add-on id final (`FIREFOX_ID` in
-  `src/packaging/manifest.ts`; it can't change after the first upload, and the connect flow's return
-  address is derived from it). Upload `purss-firefox.zip` in the Developer Hub. Because
-  the scripts are bundled, AMO asks for the source: upload a source archive of the repository with
-  these build steps (`npm ci`, `npm run build:extension`, Node 26). Check that the data-collection
+- **Firefox (addons.mozilla.org):** the add-on id (`FIREFOX_ID` in `src/packaging/manifest.ts`) is
+  published and can't change; the connect flow's return address is derived from it. Upload
+  `purss-firefox.zip` in the Developer Hub. Because the scripts are bundled, AMO asks for the source:
+  upload a source archive of the repository with these build steps (`npm ci`, `npm run build:extension`, Node 26). Check that the data-collection
   declaration in the manifest matches the listing. For self-distribution instead, `web-ext sign
   --channel=unlisted` with AMO API keys kept outside the repository.
 - **Safari (macOS and iOS):** needs an Apple Developer Program membership. In App Store Connect,
