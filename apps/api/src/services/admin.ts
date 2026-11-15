@@ -121,12 +121,17 @@ export async function adminHealth(app: App, now = Date.now()): Promise<AdminHeal
   const failing = users.filter((u) => u.status === "error" || u.last_error).length;
   const starting = users.filter((u) => u.status === "pending").length;
   const lastSyncAt = users.map((u) => u.last_success_at).filter((t): t is string => !!t).sort().at(-1) ?? null;
+  const lagSeconds = lastSyncAt ? Math.max(0, Math.round((now - Date.parse(lastSyncAt)) / 1000)) : null;
+  // No error recorded but no sync for many intervals: whatever records errors (the worker) isn't running either.
+  const stalled = !failing && lagSeconds !== null && lagSeconds > Math.max(10 * app.config.syncIntervalSeconds, 15 * 60);
   const engine: AdminHealth["engine"] = {
-    status: !users.length ? "starting" : failing === users.length ? "unavailable" : failing ? "degraded" : starting ? "starting" : "ok",
+    status: !users.length ? "starting" : failing === users.length ? "unavailable" : failing ? "degraded" : stalled ? "stalled" : starting ? "starting" : "ok",
     version: null, // the engine's version isn't tracked by the product
     lastSyncAt,
-    lagSeconds: lastSyncAt ? Math.max(0, Math.round((now - Date.parse(lastSyncAt)) / 1000)) : null,
-    message: failing ? `${failing} of ${users.length} ${users.length === 1 ? "PURSS isn't" : "PURSSes aren't"} syncing. Check the engine and the worker.` : starting ? "The engine is still being set up." : null,
+    lagSeconds,
+    message: failing ? `${failing} of ${users.length} ${users.length === 1 ? "PURSS isn't" : "PURSSes aren't"} syncing. Check the engine and the worker.`
+      : stalled ? "Nothing has synced for much longer than the sync interval. Check that the engine and the worker are running."
+      : starting ? "The engine is still being set up." : null,
   };
 
   const jobCounts = new Map(app.db.all<{ status: string; n: number }>("SELECT status, COUNT(*) AS n FROM jobs WHERE status IN ('queued', 'leased', 'failed') GROUP BY status").map((r) => [r.status, r.n]));

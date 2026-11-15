@@ -16,7 +16,7 @@ export function bytesOrUnknown(n: number | null): string {
   return n === null ? "Unknown" : bytesLabel(n);
 }
 
-export const ENGINE_LABEL: Record<string, string> = { ok: "Running", starting: "Starting", degraded: "Partly failing", unavailable: "Not available" };
+export const ENGINE_LABEL: Record<string, string> = { ok: "Running", starting: "Starting", degraded: "Partly failing", stalled: "Not syncing", unavailable: "Not available" };
 export const engineLabel = (status: string): string => ENGINE_LABEL[status] ?? status;
 
 /** What a bridged source's failure means, in a sentence: the router's word for it (`timeout`, `http_503`…) turned into plain language. */
