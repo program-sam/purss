@@ -25,6 +25,7 @@ export const webPlatform: Platform = {
   appVersion: async () => null,
   transport: {
     fetch: (path, init) => fetch(path, { ...init, credentials: "same-origin" }),
+    picture: (path) => path,
     events: (onMessage) => {
       if (typeof EventSource === "undefined") return () => {};
       const es = new EventSource("/api/events");

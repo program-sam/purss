@@ -4,7 +4,8 @@ import "./eink.css";
 
 export { Icon, IconSprite } from "./icons.tsx";
 export type { IconName } from "./icons.tsx";
-export { Avatar, AvatarStack } from "./avatar.tsx";
+export { Avatar, AvatarStack, PictureProvider, usePicture } from "./avatar.tsx";
+export type { PictureResolver } from "./avatar.tsx";
 export { Button, IconButton } from "./button.tsx";
 export type { ButtonProps } from "./button.tsx";
 export { Segmented } from "./segmented.tsx";

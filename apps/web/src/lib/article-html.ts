@@ -10,7 +10,12 @@ import { splitLinks } from "./links.ts";
 const DROP = "script,style,iframe,frame,frameset,object,embed,applet,form,input,button,select,textarea,link,meta,base,svg,math,audio,video,source,track,canvas";
 
 /** A picture PURSS stored with a kept copy: the only address that is not https a picture may have. */
-const STORED_PICTURE = /^\/api\/items\/[\w-]+\/images\/[\w-]+$/;
+export const STORED_PICTURE = /^\/api\/items\/[\w-]+\/images\/[\w-]+$/;
+/**
+ * Where a stored picture's address goes instead of `src`: the apps' page isn't PURSS's origin, so the reader puts in
+ * what the platform's transport gives for it (`showStoredPictures`).
+ */
+export const STORED_PICTURE_ATTR = "data-stored-src";
 
 /** Web addresses written out as plain text (feeds often send descriptions that way) become links; ones already in a link or in code stay as they are. */
 function linkifyBareAddresses(doc: Document): void {
@@ -86,12 +91,27 @@ export function prepareArticleHtml(html: string, opts: { dropCitation?: boolean;
     if (text.length <= 48 && !/\s/.test(text.trim())) a.classList.add("tok");
   });
   doc.body.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
-    const src = img.getAttribute("src") ?? "";
-    if (!/^https:/i.test(src.trim()) && !STORED_PICTURE.test(src.trim())) { img.remove(); return; }
+    const src = (img.getAttribute("src") ?? "").trim();
+    img.removeAttribute(STORED_PICTURE_ATTR);
+    if (STORED_PICTURE.test(src)) {
+      img.removeAttribute("src");
+      img.setAttribute(STORED_PICTURE_ATTR, src);
+    } else if (!/^https:/i.test(src)) { img.remove(); return; }
     img.setAttribute("loading", "lazy");
     img.setAttribute("decoding", "async");
     img.setAttribute("referrerpolicy", "no-referrer");
     img.removeAttribute("srcset");
   });
   return doc.body.innerHTML;
+}
+
+/** Give the stored pictures in `root` (marked by prepareArticleHtml) what `picture` resolves their addresses to. */
+export function showStoredPictures(root: ParentNode, picture: (path: string) => string | Promise<string>): void {
+  root.querySelectorAll<HTMLImageElement>(`img[${STORED_PICTURE_ATTR}]`).forEach((img) => {
+    const path = img.getAttribute(STORED_PICTURE_ATTR) ?? "";
+    if (!STORED_PICTURE.test(path)) return;
+    const src = picture(path);
+    if (typeof src === "string") img.src = src;
+    else src.then((url) => { img.src = url; }, () => { img.remove(); });
+  });
 }

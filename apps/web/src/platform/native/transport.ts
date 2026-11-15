@@ -1,6 +1,7 @@
 import type { OfflineWorker } from "../../sw/offline-worker.ts";
 import { classifyRequest } from "../../sw/policy.ts";
 import { NO_COPY_HEADER } from "../../sw/protocol.ts";
+import { createPictureCache } from "../pictures.ts";
 import { followEvents } from "../sse.ts";
 import type { Transport } from "../types.ts";
 
@@ -8,7 +9,8 @@ import type { Transport } from "../types.ts";
  * How the apps reach PURSS: every API request goes to the connected server with the device
  * token, and never with cookies; a request for any other origin is refused. Reads worth keeping go through the same OfflineWorker the web's service
  * worker runs (network first, this device's copy when there is no network); when neither answers, an
- * item downloaded to the device still does.
+ * item downloaded to the device still does. Pictures PURSS serves (icons, pictures kept with copies) are fetched the same
+ * way and shown from this page's own copies (platform/pictures.ts).
  */
 export type AppTransportDeps = {
   origin: string;
@@ -21,13 +23,19 @@ export type AppTransportDeps = {
   onLost: () => void;
 };
 
+/** Pictures kept in memory: thousands of icons (64 KiB at most each) or a few large kept pictures. */
+const PICTURE_BUDGET_BYTES = 48 * 1024 * 1024;
+
 export function createAppTransport(deps: AppTransportDeps): Transport {
   const { origin, token } = deps;
   const resolve = (path: string) => (/^[a-z][a-z0-9+.-]*:/i.test(path) ? path : `${origin}${path}`);
-  return {
+  const ownOrigin = (path: string) => {
+    try { return new URL(resolve(path)).origin === new URL(origin).origin; } catch { return false; }
+  };
+  const transport: Transport = {
     async fetch(path, init) {
       // The token is PURSS's; an absolute address anywhere else is refused, never sent with it.
-      if (new URL(resolve(path)).origin !== new URL(origin).origin) throw new TypeError("The app only sends requests to the PURSS it is connected to.");
+      if (!ownOrigin(path)) throw new TypeError("The app only sends requests to the PURSS it is connected to.");
       const headers = new Headers(init.headers);
       const noCopy = headers.has(NO_COPY_HEADER);
       // Only headers PURSS's CORS rules allow; the change token belongs to browser sessions.
@@ -55,5 +63,17 @@ export function createAppTransport(deps: AppTransportDeps): Transport {
         },
       }, onMessage);
     },
+    // A publisher's picture loads as it is, without the token; only PURSS's own are fetched with it.
+    picture: (src) => (ownOrigin(src) ? pictures(src) : src),
   };
+  const pictures = createPictureCache({
+    budgetBytes: PICTURE_BUDGET_BYTES,
+    async load(path) {
+      const res = await transport.fetch(path, {});
+      // Only a picture becomes one: never an error page or whatever else a proxy might answer with.
+      if (!res.ok || !/^image\//i.test(res.headers.get("content-type") ?? "")) throw new Error(`No picture at ${path} (${res.status}).`);
+      return res.blob();
+    },
+  });
+  return transport;
 }

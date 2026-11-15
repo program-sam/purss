@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseHTML } from "linkedom";
-import { isCitationLead, prepareArticleHtml } from "./article-html.ts";
+import { isCitationLead, prepareArticleHtml, showStoredPictures } from "./article-html.ts";
 
 /** The browser's DOMParser for a fragment: the markup lands in a body, as it does there. */
 (globalThis as unknown as { DOMParser: unknown }).DOMParser = class {
@@ -34,4 +34,24 @@ test("another picture stays; a description that is not a video's is not touched"
   assert.ok(other.includes("<img"), "a picture that is not the one shown above stays");
   const article = prepareArticleHtml(YOUTUBE);
   assert.ok(article.includes("💾") && article.includes("Pixicade"), "without video, the feed's own text is shown as it came");
+});
+
+test("a picture kept with the copy is shown from what the platform gives for its address; a planted marker is not trusted", async () => {
+  const html = prepareArticleHtml(`<p><img src="/api/items/itm_1/images/img_2" alt="Chart"></p><p><img src="https://pub.example/a.png" data-stored-src="/api/items/itm_9/images/img_9"></p><img src="/elsewhere.png">`);
+  const { document } = parseHTML(`<!doctype html><html><body><div id="prose">${html}</div></body></html>`);
+  const imgs = [...document.querySelectorAll("img")];
+  assert.equal(imgs.length, 2, "a picture at no https address and not stored is dropped");
+  assert.equal(imgs[0]!.getAttribute("src"), null, "the page doesn't ask its own origin for PURSS's path");
+  assert.equal(imgs[1]!.getAttribute("src"), "https://pub.example/a.png");
+  assert.equal(imgs[1]!.getAttribute("data-stored-src"), null);
+
+  const asked: string[] = [];
+  showStoredPictures(document.getElementById("prose")!, (path) => { asked.push(path); return `blob:app/${path.split("/").pop()}`; });
+  assert.deepEqual(asked, ["/api/items/itm_1/images/img_2"]);
+  assert.equal(imgs[0]!.getAttribute("src"), "blob:app/img_2");
+
+  const { document: later } = parseHTML(`<!doctype html><html><body><div id="prose">${html}</div></body></html>`);
+  showStoredPictures(later.getElementById("prose")!, () => Promise.reject(new Error("offline")));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(later.querySelectorAll("img").length, 1, "a kept picture that can't be fetched leaves no broken image");
 });

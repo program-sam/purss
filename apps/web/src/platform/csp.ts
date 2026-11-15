@@ -7,7 +7,8 @@ import { EMBED_ORIGINS } from "../lib/embeds.ts";
  * page as built allows any http(s) PURSS (`PAGE_POLICY`, put in index.html by the build); once
  * the app is connected, `workspacePolicy` narrows requests and images to that PURSS and https
  * publishers and media to https publishers (PURSS serves none), and the app's transport
- * refuses any other origin. In a browser the reader frames video players (lib/embeds.ts) and originals whose own
+ * refuses any other origin. Pictures PURSS serves only with the device token are shown from the page's own `blob:` copies
+ * (platform/pictures.ts). In a browser the reader frames video players (lib/embeds.ts) and originals whose own
  * headers allow it (plan/43), so frames may come from any web page; the apps never frame originals (the phones open
  * them in a browser tab over the app, the desktop app in its own web view), so `workspacePolicy` narrows frames back
  * to the video players.
@@ -18,7 +19,7 @@ const TAURI_IPC = "ipc: http://ipc.localhost";
 
 export const PAGE_POLICY = [
   "default-src 'self'",
-  "img-src 'self' https: http: data:",
+  "img-src 'self' https: http: data: blob:",
   "media-src 'self' https: http:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
@@ -42,5 +43,5 @@ export function workspacePolicy(origin: string, alsoConnect: string[] = [], desk
   const source = u.hostname.startsWith("[") ? u.protocol : u.origin;
   const connect = [source, ...alsoConnect.map((o) => new URL(o).origin), ...(desktop ? [TAURI_IPC] : [])].join(" ");
   const media = desktop ? ` ${new URL(desktop.media).origin}` : "";
-  return [`connect-src 'self' ${connect}`, `img-src 'self' https: data: ${source}`, `media-src 'self' https:${media}`, `frame-src ${EMBED_ORIGINS.join(" ")}`].join("; ");
+  return [`connect-src 'self' ${connect}`, `img-src 'self' https: data: blob: ${source}`, `media-src 'self' https:${media}`, `frame-src ${EMBED_ORIGINS.join(" ")}`].join("; ");
 }

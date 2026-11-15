@@ -16,6 +16,8 @@ function setup(opts: { downloaded?: (path: string) => Promise<Response | null> }
     const path = new URL(r.url).pathname;
     if (path === "/api/session") return Response.json({ state: "signed_in", csrf: null, account: { id: "acc_1" }, installation: {} });
     if (path === "/api/gone") return Response.json({ error: { code: "device_signed_out" } }, { status: 401 });
+    if (path === "/api/sources/src_1/icon") return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/webp" } });
+    if (path === "/api/sources/src_2/icon") return Response.json({ error: { code: "not_found" } }, { status: 404 });
     return Response.json({ path });
   };
   const worker = new OfflineWorker({ caches: new StoredCaches(new MemoryCopyBackend()), fetch, now: () => 0, origin: ORIGIN, build: "app", networkTimeoutMs: 40 });
@@ -77,4 +79,22 @@ test("the device token never goes anywhere but the connected PURSS", async () =>
   await t.fetch(`${ORIGIN}/api/items`, {});
   await t.fetch("//other.example/api/items", {});
   assert.deepEqual(seen.map((r) => new URL(r.url).origin), [ORIGIN, ORIGIN], "a path, even one starting with //, stays on PURSS");
+});
+
+test("a picture PURSS serves is fetched with the device token and shown from a copy of its own; anything that isn't a picture is not shown", async () => {
+  const { t, seen } = setup();
+  const icon = t.picture("/api/sources/src_1/icon?v=abc");
+  assert.ok(icon instanceof Promise, "the page can't load PURSS's path itself");
+  const url = await icon;
+  assert.match(url, /^blob:/);
+  assert.equal(seen[0]!.url, `${ORIGIN}/api/sources/src_1/icon?v=abc`);
+  assert.equal(seen[0]!.headers.get("authorization"), "Bearer purss_dev_secret");
+  assert.equal(seen[0]!.credentials, "omit");
+  assert.equal(t.picture("/api/sources/src_1/icon?v=abc"), url, "fetched once");
+  assert.equal(seen.length, 1);
+  URL.revokeObjectURL(url);
+  await assert.rejects(Promise.resolve(t.picture("/api/sources/src_2/icon?v=abc")), "a missing icon leaves the initials");
+  await assert.rejects(Promise.resolve(t.picture("/api/session")), "an answer that isn't a picture");
+  assert.equal(t.picture("https://pub.example/art.jpg"), "https://pub.example/art.jpg", "a publisher's picture loads as it is");
+  assert.ok(!seen.some((r) => r.url.startsWith("https://pub.example")), "and is never fetched with the token");
 });

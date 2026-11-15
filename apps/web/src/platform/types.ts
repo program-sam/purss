@@ -179,6 +179,12 @@ export interface Transport {
   fetch(path: string, init: RequestInit): Promise<Response>;
   /** Server-sent events from /api/events, one call per message's data. Returns a function that stops them. */
   events(onMessage: (data: string) => void): () => void;
+  /**
+   * What an `<img>` loads for a picture address. One PURSS serves (a source's icon, a picture kept with a copy): the
+   * address itself where the page is PURSS and the cookie goes with it, otherwise a copy fetched with the credentials
+   * (platform/pictures.ts), once it has arrived; rejects when there is none. Any other address is returned as it is.
+   */
+  picture(src: string): string | Promise<string>;
 }
 
 /** Where copies of API answers for offline reading are kept, and who keeps them. */

@@ -13,7 +13,7 @@ import { embedFor } from "../lib/embeds.ts";
 import { RenameTitle } from "./RenameTitle.tsx";
 import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { statusButton } from "../lib/status-label.ts";
-import { prepareArticleHtml } from "../lib/article-html.ts";
+import { prepareArticleHtml, showStoredPictures } from "../lib/article-html.ts";
 import { dateTime, shortDate } from "../lib/format.ts";
 import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, safeHref } from "../lib/items.ts";
 import { splitLinks } from "../lib/links.ts";
@@ -139,6 +139,9 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   // Highlights belong to PURSS's text, never to an article kept on this device only.
   const highlighted = useHighlightedHtml(html, fromDevice ? NO_ANNOTATIONS : ann.annotations);
   const proseRef = useRef<HTMLDivElement>(null);
+  const proseHtml = highlighted.html ?? html;
+  // Pictures kept with the copy, put in each time the article's markup is replaced.
+  useLayoutEffect(() => { if (proseRef.current && proseHtml) showStoredPictures(proseRef.current, platform.transport.picture); }, [proseHtml, loading]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const display = useDisplayMode();
   useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); }, [itemId]);

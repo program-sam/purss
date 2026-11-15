@@ -4,7 +4,7 @@ import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-qu
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { appHistory } from "./app-base.ts";
 import "@fontsource-variable/nunito/wght.css";
-import "@purss/ui";
+import { PictureProvider } from "@purss/ui";
 import "./app.css";
 import "./extra.css";
 import "./eink.css";
@@ -78,16 +78,18 @@ if (boot.screen) {
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <OverlayProvider>
-            <OfflineController />
-            <AppUpdateNotice />
-            <OutboxController />
-            <AnnotationSync keepOtherAccounts={platform.kind === "app"} />
-            <LateProgressSync keepOtherAccounts={platform.kind === "app"} />
-            <RouterProvider router={router} />
-          </OverlayProvider>
-        </ToastProvider>
+        <PictureProvider resolve={platform.transport.picture}>
+          <ToastProvider>
+            <OverlayProvider>
+              <OfflineController />
+              <AppUpdateNotice />
+              <OutboxController />
+              <AnnotationSync keepOtherAccounts={platform.kind === "app"} />
+              <LateProgressSync keepOtherAccounts={platform.kind === "app"} />
+              <RouterProvider router={router} />
+            </OverlayProvider>
+          </ToastProvider>
+        </PictureProvider>
       </QueryClientProvider>
     </StrictMode>,
   );

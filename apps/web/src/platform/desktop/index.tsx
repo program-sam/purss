@@ -259,6 +259,7 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
     : {
       fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: "Connect the app first." } }), { status: 401, headers: { "content-type": "application/json" } }),
       events: () => () => {},
+      picture: () => Promise.reject(new Error("Connect the app first.")),
     };
 
   const offline: OfflineHost = {
