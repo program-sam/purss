@@ -104,14 +104,14 @@ export function indexText(app: App, seq: number, t: { title: string; excerpt: st
 
 // ---------- listing ----------
 
-export const ITEM_COLUMNS = `i.id, i.source_id, COALESCE(s.title, 'Saved link') AS source_title, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
+export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Saved link') AS source_title, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
   i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.curator_note, st.workflow, st.revision, st.state_version, st.fresh, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
   (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at`;
 
 export type ItemRow = {
-  id: string; source_id: string | null; source_title: string; kind: string; title: string; url: string | null; author: string | null;
+  id: string; number: number; source_id: string | null; source_title: string; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
   published_at: string | null; discovered_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; state_version: number; fresh: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
@@ -119,7 +119,7 @@ export type ItemRow = {
 
 export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   return {
-    id: r.id, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.url, author: r.author,
+    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.url, author: r.author,
     excerpt: displayExcerpt(r.excerpt), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, workflow: r.workflow, revision: r.revision, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
@@ -528,6 +528,13 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
       p.workspaceId, JSON.stringify(hidden), ...(filterSql.endsWith("?") ? [q.filter] : []))!.n;
   }
   return total;
+}
+
+/** The item with this number in the person's workspace (its short link, /app/i/<number>). */
+export function itemIdByNumber(app: App, p: Principal, number: number): { id: string } {
+  const row = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND number = ?", p.workspaceId, number);
+  if (!row) throw notFound("That item");
+  return { id: row.id };
 }
 
 export function getItem(app: App, p: Principal, id: string): ItemDTO {

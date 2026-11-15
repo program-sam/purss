@@ -5,7 +5,7 @@ import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, n
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
-  id: "itm_x", sourceId: "src_x", sourceTitle: "S", kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
+  id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
   durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null,
 };

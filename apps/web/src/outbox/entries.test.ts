@@ -5,7 +5,7 @@ import { backoffSeconds, classify, judgeConflict, notChangedMessage, overlayItem
 import type { Entry } from "./entries.ts";
 
 const item: ItemDTO = {
-  id: "itm_a", sourceId: "src_a", sourceTitle: "S", kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
+  id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
   durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 3, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: ["bkt_1"], curatorNote: null, media: null, annotatedAt: null,
 };

@@ -1,11 +1,13 @@
-import { Outlet, createRootRouteWithContext, createRoute, lazyRouteComponent, redirect, useParams, useRouter } from "@tanstack/react-router";
+import { Outlet, createRootRouteWithContext, createRoute, lazyRouteComponent, notFound, redirect, useParams, useRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionInfo, Sort, ViewMode } from "@purss/domain";
 import { inApp } from "./app-base.ts";
 import { Button, IconSprite } from "@purss/ui";
 import { SignInPage } from "./auth/SignIn.tsx";
 import { safeNext } from "./auth/next.ts";
-import { messageOf } from "./api/client.ts";
+import { ApiError, get, messageOf } from "./api/client.ts";
+import { readRecord } from "./offline/store.ts";
+import { savedItemNumbered } from "./offline/pack.ts";
 import { sessionQuery } from "./api/queries.ts";
 import { LIST_FILTERS, SORT_ORDER, VIEW_MODES } from "./lib/constants.ts";
 import { typesParam } from "./lib/list-filters.ts";
@@ -154,6 +156,30 @@ const workspaceRoute = createRoute({
   },
 });
 
+/**
+ * An item's short link, /i/ and the item's number (itemPath): the item over Home. The number is looked up in what this device
+ * saved first, so a saved item's link opens without a connection, and asked of the PURSS otherwise.
+ */
+const shortItemRoute = createRoute({
+  getParentRoute: () => workspaceRoute, path: "/i/$number",
+  beforeLoad: async ({ context, params }) => {
+    if (!/^[1-9][0-9]{0,14}$/.test(params.number)) throw notFound();
+    const number = Number(params.number);
+    const s = await sessionOf(context.queryClient);
+    let id = s.account ? savedItemNumbered(readRecord(s.account.id).items, number) : null;
+    if (!id) {
+      try {
+        id = (await get<{ id: string }>(`/api/items/number/${number}`)).id;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) throw notFound();
+        if (err instanceof ApiError && err.code === "offline") throw new ApiError(err.status, err.code, "This item isn't saved on this device, so its link opens only with a connection.");
+        throw err;
+      }
+    }
+    throw redirect({ to: "/", search: { item: id }, replace: true });
+  },
+});
+
 const homeRoute = createRoute({ getParentRoute: () => workspaceRoute, path: "/", validateSearch: homeSearch, component: HomePage });
 
 function listing(t: "c" | "s" | "b" | "r") {
@@ -188,6 +214,6 @@ function pluginRoutes() {
 export function buildRouteTree() {
   return rootRoute.addChildren([
     setupRoute, signinRoute, inviteRoute, signupRoute, connectRoute, authorizeRoute, verifyEmailRoute, resetPasswordRoute,
-    workspaceRoute.addChildren([homeRoute, listing("c"), listing("s"), listing("b"), listing("r"), statsPage("c"), statsPage("s"), ...pluginRoutes()]),
+    workspaceRoute.addChildren([homeRoute, shortItemRoute, listing("c"), listing("s"), listing("b"), listing("r"), statsPage("c"), statsPage("s"), ...pluginRoutes()]),
   ]);
 }

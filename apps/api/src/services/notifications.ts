@@ -1,4 +1,4 @@
-import { OTHER_BOX_ID, appUrl, newId } from "@purss/domain";
+import { OTHER_BOX_ID, appUrl, itemPath, newId } from "@purss/domain";
 import type { NotificationDTO, Preferences } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
@@ -92,7 +92,7 @@ function upsertArrival(app: App, workspaceId: string, s: Sourcey, count: number,
 
 export type DigestWindow = { from: string; to: string };
 /** An item the digest email shows as a teaser: never one of a private source. */
-export type DigestTeaser = { id: string; title: string; source: string; at: string };
+export type DigestTeaser = { id: string; number: number; title: string; source: string; at: string };
 export type DigestBox = { id: string; name: string; count: number; titles: string[]; teasers: DigestTeaser[] };
 export type Digest = { window: DigestWindow; total: number; boxes: DigestBox[] };
 
@@ -118,12 +118,12 @@ export function digestFor(app: App, workspaceId: string, window: DigestWindow): 
     const mine = boxesFor(prefs, links.get(r.source_id), prefs.homeOther);
     if (!mine.length) continue;
     total += r.n;
-    const newest = r.is_private ? [] : app.db.all<{ id: string; title: string; discovered_at: string }>(
-      `SELECT i.id, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
+    const newest = r.is_private ? [] : app.db.all<{ id: string; number: number; title: string; discovered_at: string }>(
+      `SELECT i.id, i.number, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
        WHERE i.workspace_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND st.workflow <> 'ignored'
        ORDER BY i.discovered_at DESC LIMIT ?`, workspaceId, r.source_id, window.from, window.to, TEASERS);
     const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => t.title) : [];
-    const teasers = newest.map((t) => ({ id: t.id, title: t.title, source: r.source_title, at: t.discovered_at }));
+    const teasers = newest.map((t) => ({ id: t.id, number: t.number, title: t.title, source: r.source_title, at: t.discovered_at }));
     for (const b of mine) {
       const box = boxes.get(b.id) ?? { id: b.id, name: b.name, count: 0, titles: [], teasers: [] };
       box.count += r.n;
@@ -174,7 +174,7 @@ export function digestEmail(app: App, d: Digest, kind: "daily" | "weekly", now: 
     boxes: shown.map((b) => ({
       name: b.name, count: b.count,
       link: b.id === OTHER_BOX_ID ? home : `${home}c/${encodeURIComponent(b.id)}`,
-      teasers: b.teasers.map((t) => ({ title: t.title, meta: `${t.source} · ${ago(t.at, now)}`, link: `${home}?item=${encodeURIComponent(t.id)}` })),
+      teasers: b.teasers.map((t) => ({ title: t.title, meta: `${t.source} · ${ago(t.at, now)}`, link: `${app.config.publicOrigin}${itemPath(t.number)}` })),
     })),
     more: d.boxes.length - shown.length,
     home, settings: `${home}?dialog=notifications`,

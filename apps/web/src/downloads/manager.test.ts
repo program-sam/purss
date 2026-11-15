@@ -55,7 +55,7 @@ class MemoryKv implements KeyValue {
 
 function detail(id: string, over: Partial<ItemDetail> = {}): ItemDetail {
   return {
-    id, sourceId: "src_1", sourceTitle: "Slow Radio", kind: "podcast", title: `Episode ${id}`, url: `https://pub.example/${id}`, author: null, excerpt: null, imageUrl: null,
+    id, number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", kind: "podcast", title: `Episode ${id}`, url: `https://pub.example/${id}`, author: null, excerpt: null, imageUrl: null,
     durationSeconds: 600, readMinutes: null, doi: null, publishedAt: "2026-11-01T00:00:00Z", discoveredAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, stateVersion: 1, fresh: false,
     progress: 0, opened: false, basketIds: [], curatorNote: null, annotatedAt: null,
     media: { url: `https://cdn.pub.example/${id}.mp3?size=${20 * MB}`, kind: "audio", type: "audio/mpeg", length: 20 * MB },

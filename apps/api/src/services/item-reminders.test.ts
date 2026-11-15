@@ -219,8 +219,9 @@ test("email: only when allowed, with outgoing email set up and a confirmed addre
   assert.equal(sent[0]!.to, "me@example.org");
   assert.ok(!sent[0]!.text.includes("Tidal flats") && !sent[0]!.text.includes("loan"), "no title or note while titles are off");
   const lines = sent[0]!.text.split("\n");
-  const link = lines.find((l) => l.startsWith("https://ws.example.org/app/?item="));
-  assert.equal(link, `https://ws.example.org/app/?item=${kept(lib)}`, "the link is a line of its own");
+  const link = lines.find((l) => l.startsWith("https://ws.example.org/app/i/"));
+  const number = app.db.get<{ number: number }>("SELECT number FROM items WHERE id = ?", kept(lib))!.number;
+  assert.equal(link, `https://ws.example.org/app/i/${number}`, "the link is a line of its own: the item's short link");
   // Titles on: title and note appear.
   setPreferences(app, p.workspaceId, { notifications: { previews: true } });
   remind(kept(lib), 15, 14);

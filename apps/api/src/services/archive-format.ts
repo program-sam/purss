@@ -138,6 +138,8 @@ const captureSchema = z.object({
 
 const itemSchema = z.object({
   id,
+  /** The item's number in the workspace it came from (its short link); files made before items had numbers lack it. */
+  number: z.number().int().min(1).max(999_999_999_999_999).optional(), // 15 digits, as the short link takes
   sourceId: id.nullable().default(null),
   kind: z.string().max(20).default("article"),
   title: text(2000),

@@ -82,13 +82,13 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   // The text of each queued item, unless it is already saved and hasn't changed.
   const present = await savedItemIds(accountId);
   const saved: SavedItems = {};
-  for (const it of queue) if (before.items[it.id]) saved[it.id] = before.items[it.id]!;
+  for (const it of queue) if (before.items[it.id]) saved[it.id] = { ...before.items[it.id]!, number: it.number };
   const refetched = new Set<string>();
   await pool(itemsToFetch(queue, before.items, present, started), PACK_CONCURRENCY, signal, async (it) => {
     try {
       const detail = await api<ItemDetail>(`/api/items/${encodeURIComponent(it.id)}`, { signal });
       const textPending = detail.captures.some((c) => c.level === "pending");
-      saved[it.id] = { stateVersion: detail.stateVersion, at: Date.now(), ...(textPending ? { textPending } : {}) };
+      saved[it.id] = { stateVersion: detail.stateVersion, at: Date.now(), number: it.number, ...(textPending ? { textPending } : {}) };
       refetched.add(it.id);
     } catch (err) {
       if (lostConnection(err)) throw err;

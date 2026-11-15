@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
-import { DETAIL_MAX_AGE_MS, PACK_CHANGE_INTERVAL_MS, PACK_KEPT_LIMIT, PACK_MIN_INTERVAL_MS, PACK_REBUILD_INTERVAL_MS, annotationsToFetch, copiesMissing, itemsToFetch, packWait, parseRecord, selectQueue, sourcesOf, waitBeforeRun } from "./pack.ts";
+import { DETAIL_MAX_AGE_MS, PACK_CHANGE_INTERVAL_MS, PACK_KEPT_LIMIT, PACK_MIN_INTERVAL_MS, PACK_REBUILD_INTERVAL_MS, annotationsToFetch, copiesMissing, itemsToFetch, packWait, parseRecord, savedItemNumbered, selectQueue, sourcesOf, waitBeforeRun } from "./pack.ts";
 
 let n = 0;
 function item(over: Partial<ItemDTO> & { workflow: WorkflowState }): ItemDTO {
   n++;
   return {
-    id: over.id ?? `itm_${n}`, sourceId: "src_1", sourceTitle: "A source", kind: "article", title: `Item ${n}`, url: null, author: null, excerpt: null, imageUrl: null,
+    id: over.id ?? `itm_${n}`, number: 1, sourceId: "src_1", sourceTitle: "A source", kind: "article", title: `Item ${n}`, url: null, author: null, excerpt: null, imageUrl: null,
     durationSeconds: null, readMinutes: null, doi: null, publishedAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(), discoveredAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(),
     revision: 1, stateVersion: 1, fresh: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
@@ -158,4 +158,14 @@ test("copies the record says were saved but the device no longer holds mean the 
   assert.equal(packWait({ ...record, startedAt: now - 5_000 }, new Set(["a", "b"]), now, 4000, PACK_CHANGE_INTERVAL_MS), PACK_CHANGE_INTERVAL_MS - 5_000);
   // The very first save has no record and starts at once.
   assert.equal(packWait({ startedAt: null, savedAt: null, items: {} }, new Set(), now, 1500), 1500);
+});
+
+test("a saved item's number is remembered, so its short link finds it on this device without a connection", () => {
+  const raw = JSON.stringify({ items: { itm_a: { stateVersion: 1, at: 5, number: 12 }, itm_b: { stateVersion: 1, at: 5 }, itm_c: { stateVersion: 1, at: 5, number: "7" }, itm_d: { stateVersion: 1, at: 5, number: 0 } } });
+  const saved = parseRecord(raw).items;
+  assert.equal(saved.itm_a!.number, 12);
+  assert.equal("number" in saved.itm_b!, false, "saved before items had numbers: none");
+  assert.equal("number" in saved.itm_c! || "number" in saved.itm_d!, false, "anything that isn't a positive whole number is dropped");
+  assert.equal(savedItemNumbered(saved, 12), "itm_a");
+  assert.equal(savedItemNumbered(saved, 7), null, "not saved here: the PURSS is asked");
 });

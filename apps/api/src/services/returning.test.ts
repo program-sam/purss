@@ -748,7 +748,7 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/?dialog=notifications"), "and so is the link to the setting that stops them");
   const openId = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'Open post 3'")!.id;
   assert.match(sent[0]!.text, /^- Open post 3 \(Open · 2 hours ago\)$/m);
-  assert.ok(sent[0]!.text.split("\n").includes(`  https://ws.example.org/app/?item=${openId}`), "each teaser links to its item");
+  assert.ok(sent[0]!.text.split("\n").includes(`  https://ws.example.org/app/i/${app.db.get<{ number: number }>("SELECT number FROM items WHERE id = ?", openId)!.number}`), "each teaser links to its item");
   assert.match(sent[0]!.html, /Open post 3/);
   assert.match(sent[0]!.html, /1 more in Reading/, "the private item is counted, not shown");
   assert.ok(!/Patron/.test(sent[0]!.text) && !/Patron/.test(sent[0]!.html), "a private source's titles never go by email");

@@ -417,8 +417,12 @@ ask your administrator.
 
 An item's **More** menu has two links. **Copy link** copies the original page's address: the one to
 send to someone, who can open it without an account here. **Copy link to this item in your
-PURSS** copies the address that opens the item in your PURSS; only you can open it (anyone
-else gets the sign-in page). You can also share a whole basket or collection as a
+PURSS** copies the item's short link, such as `/app/i/48213`: every item has a number of its own in your PURSS,
+and no other item ever gets it, even after the item is deleted. Only you can open the link (anyone
+else gets the sign-in page). On a device that saved the item for offline reading, the link opens it
+without a connection too. Your export keeps each item's number, so importing it into a new, empty
+PURSS keeps your links working; an import into a PURSS that already used those numbers gives the
+imported items new ones. You can also share a whole basket or collection as a
 [public page](#sharing-a-basket-or-collection).
 
 ## Workflow states

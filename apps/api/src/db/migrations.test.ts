@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Database, migrate } from "./database.ts";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
-/** The triggers 058 adds to keep the stored source titles current: the tests below about rebuilt tables leave them aside. */
-const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed"]);
+/** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items): the tests below about rebuilt tables leave them aside. */
+const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept"]);
 
 test("005 removes hand-picked collections and their membership table and leaves the other collections alone", () => {
   const db = new Database(":memory:");
@@ -497,8 +497,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all("SELECT * FROM jobs ORDER BY id"), others.jobs, "other jobs are untouched");
     assert.deepEqual(db.all("SELECT * FROM playback_positions"), others.playback, "playback positions stay");
     assert.deepEqual(db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), others.sources, "sources are unchanged apart from the two columns");
-    // link_key (057), kept_key and source_title (058) are columns later migrations add; everything the items had stays as it was.
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
+    // link_key (057), kept_key and source_title (058) and number (062) are columns later migrations add; everything the items had stays as it was.
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
@@ -756,6 +756,45 @@ test("058 stores each existing item's latest keep and source title, indexes the 
     db.run("UPDATE items SET source_id = NULL WHERE id = 'itm_1'");
     assert.deepEqual(keys(), { itm_1: ["2026-10-05T00:00:00.000Z", ""], itm_2: ["", "Tidal Notes"], itm_3: ["2026-10-03T00:00:00.000Z", ""] }, "a renamed source and items moved");
     assert.equal(migrate(db), 0, "and it does not run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("062 numbers each workspace's items in the order they arrived, never again a number given, and numbers every new item", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "062")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x'), ('ws_2', 'acc_2', 'x'), ('ws_3', 'acc_3', 'x')");
+    const item = (id: string, ws: string) =>
+      db.run("INSERT INTO items (id, account_id, workspace_id, kind, title, discovered_at, created_at, updated_at) VALUES (?, 'acc', ?, 'article', 't', '2026-10-01T00:00:00.000Z', 'x', 'x')", id, ws);
+    // Ids out of arrival order: the numbers follow arrival (seq), not the ids.
+    for (const [id, ws] of [["itm_c", "ws_1"], ["itm_x", "ws_2"], ["itm_a", "ws_1"], ["itm_b", "ws_1"], ["itm_y", "ws_2"]] as const) item(id, ws);
+    db.run("DELETE FROM items WHERE id = 'itm_b'"); // deleted before numbers existed: its place isn't counted
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "062").length);
+    const numbered = () => Object.fromEntries(db.all<{ id: string; number: number }>("SELECT id, number FROM items ORDER BY id").map((r) => [r.id, r.number]));
+    assert.deepEqual(numbered(), { itm_a: 2, itm_c: 1, itm_x: 1, itm_y: 2 });
+    const next = () => Object.fromEntries(db.all<{ id: string; n: number }>("SELECT id, next_item_number AS n FROM workspaces ORDER BY id").map((r) => [r.id, r.n]));
+    assert.deepEqual(next(), { ws_1: 3, ws_2: 3, ws_3: 1 }, "each workspace counts on from its highest number; one without items starts at 1");
+
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.run("DELETE FROM items WHERE id = 'itm_a'"); // the newest of ws_1
+    item("itm_d", "ws_1");
+    item("itm_z", "ws_3");
+    db.run("INSERT INTO items (id, number, account_id, workspace_id, kind, title, discovered_at, created_at, updated_at) VALUES ('itm_k', 40, 'acc', 'ws_2', 'article', 't', 'x', 'x', 'x')");
+    item("itm_w", "ws_2");
+    db.exec("PRAGMA foreign_keys = ON");
+    assert.deepEqual(numbered(), { itm_c: 1, itm_d: 3, itm_k: 40, itm_w: 41, itm_x: 1, itm_y: 2, itm_z: 1 }, "a deleted item's 2 isn't given again; an item stored with its number moves the counter past it");
+    assert.throws(() => db.run("INSERT INTO items (id, number, account_id, workspace_id, kind, title, discovered_at, created_at, updated_at) VALUES ('itm_dup', 41, 'acc', 'ws_2', 'article', 't', 'x', 'x', 'x')"), /UNIQUE/, "two items of a workspace can't share a number");
+    assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();
   }

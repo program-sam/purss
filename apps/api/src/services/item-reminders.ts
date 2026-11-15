@@ -1,4 +1,4 @@
-import { COMING_UP_DAYS, appUrl, newId } from "@purss/domain";
+import { COMING_UP_DAYS, itemPath, newId } from "@purss/domain";
 import type { ComingUp, ItemKind, ItemReminderDTO } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
@@ -25,9 +25,9 @@ const STALE_DAYS = 3;
 /** The furthest ahead a reminder can be set. */
 const MAX_YEARS_AHEAD = 5;
 
-type Row = { id: string; item_id: string; remind_on: string; note: string | null; title: string; kind: ItemKind; source_title: string | null; is_private: number | null };
+type Row = { id: string; item_id: string; item_number: number; remind_on: string; note: string | null; title: string; kind: ItemKind; source_title: string | null; is_private: number | null };
 
-const SELECT = `SELECT r.id, r.item_id, r.remind_on, r.note, i.title, i.kind, s.title AS source_title, s.is_private
+const SELECT = `SELECT r.id, r.item_id, i.number AS item_number, r.remind_on, r.note, i.title, i.kind, s.title AS source_title, s.is_private
   FROM item_reminders r JOIN items i ON i.id = r.item_id LEFT JOIN sources s ON s.id = i.source_id`;
 const KEPT = "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = r.item_id)";
 
@@ -131,9 +131,9 @@ function emailReminders(app: App, workspaceId: string, accountId: string, due: R
   if (!getPreferences(app, workspaceId).notifications.emailReminders) return;
   const account = app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", accountId);
   if (!account?.email || !account.email_verified_at) return;
-  const link = (itemId: string) => `${app.config.publicOrigin}${appUrl("/")}?item=${encodeURIComponent(itemId)}`;
+  const link = (number: number) => `${app.config.publicOrigin}${itemPath(number)}`;
   sendLater(app, "reminder", accountId, reminderMail(account.email, {
-    items: due.map((r) => ({ title: showText ? r.title : null, note: showText ? r.note : null, link: link(r.item_id) })),
+    items: due.map((r) => ({ title: showText ? r.title : null, note: showText ? r.note : null, link: link(r.item_number) })),
   }));
 }
 

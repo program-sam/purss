@@ -26,7 +26,7 @@ import { deviceIdOf } from "../connect/devices.ts";
 import { PASSWORD_MAX, checkPassword, preparePassword, verifyPassword } from "../auth/passwords.ts";
 import { finishSignup, signupRequestEmail, startSignup } from "../auth/signup.ts";
 import { KNOWN_COOKIE, signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
-import { getItemDetail, listItemIds, listItems, searchSnippets } from "../services/items.ts";
+import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
 import { applyUndo, bulk, changeState, clearFreshAll, keepWithUndo } from "../services/state.ts";
@@ -457,6 +457,11 @@ export function publicRouter(): Router<Ctx> {
     limit(`lookup:${p.accountId}`, 600); // a page visit each: plenty for browsing, not for keeping the API busy
     const { url } = parse(z.object({ url: z.string().trim().min(1).max(2000) }), { url: req.query.get("url") ?? undefined });
     return lookupUrl(ctx.app, p, url);
+  });
+  /** Which item a short link (/app/i/<number>) names. */
+  r.get("/api/items/number/:number", (req, ctx) => {
+    const { number } = parse(z.object({ number: z.string().regex(/^[1-9][0-9]{0,14}$/).transform(Number) }), { number: req.params.number });
+    return itemIdByNumber(ctx.app, requirePrincipal(ctx), number);
   });
   r.get("/api/items/:id", (req, ctx) => getItemDetail(ctx.app, requirePrincipal(ctx), req.params.id!));
   r.patch("/api/items/:id/state", (req, ctx) => changeState(ctx.app, requirePrincipal(ctx), req.params.id!, parse(stateChangeSchema, req.body)));

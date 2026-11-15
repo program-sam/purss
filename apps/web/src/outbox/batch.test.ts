@@ -7,7 +7,7 @@ import type { Outcome } from "./outbox.ts";
 
 function item(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = []): ItemDTO {
   return {
-    id, sourceId: "src_a", sourceTitle: "S", kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
+    id, number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
     doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow, revision, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }

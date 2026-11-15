@@ -53,7 +53,7 @@ export function selectQueue(lists: QueueLists, limit = PACK_LIMIT): ItemDTO[] {
  * including the New marker and the opened time), when it was saved, whether a readable copy was still being made, and when its
  * highlights and notes had last changed when they were saved.
  */
-export type SavedItems = Record<string, { stateVersion: number; at: number; textPending?: boolean; annotatedAt?: string }>;
+export type SavedItems = Record<string, { stateVersion: number; at: number; textPending?: boolean; annotatedAt?: string; number?: number }>;
 
 /** Items whose text must be fetched: not saved, changed since, still waiting for its readable copy, or saved long enough ago to refresh. */
 export function itemsToFetch(queue: readonly ItemDTO[], saved: SavedItems, present: ReadonlySet<string>, now: number, maxAge = DETAIL_MAX_AGE_MS): ItemDTO[] {
@@ -105,7 +105,7 @@ export function parseRecord(raw: string | null): PackRecord {
     const items: SavedItems = {};
     for (const [id, s] of Object.entries(v.items ?? {})) {
       if (s && typeof s.stateVersion === "number" && typeof s.at === "number") {
-        items[id] = { stateVersion: s.stateVersion, at: s.at, ...(s.textPending === true ? { textPending: true } : {}), ...(typeof s.annotatedAt === "string" ? { annotatedAt: s.annotatedAt } : {}) };
+        items[id] = { stateVersion: s.stateVersion, at: s.at, ...(s.textPending === true ? { textPending: true } : {}), ...(typeof s.annotatedAt === "string" ? { annotatedAt: s.annotatedAt } : {}), ...(Number.isSafeInteger(s.number) && s.number! > 0 ? { number: s.number } : {}) };
       }
     }
     return {
@@ -114,6 +114,12 @@ export function parseRecord(raw: string | null): PackRecord {
       items,
     };
   } catch { return { ...EMPTY_RECORD, items: {} }; }
+}
+
+/** The saved item with this number (an item's short link), so the link opens without a connection; null when none is saved. */
+export function savedItemNumbered(saved: SavedItems, number: number): string | null {
+  for (const [id, s] of Object.entries(saved)) if (s.number === number) return id;
+  return null;
 }
 
 /** Distinct sources behind the queue, most items first, for the pages worth saving a first page of. */

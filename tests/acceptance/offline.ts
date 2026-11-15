@@ -262,8 +262,20 @@ async function main(): Promise<void> {
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step("opened “Tidal flats and sediment” and marked it To read");
 
-    // Highlights: with the pointer (the bar under the selection) and with the keyboard (c comments).
+    // The item's short link (Copy link to this item in your PURSS): nothing is saved on this device yet, so the PURSS is asked.
     const itemId = new URL(page.url()).searchParams.get("item")!;
+    const itemNumber = await page.evaluate(async (id) => (await (await fetch(`/api/items/${id}`)).json()).number as number, itemId);
+    assert.ok(Number.isSafeInteger(itemNumber) && itemNumber > 0, "the item has a number");
+    await page.goto(`${origin}/app/i/${itemNumber}`);
+    await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("item"), itemId, "the short link became the item's address over Home");
+    await page.goto(`${origin}/app/i/999999`);
+    await page.getByText("That page isn't here").waitFor();
+    await page.goto(`${origin}/app/?item=${itemId}`);
+    await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
+    step(`the item's short link /app/i/${itemNumber} opens it; a number no item has says the page isn't here`);
+
+    // Highlights: with the pointer (the bar under the selection) and with the keyboard (c comments).
     await page.locator("#panel-in .prose").getByText(/thin layers of silt/).waitFor();
     await selectInArticle(page, "thin layers of silt");
     await page.getByRole("toolbar", { name: "Selected text" }).getByRole("button", { name: "Highlight" }).click();
@@ -331,6 +343,12 @@ async function main(): Promise<void> {
     await page.locator("#panel-in .prose mark.anno", { hasText: "thin layers of silt" }).waitFor();
     await page.locator("#panel-in").getByText("Compare with the winter survey").waitFor();
     step("opened the To read item offline and read its text, with its highlights and comment");
+
+    // Its short link opens it offline too: this device remembers the saved item's number.
+    await page.goto(`${origin}/app/i/${itemNumber}`);
+    await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor({ timeout: 20_000 });
+    assert.equal(new URL(page.url()).searchParams.get("item"), itemId);
+    step("opened the item's short link offline: the app found the saved item by its number");
 
     // A note written offline waits on the device, survives a reload, and is sent when the connection returns.
     await page.getByRole("button", { name: "Add a note" }).click();

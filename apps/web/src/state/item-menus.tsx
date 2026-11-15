@@ -1,5 +1,4 @@
-import { appUrl } from "@purss/domain/paths";
-import { appPathname } from "../nav.ts";
+import { itemPath } from "@purss/domain/paths";
 import { useCallback } from "react";
 import type { ItemDTO } from "@purss/domain";
 import { Icon } from "@purss/ui";
@@ -52,7 +51,7 @@ export function useItemMenus() {
   }, [toast]);
   /** "Copy link" (the original address) and "Copy link to this item in your PURSS". */
   const linkEntries = useCallback((item: ItemDTO): MenuEntry[] => copyLinkEntries(item, {
-    workspaceLink: `${platform.publicOrigin()}${appUrl(appPathname())}?item=${encodeURIComponent(item.id)}`,
+    workspaceLink: `${platform.publicOrigin()}${itemPath(item.number)}`,
     copy: (text, message) => void copy(text, message),
   }), [copy]);
 
