@@ -42,7 +42,7 @@ export function FreshDot({ fresh }: { fresh: boolean }) {
 const COPY: Record<KeptCopy, { text: string; icon: IconName }> = {
   text: { text: "Text saved", icon: "check" },
   partial: { text: "Only part saved", icon: "info" },
-  summary: { text: "Summary only", icon: "item" },
+  summary: { text: "Feed text only", icon: "item" },
   pending: { text: "Saving text…", icon: "clock" },
   failed: { text: "Couldn't save the text", icon: "alert" },
 };

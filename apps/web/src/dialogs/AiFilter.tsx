@@ -80,17 +80,17 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
         <Button variant="primary" type="submit" form="aif-form" disabled={!!busy || !ready || !route}>{filter ? "Save" : enabled ? "Turn on" : "Save"}</Button>
       </>}>
       <form id="aif-form" onSubmit={(e) => { e.preventDefault(); void save(); }} style={{ display: "grid", gap: 12 }}>
-        <p className="hint">Describe which posts of {what} you want. Jev, an AI model that answers yes or no, judges each new post; the ones it drops are marked Ignored. Nothing is deleted, and when you move a post back yourself, it stays where you put it.</p>
+        <p className="hint">Say in your own words which posts you want from {what}. An AI model (Jev) checks each new post and marks the rest Ignored. Nothing is deleted, and a post you move back stays put.</p>
         {!route ? (
           <p className="state note" role="status"><Icon name="info" /><span>{!settings.serverKey ? "This server hasn't set up Smart filters yet. Ask your administrator." : settings.allowanceUsedUp ? "You've used this week's Smart filter allowance. Contact your administrator to change your limits." : "Smart filters are included in the Pro plan. Move to Pro to use a filter."}</span></p>
         ) : null}
-        <Field label="Keep posts that…" htmlFor="aif-keep" hint="e.g. are about Rust compiler internals">
+        <Field label="Keep posts that…" htmlFor="aif-keep" hint="e.g. are weeknight recipes with only a few ingredients">
           <TextInput id="aif-keep" value={keep} maxLength={AI_FILTER_TEXT_MAX} onChange={(e) => edit(() => setKeep(e.target.value))} autoComplete="off" />
         </Field>
-        <Field label="Drop posts that… (optional)" htmlFor="aif-drop" hint="e.g. are job ads or sponsored posts">
+        <Field label="Drop posts that… (optional)" htmlFor="aif-drop" hint="e.g. are giveaways, sales or sponsored posts">
           <TextInput id="aif-drop" value={drop} maxLength={AI_FILTER_TEXT_MAX} onChange={(e) => edit(() => setDrop(e.target.value))} autoComplete="off" />
         </Field>
-        <div className="field"><div className="lbl" id="aif-unsure">When Jev isn't sure</div>
+        <div className="field"><div className="lbl" id="aif-unsure">When the model isn't sure</div>
           <Segmented labelledBy="aif-unsure" value={whenUnsure} onChange={(v) => edit(() => setWhenUnsure(v))} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
             options={[{ value: "keep", label: "Keep the post" }, { value: "drop", label: "Drop the post" }]} /></div>
         <div className="field" style={{ gap: 6 }}>
@@ -99,7 +99,7 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
           </div>
           {preview ? (
             <>
-              <p className="fine" role="status">{plural(kept, "post")} kept, {plural(preview.posts.length - kept, "post")} dropped. The percentage is how sure Jev is that a post belongs.</p>
+              <p className="fine" role="status">{plural(kept, "post")} kept, {plural(preview.posts.length - kept, "post")} dropped. The percentage is how sure the model is that a post belongs.</p>
               <ul className="ordlist aif-preview" aria-label="What the filter would do">
                 {preview.posts.map((p) => (
                   <li className={`ordrow${p.dropped ? " aif-dropped" : ""}`} key={p.itemId}>
@@ -112,9 +112,9 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
             </>
           ) : null}
         </div>
-        <Check checked={enabled} onChange={setEnabled} hint="Untick to pause the filter: your words stay saved, and new posts come in unfiltered.">Judge new posts as they arrive</Check>
+        <Check checked={enabled} onChange={setEnabled} hint="Untick to pause: your wording is kept and new posts arrive unfiltered.">Filter new posts as they arrive</Check>
         {filter ? <p className="fine">So far it has judged {plural(filter.judgedCount, "post")} and {filter.droppedCount === 1 ? "1 post it dropped is" : `${filter.droppedCount} posts it dropped are`} still Ignored. Changing the words checks the Undecided posts of the last 30 days again, and gives back posts it would now keep.</p> : null}
-        <p className="fine">To judge a post, its title, summary, author and source name are sent to Jev through {settings.keySource.split(" (")[0]}.</p>
+        <p className="fine">Only a post's title, summary, author and source name are sent to Jev, through {settings.keySource.split(" (")[0]}.</p>
       </form>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>

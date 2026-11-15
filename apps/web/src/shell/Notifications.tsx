@@ -55,7 +55,7 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
       {off ? null : <PhoneNotificationsOffer />}
       {q.isPending ? <p className="fine" style={{ padding: 12 }}>Loading…</p> : null}
       {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>Try again</Button></p> : null}
-      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>Nothing yet. New items from sources with notifications on will show here.</p> : null}
+      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>Nothing yet. Your digest, your reminders and news of a source that stops working arrive here.</p> : null}
       <ul className="notif-list">
         {list.map((n) => (
           <li key={n.id}>

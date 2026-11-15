@@ -287,7 +287,7 @@ test("a source still waiting for its first items after the engine was asked is a
   const busy = makeSource(app, p, "Busy", "feed/3", { settled: false });
   const unsubscribed = makeSource(app, p, "Not subscribed", "feed/4", { settled: false });
   const old = new Date(Date.now() - 3600_000).toISOString();
-  for (const id of [stale, fresh, busy, unsubscribed]) app.db.run("UPDATE sources SET health = 'pending', health_text = 'Collecting the first items…' WHERE id = ?", id);
+  for (const id of [stale, fresh, busy, unsubscribed]) app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
   app.db.run("UPDATE sources SET subscribed_at = ? WHERE id IN (?, ?)", old, stale, busy);
   app.db.run("UPDATE sources SET subscribed_at = ? WHERE id = ?", new Date().toISOString(), fresh);
   app.db.run("UPDATE sources SET engine_stream_id = NULL, subscribed_at = NULL WHERE id = ?", unsubscribed);

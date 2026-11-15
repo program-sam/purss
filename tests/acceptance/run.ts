@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     await page.getByText("Sign in without typing a password", { exact: true }).waitFor();
     await page.getByRole("button", { name: /add a passkey/i }).first().click();
     await waitFor("a passkey", async () => (await cdp.send("WebAuthn.getCredentials", { authenticatorId })).credentials.length === 1, 15_000);
-    const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
+    const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
     const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
     await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
     if (await notNow.isVisible().catch(() => false)) {
@@ -207,9 +207,9 @@ async function main(): Promise<void> {
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step(`opened “${title.slice(0, 50)}” and marked it To read`);
     // The status button steps along the reading path, one click a step, and names the state at its end.
-    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark as In progress", exact: true }).click();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark In progress", exact: true }).click();
     await page.locator("#toasts").getByText("Marked In progress").waitFor();
-    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark as Finished", exact: true }).click();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark Finished", exact: true }).click();
     await page.locator("#toasts").getByText("Marked Finished").waitFor();
     await page.locator("#panel-in .p-acts").getByRole("button", { name: "State: Finished. Change state", exact: true }).waitFor();
     step("stepped it on to In progress and Finished with the status button, one click each");
@@ -259,14 +259,14 @@ async function main(): Promise<void> {
     await page.locator(".p-acts").getByRole("button", { name: "Keep" }).click();
     await page.getByRole("menuitem", { name: "New basket…" }).click();
     await page.locator(".dlg input").first().fill("Read later");
-    await page.locator(".dlg").getByRole("radio", { name: /Keep readable text too/ }).check();
+    await page.locator(".dlg").getByRole("radio", { name: /Readable copy too/ }).check();
     await page.locator(".dlg").getByRole("button", { name: "Create basket" }).click();
     await page.locator(".dlg").waitFor({ state: "detached" });
     // Names in messages are wrapped in direction isolates (U+2068/U+2069) so mixed scripts stay in place.
     await page.locator("#toasts").getByText(/Created \u2068?Read later\u2069? and kept the item in it/).waitFor();
     await waitFor("the readable-text capture", async () => {
       await page.reload();
-      return page.getByText("Full text captured").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+      return page.getByText("Full text saved").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
     }, 90_000);
     step("kept in a text basket and captured readable text");
 
@@ -368,7 +368,7 @@ async function main(): Promise<void> {
     await p2.getByRole("button", { name: "Continue" }).click();
     await p2.getByRole("button", { name: /skip for now/i }).first().click();
     // A new account is asked once how it wants to be told about new things.
-    const firstVisit2 = p2.getByRole("dialog", { name: "How should we keep you posted?" });
+    const firstVisit2 = p2.getByRole("dialog", { name: "How often do you want to hear about new items?" });
     await firstVisit2.getByRole("button", { name: "Not now", exact: true }).click();
     await firstVisit2.waitFor({ state: "hidden" });
     await p2.getByRole("button", { name: "Add source" }).first().waitFor();

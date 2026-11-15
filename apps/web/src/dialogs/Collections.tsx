@@ -52,17 +52,18 @@ export function NewCollectionDialog() {
   return (
     <Dialog title="New collection" onClose={ov.close} size="md" initialFocus="#nc-name"
       footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>Create collection</Button></>}>
+      <p className="fine">A collection groups sources you read together, with its own view. Home shows your collections.</p>
       <div className="field"><label htmlFor="nc-name">Name</label>
         <TextInput id="nc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder="News, Science, Friends' blogs"
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy && mode !== "query") void create(); }} /></div>
       <EmojiField value={emoji} onChange={setEmoji} />
       <div className="field"><div className="lbl" id="nc-mode">What goes in it</div>
         <Segmented labelledBy="nc-mode" value={mode} onChange={setMode} style={{ justifySelf: "start" }}
-          options={[{ value: "sources", label: "Sources" }, { value: "query", label: "Filter" }]} /></div>
+          options={[{ value: "sources", label: "Sources I pick" }, { value: "query", label: "Items matching a filter" }]} /></div>
       {mode === "sources" ? (
         <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Sources to include</legend>
           <SourcePicks selected={sourceIds} onChange={setSourceIds} />
-          <p className="fine">A source can be in several collections. All its items appear here.</p></fieldset>
+          <p className="fine">A source can be in several collections; you follow it once.</p></fieldset>
       ) : null}
       {mode === "query" ? <QueryBuilder draft={draft} onChange={setDraft} /> : null}
       {error ? <p className="state note" role="alert">{error}</p> : null}

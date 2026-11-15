@@ -27,6 +27,7 @@ import { describeQuery } from "../lib/query-builder.ts";
 import type { Place } from "../nav.ts";
 import { statsPathFor, useNav } from "../nav.ts";
 import { platform } from "../platform/index.ts";
+import { hasKeyboard } from "../lib/returning.ts";
 import { useItemActions } from "../state/actions.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
@@ -46,6 +47,8 @@ import { ListTools } from "../shell/ListTools.tsx";
 import { SourceFilter } from "../shell/SourceFilter.tsx";
 import { Trail } from "../shell/crumbs.tsx";
 import { leaveThen } from "../lib/leave.ts";
+
+const KEYBOARD = typeof window === "undefined" || hasKeyboard((q) => window.matchMedia(q).matches);
 
 /** How many recent items get a copy when full articles are turned on; the same value as in the shared contract (the browser imports types only). */
 const FULL_TEXT_BACKFILL: typeof DomainFullTextBackfill = 20;
@@ -83,7 +86,7 @@ function SourceNotes({ s, tz }: { s: SourceDTO; tz: string }) {
   if (s.health === "paused") out.push(note("pause", s.pausedUntil ? `Paused. ${pausedUntilLine(s.pausedUntil, tz)}. No new items arrive until then.` : "Paused. No new items arrive until you resume."));
   if (s.health === "error") out.push(<p key="error" className="note login"><Icon name="alert" /><span>{s.healthText ?? "This source couldn't be collected just now."} <RetrySource id={s.id} title={s.title} health={s.health} /></span></p>);
   if (s.health === "reconnect") out.push(note("link", s.healthText ?? "This source needs to be reconnected.", true));
-  if (s.health === "pending") out.push(note("clock", "Collecting the first items…"));
+  if (s.health === "pending") out.push(note("clock", "Getting the first items…"));
   return <>{out}</>;
 }
 
@@ -158,7 +161,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       try {
         await patch(`/api/sources/${encodeURIComponent(s.id)}`, { fullText });
         refreshWorkspace(qc, { items: false });
-        toast(fullText ? `Fetching full articles for ${isolate(s.title)}: new items and up to ${FULL_TEXT_BACKFILL} recent unfinished ones` : `Stopped fetching full articles for ${isolate(s.title)}. Saved copies stay`);
+        toast(fullText ? `Saving full articles for ${isolate(s.title)}: new items and up to ${FULL_TEXT_BACKFILL} recent unfinished ones` : `Stopped saving full articles for ${isolate(s.title)}. Saved copies stay`);
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const isPrivate = s.kind === "private";
@@ -171,25 +174,25 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     // What a phone's Manage menu holds besides Notifications, for the hint under the buttons.
-    const manageHolds = [...(s.fullTextAvailable ? ["Full articles"] : []), "Notifications"];
+    const manageHolds = [...(s.fullTextAvailable ? ["Save full articles"] : []), "Notifications"];
     const collections = s.collectionIds.map((id) => ws.collectionById.get(id)).filter((c) => !!c);
     const notifyEntries: MenuEntry[] = (["default", "on", "muted"] as const).map((v) => ({ type: "radio", label: { default: "Same as Settings", on: "Notify me about this source", muted: "Mute this source" }[v], on: s.notify === v, onSelect: () => void setNotify(v) }));
     const pauseEntries: MenuEntry[] = s.paused
-      ? [{ label: "Resume collecting", icon: "pause", onSelect: () => void resume() }]
-      : [{ type: "heading", label: "Pause collecting" }, { label: "For a week", icon: "pause", onSelect: () => void pause("week") }, { label: "For a month", icon: "pause", onSelect: () => void pause("month") }, { label: "Until I resume it", icon: "pause", onSelect: () => void pause("until-resumed") }];
+      ? [{ label: "Resume this source", icon: "pause", onSelect: () => void resume() }]
+      : [{ type: "heading", label: "Pause this source" }, { label: "For a week", icon: "pause", onSelect: () => void pause("week") }, { label: "For a month", icon: "pause", onSelect: () => void pause("month") }, { label: "Until I resume it", icon: "pause", onSelect: () => void pause("until-resumed") }];
     const manageButton = (
       <button type="button" className="mbtn" aria-haspopup="menu" onClick={(e) => popups.menu(e.currentTarget, [
             // A phone has no room for the setting buttons, so they open from here.
             ...(xs ? [
               { type: "heading" as const, label: "Notifications" }, ...notifyEntries,
-              ...(s.fullTextAvailable ? [{ type: "check" as const, label: "Full articles", on: s.fullText, onSelect: () => void setFullText(!s.fullText) }] : []),
+              ...(s.fullTextAvailable ? [{ type: "check" as const, label: "Save full articles", on: s.fullText, onSelect: () => void setFullText(!s.fullText) }] : []),
               { type: "separator" as const },
             ] : []),
             ...pauseEntries,
             { label: "Rename…", icon: "pencil", onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
             { label: "Change collections…", icon: "folder", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
             { label: "Smart filter…", icon: "filter", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
-            ...(s.privacyChangeable ? [{ type: "check" as const, label: "Feed link is personal to me", on: isPrivate, onSelect: () => void setPrivate(!isPrivate) }] : []),
+            ...(s.privacyChangeable ? [{ type: "check" as const, label: "Keep this feed's link private", on: isPrivate, onSelect: () => void setPrivate(!isPrivate) }] : []),
             { type: "separator" },
             { label: "Unfollow…", icon: "trash", danger: true, onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
           ], `Manage ${s.title}`)}><Icon name="gear" />Manage<Icon name="chev" size="sm" /></button>
@@ -216,7 +219,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
           {xs ? null : <button type="button" className="mbtn" aria-haspopup="menu" onClick={(e) => popups.menu(e.currentTarget, notifyEntries, "Notifications for this source")}><Icon name="bell" />Notifications<span className="val">{notifyValue}</span><Icon name="chev" size="sm" /></button>}
           {s.fullTextAvailable && !xs ? (
             <button type="button" className="mbtn" aria-pressed={s.fullText} title="Save a readable copy of each new post's page, to read here and offline"
-              onClick={() => void setFullText(!s.fullText)}><Icon name="item" />Full articles<span className="val">{s.fullText ? "On" : "Off"}</span><span className={`sw${s.fullText ? " on" : ""}`} aria-hidden="true" /></button>
+              onClick={() => void setFullText(!s.fullText)}><Icon name="item" />Save full articles<span className="val">{s.fullText ? "On" : "Off"}</span><span className={`sw${s.fullText ? " on" : ""}`} aria-hidden="true" /></button>
           ) : null}
           {xs ? null : manageButton}
         </div>
@@ -230,7 +233,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
     return (
       <div className="phead">
         <h1>{TO_READ_TITLE}</h1>
-        <div className="psub"><span>Everything you marked To read.</span>{fresh}</div>
+        <div className="psub"><span>Your queue, from every source.</span>{fresh}</div>
         {tools}
       </div>
     );
@@ -304,7 +307,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
     if (health === "quiet" && ws.sourceById.get(place.id)?.itemCount === 0) return <div className="empty card-like"><h2>No posts yet</h2><p>Nothing in this feed yet. New posts will appear here.</p></div>;
     return <div className="empty card-like"><h2>No new items for now</h2></div>;
   }
-  if (place.t === "r") return <div className="empty card-like"><h2>Nothing marked To read</h2><p>Items you mark To read show up here.</p></div>;
+  if (place.t === "r") return <div className="empty card-like"><h2>Nothing queued yet</h2><p>Mark an item To read {KEYBOARD ? "(the page icon on its row, or press r)" : "with the page icon on its row"} and it waits here until you start it.</p></div>;
   if (place.t === "b") {
     return (
       <div className="empty card-like"><h2>Nothing kept here yet</h2><p>Use the bookmark on any item to keep it here.</p>

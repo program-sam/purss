@@ -52,13 +52,13 @@ export function SharingPage() {
   const q = useQuery(sharesQuery);
   const list = q.data ?? [];
   return (
-    <Page title="Sharing" lead="What you show the world. Share a basket or a collection from its page with Share; it becomes a public page and a feed that anyone can read and follow without an account.">
+    <Page title="Sharing" lead="Publish a basket or collection as a page and feed that anyone can read and follow, no account needed.">
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what="what you share" onRetry={() => void q.refetch()} /> : null}
       {q.data && !list.length ? (
         <div className="empty card-like">
-          <h2>You don't share anything</h2>
-          <p>Open a basket or a collection and choose <b>Share</b> under its name. You see the page and what becomes public before anything is shared.</p>
+          <h2>Nothing shared yet</h2>
+          <p>Open a basket or collection and choose <b>Share</b>. You review the page, and what of yours becomes public, before it goes live.</p>
         </div>
       ) : null}
       <div className="fx-stack">{list.map((s) => <Card key={s.id} share={s} />)}</div>

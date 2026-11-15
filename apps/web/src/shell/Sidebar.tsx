@@ -30,9 +30,9 @@ export function HealthMark({ source }: { source: SourceDTO }) {
     login: { icon: "key", label: "Needs login", cls: "login" },
     quiet: { icon: "moon", label: source.healthText ?? "Quiet for a while" },
     paused: { icon: "pause", label: "Paused" },
-    error: { icon: "alert", label: source.healthText ?? "Couldn't be collected", cls: "login" },
+    error: { icon: "alert", label: source.healthText ?? "Couldn't be checked", cls: "login" },
     reconnect: { icon: "link", label: source.healthText ?? "Needs reconnecting", cls: "login" },
-    pending: { icon: "clock", label: "Collecting the first items…" },
+    pending: { icon: "clock", label: "Getting the first items…" },
   };
   const m = map[source.health];
   if (!m) return null;
@@ -194,7 +194,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
           {ws.collections.map((c) => <Group key={c.id} id={c.id} label={c.name} collection={c} sources={ws.sourcesOf(c)} place={place} />)}
           {ws.looseSources.length ? <Group id="loose" label="Sources not in a collection" sources={ws.looseSources} place={place} /> : null}
         </ul>
-        {!ws.collections.length && !ws.looseSources.length ? <p className="fine side-empty">Nothing followed yet.</p> : null}
+        {!ws.collections.length && !ws.looseSources.length ? <p className="fine side-empty">Sources you follow show up here, grouped into collections.</p> : null}
         <div className="sec-head"><h2 id="h-bk">Baskets</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "basket-form" })}><Icon name="plus" size="sm" />New basket</button></div>
         <ul aria-labelledby="h-bk">
           {ws.data.baskets.map((b) => {
@@ -208,6 +208,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
             );
           })}
         </ul>
+        {!ws.data.baskets.length ? <p className="fine side-empty">Keep an item in a basket and it stays, even after its feed drops it.</p> : null}
         {morePages.length ? (
           <>
             <div className="sec-head"><h2 id="h-more">More</h2></div>

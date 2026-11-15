@@ -239,8 +239,8 @@ export function useItemActions() {
       try {
         const out = await post<ClearFreshResult>("/api/items/clear-fresh", { scope });
         refreshWorkspace(qc);
-        if (!out.changed || !out.undoToken) { toast("Nothing new to clear"); return; }
-        toast(`Cleared ${plural(out.changed, "new marker")}`, { undoToken: out.undoToken });
+        if (!out.changed || !out.undoToken) { toast("Nothing new to mark as seen"); return; }
+        toast(`Marked ${plural(out.changed, "item")} as seen`, { undoToken: out.undoToken });
       } catch (err) {
         if (err instanceof ApiError && err.code === "offline") needsConnection(); else fail(err);
       }
@@ -255,10 +255,10 @@ export function useItemActions() {
       } catch (err) { before.forEach((it) => putItem(qc, it)); fail(err); return; }
       if (out.status === "sent" && out.result.kind === "clearFresh") {
         refreshWorkspace(qc);
-        if (!out.result.changed || !out.result.undoToken) { toast(`${ids.length === 1 ? "That item wasn't" : "Those items weren't"} marked New, so there was nothing to clear`); return; }
-        toast(`Cleared ${plural(out.result.changed, "new marker")}`, { undoToken: out.result.undoToken });
+        if (!out.result.changed || !out.result.undoToken) { toast(`${ids.length === 1 ? "That item wasn't" : "Those items weren't"} marked New`); return; }
+        toast(`Marked ${plural(out.result.changed, "item")} as seen`, { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
-        toast(`Cleared the New markers. ${NOT_SENT}`);
+        toast(`Marked as seen. ${NOT_SENT}`);
       } else if (out.status === "dropped") {
         before.forEach((it) => putItem(qc, it));
         refreshWorkspace(qc);

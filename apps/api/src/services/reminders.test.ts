@@ -155,9 +155,9 @@ test("capture label reflects what was actually kept, and no network is involved"
   const id = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'With feed content'")!.id;
   keepItem(app, p, id, basket);
   app.db.run("UPDATE basket_items SET kept_at = '2024-11-03T10:00:00.000Z' WHERE item_id = ?", id);
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Feed content saved");
+  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Saved the feed's text");
   app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'done', ?)", newId("cap"), p.workspaceId, id, "2024-11-03T10:05:00.000Z");
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Full text captured");
+  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Full text saved");
 });
 
 test("date arithmetic helper rolls over months and years", () => {

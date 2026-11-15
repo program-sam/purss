@@ -987,7 +987,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
         // This installation's news comes from here, not from the engine: the next maintenance tick brings its newest posts (services/news.ts).
         app.db.run("UPDATE sources SET followed = 1, health = 'ok', health_text = NULL, created_at = ? WHERE id = ?", now, d.id);
       } else if (d.refollow && d.feedUrl) {
-        app.db.run("UPDATE sources SET followed = 1, health = 'pending', health_text = 'Collecting the first items…' WHERE id = ?", d.id);
+        app.db.run("UPDATE sources SET followed = 1, health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", d.id);
         subscribe(d.id, d.feedUrl, d.src.title);
       }
       continue;
@@ -1014,7 +1014,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         d.id, p.accountId, ws, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
         s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }) ? 1 : 0,
-        follow ? "pending" : "ok", follow ? "Collecting the first items…" : null, lastItemAt, createdAt);
+        follow ? "pending" : "ok", follow ? "Getting the first items…" : null, lastItemAt, createdAt);
       if (follow) subscribe(d.id, d.feedUrl!, s.title);
     }
     result.created.sources++;
@@ -1188,7 +1188,7 @@ export function reconnectSource(app: App, p: Principal, sourceId: string, discov
   writeSecret(app.config.secretsDir, `source-urls/${s.id}`, candidate.feedUrl);
   try {
     app.db.tx(() => {
-      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = 'Collecting the first items…', site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.workspaceId, candidate.feedUrl), s.id);
+      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = 'Getting the first items…', site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.workspaceId, candidate.feedUrl), s.id);
       enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: s.id, feedUrl: `secret:source-urls/${s.id}`, title: s.title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${s.id}` });
     });
     dropCandidate(discoveryToken);

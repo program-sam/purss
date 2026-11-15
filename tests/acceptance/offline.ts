@@ -104,7 +104,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
+  const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
   const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) {
@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     await page.locator("#toasts").getByText("Marked To read").waitFor();
     step("opened “Tidal flats and sediment” and marked it To read");
 
-    // The item's short link (Copy link to this item in your PURSS): nothing is saved on this device yet, so the PURSS is asked.
+    // The item's short link (Copy your private link to this item): nothing is saved on this device yet, so the PURSS is asked.
     const itemId = new URL(page.url()).searchParams.get("item")!;
     const itemNumber = await page.evaluate(async (id) => (await (await fetch(`/api/items/${id}`)).json()).number as number, itemId);
     assert.ok(Number.isSafeInteger(itemNumber) && itemNumber > 0, "the item has a number");

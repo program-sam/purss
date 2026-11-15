@@ -49,7 +49,7 @@ export function useItemMenus() {
   const copy = useCallback(async (text: string, message: string) => {
     try { await navigator.clipboard.writeText(text); toast(message); } catch { toast("Couldn't copy the link."); }
   }, [toast]);
-  /** "Copy link" (the original address) and "Copy link to this item in your PURSS". */
+  /** "Copy link to the original" and "Copy your private link to this item". */
   const linkEntries = useCallback((item: ItemDTO): MenuEntry[] => copyLinkEntries(item, {
     workspaceLink: `${platform.publicOrigin()}${itemPath(item.number)}`,
     copy: (text, message) => void copy(text, message),
@@ -59,7 +59,7 @@ export function useItemMenus() {
     const href = safeHref(item.url);
     return [
       { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
-      { label: "Mark finished", disabled: item.workflow === "finished", hint: item.workflow === "finished" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
+      { label: `Mark ${workflowLabel("finished", item.kind)}`, disabled: item.workflow === "finished", hint: item.workflow === "finished" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
       // Ignoring is for what arrives; an item in a basket was saved on purpose, and Remove from basket takes it out.
       ...(basketId ? [] : [item.workflow === "ignored" ? { label: "Restore", onSelect: () => void actions.restore(item.id) } : { label: "Ignore", onSelect: () => void actions.setWorkflow([item.id], "ignored") }]),
       { type: "separator" },

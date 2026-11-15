@@ -247,9 +247,9 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
           </div>
           {showHelp ? (
             <>
-              <p className="fine" id="as-help">Paste a link to a website, blog, podcast, YouTube channel or video, feed, or Mastodon or Bluesky account (@name@server, name.bsky.social). To find a podcast, type its name.</p>
+              <p className="fine" id="as-help">Paste any link: a site, blog, YouTube channel, podcast or feed, or a Mastodon or Bluesky handle. Or type a podcast's name. You see what's there before you follow.</p>
               {nameLike ? <p className="fine">{PODCAST_SEARCH_NOTE}</p> : null}
-              {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>Import a list (OPML)</button></p> : null}
+              {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>Import your list from another reader (OPML)</button></p> : null}
               {platform.connection ? null : <p className="fine">Found something while browsing? The <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>browser extension or a bookmarklet</button> brings the page here in one click.</p>}
             </>
           ) : null}
@@ -319,11 +319,11 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={isPrivate} onChange={setMarkPrivate}
                   hint={cand.privateWarning
                     ? "This link looks like it has a personal key in it, so it starts ticked. Untick it if this is an ordinary public feed."
-                    : "Tick this for members-only or paid feeds whose link is unique to you, such as a Patreon or private podcast feed. The full link is locked away: the app shows only the site's address, and exports leave the link out, so you'd paste it again after a restore."}>
-                  This feed link is personal to me</Check>}
+                    : "For a members-only or paid feed whose link is yours alone, such as Patreon or a private podcast. PURSS hides the link and leaves it out of exports."}>
+                  Keep this feed's link private</Check>}
                 {canFullText ? (
                   <Check checked={fullText} onChange={setFullTextChoice}
-                    hint="Saves a readable copy of each new post, so you can read it offline. Some sites don't allow it. You can turn this on later.">Fetch the full article for new items</Check>
+                    hint="Each new post's full text, to read here and offline, where the site allows it. You can switch this later.">Save full articles</Check>
                 ) : null}
               </>
             ) : null}

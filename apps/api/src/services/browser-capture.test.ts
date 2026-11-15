@@ -42,7 +42,7 @@ test("a page kept with its browser text becomes one item with a sanitized, label
 
   const detail = getItemDetail(app, owner, out.itemId);
   const label = detail.captures.find((c) => c.id === cap!.id)!;
-  assert.deepEqual([label.level, label.label], ["browser", "Captured in your browser"]);
+  assert.deepEqual([label.level, label.label], ["browser", "Saved from your browser"]);
   assert.match(label.note!, /as your browser showed it/);
   assert.deepEqual(detail.contentRef, { kind: "capture", id: cap!.id }, "the reader shows the captured text");
   assert.match(detail.contentHtml!, /quarter moons/);

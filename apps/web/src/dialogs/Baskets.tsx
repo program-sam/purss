@@ -13,8 +13,8 @@ import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
 const MODES: { value: BasketDTO["captureMode"]; label: string; blurb: string }[] = [
-  { value: "metadata", label: "Keep link and summary", blurb: "Keeps the link, title and summary. No copy of the page text." },
-  { value: "text", label: "Keep readable text too", blurb: "Keeps the link, title and summary, plus the page's readable text if it can be fetched when you keep the item." },
+  { value: "metadata", label: "Link and summary", blurb: "The title, the link and whatever text the feed gave." },
+  { value: "text", label: "Readable copy too", blurb: "Also the page's own text and pictures, fetched when you keep the item, where the site allows it." },
 ];
 
 /** Create a basket, or change its name and what it saves. Opened from an item's keep controls, the new basket keeps that item. */
@@ -64,6 +64,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
   return (
     <Dialog title={existing ? "Basket settings" : "New basket"} size="sm" onClose={ov.close} initialFocus="#bk-name"
       footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={submit}>{existing ? "Save changes" : "Create basket"}</Button></>}>
+      {existing ? null : <p className="fine">A basket keeps the items you put in it, even after their feed drops them or you unfollow the source.</p>}
       <div className="field"><label htmlFor="bk-name">Name</label>
         <TextInput id="bk-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder="Weekend reading, Thesis references"
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy) void submit(); }} /></div>
@@ -78,8 +79,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
           ))}
         </div>
         {keepItemId && !existing ? <p className="fine">The item you chose is kept in this basket once it's created.</p> : null}
-        <p className="fine">Pictures aren't saved. They load from the original site and can disappear if the site removes them.</p>
-        <p className="fine">The original page may change or disappear. A basket doesn't guarantee the page stays available.{existing ? " Changes apply to items you keep from now on." : ""}</p>
+        <p className="fine">The original page can still change or disappear. A basket keeps what it saved, not the page itself.{existing ? " Changes apply to items you keep from now on." : ""}</p>
       </fieldset>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
@@ -118,10 +118,10 @@ export function BasketDeleteDialog({ id }: { id: string }) {
       {preview.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(preview.error)}</span></p> : null}
       {p ? (
         <div style={{ display: "grid", gap: 10 }}>
-          <p className="hint">This basket holds {plural(p.items, "item")}. Deleting it removes the basket. The items stay in your PURSS.</p>
+          <p className="hint">Deleting removes the basket, not its {plural(p.items, "item")}: {p.items === 1 ? "it stays" : "they stay"} in your PURSS.</p>
           <p className="hint">{p.onlyHere > 0
-            ? <>{plural(p.onlyHere, "item")} {p.onlyHere === 1 ? "is" : "are"} kept in no other basket. {p.onlyHere === 1 ? "It loses its" : "They lose their"} protection, so a later clean-up of old items could remove {p.onlyHere === 1 ? "it" : "them"}.</>
-            : "Everything in it is also kept in another basket, so nothing loses its protection."}</p>
+            ? <>But {plural(p.onlyHere, "item")} {p.onlyHere === 1 ? "is" : "are"} in no other basket, so {p.onlyHere === 1 ? "it stops" : "they stop"} being kept: a later clean-up of old items could remove {p.onlyHere === 1 ? "it" : "them"}.</>
+            : "Everything in it is also kept in another basket, so all of it stays kept."}</p>
         </div>
       ) : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}

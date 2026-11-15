@@ -119,7 +119,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
+  const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
   const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }

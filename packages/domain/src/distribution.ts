@@ -1,7 +1,7 @@
 /*
  * Where people get the browser extension, the phone apps and the desktop app (plan/31, plan/32, plan/42): the one
  * place that knows. A store listing is null until the owner publishes there; until then Settings → Connected apps
- * says "Not in the stores yet" and links to the install instructions, and the website shows no store button.
+ * names the stores it isn't in yet and links to the install instructions, and the website shows no store button.
  * Setting a listing's address is all it takes for its store button to appear in both. No dependencies, so the website can
  * import it.
  */

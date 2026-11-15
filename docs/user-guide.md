@@ -83,7 +83,7 @@ is chosen for you; if none of them clearly is, none is chosen until you pick. A 
 can still be followed ("No posts yet" shows on its page until the first one arrives). If you already
 follow a source with the same name under another address, the result says so before you follow a second. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
-you want to group it). *Fetch the full article for new items* starts unticked, because it uses
+you want to group it). *Save full articles* starts unticked, because it uses
 storage for every new post (see [Full articles](#full-articles)); tick it for a feed whose posts you
 want to read in full. A source in no collection is listed in the sidebar and shows in the *Other sources* box on Home.
 
@@ -189,7 +189,7 @@ its **collections** or **unfollows** it. Right-click a source,
 collection, basket or item in the sidebar or a list for the same actions (Shift + right-click
 gives the browser's own menu).
 
-- **Paused:** **Manage → Pause collecting** pauses for a week, for a month or until you resume
+- **Paused:** **Manage → Pause this source** pauses for a week, for a month or until you resume
   it. A pause for a week or a month ends by itself and the source says when. Nothing new is
   added while it is paused. After you resume, some items published during the pause may still
   arrive, but there's no guarantee that all of them will.
@@ -206,7 +206,7 @@ gives the browser's own menu).
   of following and is checked again weekly. Sources without one, including sites that turn
   automated visitors away, keep the coloured tile with their initials.
 - **Full articles:** see below.
-- **Private link:** *Manage → Feed link is personal to me* keeps a source's link private after
+- **Private link:** *Manage → Keep this feed's link private* keeps a source's link private after
   you've followed it, or shows it again if it was marked private by mistake. Showing it again
   looks the feed up once more, so the feed has to be reachable; full articles stay off until you
   turn them on. Shared pages and exports made while the link was public can't be taken back.
@@ -235,7 +235,7 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
 - It applies to new items, and to up to 20 of the source's newest items you haven't finished or
   ignored when you turn it on. Copies are fetched a few seconds apart, so a burst of new posts
   takes a little while.
-- It is the same readable copy a *Keep readable text too* basket makes: text and links, no
+- It is the same readable copy a *Readable copy too* basket makes: text and links, no
   scripts. The copy reflects the page when it was fetched. Some sites need a login, block
   automated readers or only work with JavaScript; then the item keeps its feed summary and its
   panel says the copy failed.
@@ -299,9 +299,9 @@ of each item as it is when you keep it (⋯ → *Keep in…*, right-click, or th
 drops the item or the original changes; when the original has changed you can see both. An item can be in several baskets and is stored
 once. Each basket has a capture mode:
 
-- **Keep link and summary** (the default): keeps the item's details and whatever content its
+- **Link and summary** (the default): keeps the item's details and whatever content its
   feed supplied, with no extra copy of the page.
-- **Keep readable text too:** also queues a readable copy of the page in the background (unless the
+- **Readable copy too:** also queues a readable copy of the page in the background (unless the
   item already has one). The copy reflects the page when it is fetched, if it can be fetched.
   Not done for private sources, or when the server is short of space. The basket also keeps the item's picture
   and the pictures inside the readable text (up to 20 pictures and 10 MB for one item), so a
@@ -399,8 +399,8 @@ For a source that floods your lists, or a collection of sources you want curated
 filter** keeps only the posts you describe. Open the source's or collection's *Manage* (or
 *More*) menu and choose *Smart filter…*:
 
-- Write which posts to **keep** ("are about Rust compiler internals or language design"), and if
-  you like which to **drop** ("are job ads or sponsored posts"). Choose what happens when Jev
+- Write which posts to **keep** ("are weeknight recipes with only a few ingredients"), and if
+  you like which to **drop** ("are giveaways, sales or sponsored posts"). Choose what happens when Jev
   isn't sure: keep the post, or drop it.
 - **Try on the latest 20 posts** shows what the filter would keep and drop, with how sure Jev is
   about each. Nothing changes yet, so adjust the words and try again until it fits.
@@ -420,9 +420,9 @@ ask your administrator.
 
 ## Copying a link
 
-An item's **More** menu has two links. **Copy link** copies the original page's address: the one to
-send to someone, who can open it without an account here. **Copy link to this item in your
-PURSS** copies the item's short link, such as `/app/i/48213`: every item has a number of its own in your PURSS,
+An item's **More** menu has two links. **Copy link to the original** copies the original page's address: the one to
+send to someone, who can open it without an account here. **Copy your private link to this
+item** copies the item's short link, such as `/app/i/48213`: every item has a number of its own in your PURSS,
 and no other item ever gets it, even after the item is deleted. Only you can open the link (anyone
 else gets the sign-in page). On a device that saved the item for offline reading, the link opens it
 without a connection too. Your export keeps each item's number, so importing it into a new, empty
@@ -436,8 +436,8 @@ Every item is in one state: **Undecided**, **To read**, **In progress**, **Finis
 Change it from the item panel, the board, the keyboard, or for many items at once with
 **Select** (*Select all* takes every item the list shows, not only the ones loaded so far, up to
 5,000). In the item panel the status button moves the item one step along the reading path:
-**Mark as to read** while it is Undecided, then **Mark as in progress**, then **Mark as finished**
-(videos say *to watch*, podcasts *to listen*). The arrow beside it opens every state; once an item
+**Mark To read** while it is Undecided, then **Mark In progress**, then **Mark Finished**
+(videos say *To watch*, podcasts *To listen*). The arrow beside it opens every state; once an item
 is Finished or Ignored the button names that state and opens the same menu. Any state can move to any other. Finished doesn't delete anything; Ignored hides an
 item from the usual lists (tick *Show ignored items* to see it) and doesn't unfollow its
 source.
@@ -645,7 +645,7 @@ to five years ahead. An item has one reminder: change it or remove it from the s
 - A reminder belongs to the keeping: while the item is in no basket, its reminder is hidden and
   not announced, and it comes back when you keep the item again. Each is announced once. One whose
   day was missed by more than three days (the server was off) is dropped quietly, and a reminder
-  is deleted 30 days after its day. With notifications set to *Don't tell me*, or *Reminders*
+  is deleted 30 days after its day. With notifications set to *Never*, or *Reminders*
   unticked under *What about*, the bell and email stay quiet and Coming up still lists them.
 - Reminders are part of [your data](#your-data): they are in the export and come back with an
   import (days that have gone by are left out).
@@ -661,8 +661,8 @@ reminders*. The bell says "On this day" for these.
 
 The bell lists what you chose to be told about. *Settings → Notifications and New* chooses:
 
-- **How often:** a **daily digest** at a time you pick, a **weekly digest** on a day and time you
-  pick (in your time zone), or *Don't tell me*. A digest is one notification, "Your daily digest:
+- **How often:** **Once a day** at a time you pick, **Once a week** on a day and time you
+  pick (in your time zone), or *Never*. A digest is one notification, "Your daily digest:
   54 new in 4 collections", with a line per collection counting what is still New. Items you have
   already dealt with don't count. A digest with nothing in it isn't sent. Where the installation
   sends email and your address is confirmed, the digest also comes **by email** (*Email me the
@@ -984,7 +984,7 @@ type its address first; the extension remembers it. Then:
   of your sources publish on that site. Pick a basket and press **Keep**. The basket you used last is
   picked next time.
 - **Also keep its text as you see it** saves the readable part of the page as your browser shows it,
-  including pages you are signed in to. The item then says **Captured in your browser** with the
+  including pages you are signed in to. The item then says **Saved from your browser** with the
   date: PURSS didn't fetch that page, so it can't confirm the text matches the original.
   If the server can't take it, the link is still kept and the popup says why.
   Doing it again on the same page replaces that text (the popup says so first).

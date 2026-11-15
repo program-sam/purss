@@ -39,9 +39,9 @@ function Question() {
     : { welcomeAsked: true, freshDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day } });
 
   return (
-    <Dialog title="How should we keep you posted?" size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
+    <Dialog title="How often do you want to hear about new items?" size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
       footer={<><Button onClick={() => done(true)}>Not now</Button><Button variant="primary" onClick={() => done(false)}>Save</Button></>}>
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>How often should we tell you about new things?</legend>
+      <fieldset className="field"><legend className="sr">How often do you want to hear about new items?</legend>
         <div className="radiolist">
           {CHOICES.map((v) => (
             <label key={v} className="rl" style={{ alignItems: "flex-start", padding: 10 }}>
@@ -62,15 +62,15 @@ function Question() {
           </div>
         ) : null}
         <p className="fine">{emailed && (frequency === "daily" || frequency === "weekly")
-          ? `Times are in your time zone. The digest arrives in the bell and by email to ${email.address}; you can turn the email off in Settings.`
-          : "Times are in your time zone. Notifications arrive in the bell; you can add browser alerts in Settings."}</p>
+          ? `In your time zone. It arrives in the bell and by email to ${email.address}; turn the email off in Settings.`
+          : "In your time zone. It arrives in the bell; add browser alerts in Settings."}</p>
       </fieldset>
-      <div className="field"><label htmlFor="fresh-days">How long should items stay marked New?</label>
+      <div className="field"><label htmlFor="fresh-days">Keep items marked New for</label>
         <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {freshDaysChoices(ws.data.preferences.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </SelectInput>
-        <p className="fine">Only the New marker goes away. The items stay where they are.</p></div>
-      <p className="fine">You can change both any time in Settings, under Notifications and New.</p>
+        <p className="fine">Then only the marker goes; the items stay where they are.</p></div>
+      <p className="fine">Change either any time in Settings → Notifications and New.</p>
     </Dialog>
   );
 }

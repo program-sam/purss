@@ -69,7 +69,7 @@ export function ContextMenus() {
           type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k,
           onSelect: () => void actions.setWorkflow([item.id], k),
         }));
-        const rest = itemEntries(item, anchor, basketId).filter((x) => !("label" in x) || !["To read", "To watch", "To listen", "Mark finished"].includes(String(x.label)));
+        const rest = itemEntries(item, anchor, basketId).filter((x) => !("label" in x) || !["To read", "To watch", "To listen", "Mark Finished"].includes(String(x.label)));
         return {
           label: `Actions for ${item.title}`,
           items: [{ label: "Open", onSelect: () => nav.openItem(item.id) }, { type: "separator" }, { type: "heading", label: "State" }, ...states, ...rest],
@@ -91,11 +91,11 @@ export function ContextMenus() {
             { label: "Change collections…", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
             { label: "Smart filter…", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
             ...(canRetrySource(s) ? [{ label: "Try again", onSelect: () => void retrySource(qc, toast, s.id, s.title) } as MenuEntry] : []),
-            s.paused ? { label: "Resume collecting", onSelect: () => void set({ paused: false }, `Resumed ${s.title}`) } : { label: "Pause collecting", onSelect: () => void set({ paused: true }, `Paused ${s.title}`) },
+            s.paused ? { label: "Resume this source", onSelect: () => void set({ paused: false }, `Resumed ${s.title}`) } : { label: "Pause this source", onSelect: () => void set({ paused: true }, `Paused ${s.title}`) },
             s.notify === "muted" ? { label: "Unmute notifications", onSelect: () => void set({ notify: "default" }, `Notifications on for ${s.title}`) } : { label: "Mute notifications", onSelect: () => void set({ notify: "muted" }, `Muted ${s.title}`) },
             ...(s.fullTextAvailable ? [s.fullText
-              ? { label: "Stop fetching full articles", onSelect: () => void set({ fullText: false }, `Stopped fetching full articles for ${s.title}`) }
-              : { label: "Fetch full articles", onSelect: () => void set({ fullText: true }, `Fetching full articles for ${s.title}`) } as MenuEntry] : []),
+              ? { label: "Stop saving full articles", onSelect: () => void set({ fullText: false }, `Stopped saving full articles for ${s.title}`) }
+              : { label: "Save full articles", onSelect: () => void set({ fullText: true }, `Saving full articles for ${s.title}`) } as MenuEntry] : []),
             ...(s.siteUrl ? [{ label: "Open website", icon: "ext" as const, onSelect: () => platform.openExternal(s.siteUrl!) } as MenuEntry] : []),
             { type: "separator" },
             { label: "Unfollow…", icon: "trash", onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },

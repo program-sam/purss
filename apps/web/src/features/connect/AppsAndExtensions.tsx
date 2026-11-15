@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, desktopDownloadUrl, publishedStores } from "@purss/domain";
+import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, STORE_NAMES, desktopDownloadUrl, publishedStores } from "@purss/domain";
 import type { Distributed } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { platform } from "../../platform/index.ts";
@@ -9,10 +9,11 @@ import type { IconName } from "@purss/ui";
 function Get({ what }: { what: Distributed }) {
   const d = DISTRIBUTION[what];
   const stores = publishedStores(what);
+  const missing = d.stores.filter((id) => !stores.some((s) => s.id === id)).map((id) => STORE_NAMES[id]);
   return (
     <>
       {stores.length < d.stores.length ? (
-        <small>{stores.length ? "Not in the other stores yet." : "Not in the stores yet."}{" "}
+        <small>{`Not in ${missing.length < 2 ? missing.join("") : `${missing.slice(0, -1).join(", ")} or ${missing.at(-1)}`} yet.`}{" "}
           <a className="link" href={d.install} target="_blank" rel="noopener noreferrer">{what === "extension" ? "How to install it" : "How to build it"}</a></small>
       ) : null}
       {stores.length ? <span className="get-stores">{stores.map((s) => <a key={s.id} className="btn" href={s.url} target="_blank" rel="noopener noreferrer">{s.name}</a>)}</span> : null}

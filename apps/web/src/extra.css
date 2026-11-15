@@ -38,6 +38,8 @@
 .tl-note{display:flex;align-items:center;gap:6px;margin:0 2px 10px}
 .empty p{max-width:52ch}
 .empty .btn{margin-top:2px}
+.empty-acts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.empty-acts .note{flex-basis:100%;justify-content:center}
 
 /* Pictures in cards */
 .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -108,6 +110,8 @@
 /* Dialog details */
 .dlg-b .chips{overflow:visible}
 .dlg-b .field>.lbl{margin-bottom:0}
+.set-device{display:grid;gap:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2,var(--bg))}
+.set-device h3{font-weight:800;font-size:0.875rem;color:var(--ink)}
 .dlg-b .seg{justify-self:start}
 /* Section tabs stay on one row; on a narrow screen the bar itself scrolls sideways.
    The wrapper must not scroll: Firefox shrinks a scrolling grid row to nothing. */

@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import type { CollectionDTO, ItemDTO, Preferences } from "@purss/domain";
@@ -313,6 +314,30 @@ function FrontLayout() {
   );
 }
 
+const OPML_LIMIT = 2 * 1024 * 1024;
+
+/** Import the subscription list (OPML) another reader exports, straight from the first-run card. */
+function ImportListButton() {
+  const overlays = useOverlays();
+  const input = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState("");
+  async function chosen(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > OPML_LIMIT) { setError("That file is too large to be a subscription list."); return; }
+    setError("");
+    overlays.open({ kind: "opml-file", name: file.name, text: await file.text() });
+  }
+  return (
+    <>
+      <input ref={input} type="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" hidden onChange={(e) => void chosen(e)} aria-label="Choose an OPML file" />
+      <Button large onClick={() => input.current?.click()}><Icon name="download" size="sm" />Import from another reader</Button>
+      {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+    </>
+  );
+}
+
 export function HomePage() {
   const ws = useWorkspace();
   const overlays = useOverlays();
@@ -332,9 +357,12 @@ export function HomePage() {
         <ComingUp />
         {empty ? (
           <div className="empty card-like">
-            <h2>Add your first source</h2>
-            <p>Paste a link to a website, podcast or YouTube channel. New posts will show up here.</p>
-            <Button variant="primary" large onClick={() => overlays.open({ kind: "add-source" })}><Icon name="plus" size="sm" />Add source</Button>
+            <h2>Start with something you already read</h2>
+            <p>Paste a link to a blog, news site, YouTube channel or podcast, and its new posts arrive here. Switching from another reader? Bring your list with you.</p>
+            <div className="empty-acts">
+              <Button variant="primary" large onClick={() => overlays.open({ kind: "add-source" })}><Icon name="plus" size="sm" />Add source</Button>
+              <ImportListButton />
+            </div>
           </div>
         ) : (
           <>

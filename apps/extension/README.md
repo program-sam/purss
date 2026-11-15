@@ -71,7 +71,7 @@ review (`src/packaging/stores.ts`). Its keys are the repository secrets `CHROME_
 dashboard) and `AMO_JWT_ISSUER` with `AMO_JWT_SECRET` (addons.mozilla.org → Tools → Manage API Keys). When a
 listing is live, put its address in
 `STORE_LISTINGS` in `packages/domain/src/distribution.ts`: Settings → Connected apps and the website
-then show its store button instead of "Not in the stores yet".
+then show its store button instead of naming the store as "not … yet".
 
 - **Chrome Web Store:** register a developer account (one-time fee), create an item in the
   Developer Dashboard and upload `purss-chromium.zip`. In *Privacy*, state the single

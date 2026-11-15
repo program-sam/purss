@@ -30,8 +30,8 @@ function ExportSection() {
   return (
     <Section title="Export everything" hint="One file you can keep, move, or import again later.">
       <div className="fx-two-lines">
-        <p><b>Included:</b> your sources, collections, baskets and what you kept in them, items with the text that was saved, workflow and reading progress, preferences, and your sharing settings with their public notes.</p>
-        <p><b>Left out:</b> passwords, fingerprint, face or screen lock sign-ins and sign-in sessions; private source links and links to items from private sources (those sources come back as “needs reconnecting”); anything you never saved, such as pages, images, audio and video that only exist at their original address and may disappear.</p>
+        <p><b>Included:</b> your sources, collections and baskets with everything kept in them; saved text and pictures; your states, reading progress, highlights, notes and reminders; preferences; and sharing settings with their public notes.</p>
+        <p><b>Left out:</b> passwords and other sign-in methods; the links of private sources (they come back as “needs reconnecting”); and anything PURSS never saved, such as pages, audio and video that live only at their original address.</p>
       </div>
       <div className="fx-acts-row">
         <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? "Preparing…" : "Download export"}</Button>
@@ -55,8 +55,8 @@ function KeptLinksSection() {
   }
   return (
     <Section title="Kept links as a list">
-      <p>Every basket with the items kept in it: the title as a link to the original, where it came from, and the dates it was published and kept. Open the web page in any browser; the Markdown file suits a notes app.</p>
-      <p className="fine">The links go to the original pages, which may change or disappear. This list is for reading; the full export above is the one to import again.</p>
+      <p>Every basket as a readable list: each kept item's title linked to the original, with its source and the dates it was published and kept. Open the web page in any browser, or the Markdown file in a notes app.</p>
+      <p className="fine">The originals may change or disappear, and this list can't be imported back; the full export above can.</p>
       <div className="fx-acts-row">
         <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? "Preparing…" : "Download web page"}</Button>
         <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? "Preparing…" : "Download Markdown"}</Button>
@@ -87,8 +87,8 @@ function ImportSection() {
     } catch (err) { setError(err instanceof Error && !("code" in err) ? err.message : messageOf(err)); } finally { setBusy(false); }
   }
   return (
-    <Section title="Import an export">
-      <p>You see what will change before anything is imported. Nothing is deleted. Items already here aren't added twice. Sharing settings come in switched off. Private sources come back as “needs reconnecting”.</p>
+    <Section title="Import a PURSS export">
+      <p>You see what would change first. Nothing is deleted and nothing is added twice. Sharing comes in switched off, and private sources need reconnecting.</p>
       <div className="fx-acts-row">
         <input ref={input} type="file" accept=".json,application/json" hidden onChange={(e) => void chosen(e)} aria-label="Choose an export file" />
         <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? "Reading…" : "Choose a file…"}</Button>

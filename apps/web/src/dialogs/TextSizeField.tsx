@@ -9,7 +9,7 @@ export function TextSizeField() {
     <div className="field"><div className="lbl" id="ts-l">Text size</div>
       <Segmented labelledBy="ts-l" value={String(size)} onChange={(v) => setTextSize(Number(v) as TextSize)} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
         options={TEXT_SIZES.map((n) => ({ value: String(n), label: `${n}%` }))} />
-      <p className="fine">Makes text and controls larger. Saved on this device only.</p>
+      <p className="fine">Makes text and controls larger.</p>
     </div>
   );
 }

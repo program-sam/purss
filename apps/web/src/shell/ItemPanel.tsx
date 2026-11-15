@@ -186,7 +186,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   );
   // Only PURSS's own answer says a copy was kept; until then the panel says so, and never prints a date it does not have.
   const keptLine = pending ? "Keeping this. Saved on this device until PURSS confirms."
-    : detail?.keptVersionAt ? `Kept on ${dateTime(detail.keptVersionAt, tz)}.` : `Kept in ${keptName}.`;
+    : `Kept in ${keptName}.`;
   const summaryOnly = !!detail?.summaryOnly && !media;
   const excerpt = itemExcerpt(item);
   /** The address to frame for `url`, when the server said its page allows it (a browser only); the link's own fragment stays. */
@@ -313,7 +313,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
               ))}
             </ul>
           ) : null}
-          {item.basketIds.length ? <p className="fine">{keptLine} The original page may change or disappear. Your kept copy stays as it is.</p>
+          {item.basketIds.length ? <p className="fine">{keptLine} The original page may change or disappear; your copy stays as it is.</p>
             : <p className="fine">Keeping saves the link, title and summary. Baskets that save text also keep the page text. The original page may change or disappear.</p>}
         </section>
       </div>

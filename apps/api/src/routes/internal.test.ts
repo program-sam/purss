@@ -141,7 +141,7 @@ test("the wait after consecutive sync failures is 1, 5, 15 then 60 minutes, neve
 /** A source whose subscribe job is waiting, as just after Follow. */
 function pendingSource(app: App, owner: Principal & { engineUserId: string }, stream = "feed/9") {
   const id = makeSource(app, owner, "Reddit: r/x", stream);
-  app.db.run("UPDATE sources SET engine_stream_id = NULL, health = 'pending', health_text = 'Collecting the first items…' WHERE id = ?", id);
+  app.db.run("UPDATE sources SET engine_stream_id = NULL, health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
   enqueue(app, "engine.subscribe", { engineUserId: owner.engineUserId, sourceId: id, feedUrl: "https://www.reddit.com/r/x/.rss", title: "Reddit: r/x" }, { accountId: owner.accountId, workspaceId: owner.workspaceId, idempotencyKey: `subscribe:${id}` });
   return id;
 }
@@ -304,7 +304,7 @@ test("the engine's word that a fresh subscription's feed is empty reaches the so
   const second = leaseOne(b.app, "engine.subscribe");
   assert.equal((await b.post(`/internal/jobs/${second.id}/complete`, { leaseId: second.leaseId, result: { streamId: "feed/10", title: "x", alreadySubscribed: false } })).status, 200);
   assert.equal(getSource(b.app, b.owner, other).health, "pending");
-  assert.equal(getSource(b.app, b.owner, other).healthText, "Collecting the first items…");
+  assert.equal(getSource(b.app, b.owner, other).healthText, "Getting the first items…");
 });
 
 test("a worker from another version asking for a kind this API doesn't have still gets its other jobs", async (t) => {

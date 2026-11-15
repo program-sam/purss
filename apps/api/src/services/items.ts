@@ -545,12 +545,12 @@ export function getItem(app: App, p: Principal, id: string): ItemDTO {
 
 const CAPTURE_LABELS = {
   metadata: "Saved details (title, link and summary)",
-  feed: "Feed content saved",
-  fulltext: "Full text captured",
+  feed: "Saved the feed's text",
+  fulltext: "Full text saved",
   partial: "Only part of the page was saved",
-  browser: "Captured in your browser",
-  pending: "Capturing readable text…",
-  failed: "Text capture failed",
+  browser: "Saved from your browser",
+  pending: "Saving readable text…",
+  failed: "Couldn't save the text",
 } as const;
 
 /** Shown with a browser capture (plan/32): where its text came from and what that means. */

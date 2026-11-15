@@ -181,7 +181,7 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, paused = 0, engine_stream_id = NULL,
              health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, isNews ? "ok" : "pending", isNews ? null : "Collecting the first items…", nowIso(), id,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
@@ -189,7 +189,7 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
           `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, health, health_text, builtin, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0,
-          isNews ? "ok" : "pending", isNews ? null : "Collecting the first items…", isNews ? "news" : null, nowIso(),
+          isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", isNews ? "news" : null, nowIso(),
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
@@ -211,7 +211,7 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
 /**
  * Engine confirmed the subscription: remember its stream and pull the first items. `empty`: the engine, which fetches a feed
  * when it adds it, says that feed has nothing in it. That is evidence about this feed, so the source says "No posts yet"
- * now instead of "Collecting the first items…" for ever; its first post (see applySyncBatch) makes it an ordinary source.
+ * now instead of "Getting the first items…" for ever; its first post (see applySyncBatch) makes it an ordinary source.
  * Without that word, nothing is claimed.
  */
 export function onSubscribed(app: App, sourceId: string, streamId: string, evidence: { empty?: boolean } = {}): void {
@@ -226,7 +226,7 @@ export function onSubscribed(app: App, sourceId: string, streamId: string, evide
   // A source that was waiting on a retry is following now; its first items are on the way.
   app.db.run(
     `UPDATE sources SET engine_stream_id = ?, subscribed_at = COALESCE(subscribed_at, ?), health = CASE WHEN health = 'error' THEN 'pending' ELSE health END,
-       health_text = CASE WHEN health = 'error' THEN 'Collecting the first items…' ELSE health_text END WHERE id = ?`, streamId, nowIso(), sourceId);
+       health_text = CASE WHEN health = 'error' THEN 'Getting the first items…' ELSE health_text END WHERE id = ?`, streamId, nowIso(), sourceId);
   if (evidence.empty === true) {
     app.db.run("UPDATE sources SET health = 'quiet', health_text = ? WHERE id = ? AND health = 'pending' AND NOT EXISTS (SELECT 1 FROM items WHERE items.source_id = sources.id)", NO_POSTS_YET, sourceId);
   }
@@ -255,7 +255,7 @@ export function retrySource(app: App, p: Principal, id: string): SourceDTO {
   const feedUrl = s.is_private ? `secret:source-urls/${id}` : s.feed_url;
   if (!feedUrl) throw badRequest("This source's link is missing. Remove it and add it again.", "link_missing");
   app.db.tx(() => {
-    app.db.run("UPDATE sources SET health = 'pending', health_text = 'Collecting the first items…' WHERE id = ?", id);
+    app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
     // The same key re-arms the finished job; one still waiting for its next try is brought forward.
     const jobId = enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl, title: s.title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     app.db.run("UPDATE jobs SET run_after = ?, updated_at = ? WHERE id = ? AND status = 'queued' AND run_after > ?", nowIso(), nowIso(), jobId, nowIso());

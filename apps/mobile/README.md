@@ -280,7 +280,7 @@ The app opens straight on its sign-in; nobody has to type or confirm a server.
 
 Once the app is live in Google Play or the App Store, put the listing's address in `STORE_LISTINGS`
 in `packages/domain/src/distribution.ts`: Settings → Connected apps and the website then show its
-store button instead of "Not in the stores yet".
+store button instead of naming the store as "not … yet".
 
 Things to watch on iOS: `@mediagrid/capacitor-native-audio` and `@aparajita/capacitor-secure-storage`
 must resolve through Swift Package Manager (both ship a `Package.swift`); WebCrypto (`crypto.subtle`,

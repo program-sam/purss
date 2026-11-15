@@ -85,8 +85,8 @@ type Candidate = {
 
 const CAPTURE_LABEL = {
   metadata: "Saved details (title, link and summary)",
-  feed: "Feed content saved",
-  fulltext: "Full text captured",
+  feed: "Saved the feed's text",
+  fulltext: "Full text saved",
 } as const;
 
 function captureLabel(c: { version_has_content: number; has_fulltext: number }): string {

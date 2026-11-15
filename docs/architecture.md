@@ -141,7 +141,7 @@ and is otherwise dropped without marking growth paused.
 `@purss/connectors`, run by `completeCapture` with the length of the feed's own text for the item): a sign-in,
 subscription, consent or security-check page (`gated`), a body that is mostly a reference list (`references`)
 or one under 60% of the feed's own text (`short`) is stored as `quality = 'partial'` with its reason. It stays
-stored and counted, but is not "Full text captured": the item's detail returns the feed's own text as
+stored and counted, but is not "Full text saved": the item's detail returns the feed's own text as
 `contentHtml` and the capture as `partialCopy` for a toggle, and the capture sets no reading time and is not
 searched. Captures from before the check are checked in the background at start-up; browser captures are the
 person's browser's own text and are not checked. One meaning of "has a copy" runs through all of it
@@ -325,7 +325,7 @@ Firefox and Safari) reads the open page only when the person opens its popup or 
 link, never fetched by the extension. On request it extracts the page's readable text with
 Readability and posts it to `POST /api/items/browser-capture`, which keeps the page like Keep link and
 stores the sanitized HTML as a capture of kind `browser` (one per item, replaced in place, admitted
-against storage, never fetched by the server). The reader labels it "Captured in your browser". See
+against storage, never fetched by the server). The reader labels it "Saved from your browser". See
 [plan/32](../plan/32-browser-extension.md). Every HTML sanitizer and parser input (feeds, captures,
 browser captures, imports, OPML) is first read once by `assertShallowMarkup` in
 `packages/connectors/src/text.ts`, which counts nesting and parser events exactly as htmlparser2

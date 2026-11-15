@@ -83,7 +83,7 @@ test("a full capture is the article: shown first, labelled so, and it sets the r
   const { itemId } = capture(app, p, src, "A summary.", text);
   const detail = getItemDetail(app, p, itemId);
   assert.equal(detail.captures.at(-1)!.level, "fulltext");
-  assert.equal(detail.captures.at(-1)!.label, "Full text captured");
+  assert.equal(detail.captures.at(-1)!.label, "Full text saved");
   assert.match(detail.contentHtml!, /erosion of a river bank/);
   assert.equal(detail.partialCopy, null);
   assert.ok(detail.readMinutes && detail.readMinutes >= 2, "reading time follows the article");

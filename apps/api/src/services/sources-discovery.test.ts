@@ -50,7 +50,7 @@ test("a feed the engine fetched and found empty says 'No posts yet'; without tha
   const p = makeOwner(app);
   const waiting = (title: string, stream: string) => {
     const id = makeSource(app, p, title, stream, { settled: false });
-    app.db.run("UPDATE sources SET health = 'pending', health_text = 'Collecting the first items…', engine_stream_id = NULL, subscribed_at = NULL WHERE id = ?", id);
+    app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…', engine_stream_id = NULL, subscribed_at = NULL WHERE id = ?", id);
     return id;
   };
   const empty = waiting("Slow start", "feed/1");
@@ -67,14 +67,14 @@ test("a feed the engine fetched and found empty says 'No posts yet'; without tha
   assert.equal(none.healthText, NO_POSTS_YET);
   assert.equal(listSources(app, p).find((s) => s.id === empty)!.healthText, NO_POSTS_YET);
   assert.equal(getSource(app, p, busy).health, "pending", "a feed with items is waiting for them, not empty");
-  assert.equal(getSource(app, p, unknown).healthText, "Collecting the first items…");
+  assert.equal(getSource(app, p, unknown).healthText, "Getting the first items…");
 
   // Time alone proves nothing: a finished sync run, however long after, does not call a feed empty.
   app.db.run("UPDATE sources SET subscribed_at = ? WHERE id IN (?, ?)", new Date(Date.now() - 3600_000).toISOString(), busy, unknown);
   recordSyncSuccess(app, p.engineUserId);
   assert.equal(getSource(app, p, busy).health, "pending");
   assert.equal(getSource(app, p, unknown).health, "pending");
-  assert.equal(getSource(app, p, unknown).healthText, "Collecting the first items…");
+  assert.equal(getSource(app, p, unknown).healthText, "Getting the first items…");
 
   // Its first post makes the empty one an ordinary source again; the busy one's arrival does the same for it.
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { publishedAt: recent() }), entry("feed/2", { publishedAt: recent() })]));

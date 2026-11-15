@@ -11,11 +11,11 @@ function run(url: string | null) {
 
 test("Copy link copies the original address; the PURSS link is a separate entry", () => {
   const r = run("https://example.org/post?utm=x");
-  assert.deepEqual(r.labels, ["Copy link", "Copy link to this item in your PURSS"]);
+  assert.deepEqual(r.labels, ["Copy link to the original", "Copy your private link to this item"]);
   assert.deepEqual(r.copied.map((c) => c[0]), ["https://example.org/post?utm=x", "https://work.example/app/?item=itm_1"]);
 });
 
 test("an item with no original address offers only the PURSS link", () => {
-  assert.deepEqual(run(null).labels, ["Copy link to this item in your PURSS"]);
-  assert.deepEqual(run("javascript:alert(1)").labels, ["Copy link to this item in your PURSS"], "an address that is not http(s) is not copied");
+  assert.deepEqual(run(null).labels, ["Copy your private link to this item"]);
+  assert.deepEqual(run("javascript:alert(1)").labels, ["Copy your private link to this item"], "an address that is not http(s) is not copied");
 });

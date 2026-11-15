@@ -52,7 +52,7 @@ function SoundsField() {
   const s = useSyncExternalStore(subscribeSounds, soundSettings);
   return (
     <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Sounds</legend>
-      <Check checked={s.enabled} onChange={(v) => updateSounds({ enabled: v })} hint="Soft clicks and chimes when you press buttons or finish actions. New arrivals stay silent. Saved on this device.">Interface sounds</Check>
+      <Check checked={s.enabled} onChange={(v) => updateSounds({ enabled: v })} hint="Soft clicks and chimes when you press buttons or finish actions. New arrivals stay silent.">Interface sounds</Check>
       {s.enabled ? (
         <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
           <label className="field" style={{ gap: 4 }}><span className="lbl">Volume</span>
@@ -73,7 +73,7 @@ function DisplayField() {
   return (
     <div className="field">
       <Check checked={mode === "eink"} onChange={(v) => setDisplayMode(v ? "eink" : "standard")}
-        hint="Black on white with nothing that moves, and Page up and Page down buttons instead of scrolling. For e-readers. Saved on this device.">E-ink display</Check>
+        hint="Black on white with nothing that moves, and Page up and Page down buttons instead of scrolling. For e-readers.">E-ink display</Check>
     </div>
   );
 }
@@ -108,10 +108,13 @@ function GeneralTab() {
       <div className="field"><div className="lbl" id="dn2">List density</div>
         <Segmented labelledBy="dn2" value={p.density} onChange={(v) => void save({ density: v })} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
           options={[{ value: "comfortable", label: "Comfortable" }, { value: "compact", label: "Compact" }]} /></div>
-      <DisplayField />
-      <TextSizeField />
-      <SoundsField />
-      <OfflineField />
+      <section className="set-device" aria-labelledby="set-device-h">
+        <div><h3 id="set-device-h">This device</h3><p className="fine">Saved here only, not with your account.</p></div>
+        <DisplayField />
+        <TextSizeField />
+        <SoundsField />
+        <OfflineField />
+      </section>
       <MutedWordsField />
       <AiSettingsField />
       <div className="field" style={{ gap: 2 }}>
