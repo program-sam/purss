@@ -168,8 +168,8 @@ async function main(): Promise<void> {
     await page.locator("#pw-p").fill(PASSWORD);
     await page.locator("#pw-a").fill(PASSWORD);
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Fingerprint, face or screen lock", { exact: true }).waitFor();
-    await page.getByRole("button", { name: /add fingerprint, face or screen lock/i }).first().click();
+    await page.getByText("Sign in without typing a password", { exact: true }).waitFor();
+    await page.getByRole("button", { name: /add a passkey/i }).first().click();
     await waitFor("a passkey", async () => (await cdp.send("WebAuthn.getCredentials", { authenticatorId })).credentials.length === 1, 15_000);
     const firstVisit = page.getByRole("dialog", { name: "How should we keep you posted?" });
     const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
     await page.getByRole("tab", { name: "Security" }).or(page.getByRole("button", { name: "Security" })).first().click();
     await page.getByRole("button", { name: "Sign out of this browser" }).click();
     await page.waitForURL(/\/signin/);
-    await page.getByRole("button", { name: /sign in with fingerprint, face or screen lock/i }).first().click();
+    await page.getByRole("button", { name: /sign in with a passkey/i }).first().click();
     await page.getByRole("button", { name: "Add source" }).first().waitFor();
     await page.getByText("Read later", { exact: true }).first().click();
     await page.locator("main").getByText(kept.slice(0, 30)).first().waitFor();

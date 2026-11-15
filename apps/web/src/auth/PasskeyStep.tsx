@@ -12,14 +12,14 @@ export async function registerPasskey(label: string | null): Promise<void> {
     response = await platform.passkeys!.create(options);
   } catch (err) {
     const name = err instanceof Error ? err.name : "";
-    if (name === "NotAllowedError") throw new ApiError(0, "cancelled", "Fingerprint, face or screen lock wasn't added. You can try again whenever you like.");
-    if (name === "InvalidStateError") throw new ApiError(0, "exists", "This device already has fingerprint, face or screen lock set up for PURSS.");
-    throw new ApiError(0, "webauthn", "This browser or device couldn't set up fingerprint, face or screen lock.");
+    if (name === "NotAllowedError") throw new ApiError(0, "cancelled", "The passkey wasn't added. You can try again whenever you like.");
+    if (name === "InvalidStateError") throw new ApiError(0, "exists", "This device already has a passkey for PURSS.");
+    throw new ApiError(0, "webauthn", "This browser or device couldn't set up a passkey.");
   }
   await post("/api/auth/passkey/register/verify", { challengeId, response, label });
 }
 
-/** After setup or joining: the chance to add fingerprint, face or screen lock to this account, or to skip it. */
+/** After setup or joining: the chance to add a passkey to this account, or to skip it. */
 export function PasskeyStep({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,13 +31,13 @@ export function PasskeyStep({ onDone }: { onDone: () => void }) {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <p className="hint">Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a password manager.</p>
+      <p className="hint">Add a passkey: your fingerprint, face or screen lock (Touch ID, Face ID, Windows Hello) or a password manager signs you in from then on. Your password keeps working.</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" disabled={busy} onClick={add}>{busy ? "Waiting for your device…" : "Add fingerprint, face or screen lock"}</Button>
+        <Button variant="primary" disabled={busy} onClick={add}>{busy ? "Waiting for your device…" : "Add a passkey"}</Button>
         <Button disabled={busy} onClick={onDone}>Skip for now</Button>
       </div>
-      <p className="fine">You can add it later in Settings → Security.</p>
+      <p className="fine">You can add one later in Settings → Security.</p>
     </div>
   );
 }

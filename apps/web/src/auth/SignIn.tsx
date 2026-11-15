@@ -113,8 +113,8 @@ export function SignInPage() {
         </form>
         {supported ? (
           <>
-            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? "Waiting for your device…" : "Sign in with fingerprint, face or screen lock"}</Button>
-            <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a password manager.</p>
+            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? "Waiting for your device…" : "Sign in with a passkey"}</Button>
+            <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>Your fingerprint, face or screen lock (Touch ID, Face ID, Windows Hello) or a password manager.</p>
           </>
         ) : null}
         {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${oidcQuery(search.next, sharedComputer)}`} />)}

@@ -54,13 +54,13 @@ export async function verifyRegistration(app: App, accountId: string, sessionId:
     result = await verifyRegistrationResponse({ response, expectedChallenge: ch.challenge, expectedOrigin: passkeyOrigins(app), expectedRPID: app.config.rpId });
   } catch {
     audit(app, accountId, "passkey_add", null, "failure");
-    throw new HttpError(400, "passkey_failed", "Fingerprint, face or screen lock couldn't be added. Please try again.");
+    throw new HttpError(400, "passkey_failed", "The passkey couldn't be added. Please try again.");
   }
-  if (!result.verified || !result.registrationInfo) throw new HttpError(400, "passkey_failed", "Fingerprint, face or screen lock couldn't be added. Please try again.");
+  if (!result.verified || !result.registrationInfo) throw new HttpError(400, "passkey_failed", "The passkey couldn't be added. Please try again.");
   const c = result.registrationInfo.credential;
   sessionWrite(app, accountId, sessionId, () => {
     app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, credential_id, public_key, counter, transports, created_at) VALUES (?, ?, 'passkey', ?, ?, ?, ?, ?, ?)",
-      newId("sim"), accountId, label ?? "Fingerprint, face or screen lock", c.id, Buffer.from(c.publicKey), c.counter, JSON.stringify(c.transports ?? []), nowIso());
+      newId("sim"), accountId, label ?? "Passkey", c.id, Buffer.from(c.publicKey), c.counter, JSON.stringify(c.transports ?? []), nowIso());
     audit(app, accountId, "passkey_add", null, "success");
   }, true);
 }
@@ -75,7 +75,7 @@ export async function verifyAuthentication(app: App, challengeId: string, respon
   const ch = takeChallenge(app, challengeId, "authenticate");
   const cred = app.db.get<{ id: string; account_id: string; public_key: Uint8Array; counter: number; transports: string | null }>(
     "SELECT id, account_id, public_key, counter, transports FROM sign_in_methods WHERE kind = 'passkey' AND credential_id = ?", response.id);
-  if (!cred) throw new HttpError(401, "unknown_passkey", "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password.");
+  if (!cred) throw new HttpError(401, "unknown_passkey", "That didn't sign you in. Try your passkey again, or use your password.");
   let result;
   try {
     result = await verifyAuthenticationResponse({
@@ -84,9 +84,9 @@ export async function verifyAuthentication(app: App, challengeId: string, respon
     });
   } catch {
     audit(app, cred.account_id, "sign_in", "passkey", "failure");
-    throw new HttpError(401, "passkey_failed", "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password.");
+    throw new HttpError(401, "passkey_failed", "That didn't sign you in. Try your passkey again, or use your password.");
   }
-  if (!result.verified) throw new HttpError(401, "passkey_failed", "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password.");
+  if (!result.verified) throw new HttpError(401, "passkey_failed", "That didn't sign you in. Try your passkey again, or use your password.");
   app.db.run("UPDATE sign_in_methods SET counter = ?, last_used_at = ? WHERE id = ?", result.authenticationInfo.newCounter, nowIso(), cred.id);
   let sharedComputer = false;
   try { sharedComputer = (JSON.parse(ch.data ?? "null") as { sharedComputer?: boolean } | null)?.sharedComputer === true; } catch { /* old challenge rows have no data */ }
@@ -96,7 +96,7 @@ export async function verifyAuthentication(app: App, challengeId: string, respon
 export function listMethods(app: App, accountId: string) {
   return app.db.all<{ id: string; kind: string; label: string | null; issuer: string | null; created_at: string; last_used_at: string | null }>(
     "SELECT id, kind, label, issuer, created_at, last_used_at FROM sign_in_methods WHERE account_id = ? ORDER BY created_at", accountId,
-  ).map((m) => ({ id: m.id, kind: m.kind as "passkey" | "oidc" | "password", label: m.kind === "password" ? "Password" : m.label ?? (m.kind === "oidc" ? m.issuer : "Fingerprint, face or screen lock"), createdAt: m.created_at, lastUsedAt: m.last_used_at }));
+  ).map((m) => ({ id: m.id, kind: m.kind as "passkey" | "oidc" | "password", label: m.kind === "password" ? "Password" : m.label ?? (m.kind === "oidc" ? m.issuer : "Passkey"), createdAt: m.created_at, lastUsedAt: m.last_used_at }));
 }
 
 /**

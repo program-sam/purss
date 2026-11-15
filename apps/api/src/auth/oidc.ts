@@ -81,7 +81,7 @@ function linkedTo(app: App, accountId: string, p: OidcProviderConfig): boolean {
 function assertMayConfirm(app: App, accountId: string | null, p: OidcProviderConfig): void {
   if (!accountId || !linkedTo(app, accountId, p)) throw new HttpError(409, "not_linked", `${p.label} isn't connected to this account, so it can't confirm it's you.`);
   if (!canConfirm(app, accountId, p)) {
-    throw new HttpError(409, "confirm_another_way", `Confirm it's you with your password or your fingerprint, face or screen lock instead: ${p.label} can only confirm an account that has neither.`);
+    throw new HttpError(409, "confirm_another_way", `Confirm it's you with your password or a passkey instead: ${p.label} can only confirm an account that has neither.`);
   }
 }
 

@@ -43,11 +43,11 @@ export function useNewAccount(retryTime = false): { busy: boolean; error: string
     // The account exists now: the button stays busy from here.
     // The server started a session; fetch it so later requests carry the page's CSRF token (they fetch it again if this fails).
     await qc.fetchQuery({ ...sessionQuery, staleTime: 0 }).catch(() => undefined);
-    // Fingerprint, face or screen lock is offered only where the browser can do it.
+    // A passkey is offered only where the browser can do it.
     if (passkeysAvailable()) setPasskeyStep(true);
     else await finish();
   }
 
-  const passkey = passkeyStep ? <AuthFrame title="Fingerprint, face or screen lock"><PasskeyStep onDone={finish} /></AuthFrame> : null;
+  const passkey = passkeyStep ? <AuthFrame title="Sign in without typing a password"><PasskeyStep onDone={finish} /></AuthFrame> : null;
   return { busy, error, submit, passkey };
 }

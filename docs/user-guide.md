@@ -13,11 +13,11 @@ yet.
    owner and administrator, and the code stops working.
 3. Enter your **email address** and choose a **password** (typed twice); a name is optional. You
    sign in with the address and password on any computer, including borrowed ones.
-4. Add **fingerprint, face or screen lock** if you like. Use Touch ID, Face ID, Windows Hello,
-   your phone's screen lock or a password manager. You can skip this and add it later in
+4. Add a **passkey** if you like: your fingerprint, face or screen lock (Touch ID, Face ID,
+   Windows Hello) or a password manager then signs you in. You can skip this and add one later in
    *Settings → Security*.
 
-Fingerprint, face or screen lock works over **HTTPS**, or at `http://localhost`. It doesn't work
+A passkey works over **HTTPS**, or at `http://localhost`. It doesn't work
 over plain HTTP at another address, such as a LAN IP. It is tied to the exact host name you use,
 so one added at `localhost` won't work at `127.0.0.1`.
 
@@ -37,8 +37,8 @@ finished, sign in with your address and password.
 
 - **Email address and password:** works on any computer, including borrowed ones. Each address
   belongs to one account; capital letters don't matter.
-- **Fingerprint, face or screen lock:** sign in with Touch ID, Face ID, Windows Hello, your
-  phone's screen lock or a password manager, once you have added it in *Settings → Security*.
+- **Passkey:** sign in with your fingerprint, face or screen lock (Touch ID, Face ID, Windows
+  Hello) or a password manager, once you have added one in *Settings → Security*.
 - **External sign-in** (OpenID Connect) appears only when the operator has configured a
   provider, and only for an identity you linked while signed in (*Settings → Security*).
 
@@ -50,10 +50,10 @@ header shows **Sign out** so leaving takes one press. *Settings
 this device, and lets you sign out one device or **Sign out everywhere else**.
 
 *Settings → Security* is also where you change your email address or password, add or remove
-fingerprint, face or screen lock, and link or remove an external sign-in. The password can be
+a passkey, and link or remove an external sign-in. The password can be
 changed but not removed; changing it asks for your current password. The other changes need a
-recent sign-in: the screen asks you to confirm it's you with your password or with fingerprint, face
-or screen lock, then carries on.
+recent sign-in: the screen asks you to confirm it's you with your password or a passkey,
+then carries on.
 
 **Forgotten your password?** On the sign-in page, **Can't sign in?** leads to a password reset by
 email where the installation sends email (always on the hosted service). Otherwise it says to ask
@@ -888,7 +888,7 @@ the official server unless you choose another one: your own, or another hosted o
 
 **Signing in.** The app opens on the official server's sign-in: sign in with your email address and
 password. Where the server sends email, *Forgot your password?* emails you a link to set a
-new one; on a server that doesn't, its administrator can give you a reset link to open in a browser. To sign in with your fingerprint, face or screen lock, or a linked account, choose *Use fingerprint, face or a linked account*:
+new one; on a server that doesn't, its administrator can give you a reset link to open in a browser. To sign in with a passkey or a linked account, choose *Use a passkey or a linked account*:
 a sign-in tab opens the server's Connect page; sign in there, check that it names this device, and
 press *Connect* (see [Connected apps](#connected-apps)).
 
@@ -919,7 +919,7 @@ the app tells you once, and *Settings → This device → New version of the app
 
 - Everything in the browser is in the app too: Settings (with *This device* for downloads and the
   connection), Security, Connected apps, Assistants, *Your data* and administration. When the app
-  asks you to confirm it's you, use your password (or fingerprint, face or screen lock where the app has it). Exports
+  asks you to confirm it's you, use your password (or a passkey where the app has it). Exports
   open the share sheet, so you can save them to Files or a cloud drive.
 - Links to other sites open in a browser tab over the app.
 - **Listening** carries on with the screen off or in another app, with play, pause and skipping on
@@ -1093,7 +1093,7 @@ and everything kept in them, saved text and browser captures, and where you
 stopped listening, highlights and notes, reading history and statistics, preferences, shared
 collections, your email address, sign-in methods, connected apps and assistants. The dialog offers **Export first**, so you
 can keep a copy to import elsewhere. To confirm, type your display name exactly as shown (or
-the word `delete` if your account has none), and confirm it's you with fingerprint, face or screen lock or a password
+the word `delete` if your account has none), and confirm it's you with a passkey or a password
 if you haven't signed in recently.
 
 - **Straight away:** you are signed out on every device, the phone apps and browser extension
@@ -1135,7 +1135,7 @@ and the server's when the app runs other screens than the server offers.
 - **Sounds:** soft interface sounds for your own actions; arrivals stay silent. Off by default;
   turn them on, set the volume and pick one of four styles. Saved on this device only.
 - **Notifications and New:** how often and about what you are told, whether the digest and [reminders](#reminders) also come by email, quiet hours, how long items stay New, and whether New markers and counts show. See above.
-- **Security:** password, fingerprint, face or screen lock, linked sign-in
+- **Security:** password, passkeys, linked sign-in
   and signed-in devices, and your email address where the installation sends email. On a phone,
   Settings also has a button in the header; on a shared computer the header has **Sign out**.
 - **Account:** delete your account; see [Deleting your account](#deleting-your-account).

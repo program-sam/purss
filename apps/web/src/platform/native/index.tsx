@@ -70,7 +70,7 @@ const phoneConnectShell: ConnectShell = {
   },
   save: saveConnection,
   passkeys: nativePasskeys,
-  browserSignin: { withPasskeys: "Sign in with a linked account (opens a sign-in tab)", withoutPasskeys: "Use fingerprint, face or a linked account (opens a sign-in tab)" },
+  browserSignin: { withPasskeys: "Sign in with a linked account (opens a sign-in tab)", withoutPasskeys: "Use a passkey or a linked account (opens a sign-in tab)" },
 };
 
 /** A bundle as the plugin reports it, or null for its empty answers. */

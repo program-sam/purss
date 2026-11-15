@@ -180,7 +180,7 @@ function SecurityTab() {
   }
 
   // Adding a sign-in method needs a recent sign-in.
-  const addPasskey = () => withStepUp(async () => { await registerPasskey(null); await refreshQueries(); toast("Fingerprint, face or screen lock added"); });
+  const addPasskey = () => withStepUp(async () => { await registerPasskey(null); await refreshQueries(); toast("Passkey added"); });
   const removeMethod = (m: SecurityMethod) => withStepUp(async () => { await del(`/api/account/methods/${encodeURIComponent(m.id)}`); refresh(); toast("Sign-in method removed"); });
   // Changing the password takes the current one in the form. Adding a first one needs a recent sign-in when saved, so that is
   // confirmed first and nothing typed is lost.
@@ -245,11 +245,11 @@ function SecurityTab() {
             <div><Button onClick={() => void openPassword()}>{password ? "Change password" : "Add a password"}</Button></div>
           </section>
           <section className="field" aria-labelledby="sec-m">
-            <div className="lbl" id="sec-m">Fingerprint, face or screen lock, and linked sign-ins</div>
-            <p className="fine">Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a password manager.</p>
+            <div className="lbl" id="sec-m">Passkeys and linked sign-ins</div>
+            <p className="fine">A passkey signs you in with your fingerprint, face or screen lock (Touch ID, Face ID, Windows Hello) or a password manager.</p>
             <ul className="seclist">
               {otherMethods.map((m) => {
-                const methodLabel = m.kind === "passkey" ? "Fingerprint, face or screen lock" : m.label ?? "Linked sign-in";
+                const methodLabel = m.kind === "passkey" ? "Passkey" : m.label ?? "Linked sign-in";
                 const customPasskeyLabel = m.kind === "passkey" && m.label && m.label !== methodLabel ? `${m.label} · ` : "";
                 return (
                   <li key={m.id}>
@@ -262,13 +262,13 @@ function SecurityTab() {
               {!otherMethods.length ? <li><span className="tx"><small>No linked sign-ins yet.</small></span></li> : null}
             </ul>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {passkeysAvailable() ? <Button disabled={busy} onClick={() => void addPasskey()}><Icon name="plus" size="sm" />Add fingerprint, face or screen lock</Button> : null}
+              {passkeysAvailable() ? <Button disabled={busy} onClick={() => void addPasskey()}><Icon name="plus" size="sm" />Add a passkey</Button> : null}
               {providers.map((p) => <Button key={p.id} onClick={() => void linkProvider(p)}>Link {p.label}</Button>)}
             </div>
           </section>
           {passkeysAvailable() ? null : <p className="fine">{platform.connection
-            ? "Fingerprint, face or screen lock works in the app once this PURSS's operator sets it up (see the app section of the self-hosting guide)."
-            : "Fingerprint, face or screen lock needs a secure (https) address, so it can't be added here."}</p>}
+            ? "Passkeys work in the app once this PURSS's operator sets them up (see the app section of the self-hosting guide)."
+            : "A passkey needs a secure (https) address, so one can't be added here."}</p>}
           <AccountEmailSection withStepUp={withStepUp} />
           <section className="field" aria-labelledby="sec-s">
             <div className="lbl" id="sec-s">Signed-in devices</div>
@@ -295,7 +295,7 @@ function SecurityTab() {
 }
 
 function methodName(m: string): string {
-  return { passkey: "fingerprint, face or screen lock", password: "password", signup: "sign-up", setup: "setup", invite: "invitation", oidc: "linked sign-in" }[m] ?? m;
+  return { passkey: "passkey", password: "password", signup: "sign-up", setup: "setup", invite: "invitation", oidc: "linked sign-in" }[m] ?? m;
 }
 function shortDevice(ua: string | null): string {
   if (!ua) return "A browser";

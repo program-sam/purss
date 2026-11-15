@@ -180,7 +180,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
         const { challengeId, options } = (challenge.body ?? {}) as { challengeId?: string; options?: Parameters<Passkeys["get"]>[0] };
         if (challenge.status !== 200 || !challengeId || !options) return { error: errorMessage(challenge.body, "PURSS didn't start the sign-in. Try again.") };
         try { body = { method: "passkey", challengeId, response: await shell.passkeys!.get(options) }; } catch (err) {
-          return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your fingerprint, face or screen lock again, or use your password." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
+          return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your passkey again, or use your password." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
         }
       }
       // What this PURSS gave the app at its last password sign-in, for sign-in tries of its own (the server's auth/sign-in-limits.ts).
@@ -390,7 +390,7 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
         <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? "Creating…" : "Create account") : busy ? "Sending…" : "Send me the link"}</Button>
         <Button onClick={onBack} disabled={busy}>Back</Button>
       </div>
-      {withInvite ? <p className="fine">You can add fingerprint, face or screen lock later, under Settings → Security.</p> : null}
+      {withInvite ? <p className="fine">You can add a passkey later, under Settings → Security.</p> : null}
     </form>
   );
 }
@@ -508,7 +508,7 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? "Sending…" : "Signing in…") : mode === "reset" ? "Send the link" : "Sign in"}</Button>
       </div>
-      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with fingerprint, face or screen lock</Button></div> : null}
+      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with a passkey</Button></div> : null}
       {mode !== "reset" ? providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />) : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
         {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use an email address and password</button> : null}

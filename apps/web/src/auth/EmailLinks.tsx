@@ -39,7 +39,7 @@ export function VerifyEmailPage() {
         {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>Go to your PURSS</a></div> : null}
         {state !== "working" && !signedIn ? (
           <>
-            <p>Sign in with your email address and password, or your fingerprint, face or screen lock.</p>
+            <p>Sign in with your email address and password, or a passkey.</p>
             <div><a className="btn primary" href={inApp("/signin")}>Sign in</a></div>
           </>
         ) : null}

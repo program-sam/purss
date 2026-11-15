@@ -29,7 +29,7 @@ export function StepUpOptions({ busy, confirm, returnTo }: { busy: boolean; conf
           <div><Button type="submit" variant="primary" disabled={busy || !secret}>Confirm with password</Button></div>
         </form>
       ) : null}
-      {passkey ? <div style={{ display: "grid", gap: 4 }}><Button id="su-first" disabled={busy} onClick={() => confirm(() => assertPasskey("/api/auth/step-up/passkey"))}><Icon name="key" />Confirm with fingerprint, face or screen lock</Button></div> : null}
+      {passkey ? <div style={{ display: "grid", gap: 4 }}><Button id="su-first" disabled={busy} onClick={() => confirm(() => assertPasskey("/api/auth/step-up/passkey"))}><Icon name="key" />Confirm with a passkey</Button></div> : null}
       {providers.map((p, i) => (
         <div key={p.id} style={{ display: "grid", gap: 4 }}>
           <Button id={!account?.hasPassword && !passkey && i === 0 ? "su-first" : undefined} disabled={busy} onClick={() => confirm(() => confirmWithProvider(p, returnTo))}>Confirm with {p.label}</Button>
