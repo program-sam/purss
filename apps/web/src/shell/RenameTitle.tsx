@@ -23,7 +23,7 @@ export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: 
       onDone();
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
-  const keys = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onDone(); } };
+  const keys = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onDone(); } };
 
   return (
     <form onSubmit={(e) => void save(e)} onKeyDown={keys} style={{ display: "grid", gap: 8 }}>

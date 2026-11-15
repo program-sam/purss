@@ -27,6 +27,7 @@ import { readOpenLink } from "../open-link.ts";
 import { browserNotifier } from "../web.ts";
 import type { AppConnection, OfflineHost, Platform, Transport } from "../types.ts";
 import { AppPlayerBackend } from "./audio-backend.ts";
+import { goUpOneLevel, pressEscape } from "./back-button.ts";
 import type { Connection } from "./connect.ts";
 import { ConnectScreen } from "./ConnectScreen.tsx";
 import type { ConnectShell } from "./ConnectScreen.tsx";
@@ -303,6 +304,9 @@ export async function startNative(): Promise<{ platform: Platform; screen: React
   // The app going to the background and coming back is the page losing and regaining focus, so what is open refreshes then.
   void App.addListener("pause", () => focusManager.setFocused(false));
   void App.addListener("resume", () => focusManager.setFocused(true));
+  void App.addListener("backButton", ({ canGoBack }) => {
+    goUpOneLevel({ escape: pressEscape, canGoBack, previousPage: () => history.back(), leave: () => void App.minimizeApp() });
+  });
   const stuck = takeStuck();
   // A connection that couldn't be removed is tried once more and never used: it would only be refused again.
   if (stuck) await forgetConnection().catch(() => undefined);

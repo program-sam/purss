@@ -22,7 +22,7 @@ export function WebPane({ url, top, onClose }: { url: string; top: number; onClo
 
   return (
     <div className="web-pane" style={{ top }} role="region" aria-label={`Page from ${address.site}`}
-      onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
+      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
       <div className="web-bar">
         <button ref={closeRef} type="button" className="ibtn web-close" onClick={onClose} aria-label="Back to the article" title="Back to the article (Esc)">
           <Icon name="back" /><span aria-hidden="true">Article</span>
