@@ -161,17 +161,6 @@ export function NewTab() {
   return <span className="sr"> (opens in a new tab)</span>;
 }
 
-/** The play mark of a card as a real link over the card's picture (a link cannot sit inside the card's button). */
-export function PlayLink({ item }: { item: ItemDTO }) {
-  const v = videoLink(item);
-  if (!v) return null;
-  return (
-    <span className="playwrap">
-      <a className="playlink" href={v.href} target="_blank" rel="noopener noreferrer" aria-label={`${v.label}: ${item.title} (opens in a new tab)`} title={v.label} />
-    </span>
-  );
-}
-
 export function SharedBy({ curator }: { curator: string | null }) {
   return curator ? <span className="shared">shared by <span dir="auto">{curator}</span></span> : null;
 }

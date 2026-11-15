@@ -58,10 +58,11 @@ Shared tokens and primitives are in `packages/ui`.
   e-ink rule is scoped to that marker, so the standard look never changes.
 - The anniversary reminder card renders only when `GET /api/reminders` returns items.
 - Article HTML is sanitised by the server and cleaned again in an inert document before display;
-  video items link out ("Play on YouTube"), nothing is embedded or autoplayed.
+  a video page plays in the reader in its platform's own sandboxed player only once play is pressed
+  there (`components/VideoEmbed.tsx`); nothing autoplays.
 - Text that comes from feeds or people (titles, snippets, names) carries `dir="auto"` and is isolated by the
   stylesheet (`[dir="auto"]`, `bdi`); `lib/bidi.ts` isolates names inside plain strings such as toasts.
-  The play mark of a video card is a link to the video, laid over the card's picture.
+  A video card's play mark is part of the card: pressing it opens the item in the reader, like the rest of the card.
 - Font sizes in the stylesheets are in `rem`; the Settings text size sets the root font size per device (`lib/text-size.ts`).
 
 ## Player
