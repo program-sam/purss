@@ -6,8 +6,19 @@ import type { ItemDTO, WorkflowState } from "@purss/domain";
  * New markers names its items, and a workflow change carries the workflow it started from so it can
  * be checked against what PURSS holds when it is finally sent.
  */
+/**
+ * What the server checks when the player moves an item by itself: the item's workflow revision now, and when playback started, and
+ * which playback session this is. A change that carries it is never made against a state the person set after playback began.
+ */
+export type PlaybackWorkflow = { sessionId: string; expectedWorkflowRevision: number; startedWorkflowRevision: number };
+
+/** A new opaque id for one playback session. */
+export function newPlaybackSessionId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `play-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export type Change =
-  | { kind: "workflow"; itemId: string; from: WorkflowState; to: WorkflowState; revision: number }
+  | { kind: "workflow"; itemId: string; from: WorkflowState; to: WorkflowState; revision: number; playback?: PlaybackWorkflow }
   | { kind: "keep"; itemId: string; basketId: string; on: boolean }
   /** An Undo that could not be settled when it was pressed (the item could not be read): when it is sent, the item is read, and only if it still has `applied` is it put back to `restore`. */
   | { kind: "undoWorkflow"; itemId: string; applied: WorkflowState; restore: WorkflowState }
@@ -43,16 +54,28 @@ export function scopeOf(installation: string, accountId: string): string {
  * - anything else: the item changed elsewhere, so the change is dropped and the person is told.
  * The workflow it started from is deliberately not compared: A to B to A elsewhere looks unchanged but is not.
  */
-export function judgeConflict(change: { to: WorkflowState }, server: { workflow: WorkflowState }): "done" | "drop" {
+export function judgeConflict(change: { to: WorkflowState; playback?: Pick<PlaybackWorkflow, "sessionId" | "expectedWorkflowRevision"> }, server: { workflow: WorkflowState; workflowRevision?: number; playbackWorkflowSessionId?: string | null }): "done" | "drop" {
+  // The player's own change is done only if it is this very change that is there: the workflow it wanted, one step on from the
+  // revision it was made against, by its session. The same state set by hand (or by another session) is the person's choice.
+  if (change.playback) {
+    return server.workflow === change.to
+      && server.workflowRevision === change.playback.expectedWorkflowRevision + 1
+      && server.playbackWorkflowSessionId === change.playback.sessionId ? "done" : "drop";
+  }
   return server.workflow === change.to ? "done" : "drop";
+}
+
+/** The item with a new workflow, as the server will have it: its workflow revision a step on, and the session that made it (null: the person). */
+function withWorkflow<T extends ItemDTO>(item: T, workflow: WorkflowState, sessionId: string | null): T {
+  return { ...item, workflow, workflowRevision: item.workflowRevision + 1, playbackWorkflowSessionId: sessionId };
 }
 
 /** Show a pending change on an item the way it will look once sent. Entries are applied in order. */
 export function overlayItem<T extends ItemDTO>(item: T, entries: readonly Entry[]): T {
   let out = item;
   for (const e of entries) {
-    if (e.kind === "workflow" && e.itemId === item.id) out = out.workflow === e.to ? out : { ...out, workflow: e.to };
-    else if (e.kind === "undoWorkflow" && e.itemId === item.id) out = out.workflow === e.applied ? { ...out, workflow: e.restore } : out;
+    if (e.kind === "workflow" && e.itemId === item.id) out = out.workflow === e.to ? out : withWorkflow(out, e.to, e.playback?.sessionId ?? null);
+    else if (e.kind === "undoWorkflow" && e.itemId === item.id) out = out.workflow === e.applied ? withWorkflow(out, e.restore, null) : out;
     else if (e.kind === "keep" && e.itemId === item.id) {
       const has = out.basketIds.includes(e.basketId);
       if (e.on && !has) out = { ...out, basketIds: [...out.basketIds, e.basketId] };

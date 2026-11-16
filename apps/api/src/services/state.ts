@@ -24,12 +24,12 @@ type Owner = Pick<Principal, "accountId" | "workspaceId">;
 /** An AI filter setting an item to one of these has dealt with it, so it is no longer New. (The person's own changes always clear it.) */
 const SEEN_WORKFLOWS: ReadonlySet<WorkflowState> = new Set<WorkflowState>(["finished", "ignored"]);
 
-type OwnedItem = { id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; fresh: number; revision: number; progress: number; opened_at: string | null; is_private: number | null };
+type OwnedItem = { id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; fresh: number; revision: number; workflow_revision: number; playback_workflow_session: string | null; progress: number; opened_at: string | null; is_private: number | null };
 type OwnedBasket = { id: string; capture_mode: "metadata" | "text"; name: string };
 
 function ownItem(app: App, p: Principal, itemId: string): OwnedItem {
   const row = app.db.get<OwnedItem>(
-    `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.progress, st.opened_at, s.is_private
+    `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.workflow_revision, st.playback_workflow_session, st.progress, st.opened_at, s.is_private
      FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, itemId, p.workspaceId);
   if (!row) throw notFound("That item");
   return row;
@@ -47,18 +47,31 @@ function saveUndo(app: App, p: Principal, ops: UndoOp[]): string {
   return id;
 }
 
-/** Workflow change with optimistic concurrency. Two tabs cannot silently overwrite each other. */
+/**
+ * Workflow change with optimistic concurrency. Two tabs cannot silently overwrite each other.
+ *
+ * A change the player makes by itself (it carries a playback session) is checked against the workflow revision instead, a counter
+ * that moves only when the workflow does and that every other way of changing the workflow also moves and ends the session on. It
+ * applies only when nothing has changed the workflow since playback started, or since the session's own last automatic change:
+ * that is what "set by hand after playback started" means, whatever device it was set on and even if it was set back to what it was.
+ */
 export function changeState(app: App, p: Principal, itemId: string, change: StateChange): { item: ItemDTO; undoToken: string } {
   const undoToken = app.db.tx(() => {
     const cur = ownItem(app, p, itemId);
-    if (cur.revision !== change.expectedRevision) {
+    const auto = automaticChange(change);
+    if (auto) {
+      const chain = cur.workflow_revision === auto.expected && (cur.workflow_revision === auto.started || cur.playback_workflow_session === auto.session);
+      const forward = auto.to === "inprogress" ? cur.workflow === "new" || cur.workflow === "toread" : cur.workflow === "new" || cur.workflow === "toread" || cur.workflow === "inprogress";
+      if (!chain || !forward) throw conflict("This item was changed after playback started, so playback left it alone.");
+    } else if (cur.revision !== change.expectedRevision) {
       throw new HttpError(409, "conflict", "This item changed in another tab or device. It has been refreshed; please try again.");
     }
     const inverse: UndoOp[] = [];
     const sets: string[] = [];
-    const params: (string | number)[] = [];
+    const params: (string | number | null)[] = [];
     if (change.workflow && change.workflow !== cur.workflow) {
-      sets.push("workflow = ?"); params.push(change.workflow);
+      sets.push("workflow = ?", "workflow_revision = workflow_revision + 1", "playback_workflow_session = ?");
+      params.push(change.workflow, auto?.session ?? null);
       inverse.push({ type: "workflow", itemId, workflow: cur.workflow });
       logWorkflow(app, p, itemId, cur.workflow, change.workflow);
       mirrorRead(app, p, [itemId], change.workflow);
@@ -82,6 +95,14 @@ export function changeState(app: App, p: Principal, itemId: string, change: Stat
   return { item: getItem(app, p, itemId), undoToken };
 }
 
+/** The playback fields of a change, when it is the player's own (the schema lets them in only together, and only for In progress or Finished). */
+function automaticChange(change: StateChange): { session: string; expected: number; started: number; to: "inprogress" | "finished" } | null {
+  const { playbackSessionId: session, expectedWorkflowRevision: expected, playbackStartedWorkflowRevision: started, workflow } = change;
+  if (session === undefined || expected === undefined || started === undefined) return null;
+  if (workflow !== "inprogress" && workflow !== "finished") throw new HttpError(400, "invalid", "Playback can only move an item to In progress or Finished.");
+  return { session, expected, started, to: workflow };
+}
+
 /**
  * Append one row to the account's workflow log, in the transaction that changes the workflow.
  * The item's small "state" record (see recordControlWrite) is what the ledger counts for it, so
@@ -101,7 +122,7 @@ function logWorkflow(app: App, p: Owner, itemId: string, from: WorkflowState, to
 export function setWorkflowByFilter(app: App, owner: Owner, itemId: string, from: WorkflowState, to: WorkflowState): number {
   logWorkflow(app, owner, itemId, from, to);
   mirrorRead(app, owner, [itemId], to);
-  app.db.run(`UPDATE item_state SET workflow = ?, ${SEEN_WORKFLOWS.has(to) ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`,
+  app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${SEEN_WORKFLOWS.has(to) ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`,
     to, nowIso(), itemId);
   return app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", itemId)!.revision;
 }
@@ -237,7 +258,7 @@ export function bulk(app: App, p: Principal, itemIds: string[], action:
       const cur = ownItem(app, p, itemId);
       if (action.type === "workflow" && cur.workflow !== action.workflow) {
         const seen = cur.fresh === 1;
-        app.db.run(`UPDATE item_state SET workflow = ?, ${seen ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`, action.workflow, nowIso(), itemId);
+        app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${seen ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`, action.workflow, nowIso(), itemId);
         logWorkflow(app, p, itemId, cur.workflow, action.workflow);
         ops.push({ type: "workflow", itemId, workflow: cur.workflow });
         if (seen) ops.push({ type: "fresh", itemId, fresh: true });
@@ -308,7 +329,7 @@ export function applyUndo(app: App, p: Principal, token: string): { applied: num
     for (const op of ops.reverse()) {
       if (op.type === "workflow") {
         const cur = app.db.get<{ workflow: WorkflowState }>("SELECT workflow FROM item_state WHERE item_id = ? AND workspace_id = ?", op.itemId, p.workspaceId);
-        app.db.run("UPDATE item_state SET workflow = ?, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND workspace_id = ?", op.workflow, nowIso(), op.itemId, p.workspaceId);
+        app.db.run("UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND workspace_id = ?", op.workflow, nowIso(), op.itemId, p.workspaceId);
         if (cur && cur.workflow !== op.workflow) logWorkflow(app, p, op.itemId, cur.workflow, op.workflow);
         mirrorRead(app, p, [op.itemId], op.workflow);
       } else if (op.type === "fresh") {

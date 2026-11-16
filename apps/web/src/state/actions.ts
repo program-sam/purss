@@ -15,7 +15,7 @@ import { seenNotices } from "./seen-notice.ts";
 import { plural } from "../lib/format.ts";
 import { isolate } from "../lib/bidi.ts";
 import { keepChanges, summariseBatch, workflowChanges } from "../outbox/batch.ts";
-import type { Change } from "../outbox/entries.ts";
+import type { Change, PlaybackWorkflow } from "../outbox/entries.ts";
 import { outbox } from "../outbox/instance.ts";
 import { droppedLine } from "../outbox/messages.ts";
 import type { Outcome } from "../outbox/outbox.ts";
@@ -25,6 +25,7 @@ import { settleProgress } from "./late-progress.ts";
 import { progressStore } from "./late-progress-sync.ts";
 import { useToasts } from "./toasts.tsx";
 import { useWorkspace } from "./workspace.tsx";
+import { noteManualWorkflowChange } from "./workflow-intent.ts";
 
 /** What an ignored item was before, so Restore can put it back (kept for this visit only). */
 const previousWorkflow = new Map<string, WorkflowState>();
@@ -88,7 +89,7 @@ export function useItemActions() {
       if (how === "set" && before.workflow === workflow) { toast(`Already ${label.toLowerCase()}`); return; }
       if (how === "set" && workflow === "ignored") previousWorkflow.set(id, before.workflow);
       const message = how === "restore" ? `Restored to ${label}` : workflow === "ignored" ? "Ignored" : `Marked ${label}`;
-      putItem(qc, { ...before, workflow, fresh: false });
+      putItem(qc, { ...before, workflow, workflowRevision: before.workflow === workflow ? before.workflowRevision : before.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       const change: Change = { kind: "workflow", itemId: id, from: before.workflow, to: workflow, revision: revision ?? before.revision };
       let out: Outcome;
       try {
@@ -159,6 +160,7 @@ export function useItemActions() {
     }
 
     async function setWorkflow(ids: string[], workflow: WorkflowState): Promise<void> {
+      ids.forEach(noteManualWorkflowChange);
       if (ids.length === 1) { await changeWorkflow(ids[0]!, workflow, "set"); return; }
       const label = workflowLabel(workflow);
       const items = ids.map((id) => findItem(qc, id)).filter((x): x is ItemDTO => !!x);
@@ -168,7 +170,7 @@ export function useItemActions() {
       for (const c of changes) {
         const it = before.get(c.itemId)!;
         if (workflow === "ignored") previousWorkflow.set(it.id, it.workflow);
-        putItem(qc, { ...it, workflow, fresh: false });
+        putItem(qc, { ...it, workflow, workflowRevision: it.workflow === workflow ? it.workflowRevision : it.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       }
       const verb = workflow === "ignored" ? "Ignored" : `Marked ${label}`;
       await sendMany(changes, (n) => `${verb} for ${plural(n, "item")}`, {
@@ -178,8 +180,34 @@ export function useItemActions() {
     }
 
     async function restore(id: string): Promise<void> {
+      noteManualWorkflowChange(id);
       const prev = previousWorkflow.get(id);
       await changeWorkflow(id, prev && prev !== "ignored" ? prev : "new", "restore");
+    }
+
+    /**
+     * The player moving an item forward by itself (In progress, Finished): shown at once, kept on this device and sent like any
+     * state change, but without a message or an Undo, and without a toast when it was kept for later and sent afterwards (see
+     * OutboxController). It is checked against the workflow revision, so a state set by hand, here or on another device, is never
+     * overridden. `applied` is false when it was not made, and the player then makes no further changes to the item.
+     */
+    async function setPlaybackWorkflow(id: string, from: WorkflowState, to: "inprogress" | "finished", playback: PlaybackWorkflow): Promise<{ applied: boolean; workflowRevision: number }> {
+      const notApplied = { applied: false, workflowRevision: playback.expectedWorkflowRevision };
+      const before = findItem(qc, id);
+      if (!before || before.workflow !== from || before.workflowRevision !== playback.expectedWorkflowRevision) return notApplied;
+      putItem(qc, { ...before, workflow: to, workflowRevision: before.workflowRevision + 1, playbackWorkflowSessionId: playback.sessionId, fresh: false });
+      const revert = () => { putItem(qc, before); void qc.invalidateQueries({ queryKey: keys.item(id) }); void qc.invalidateQueries({ queryKey: keys.items }); };
+      let out: Outcome;
+      try { out = await outbox.submit({ kind: "workflow", itemId: id, from, to, revision: before.revision, playback }); }
+      catch { revert(); return notApplied; }
+      if (out.status === "sent" && out.result.kind === "workflow") {
+        if (out.result.item) { putItem(qc, out.result.item); refreshAfterNewCleared(qc, before, out.result.item); }
+        staleLists(qc);
+        return { applied: true, workflowRevision: out.result.item?.workflowRevision ?? playback.expectedWorkflowRevision + 1 };
+      }
+      if (out.status === "deferred") return { applied: true, workflowRevision: playback.expectedWorkflowRevision + 1 };
+      revert();
+      return notApplied;
     }
 
     async function keep(id: string, basketId: string, on: boolean): Promise<void> {
@@ -324,6 +352,6 @@ export function useItemActions() {
       }
     }
 
-    return { setWorkflow, restore, keep, keepMany, clearFresh, clearFreshFor, markOpened, undoSeenMarker, saveProgress };
+    return { setWorkflow, restore, setPlaybackWorkflow, keep, keepMany, clearFresh, clearFreshFor, markOpened, undoSeenMarker, saveProgress };
   }, [qc, toast, ws, accountId]);
 }

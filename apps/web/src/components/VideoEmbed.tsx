@@ -2,6 +2,9 @@ import { useState } from "react";
 import type { ItemDTO } from "@purss/domain";
 import type { Embed } from "../lib/embeds.ts";
 import { Art, type Face } from "./item-bits.tsx";
+import { newPlaybackSessionId } from "../outbox/entries.ts";
+import { useItemActions } from "../state/actions.ts";
+import { youtubeStartWorkflow } from "../player/embedded-workflow.ts";
 
 /**
  * A video page's own player in the reader. Until the person presses play only the item's picture shows and
@@ -11,9 +14,15 @@ import { Art, type Face } from "./item-bits.tsx";
  */
 export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; embed: Embed }) {
   const [on, setOn] = useState(false);
+  const actions = useItemActions();
+  const start = () => {
+    const automatic = youtubeStartWorkflow(embed.platform, item.workflow, item.workflowRevision, newPlaybackSessionId());
+    if (automatic) void actions.setPlaybackWorkflow(item.id, automatic.from, automatic.to, automatic.playback);
+    setOn(true);
+  };
   if (!on) {
     return (
-      <button type="button" className="art-link embed-start" onClick={() => setOn(true)} aria-label={`Play here: ${item.title}`} title={`Play here, in ${embed.platform}'s player`}>
+      <button type="button" className="art-link embed-start" onClick={start} aria-label={`Play here: ${item.title}`} title={`Play here, in ${embed.platform}'s player`}>
         <Art item={item} face={face} playable />
       </button>
     );

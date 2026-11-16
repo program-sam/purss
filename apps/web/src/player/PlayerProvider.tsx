@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ItemDetail, PlaybackPosition } from "@purss/domain";
 import { api } from "../api/client.ts";
@@ -13,6 +13,7 @@ import { bindMediaSession } from "./media-session.ts";
 import type { MediaSessionLike } from "./media-session.ts";
 import { Player } from "./player.ts";
 import type { PendingPosition, PlayerSnapshot } from "./player.ts";
+import { useItemActions } from "../state/actions.ts";
 
 const RATE_KEY = "purss-player-rate";
 
@@ -25,8 +26,12 @@ const Ctx = createContext<Player | null>(null);
  */
 export function PlayerProvider({ children, backend }: { children: ReactNode; backend?: PlayerBackend }) {
   const qc = useQueryClient();
+  const actions = useItemActions();
+  const playbackWorkflow = useRef(actions.setPlaybackWorkflow);
+  playbackWorkflow.current = actions.setPlaybackWorkflow;
   const player = useMemo(() => new Player({
     backend: backend ?? platform.createPlayerBackend(),
+    setPlaybackWorkflow: (...args) => playbackWorkflow.current(...args),
     savePosition: async (itemId, positionSeconds, durationSeconds, { keepalive, recordedAt }) => {
       const saved = await api<PlaybackPosition>(`/api/items/${encodeURIComponent(itemId)}/playback`, { method: "PUT", body: { positionSeconds, durationSeconds, ...(recordedAt ? { recordedAt } : {}) }, keepalive });
       // Keep an open item's "Resume at" in step without refetching it. The answer is the server's newest position.

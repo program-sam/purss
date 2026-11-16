@@ -287,11 +287,26 @@ and the previous button skips back 15.
   here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
   in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
   videos open on the site. Other sites, PeerTube included, open in a new tab.
-- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists and on cards).
+- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
-  it is back; whichever position was reached last wins. Near the end counts as finished, and it starts from the beginning next time.
+  it is back; whichever position was reached last wins. Within 15 seconds of the end, it starts from the beginning next time.
   It is separate from reading progress and from To read / Finished.
+- **Moving through the states by itself:** played in PURSS's player, a podcast episode or an audio or
+  video file moves to **In progress** after 30 seconds of actual playing, and to **Finished** once it
+  has played into its last two minutes or past 95% of its length, whichever comes first (a clip
+  under four minutes is not finished before halfway). Only playing counts: moving the playhead,
+  pausing, or waiting for data does not, so skipping to the end does not finish an episode
+  unless it then plays there for a few seconds. With no known length it can become In progress but not Finished. These
+  changes only go forward (Undecided, To listen and To watch → In progress → Finished), never touch
+  an item that is Ignored or Finished, and show no message and have no Undo; they are sent and kept
+  on your devices like any other change, so they also work without a connection and appear on your
+  other devices. A state you choose yourself, on any device, ends this for that item: playback that
+  began before your choice leaves the item as you set it, even if you set it back to the state
+  playback had put it in.
+  A YouTube video opened with **Play here** is marked **In progress** when you press play. PURSS can't
+  tell when the embedded player reaches the end (that would need YouTube's own script, which PURSS's
+  page policy doesn't allow), so it is never marked Finished automatically.
 - **Downloading a file** is only for the phone apps: *Download to this device* in the reader, or the
   download button on a row or card, keeps the file on your phone (see *Downloaded* below). A browser has
   no download button, because PURSS has no copy to give you.
@@ -468,6 +483,8 @@ Otherwise state, baskets and collections never change each other.
 
 A video's "To read" is **To watch** and a podcast's is **To listen**; the stored state is the same.
 Reading progress (how far you scrolled) is kept for text only, never for videos or podcasts.
+Podcasts and videos played in PURSS's player move to **In progress** and **Finished** by themselves, quietly and only forward
+(see *Moving through the states by itself* under playback).
 
 ### Changes that wait to be sent
 

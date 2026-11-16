@@ -1,4 +1,4 @@
-import type { PlaybackPosition } from "@purss/domain";
+import type { PlaybackPosition, WorkflowState } from "@purss/domain";
 
 /** Pure decisions of the player, kept apart so they can be tested without a browser. */
 
@@ -18,6 +18,29 @@ export const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60] as const;
 export const SAVE_EVERY_MS = 15_000;
 /** Closer than this to the end counts as finished: the next play starts from the beginning. */
 export const FINISHED_WITHIN_SECONDS = 15;
+/** Real playing time in a player session before an item that is New or To read/listen/watch moves to In progress. */
+export const IN_PROGRESS_AFTER_SECONDS = 30;
+/** Played time at or after the finish point that makes the item Finished. A seek over it, or onto it, is not this. */
+export const FINISHED_AFTER_PLAYED_SECONDS = 3;
+
+/** States playback may move to In progress by itself. */
+export function canPlaybackStart(workflow: WorkflowState): boolean {
+  return workflow === "new" || workflow === "toread";
+}
+
+/** States playback may move forward from by itself (to Finished, or to In progress first). Ignored and Finished are left alone. */
+export function canPlaybackMove(workflow: WorkflowState): boolean {
+  return canPlaybackStart(workflow) || workflow === "inprogress";
+}
+
+/**
+ * Where the end of an item starts: 95% of its length or its last two minutes, whichever comes first. Never before halfway, so a
+ * clip shorter than four minutes is not Finished a moment into it. Null while the length is unknown.
+ */
+export function playbackFinishPoint(duration: number | null): number | null {
+  if (duration === null || !Number.isFinite(duration) || duration <= 0) return null;
+  return Math.max(duration * 0.5, Math.min(duration * 0.95, duration - 120));
+}
 
 /** Where to start: the saved position, a couple of seconds back for context, or the beginning when it was finished. */
 export function resumePoint(playback: PlaybackPosition | null | undefined): number {

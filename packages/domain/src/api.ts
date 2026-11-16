@@ -241,6 +241,10 @@ export type ItemDTO = {
   discoveredAt: string;
   workflow: WorkflowState;
   revision: number;
+  /** Moves only when the workflow does. The player's own changes are checked against it, so a state set by hand is never overridden. */
+  workflowRevision: number;
+  /** Opaque id of the player session that made the workflow's last change, or null when the person (or a filter) made it. */
+  playbackWorkflowSessionId: string | null;
   /** Moves by one on every change to the item's state, the New marker, opening and keeping it in a basket included. The revision guards workflow and progress against stale writers; this tells which of two copies of the item is newer. */
   stateVersion: number;
   fresh: boolean;
@@ -364,6 +368,17 @@ export const stateChangeSchema = z.object({
   opened: z.boolean().optional(),
   fresh: z.literal(false).optional(), // clearing a freshness marker; never sets read/workflow
   expectedRevision: z.number().int().min(0),
+  /** The player's own changes (In progress, Finished) carry these three together and are checked against the workflow revision alone, so reading progress and the New marker cannot block them. */
+  expectedWorkflowRevision: z.number().int().min(0).optional(),
+  playbackSessionId: z.string().min(1).max(100).optional(),
+  playbackStartedWorkflowRevision: z.number().int().min(0).optional(),
+}).superRefine((value, ctx) => {
+  const playbackFields = [value.expectedWorkflowRevision, value.playbackSessionId, value.playbackStartedWorkflowRevision];
+  const count = playbackFields.filter((field) => field !== undefined).length;
+  if (count === 0) return;
+  if (count !== playbackFields.length) ctx.addIssue({ code: "custom", path: ["playbackSessionId"], message: "Playback workflow fields must be provided together." });
+  if (value.workflow !== "inprogress" && value.workflow !== "finished") ctx.addIssue({ code: "custom", path: ["workflow"], message: "Playback can only move an item to In progress or Finished." });
+  if (value.progress !== undefined || value.opened !== undefined || value.fresh !== undefined) ctx.addIssue({ code: "custom", path: ["workflow"], message: "A playback change moves the workflow and nothing else." });
 });
 export type StateChange = z.infer<typeof stateChangeSchema>;
 

@@ -4,9 +4,10 @@ import type { ItemMedia } from "@purss/domain";
 import type { BackendState, PlaybackSource, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
 import { Player } from "./player.ts";
-import type { PlayableItem } from "./player.ts";
+import type { PlayableItem, PlayerDeps } from "./player.ts";
 import { bindMediaSession } from "./media-session.ts";
 import type { MediaSessionLike } from "./media-session.ts";
+import { noteManualWorkflowChange } from "../state/workflow-intent.ts";
 
 /** A backend that plays nothing, for driving the controller as a native backend would. */
 class FakeBackend implements PlayerBackend {
@@ -28,10 +29,10 @@ class FakeBackend implements PlayerBackend {
 }
 
 const media: ItemMedia = { url: "https://cdn.example.org/a.mp3", kind: "audio", type: "audio/mpeg", length: null };
-const item = (over: Partial<PlayableItem> = {}): PlayableItem => ({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: "https://img.example.org/c.jpg", media, playback: null, ...over });
+const item = (over: Partial<PlayableItem> = {}): PlayableItem => ({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: "https://img.example.org/c.jpg", media, playback: null, workflow: "new", workflowRevision: 0, ...over });
 const tick = () => new Promise((r) => setImmediate(r));
 
-function make(opts: { now?: () => number } = {}) {
+function make(opts: { now?: () => number; playbackNow?: () => number; setPlaybackWorkflow?: PlayerDeps["setPlaybackWorkflow"] } = {}) {
   const backend = new FakeBackend();
   const saves: { itemId: string; position: number; keepalive: boolean }[] = [];
   let rate: number | null = 1.5;
@@ -40,9 +41,282 @@ function make(opts: { now?: () => number } = {}) {
     savePosition: async (itemId, position, _d, o) => { saves.push({ itemId, position, keepalive: o.keepalive }); },
     rateStore: { get: () => rate, set: (r) => { rate = r; } },
     now: opts.now,
+    ...(opts.playbackNow ? { playbackNow: opts.playbackNow } : {}),
+    ...(opts.setPlaybackWorkflow ? { setPlaybackWorkflow: opts.setPlaybackWorkflow } : {}),
   });
   return { backend, player, saves, rate: () => rate };
 }
+
+/**
+ * Drives the player the way a backend does: `listen` plays for real seconds (the clock and the playhead both move, once a second as
+ * the apps' backend reports); `seek` moves the playhead without time passing; `wait` lets time pass without playing.
+ */
+function session(opts: { workflow?: PlayableItem["workflow"]; duration?: number | null; refuse?: boolean; gate?: () => Promise<void> } = {}) {
+  let time = 0;
+  const calls: { from: string; to: string; expected: number; started: number; session: string }[] = [];
+  const h = make({
+    playbackNow: () => time,
+    setPlaybackWorkflow: async (_id, from, to, playback) => {
+      calls.push({ from, to, expected: playback.expectedWorkflowRevision, started: playback.startedWorkflowRevision, session: playback.sessionId });
+      if (opts.gate) await opts.gate();
+      return opts.refuse ? { applied: false, workflowRevision: playback.expectedWorkflowRevision } : { applied: true, workflowRevision: playback.expectedWorkflowRevision + 1 };
+    },
+  });
+  const rate = () => h.player.getSnapshot().rate;
+  const state = () => h.backend.state();
+  const set = (patch: Partial<BackendState>) => h.backend.set({ ...state(), ...patch });
+  const api = {
+    ...h,
+    /** What the player asked to have changed so far (a copy: an assertion on it must not narrow what it is). */
+    sent: () => calls.slice(),
+    async open() {
+      await h.player.open(item({ workflow: opts.workflow ?? "toread", workflowRevision: 4 }));
+      h.player.setRate(1);
+      if (opts.duration !== undefined) set({ duration: opts.duration });
+    },
+    async listen(seconds: number) { for (let i = 0; i < seconds; i++) { time += 1000; set({ position: state().position + rate() }); await tick(); } },
+    async seek(to: number) { h.backend.seek(to); await tick(); },
+    async wait(seconds: number) { time += seconds * 1000; await tick(); },
+    async pause() { h.player.pause(); await tick(); },
+    async resume() { set({ ended: false }); await h.player.play(); await tick(); },
+    /** The file runs out. */
+    async end() { set({ playing: false, ended: true, position: state().duration ?? state().position }); await tick(); },
+  };
+  return api;
+}
+
+test("an item moves to In progress after 30 seconds of real playing, and not before", async () => {
+  const s = session();
+  await s.open();
+  await s.listen(29);
+  assert.deepEqual(s.sent(), []);
+  await s.listen(1);
+  assert.equal(s.sent().length, 1);
+  assert.deepEqual({ from: s.sent()[0]!.from, to: s.sent()[0]!.to, expected: s.sent()[0]!.expected, started: s.sent()[0]!.started }, { from: "toread", to: "inprogress", expected: 4, started: 4 });
+  await s.listen(60);
+  assert.equal(s.sent().length, 1, "only once");
+  await s.player.close();
+});
+
+test("the clock counts at the playing speed: 30 seconds of listening is 30 seconds, not 30 seconds of the recording", async () => {
+  const s = session();
+  await s.open();
+  s.player.setRate(2);
+  await s.listen(29);
+  assert.deepEqual(s.sent(), [], "29 seconds at double speed is 58 seconds of the recording, and still not 30 seconds of listening");
+  await s.listen(1);
+  assert.equal(s.sent().length, 1);
+  await s.player.close();
+});
+
+test("seeking is not listening, whichever way and however far", async () => {
+  const s = session();
+  await s.open();
+  await s.listen(10);
+  await s.seek(300); await s.seek(20); await s.seek(500); await s.seek(100);
+  s.player.forward(); s.player.forward(); s.player.back();
+  await tick();
+  assert.deepEqual(s.sent(), [], "jumping about adds nothing to the ten seconds played");
+  await s.listen(19);
+  assert.deepEqual(s.sent(), [], "29 seconds in all");
+  await s.listen(1);
+  assert.equal(s.sent().length, 1, "30 seconds in all, wherever the playhead was");
+  await s.player.close();
+});
+
+test("time paused, waiting for data or with the page frozen is not listening; pausing and resuming keeps what was played", async () => {
+  const s = session();
+  await s.open();
+  await s.listen(20);
+  await s.pause();
+  await s.wait(3600);
+  await s.resume();
+  await s.listen(9);
+  assert.deepEqual(s.sent(), [], "29 seconds played over an hour");
+  s.backend.set({ ...s.backend.state(), buffering: true });
+  await s.wait(120);
+  s.backend.set({ ...s.backend.state(), buffering: false });
+  await s.wait(120); // reported playing again, but the playhead stood still
+  assert.deepEqual(s.sent(), [], "a stall adds nothing either");
+  await s.listen(1);
+  assert.equal(s.sent().length, 1);
+  await s.player.close();
+});
+
+test("the last two minutes, or 95%, whichever comes first, finishes an item that is played there", async () => {
+  const s = session({ workflow: "inprogress" });
+  await s.open();
+  await s.seek(470);
+  await s.listen(5);
+  assert.deepEqual(s.sent(), [], "ten minutes long: the last two minutes start at 8:00, and this is before it");
+  await s.listen(10);
+  assert.deepEqual(s.sent().map((c) => c.to), ["finished"]);
+  assert.equal(s.sent()[0]!.from, "inprogress");
+  await s.listen(30);
+  assert.equal(s.sent().length, 1, "nothing more is sent once it is finished");
+  await s.player.close();
+
+  const long = session({ workflow: "inprogress", duration: 7200 });
+  await long.open();
+  await long.seek(6700);
+  await long.listen(60);
+  assert.deepEqual(long.sent(), [], "two hours long: 95% is 1:54:00 (6840 seconds), and this is before it");
+  await long.seek(6838);
+  await long.listen(2);
+  assert.deepEqual(long.sent(), [], "arriving at 95%");
+  await long.listen(3);
+  assert.deepEqual(long.sent().map((c) => c.to), ["finished"]);
+  await long.player.close();
+});
+
+test("a seek to the end does not finish an item; playing there does", async () => {
+  const jumped = session({ workflow: "inprogress" });
+  await jumped.open();
+  await jumped.seek(590);
+  await jumped.seek(599);
+  await jumped.end();
+  assert.deepEqual(jumped.sent(), [], "jumping to the end and reaching it with no listening is not finishing");
+  await jumped.player.close();
+
+  const scrubbed = session({ workflow: "inprogress" });
+  await scrubbed.open();
+  await scrubbed.seek(560);
+  await scrubbed.pause();
+  await scrubbed.seek(595);
+  await scrubbed.resume();
+  await scrubbed.listen(2);
+  assert.deepEqual(scrubbed.sent(), [], "two seconds is a glance, not listening");
+  await scrubbed.listen(1);
+  assert.deepEqual(scrubbed.sent().map((c) => c.to), ["finished"]);
+  await scrubbed.player.close();
+
+  const rest = session({ workflow: "inprogress" });
+  await rest.open();
+  await rest.seek(598);
+  await rest.listen(1);
+  await rest.end();
+  assert.deepEqual(rest.sent().map((c) => c.to), ["finished"], "playing into the end of the file finishes it, even from the last second or two");
+  await rest.player.close();
+});
+
+test("an item that is New or To listen can be finished without ever being In progress, and a short item is not finished at its start", async () => {
+  const s = session({ workflow: "new" });
+  await s.open();
+  await s.seek(540);
+  await s.listen(4);
+  assert.deepEqual(s.sent().map((c) => `${c.from}>${c.to}`), ["new>finished"], "played into the end after under 30 seconds: finished, in one step");
+  await s.player.close();
+
+  const clip = session({ workflow: "toread", duration: 90 });
+  await clip.open();
+  await clip.listen(30);
+  assert.deepEqual(clip.sent().map((c) => `${c.from}>${c.to}`), ["toread>inprogress"], "ninety seconds is all of it within the last two minutes, but it is not finished 30 seconds in");
+  await clip.listen(15);
+  assert.deepEqual(clip.sent().map((c) => c.to), ["inprogress"], "halfway");
+  await clip.listen(3);
+  assert.deepEqual(clip.sent().map((c) => c.to), ["inprogress", "finished"], "and three seconds on");
+  assert.deepEqual(clip.sent().map((c) => c.expected), [4, 5], "the second step is made against the first one's result");
+  assert.equal(clip.sent()[0]!.session, clip.sent()[1]!.session);
+  await clip.player.close();
+});
+
+test("with no known length it moves to In progress, and is Finished only by playing into the end of the file", async () => {
+  const jumped = session({ duration: null });
+  await jumped.open();
+  await jumped.listen(30);
+  assert.deepEqual(jumped.sent().map((c) => c.to), ["inprogress"]);
+  await jumped.seek(100000);
+  await jumped.end();
+  assert.deepEqual(jumped.sent().map((c) => c.to), ["inprogress"], "a jump to the end is not finishing");
+  await jumped.player.close();
+
+  const played = session({ duration: null });
+  await played.open();
+  await played.listen(30);
+  await played.seek(5000);
+  await played.listen(60);
+  await played.end(); // the file runs out where the last report left the playhead
+  await played.end(); // and says so again
+  assert.deepEqual(played.sent().map((c) => c.to), ["inprogress", "finished"]);
+  await played.player.close();
+});
+
+test("the end reached while In progress is still being saved finishes the item once that answer comes, however often the end is reported", async () => {
+  let open: (() => void) | null = null;
+  let held = true;
+  const s = session({ duration: null, gate: () => (held ? new Promise<void>((r) => { open = r; }) : Promise.resolve()) });
+  await s.open();
+  await s.listen(31); // In progress is sent and waits for its answer
+  assert.deepEqual(s.sent().map((c) => c.to), ["inprogress"]);
+  await s.listen(5);
+  await s.end();
+  await s.end();
+  await s.end();
+  held = false;
+  open!();
+  for (let i = 0; i < 5; i++) await tick();
+  assert.deepEqual(s.sent().map((c) => c.to), ["inprogress", "finished"]);
+  await s.player.close();
+});
+
+test("Ignored and Finished items are left alone, and an item already In progress only ever finishes", async () => {
+  for (const workflow of ["ignored", "finished"] as const) {
+    const s = session({ workflow });
+    await s.open();
+    await s.listen(40);
+    await s.seek(560);
+    await s.listen(10);
+    assert.deepEqual(s.sent(), [], workflow);
+    await s.player.close();
+  }
+  const s = session({ workflow: "inprogress" });
+  await s.open();
+  await s.listen(120);
+  assert.deepEqual(s.sent(), [], "listening to an item that is already In progress changes nothing");
+  await s.player.close();
+});
+
+test("a state chosen by hand during playback ends the session, here or, through the server's refusal, on another device", async () => {
+  const here = session();
+  await here.open();
+  await here.listen(20);
+  noteManualWorkflowChange("itm_1");
+  await here.listen(60);
+  await here.seek(560);
+  await here.listen(10);
+  assert.deepEqual(here.sent(), [], "choosing a state by hand, even the one it has, is the person's call");
+  await here.player.close();
+
+  const s = session();
+  await s.open();
+  noteManualWorkflowChange("itm_2"); // another item's change is none of its business
+  await s.listen(30);
+  assert.equal(s.sent().length, 1);
+  await s.player.close();
+
+  const elsewhere = session({ refuse: true });
+  await elsewhere.open();
+  await elsewhere.listen(30);
+  assert.equal(elsewhere.sent().length, 1, "refused: the workflow was changed elsewhere");
+  await elsewhere.listen(60);
+  await elsewhere.seek(560);
+  await elsewhere.listen(10);
+  assert.equal(elsewhere.sent().length, 1, "and playback does not try again");
+  await elsewhere.player.close();
+});
+
+test("a session belongs to one item in the player: another item, or closing, starts again from nothing", async () => {
+  const s = session();
+  await s.open();
+  await s.listen(25);
+  await s.player.close();
+  await s.player.open(item({ id: "itm_2", workflow: "toread", workflowRevision: 1 }));
+  await s.listen(25);
+  assert.deepEqual(s.sent(), [], "25 seconds of one and 25 of another is not 30 of either");
+  await s.listen(5);
+  assert.deepEqual(s.sent().map((c) => c.expected), [1]);
+  await s.player.close();
+});
 
 test("opening an item plays the publisher's file from where it was left, at the device's speed", async () => {
   const { backend, player } = make();

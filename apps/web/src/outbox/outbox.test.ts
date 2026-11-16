@@ -12,16 +12,16 @@ type Fail = { status: number; code: string; message: string };
 const offline: Fail = { status: 0, code: "offline", message: "Can't reach PURSS right now." };
 const conflict: Fail = { status: 409, code: "conflict", message: "This item changed in another tab or device." };
 
-function dto(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = []): ItemDTO {
+function dto(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = [], workflowRevision = 0, playbackWorkflowSessionId: string | null = null): ItemDTO {
   return {
     id, number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow, revision, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }
 
 /** A PURSS in a box: items with a workflow and a revision, a log of requests, and failures to inject. */
 class Fake {
-  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; fresh: boolean }>();
+  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; fresh: boolean; workflowRevision: number; session: string | null }>();
   /** Requests to hold back: `keep <item>` waits for the promise before it is answered (it has been received, and counts in the log). */
   holds = new Map<string, Promise<void>>();
   log: string[] = [];
@@ -30,7 +30,7 @@ class Fake {
   down = false;
   /** Runs when an item is read, before the request is answered: a test holds the read open here, or makes it fail. */
   beforeRead?: (id: string) => Promise<void>;
-  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), fresh: true }); }
+  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), fresh: true, workflowRevision: 0, session: null }); }
   private gate(call: string): void {
     this.log.push(call);
     if (this.down) throw offline;
@@ -42,14 +42,19 @@ class Fake {
   }
   applyHidden = false;
   sender: Sender = {
-    workflow: async (id, workflow, expectedRevision) => {
-      const hidden = () => { const it = this.items.get(id)!; it.workflow = workflow; it.revision += 1; };
+    workflow: async (id, workflow, expectedRevision, playback) => {
+      const hidden = () => { const it = this.items.get(id)!; it.workflow = workflow; it.revision += 1; it.workflowRevision += 1; it.session = playback?.sessionId ?? null; };
       try { this.gate(`workflow ${id} ${workflow} @${expectedRevision}`); } catch (err) { if (this.applyHidden) { this.applyHidden = false; hidden(); } throw err; }
       const it = this.items.get(id);
       if (!it) throw { status: 404, code: "not_found", message: "That item wasn't found." } satisfies Fail;
-      if (it.revision !== expectedRevision) throw conflict;
+      if (playback) {
+        // PURSS's rule for the player's own changes (changeState): only if nothing moved the workflow since playback started or since the session's last step.
+        const chain = it.workflowRevision === playback.expectedWorkflowRevision && (it.workflowRevision === playback.startedWorkflowRevision || it.session === playback.sessionId);
+        const forward = workflow === "inprogress" ? it.workflow === "new" || it.workflow === "toread" : it.workflow === "new" || it.workflow === "toread" || it.workflow === "inprogress";
+        if (!chain || !forward) throw conflict;
+      } else if (it.revision !== expectedRevision) throw conflict;
       hidden();
-      return { item: dto(id, it.workflow, it.revision, [...it.baskets]), undoToken: `und_${id}_${it.revision}` };
+      return { item: dto(id, it.workflow, it.revision, [...it.baskets], it.workflowRevision, it.session), undoToken: `und_${id}_${it.revision}` };
     },
     keep: async (id, basketId, on) => {
       this.gate(`${on ? "keep" : "unkeep"} ${id} ${basketId}`);
@@ -70,7 +75,7 @@ class Fake {
       this.gate(`get ${id}`);
       const it = this.items.get(id);
       if (!it) throw { status: 404, code: "not_found", message: "That item wasn't found." } satisfies Fail;
-      return { workflow: it.workflow, revision: it.revision };
+      return { workflow: it.workflow, revision: it.revision, workflowRevision: it.workflowRevision, playbackWorkflowSessionId: it.session };
     },
   };
 }
@@ -914,4 +919,68 @@ test("a write made elsewhere is still caught behind a kept Undo: the Undo does n
   assert.deepEqual(fake.log, ["get a", "workflow a finished @0", "get a"], "nothing was written by the Undo, so nothing was rebased");
   assert.equal(fake.items.get("a")!.workflow, "ignored");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "dropped"]);
+});
+
+// ---------- the player's own changes ----------
+
+const playback = (itemId: string, to: "inprogress" | "finished", expectedWorkflowRevision: number, from: WorkflowState = "new") =>
+  ({ kind: "workflow", itemId, from, to, revision: 5, playback: { sessionId: "play-1", expectedWorkflowRevision, startedWorkflowRevision: 0 } }) as const;
+
+test("the player's changes made without a connection are kept, shown meanwhile, and sent in order when it is back", async () => {
+  const fake = new Fake({ a: "new" });
+  fake.down = true;
+  const { outbox, seen } = make(fake);
+  assert.equal((await outbox.submit(playback("a", "inprogress", 0))).status, "deferred");
+  assert.equal((await outbox.submit(playback("a", "finished", 1, "inprogress"))).status, "deferred");
+  await outbox.settled();
+  const shown = outbox.overlay([dto("a", "new", 5)])[0]!;
+  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId], ["finished", 2, "play-1"], "what PURSS will have once they are sent");
+  assert.equal(fake.items.get("a")!.workflow, "new");
+  fake.down = false; fake.log.length = 0;
+  outbox.resume();
+  await outbox.drain();
+  assert.deepEqual(fake.log, ["workflow a inprogress @5", "workflow a finished @6"], "the second waits for the first, then goes on the revision it produced, as any change queued behind another");
+  assert.equal(fake.items.get("a")!.workflow, "finished");
+  assert.deepEqual(seen.map((o) => o.status), ["sent", "sent"]);
+  assert.equal(outbox.pendingCount(), 0);
+});
+
+test("a state set by hand elsewhere while the player's changes waited is kept: they are dropped, and the person's choice stands", async () => {
+  const fake = new Fake({ a: "new" });
+  fake.down = true;
+  const { outbox, seen } = make(fake);
+  await outbox.submit(playback("a", "inprogress", 0));
+  await outbox.submit(playback("a", "finished", 1, "inprogress"));
+  await outbox.settled();
+  Object.assign(fake.items.get("a")!, { workflow: "toread", revision: 6, workflowRevision: 1, session: null }); // on another device, by hand
+  fake.down = false;
+  outbox.resume();
+  await outbox.drain();
+  assert.equal(fake.items.get("a")!.workflow, "toread");
+  assert.deepEqual(seen.map((o) => (o.status === "dropped" ? o.reason : o.status)), ["conflict", "conflict"]);
+  assert.equal(outbox.pendingCount(), 0);
+});
+
+test("the same state set by hand is not taken for the player's own change, but its own change whose answer was lost is", async () => {
+  const lost = new Fake({ a: "new" });
+  lost.failures.push({ when: (c) => c.startsWith("workflow a inprogress"), error: offline, applied: true });
+  const first = make(lost);
+  assert.equal((await first.outbox.submit(playback("a", "inprogress", 0))).status, "deferred");
+  await first.outbox.settled();
+  assert.equal(lost.items.get("a")!.workflow, "inprogress", "PURSS has it");
+  lost.log.length = 0;
+  await first.outbox.drain();
+  assert.deepEqual(lost.log, ["workflow a inprogress @5", "get a"]);
+  assert.deepEqual(first.seen.map((o) => (o.status === "sent" && o.result.kind === "workflow" ? o.result.item : o.status)), [null], "already made by this session: nothing more to do or say");
+
+  const byHand = new Fake({ a: "new" });
+  byHand.down = true;
+  const second = make(byHand);
+  await second.outbox.submit(playback("a", "inprogress", 0));
+  await second.outbox.settled();
+  Object.assign(byHand.items.get("a")!, { workflow: "inprogress", revision: 6, workflowRevision: 1, session: null });
+  byHand.down = false;
+  second.outbox.resume();
+  await second.outbox.drain();
+  assert.deepEqual(second.seen.map((o) => o.status), ["dropped"], "In progress, but chosen by the person: theirs");
 });

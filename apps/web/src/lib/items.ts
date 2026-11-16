@@ -72,8 +72,8 @@ export function isNewerCopy(a: Pick<ItemDTO, "stateVersion">, b: Pick<ItemDTO, "
  */
 export function withNewerState<T extends ItemDTO>(next: T, known: ItemDTO | undefined): T {
   if (!known || known.id !== next.id || !isNewerCopy(known, next)) return next;
-  const { workflow, revision, stateVersion, fresh, progress, opened, basketIds } = known;
-  return { ...next, workflow, revision, stateVersion, fresh, progress, opened, basketIds };
+  const { workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, fresh, progress, opened, basketIds } = known;
+  return { ...next, workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, fresh, progress, opened, basketIds };
 }
 
 /** Whether a change took an item's New marker away (PURSS does that when an item is opened or anything is done with it). */

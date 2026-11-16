@@ -69,7 +69,7 @@ test("settings read back field by field, with the defaults for anything damaged"
 
 const item = (media: ItemDTO["media"]): ItemDTO => ({
   id: "itm_1", number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", kind: "podcast", title: "One", url: null, author: null, excerpt: null, imageUrl: null,
-  durationSeconds: 600, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, stateVersion: 1,
+  durationSeconds: 600, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1,
   fresh: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media, annotatedAt: null,
 });
 test("a publisher's file over plain http is never a candidate", () => {

@@ -3,6 +3,8 @@ import { Button, Icon } from "@purss/ui";
 import { clock, resumePoint } from "./logic.ts";
 import { usePlayer } from "./PlayerProvider.tsx";
 import { useDownload } from "../downloads/hooks.ts";
+import { useFace } from "../components/item-bits.tsx";
+import { itemPicture } from "../lib/items.ts";
 
 /**
  * An item's audio or video: play it here, from the download on this device when there is one (the apps)
@@ -19,10 +21,12 @@ export function MediaSection({ item }: { item: ItemDetail & { media: ItemMedia }
   const playback = player.positionFor(item.id, item.playback);
   const resume = resumePoint(playback);
   const word = media.kind === "video" ? "Watch" : "Listen";
+  // An episode without its own picture plays with the show's art, as in its row and card.
+  const art = itemPicture(item, useFace(item).iconUrl);
 
   const play = () => {
     if (current) player.toggle();
-    else void player.open({ id: item.id, title: item.title, sourceTitle: item.sourceTitle, imageUrl: item.imageUrl, media, playback: item.playback });
+    else void player.open({ id: item.id, title: item.title, sourceTitle: item.sourceTitle, imageUrl: art, media, playback: item.playback, workflow: item.workflow, workflowRevision: item.workflowRevision });
   };
 
   return (

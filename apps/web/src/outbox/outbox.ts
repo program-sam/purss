@@ -10,11 +10,11 @@ export type Store = {
 };
 
 /** What PURSS holds about an item when a conflict is checked. */
-export type ServerWorkflow = { workflow: WorkflowState; revision: number };
+export type ServerWorkflow = { workflow: WorkflowState; revision: number; workflowRevision: number; playbackWorkflowSessionId: string | null };
 
 /** The requests the outbox makes; each throws the API client's error when PURSS does not answer or refuses. */
 export type Sender = {
-  workflow(itemId: string, workflow: WorkflowState, expectedRevision: number): Promise<{ item: ItemDTO; undoToken: string }>;
+  workflow(itemId: string, workflow: WorkflowState, expectedRevision: number, playback?: Extract<Change, { kind: "workflow" }>['playback']): Promise<{ item: ItemDTO; undoToken: string }>;
   keep(itemId: string, basketId: string, on: boolean): Promise<{ item: ItemDTO; undoToken: string; captureNote: string | null }>;
   clearFresh(itemIds: string[]): Promise<{ changed: number; undoToken: string | null }>;
   /** PURSS's current workflow and revision for an item. */
@@ -504,7 +504,7 @@ export class Outbox {
    */
   private async sendWorkflow(entry: Entry & { kind: "workflow" }): Promise<Result> {
     try {
-      const out = await this.sender.workflow(entry.itemId, entry.to, entry.revision);
+      const out = await this.sender.workflow(entry.itemId, entry.to, entry.revision, entry.playback);
       this.noteOwnWrite(entry.itemId, entry.revision, out.item.revision);
       return { kind: "workflow", item: out.item, undoToken: out.undoToken };
     } catch (err) {

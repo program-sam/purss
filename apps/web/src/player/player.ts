@@ -1,8 +1,12 @@
-import type { ItemMedia, PlaybackPosition } from "@purss/domain";
+import type { ItemMedia, PlaybackPosition, WorkflowState } from "@purss/domain";
 import type { BackendState, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
 import type { LateStore } from "../lib/late-writes.ts";
-import { RATES, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, resumePoint, shouldSave } from "./logic.ts";
+import { IN_PROGRESS_AFTER_SECONDS, RATES, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, canPlaybackMove, canPlaybackStart, resumePoint, shouldSave } from "./logic.ts";
+import { PlaybackTally } from "./tally.ts";
+import { newPlaybackSessionId } from "../outbox/entries.ts";
+import type { PlaybackWorkflow } from "../outbox/entries.ts";
+import { onManualWorkflowChange } from "../state/workflow-intent.ts";
 
 /**
  * The player controller: what is playing, from where, at what speed, and keeping its position on
@@ -16,7 +20,7 @@ import { RATES, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, resumePoint, shouldSave
  * position and one kept here.
  */
 
-export type PlayableItem = { id: string; title: string; sourceTitle: string; imageUrl: string | null; media: ItemMedia; playback: PlaybackPosition | null };
+export type PlayableItem = { id: string; title: string; sourceTitle: string; imageUrl: string | null; media: ItemMedia; playback: PlaybackPosition | null; workflow: WorkflowState; workflowRevision: number };
 
 /** Where it plays from: the publisher's file, or a download on this device (the apps). The server keeps no media files. */
 export type NowPlaying = { itemId: string; title: string; sourceTitle: string; imageUrl: string | null; kind: "audio" | "video"; from: "publisher" | "device" };
@@ -26,6 +30,17 @@ export type PlayerSnapshot = { now: NowPlaying | null; state: BackendState; rate
 
 /** A position recorded on this device that the server may not have yet. `recordedAt`: ISO time on this device. */
 export type PendingPosition = { positionSeconds: number; durationSeconds: number | null; recordedAt: string };
+
+type WorkflowSession = {
+  itemId: string;
+  sessionId: string;
+  workflow: WorkflowState;
+  expectedWorkflowRevision: number;
+  startedWorkflowRevision: number;
+  tally: PlaybackTally;
+  cancelled: boolean;
+  stopManualWatch: () => void;
+};
 
 export type PlayerDeps = {
   backend: PlayerBackend;
@@ -37,6 +52,10 @@ export type PlayerDeps = {
   deviceCopy?: (itemId: string) => Promise<string | null>;
   /** Speed is a choice for this device. */
   rateStore?: { get(): number | null; set(rate: number): void };
+  /** Moves an item's workflow for the player: shown at once, kept on this device and sent like any state change, without a message. `applied` is false when the person or another device changed the workflow first. */
+  setPlaybackWorkflow?: (itemId: string, from: WorkflowState, to: "inprogress" | "finished", playback: PlaybackWorkflow) => Promise<{ applied: boolean; workflowRevision: number }>;
+  /** A monotonic clock in milliseconds, for counting the time actually spent playing. */
+  playbackNow?: () => number;
   now?: () => number;
 };
 
@@ -44,6 +63,7 @@ export class Player {
   readonly backend: PlayerBackend;
   #deps: PlayerDeps;
   #now: () => number;
+  #playbackNow: () => number;
   #listeners = new Set<() => void>();
   #current: NowPlaying | null = null;
   #rate: number;
@@ -56,11 +76,15 @@ export class Player {
   #sending: Promise<void> | null = null;
   #sleepAt: number | null = null;
   #sleepTimer: ReturnType<typeof setTimeout> | null = null;
+  #workflowSession: WorkflowSession | null = null;
+  #workflowRunning = false;
+  #workflowCheckPending = false;
 
   constructor(deps: PlayerDeps) {
     this.#deps = deps;
     this.backend = deps.backend;
     this.#now = deps.now ?? Date.now;
+    this.#playbackNow = deps.playbackNow ?? (() => typeof performance !== "undefined" ? performance.now() : Date.now());
     const stored = deps.rateStore?.get() ?? null;
     this.#rate = stored !== null && (RATES as readonly number[]).includes(stored) ? stored : 1;
     this.#snapshot = { now: null, state: IDLE_STATE, rate: this.#rate, error: null, sleepAt: null };
@@ -83,6 +107,7 @@ export class Player {
     // Timers may run late in the background, so every report from the backend also checks the sleep timer.
     this.#checkSleep();
     const s = this.backend.state();
+    this.#workflowSession?.tally.report(s, this.#playbackNow(), this.#rate);
     if (this.#current && s.failed && !this.#error) {
       this.#error = this.#current.from === "device"
         ? "The download on this device couldn't be played. Remove it and download it again."
@@ -93,7 +118,75 @@ export class Player {
     this.#wasPlaying = s.playing;
     if (stopped) void this.flush();
     else if (s.playing) void this.#save(false, false);
+    this.#requestWorkflowCheck();
     this.#emit();
+  }
+
+  #requestWorkflowCheck(): void {
+    if (!this.#deps.setPlaybackWorkflow) return;
+    if (this.#workflowRunning) { this.#workflowCheckPending = true; return; }
+    this.#workflowRunning = true;
+    void this.#advanceWorkflow().finally(() => {
+      this.#workflowRunning = false;
+      if (this.#workflowCheckPending) {
+        this.#workflowCheckPending = false;
+        this.#requestWorkflowCheck();
+      }
+    });
+  }
+
+  /**
+   * In progress after IN_PROGRESS_AFTER_SECONDS of real playing, Finished once playing has gone on in the end of the item (see
+   * playbackFinishPoint and PlaybackTally). Each step is sent when it is reached and the next waits for its answer. A refusal,
+   * which is how a state set by hand elsewhere shows up, ends the session: nothing more is changed by this playback.
+   */
+  async #advanceWorkflow(): Promise<void> {
+    const session = this.#workflowSession;
+    if (!session || session.cancelled || !this.#deps.setPlaybackWorkflow) return;
+    for (;;) {
+      if (this.#workflowSession !== session || session.cancelled) return;
+      let target: "inprogress" | "finished" | null = null;
+      if (session.tally.playedToTheEnd(this.backend.state())) target = "finished";
+      else if (canPlaybackStart(session.workflow) && session.tally.played >= IN_PROGRESS_AFTER_SECONDS) target = "inprogress";
+      if (!target) return;
+
+      let result: { applied: boolean; workflowRevision: number };
+      try {
+        result = await this.#deps.setPlaybackWorkflow(session.itemId, session.workflow, target, {
+          sessionId: session.sessionId,
+          expectedWorkflowRevision: session.expectedWorkflowRevision,
+          startedWorkflowRevision: session.startedWorkflowRevision,
+        });
+      } catch {
+        if (this.#workflowSession === session) this.#stopWorkflowSession();
+        return;
+      }
+      if (this.#workflowSession !== session || session.cancelled) return;
+      if (!result.applied || target === "finished") { this.#stopWorkflowSession(); return; }
+      session.workflow = target;
+      session.expectedWorkflowRevision = result.workflowRevision;
+    }
+  }
+
+  #stopWorkflowSession(): void {
+    const session = this.#workflowSession;
+    if (!session) return;
+    session.cancelled = true;
+    session.stopManualWatch();
+    this.#workflowSession = null;
+  }
+
+  #startWorkflowSession(item: PlayableItem): void {
+    this.#stopWorkflowSession();
+    if (!this.#deps.setPlaybackWorkflow || !canPlaybackMove(item.workflow)) return;
+    const session: WorkflowSession = {
+      itemId: item.id, sessionId: newPlaybackSessionId(), workflow: item.workflow,
+      expectedWorkflowRevision: item.workflowRevision, startedWorkflowRevision: item.workflowRevision,
+      tally: new PlaybackTally(), cancelled: false, stopManualWatch: () => {},
+    };
+    // Choosing a state by hand, here, ends the session; a state set on another device is caught by the server (see changeState).
+    session.stopManualWatch = onManualWorkflowChange((itemId) => { if (itemId === session.itemId) this.#stopWorkflowSession(); });
+    this.#workflowSession = session;
   }
 
   /** Where positions not yet on the server are kept: this device's store for the signed-in account. Sends what it holds. */
@@ -145,6 +238,7 @@ export class Player {
   /** Load an item's media and play it from where it was left (on any device). */
   async open(item: PlayableItem, opts: { autoplay?: boolean } = {}): Promise<void> {
     if (this.#current?.itemId === item.id) { if (opts.autoplay !== false) await this.backend.play(); return; }
+    this.#stopWorkflowSession();
     await this.flush();
     const token = ++this.#opening;
     const local = (await this.#deps.deviceCopy?.(item.id).catch(() => null)) ?? null;
@@ -159,6 +253,7 @@ export class Player {
       return;
     }
     this.#current = { itemId: item.id, title: item.title, sourceTitle: item.sourceTitle, imageUrl: item.imageUrl, kind: item.media.kind, from };
+    this.#startWorkflowSession(item);
     const playback = this.positionFor(item.id, item.playback);
     const startAt = resumePoint(playback);
     // Counted as saved where playback starts, so opening and closing without playing doesn't move the position back.
@@ -206,6 +301,7 @@ export class Player {
   /** Stop, keep the position, and empty the player. */
   async close(): Promise<void> {
     if (this.#sleepAt !== null) this.setSleepTimer(null);
+    this.#stopWorkflowSession();
     await this.flush();
     this.#opening++;
     this.#current = null;

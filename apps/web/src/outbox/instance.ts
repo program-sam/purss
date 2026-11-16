@@ -12,8 +12,15 @@ const TIMEOUT_MS = 20_000;
 const signal = () => (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(TIMEOUT_MS) : undefined);
 
 const sender: Sender = {
-  workflow: (itemId, workflow, expectedRevision) =>
-    api<StateChangeResult>(`/api/items/${enc(itemId)}/state`, { method: "PATCH", body: { workflow, expectedRevision }, signal: signal() }),
+  workflow: (itemId, workflow, expectedRevision, playback) =>
+    api<StateChangeResult>(`/api/items/${enc(itemId)}/state`, { method: "PATCH", body: {
+      workflow, expectedRevision,
+      ...(playback ? {
+        expectedWorkflowRevision: playback.expectedWorkflowRevision,
+        playbackSessionId: playback.sessionId,
+        playbackStartedWorkflowRevision: playback.startedWorkflowRevision,
+      } : {}),
+    }, signal: signal() }),
   keep: (itemId, basketId, on) => {
     const path = `/api/items/${enc(itemId)}/baskets/${enc(basketId)}`;
     return api<KeepResult>(path, { method: on ? "PUT" : "DELETE", body: on ? {} : undefined, signal: signal() });
@@ -22,7 +29,7 @@ const sender: Sender = {
   // A saved copy of the item would show a workflow that may be out of date: only PURSS's own answer counts.
   workflowOf: async (itemId) => {
     const item = await api<ItemDTO>(`/api/items/${enc(itemId)}`, { signal: signal(), live: true });
-    return { workflow: item.workflow, revision: item.revision };
+    return { workflow: item.workflow, revision: item.revision, workflowRevision: item.workflowRevision, playbackWorkflowSessionId: item.playbackWorkflowSessionId };
   },
 };
 

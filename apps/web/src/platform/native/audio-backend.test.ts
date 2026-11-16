@@ -169,7 +169,7 @@ test("with the system player: a position reached offline and paused from the loc
   });
   player.setPendingStore(lateStore("playback", "acc_1", storage));
   const media = { url: "https://cdn.example.org/a.mp3", kind: "audio" as const, type: "audio/mpeg", length: null };
-  await player.open({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: null, media, playback: { positionSeconds: 221, durationSeconds: 300, updatedAt: "2026-11-06T10:00:00.000Z" } });
+  await player.open({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: null, media, playback: { positionSeconds: 221, durationSeconds: 300, updatedAt: "2026-11-06T10:00:00.000Z" }, workflow: "toread", workflowRevision: 0 });
   await settle();
   f.cb.ready!();
   await settle();

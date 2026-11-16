@@ -6,7 +6,7 @@ import type { Entry } from "./entries.ts";
 
 const item: ItemDTO = {
   id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 3, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: ["bkt_1"], curatorNote: null, media: null, annotatedAt: null,
 };
 const base = { id: "e", installation: "https://purss.test", accountId: "acc", seq: 1, createdAt: "2026-11-03T08:00:00Z", attempts: 0, notBefore: 0 };
@@ -16,6 +16,15 @@ test("after a conflict the item is read: it already has the target workflow, or 
   assert.equal(judgeConflict({ to: "toread" }, { workflow: "finished" }), "drop");
   // The workflow the change started from plays no part: an item that went new, finished, new elsewhere is still dropped.
   assert.equal(judgeConflict({ to: "toread" }, { workflow: "new" }), "drop");
+});
+
+test("a queued change of the player's counts as made only when it is that change that is there", () => {
+  const change = { to: "inprogress" as const, playback: { sessionId: "play-1", expectedWorkflowRevision: 4 } };
+  assert.equal(judgeConflict(change, { workflow: "inprogress", workflowRevision: 5, playbackWorkflowSessionId: "play-1" }), "done");
+  assert.equal(judgeConflict(change, { workflow: "inprogress", workflowRevision: 5, playbackWorkflowSessionId: null }), "drop", "the same state chosen by hand is the person's");
+  assert.equal(judgeConflict(change, { workflow: "inprogress", workflowRevision: 5, playbackWorkflowSessionId: "play-2" }), "drop", "or another session's");
+  assert.equal(judgeConflict(change, { workflow: "inprogress", workflowRevision: 6, playbackWorkflowSessionId: "play-1" }), "drop", "a later change by hand wins");
+  assert.equal(judgeConflict(change, { workflow: "toread", workflowRevision: 5, playbackWorkflowSessionId: null }), "drop");
 });
 
 test("an entry is filed under its installation and account", () => {
@@ -37,9 +46,21 @@ test("pending changes are shown on an item in the order they were made", () => {
   assert.equal(out.workflow, "finished");
   assert.deepEqual(out.basketIds, ["bkt_2"]);
   assert.equal(out.fresh, false);
+  assert.equal(out.workflowRevision, 2, "each pending workflow change moves the workflow revision, as PURSS will");
+  assert.equal(out.playbackWorkflowSessionId, null, "a change by hand has no playback session");
   assert.equal(out.revision, 3, "the revision is PURSS's to move");
   assert.equal(overlayItem(item, []), item);
 });
+
+test("the player's pending changes are shown with their session, and a change by hand after them takes it away", () => {
+  const playback = { sessionId: "play-1", expectedWorkflowRevision: 0, startedWorkflowRevision: 0 };
+  const own: Entry = { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "new", to: "inprogress", revision: 3, playback };
+  const shown = overlayItem(item, [own]);
+  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId, shown.fresh], ["inprogress", 1, "play-1", true]);
+  const byHand = overlayItem(item, [own, { ...base, seq: 2, kind: "workflow", itemId: "itm_a", from: "inprogress", to: "ignored", revision: 3 }]);
+  assert.deepEqual([byHand.workflow, byHand.workflowRevision, byHand.playbackWorkflowSessionId], ["ignored", 2, null]);
+});
+
 
 test("an item pending removal from a basket is hidden from that basket's page until it is sent", () => {
   const entries: Entry[] = [

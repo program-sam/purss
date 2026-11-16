@@ -8,7 +8,7 @@ import type { Outcome } from "./outbox.ts";
 function item(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = []): ItemDTO {
   return {
     id, number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow, revision, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }
 const entry = (id: string): Entry => ({ kind: "workflow", itemId: id, from: "new", to: "toread", revision: 1, id: `ent_${id}`, installation: "x", accountId: "acc", seq: 1, createdAt: "", attempts: 0, notBefore: 0 });

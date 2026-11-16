@@ -3,7 +3,8 @@
 // publisher's own address (here a browser-side stand-in, since the page may only play https files), the mini-player
 // keeps playing while moving around, pausing saves the position on the server, a reload offers to resume, speed is
 // remembered, the sleep timer can be set and turned off, the player can be made smaller, an unreachable publisher file fails plainly, and nothing offers to save or download the file on
-// the server or, in a browser, to this device. Media folders left by an earlier version are removed at start.
+// the server or, in a browser, to this device, and playing moves an episode to In progress and Finished by itself, quietly,
+// and only for real playing: jumping to the end is not finishing. Media folders left by an earlier version are removed at start.
 // Run: node tests/acceptance/media.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -27,6 +28,7 @@ const webDist = path.join(work, "dist");
 const PORT = 19960;
 const INTERNAL = 19968;
 const FORECAST = "https://cdn.example.invalid/forecast.wav";
+const SERIAL = "https://cdn.example.invalid/serial.wav";
 const origin = `http://localhost:${PORT}`;
 const env: NodeJS.ProcessEnv = {
   ...process.env, PURSS_DATA_DIR: dataDir, PURSS_PORT: String(PORT), PURSS_INTERNAL_PORT: String(INTERNAL),
@@ -45,6 +47,8 @@ function silentWav(seconds = 30, rate = 8000): Buffer {
   return Buffer.concat([h, data]);
 }
 const WAV = silentWav();
+/** Two and a half minutes: long enough that 30 seconds of playing is not near its end, which starts at 1:15 (half way, the earlier of 95% and the last two minutes being earlier still). */
+const SERIAL_WAV = silentWav(150);
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -69,7 +73,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-/** A podcast source with two episodes; the publisher's addresses are unreachable on purpose. */
+/** A podcast source with three episodes; the publisher's addresses are unreachable on purpose. */
 function prepare(): { sourceId: string } {
   const app = createApp(loadConfig(env as Record<string, string>));
   try {
@@ -85,6 +89,7 @@ function prepare(): { sourceId: string } {
     applySyncBatch(app, eu.id, batch([
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),
+      entry("feed/1", { title: "Long wave serial", enclosures: [{ url: SERIAL, type: "audio/wav", length: SERIAL_WAV.length }] }),
     ]));
     return { sourceId };
   } finally {
@@ -110,21 +115,23 @@ async function openEpisode(page: Page, sourceId: string, title: string): Promise
 const itemDetail = async (page: Page, title: string) => {
   const list = await (await page.request.get(`${origin}/api/items?scope=all&filter=all&sort=newest`)).json() as { items: { id: string; title: string }[] };
   const id = list.items.find((i) => i.title === title)!.id;
-  return (await page.request.get(`${origin}/api/items/${id}`)).json() as Promise<{ id: string; playback: { positionSeconds: number } | null; media: Record<string, unknown> }>;
+  return (await page.request.get(`${origin}/api/items/${id}`)).json() as Promise<{ id: string; workflow: string; playback: { positionSeconds: number } | null; media: Record<string, unknown> }>;
 };
 
 let currentPage: Page | null = null;
 
-/** The publisher's file, answered in the browser (with the Range support players ask for), since the page may only play https files. */
+/** The publisher's files, answered in the browser (with the Range support players ask for), since the page may only play https files. */
 async function publisherServes(page: Page): Promise<void> {
-  await page.route(FORECAST, async (route) => {
-    const range = /^bytes=(\d*)-(\d*)$/.exec(route.request().headers().range ?? "");
-    const start = range?.[1] ? Number(range[1]) : 0;
-    const end = Math.min(range?.[2] ? Number(range[2]) : WAV.length - 1, WAV.length - 1);
-    await route.fulfill(range
-      ? { status: 206, body: WAV.subarray(start, end + 1), headers: { "content-type": "audio/wav", "accept-ranges": "bytes", "content-range": `bytes ${start}-${end}/${WAV.length}` } }
-      : { status: 200, body: WAV, headers: { "content-type": "audio/wav", "accept-ranges": "bytes" } });
-  });
+  for (const [url, wav] of [[FORECAST, WAV], [SERIAL, SERIAL_WAV]] as const) {
+    await page.route(url, async (route) => {
+      const range = /^bytes=(\d*)-(\d*)$/.exec(route.request().headers().range ?? "");
+      const start = range?.[1] ? Number(range[1]) : 0;
+      const end = Math.min(range?.[2] ? Number(range[2]) : wav.length - 1, wav.length - 1);
+      await route.fulfill(range
+        ? { status: 206, body: wav.subarray(start, end + 1), headers: { "content-type": "audio/wav", "accept-ranges": "bytes", "content-range": `bytes ${start}-${end}/${wav.length}` } }
+        : { status: 200, body: wav, headers: { "content-type": "audio/wav", "accept-ranges": "bytes" } });
+    });
+  }
 }
 
 async function main(): Promise<void> {
@@ -141,7 +148,7 @@ async function main(): Promise<void> {
   assert.equal(existsSync(path.join(dataDir, "media")), false, "the media folder an earlier version filled is removed when the API starts");
   const csp = (await fetch(`${origin}/app/`)).headers.get("content-security-policy") ?? "";
   assert.match(csp, /media-src https:;/, "the page may play publishers' https files, nothing else: PURSS serves none");
-  step("API started with a podcast source and two episodes; leftover media files were removed");
+  step("API started with a podcast source and three episodes; leftover media files were removed");
 
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   try {
@@ -229,6 +236,36 @@ async function main(): Promise<void> {
     await bar.getByRole("button", { name: "Close the player" }).click();
     await bar.waitFor({ state: "detached" });
     step("an unreachable publisher file says so plainly");
+
+    // Playing moves an episode through the states by itself: In progress after 30 seconds of real playing, Finished once it has
+    // played into its end, never for a jump to the end, and with no message.
+    const toasts = page.locator("#toasts");
+    await openEpisode(page, sourceId, "Long wave serial");
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new");
+    await page.getByRole("button", { name: "Listen", exact: true }).click();
+    const slider = bar.getByRole("slider", { name: "Position" });
+    await waitFor("playback to move", async () => Number(await slider.inputValue()) >= 2, 15_000);
+    await slider.focus();
+    await page.keyboard.press("End");
+    await bar.getByRole("button", { name: "Play", exact: true }).waitFor();
+    await new Promise((r) => setTimeout(r, 4000));
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new", "a jump to the end is not listening to it, and a few seconds are not 30");
+    step("jumping to the end of an episode changes nothing");
+
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await waitFor("the episode to be In progress", async () => (await itemDetail(page, "Long wave serial")).workflow === "inprogress", 60_000);
+    assert.equal(await toasts.innerText(), "", "the change is not announced");
+    step("after 30 seconds of playing the episode is In progress, without a message");
+
+    await slider.fill("140");
+    await waitFor("the episode to be Finished", async () => (await itemDetail(page, "Long wave serial")).workflow === "finished", 30_000);
+    assert.equal(await toasts.innerText(), "", "the change is not announced");
+    await bar.getByRole("button", { name: "Close the player" }).click();
+    await bar.waitFor({ state: "detached" });
+    await page.reload();
+    await openEpisode(page, sourceId, "Long wave serial");
+    await page.getByRole("button", { name: "State: Finished. Change state" }).waitFor();
+    step("playing into its end finishes it, and it is still Finished after a reload");
 
     // Rows and the source page offer no download or saving in a browser.
     await page.goto(`${origin}/app/s/${sourceId}`);

@@ -99,7 +99,8 @@ them on the Review page.
 
 **State.** Workflow, the New marker (`fresh`), reading progress, collection membership and basket membership
 are separate fields and tables. State changes carry `expectedRevision` (409 on conflict) and
-return an undo token (15 minutes). Opening an item or changing its workflow, progress or basket membership
+return an undo token (15 minutes). The player's own changes to In progress and Finished carry a playback session and the workflow
+revision instead (see [plan/25](../plan/25-media-playback.md)), so only a change to the workflow can refuse them. Opening an item or changing its workflow, progress or basket membership
 clears its New marker in the same change, and Undo restores it. Finished and Ignored are mirrored to FreshRSS as read
 through `engine.mark_read` jobs. Every workflow change (single, bulk, undo) also appends a row
 to `state_log` in the same transaction; the private statistics (`/api/stats/...`) read it and

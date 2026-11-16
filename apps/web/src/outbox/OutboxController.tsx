@@ -38,12 +38,13 @@ export function OutboxController() {
   useEffect(() => outbox.onOutcome((o) => {
     if (o.status === "deferred" || !o.late) return;
     const b = batch.current;
+    const quiet = o.entry.kind === "workflow" && !!o.entry.playback; // the player's own changes are never announced
     if (o.status === "sent") {
       const r = o.result;
-      if (!(r.kind === "undoWorkflow" && !r.item)) b.sent += 1; // an Undo with nothing left to undo says nothing
+      if (!quiet && !(r.kind === "undoWorkflow" && !r.item)) b.sent += 1; // an Undo with nothing left to undo says nothing
       if ((r.kind === "workflow" || r.kind === "undoWorkflow") && r.item) putItem(qc, r.item);
       if (r.kind === "keep") putItem(qc, r.item);
-    } else b.dropped.push({ reason: o.reason, message: o.message });
+    } else if (!quiet) b.dropped.push({ reason: o.reason, message: o.message });
     if (b.timer) clearTimeout(b.timer);
     b.timer = setTimeout(() => {
       b.timer = null;

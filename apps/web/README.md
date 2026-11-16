@@ -49,7 +49,9 @@ Shared tokens and primitives are in `packages/ui`.
   view, filter, sort and source chip as search parameters (`?item=…&view=board&filter=toread`).
   `?dialog=add|settings|security|…` opens a popup once and is then removed.
 - Every change that the API can reverse shows an Undo toast (`POST /api/undo`); item changes carry
-  `expectedRevision` and a 409 refreshes the item and says so.
+  `expectedRevision` and a 409 refreshes the item and says so. The player's own moves to In progress and
+  Finished (`player/player.ts`, `setPlaybackWorkflow` in `state/actions.ts`) are the exception: they carry a playback session
+  and the workflow revision, say nothing and have no Undo, and go through the same outbox.
 - Browser notifications are only requested from a button in Settings, only when the mode is
   "Browser alerts", and respect quiet hours and previews. Nothing is requested on load.
 - E-ink display is a per-device choice (`src/lib/display.ts`, saved in local storage like Sounds):
