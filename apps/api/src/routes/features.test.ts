@@ -179,7 +179,7 @@ test("an upload too big to check is refused by the worker checking it, and the A
   t.after(b.close);
   seedLibrary(b.app, b.owner);
   const doc = JSON.parse((await b.api("GET", "/api/export")).text);
-  doc.preferences = { junk: Array.from({ length: 400_000 }, (_, i) => ({ i })) };
+  doc.preferences = { junk: Array.from({ length: 1_500_000 }, (_, i) => ({ i })) }; // several times what a 32 MB heap holds: not near the edge, where a CI runner sometimes fit it in
   doc.manifest.sections.preferences = { count: 1, sha256: sha256Hex(JSON.stringify(doc.preferences)) };
   const file = path.join(b.app.config.dataDir, "big-upload.json");
   writeFileSync(file, JSON.stringify(doc));
