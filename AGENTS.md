@@ -14,7 +14,9 @@
 - Follow the owner's cross-check policy for consequential designs and implementation.
 - Do not copy T3 Code branding or application code; use it as a documented reference.
 - Do not execute arbitrary connector code or weaken SSRF controls for convenience.
-- Do not commit, push, merge, deploy, publish, or create releases without explicit approval.
+- Deploying: a push to `main` runs the "Test and deploy" workflow to https://purss.app; check
+  `gh run list --branch main` and start it with `gh workflow run deploy.yml --ref main` if no run
+  appears. Desktop, mobile, and extension store releases happen only when the owner asks.
 - Keep secrets, runtime data, downloaded articles, archives, and local output out of Git.
 - Mark planned behavior honestly; no fake endpoints, no-op services, or passing placeholder tests.
 - Verify changes with `npm run check` and `npm test`; run `npm run test:engine` and
