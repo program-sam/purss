@@ -58,7 +58,11 @@ export const webPlatform: Platform = {
   onOpen: () => () => {},
   onConnectReturn: () => () => {},
   notifier: browserNotifier,
-  badge: null,
+  // The Badging API: an installed web app's icon (Chromium on Windows, macOS and ChromeOS; Safari's home-screen apps once
+  // notifications are allowed). In a plain tab, or where the browser has none, it does nothing.
+  badge: typeof navigator !== "undefined" && "setAppBadge" in navigator
+    ? (count) => { void (count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => undefined); }
+    : null,
   onIntake: () => () => {},
   desktop: null,
   webView: null,

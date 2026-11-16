@@ -11,6 +11,7 @@ The design and what isn't built are in [plan/42](../../plan/42-desktop-app.md).
 | Path | What lives there |
 | --- | --- |
 | `src-tauri/src/lib.rs` | The app: its commands (every power the page has), the tray, closing to the tray, notifications, the badge, its own updates, starting at sign-in |
+| `src-tauri/src/taskbar.rs` | Windows: puts the new items' overlay back on the taskbar button whenever Windows makes it again |
 | `src-tauri/src/interfaces.rs` | The interface shown: built in, or downloaded from the PURSS; served from the app's own origin; rollback |
 | `src-tauri/src/files.rs` | Downloads as files in `PURSS` in a folder the person chooses, and the player's server on 127.0.0.1 |
 | `src-tauri/src/connection.rs` | The device token in the system's credential store (a private file where Linux has none) |

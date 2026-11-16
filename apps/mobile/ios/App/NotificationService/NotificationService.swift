@@ -1,7 +1,7 @@
 import UserNotifications
 
 /// Replaces the push's neutral text with the real text, fetched from the person's PURSS with the
-/// narrow fetch credential the app stored. Nothing is logged: not the credential, not the texts.
+/// narrow fetch credential the app stored, and sets the count of new items on the app's icon. Nothing is logged: not the credential, not the texts.
 class NotificationService: UNNotificationServiceExtension {
     private let lock = NSLock()
     private var contentHandler: ((UNNotificationContent) -> Void)?
@@ -63,6 +63,7 @@ class NotificationService: UNNotificationServiceExtension {
 
     private struct Pending: Decodable {
         let notifications: [Entry]
+        let newItems: Int?
         struct Entry: Decodable {
             let id: String
             let title: String
@@ -73,11 +74,13 @@ class NotificationService: UNNotificationServiceExtension {
     }
 
     private func apply(_ data: Data) {
-        guard let pending = try? JSONDecoder().decode(Pending.self, from: data),
-              let newest = pending.notifications.last else { return }
+        guard let pending = try? JSONDecoder().decode(Pending.self, from: data) else { return }
         lock.lock()
         defer { lock.unlock() }
         guard let content = bestAttempt, contentHandler != nil else { return }
+        // The new items on the app's icon, delivered with the alert.
+        if let count = pending.newItems { content.badge = NSNumber(value: max(0, count)) }
+        guard let newest = pending.notifications.last else { return }
 
         let more = pending.notifications.count - 1
         let moreText = "\(more) more in your PURSS"

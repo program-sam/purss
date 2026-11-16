@@ -873,7 +873,8 @@ export const pushRegisterSchema = z.object({ relay: z.string().min(1).max(300), 
 export type PushRegisterResult = { fetchToken: string };
 /** A notification as the phone shows it. `body` is filled only when the person shows titles in notifications. */
 export type PushNotice = { id: string; title: string; body: string | null; itemId: string | null; sourceId: string | null };
-export type PushPending = { notifications: PushNotice[] };
+/** What a woken phone shows, and how many new items there are (the count on the app's icon, as the sidebar adds them up). */
+export type PushPending = { notifications: PushNotice[]; newItems: number };
 // ---------- "Remind me" on kept items ----------
 /** A date set on a kept item with "Remind me": the person's own calendar day, and an optional note. */
 export type ItemReminderDTO = {

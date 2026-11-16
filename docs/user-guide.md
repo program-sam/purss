@@ -687,6 +687,19 @@ closed browser (push) are *not built*. Email carries the digest (unless you turn
 [reminders](#reminders) when you ask for that, and your account's own messages; notifications of
 *Notify me* sources, failing sources and failed text saves stay in the bell.
 
+**The count on the app's icon.** Where PURSS runs as an app, its icon shows how many items are New:
+the counts beside your sources in the sidebar, added up. Your system decides whether it shows the
+number or only a dot, and its settings can turn it off.
+
+- **Desktop app:** on the taskbar button (Windows), the dock (macOS), or the launcher on Linux
+  where it shows counts (KDE Plasma, Ubuntu's dock), installed from the `.deb` or `.rpm`. The AppImage
+  has no launcher entry for the count to go on. The tray icon's tooltip says it too.
+- **Installed web app:** in Chrome or Edge on a computer, and on an iPhone or iPad from the home
+  screen once notifications are allowed. A plain tab shows none.
+- **Phone app:** on iOS on the icon, once notifications are allowed. Android draws a dot or number
+  only while PURSS has a notification showing, so there the count rides on PURSS's notifications.
+  With the app closed it is updated when a notification arrives.
+
 ## Install and offline reading
 
 **Install it as an app.** Open PURSS over HTTPS (or at `http://localhost`) and your
@@ -862,8 +875,8 @@ The app connects only to servers updated for it; to the app an older one looks u
 
 **In the background.** Closing the window keeps the app running in the tray (the system tray or menu bar), so
 notifications and automatic downloads go on; quit it from the tray icon. *Settings → This device → Start when you
-sign in to the computer* starts it in the tray when you sign in. The number of unread notifications shows on the
-app's icon where your system shows such numbers.
+sign in to the computer* starts it in the tray when you sign in. The number of New items shows on the
+app's icon where your system shows such numbers (see [Notifications](#notifications)).
 
 **Notifications.** In *Settings → Notifications and New*, choose *Also as notifications on this computer*: new
 arrivals then appear as system notifications, outside your quiet hours, even with the window closed. Clicking one

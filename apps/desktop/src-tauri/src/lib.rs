@@ -10,6 +10,8 @@ mod connection;
 mod files;
 mod incoming;
 mod interfaces;
+#[cfg(windows)]
+mod taskbar;
 mod web;
 
 use connection::ConnectionStore;
@@ -215,17 +217,51 @@ fn show_notification(app: &AppHandle, tag: String, title: String, body: Option<S
     }
 }
 
-/// The bell's unread count on the dock or launcher icon (macOS, Linux launchers that support it) and in the tray's tooltip.
+/// The picture Windows shows on the taskbar button in place of a count: square RGBA pixels the page drew.
+#[derive(serde::Deserialize)]
+struct Overlay {
+    size: u32,
+    rgba: Vec<u8>,
+}
+
+/// An overlay the app accepts: 16 to 64 pixels square, every pixel there.
+fn overlay_image(o: Overlay) -> Option<tauri::image::Image<'static>> {
+    let ok = (16..=64).contains(&o.size) && o.rgba.len() == (o.size * o.size * 4) as usize;
+    ok.then(|| tauri::image::Image::new_owned(o.rgba, o.size, o.size))
+}
+
+/// The overlay shown now. Windows drops it with the taskbar button when the window hides to the tray; `taskbar` puts it
+/// back each time Windows makes the button again.
+#[derive(Default)]
+struct Badge(Mutex<Option<tauri::image::Image<'static>>>);
+
+impl Badge {
+    #[cfg(windows)]
+    fn apply<R: Runtime>(&self, w: &tauri::Window<R>) {
+        let _ = w.set_overlay_icon(self.0.lock().unwrap().clone());
+    }
+
+    #[cfg(not(windows))]
+    fn apply<R: Runtime>(&self, _w: &tauri::Window<R>) {}
+}
+
+/// The new items on the app's icon: the count on the dock (macOS) or launcher (Linux launchers that support it, which
+/// match it to the installed `PURSS.desktop`), the page's overlay on the taskbar button (Windows), and the tray's tooltip.
 #[tauri::command]
-fn set_badge(count: u32, app: AppHandle) {
+fn set_badge(count: u32, overlay: Option<Overlay>, app: AppHandle, badge: State<'_, Badge>) {
     if let Some(w) = app.get_window(MAIN) {
-        let _ = w.set_badge_count(if count > 0 { Some(count as i64) } else { None });
+        if cfg!(windows) {
+            *badge.0.lock().unwrap() = if count > 0 { overlay.and_then(overlay_image) } else { None };
+            badge.apply(&w);
+        } else {
+            let _ = w.set_badge_count(if count > 0 { Some(count as i64) } else { None });
+        }
     }
     if let Some(tray) = app.tray_by_id(MAIN) {
         let tip = match count {
             0 => "PURSS".to_string(),
-            1 => "PURSS: 1 new notification".to_string(),
-            n => format!("PURSS: {n} new notifications"),
+            1 => "PURSS: 1 new item".to_string(),
+            n => format!("PURSS: {n} new items"),
         };
         let _ = tray.set_tooltip(Some(tip));
     }
@@ -652,6 +688,7 @@ pub fn run() {
     let app = builder
         .manage(interfaces.clone())
         .manage(Queue::default())
+        .manage(Badge::default())
         .manage(AppUpdate::default())
         // The app's commands are for its own page only, never for the web view showing other sites (plan/43).
         .invoke_handler(move |invoke| {
@@ -685,6 +722,8 @@ pub fn run() {
         })
         .setup(move |app| {
             let handle = app.handle().clone();
+            #[cfg(windows)]
+            taskbar::watch(&handle);
             let data = app.path().app_data_dir()?;
             let config = app.path().app_config_dir()?;
             interfaces.open(data.join("interfaces"), &app.package_info().version.to_string());
@@ -756,6 +795,16 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlays_are_square_and_whole() {
+        let px = |size: u32, len: usize| overlay_image(Overlay { size, rgba: vec![0; len] }).map(|i| (i.width(), i.height()));
+        assert_eq!(px(16, 16 * 16 * 4), Some((16, 16)));
+        assert_eq!(px(64, 64 * 64 * 4), Some((64, 64)));
+        assert_eq!(px(32, 32 * 32 * 4 - 1), None);
+        assert_eq!(px(15, 15 * 15 * 4), None);
+        assert_eq!(px(65, 65 * 65 * 4), None);
+    }
 
     #[test]
     fn without_dir_drops_only_the_mount() {

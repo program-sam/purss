@@ -6,11 +6,14 @@ import type { IncomingMessage, Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { PushPending } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
+import { nowIso } from "../http.ts";
 import { signIn, startTestServer, call } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
 import { extraRouters } from "../routes/index.ts";
 import { createDeviceToken, revokeAllDevices } from "../connect/devices.ts";
+import { insertItem } from "./items.ts";
 import { notifyArrivals } from "./notifications.ts";
+import { listSources } from "./sources.ts";
 import { setPreferences } from "./preferences.ts";
 import { setRelayFetchForTests, startPush, wakeHeld, wakePhones } from "./push.ts";
 
@@ -118,6 +121,28 @@ test("a new notification wakes the phone by handle only; the phone then fetches 
     assert.equal(grown.json.notifications[0]!.title, "3 new from Tidal Notes");
     assert.equal(grown.json.notifications[0]!.id, first.json.notifications[0]!.id, "the phone replaces the one it shows");
   } finally { await stop(); await b.close(); }
+});
+
+test("the fetch says how many new items there are, as the sidebar adds them up, even with notifications off", async () => {
+  const b = await boot();
+  try {
+    const token = await b.register();
+    const other = makeSource(b.app, b.owner, "Salt Marsh", "feed/2");
+    let n = 0;
+    const add = (sourceId: string | null, fresh: boolean) => b.app.db.tx(() => insertItem(b.app, {
+      accountId: b.owner.accountId, workspaceId: b.owner.workspaceId, sourceId, kind: "article", title: `Item ${++n}`, url: `https://example.org/p/${n}`,
+      author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
+      publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh, reason: "test",
+    }));
+    add(b.src, true); add(b.src, true); add(other, true); add(other, false); add(null, false);
+    const sidebar = listSources(b.app, b.owner).reduce((sum, s) => sum + s.freshCount, 0);
+    assert.equal(sidebar, 3);
+    assert.equal((await b.fetchPending(token)).json.newItems, 3);
+    b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", other);
+    assert.equal((await b.fetchPending(token)).json.newItems, 2, "an unfollowed source isn't in the sidebar");
+    setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "off" } });
+    assert.deepEqual((await b.fetchPending(token)).json, { notifications: [], newItems: 2 });
+  } finally { await b.close(); }
 });
 
 test("bodies follow 'Show item titles in notifications'; read notifications and notifications that are off aren't handed", async () => {

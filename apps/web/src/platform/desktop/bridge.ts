@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { DesktopUpdate, WebBounds } from "../types.ts";
+import type { BadgeOverlay } from "./badge-overlay.ts";
 
 /*
  * The desktop app's commands (apps/desktop/src-tauri, plan/42), typed. Every power the page has over the
@@ -23,7 +24,8 @@ export const desktop = {
   /** A save dialog for `name`; false when the person cancelled it. */
   saveFile: (name: string, data: Uint8Array) => invoke<boolean>("save_file", data, { headers: { "x-purss-name": encodeURIComponent(name) } }),
   notify: (tag: string, title: string, body: string | null) => invoke<void>("notify", { tag, title, body }),
-  setBadge: (count: number) => invoke<void>("set_badge", { count }),
+  /** The count on the app's icon (0 clears it); `overlay` is the picture Windows shows on the taskbar button instead. */
+  setBadge: (count: number, overlay: BadgeOverlay | null = null) => invoke<void>("set_badge", { count, overlay }),
   /** What is waiting (a link or file that started the app, or arrived since), once. */
   takeIncoming: () => invoke<Incoming[]>("take_incoming"),
 

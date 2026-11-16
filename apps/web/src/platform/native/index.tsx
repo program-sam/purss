@@ -248,7 +248,8 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     appUpdates: conn ? appUpdates : null,
     // The phones show notifications through the relay (plan/37); Settings doesn't offer alerts there.
     notifier: browserNotifier,
-    badge: null,
+    // On Android the count goes on PURSS's notifications, the only badge launchers draw; on iOS on the icon itself.
+    badge: conn ? (count) => { void PurssDevice.setBadge({ count }).catch(() => undefined); } : null,
     onIntake: () => () => {},
     desktop: null,
     webView: null,

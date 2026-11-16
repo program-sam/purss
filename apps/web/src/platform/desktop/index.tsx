@@ -28,6 +28,7 @@ import type { Updater } from "../native/live-update.ts";
 import { createAppTransport } from "../native/transport.ts";
 import { desktop } from "./bridge.ts";
 import type { Incoming } from "./bridge.ts";
+import { drawBadgeOverlay, wantsOverlay } from "./badge-overlay.ts";
 import { feedAddress } from "./feed-link.ts";
 import { desktopConnection, desktopFiles } from "./files.ts";
 
@@ -303,7 +304,10 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
       return true;
     }),
     notifier: desktopNotifier(),
-    badge: conn ? (count) => { void desktop.setBadge(count).catch(() => undefined); } : null,
+    badge: conn ? (count) => {
+      const overlay = count > 0 && wantsOverlay() ? drawBadgeOverlay(count) : null;
+      void desktop.setBadge(count, overlay).catch(() => undefined);
+    } : null,
     onIntake,
     desktop: desktopApp(),
     webView: desktopWebView(),

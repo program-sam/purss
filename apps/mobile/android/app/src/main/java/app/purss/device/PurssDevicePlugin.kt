@@ -11,7 +11,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 /**
  * The app's own plugin (plan/38; the page's side is apps/web/src/platform/native/device-plugin.ts):
  * downloads that stop on the wire when cancelled, the background job's state, the home-screen panels'
- * look and episode and their refresh, and where the app was installed from.
+ * look and episode and their refresh, the count on the app's icon, and where the app was installed from.
  */
 @CapacitorPlugin(name = "PurssDevice")
 class PurssDevicePlugin : Plugin() {
@@ -101,6 +101,13 @@ class PurssDevicePlugin : Plugin() {
         call.resolve(JSObject().put("snapshot", DeviceStore.widget(context) ?: JSObject.NULL))
     }
 
+    /** The new items on the app's icon, as far as Android has one (Badge). Apps built before this method reject the call. */
+    @PluginMethod
+    fun setBadge(call: PluginCall) {
+        Badge.apply(context, call.getInt("count") ?: 0)
+        call.resolve()
+    }
+
     @PluginMethod
     fun takeBackgroundReport(call: PluginCall) {
         call.resolve(JSObject().put("lost", DeviceStore.takeLost(context)))
@@ -124,6 +131,7 @@ class PurssDevicePlugin : Plugin() {
         DeviceStore.pageAlive = false
         BackgroundDownloads.forget(context, downloadsToo = false)
         DeviceStore.takeLost(context)
+        Badge.apply(context, 0)
         call.resolve()
     }
 

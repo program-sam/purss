@@ -56,6 +56,13 @@ function healthOf(r: SourceRow): { health: SourceHealth; text: string | null } {
   return { health: "ok", text: null };
 }
 
+/** The new items on the app's icon: what the sidebar shows as new, summed over the followed sources. */
+export function newItemCount(app: App, workspaceId: string): number {
+  const ids = app.db.all<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual'", workspaceId);
+  const counts = itemCounts(app, workspaceId);
+  return ids.reduce((n, r) => n + counts.fresh(r.id), 0);
+}
+
 export function listSources(app: App, p: Principal): SourceDTO[] {
   const rows = app.db.all<SourceRow>(
     `SELECT s.*,

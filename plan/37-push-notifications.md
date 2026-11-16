@@ -33,7 +33,7 @@ phone app ──(1) push address──► push relay (apps/push-relay) ──►
    returns a **fetch credential** (`purss_push_…`, 32 random bytes, only its SHA-256 stored), which the
    page hands to native code: Android's private preferences, or the iOS Keychain in an access group
    shared with the notification service extension. It reaches one thing, this phone's waiting
-   notifications, so the extension never holds the device token.
+   notifications (with the number of New items, for the icon), so the extension never holds the device token.
 3. **Waking.** `emit(…, { type: "notification" })` (a notification made or grown) raises an event; the
    API gathers for three seconds, then for each of the account's registered phones with something it
    hasn't been handed asks the relay to wake it: `POST <relay>/v1/notify {"handle"}` through `safeFetch`
@@ -92,6 +92,22 @@ the push code adds only delivery:
   Android notifications are private on a locked screen that hides contents (a public version says only
   "Something new in your PURSS").
 
+## The count on the icon
+
+Every fetch answers with `newItems`, the New items as the sidebar adds them up (`newItemCount`), also
+with notifications off or nothing waiting; while the app is open, the page sets the same number through
+`PurssDevice.setBadge` as it changes. With the app closed the count is as fresh as the last wake.
+
+- **iOS:** the extension sets the alert's `badge`, the page sets the icon's number directly; iOS shows it
+  once notifications are allowed (the push plugin asks for badges with alerts and sounds).
+- **Android** has no badge of its own: launchers draw a dot while the app has notifications and, where
+  they show a number, add up each notification's number (at least one each), leaving out group summaries.
+  PURSS's notifications on the `workspace` channel get numbers that add up to the count, the newest
+  carrying what the others don't: those a wake shows go out with theirs, the others are reposted without
+  alerting (`Badge`); with no notification there is no badge, and with more
+  notifications than New items the launcher counts the notifications. The FOSS build shows no
+  notifications, so it has no badge.
+
 ## Configuration
 
 - PURSS: `PURSS_PUSH_RELAY_URL`. Unset (or `official`, what Compose passes when the operator sets
@@ -149,7 +165,7 @@ the push code adds only delivery:
   have never been compiled or run.
 - When a fetch on iOS finds nothing (another wake already took it), the fixed text shows; iOS doesn't let
   an extension drop an alert without a special entitlement.
-- Badges, notification actions (mark read from the notification), per-device choice of what to receive,
+- Notification actions (mark read from the notification), per-device choice of what to receive,
   and clearing a phone's notification when it is read elsewhere.
 - Wakes are not retried after a failure other than the relay's 429; the next notification wakes again.
 

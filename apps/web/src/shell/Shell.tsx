@@ -102,9 +102,10 @@ function ShellFrame() {
   const zoneUnset = ws.data.preferences.timezone === null;
   useEffect(() => { if (zoneUnset) void savePrefs({ timezone: ws.prefs.timezone }); }, [zoneUnset]); // eslint-disable-line react-hooks/exhaustive-deps
   const onNotification = useBrowserNotifications();
-  // The bell's unread count on the desktop app's icon (plan/42); none while notifications are off, as on the bell.
-  const unread = ws.prefs.notifications.frequency === "off" ? 0 : ws.data.unreadNotifications;
-  useEffect(() => { platform.badge?.(unread); }, [unread]);
+  // The new items, as the sidebar counts them, on the app's icon; the system decides whether it shows the number or a dot.
+  const newItems = ws.data.sources.reduce((n, s) => n + s.freshCount, 0);
+  useEffect(() => { platform.badge?.(newItems); }, [newItems]);
+  useEffect(() => () => { platform.badge?.(0); }, []);
   useLiveUpdates(onNotification);
   // Back from a provider's page after "Confirm it's you": the action that needed it can be done again.
   const { toast } = useToasts();

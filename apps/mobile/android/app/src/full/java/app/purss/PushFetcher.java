@@ -16,20 +16,24 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import app.purss.device.Badge;
 import app.purss.device.BackgroundLogic;
 
 /**
  * Notifications on this phone (plan/37). A push from the relay carries nothing but "something new"; this
  * fetches the texts from the connected PURSS with the phone's fetch credential (which reaches only this
- * phone's waiting notifications, never the account) and shows each as a system notification. Tapping one
+ * phone's waiting notifications and the number of new items, never the account) and shows each as a system
+ * notification, carrying that number for the app's icon. Tapping one
  * opens purss://open with its item and source, which the app only navigates to.
  */
 public final class PushFetcher {
 
     private static final String TAG = "PurssPush";
-    static final String CHANNEL = "workspace";
+    static final String CHANNEL = Badge.CHANNEL;
     private static final int MAX_BYTES = 64 * 1024;
 
     private PushFetcher() {}
@@ -66,10 +70,21 @@ public final class PushFetcher {
                 Log.w(TAG, "The workspace answered " + status + " when asked for notifications.");
                 return;
             }
-            JSONArray list = new JSONObject(read(c.getInputStream())).getJSONArray("notifications");
-            if (list.length() == 0) return;
-            ensureChannel(ctx);
-            for (int i = 0; i < list.length(); i++) show(ctx, list.getJSONObject(i));
+            JSONObject answer = new JSONObject(read(c.getInputStream()));
+            JSONArray list = answer.getJSONArray("notifications");
+            List<JSONObject> shown = new ArrayList<>();
+            List<String> tags = new ArrayList<>();
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject n = list.getJSONObject(i);
+                String id = text(n, "id", 64);
+                if (id == null || text(n, "title", 200) == null) continue;
+                shown.add(n);
+                tags.add(id);
+            }
+            // The new items on the app's icon, carried by the notifications (Badge): these go out with their numbers.
+            List<Integer> numbers = answer.has("newItems") ? Badge.numberFor(ctx, answer.optInt("newItems", 0), tags) : null;
+            if (!shown.isEmpty()) ensureChannel(ctx);
+            for (int i = 0; i < shown.size(); i++) show(ctx, shown.get(i), numbers == null ? 0 : numbers.get(i));
         } catch (Exception e) {
             Log.w(TAG, "Couldn't fetch notifications from the workspace: " + e.getClass().getSimpleName());
         } finally {
@@ -106,7 +121,7 @@ public final class PushFetcher {
         return v.length() > max ? v.substring(0, max) : v;
     }
 
-    private static void show(Context ctx, JSONObject n) {
+    private static void show(Context ctx, JSONObject n, int number) {
         String id = text(n, "id", 64);
         String title = text(n, "title", 200);
         if (id == null || title == null) return;
@@ -131,7 +146,8 @@ public final class PushFetcher {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(hidden.build())
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setNumber(number);
         if (body != null) b.setContentText(body).setStyle(new NotificationCompat.BigTextStyle().bigText(body));
         try {
             // One per notification: a notification that grew ("3 new from …") replaces the one shown before.

@@ -43,6 +43,10 @@ gtk = "0.18"
 tauri-plugin-notification = "2.3"
 tauri-plugin-autostart = "2.5"
 
+[target.'cfg(windows)'.dependencies]
+# The version Tauri uses: to hear when Windows makes the taskbar button again (src/taskbar.rs).
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
 [profile.release]
 codegen-units = 1
 lto = true

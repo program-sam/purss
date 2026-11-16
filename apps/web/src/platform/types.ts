@@ -50,7 +50,7 @@ export interface Platform {
   readonly appUpdates: AppUpdates | null;
   /** System notifications for the alerts the person chose (Settings → Notifications): the browser's, or the desktop app's. */
   readonly notifier: Notifier;
-  /** Show the bell's unread count on the app's icon (dock, launcher, tray); null where there is no such icon. */
+  /** Show how many new items there are on the app's icon (taskbar, dock, launcher, home screen; 0 clears it); null where there is no such icon. */
   readonly badge: ((count: number) => void) | null;
   /** Feed links and OPML files opened with the desktop app (plan/42). Returns a function that stops listening. */
   onIntake(listener: (intake: Intake) => void): () => void;

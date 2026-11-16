@@ -36,6 +36,12 @@ export interface PurssDevicePlugin {
   getWidget(): Promise<{ snapshot: string | null }>;
   /** Fetch the placed panels' lists again soon (the native side knows which lists they show). */
   refreshWidgets(): Promise<void>;
+  /**
+   * The new items on the app's icon (0 clears it). iOS shows the number on the icon once notifications are allowed;
+   * Android has no badge of its own, so the number goes on PURSS's notifications in the shade, which launchers draw
+   * as a dot or add up. Apps built before this method reject the call.
+   */
+  setBadge(options: { count: number }): Promise<void>;
   /** Whether the background job found the token refused since last asked (the flag is cleared). */
   takeBackgroundReport(): Promise<{ lost: boolean }>;
   /**
@@ -43,7 +49,7 @@ export interface PurssDevicePlugin {
    * hand or with adb). Apps built before this method reject the call.
    */
   installSource(): Promise<{ flavor: string; installer: string | null }>;
-  /** Disconnect: stop and unschedule the job, delete its unfinished files, its state, and everything the home-screen panels kept (lists, chosen collections and sources, snapshot). */
+  /** Disconnect: stop and unschedule the job, delete its unfinished files, its state, and everything the home-screen panels kept (lists, chosen collections and sources, snapshot); the count on the icon goes. */
   reset(): Promise<void>;
 }
 

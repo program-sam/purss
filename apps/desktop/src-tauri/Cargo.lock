@@ -3199,6 +3199,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tiny_http",
  "tokio",
+ "windows",
  "zip",
 ]
 

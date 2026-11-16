@@ -8,6 +8,7 @@ import { deviceIdOf, idleCutoff } from "../connect/devices.ts";
 import { HttpError, nowIso } from "../http.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { usableAccountSql } from "./deletion.ts";
+import { newItemCount } from "./sources.ts";
 import { notificationsOn } from "./notifications.ts";
 import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
@@ -86,7 +87,8 @@ const wakeSince = (d: { shown_until: string; pushed_at: string | null }) => (d.p
 /**
  * What a woken phone shows: the unread notifications it hasn't been handed yet (newest few, oldest first),
  * after which they count as handed. Titles as in the bell; the body only when the person shows titles in
- * notifications, as for browser alerts. Null when the credential isn't a live phone's.
+ * notifications, as for browser alerts. With them, how many new items there are, for the app's icon.
+ * Null when the credential isn't a live phone's.
  */
 export function takePending(app: App, fetchToken: string): PushPending | null {
   if (!fetchToken.startsWith(FETCH_TOKEN_PREFIX)) return null;
@@ -97,14 +99,15 @@ export function takePending(app: App, fetchToken: string): PushPending | null {
        WHERE pd.fetch_hash = ? AND d.last_used_at > ? AND ${usableAccountSql("pd.account_id")}`, sha256(fetchToken), idleCutoff());
     if (!row) return null;
     const prefs = getPreferences(app, row.workspace_id);
-    if (!notificationsOn(prefs)) return { notifications: [] };
+    const newItems = newItemCount(app, row.workspace_id);
+    if (!notificationsOn(prefs)) return { notifications: [], newItems };
     const latest = app.db.get<{ at: string | null }>(`SELECT MAX(COALESCE(changed_at, created_at)) AS at ${pendingSql}`, row.workspace_id, row.shown_until)?.at;
-    if (!latest) return { notifications: [] };
+    if (!latest) return { notifications: [], newItems };
     const list = app.db.all<{ id: string; title: string; body: string | null; item_id: string | null; source_id: string | null }>(
       `SELECT id, title, body, item_id, source_id ${pendingSql} ORDER BY COALESCE(changed_at, created_at) DESC, id DESC LIMIT ?`, row.workspace_id, row.shown_until, MAX_PER_FETCH);
     app.db.run("UPDATE push_devices SET shown_until = ? WHERE device_id = ?", latest, row.device_id);
     const notifications: PushNotice[] = list.reverse().map((n) => ({ id: n.id, title: n.title, body: prefs.notifications.previews ? n.body : null, itemId: n.item_id, sourceId: n.source_id }));
-    return { notifications };
+    return { notifications, newItems };
   });
 }
 

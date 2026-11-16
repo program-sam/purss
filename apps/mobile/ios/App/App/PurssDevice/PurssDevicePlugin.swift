@@ -2,6 +2,8 @@ import Foundation
 import Capacitor
 import BackgroundTasks
 import WidgetKit
+import UIKit
+import UserNotifications
 
 /// The app's own native plugin (plan/38, apps/web/src/platform/native/device-plugin.ts): the page's downloads,
 /// which go on when the app is closed and can be cancelled on the wire, the state the background job needs, and the home-screen widgets' look and
@@ -18,6 +20,7 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "refreshWidgets", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getWidget", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "takeBackgroundReport", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setBadge", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
     ]
 
@@ -111,11 +114,27 @@ public class PurssDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve(["lost": DeviceStore.takeLost()])
     }
 
+    /// The new items on the app's icon (0 clears it). iOS shows it once notifications are allowed; the notification
+    /// service extension sets it too, from what a woken phone fetches.
+    @objc func setBadge(_ call: CAPPluginCall) {
+        PurssDevicePlugin.iconBadge(max(0, call.getInt("count") ?? 0))
+        call.resolve()
+    }
+
+    static func iconBadge(_ count: Int) {
+        if #available(iOS 16.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
+        } else {
+            DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = count }
+        }
+    }
+
     @objc func reset(_ call: CAPPluginCall) {
         BackgroundJob.cancelRequest()
         WidgetRefresh.cancelRequest()
         DeviceStore.clearState()
         DeviceStore.clearLost()
+        PurssDevicePlugin.iconBadge(0)
         Task {
             await BackgroundTransfers.shared.cancelAllAndWait()
             await ForegroundDownloads.shared.cancelAllAndWait()
