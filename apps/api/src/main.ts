@@ -18,6 +18,7 @@ import { addSeconds, nowIso, watchTrustedProxies } from "./http.ts";
 import { runReminderPass } from "./services/reminders.ts";
 import { runReturningPass } from "./services/returning.ts";
 import { runOpmlImports } from "./services/opml-import.ts";
+import { lookUpBlueskyPictures } from "./services/bluesky.ts";
 import { backfillFeedKeys, checkEmptyFeeds } from "./services/sources.ts";
 import { purgeStages, purgeUploads } from "./services/portability.ts";
 import { startCaptureCheck } from "./services/captures.ts";
@@ -129,6 +130,7 @@ export function tick(app: App): void {
   runReminderPass(app);
   runReturningPass(app); // digests, expiring New markers, pauses that run out (throttled inside)
   void runOpmlImports(app); // lists of feeds being followed (a restart picks them up again)
+  void lookUpBlueskyPictures(app); // the pictures of Bluesky posts, which their feed doesn't carry (throttled inside)
   backfillFeedKeys(app); // private sources made before they had a key
   checkEmptyFeeds(app); // sources still waiting for their first items long after they were followed
   purgeStages(app);

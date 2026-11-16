@@ -228,8 +228,8 @@ test("lists can be limited to articles, videos or podcasts, and to short or long
   assert.deepEqual(q({ type: "videos" }), new Set([clip, film]));
   assert.deepEqual(q({ type: "podcasts" }), new Set([show, unknown]));
   assert.deepEqual(q({ type: "videos,podcasts" }), new Set([clip, film, show, unknown]));
-  assert.deepEqual(q({ length: "short" }), new Set([short, clip, show, post]), "up to five minutes, reading or playing");
-  assert.deepEqual(q({ length: "long" }), new Set([long, film]), "items of unknown length (a teaser, an episode with no duration) are in neither");
+  assert.deepEqual(q({ length: "short" }), new Set([short, teaser, clip, show, post]), "up to five minutes, reading or playing; a few lines are a minute of reading");
+  assert.deepEqual(q({ length: "long" }), new Set([long, film]), "an episode with no duration is of unknown length, in neither");
   assert.deepEqual(q({ type: "videos", length: "short" }), new Set([clip]));
   assert.equal(listItems(app, p, { scope: "all", limit: 50, type: "videos" }).total, null, "a narrowed list has no total");
   assert.throws(() => listItems(app, p, { scope: "all", type: "books" as never }), /./);

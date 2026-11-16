@@ -63,6 +63,13 @@ test("image comes from an image enclosure, else from the engine's thumbnail figu
   assert.equal(normalizeItem(base).entry.imageUrl, null);
 });
 
+test("of several image enclosures, the one the feed declares biggest is the item's picture, else the first", () => {
+  const pick = (enclosure: { href: string; type: string; length?: number | string }[]) => normalizeItem({ ...base, enclosure }).entry.imageUrl;
+  assert.equal(pick([{ href: "https://cdn.example.org/small.jpg", type: "image/jpeg", length: 8000 }, { href: "https://cdn.example.org/big.jpg", type: "image/jpeg", length: "480000" }, { href: "https://cdn.example.org/mid.jpg", type: "image/jpeg", length: 90000 }]), "https://cdn.example.org/big.jpg");
+  assert.equal(pick([{ href: "https://cdn.example.org/first.jpg", type: "image/jpeg" }, { href: "https://cdn.example.org/second.jpg", type: "image/jpeg" }]), "https://cdn.example.org/first.jpg");
+  assert.equal(pick([{ href: "https://cdn.example.org/a.mp3", type: "audio/mpeg", length: 99999999 }, { href: "https://cdn.example.org/cover.jpg", type: "image/jpeg", length: 100 }]), "https://cdn.example.org/cover.jpg", "an audio file is not a picture, however big");
+});
+
 test("an enclosure's address arrives HTML-escaped from the engine and is kept as the feed gave it", () => {
   const { enclosures } = normalizeItem({
     ...base,

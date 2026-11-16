@@ -35,10 +35,13 @@ from mastodon.social and bsky.app; the tests replay trimmed recordings and never
 | Safety | Every request goes through `safeFetch`; a handle on an internal name is refused before any request; an advertised feed on an internal address is refused | AGENTS.md: no SSRF weakening |
 | Labels and limits | Origin "Mastodon account" (by the feed's generator), "Fediverse account" or "Bluesky account"; the preview's note says public posts only, what is left out (boosts/reposts, replies) and that a post deleted upstream stays in PURSS; catalog entries `fediverse-account` and `bluesky-account` carry the full limits | Honest previews (plan/04); absence never deletes (plan/06) |
 | Refusals | Unknown account, no profile link, no advertised feed (GoToSocial leaves it off unless the owner opts in), a Bluesky account hidden from signed-out people (403), custom feeds and lists, a fediverse post page: each has its own plain message | Never an empty source |
-| Titles | The account's display name (Bluesky's "@handle - Name" becomes "Name"); untitled posts use the existing excerpt fallback | No new item model |
+| Titles | The account's display name (Bluesky's "@handle - Name" becomes "Name"); untitled posts use the existing excerpt fallback, and an excerpt that only repeats the title is left out (a long post continues under its cut title) | No new item model |
+| Kind | Items whose link is a bsky.app post are the existing `post` kind (`detectKind`), so they are labelled Post | The kind comes from the item's own link; no source setting |
+| Placeholder | Bluesky's feed writes `[contains quote post or other embedded content]` where a post has a quote or attachment it doesn't send; it is shown as `[quote or attachment: open the post to see it]` | Stated honestly; the feed is what it is |
+| Pictures | The feed carries none. `services/bluesky.ts` asks the public API (`public.api.bsky.app`, through safeFetch, `getPosts` 25 at a time, a handle resolved once an hour) about the Bluesky posts of the last three days that have no picture, from the API process after the sync that brought them, three tries at most with a 15 minute pause (`items.embed_tries`, `embed_at`), and sets `image_url` of an item that has none to the first image's thumbnail (a video's still or a link card's picture when there are no images). Failures, deleted posts and slow answers change nothing. The reader shows a post's picture above its text | Optional, bounded, cached by what it has answered; never a second collector (no post is found or added there) |
 
 Not built: hashtag feeds (Mastodon's are per server), Bluesky custom feeds, lists and hashtags
 (they have no feed; a public-API adapter would be the first proprietary connector), raw DIDs
-pasted on their own, item kind `post` for these sources (they arrive as articles), and any
+pasted on their own, and any
 outbound posting or following. Open question for the owner: whether to offer Mastodon's
 `/with_replies` and `/media` feeds as extra choices.

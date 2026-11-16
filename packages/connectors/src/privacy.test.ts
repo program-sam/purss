@@ -73,3 +73,25 @@ test("a plain word is a lowercase word or words with separators that reads like 
   for (const w of ["news", "tech-news", "sports_extra", "a.b", "international-relations", "internationalisation"]) assert.ok(isPlainWord(w), w);
   for (const w of ["Zk9aQ2xRbTJw", "abcd1234", "News", "", "-x", "x".repeat(41), "xkqzvbnmplrtwhjd", "qwrtpsdfghjklzxcvb"]) assert.ok(!isPlainWord(w), w);
 });
+
+test("Al Jazeera's own feed addresses, which its pages publish, are not private; a secret in its addresses, or the same shape elsewhere, still is", () => {
+  const A = "a7c186be-1baa-4bd4-9d80-a84db769f779";
+  const B = "73d0e1b4-532f-45ef-b135-bfdff8b8cab9";
+  for (const url of [
+    `https://www.aljazeera.net/aljazeerarss/${A}/${B}`,
+    `https://www.aljazeera.com/aljazeerarss/${A}/${B}`,
+    `https://aljazeera.net/aljazeerarss/${A}/${B}/`,
+  ]) assert.equal(privateUrlReason(url), null, url);
+  for (const url of [
+    `https://www.aljazeera.net/aljazeerarss/${A}/${B}?token=abcdef123456`,
+    `https://u:p@www.aljazeera.net/aljazeerarss/${A}/${B}`,
+    `https://www.aljazeera.net/aljazeerarss/${A}/${B}/private/${A}`,
+    `https://www.aljazeera.net/feeds/${A}/${B}`,
+    `https://www.aljazeera.net/aljazeerarss/Zk9aQ2xRbTJwZGZ4c2VjcmV0MTIzNDU2`,
+    `https://www.aljazeera.net/aljazeerarss/${A}/${B}/extra-0123456789abcdef0123456789`,
+    `https://www.aljazeera.net.evil.example/aljazeerarss/${A}/${B}`,
+    `https://evil.example/aljazeerarss/${A}/${B}`,
+    `https://notaljazeera.net/aljazeerarss/${A}/${B}`,
+    `https://example.org/feed/${A}`,
+  ]) assert.notEqual(privateUrlReason(url), null, url);
+});

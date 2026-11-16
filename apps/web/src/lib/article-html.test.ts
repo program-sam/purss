@@ -55,3 +55,22 @@ test("a picture kept with the copy is shown from what the platform gives for its
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(later.querySelectorAll("img").length, 1, "a kept picture that can't be fetched leaves no broken image");
 });
+
+const REDDIT = `<table> <tr><td> <a href="https://www.reddit.com/r/modeltrains/comments/1xxjfx0/sound_modules/"> <img src="https://external-preview.redd.it/djc5Z3A5.png?width=640&amp;crop=smart&amp;auto=webp&amp;s=11a43d59" alt="These sound modules are insanely realistic!" title="These sound modules are insanely realistic!" /> </a> </td><td> <div class="md"><p>By <a href="https://www.instagram.com/juramodelisme/reels/">juramodelisme</a></p> </div> submitted by <a href="https://www.reddit.com/user/Dev8Ops"> /u/Dev8Ops </a> <br/> <span><a href="https://v.redd.it/rs9wr5uehx1i1">[link]</a></span> </td></tr></table>`;
+
+test("a post laid out as a one-row table (a picture cell beside a text cell) is stacked, so the picture has the column to itself", () => {
+  const html = prepareArticleHtml(REDDIT);
+  assert.ok(!/<table|<tr|<td/.test(html), "no table is left");
+  assert.ok(html.indexOf("<img") < html.indexOf("juramodelisme"), "the picture comes first, then the text");
+  assert.ok(html.includes("djc5Z3A5.png?width=640"), "the picture is the preview the feed gave, untouched");
+  assert.ok(html.includes("submitted by") && html.includes("[link]"), "nothing of the post is lost");
+});
+
+test("a table of data stays a table: several rows, headings, a caption, or no picture", () => {
+  for (const table of [
+    "<table><tr><td>A</td><td><img src=\"https://x.example/a.png\"></td></tr><tr><td>B</td><td>2</td></tr></table>",
+    "<table><thead><tr><th>Name</th><th>Photo</th></tr></thead><tbody><tr><td>A</td><td><img src=\"https://x.example/a.png\"></td></tr></tbody></table>",
+    "<table><caption>Pictures</caption><tr><td>A</td><td><img src=\"https://x.example/a.png\"></td></tr></table>",
+    "<table><tr><td>Name</td><td>Value</td></tr></table>",
+  ]) assert.ok(/<table/.test(prepareArticleHtml(table)), table);
+});

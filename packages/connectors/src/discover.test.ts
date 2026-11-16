@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { DiscoveryCandidate } from "@purss/domain";
 import { cadenceText, EPISODES, POSTS } from "./cadence.ts";
 import { YOUTUBE_REFUSED } from "./discover.ts";
-import { discover } from "./discover.ts";
+import { discover, previewsAsFeed } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import type { FeedItem } from "./feed.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
@@ -631,6 +631,9 @@ const SERVICES: Service[] = [
   { name: "DeviantArt gallery", input: "https://www.deviantart.com/spyed/gallery", feedUrl: "https://backend.deviantart.com/rss.xml?q=gallery:spyed", body: rssWithDates("DeviantArt: spyed's gallery", WEEKLY, { link: "https://www.deviantart.com" }), title: "DeviantArt: spyed's gallery", via: "Gallery feed", origin: "DeviantArt gallery" },
   { name: "PeerTube account", input: "https://framatube.org/a/framasoft/video-channels", feedUrl: "https://framatube.org/feeds/videos.xml?accountName=framasoft", body: peertubeRss("Framasoft"), type: "application/xml; charset=utf-8", title: "Framasoft", via: "Channel feed", origin: "PeerTube account feed" },
   { name: "PeerTube channel", input: "https://video.blender.org/c/blender_open_movies/videos", feedUrl: "https://video.blender.org/feeds/videos.xml?videoChannelName=blender_open_movies", body: peertubeRss("Blender Open Movies", "video.blender.org"), type: "application/xml; charset=utf-8", title: "Blender Open Movies", via: "Channel feed", origin: "PeerTube channel feed" },
+  { name: "NOS news page", input: "https://nos.nl/nieuws", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: "Posts feed", origin: "NOS" },
+  { name: "NOS front page", input: "https://nos.nl/", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: "Posts feed", origin: "NOS" },
+  { name: "NOS football page", input: "https://nos.nl/sport/voetbal", feedUrl: "https://feeds.nos.nl/nosvoetbal", body: rssWithDates("NOS Voetbal", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Voetbal", via: "Posts feed", origin: "NOS" },
   { name: "Behance profile", input: "https://www.behance.net/behance", feedUrl: "https://www.behance.net/feeds/user?username=behance", body: rssWithDates("Behance Team", WEEKLY, { link: "https://www.behance.net" }), type: 'application/rss+xml; charset="utf-8"', title: "Behance Team", via: "Projects feed", origin: "Behance projects" },
 ];
 
@@ -833,4 +836,22 @@ test("a PeerTube page that offers only its instance's feed calls it the whole si
   });
   const d = okDraft(await discover(`${origin}/w/abc`, { fetch: withOwn.fetch, now: NOW })).candidates[0]!;
   assert.notEqual(d.via, "Whole site feed");
+});
+
+test("previewsAsFeed: a feed served without a Content-Type is a feed, a page or a broken body is not, and a refused address is never fetched", async () => {
+  const rss = rssWithDates("Daily", WEEKLY);
+  const { fetch, calls } = stub({
+    "https://daily.example/feed": fakeResponse("https://daily.example/feed", rss, "", 200),
+    "https://daily.example/page": fakeResponse("https://daily.example/page", "<html><body><p>Not a feed</p></body></html>", "text/html", 200),
+    "https://daily.example/broken": fakeResponse("https://daily.example/broken", "<rss version=\"2.0\"></rss>", "application/rss+xml", 200),
+    "https://daily.example/gone": fakeResponse("https://daily.example/gone", "gone", "text/plain", 404),
+  });
+  assert.equal(await previewsAsFeed("https://daily.example/feed", { fetch }), true);
+  assert.equal(await previewsAsFeed("https://daily.example/page", { fetch }), false);
+  assert.equal(await previewsAsFeed("https://daily.example/broken", { fetch }), false);
+  assert.equal(await previewsAsFeed("https://daily.example/gone", { fetch }), false);
+  assert.equal(calls.length, 4);
+  // The real fetcher refuses a private address before any request is made.
+  assert.equal(await previewsAsFeed("http://127.0.0.1:9/feed.xml", {}), false);
+  assert.equal(await previewsAsFeed("http://169.254.169.254/latest/meta-data", {}), false);
 });

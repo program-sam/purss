@@ -117,9 +117,14 @@ export class GReaderClient {
    * Subscribes to a feed URL through the engine's quick-add. The engine fetches the feed itself (through its
    * configured egress proxy) and may resolve an HTML page to its feed. Returns `already` when the engine
    * already holds a subscription for that URL (the caller then looks it up in the list).
+   *
+   * `force` is for an address the caller has already seen answer with a readable feed that the engine's own check refuses (one served
+   * without a Content-Type): the engine takes it as a feed whatever it is served as, and keeps taking it so at every later refresh
+   * (the marker stays on the address it stores; see `forceFeedUrl`). The caller must have checked that the body is a feed; the engine
+   * still has to be able to parse it.
    */
-  async quickAdd(url: string): Promise<{ streamId: string; title: string; feedUrl: string } | { already: true; message: string }> {
-    const form = new URLSearchParams({ quickadd: url });
+  async quickAdd(url: string, opts: { force?: boolean } = {}): Promise<{ streamId: string; title: string; feedUrl: string } | { already: true; message: string }> {
+    const form = new URLSearchParams({ quickadd: opts.force ? forceFeedUrl(url) : url });
     const json = asRecord(await this.#json("POST", "/reader/api/0/subscription/quickadd", { form }), "quickadd");
     if (json.numResults === 1 && typeof json.streamId === "string") {
       return { streamId: json.streamId, title: typeof json.streamName === "string" ? json.streamName : "", feedUrl: typeof json.query === "string" ? json.query : url };
@@ -260,6 +265,16 @@ export class GReaderClient {
  */
 /** YouTube's feed endpoint answers 404 intermittently (more often from cloud servers); treat that as temporary. */
 const isYoutubeFeed = (url: string) => /^https:\/\/(www\.)?youtube\.com\/feeds\/videos\.xml\?/.test(url);
+
+/**
+ * The engine's marker for "take this address as a feed whatever it is served as": a trailing `#force_feed`. The engine removes it
+ * before it fetches and keeps it on the address it stores, so its subscription list shows the marked address; the product's own
+ * address for the source stays without it (a fragment is never part of a fetch, so comparisons ignore it).
+ */
+export function forceFeedUrl(url: string): string {
+  const hash = url.indexOf("#");
+  return `${hash === -1 ? url : url.slice(0, hash)}#force_feed`;
+}
 
 export function quickAddFailure(message: string, url = ""): EngineError {
   const curl = /cURL error (\d+)/i.exec(message)?.[1];

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { timeAgo } from "../lib/format.ts";
-import { itemDate, itemExcerpt, safeImage } from "../lib/items.ts";
+import { itemDate, itemExcerpt, itemPicture } from "../lib/items.ts";
 import { memo, useId, useState } from "react";
 import { CopyTag, FreshDot, KeptTag, NoteLine, PendingMark, SharedBy, WfTag, useFace, useItemLabel } from "./item-bits.tsx";
 import { DownloadedTag } from "../downloads/DownloadedTag.tsx";
@@ -105,7 +105,7 @@ export const ItemRow = memo(function ItemRow({ item, bare = false }: { item: Ite
   const noteId = `${excerptId}n`;
   const described = [excerpt ? excerptId : null, c.basket && item.kept?.noteLine ? noteId : null].filter(Boolean).join(" ") || undefined;
   return (
-    <li className={`row irow${active ? " sel-row" : ""}${picked ? " picked" : ""}${item.workflow === "ignored" && !c.basket ? " dim" : ""}${hasActs ? " has-acts" : ""}`} data-item={item.id} data-wf={item.workflow} data-leaves={c.leaves(item)} style={{ "--sh": face.hue, ...(hasActs ? actionRoom(item) : {}) } as CSSProperties}>
+    <li className={`row irow${item.kind === "video" ? " vid" : ""}${active ? " sel-row" : ""}${picked ? " picked" : ""}${item.workflow === "ignored" && !c.basket ? " dim" : ""}${hasActs ? " has-acts" : ""}`} data-item={item.id} data-wf={item.workflow} data-leaves={c.leaves(item)} style={{ "--sh": face.hue, ...(hasActs ? actionRoom(item) : {}) } as CSSProperties}>
       <button type="button" className="row-main" data-act="open" onClick={() => c.onOpen(item)} aria-label={label} aria-describedby={described}
         aria-pressed={c.selecting ? picked : undefined} aria-current={!c.selecting && active ? "true" : undefined}>
         <span className="gut">{c.selecting ? <span className="cbx" aria-hidden="true"><Icon name="check" /></span> : <FreshDot fresh={item.fresh} />}</span>
@@ -116,17 +116,17 @@ export const ItemRow = memo(function ItemRow({ item, bare = false }: { item: Ite
           {c.basket ? <NoteLine item={item} id={noteId} /> : null}
           <span className="row-s"><span className="sn" dir="auto">{face.name}</span><time className="when" dateTime={itemDate(item)}>{when}</time><SharedBy curator={face.curator} /><WfTag workflow={item.workflow} kind={item.kind} />{c.basket ? <CopyTag item={item} /> : <KeptTag item={item} />}<PendingMark id={item.id} /><DownloadedTag itemId={item.id} /></span>
         </span>
-        <RowThumb item={item} />
+        <RowThumb item={item} sourceIconUrl={face.iconUrl} />
       </button>
       {hasActs ? <RowActions item={item} /> : null}
     </li>
   );
 });
 
-/** A small copy of the item's own picture at the end of the row, where there is one (wide lists only). */
-function RowThumb({ item }: { item: ItemDTO }) {
+/** A small copy of the item's own picture at the end of the row, where there is one (a podcast episode without one shows the show's art). Wide lists show every one; a narrow list only a video's. */
+function RowThumb({ item, sourceIconUrl }: { item: ItemDTO; sourceIconUrl: string | null }) {
   const [broken, setBroken] = useState(false);
-  const src = safeImage(item.imageUrl);
+  const src = itemPicture(item, sourceIconUrl);
   if (!src || broken) return null;
   return <span className="thumb" aria-hidden="true"><img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} /></span>;
 }

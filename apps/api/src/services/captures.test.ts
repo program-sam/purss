@@ -64,7 +64,9 @@ test("a video's length is never replaced by a reading time", (t) => {
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { url: "https://www.youtube.com/watch?v=abc123" })]));
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
   assert.equal(item.kind, "video");
-  queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! });
+  // A feed's video is not queued for a copy by keeping it any more; one that already has a copy on its way (kept earlier, or tried again) still completes.
+  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! }), false);
+  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES ('cap_video', ?, ?, 'fulltext', 'pending', ?)", p.workspaceId, item.id, new Date().toISOString());
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", item.id)!;
   const text = words(900);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text, html: `<p>${text}</p>`, finalUrl: item.url!, bytes: text.length }));

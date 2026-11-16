@@ -101,7 +101,9 @@ export function normalizeItem(raw: RawStreamItem): NormalizedItem {
       };
     });
 
-  const imageEnclosure = enclosures.find((e) => e.type?.toLowerCase().startsWith("image"));
+  // Several pictures may be given (a thumbnail and the picture, or sizes of it): the one the feed says is biggest, else the first.
+  const imageEnclosure = enclosures.filter((e) => e.type?.toLowerCase().startsWith("image")).reduce<(typeof enclosures)[number] | undefined>(
+    (best, e) => (!best || (e.length ?? 0) > (best.length ?? 0) ? e : best), undefined);
   const thumb = content ? THUMBNAIL.exec(content)?.[1] : undefined;
   const imageUrl = imageEnclosure?.url ?? (thumb && isHttpUrl(unescapeHtml(thumb)) ? clamp(unescapeHtml(thumb), 4000) : null);
 

@@ -4,7 +4,7 @@ import type { Noun } from "./cadence.ts";
 import { decodeBody, isFeedKind, sniffContent } from "./content-type.ts";
 import { FeedParseError, parseFeed } from "./feed.ts";
 import type { ParsedFeed } from "./feed.ts";
-import { isDiscourse, isGenericTitle, isSiteWideFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, nameMatchesTitle, orderByVia, probeLandedOnName, rankByPage, sameEntries, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
+import { isDiscourse, isGenericTitle, isMediaWiki, isSiteWideFeed, isSubscribeEndpoint, isWikiSiteFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, nameMatchesTitle, orderByVia, probeLandedOnName, rankByPage, sameEntries, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
 import { extractPageFacts, findDirectoryLinks } from "./html-links.ts";
 import type { FoundLink } from "./html-links.ts";
 import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce } from "./input.ts";
@@ -133,6 +133,7 @@ function fail(url: string, reason: Failure["reason"], message: string): Failure 
 }
 
 /** Slowness is as likely to be here as there, so the message names neither as the culprit. */
+export const COMMENTS_ONLY_MESSAGE = "The only feed we found on that page is for its comments, not its posts. If the comments are what you want, paste that feed's own address.";
 export const TIMEOUT_MESSAGE = "Looking took too long. The site may be slow or PURSS busy; try again.";
 export const BUSY_MESSAGE = "The site didn't give us what we needed just now: it was busy or limiting requests. Try again in a few minutes.";
 /** One lookup made all the requests it may, probing a site that never showed a feed. */
@@ -339,6 +340,21 @@ async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedire
   }
 }
 
+/**
+ * Whether an address answers with something the preview reads as a feed: the same fetch, sniff and parse as a discovery probe,
+ * so the answer is "yes" only for what a person would have been shown as a feed. The worker asks it before it lets the engine
+ * force a subscription (the engine refuses a feed served without a Content-Type); a page, a failed fetch or a body that does
+ * not parse is "no".
+ */
+export async function previewsAsFeed(url: string, opts: Pick<DiscoverOptions, "signal" | "fetch" | "timeoutMs" | "testAllowAddress" | "resolver" | "testTlsCa"> = {}): Promise<boolean> {
+  const ctx = makeCtx({ ...opts, maxRequests: 4 });
+  try {
+    return "parsed" in (await probeFeed(ctx, url, false, { maxRedirects: 3 }));
+  } catch {
+    return false;
+  }
+}
+
 /** Feeds that carry the same entries (one feed under two addresses or in two formats) are one choice: the first is kept. */
 function dedupeCandidates(list: DraftCandidate[], parsedList: ParsedFeed[]): DraftCandidate[] {
   const kept: number[] = [];
@@ -522,7 +538,10 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const section = sectionPath(pageUrl);
   const siteName = siteNameFor(facts, pageUrl);
   const page = { url: pageUrl, title: facts.title };
-  const alternates = facts.links.filter((l) => l.source === "alternate");
+  // Every page of a wiki advertises the feed of the whole wiki's changes: it is not the page's.
+  const wiki = isMediaWiki(html);
+  const ownLinks = wiki ? facts.links.filter((l) => !isWikiSiteFeed(l.url, pageUrl)) : facts.links;
+  const alternates = ownLinks.filter((l) => l.source === "alternate");
   // A fediverse profile or post: offer only what it advertises; probing the server's paths would find
   // nothing of the account's. Any other page that names an ActivityPub actor (a blog with an ActivityPub
   // plugin) is an ordinary site and is searched like one.
@@ -530,7 +549,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   if (facts.actorUrl && looksLikeProfilePath(pathname)) return socialFeedsFromProfile(ctx, facts.links, max, inputUrl, null);
   if (facts.actorUrl && alternates.length === 0 && looksLikeSocialPostPath(pathname)) return fail(inputUrl, "nofeed", FEDIVERSE_NOT_PROFILE);
   // A page that lists many sites' feeds (a publisher's hub) is cut short; the ones that are about this page go first.
-  const anchors = rankByPage(facts.links.filter((l) => l.source === "anchor"), page).slice(0, 6);
+  const anchors = rankByPage(ownLinks.filter((l) => l.source === "anchor"), page).slice(0, 6);
   const probes: FoundLink[] = [...alternates.slice(0, max + 2), ...(alternates.length === 0 ? anchors : [])];
   /**
    * `asked`: the journal feed address that was probed, so a later sign that it is the page's own can mark it, with `sibling`
@@ -539,6 +558,8 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const found: (Found & { via: FoundVia; matches: boolean; asked?: string; sibling?: string; feedNote?: string })[] = [];
   const attempted = new Set<string>();
   const trouble: Trouble = { timeout: prior?.timeout ?? false, busy: prior?.busy ?? false, failure: null };
+  /** A feed of comments is not what a site's page is followed for: it does not end the search for the posts, and is never offered alone. */
+  const hasPosts = () => found.some((f) => f.c.via !== "Comments feed");
   /** An advertised feed for this very page or section did not answer. */
   let ownFeedSilent = false;
   /** Feeds that cover the whole site although the page is a section; judged by the address asked for, since a blog's feed often answers from another host. */
@@ -556,6 +577,9 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       if (probe.inconclusive && !isSiteWideFeed(url, pageUrl)) ownFeedSilent = true;
       return;
     }
+    // A link on the page to a "Subscribe" feed that holds nothing is the site's sign-up address, not its posts: the search goes on. A feed the page
+    // advertises as its own is meant, however quiet it is.
+    if (via !== "alternate" && probe.parsed.items.length === 0 && isSubscribeEndpoint(probe.feedUrl, probe.parsed.title)) return;
     const c = buildCandidate(probe.feedUrl, probe.parsed, { ...hint, url: probe.feedUrl, siteName }, ctx);
     const wholeSite = isSiteWideFeed(url, pageUrl) || isSiteWideFeed(probe.feedUrl, pageUrl);
     if (wholeSite) wholeSiteFeeds.add(c);
@@ -683,18 +707,18 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   found.sort((a, b) => Number(a.via === "journal" && !a.matches) - Number(b.via === "journal" && !b.matches));
 
   // A section's own feed comes before any guess at the whole site. Publishers keep no feed at a blog's usual addresses.
-  if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c))) {
+  if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c) && f.c.via !== "Comments feed")) {
     await tryPaths(sectionFeedPaths(section).map((p) => `${origin}${p}`), { section: true });
   }
-  if (found.length === 0 && !publisherPage) {
+  if (!hasPosts() && !publisherPage) {
     // Conservative fallback: a handful of conventional paths on the same site only.
     await tryPaths(PROBE_PATHS.map((p) => `${origin}${p}`));
   }
-  if (found.length === 0 && !publisherPage && !ctx.signal.aborted) {
+  if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
     // Publisher and webcomic software that keeps its feed one folder down or names it after its format.
     await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`));
   }
-  if (found.length === 0 && !publisherPage && !ctx.signal.aborted) {
+  if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
     // Many news sites list their feeds on a page of their own ("RSS feeds"): look at the first two.
     for (const dir of findDirectoryLinks(html, pageUrl).filter((u) => !attempted.has(u)).slice(0, 2)) {
       attempted.add(dir);
@@ -707,7 +731,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       const listed = extractPageFacts(decodeBody(listing.response.body, listing.response.contentType), listing.response.url);
       // The listing may name a dozen feeds; the ones about the pasted page are looked at first.
       await tryLinks(rankByPage(listed.links, page).slice(0, 6), true);
-      if (found.length > 0) break;
+      if (hasPosts()) break;
     }
   }
 
@@ -716,7 +740,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     for (let i = found.length - 1; i >= 0; i--) if ((found[i]!.via === "anchor" || found[i]!.via === "listed") && !found[i]!.matches) found.splice(i, 1);
   }
 
-  if (found.length === 0) {
+  if (!hasPosts()) {
     const first = trouble.failure;
     if (first?.reason === "blocked") return first;
     if (isDuke(pageUrl)) return fail(inputUrl, "nofeed", DUKE_MESSAGE);
@@ -724,6 +748,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     if (ctx.spent()) return fail(inputUrl, "nofeed", CAP_MESSAGE);
     if (trouble.timeout || ctx.signal.aborted) return fail(inputUrl, "timeout", TIMEOUT_MESSAGE);
     if (trouble.busy) return fail(inputUrl, "unreachable", BUSY_MESSAGE);
+    if (found.length) return fail(inputUrl, "nofeed", COMMENTS_ONLY_MESSAGE);
     return fail(inputUrl, "nofeed", "We couldn't find a feed on that page. Try the site's blog or news page, or paste the feed address itself if you have it.");
   }
 

@@ -502,8 +502,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all("SELECT * FROM jobs ORDER BY id"), others.jobs, "other jobs are untouched");
     assert.deepEqual(db.all("SELECT * FROM playback_positions"), others.playback, "playback positions stay");
     assert.deepEqual(db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), others.sources, "sources are unchanged apart from the two columns");
-    // link_key (057), kept_key and source_title (058), number (062) and backlog (065) are columns later migrations add; everything the items had stays as it was.
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, backlog: _b, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
+    // link_key (057), kept_key and source_title (058), number (062), backlog (065) and embed_tries and embed_at (067) are columns later migrations add; everything the items had stays as it was.
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, backlog: _b, embed_tries: _et, embed_at: _ea, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
@@ -882,6 +882,36 @@ test("065 leaves every existing source showing its back catalogue and no existin
       assert.equal(marked("itm_a"), 0, `${what} clears it`);
     }
     assert.equal(marked("itm_b"), 0);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("067 makes the Bluesky posts already collected posts, counts none of them as looked up, and leaves every other item alone", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "067")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    const item = (id: string, kind: string, url: string | null) =>
+      db.run("INSERT INTO items (id, account_id, workspace_id, kind, title, url, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', ?, 't', ?, 'x', 'x', 'x')", id, kind, url);
+    item("itm_post", "article", "https://bsky.app/profile/tomgauld.bsky.social/post/3n2ehqj3hxs26");
+    item("itm_did", "article", "https://bsky.app/profile/did:plc:abc/post/3n2ehqj3hxs26");
+    item("itm_profile", "article", "https://bsky.app/profile/tomgauld.bsky.social");
+    item("itm_other", "article", "https://example.org/profile/x/post/y");
+    item("itm_video", "video", "https://bsky.app/profile/a.bsky.social/post/3n2ehqj3hxs26");
+    item("itm_none", "article", null);
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "067").length);
+    const kinds = Object.fromEntries(db.all<{ id: string; kind: string; embed_tries: number; embed_at: string | null }>("SELECT id, kind, embed_tries, embed_at FROM items").map((r) => [r.id, [r.kind, r.embed_tries, r.embed_at]]));
+    assert.deepEqual(kinds, { itm_post: ["post", 0, null], itm_did: ["post", 0, null], itm_profile: ["article", 0, null], itm_other: ["article", 0, null], itm_video: ["video", 0, null], itm_none: ["article", 0, null] });
     assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();

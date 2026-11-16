@@ -97,20 +97,21 @@ What you can paste:
 
 | Link | What happens |
 | --- | --- |
-| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed |
-| A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly |
+| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
+| A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the collection engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
 | A YouTube video | Keeping the video (with its real title, channel and picture) and following its channel are choices in one list, starting on keeping the video. If the link names a playlist, that playlist is offered too |
 | A podcast's name instead of a link | **Search podcasts** looks the name up in Apple's podcast directory (what you typed is sent there, and the screen says so). Choose a show to see its latest episodes, then follow its own feed |
 | A series page of the Guardian whose series is a podcast | The podcast feed is offered first and chosen; the articles feed comes second |
-| A subreddit or a Reddit user (`reddit.com/r/name`, `/user/name`) | Followed through Reddit's own feed, named *r/name* or *u/name*. When Reddit is limiting requests the feed is still offered and PURSS keeps trying |
+| A subreddit or a Reddit user (`reddit.com/r/name`, `/user/name`) | Followed through Reddit's own feed, named *r/name* or *u/name*. When Reddit is limiting requests the feed is still offered and PURSS keeps trying. A post with a picture shows it above its text, as wide as the reader allows (up to the picture's own size), not squeezed beside the text in a table cell |
 | A GitHub repository (`github.com/owner/repo`) | Its *Releases* feed, and its *Tags* feed when it lists tags that have no release (otherwise the two feeds are the same) |
 | A GitHub user or organisation (`github.com/name`) | Its public activity feed |
 | A game's page in the Steam store (`store.steampowered.com/app/…`) | The game's news feed, named after the game as the address spells it |
 | An arXiv listing (`arxiv.org/list/cs.LG/…`) | The category's daily feed. It is empty at weekends and says so |
 | A Dailymotion channel (`dailymotion.com/name`), an Odysee channel (`odysee.com/@name:id`, the form Odysee's own links take), a DeviantArt profile or gallery (`deviantart.com/name`) or a Behance profile (`behance.net/name`) | That account's own feed. Pages of those sites that aren't an account (search, settings, a single project or video) are looked at like any other page |
 | A PeerTube account or channel (`/a/name`, `/c/name`, on any PeerTube server) | The server's feed for that account or channel, offered only when the server answers with a PeerTube feed |
+| NOS (`nos.nl`, its news and sport pages, and the sections *Binnenland*, *Buitenland*, *Economie*, *Tech* and *Voetbal*) | The NOS feed for that page on `feeds.nos.nl`, which NOS's pages don't link to |
 | An Apple Podcasts show link | The show's own feed, looked up from Apple's public podcast directory |
 | A scholarly journal's page, or one of its issue pages, on Wiley Online Library, Taylor & Francis, the University of Chicago Press journals site, Berghahn Journals, Project MUSE or ScienceDirect | The journal's feed of new articles, named after the journal, even though those sites turn automated readers away. Where the journal has more feeds with other contents they are offered too, each saying what it holds: on Wiley, Taylor & Francis and Chicago the articles published online that aren't in an issue yet, on Project MUSE one entry per new issue. Feeds with the same entries under different addresses are offered once. For ScienceDirect the journal's name from the address is looked up in Crossref's public journal list (the name is sent there). A journal on Open Journal Systems also offers its announcements (news and calls for papers) when it publishes them. A society's page for its journal that links to the journal on one of those sites offers the journal's feed first and the society's own feed after it; a journal the page only links to, without being shown to be the page's own, says *Linked from that page*. Duke University Press can't be reached: you're told to copy the RSS link from the journal's issue page |
 | An article's DOI (`10.1111/…`, `doi:10.1111/…`, a `doi.org` link) or an article link on Wiley, Taylor & Francis or the University of Chicago Press journals site | The DOI is looked up in Crossref's public metadata (the DOI is sent there) to find the journal. The feed of a Wiley or Elsevier journal is offered. For other publishers the DOI's page is looked at like any other page; if that finds nothing, you're told which journal the article is in so you can paste the journal's own page |
@@ -158,7 +159,10 @@ A feed shows only what its publisher includes, usually recent items. A YouTube c
 lists only the latest videos, never the full history. Following doesn't fetch old archives.
 A social account's feed has its public posts only: Mastodon gives the latest 20, without boosts
 or replies; Bluesky the most recent ones, without reposts or replies. Posts have no titles, so
-the start of the text stands in. A post its author later deletes or edits stays in your
+the start of the text stands in (a long post continues in the line under it, so its words are not shown twice). Bluesky's feed carries no pictures
+and marks a quote or attachment with a placeholder; PURSS shows the placeholder as *[quote or attachment: open the post to see it]*, and asks Bluesky's
+public service (from the server, never from your browser) for the pictures of the account's posts of the last three days, at most three tries each,
+and shows the first one with the post. A post that Bluesky doesn't answer for keeps the text alone; nothing about the posts is ever held back for this. A post its author later deletes or edits stays in your
 PURSS as it was collected.
 
 **Private links.** If a feed address looks like it contains a secret, the option to mark it
@@ -283,6 +287,7 @@ and the previous button skips back 15.
   here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
   in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
   videos open on the site. Other sites, PeerTube included, open in a new tab.
+- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists and on cards).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
   it is back; whichever position was reached last wins. Near the end counts as finished, and it starts from the beginning next time.
@@ -314,10 +319,11 @@ once. Each basket has a capture mode:
 - **Link and summary** (the default): keeps the item's details and whatever content its
   feed supplied, with no extra copy of the page.
 - **Readable copy too:** also queues a readable copy of the page in the background (unless the
-  item already has one). The copy reflects the page when it is fetched, if it can be fetched.
+  item already has one, or it is a video or podcast episode from a feed: those keep their description and picture and no copy of their page is tried, so no
+  "couldn't save the text" follows; a page you keep by hand always gets its copy). The copy reflects the page when it is fetched, if it can be fetched.
   Not done for private sources, or when the server is short of space. The basket also keeps the item's picture
   and the pictures inside the readable text (up to 20 pictures and 10 MB for one item), so a
-  webcomic or a visual reference stays whole. They are kept once, however many baskets keep the
+  webcomic or a visual reference stays whole. A page that loads its pictures with a script (a gallery of thumbnails, say) keeps them too: a thumbnail that links to its full-size picture keeps the full-size one. They are kept once, however many baskets keep the
   item, and are in your export. Items that only come from a feed, and baskets that keep the link
   and summary, keep no pictures.
 
@@ -334,7 +340,7 @@ audio are never downloaded.
 
 Every collection, source and basket can be shown as:
 
-- **List:** compact rows.
+- **List:** compact rows. A wide list shows a small picture at the end of each row that has one; a narrow list (a phone's) keeps one only for videos.
 - **Cards:** larger tiles with images.
 - **Board:** columns for Undecided, To read, In progress and Finished; drag a card to change its state.
 - **Table:** sortable columns.
@@ -384,8 +390,9 @@ The **Show** button above a list (the filter menu) narrows it by state (*All*, *
 *Undecided*, *To read*, *In progress*, *Finished* or *Ignored*) and, below that, by:
 
 - **Type:** *Articles*, *Videos*, *Podcasts*; tick one or several.
-- **Length:** *Short (up to 5 min)* or *Long (over 5 min)*, in minutes of reading or playing. An
-  item whose length isn't known is in neither.
+- **Length:** *Short (up to 5 min)* or *Long (over 5 min)*, in minutes of reading or playing. Reading time is the words the
+  item has (its feed's text, or its readable copy once one is saved) rounded up to whole minutes, so a few lines are 1 min
+  and an item with no text to read is short. A video or episode whose length isn't known is in neither.
 
 *All* leaves ignored items out; tick **Show ignored items** in the menu (or **Show ignored** under
 the list) to see them too.

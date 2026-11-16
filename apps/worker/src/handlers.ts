@@ -48,6 +48,12 @@ export type HandlerDeps = {
   capture?: CaptureFn;
   /** Fetches the pictures of a kept copy; absent when the connectors package does not provide it, and then not leased. */
   pictures?: PicturesFn;
+  /**
+   * Whether an address answers with something the preview reads as a feed (`previewsAsFeed`). Asked only when the engine
+   * refuses an address as "not a feed": a feed served without a Content-Type is then added with the engine's force marker.
+   * Absent: the engine's refusal stands.
+   */
+  looksLikeFeed?: (url: string, opts: { signal: AbortSignal }) => Promise<boolean>;
   /** Absent when the connectors package does not provide icon lookup; such jobs are then not leased at all. */
   icon?: IconFn;
   /** Jev for Smart filters (plan/36): the operator's address (keys are read from the secrets folder). Absent: not leased. */
@@ -103,6 +109,22 @@ export function createHandlers(deps: HandlerDeps): Handlers {
   }
 
   /**
+   * Whether an address the engine refused as "not a feed" may be added with the engine's force marker: only a web address that
+   * the preview's own parser reads as a feed (so a page, or anything that does not parse, is never forced), and never a bridged
+   * address, which the engine reaches through the bridge router and which always carries its type. The marker stays on the
+   * address the engine stores, so it keeps taking the feed as one at every later refresh; the source's own address stays without it.
+   */
+  async function mayForce(e: unknown, payloadUrl: string, feedUrl: string, signal: AbortSignal): Promise<boolean> {
+    if (!deps.looksLikeFeed || !(e instanceof EngineError) || e.kind !== "rejected" || e.reason !== "not_a_feed") return false;
+    if (payloadUrl.startsWith("bridge:") || !/^https?:\/\//i.test(feedUrl)) return false;
+    try {
+      return await deps.looksLikeFeed(feedUrl, { signal });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * What the engine says about the feed it has just fetched for a subscription: whether anything is in it. The engine fetches
    * a feed when it adds it, so an empty stream right after is a feed with no posts. When the engine can't be asked, nothing
    * is claimed (the subscription itself still succeeded).
@@ -137,9 +159,17 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         }
         const { client } = await engineSession(payload.engineUserId, signal);
         // A private (secret-link) address belongs to one account and is never fetched for another, so it needs no ordering.
+        const add = async () => {
+          try {
+            return await client.quickAdd(feedUrl);
+          } catch (e) {
+            if (!(await mayForce(e, payload.feedUrl, feedUrl, signal))) throw e;
+            return await client.quickAdd(feedUrl, { force: true });
+          }
+        };
         const added = payload.feedUrl.startsWith("secret:")
-          ? await client.quickAdd(feedUrl)
-          : await addressLock.run(createHash("sha256").update(normalizeFeedUrl(feedUrl)).digest("hex"), () => client.quickAdd(feedUrl));
+          ? await add()
+          : await addressLock.run(createHash("sha256").update(normalizeFeedUrl(feedUrl)).digest("hex"), add);
         if ("already" in added) {
           const existing = await findSubscriptionByUrl(client, feedUrl);
           if (!existing) throw new JobFailure("The engine reports an existing subscription for this feed but does not list it.", true);

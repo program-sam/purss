@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { displayExcerpt, displayTitle, findDoi, sanitize, toText, unwrapCdata } from "./content.ts";
+import { decodeCharRefs, displayExcerpt, displayTitle, findDoi, readMinutes, repairMarkup, sanitize, toText, unwrapCdata } from "./content.ts";
 
 test("toText keeps words apart across block boundaries and line breaks", () => {
   assert.equal(toText("<p>doi:10.1038/x-1</p><p>Parkinson's disease</p>"), "doi:10.1038/x-1 Parkinson's disease");
@@ -84,4 +84,49 @@ test("a DOI loses the tracking query or anchor of the link it was found in", () 
   assert.equal(findDoi("see https://doi.org/10.1000/xyz123#section-2)."), "10.1000/xyz123");
   assert.equal(findDoi(null, "doi:10.1038/x-1."), "10.1038/x-1");
   assert.equal(findDoi("https://example.org/no-doi?af=R"), null);
+});
+
+test("markup a feed escaped (outside CDATA) becomes markup, and its excerpt is plain words, not a raw <p>", () => {
+  // EatingWell: the summary arrives with its paragraph escaped as text.
+  const raw = "© &lt;p&gt;Photography: Caitlin Bensel. EatingWell design.&lt;/p&gt;";
+  assert.equal(toText(raw), "© Photography: Caitlin Bensel. EatingWell design.");
+  assert.equal(sanitize(raw), "© <p>Photography: Caitlin Bensel. EatingWell design.</p>");
+  assert.equal(sanitize("&lt;p&gt;One&lt;/p&gt;&lt;p class=&quot;x&quot;&gt;Two &lt;a href=&quot;https://e.example/?a=1&amp;amp;b=2&quot;&gt;link&lt;/a&gt;&lt;/p&gt;"),
+    '<p>One</p><p>Two <a href="https://e.example/?a=1&amp;b=2">link</a></p>');
+  assert.equal(sanitize("Line one&lt;br /&gt;Line two"), "Line one<br />Line two");
+  // Tags the sanitizer does not allow stay as harmless as ever, and an escaped script is never a script.
+  assert.equal(sanitize("&lt;p&gt;a&lt;/p&gt;&lt;script&gt;alert(1)&lt;/script&gt;"), "<p>a</p>&lt;script&gt;alert(1)&lt;/script&gt;");
+  // One escaped tag in a sentence is somebody writing about a tag; code samples are left exactly as they are.
+  assert.equal(toText("Use the &lt;p&gt; element for paragraphs."), "Use the <p> element for paragraphs.");
+  assert.equal(repairMarkup("<p>Close it with</p><pre>&lt;p&gt;text&lt;/p&gt;</pre><p>and <code>&lt;/p&gt;</code> done</p>"), "<p>Close it with</p><pre>&lt;p&gt;text&lt;/p&gt;</pre><p>and <code>&lt;/p&gt;</code> done</p>");
+  assert.equal(repairMarkup("&lt;p&gt;real&lt;/p&gt;<pre>&lt;p&gt;sample&lt;/p&gt;</pre>"), "<p>real</p><pre>&lt;p&gt;sample&lt;/p&gt;</pre>");
+  assert.equal(repairMarkup("<p>Already markup &amp; fine</p>"), "<p>Already markup &amp; fine</p>");
+  // The excerpts and previews already stored with the tags in them are shown without.
+  assert.equal(displayExcerpt("© <p>Photography: Caitlin Bensel. EatingWell design.</p>"), "© Photography: Caitlin Bensel. EatingWell design.");
+  assert.equal(displayExcerpt("a < b and c > d"), "a < b and c > d");
+});
+
+test("character references escaped twice lose one level, in titles, excerpts and bodies, and code samples keep theirs", () => {
+  assert.equal(decodeCharRefs("It&#039;s &amp; that&#x27;s &hellip;"), "It's & that's …");
+  assert.equal(decodeCharRefs("&amp;#039;"), "&#039;", "one pass only, never decoded without end");
+  assert.equal(decodeCharRefs("&#0; &#xD800; &toString; &unknown; &#99999999;"), "&#0; &#xD800; &toString; &unknown; &#99999999;", "what is not text is left alone");
+  assert.equal(displayTitle("Why I&#039;m leaving &amp; staying"), "Why I'm leaving & staying");
+  assert.equal(displayExcerpt("Don&#039;t miss &quot;it&quot;"), "Don't miss \"it\"");
+  // Feed text that arrives as `&amp;#039;` is read once by the markup parser and shows as `&#039;`: it is repaired before.
+  assert.equal(toText("<p>Don&amp;#039;t panic &amp;amp; carry on</p>"), "Don't panic & carry on");
+  assert.equal(sanitize("<p>Don&amp;#039;t panic</p>"), "<p>Don't panic</p>");
+  assert.equal(sanitize("<p>Write <code>&amp;#039;</code> for an apostrophe</p>"), "<p>Write <code>&amp;#039;</code> for an apostrophe</p>");
+  assert.equal(repairMarkup("<pre>&amp;#039; stays</pre> and &amp;#039; goes"), "<pre>&amp;#039; stays</pre> and &#039; goes");
+});
+
+test("reading time rounds up whole minutes of the text there is; a few lines are a minute, and only no words at all have none", () => {
+  const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
+  assert.equal(readMinutes(words(1)), 1);
+  assert.equal(readMinutes(words(79)), 1, "short items are no longer left without a time");
+  assert.equal(readMinutes(words(230)), 1);
+  assert.equal(readMinutes(words(231)), 2, "rounded up");
+  assert.equal(readMinutes(words(1150)), 5);
+  assert.equal(readMinutes(words(1151)), 6);
+  assert.equal(readMinutes(""), null);
+  assert.equal(readMinutes("   \n "), null);
 });

@@ -627,6 +627,12 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
   .list .row-t .ex{display:block;font-size:0.8438rem;line-height:1.45;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .list .row .thumb{display:block}
 }
+/* A video is chosen by its picture as much as its title: in a narrow list its row keeps a small one too (a phone's list is narrow). */
+@container (max-width:759px){
+  .list .row.vid .row-main{grid-template-columns:14px var(--av-row) minmax(0,1fr) auto}
+  .in-source .list .row.vid .row-main{grid-template-columns:14px minmax(0,1fr) auto}
+  .list .row.vid .thumb{display:block;width:64px;height:36px;margin-left:10px;align-self:center}
+}
 /* Beside an open reader the list is narrow: titles may take two lines instead of being cut. */
 .app[data-panel="open"] .row-t .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 /* Storage and other document pages: one right edge. */

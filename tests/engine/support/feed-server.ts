@@ -12,7 +12,8 @@ export type FeedItem = {
   enclosure?: { url: string; type: string; length: number };
 };
 
-export type Feed = { path: string; title: string; items: FeedItem[]; format?: "rss" | "atom" };
+/** `contentType: null` serves the feed with no Content-Type header at all (some publishers do). */
+export type Feed = { path: string; title: string; items: FeedItem[]; format?: "rss" | "atom"; contentType?: string | null };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -67,7 +68,8 @@ export class FeedServer {
         res.writeHead(404, { "content-type": "text/plain" });
         return void res.end("not found");
       }
-      res.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8", "cache-control": "no-store" });
+      const contentType = feed.contentType === undefined ? "application/rss+xml; charset=utf-8" : feed.contentType;
+      res.writeHead(200, { ...(contentType === null ? {} : { "content-type": contentType }), "cache-control": "no-store" });
       res.end(renderRss(feed, this.base));
     });
     await new Promise<void>((r) => this.#server!.listen(0, "127.0.0.1", r));

@@ -4,7 +4,7 @@ import type { ItemDTO, ItemKind, KeptCopy } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";
-import { isTimeBased, isYouTube, itemExcerpt, lengthText, manualSiteName, safeHref, safeImage } from "../lib/items.ts";
+import { isTimeBased, isYouTube, itemExcerpt, itemPicture, lengthText, manualSiteName, safeHref } from "../lib/items.ts";
 import { usePendingMark } from "../outbox/hooks.ts";
 import { useRowLookups } from "../state/workspace.tsx";
 
@@ -136,7 +136,7 @@ function TextArt({ title, excerpt }: { title: string; excerpt: string | null }) 
  *  else without one leads with its title and excerpt. The play mark is only drawn where something answers it. */
 export function Art({ item, face, playable = false }: { item: ItemDTO; face: Face; playable?: boolean }) {
   const [broken, setBroken] = useState(false);
-  const src = safeImage(item.imageUrl);
+  const src = itemPicture(item, face.iconUrl);
   const vid = isTimeBased(item.kind);
   const badge = lengthText(item);
   if ((!src || broken) && !vid) return <TextArt title={item.title} excerpt={itemExcerpt(item)} />;

@@ -80,7 +80,8 @@ test("lists take the type, length and source filters and Home's order; muted wor
   const list = async (query: string) => (await call(b.app, b.server.base, "GET", `/api/items?${query}`, s)).json as { items: { id: string }[]; mutedHidden?: number };
   assert.equal((await list("scope=all&limit=10&type=articles")).items.length, 2);
   assert.equal((await list("scope=all&limit=10&type=videos")).items.length, 0);
-  assert.equal((await list("scope=all&limit=10&length=short")).items.length, 0, "no length is known for either");
+  assert.equal((await list("scope=all&limit=10&length=short")).items.length, 2, "an article with no text to read is as short as can be");
+  assert.equal((await list("scope=all&limit=10&length=long")).items.length, 0);
   assert.deepEqual((await list(`scope=all&limit=10&without=${a}`)).items.map((i) => i.id), [plain]);
   assert.equal((await call(b.app, b.server.base, "GET", "/api/items?scope=all&type=books", s)).status, 400);
   assert.equal((await list("scope=home&limit=10&mix=home&filter=open")).items.length, 2);
@@ -126,13 +127,13 @@ test("a Home list narrowed by type, length, source or a failed copy still shows 
   assert.deepEqual(await get("scope=home&type=videos"), new Set([clipA, filmA, otherClip]), "type: Home's sources only (not the hidden collection's)");
   assert.deepEqual(await get(`scope=collection:${shownBox.id}&type=videos`), new Set([clipA, filmA, otherClip]), "the same for a box");
   assert.deepEqual(await get("scope=home&type=articles"), new Set([textA, otherText, failing]));
-  assert.deepEqual(await get("scope=home&length=short"), new Set([clipA, otherClip]), "length: the short videos; an article with no length is in neither list");
+  assert.deepEqual(await get("scope=home&length=short"), new Set([clipA, otherClip, textA, otherText, failing]), "length: the short videos, and the articles with no text to read");
   assert.deepEqual(await get("scope=home&length=long"), new Set([filmA]));
   assert.deepEqual(await get(`scope=home&without=${a}`), new Set([otherClip, otherText]), "without: not that source, and still only Home's");
   assert.deepEqual(await get(`scope=home&source=${a}`), new Set([clipA, filmA, textA, failing]), "one source of Home's");
   assert.deepEqual(await get(`scope=home&source=${hidden}`), new Set(), "a source of a collection hidden on Home is not Home's, even asked for by name");
   assert.deepEqual(await get("scope=home&capture=failed"), new Set([failing]), "failed copies: Home's only");
-  assert.deepEqual(await get("scope=home&type=articles&capture=failed&length=short"), new Set(), "and together: an article with no length is not short");
+  assert.deepEqual(await get("scope=home&type=articles&capture=failed&length=short"), new Set([failing]), "and together: a failed copy of an article with no text to read is short");
   assert.deepEqual(await get("scope=home&type=videos&filter=all"), new Set([clipA, filmA, otherClip]), "whatever the state filter");
   // The list view of the same request (not mix=home) shows them all: the narrowing is what Home does, not what lists do.
   const plain = await call(b.app, b.server.base, "GET", "/api/items?scope=home&limit=50&type=videos", s);

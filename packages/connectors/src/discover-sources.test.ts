@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BUSY_MESSAGE, discover, MISSING_HOST_MESSAGE, TIMEOUT_MESSAGE } from "./discover.ts";
+import { BUSY_MESSAGE, COMMENTS_ONLY_MESSAGE, discover, MISSING_HOST_MESSAGE, TIMEOUT_MESSAGE } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { EMAIL_MESSAGE, NAME_MESSAGE, normalizeInput } from "./input.ts";
 import { noFeedMessage } from "./platforms.ts";
@@ -295,15 +295,64 @@ test("generic feed names become the site's name; a page's own feed link name is 
   assert.equal(c.title, "Dan's Blog");
 });
 
-test("comment feeds are not offered next to a posts feed; alone they still are, labelled", async () => {
+test("comment feeds are not offered next to a posts feed, and a page whose only feed is for comments goes on looking for its posts", async () => {
   const home = "https://blog.example/";
   const both = `<html><head><link rel="alternate" type="application/rss+xml" title="Comments for Blog" href="/comments/feed/"><link rel="alternate" type="application/rss+xml" title="Blog" href="/feed/"></head></html>`;
   const routes = { "https://blog.example/feed/": feedRes("https://blog.example/feed/", rss("Blog")), "https://blog.example/comments/feed/": feedRes("https://blog.example/comments/feed/", rss("Comments for Blog", WEEKLY.slice(0, 2))) };
   const c = ok(await discover(home, { fetch: stub({ [home]: page(home, both), ...routes }).fetch, now: NOW })).candidates;
   assert.deepEqual(c.map((x) => x.via), ["Posts feed"]);
-  const only = `<html><head><link rel="alternate" type="application/rss+xml" title="Comments for Blog" href="/comments/feed/"></head></html>`;
-  const o = ok(await discover(home, { fetch: stub({ [home]: page(home, only), ...routes }).fetch, now: NOW })).candidates;
-  assert.deepEqual(o.map((x) => x.via), ["Comments feed"]);
+  // LitHub: the page advertises only a comments feed (that of its front page); the posts feed is at the usual address.
+  const only = `<html><head><link rel="alternate" type="application/rss+xml" title="Literary Hub &raquo; Literary Hub Home Comments Feed" href="/home-page/feed/"></head></html>`;
+  const lit = { "https://blog.example/home-page/feed/": feedRes("https://blog.example/home-page/feed/", rss("Literary Hub Home Comments", WEEKLY.slice(0, 2))), "https://blog.example/feed": feedRes("https://blog.example/feed", rss("Blog")) };
+  const found = ok(await discover(home, { fetch: stub({ [home]: page(home, only), ...lit }).fetch, now: NOW })).candidates;
+  assert.deepEqual(found.map((x) => [x.via, x.feedUrl]), [["Posts feed", "https://blog.example/feed"]], "the comments feed is not offered, the posts feed is");
+  // Nothing else to find: the answer is that there are only comments, not a comments feed passed off as the site's posts.
+  const none = await discover(home, { fetch: stub({ [home]: page(home, only), "https://blog.example/home-page/feed/": lit["https://blog.example/home-page/feed/"] }).fetch, now: NOW });
+  assert.ok(!none.ok);
+  assert.deepEqual([none.reason, none.message], ["nofeed", COMMENTS_ONLY_MESSAGE]);
+  // Pasted as an address of its own, a comments feed is followed, and labelled.
+  const direct = ok(await discover("https://blog.example/home-page/feed/", { fetch: stub(lit).fetch, now: NOW })).candidates;
+  assert.deepEqual(direct.map((x) => [x.via, x.feedUrl]), [["Comments feed", "https://blog.example/home-page/feed/"]]);
+});
+
+test("a link to an empty \"Subscribe\" feed is the site's sign-up, not its posts: the search goes on; one the page advertises as its own, or a feed with posts, stays", async () => {
+  const blog = "https://www.family.example/en/blog";
+  const sub = "https://www.family.example/en/blog/subscribe.rss";
+  const empty = `<?xml version="1.0"?><rss version="2.0"><channel><title>Subscribe</title><link>https://www.family.example/en/blog</link><description>x</description></channel></rss>`;
+  const linked = `<html><head><title>Family Blog</title></head><body><a href="/en/blog/subscribe.rss">RSS</a></body></html>`;
+  const posts = { "https://www.family.example/en/blog/feed": feedRes("https://www.family.example/en/blog/feed", rss("Family Blog")) };
+  const withPosts = ok(await discover(blog, { fetch: stub({ [blog]: page(blog, linked), [sub]: feedRes(sub, empty), ...posts }).fetch, now: NOW })).candidates;
+  assert.deepEqual(withPosts.map((x) => x.feedUrl), ["https://www.family.example/en/blog/feed"]);
+  const nothing = await discover(blog, { fetch: stub({ [blog]: page(blog, linked), [sub]: feedRes(sub, empty) }).fetch, now: NOW });
+  assert.ok(!nothing.ok && nothing.reason === "nofeed", JSON.stringify(nothing));
+  // The same feed with posts in it is a feed; advertised by the page it is meant; pasted by the person it is followed.
+  const full = rss("Subscribe");
+  assert.deepEqual(ok(await discover(blog, { fetch: stub({ [blog]: page(blog, linked), [sub]: feedRes(sub, full) }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [sub]);
+  const advertised = `<html><head><link rel="alternate" type="application/rss+xml" title="Updates" href="/en/blog/subscribe.rss"></head></html>`;
+  assert.deepEqual(ok(await discover(blog, { fetch: stub({ [blog]: page(blog, advertised), [sub]: feedRes(sub, empty) }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [sub]);
+  assert.deepEqual(ok(await discover(sub, { fetch: stub({ [sub]: feedRes(sub, empty) }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [sub]);
+});
+
+test("a wiki article does not offer the whole wiki's recent changes as its feed; the special page itself and a pasted feed address still do", async () => {
+  const article = "https://en.wiki.example/wiki/Example";
+  const changes = "https://en.wiki.example/w/index.php?title=Special:RecentChanges&feed=atom";
+  const head = `<meta name="generator" content="MediaWiki 1.44.0"><link rel="alternate" type="application/atom+xml" title="Wiki Atom feed" href="/w/index.php?title=Special:RecentChanges&amp;feed=atom">`;
+  const articlePage = `<html><head><title>Example - Wiki</title>${head}</head><body><p>An example.</p></body></html>`;
+  const recent = atom("Wiki - Recent changes [en]", "r1");
+  const noFeed = await discover(article, { fetch: stub({ [article]: page(article, articlePage), [changes]: feedRes(changes, recent, "application/atom+xml") }).fetch, now: NOW });
+  assert.ok(!noFeed.ok && noFeed.reason === "nofeed", "the article has no feed of its own");
+  // The page of an article's own history is its feed, and is not taken for the wiki's.
+  const history = "https://en.wiki.example/w/index.php?title=Example&action=history&feed=atom";
+  const own = `<html><head><meta name="generator" content="MediaWiki 1.44.0"><link rel="alternate" type="application/atom+xml" title="History" href="/w/index.php?title=Example&amp;action=history&amp;feed=atom"></head></html>`;
+  assert.deepEqual(ok(await discover(article, { fetch: stub({ [article]: page(article, own), [history]: feedRes(history, atom("Example history"), "application/atom+xml") }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [history]);
+  // The recent-changes page offers its own feed, and a pasted feed address is followed as ever.
+  const special = "https://en.wiki.example/wiki/Special:RecentChanges";
+  const specialPage = `<html><head><title>Recent changes</title>${head}</head></html>`;
+  assert.deepEqual(ok(await discover(special, { fetch: stub({ [special]: page(special, specialPage), [changes]: feedRes(changes, recent, "application/atom+xml") }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [changes]);
+  assert.deepEqual(ok(await discover(changes, { fetch: stub({ [changes]: feedRes(changes, recent, "application/atom+xml") }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [changes]);
+  // A site that is not a wiki and happens to use such an address keeps it.
+  const plain = `<html><head><link rel="alternate" type="application/atom+xml" title="All" href="/w/index.php?title=Special:RecentChanges&amp;feed=atom"></head></html>`;
+  assert.deepEqual(ok(await discover(article, { fetch: stub({ [article]: page(article, plain), [changes]: feedRes(changes, recent, "application/atom+xml") }).fetch, now: NOW })).candidates.map((x) => x.feedUrl), [changes]);
 });
 
 test("a Discourse forum offers its latest topics first, and says the posts feed is every reply", async () => {

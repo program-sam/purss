@@ -29,6 +29,14 @@ const MIXED_TOKEN = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])[A-Za-z0-9_-]{20,}$/;
  */
 const PUBLIC_ID_HOSTS = /(?:^|\.)(?:acast\.com|omnycontent\.com|omny\.fm|pinecast\.(?:com|co)|megaphone\.fm|simplecast\.com|buzzsprout\.com|libsyn\.com|anchor\.fm|transistor\.fm|art19\.com|podbean\.com|audioboom\.com|captivate\.fm|spreaker\.com|soundcloud\.com|redcircle\.com|rss\.com|podtrac\.com|blubrry\.com|castos\.com|fireside\.fm|ausha\.co|podigee\.io|podigee\.com)$/i;
 
+/**
+ * Al Jazeera's feeds sit at `/aljazeerarss/<id>/<id>` with two uuids that are in every one of its pages (`<link rel="alternate">`), so they
+ * are no secret. Only that exact shape on its own hosts is let through: any other path there, or the same shape elsewhere, is judged as before.
+ */
+const PUBLIC_FEED_PATHS: readonly { host: RegExp; path: RegExp }[] = [
+  { host: /(?:^|\.)aljazeera\.(?:net|com)$/i, path: /^\/aljazeerarss\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/?$/i },
+];
+
 /** A run of letters that can be said: short, or with vowels spread through it and no long stretch of consonants. */
 function readsLikeWord(part: string): boolean {
   if (part.length <= 12) return true;
@@ -89,6 +97,7 @@ export function privateUrlReason(raw: string): string | null {
     if (value.length >= 6 && (SECRET_PARAM.test(name) || (AMBIGUOUS_PARAM.test(name) && !isPlainWord(value)))) return `a "${name}" value in the address`;
     if (value.length >= 32 && looksRandom(value)) return "a long random value in the address";
   }
+  if (PUBLIC_FEED_PATHS.some((f) => f.host.test(url.hostname) && f.path.test(url.pathname))) return null;
   const publicIds = PUBLIC_ID_HOSTS.test(url.hostname);
   const segments = url.pathname.split("/").filter(Boolean);
   for (let i = 0; i < segments.length; i++) {

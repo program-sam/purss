@@ -28,7 +28,8 @@ views and controls. Never turn an unavailable API or failed login into an empty 
 | Input/outcome | User-facing behavior |
 | --- | --- |
 | Direct RSS/Atom/JSON Feed | Validate and preview; explain if only summaries are supplied |
-| Website with alternate feeds | Detect candidate links; label news, comments, podcasts, or sections |
+| Website with alternate feeds | Detect candidate links; label news, comments, podcasts, or sections. A page whose only feed is for comments is not offered as the site's posts: the usual addresses are tried, and if only comments are found the answer says so (a pasted comments feed is still followed). A link to an empty "Subscribe" feed, and a wiki's site-wide recent-changes feed, are not taken for the page's own feed |
+| A site whose feeds are on another host | Reviewed mappings (`services.ts`), e.g. nos.nl's front, news and sport pages to the feeds on feeds.nos.nl, each address checked to answer with that section's feed |
 | Publisher with several journals | Choose specific titles; do not imply one feed covers the whole publisher |
 | Issue feed versus online-first | Explain coverage and permit both; preserve provenance and avoid duplicate presentation |
 | YouTube channel | Resolve a stable channel identity and preview its official channel feed where supported |

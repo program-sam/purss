@@ -1,6 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { decodeBody, parseContentType, sniffContent } from "./content-type.ts";
+import { promoteLazyImages } from "./lazy-images.ts";
 import { sanitizeArticleHtml } from "./sanitize.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions } from "./safe-fetch.ts";
@@ -65,6 +66,8 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
   let article: { title?: string | null; content?: string | null } | null = null;
   try {
     const { document } = parseHTML(html);
+    // Pictures a page loads with a script (a placeholder in `src`) are given their real address, or Readability keeps their captions only.
+    promoteLazyImages(document as unknown as Document, r.url);
     // Readability rewrites links against the document URL; linkedom has no URL, so
     // relative links are resolved later by the sanitizer against the final URL.
     const reader = new Readability(document as unknown as Document, { charThreshold: 150, maxElemsToParse: MAX_ELEMENTS, keepClasses: false });

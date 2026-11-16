@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { EngineError } from "./errors.ts";
-import { GReaderClient } from "./greader.ts";
+import { forceFeedUrl, GReaderClient } from "./greader.ts";
 import { FakeEngine } from "./testing/fake-engine.ts";
 
 async function withEngine<T>(fn: (engine: FakeEngine, client: GReaderClient, baseUrl: string) => Promise<T>): Promise<T> {
@@ -115,6 +115,25 @@ test("quick-add returns the new stream, reports an existing subscription, and re
     assert.ok("already" in again);
     await assert.rejects(client.quickAdd("https://example.org/broken.xml?token=secret"), (e: unknown) => e instanceof EngineError && e.kind === "rejected" && !e.retryable && !e.message.includes("secret") && !e.message.includes("example.org") && /404/.test(e.message));
     await assert.rejects(client.quickAdd("https://example.org/flaky.xml"), (e: unknown) => e instanceof EngineError && e.kind === "unavailable" && e.retryable && !e.message.includes("example.org"));
+  });
+});
+
+test("the engine's force marker is one trailing #force_feed, sent only when asked for, and a not-a-feed refusal says so", async () => {
+  assert.equal(forceFeedUrl("https://daily.example/feed"), "https://daily.example/feed#force_feed");
+  assert.equal(forceFeedUrl("https://daily.example/feed?a=1#frag"), "https://daily.example/feed?a=1#force_feed");
+  assert.equal(forceFeedUrl("https://daily.example/feed#force_feed"), "https://daily.example/feed#force_feed", "never twice");
+  await withEngine(async (engine, client) => {
+    const url = "https://daily.example/notype/feed";
+    const refused = await client.quickAdd(url).catch((e: unknown) => e);
+    assert.ok(refused instanceof EngineError && refused.kind === "rejected" && !refused.retryable && refused.reason === "not_a_feed", "the engine's refusal of a feed served with no type");
+    assert.ok(!refused.message.includes("daily.example"), "the address is not in the message");
+    assert.deepEqual(engine.feeds, []);
+    const added = await client.quickAdd(url, { force: true });
+    assert.ok("streamId" in added);
+    assert.deepEqual((await client.listSubscriptions()).map((s) => s.url), [`${url}#force_feed`], "the engine lists the address with the marker");
+    // Without `force` the address goes as it is: a feed with its type is not marked.
+    await client.quickAdd("https://example.org/plain.xml");
+    assert.ok((await client.listSubscriptions()).some((s) => s.url === "https://example.org/plain.xml"));
   });
 });
 

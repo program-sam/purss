@@ -307,6 +307,45 @@ export function withoutCommentFeeds<T extends { via: string }>(list: T[]): T[] {
   return rest.length ? rest : list;
 }
 
+/**
+ * A feed whose address or name says it is the site's sign-up, not its posts: `/blog/subscribe.rss` titled "Subscribe". Only for a feed with nothing in
+ * it (the caller checks): a real feed of posts can be called anything.
+ */
+export function isSubscribeEndpoint(feedUrl: string, title: string | null | undefined): boolean {
+  let last = "";
+  try {
+    last = new URL(feedUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+  } catch {
+    /* only the title says */
+  }
+  return /^(?:subscribe|subscription|subscriptions|signup|sign-up)(?:[._-](?:rss|atom|xml|feed))?(?:\.(?:rss|atom|xml))?$/i.test(last)
+    || /^\s*(?:subscribe|subscribe to .{1,60}|sign up|signup)\s*$/i.test(title ?? "");
+}
+
+/** MediaWiki sites (Wikipedia and the many others that run it) say so in their page head. */
+export function isMediaWiki(html: string): boolean {
+  return /<meta[^>]+name=["']generator["'][^>]+content=["']MediaWiki/i.test(html) || /<meta[^>]+content=["']MediaWiki[^>]+name=["']generator["']/i.test(html);
+}
+
+/**
+ * The feed every page of a wiki advertises, of the whole site's changes (`index.php?title=Special:RecentChanges&feed=atom`; the special page's
+ * name is in the wiki's language). It says nothing of the article it was found on, unless that page is the special page itself. A feed made for one
+ * page (`action=history`) is not this.
+ */
+export function isWikiSiteFeed(feedUrl: string, pageUrl: string): boolean {
+  try {
+    const feed = new URL(feedUrl);
+    if (!/(?:^|\/)index\.php$/.test(feed.pathname) || !feed.searchParams.has("feed") || feed.searchParams.has("action")) return false;
+    const special = feed.searchParams.get("title") ?? "";
+    if (!special.includes(":")) return false;
+    const page = new URL(pageUrl);
+    const own = page.searchParams.get("title") ?? decodeURIComponent(page.pathname.split("/").pop() ?? "");
+    return own.replace(/_/g, " ") !== special.replace(/_/g, " ");
+  } catch {
+    return false;
+  }
+}
+
 /** Discourse forums say so in their page head. */
 export function isDiscourse(html: string): boolean {
   return /<meta[^>]+name=["']generator["'][^>]+content=["']Discourse/i.test(html) || /<meta[^>]+content=["']Discourse[^>]+name=["']generator["']/i.test(html) || /data-discourse-setup/i.test(html);

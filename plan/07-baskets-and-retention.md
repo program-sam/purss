@@ -37,7 +37,10 @@ Optional additional capture happens as a bounded job. UI distinguishes Saved
 metadata, Feed content saved, Full text captured, Capture pending, and Capture
 failed. Never label a metadata-only bookmark as an offline article. A changed source
 record cannot silently overwrite an explicitly retained snapshot; refresh can add a
-new capture while retaining the kept one.
+new capture while retaining the kept one. A video or podcast episode from a feed is kept with its feed description and picture and no
+readable copy of its page is queued (it would only fail); a page kept by hand, and a retry the person asks for, still get one. A page that
+loads its pictures with a script is read after its placeholders are given the real addresses (`lazy-images.ts`), so a gallery keeps its pictures,
+under the same address rules and the same limits.
 
 ## Removal, deletion, and cleanup
 

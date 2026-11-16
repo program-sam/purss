@@ -113,3 +113,14 @@ export function safeImage(url: string | null | undefined): string | null {
   const href = safeHref(url);
   return href && href.startsWith("https:") ? href : null;
 }
+
+/** A source's icon as the server serves it (same origin, versioned by its digest); nothing else counts as the show's art. */
+const SOURCE_ICON = /^\/api\/sources\/[\w%-]+\/icon\?v=\w+$/;
+
+/**
+ * The picture an item shows in a row, a card and the player: its own, or for a podcast episode that has none the show's art (the
+ * source's icon, which is the feed's own picture). Nothing else borrows its source's picture: a post without one has none.
+ */
+export function itemPicture(item: { imageUrl: string | null; kind: string }, sourceIconUrl: string | null | undefined): string | null {
+  return safeImage(item.imageUrl) ?? (item.kind === "podcast" && sourceIconUrl && SOURCE_ICON.test(sourceIconUrl) ? sourceIconUrl : null);
+}

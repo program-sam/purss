@@ -84,6 +84,7 @@
 .prose h1{font-size:1.35em}.prose h2{font-size:1.22em}.prose h3,.prose h4{font-size:1.08em}
 .prose a.tok{white-space:nowrap}
 .prose img{max-width:100%;height:auto;border-radius:8px;display:block}
+.p-pic{max-width:100%;height:auto;border-radius:8px;display:block}
 .prose figure{margin:1em 0}
 .prose figcaption{font-size:.85em;color:var(--ink-3);margin-top:.3em}
 .prose blockquote{margin:1em 0;padding:.4em 1em;border-left:3px solid var(--tint-bd);background:var(--tint);border-radius:0 8px 8px 0}

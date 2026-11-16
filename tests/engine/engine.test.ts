@@ -257,6 +257,77 @@ describe("subscription management", () => {
   });
 });
 
+describe("a feed served without a Content-Type", () => {
+  test("the engine refuses it, takes it with its force marker, and keeps forcing it at every later refresh", async () => {
+    const u = await engine.newUser("notype");
+    const path = `/notype-${++feedCounter}.xml`;
+    const url = engine.feeds.setFeed({ path, title: "No type", items: items(2, "nt"), contentType: null });
+    const refused = await u.client.quickAdd(url).catch((e: unknown) => e);
+    assert.ok(refused instanceof EngineError && refused.kind === "rejected" && refused.reason === "not_a_feed" && !refused.retryable, String(refused));
+    assert.deepEqual(await u.client.listSubscriptions(), []);
+
+    const added = await u.client.quickAdd(url, { force: true });
+    assert.ok("streamId" in added, "the forced add subscribes");
+    const [sub] = await u.client.listSubscriptions();
+    assert.equal(sub?.url, `${url}#force_feed`, "the engine stores the address with its marker");
+    assert.equal((await u.client.streamContents({ count: 10, order: "asc" })).items.length, 2, "the forced add fetched the feed");
+
+    // A later refresh fetches the unmarked address and still takes the feed as one.
+    await sleep(1200);
+    engine.feeds.setFeed({ path, title: "No type", items: items(3, "nt"), contentType: null });
+    await engine.refresh(u.username, added.streamId);
+    assert.equal((await u.client.streamContents({ count: 10, order: "asc" })).items.length, 3, "a refresh keeps forcing");
+
+    // Asked for again, the engine loads the feed before it looks for a subscription: the marker finds it, the bare address is refused.
+    assert.ok("already" in (await u.client.quickAdd(url, { force: true })));
+    assert.ok((await u.client.quickAdd(url).catch((e: unknown) => e)) instanceof EngineError);
+  });
+
+  test("the worker's subscribe adds it once the preview's parser has read it as a feed, and follows the marked subscription on a second run", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "purss-notype-"));
+    try {
+      const secrets = new EngineUserSecrets(path.join(dir, "engine-users"));
+      const id = "eu_notype";
+      const username = `tnt${Math.random().toString(16).slice(2, 8)}`;
+      const { apiPassword } = secrets.ensure(id);
+      await engine.admin.ensureUser({ username, apiPassword });
+      const client = new GReaderClient({ baseUrl: engine.baseUrl, username, apiPassword, requestTimeoutMs: 60_000 });
+      const handlers = createHandlers({
+        api: { engineUser: async () => ({ id, username, baseUrl: engine.baseUrl }) } as unknown as InternalApi,
+        secrets,
+        secretsDir: dir,
+        admin: engine.admin,
+        log: createLogger(() => {}),
+        makeClient: defaultMakeClient(60_000),
+        looksLikeFeed: async (url) => url.endsWith(".xml"),
+        syncPageSize: 10,
+        syncOverlapSeconds: 0,
+        syncMaxBatchBytes: 700_000,
+        requestTimeoutMs: 60_000,
+      });
+      const subscribe = (feedUrl: string) => handlers["engine.subscribe"]!({
+        job: { id: "job_nt", kind: "engine.subscribe", payload: null, leaseId: "lse", leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), attempts: 1 },
+        payload: { engineUserId: id, sourceId: "src_nt", feedUrl, title: "No type" },
+        signal: new AbortController().signal,
+      });
+      const url = engine.feeds.setFeed({ path: `/notype-${++feedCounter}.xml`, title: "No type", items: items(2, "ntw"), contentType: null });
+      const first = await subscribe(url) as Record<string, unknown>;
+      assert.equal(first.alreadySubscribed, false);
+      assert.equal(first.empty, false);
+      const again = await subscribe(url) as Record<string, unknown>;
+      assert.deepEqual([again.alreadySubscribed, again.streamId], [true, first.streamId]);
+      assert.equal((await client.listSubscriptions()).length, 1);
+      // What does not look like a feed to the worker is refused as it was before.
+      const page = engine.feeds.setFeed({ path: `/notype-${++feedCounter}`, title: "A page", items: items(1, "pg"), contentType: null });
+      const refused = await subscribe(page).catch((e: unknown) => e);
+      assert.ok(refused instanceof EngineError && refused.reason === "not_a_feed", String(refused));
+      assert.equal((await client.listSubscriptions()).length, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("entries: shape, paging, incremental sync", () => {
   test("stream entries map to the SyncEntry contract; the original GUID is not in the standard stream", async () => {
     const u = await engine.newUser("shape");

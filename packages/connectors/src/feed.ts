@@ -325,22 +325,34 @@ function finishItem(raw: RawItem, base: string | null): FeedItem {
 
 // ---------- RSS 2.0 / RSS 1.0 (RDF) ----------
 
+/** The pixels an element declares for its picture (`width` and `height`), or the longer side alone; 0 when it declares none. */
+function declaredSize(attribs: Record<string, string> | undefined): number {
+  const w = Number.parseInt(attribs?.width ?? "", 10) || 0;
+  const h = Number.parseInt(attribs?.height ?? "", 10) || 0;
+  return w && h ? w * h : Math.max(w, h);
+}
+
 function mediaFromElements(node: XNode, enclosures: FeedEnclosure[], images: string[]): number | null {
   let duration: number | null = null;
   const scopes: XNode[] = [node, ...elements(node, "media:group")];
+  // A feed may give a thumbnail and the picture itself, or several sizes: the largest declared comes first, and a picture
+  // that says nothing of its size comes before a thumbnail that says nothing of its (a thumbnail is the small copy by name).
+  const pictures: { url: string; size: number; rank: number }[] = [];
   for (const scope of scopes) {
-    for (const t of elements(scope, "media:thumbnail")) if (t.attribs?.url) images.push(t.attribs.url);
+    for (const t of elements(scope, "media:thumbnail")) if (t.attribs?.url) pictures.push({ url: t.attribs.url, size: declaredSize(t.attribs), rank: 0 });
     for (const c of elements(scope, "media:content")) {
       const url = c.attribs?.url;
       if (!url) continue;
       const type = c.attribs?.type?.toLowerCase() ?? null;
       const medium = c.attribs?.medium?.toLowerCase();
       if (type === "application/x-shockwave-flash" || /\/v\/|\/embed\//.test(url) || type === "text/html") continue; // embedded players, not files
-      if (medium === "image" || type?.startsWith("image/")) images.push(url);
+      if (medium === "image" || type?.startsWith("image/")) pictures.push({ url, size: declaredSize(c.attribs), rank: 1 });
       else enclosures.push({ url, type: type ?? (medium === "audio" ? "audio/mpeg" : medium === "video" ? "video/mp4" : null), length: sizeAttr(c.attribs?.filesize) });
       duration ??= parseDuration(c.attribs?.duration);
     }
   }
+  pictures.sort((a, b) => b.size - a.size || b.rank - a.rank);
+  for (const p of pictures) images.push(p.url);
   return duration;
 }
 

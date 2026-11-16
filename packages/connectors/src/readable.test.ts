@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fetchPictures } from "./pictures.ts";
 import { captureReadable, captureReadableWith } from "./readable.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
@@ -108,6 +109,38 @@ test("a page built from hostile markup yields only inert text", async () => {
     const r = await captureReadableWith(`${server.url}/`, { fetch: { testAllowAddress: allowLoopback } });
     assert.ok(r.ok, JSON.stringify(r));
     assert.doesNotMatch(r.html, /<svg|<script|<form|<input|<object|style=|onload|alert/i);
+  } finally {
+    await server.close();
+  }
+});
+
+const GIF_PLACEHOLDER = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 7)]);
+
+/** A WordPress gallery as a lazy-loading plugin leaves it: a placeholder in src, the address in data-src and data-srcset, a noscript fallback, a link to the full file. */
+const GALLERY = (n: number, host = "") => `<div id="gallery-1" class="gallery galleryid-1 gallery-columns-3">${Array.from({ length: n }, (_, i) =>
+  `<dl class="gallery-item"><dt class="gallery-icon landscape"><a href="${host}/uploads/Still0${i + 1}.png" title="Alpha"><img data-lazyloaded="1" src="${GIF_PLACEHOLDER}" width="300" height="225" data-src="${host}/uploads/Still0${i + 1}-300x225.png" class="attachment-medium" alt="" data-srcset="${host}/uploads/Still0${i + 1}-300x225.png 300w, ${host}/uploads/Still0${i + 1}.png 640w" data-sizes="(max-width: 300px) 100vw, 300px"><noscript><img width="300" height="225" src="${host}/uploads/Still0${i + 1}-300x225.png" alt="" srcset="${host}/uploads/Still0${i + 1}-300x225.png 300w"></noscript></a></dt><dd class="wp-caption-text gallery-caption">Alpha model ${i + 1}</dd></dl>`).join("")}<br style="clear: both"></div>`;
+
+test("a gallery whose pictures load with a script keeps its pictures and captions in the readable copy, and the picture job still fetches only what the address rules allow", async () => {
+  const server = await startServer((req, res) => {
+    if (req.url?.startsWith("/uploads/")) return send(res, 200, "image/png", PNG_BYTES);
+    send(res, 200, "text/html; charset=utf-8", ARTICLE(`<h4>Pictures</h4><p><strong>Alpha Model</strong></p>${GALLERY(3)}<p>${PARA.repeat(2)}</p>
+      <img src="${GIF_PLACEHOLDER}" data-src="http://169.254.169.254/latest/meta-data/x.png" alt="Elsewhere">`));
+  });
+  try {
+    const r = await captureReadableWith(`${server.url}/posts/slave-zero`, { fetch: { testAllowAddress: allowLoopback } });
+    assert.ok(r.ok, JSON.stringify(r));
+    for (const n of [1, 2, 3]) {
+      assert.match(r.html, new RegExp(`<img src="${server.url.replace(/\./g, "\\.")}/uploads/Still0${n}\\.png"`), `gallery picture ${n} is kept, as the full-size file its thumbnail links to`);
+      assert.match(r.text, new RegExp(`Alpha model ${n}`), "its caption is kept");
+    }
+    assert.doesNotMatch(r.html, /data:image|data-src|noscript|-300x225/, "no placeholder, lazy attribute or thumbnail is left");
+    const pictures = [...r.html.matchAll(/<img src="([^"]+)"/g)].map((m) => m[1]!);
+    assert.ok(pictures.includes("http://169.254.169.254/latest/meta-data/x.png"), "a lazy address is promoted as it is; refusing private addresses is the fetcher's job");
+    // What the picture job does with them: the gallery is fetched, the private address is refused before any request.
+    const got = await fetchPictures(pictures, { maxBytes: 100_000, fetch: { testAllowAddress: (ip) => allowLoopback(ip) } });
+    assert.deepEqual(got.map((p) => p.url).sort(), pictures.filter((u) => u.startsWith(server.url) && u.includes("/uploads/")).sort());
+    assert.ok(server.requests.every((q) => !q.url?.includes("meta-data")));
   } finally {
     await server.close();
   }

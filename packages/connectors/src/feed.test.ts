@@ -185,6 +185,19 @@ test("image falls back to the first real <img> and skips tracking pixels", () =>
   assert.equal(feed.items[0]!.imageUrl, "https://maya.example/img/pile.jpg");
 });
 
+test("when a feed gives several pictures for an item, the largest declared one is the item's picture", () => {
+  const item = (inner: string) => `<?xml version="1.0"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>T</title><link>https://x.example/</link><item><title>One</title><link>https://x.example/1</link>${inner}</item></channel></rss>`;
+  const image = (inner: string) => parseFeed(item(inner)).items[0]!.imageUrl;
+  assert.equal(image('<media:thumbnail url="https://x.example/small.jpg" width="150" height="100"/><media:content url="https://x.example/big.jpg" medium="image" width="1200" height="800"/>'), "https://x.example/big.jpg");
+  assert.equal(image('<media:thumbnail url="https://x.example/t-150.jpg" width="150" height="100"/><media:thumbnail url="https://x.example/t-640.jpg" width="640" height="427"/><media:thumbnail url="https://x.example/t-300.jpg" width="300" height="200"/>'), "https://x.example/t-640.jpg");
+  assert.equal(image('<media:content url="https://x.example/a.jpg" medium="image" width="800"/><media:content url="https://x.example/b.jpg" medium="image" width="1600"/>'), "https://x.example/b.jpg");
+  // No sizes given: a picture is preferred to a thumbnail, and otherwise the feed's order stands.
+  assert.equal(image('<media:thumbnail url="https://x.example/thumb.jpg"/><media:content url="https://x.example/photo.jpg" type="image/jpeg"/>'), "https://x.example/photo.jpg");
+  assert.equal(image('<media:thumbnail url="https://x.example/first.jpg"/><media:thumbnail url="https://x.example/second.jpg"/>'), "https://x.example/first.jpg");
+  // A YouTube entry's thumbnail group is the same: its one declared picture.
+  assert.equal(image('<media:group><media:thumbnail url="https://i.ytimg.com/vi/x/hqdefault.jpg" width="480" height="360"/></media:group>'), "https://i.ytimg.com/vi/x/hqdefault.jpg");
+});
+
 test("excerpt-only feeds are flagged summariesOnly; full-content feeds are not", () => {
   const excerpts = parseFeed(RSS_EXCERPTS);
   assert.equal(excerpts.items.length, 4);

@@ -109,6 +109,29 @@ function behance(url: URL): KnownPlan | null {
   return { service: "Behance", feeds: [{ feedUrl: `https://www.behance.net/feeds/user?username=${encodeURIComponent(name)}`, via: "Projects feed", origin: "Behance projects" }] };
 }
 
+/**
+ * NOS (the Dutch public broadcaster): its pages carry no feed link, and its feeds live on `feeds.nos.nl`. The front page and its news and sport
+ * pages are the whole news and the whole sport feed, and a section's page its own; each address was checked to answer with that section's feed.
+ */
+const NOS_SECTIONS: Record<string, { feed: string; title: string }> = {
+  "": { feed: "nosnieuwsalgemeen", title: "NOS Nieuws" },
+  nieuws: { feed: "nosnieuwsalgemeen", title: "NOS Nieuws" },
+  "nieuws/laatste": { feed: "nosnieuwsalgemeen", title: "NOS Nieuws" },
+  "nieuws/binnenland": { feed: "nosnieuwsbinnenland", title: "NOS Binnenland" },
+  "nieuws/buitenland": { feed: "nosnieuwsbuitenland", title: "NOS Buitenland" },
+  "nieuws/economie": { feed: "nosnieuwseconomie", title: "NOS Economie" },
+  "nieuws/tech": { feed: "nosnieuwstech", title: "NOS Tech" },
+  sport: { feed: "nossportalgemeen", title: "NOS Sport" },
+  "sport/laatste": { feed: "nossportalgemeen", title: "NOS Sport" },
+  "sport/voetbal": { feed: "nosvoetbal", title: "NOS Voetbal" },
+};
+
+function nos(url: URL): KnownPlan | null {
+  const section = NOS_SECTIONS[segmentsOf(url).join("/").toLowerCase()];
+  if (!section) return null;
+  return { service: "NOS", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: "Posts feed", origin: "NOS" }] };
+}
+
 /** The feed addresses to try for a page address of one of these services, or null. */
 export function planServiceFeeds(url: URL): KnownPlan | null {
   const h = hostOf(url);
@@ -118,5 +141,6 @@ export function planServiceFeeds(url: URL): KnownPlan | null {
   if (h === "odysee.com" || h === "www.odysee.com") return odysee(url);
   if (h === "deviantart.com" || h === "www.deviantart.com") return deviantart(url);
   if (h === "behance.net" || h === "www.behance.net") return behance(url);
+  if (h === "nos.nl" || h === "www.nos.nl") return nos(url);
   return peertube(url);
 }

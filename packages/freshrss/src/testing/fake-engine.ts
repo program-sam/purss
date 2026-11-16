@@ -139,6 +139,9 @@ export class FakeEngine {
     }
     if (path === "/reader/api/0/subscription/quickadd") {
       const target = form?.get("quickadd") ?? "";
+      // The engine loads the feed before it looks for a subscription of the same address, and refuses one served without a Content-Type
+      // unless the address ends with its force marker (which it keeps on the address it stores).
+      if (target.includes("notype") && !target.endsWith("#force_feed")) return send(200, JSON.stringify({ numResults: 0, error: `A feed could not be found at \`${target}\`; the status code is \`200\` and content-type is \`\`` }));
       if (this.feeds.some((f) => f.url === target)) return send(200, JSON.stringify({ numResults: 0, error: "FreshRSS_AlreadySubscribed_Exception: already subscribed" }));
       if (target.includes("broken")) return send(200, JSON.stringify({ numResults: 0, error: `Retrieved unsupported status code "404" [${target}]` }));
       // The engine's own wording when the feed's site answers 429 (seen for Reddit feeds).

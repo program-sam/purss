@@ -8,7 +8,7 @@ import type { z } from "zod";
 import { admitObject } from "./storage.ts";
 import { itemCounts } from "./counts.ts";
 import type { CellFilter } from "./counts.ts";
-import { contentHash, displayExcerpt, displayTitle, excerpt, readMinutes, sanitize, toText } from "./content.ts";
+import { contentHash, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { getPlayback, itemMedia } from "./media.ts";
 import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
@@ -122,7 +122,7 @@ export type ItemRow = {
 export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   return {
     id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.url, author: r.author,
-    excerpt: displayExcerpt(r.excerpt), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
+    excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, workflow: r.workflow, revision: r.revision, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
@@ -332,8 +332,11 @@ const TYPE_SQL: Record<string, (a: string) => string> = {
 };
 /** The longest an item can be to count as short, in seconds (reading time for text, playing time for video and audio). */
 export const SHORT_SECONDS = 300;
-/** How long an item takes: its playing time, or its reading time for text. Null when neither is known. */
-const lengthSql = (a: string) => `COALESCE(NULLIF(${a}.duration_seconds, 0), ${a}.read_minutes * 60)`;
+/**
+ * How long an item takes: its playing time, or its reading time for text. A text with no reading time has no words to read (items
+ * saved before short texts were given one are the same), so it is as short as can be; a video or audio with no length is unknown.
+ */
+const lengthSql = (a: string) => `COALESCE(NULLIF(${a}.duration_seconds, 0), ${a}.read_minutes * 60, CASE WHEN ${a}.kind NOT IN ('video', 'podcast') THEN 0 END)`;
 
 /** Conditions over the items named `a` (`items i` unless said) for the item types and the length a list is limited to. */
 export function typeLengthConditions(q: { type?: string; length?: "short" | "long" }, a = "i"): string[] {

@@ -24,6 +24,15 @@ export function fullTextAvailable(source: { kind: string; is_private: number; bu
   return source.is_private === 0 && !source.builtin && (source.kind === "feed" || source.kind === "publication");
 }
 
+/**
+ * Whether an item's page is something a readable copy can be made of. A video or a podcast episode from a feed is a page of
+ * players and comments: its description and picture are what the feed gave, and a copy of the page would only fail and be
+ * reported as a text that couldn't be saved. A page kept by hand (a saved link) is the person's own choice, whatever it is.
+ */
+function pageHasReadableText(app: App, itemId: string): boolean {
+  return !app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.kind IN ('video', 'podcast') AND s.kind <> 'manual'", itemId);
+}
+
 /** The item has a copy on its way or finished, a partial one included: nothing is fetched by itself again (capture-state.ts). */
 const hasCapture = (app: App, itemId: string) => !!app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND status IN ('pending', 'done')", itemId);
 
@@ -31,12 +40,13 @@ const hasCapture = (app: App, itemId: string) => !!app.db.get("SELECT 1 FROM cap
  * Queue a readable-text capture of an item's page for Keep, inside the caller's transaction:
  * reserve storage so the copy is sure to fit, record the pending capture and enqueue the job.
  * Returns false when the item already has a capture that is pending or finished (a partial one included, unless `again`: the
- * person tried again, see capture-state.ts), or belongs to a private source (whose pages are never fetched). Throws StorageFull
- * when there is no room. The person asked for this copy, so a failure of it is theirs to hear about.
+ * person tried again, see capture-state.ts), belongs to a private source (whose pages are never fetched), or is a feed's video or
+ * podcast episode (unless `again`). Throws StorageFull when there is no room. The person asked for this copy, so a failure of it is theirs to hear about.
  */
 export function queueCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string }, opts: { again?: boolean } = {}): boolean {
   if (opts.again ? app.db.get(`SELECT 1 WHERE ${settledCopy("?")}`, target.itemId) : hasCapture(app, target.itemId)) return false;
   if (app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", target.itemId)) return false;
+  if (!opts.again && !pageHasReadableText(app, target.itemId)) return false;
   const captureId = newId("cap");
   const reservationId = reserve(app, target.accountId, CAPTURE_RESERVE_BYTES, "capture", `capture:${captureId}`);
   app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, requested, created_at) VALUES (?, ?, ?, 'fulltext', 'pending', 1, ?)", captureId, target.workspaceId, target.itemId, nowIso());

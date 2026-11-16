@@ -269,3 +269,34 @@ test("a try again that fails after a partial copy is told about and listed, like
   app.db.tx(() => completeCapture(app, cap2, { ok: true, title: "T", text: wall, html: `<p>${wall}</p>`, finalUrl: "https://journal.example/b", bytes: 300 }));
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [item]);
 });
+
+test("a video or a podcast episode kept in a text basket queues no readable copy, so no failed text is reported for it; its picture is still kept, and an article or a link kept by hand still gets its copy", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const basket = createBasket(app, p, { name: "Readable copy too", captureMode: "text" }).id;
+  const channel = makeSource(app, p, "bigclivedotcom", "feed/yt", { kind: "youtube" });
+  const show = makeSource(app, p, "A podcast", "feed/pod");
+  const blog = makeSource(app, p, "A blog", "feed/blog");
+  applySyncBatch(app, p.engineUserId, batch([
+    entry("feed/yt", { url: "https://www.youtube.com/watch?v=abcdefghijk", imageUrl: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg" }),
+    entry("feed/pod", { enclosures: [{ url: "https://cdn.example/ep1.mp3", type: "audio/mpeg", length: 1000 }], imageUrl: "https://cdn.example/art.jpg" }),
+    entry("feed/blog"),
+  ]));
+  const [video] = listItems(app, p, { scope: `source:${channel}` }).items;
+  const [episode] = listItems(app, p, { scope: `source:${show}` }).items;
+  const [article] = listItems(app, p, { scope: `source:${blog}` }).items;
+  assert.deepEqual([video!.kind, episode!.kind, article!.kind], ["video", "podcast", "article"]);
+
+  assert.equal(keepItem(app, p, video!.id, basket).captureQueued, false);
+  assert.equal(keepItem(app, p, episode!.id, basket).captureQueued, false);
+  assert.equal(keepItem(app, p, article!.id, basket).captureQueued, true);
+  assert.deepEqual(app.db.all("SELECT item_id FROM captures").map((r) => (r as { item_id: string }).item_id), [article!.id], "only the article has a copy on its way");
+  assert.equal(app.db.all("SELECT 1 FROM jobs WHERE kind = 'capture.fulltext'").length, 1);
+  assert.equal(app.db.all("SELECT 1 FROM jobs WHERE kind = 'capture.images'").length, 2, "the pictures of the video and the episode are still fetched");
+  assert.deepEqual(bell(app, p), [], "nothing failed, so nothing is reported");
+
+  // The person's own choice still works: a page kept by hand, and trying a failed copy again.
+  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: video!.id, url: video!.url! }), false, "even asked for directly, the feed's own video page is not read");
+  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at) VALUES ('cap_old', ?, ?, 'fulltext', 'failed', 'x', ?)", p.workspaceId, video!.id, new Date().toISOString());
+  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: video!.id, url: video!.url! }, { again: true }), true, "trying again is the person's request");
+});

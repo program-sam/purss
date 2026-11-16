@@ -41,6 +41,27 @@ function linkifyBareAddresses(doc: Document): void {
   }
 }
 
+/**
+ * Reddit (and feeds made like it) lay a post out as a one-row table: the picture in one cell, the text beside it. In a narrow reader that
+ * squeezes the picture to a thumbnail, so the cells are laid one under the other and the picture has the column to itself.
+ * Only a single row with no headings or caption is a layout; a table of data stays one.
+ */
+function stackPictureTables(doc: Document): void {
+  for (const table of [...doc.body.querySelectorAll("table")]) {
+    if (table.closest("table") !== table || table.querySelector("th,caption,thead,table")) continue;
+    const rows = table.querySelectorAll("tr");
+    const cells = rows.length === 1 ? [...rows[0]!.children].filter((c) => c.tagName === "TD") : [];
+    if (cells.length < 1 || cells.length > 3 || !cells.some((c) => c.querySelector("img"))) continue;
+    const stack = doc.createElement("div");
+    for (const cell of cells) {
+      const part = doc.createElement("div");
+      part.append(...[...cell.childNodes]);
+      stack.append(part);
+    }
+    table.replaceWith(stack);
+  }
+}
+
 /** A journal's citation paragraph ("Nature, Published online: 4 November 2026; doi:10.1038/…"). */
 export function isCitationLead(text: string): boolean {
   return /^[^;]{1,80}?Published online:[^;]{1,40};\s*doi:10\.\d{4,9}\/\S+$/.test(text.trim());
@@ -73,6 +94,7 @@ export function prepareArticleHtml(html: string, opts: { dropCitation?: boolean;
   const first = doc.body.firstElementChild;
   if (opts.dropCitation && first?.tagName === "P" && isCitationLead(first.textContent ?? "") && (doc.body.textContent ?? "").trim().length > (first.textContent ?? "").trim().length) first.remove();
   if (opts.video) tidyVideoDescription(doc, opts.video.pictureUrl);
+  stackPictureTables(doc);
   doc.querySelectorAll(DROP).forEach((el) => el.remove());
   linkifyBareAddresses(doc);
   doc.body.querySelectorAll("*").forEach((el) => {

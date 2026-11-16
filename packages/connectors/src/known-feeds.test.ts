@@ -67,6 +67,18 @@ test("Steam, arXiv, Dailymotion, Odysee, DeviantArt, Behance: a profile or page 
   assert.deepEqual(only("https://behance.net/adamthompson/"), [["https://www.behance.net/feeds/user?username=adamthompson", null, "Projects feed", "Behance projects"]]);
 });
 
+test("NOS: its front, news and sport pages and their sections become the feeds on feeds.nos.nl, and nothing else on nos.nl is claimed", () => {
+  const feed = (name: string, title: string) => [[`https://feeds.nos.nl/${name}`, title, "Posts feed", "NOS"]];
+  for (const u of ["https://nos.nl/", "https://nos.nl", "https://www.nos.nl/", "https://nos.nl/nieuws", "https://nos.nl/nieuws/", "https://nos.nl/nieuws/laatste"]) assert.deepEqual(only(u), feed("nosnieuwsalgemeen", "NOS Nieuws"), u);
+  for (const u of ["https://nos.nl/sport", "https://nos.nl/sport/laatste"]) assert.deepEqual(only(u), feed("nossportalgemeen", "NOS Sport"), u);
+  assert.deepEqual(only("https://nos.nl/sport/voetbal"), feed("nosvoetbal", "NOS Voetbal"));
+  assert.deepEqual(only("https://nos.nl/nieuws/binnenland"), feed("nosnieuwsbinnenland", "NOS Binnenland"));
+  assert.deepEqual(only("https://nos.nl/nieuws/economie"), feed("nosnieuwseconomie", "NOS Economie"));
+  for (const u of ["https://nos.nl/artikel/2600000-een-verhaal", "https://nos.nl/video/2600000-een-filmpje", "https://nos.nl/zoeken?q=x", "https://nos.nl/sport/tennis", "https://nos.nl/over-nos", "https://nos.example/nieuws", "https://feeds.nos.nl/nosnieuwsalgemeen", "https://nos.nl/nieuws/laatste/extra"]) {
+    assert.equal(plan(u), null, u);
+  }
+});
+
 test("those services' site pages, other pages and bare names are not turned into feeds", () => {
   for (const u of [
     "https://store.steampowered.com/", "https://store.steampowered.com/search/?term=x", "https://store.steampowered.com/app/abc/", "https://store.steampowered.com/news/app/730", "https://steamcommunity.com/app/730",

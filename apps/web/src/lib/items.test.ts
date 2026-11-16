@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, safeHref, safeImage, withNewerState } from "./items.ts";
+import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
@@ -107,4 +107,17 @@ test("a reloaded copy keeps the newer state of the item, and its own content", (
   const fresher: ItemDTO = { ...base, workflow: "new", stateVersion: 7 };
   assert.equal(withNewerState(fresher, finished), fresher, "a newer answer wins as it is");
   assert.equal(withNewerState(saved, undefined), saved);
+});
+
+test("a podcast episode without a picture of its own shows the show's art; nothing else borrows its source's picture", () => {
+  const art = "/api/sources/src_1/icon?v=0123456789abcdef";
+  assert.equal(itemPicture({ kind: "podcast", imageUrl: null }, art), art);
+  assert.equal(itemPicture({ kind: "podcast", imageUrl: "https://cdn.example/ep.jpg" }, art), "https://cdn.example/ep.jpg", "its own picture first");
+  assert.equal(itemPicture({ kind: "podcast", imageUrl: "http://cdn.example/ep.jpg" }, art), art, "a picture the page may not show is no picture");
+  assert.equal(itemPicture({ kind: "podcast", imageUrl: null }, null), null);
+  assert.equal(itemPicture({ kind: "video", imageUrl: null }, art), null);
+  assert.equal(itemPicture({ kind: "article", imageUrl: null }, art), null);
+  for (const bad of ["https://evil.example/icon?v=1", "//evil.example/api/sources/a/icon?v=1", "/api/items/itm_1/images/img_1", "javascript:alert(1)", "/api/sources/../x/icon?v=1"]) {
+    assert.equal(itemPicture({ kind: "podcast", imageUrl: null }, bad), null, bad);
+  }
 });

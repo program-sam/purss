@@ -8,7 +8,7 @@
  * (podman exec --user www-data purss-freshrss), PURSS_WORKER_CONCURRENCY (4), see config.ts for the rest.
  */
 import { readFileSync } from "node:fs";
-import { captureReadable, fetchPictures, jevConfigFromEnv } from "@purss/connectors";
+import { captureReadable, fetchPictures, jevConfigFromEnv, previewsAsFeed } from "@purss/connectors";
 import { EngineAdmin } from "@purss/freshrss";
 import { fileTokenProvider, loadWorkerConfig } from "./config.ts";
 import { createHandlers, defaultMakeClient } from "./handlers.ts";
@@ -32,6 +32,7 @@ async function main(): Promise<void> {
     makeClient: defaultMakeClient(config.requestTimeoutMs),
     capture: captureReadable,
     pictures: fetchPictures,
+    looksLikeFeed: (url, opts) => previewsAsFeed(url, { signal: opts.signal }),
     // Loaded on the first icon job: the image library is slow to load and only this job needs it.
     icon: async (input, opts) => (await import("@purss/connectors/icons")).resolveSourceIcon(input, opts),
     jev: { config: jevConfigFromEnv() },

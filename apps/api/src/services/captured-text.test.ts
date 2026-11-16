@@ -95,7 +95,7 @@ test("a partial capture does not set the reading time or pollute search, and doe
   t.after(cleanup);
   const { itemId } = capture(app, p, src, "Groundwater and sediment in a Mediterranean catchment.", esurf);
   const item = listItems(app, p, { scope: `source:${src}` }).items.find((i) => i.id === itemId)!;
-  assert.equal(item.readMinutes, null, "the reference list is not 20 minutes of reading");
+  assert.equal(item.readMinutes, 1, "the reading time stays that of the feed's few words: the reference list is not 20 minutes of reading");
   assert.equal(listItems(app, p, { scope: `source:${src}`, q: "Valyrakis" }).items.length, 0, "an author in the reference list does not find the paper");
   assert.equal(listItems(app, p, { scope: `source:${src}`, q: "groundwater" }).items.length, 1, "its own text still does");
 

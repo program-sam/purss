@@ -17,7 +17,7 @@ import { FakeInternalApi } from "./testing/fake-internal-api.ts";
 const quiet = createLogger(() => {});
 const T0 = 1_762_000_000n;
 
-async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: IconFn; makeClient?: HandlerDeps["makeClient"]; deleteUser?: (username: string) => Promise<void> } = {}) {
+async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: IconFn; looksLikeFeed?: HandlerDeps["looksLikeFeed"]; makeClient?: HandlerDeps["makeClient"]; deleteUser?: (username: string) => Promise<void> } = {}) {
   const engine = new FakeEngine();
   engine.users.set("eng_user", "known-api-password-0123456789");
   const engineSrv = await engine.listen();
@@ -52,6 +52,7 @@ async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: 
     ...(opts.capture ? { capture: opts.capture } : {}),
     ...(opts.pictures ? { pictures: opts.pictures } : {}),
     ...(opts.icon ? { icon: opts.icon } : {}),
+    ...(opts.looksLikeFeed ? { looksLikeFeed: opts.looksLikeFeed } : {}),
     syncPageSize: 10,
     syncOverlapSeconds: 0,
     syncMaxBatchBytes: 700_000,
@@ -253,6 +254,60 @@ test("a site that limits requests at subscribe time fails the job as a rate limi
     const missing = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://example.org/broken.xml", title: "x" }).catch((e: unknown) => e);
     assert.deepEqual([classify(missing).reason, classify(missing).retryable], ["not_found", false]);
   } finally { await t.close(); }
+});
+
+test("a feed served without a Content-Type is added with the engine's force marker once the preview's parser reads it as a feed; the source keeps its own address without the marker", async () => {
+  const asked: string[] = [];
+  const t = await setup({ looksLikeFeed: async (url) => { asked.push(url); return !url.includes("page"); } });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    const url = "https://daily.example/notype/feed";
+    const first = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x" });
+    assert.equal(first.alreadySubscribed, false);
+    assert.deepEqual(asked, [url], "the preview's parser is asked about the address the source stores");
+    assert.deepEqual(t.engine.feeds.map((f) => f.url), [`${url}#force_feed`], "the engine keeps the marker, so it forces the feed at every refresh");
+    // Following again (a retry, or the empty-feed check) is refused by the engine the same way; the stored marked address is found and reported as followed.
+    const again = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x" });
+    assert.equal(again.alreadySubscribed, true);
+    assert.equal(again.streamId, first.streamId);
+    assert.equal(t.engine.feeds.length, 1);
+  } finally { await t.close(); }
+});
+
+test("an address that does not preview as a feed is never force-added, and a refusal that is not about the feed's type never asks", async () => {
+  const asked: string[] = [];
+  const t = await setup({ looksLikeFeed: async (url) => { asked.push(url); return false; } });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    const page = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://shop.example/notype/page", title: "x" }).catch((e: unknown) => e);
+    assert.ok(page instanceof EngineError && page.reason === "not_a_feed", "the engine's refusal stands");
+    assert.equal(t.engine.feeds.length, 0);
+    assert.deepEqual(asked, ["https://shop.example/notype/page"]);
+    asked.length = 0;
+    await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://example.org/broken.xml", title: "x" }).catch(() => undefined);
+    await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://example.org/flaky.xml", title: "x" }).catch(() => undefined);
+    assert.deepEqual(asked, [], "a missing, busy or unreachable feed is not a type problem");
+  } finally { await t.close(); }
+});
+
+test("without a way to check the preview the engine's refusal of a feed's type stands, and a check that fails does not force", async () => {
+  const none = await setup();
+  try {
+    none.secrets.ensure("eu1");
+    none.engine.users.set("eng_user", none.secrets.read("eu1")!);
+    const err = await none.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://daily.example/notype/feed", title: "x" }).catch((e: unknown) => e);
+    assert.ok(err instanceof EngineError && err.reason === "not_a_feed");
+  } finally { await none.close(); }
+  const broken = await setup({ looksLikeFeed: async () => { throw new Error("network down"); } });
+  try {
+    broken.secrets.ensure("eu1");
+    broken.engine.users.set("eng_user", broken.secrets.read("eu1")!);
+    const err = await broken.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://daily.example/notype/feed", title: "x" }).catch((e: unknown) => e);
+    assert.ok(err instanceof EngineError && err.reason === "not_a_feed");
+    assert.equal(broken.engine.feeds.length, 0);
+  } finally { await broken.close(); }
 });
 
 /** Engine users eu2.. with their own credentials, next to the harness's eu1, so several accounts can act at once. */
