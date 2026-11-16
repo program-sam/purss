@@ -1,4 +1,6 @@
-import type { CollectionDTO, Preferences, SourceDTO } from "@purss/domain";
+import type { CollectionDTO, HomeOverview, ItemDTO, Preferences, SourceDTO } from "@purss/domain";
+import { itemDate } from "../lib/items.ts";
+import { inQueue } from "../lib/returning.ts";
 import type { OTHER_BOX_ID as DomainOtherBoxId } from "@purss/domain";
 
 /** The id Home's "Other sources" box has in the order list; the same value as in the shared contract. */
@@ -48,4 +50,27 @@ export function distribute<T extends { id: string }>(lists: readonly (readonly T
     for (const it of shown) taken.add(it.id);
     return shown;
   });
+}
+
+/** Which of Home's rows above the boxes (To read, To watch, To listen) lists an item of this kind, and the key that row is opened by. */
+function queueRow(item: Pick<ItemDTO, "kind">, o: Pick<HomeOverview, "toRead" | "toWatch" | "toListen">): { row: HomeOverview["toRead"]; key: string } {
+  return item.kind === "video" ? { row: o.toWatch, key: "home:towatch" } : item.kind === "podcast" ? { row: o.toListen, key: "home:tolisten" } : { row: o.toRead, key: "home:toread" };
+}
+
+/**
+ * Whether the row above the boxes shows this item, or would once it is in the queue: the row is open, and either lists every item
+ * of the queue or reaches the item's place in its order (started items first, then the oldest). The boxes leave such an item out,
+ * so a change that puts an item there takes its box row away.
+ */
+export function shownAbove(item: ItemDTO, o: Pick<HomeOverview, "toRead" | "toWatch" | "toListen"> | undefined, opened: readonly string[]): boolean {
+  if (!o || !inQueue(item)) return false;
+  const { row, key } = queueRow(item, o);
+  if (!opened.includes(key)) return false;
+  if (row.items.some((it) => it.id === item.id)) return true;
+  if (row.total <= row.items.length) return true;
+  const last = row.items[row.items.length - 1];
+  if (!last) return true;
+  const started = (it: ItemDTO) => (it.workflow === "inprogress" ? 0 : 1);
+  const before = (a: ItemDTO, b: ItemDTO) => started(a) - started(b) || (itemDate(a) < itemDate(b) ? -1 : itemDate(a) > itemDate(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return before(item, last) < 0;
 }

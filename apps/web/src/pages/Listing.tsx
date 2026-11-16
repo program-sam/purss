@@ -233,7 +233,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
     return (
       <div className="phead">
         <h1>{TO_READ_TITLE}</h1>
-        <div className="psub"><span>Your queue, from every source.</span>{fresh}</div>
+        <div className="psub"><span>What you put aside and what you started, from every source.</span>{fresh}</div>
         {tools}
       </div>
     );

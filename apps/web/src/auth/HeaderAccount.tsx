@@ -31,7 +31,7 @@ export function HeaderAccount() {
     <>
       <button type="button" className={`${bp === "xs" ? "ibtn" : "mbtn"} bar-acct`} aria-haspopup="menu" aria-label={name ? `Account menu for ${name}` : "Account menu"}
         onClick={(e) => popups.menu(e.currentTarget, accountEntries, "Account")}>
-        <Icon name="user" />{bp === "xs" ? null : <span>{name ?? "Account"}</span>}
+        <Icon name="user" />{bp === "xs" ? null : <span dir="auto">{name ?? "Account"}</span>}
       </button>
       {session.account?.sharedComputer ? <button type="button" className="mbtn bar-acct" disabled={busy} onClick={() => void signOut()}>{busy ? "Signing out…" : "Sign out"}</button> : null}
     </>

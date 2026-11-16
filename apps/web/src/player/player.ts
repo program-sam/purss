@@ -259,6 +259,8 @@ export class Player {
     // Counted as saved where playback starts, so opening and closing without playing doesn't move the position back.
     this.#lastSaved = playback ? { at: this.#now(), position: startAt } : null;
     this.#wasPlaying = false;
+    // The apps' own players fetch the picture themselves, with no session: only a publisher's https picture can reach them (the show's art
+    // as this app serves it is for the page and its media controls, see `playerArtwork`).
     const artwork = item.imageUrl && /^https:\/\//.test(item.imageUrl) ? item.imageUrl : null;
     this.backend.load({ url, kind: item.media.kind, type: item.media.type, title: item.title, artist: item.sourceTitle, artwork }, { startAt, rate: this.#rate, autoplay: opts.autoplay !== false });
     this.#emit();

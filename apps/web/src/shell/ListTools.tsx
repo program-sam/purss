@@ -44,8 +44,8 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
     const radios = filterChoices(place).map<MenuEntry>((f) => ({
       type: "radio", label: filterLabel(place, f), on: ls.filter === f || (f === "active" && ls.filter === "all"), onSelect: () => nav.patchSearch({ filter: filterParam(ls, f) }),
     }));
-    // A basket has nothing to ignore: its All already shows everything kept in it.
-    if (place.t === "b") return [...radios, ...typeLengthEntries(ls, nav.patchSearch)];
+    // A basket has nothing to ignore (its All already shows everything kept in it), and the queue never holds ignored items.
+    if (place.t === "b" || place.t === "r") return [...radios, ...typeLengthEntries(ls, nav.patchSearch)];
     const canToggle = ls.filter === "active" || ls.filter === "all";
     return [...radios, { type: "separator" }, { type: "check", label: "Show ignored items", on: ls.filter === "all", disabled: !canToggle, onSelect: () => nav.patchSearch({ filter: filterParam(ls, ls.filter === "all" ? "active" : "all") }) }, ...typeLengthEntries(ls, nav.patchSearch)];
   };

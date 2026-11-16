@@ -28,8 +28,8 @@ import { useItemActions } from "../state/actions.ts";
 import { useRowCtx } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
 import { useWorkspace } from "../state/workspace.tsx";
-import { HomeBand, MutedLine, WelcomeRows, useShownAbove } from "./WelcomeBack.tsx";
-import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox } from "./home-boxes.ts";
+import { HomeBand, MutedLine, WelcomeRows, useHomeOverview, useShownAbove } from "./WelcomeBack.tsx";
+import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox, shownAbove } from "./home-boxes.ts";
 import "./home.css";
 
 /** The quilted pattern of the page wash; Home shows it fully, other page heads faintly. */
@@ -343,7 +343,10 @@ export function HomePage() {
   const overlays = useOverlays();
   const layout = ws.prefs.homeLayout;
   const homeFilter = layout === "new" ? "fresh" : "open";
-  const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter), [homeFilter]);
+  // An item the row above the boxes shows (or will show once it is put aside or started) is left out of the boxes: it leaves them.
+  const overview = useHomeOverview().data;
+  const opened = useHints().opened;
+  const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter) && !shownAbove(i, overview, opened), [homeFilter, overview, opened]);
   const value = useRowContextValue(null, keeps);
   const narrow = layout === "feed" || layout === "new" ? " narrow" : "";
   const empty = !ws.data.sources.length && !ws.collections.length && !ws.data.baskets.length;

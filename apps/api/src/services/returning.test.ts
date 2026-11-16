@@ -404,10 +404,10 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
     addItem(app, p, news, { publishedAt: ago(7 * DAY) }), addItem(app, p, news, { publishedAt: ago(6 * DAY) })] as [string, string, string, string];
   const work = (id: string, workflow: "toread" | "inprogress") => changeState(app, p, id, { workflow, expectedRevision: revision(app, id) });
   work(a, "toread"); work(b, "toread"); work(c, "inprogress");
-  assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [a, b], "To read, oldest first; in progress and opened items are not listed");
-  assert.equal(homeOverview(app, p).toRead.total, 2);
+  assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [c, a, b], "what was started first, then To read oldest first; items only opened are not listed");
+  assert.equal(homeOverview(app, p).toRead.total, 3);
   changeState(app, p, d, { opened: true, expectedRevision: revision(app, d) });
-  assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [a, b]);
+  assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [c, a, b]);
 
   // Podcast episodes put aside are To listen and videos To watch, not To read.
   const e = addItem(app, p, news, { publishedAt: ago(10 * DAY) });
@@ -416,8 +416,8 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   const [v1, v2] = [addItem(app, p, essays, { publishedAt: ago(11 * DAY), kind: "video" }), addItem(app, p, news, { publishedAt: ago(5 * DAY), kind: "video" })] as [string, string];
   work(v2, "toread"); work(v1, "toread");
   const split = homeOverview(app, p);
-  assert.deepEqual(split.toRead.items.map((i) => i.id), [a, b], "To read is articles");
-  assert.equal(split.toRead.total, 2);
+  assert.deepEqual(split.toRead.items.map((i) => i.id), [c, a, b], "To read is articles");
+  assert.equal(split.toRead.total, 3);
   assert.deepEqual(split.toWatch.items.map((i) => i.id), [v1, v2], "To watch is videos, oldest first");
   assert.equal(split.toWatch.total, 2);
   assert.deepEqual(split.toListen.items.map((i) => i.id), [e]);

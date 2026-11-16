@@ -386,12 +386,13 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
 
 /**
  * Turning full articles on also fetches copies for the source's newest items that are still to
- * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive.
+ * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive. A source followed from now keeps its
+ * back catalogue out of this, as out of Home: no copies are made of posts the person chose not to start with.
  */
 function backfillFullText(app: App, p: Principal, sourceId: string): void {
   const items = app.db.all<{ id: string; url: string }>(
     `SELECT i.id, i.url FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.source_id = ? AND i.workspace_id = ? AND i.url IS NOT NULL AND st.workflow NOT IN ('finished', 'ignored')
+     WHERE i.source_id = ? AND i.workspace_id = ? AND i.backlog = 0 AND i.url IS NOT NULL AND st.workflow NOT IN ('finished', 'ignored')
        AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status IN ('pending', 'done'))
      ORDER BY COALESCE(i.published_at, i.discovered_at) DESC LIMIT ?`, sourceId, p.workspaceId, FULL_TEXT_BACKFILL);
   for (const it of items) queueAutoCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: it.id, url: it.url });

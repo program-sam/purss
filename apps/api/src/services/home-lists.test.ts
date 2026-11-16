@@ -8,7 +8,7 @@ import { Database, migrate } from "../db/database.ts";
 import type { App, Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
-import { insertItem, listItems } from "./items.ts";
+import { insertItem, listItemIds, listItems } from "./items.ts";
 import type { NewItem } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection } from "./collections.ts";
@@ -131,6 +131,80 @@ test("To read lists what was put aside, from any collection", (t) => {
   const o = homeOverview(app, p);
   assert.deepEqual(ids(o.toRead.items), [a]);
   assert.equal(o.toRead.total, 1);
+});
+
+test("the queue is what was put aside and what was started: In progress items are in it, first, on its page, its filters and Home's rows", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const { work, fun } = twoCollections(app, p);
+  const old = addItem(app, p, work, { publishedAt: ago(9 * DAY), discoveredAt: ago(9 * DAY) });
+  const mid = addItem(app, p, fun, { publishedAt: ago(5 * DAY), discoveredAt: ago(5 * DAY) });
+  const recent = addItem(app, p, work, { publishedAt: ago(1 * DAY), discoveredAt: ago(1 * DAY) });
+  const half = addItem(app, p, fun, { kind: "podcast", publishedAt: ago(3 * DAY), discoveredAt: ago(3 * DAY), enclosures: [{ url: "https://cdn.example/a.mp3", type: "audio/mpeg", length: null }] });
+  const halfRead = addItem(app, p, work, { publishedAt: ago(7 * DAY), discoveredAt: ago(7 * DAY) });
+  const finished = addItem(app, p, work), ignored = addItem(app, p, work), untouched = addItem(app, p, work);
+  workflow(app, p, old, "toread"); workflow(app, p, mid, "toread"); workflow(app, p, recent, "toread");
+  workflow(app, p, half, "inprogress"); workflow(app, p, halfRead, "inprogress");
+  workflow(app, p, finished, "finished"); workflow(app, p, ignored, "ignored");
+
+  // The page: started items first, then what is waiting, each newest first.
+  assert.deepEqual(pageAll(app, p, { scope: "toread", limit: 2 }), [half, halfRead, recent, mid, old], "started first, across pages");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "all", limit: 10 }), [half, halfRead, recent, mid, old]);
+  assert.deepEqual(pageAll(app, p, { scope: "toread", sort: "oldest", limit: 10 }), [halfRead, half, old, mid, recent], "each in the list's own order");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "inprogress", limit: 10 }), [half, halfRead], "its In progress filter shows what was started");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "toread", limit: 10 }), [recent, mid, old], "and To read what was not");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "finished", limit: 10 }), []);
+  assert.deepEqual(pageAll(app, p, { scope: "toread", type: "podcasts", limit: 10 }), [half], "the phone widget's list, limited to a type");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", type: "articles", sort: "oldest", limit: 10 }), [halfRead, old, mid, recent]);
+  // Select all takes the same items.
+  assert.deepEqual(new Set(listItemIds(app, p, { scope: "toread", filter: "active" }).ids), new Set([half, halfRead, recent, mid, old]));
+
+  // Its totals are those of the rows, from the counts and from the rows.
+  for (const [filter, expected] of [["active", 5], ["all", 5], ["inprogress", 2], ["toread", 3], ["finished", 0], ["new", 0]] as const) {
+    assert.equal(listItems(app, p, { scope: "toread", filter, limit: 3 }).total, expected, filter);
+  }
+
+  // Home's rows: each kind's started items first, then the oldest put aside; their totals count both.
+  const o = homeOverview(app, p);
+  assert.deepEqual(ids(o.toRead.items), [halfRead, old, mid, recent]);
+  assert.equal(o.toRead.total, 4);
+  assert.deepEqual(ids(o.toListen.items), [half]);
+  assert.equal(o.toListen.total, 1);
+  assert.deepEqual(ids(o.toWatch.items), []);
+  // Home's boxes still show New and To read only: a started item is in its row, not in the boxes.
+  assert.ok(!homeFeed(app, p).has(half) && !homeFeed(app, p).has(halfRead) && homeFeed(app, p).has(old));
+  assert.ok(!ids(o.toRead.items).includes(untouched) && !ids(o.toRead.items).includes(finished) && !ids(o.toRead.items).includes(ignored));
+});
+
+test("a row of the queue holds the started items before the rest even when there are more than it shows", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const { work } = twoCollections(app, p);
+  const waiting = Array.from({ length: 8 }, (_, i) => addItem(app, p, work, { publishedAt: ago((20 - i) * DAY), discoveredAt: ago((20 - i) * DAY) }));
+  for (const id of waiting) workflow(app, p, id, "toread");
+  const started = addItem(app, p, work, { publishedAt: ago(1 * DAY), discoveredAt: ago(1 * DAY) });
+  workflow(app, p, started, "inprogress");
+  const o = homeOverview(app, p);
+  assert.equal(o.toRead.items.length, 6);
+  assert.deepEqual(ids(o.toRead.items), [started, ...waiting.slice(0, 5)], "the newest started item leads, though it is the newest of all");
+  assert.equal(o.toRead.total, 9);
+});
+
+test("the queue is each person's own: another workspace's started and put-aside items are never in it", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const mine = addItem(app, p, makeSource(app, p, "Mine", "feed/mine"));
+  workflow(app, p, mine, "inprogress");
+  const other = makeOwner(app);
+  const theirSource = makeSource(app, other, "Theirs", "feed/theirs");
+  const theirs = addItem(app, other, theirSource);
+  workflow(app, other, theirs, "inprogress");
+  const put = addItem(app, other, theirSource);
+  workflow(app, other, put, "toread");
+  assert.deepEqual(pageAll(app, p, { scope: "toread", limit: 10 }), [mine]);
+  assert.deepEqual(pageAll(app, other, { scope: "toread", limit: 10 }), [theirs, put]);
+  assert.deepEqual(ids(homeOverview(app, p).toRead.items), [mine]);
+  assert.equal(listItems(app, p, { scope: "toread", limit: 10 }).total, 1);
 });
 
 // ---------- what Home can say about the pile ----------

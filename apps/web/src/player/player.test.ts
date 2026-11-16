@@ -397,6 +397,21 @@ test("the operating system's media controls follow the player and drive it", asy
   assert.equal(session.metadata, null);
 });
 
+test("an episode without a picture of its own gives the media controls the show's art, and the apps' players only a publisher's https picture", async () => {
+  const { backend, player } = make();
+  const session: MediaSessionLike = { metadata: null, playbackState: "none", setActionHandler: () => undefined };
+  class Meta { readonly init: unknown; constructor(init: unknown) { this.init = init; } }
+  const unbind = bindMediaSession(player, session, Meta);
+  const art = "/api/sources/src_1/icon?v=0123456789abcdef";
+  await player.open(item({ imageUrl: art }));
+  assert.deepEqual((session.metadata as Meta).init, { title: "Episode", artist: "Slow Radio", artwork: [{ src: art }] }, "the page's own address, read against the page");
+  assert.equal(backend.loaded?.source.artwork, null, "a native player fetches the picture itself, with no session: it is given none");
+  await player.close();
+  await player.open(item({ id: "itm_2", imageUrl: "http://cdn.example/ep.jpg" }));
+  assert.deepEqual((session.metadata as Meta).init, { title: "Episode", artist: "Slow Radio" }, "a picture the page may not show is none");
+  unbind();
+});
+
 test("a copy downloaded to the device plays first, with no connection needed", async () => {
   const backend = new FakeBackend();
   const player = new Player({

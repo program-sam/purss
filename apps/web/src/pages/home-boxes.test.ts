@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CollectionDTO, SourceDTO } from "@purss/domain";
-import { boxScope, distribute, homeBoxes, isOtherBox, OTHER_BOX_ID } from "./home-boxes.ts";
+import type { CollectionDTO, HomeOverview, ItemDTO, SourceDTO } from "@purss/domain";
+import { boxScope, distribute, homeBoxes, isOtherBox, OTHER_BOX_ID, shownAbove } from "./home-boxes.ts";
 
 const col = (id: string, position: number): CollectionDTO => ({ id, name: id.toUpperCase(), emoji: null, mode: "sources", view: "list", position, showOnHome: true, sourceIds: [], query: null, freshCount: 0, itemCount: 0, aiFiltered: false });
 const src = (id: string, freshCount: number, itemCount: number) => ({ id, freshCount, itemCount }) as SourceDTO;
@@ -52,4 +52,34 @@ test("a box reserves only the items it shows: one it fetched beyond its rows, or
   assert.deepEqual(distribute([items("a", "b"), items("a", "c")], new Set(), [0, 5]).map((l) => l.map((x) => x.id)), [[], ["a", "c"]]);
   // What a box skips because an earlier box has it does not count against its rows.
   assert.deepEqual(distribute([items("a", "b"), items("a", "b", "c", "d")], new Set(), [5, 2]).map((l) => l.map((x) => x.id)), [["a", "b"], ["c", "d"]]);
+});
+
+const queued = (id: string, over: Partial<ItemDTO> = {}): ItemDTO => ({ id, kind: "article", workflow: "toread", publishedAt: null, discoveredAt: "2026-11-10T08:00:00Z", ...over }) as ItemDTO;
+const row = (items: ItemDTO[], total = items.length): HomeOverview["toRead"] => ({ items, total, totalAtMost: false });
+const none = row([]);
+const rows = (o: Partial<Pick<HomeOverview, "toRead" | "toWatch" | "toListen">>) => ({ toRead: none, toWatch: none, toListen: none, ...o });
+
+test("a row above the boxes shows an item once it is open and has room for it, so the item leaves its box", () => {
+  const open = ["home:toread", "home:towatch", "home:tolisten"];
+  const o = rows({ toRead: row([queued("a"), queued("b")]) });
+  assert.equal(shownAbove(queued("x"), o, open), true, "the row lists every queued item, so one more joins it");
+  assert.equal(shownAbove(queued("x"), o, []), false, "a closed row shows nothing, so the item stays in its box");
+  assert.equal(shownAbove(queued("x"), undefined, open), false, "before Home's overview is known");
+  assert.equal(shownAbove(queued("x", { workflow: "new" }), o, open), false, "only what is queued");
+  assert.equal(shownAbove(queued("x", { workflow: "finished" }), o, open), false);
+  assert.equal(shownAbove(queued("a"), o, open), true, "an item the row already lists");
+  assert.equal(shownAbove(queued("x", { kind: "podcast" }), o, open), true, "a podcast has the To listen row, which has room");
+  assert.equal(shownAbove(queued("x", { kind: "podcast" }), o, ["home:toread"]), false, "and only that row's openness counts");
+  assert.equal(shownAbove(queued("x", { kind: "video" }), rows({ toWatch: row([queued("v", { kind: "video" })]) }), ["home:towatch"]), true);
+});
+
+test("a full row shows a newly queued item only where it would rank: started first, then the oldest", () => {
+  const open = ["home:toread"];
+  const listed = row([queued("s", { workflow: "inprogress", discoveredAt: "2026-11-15T00:00:00Z" }), queued("o1", { discoveredAt: "2026-11-01T00:00:00Z" }), queued("o2", { discoveredAt: "2026-11-05T00:00:00Z" })], 9);
+  const o = rows({ toRead: listed });
+  assert.equal(shownAbove(queued("older", { discoveredAt: "2026-11-02T00:00:00Z" }), o, open), true, "older than the last one shown: it takes a place in the row");
+  assert.equal(shownAbove(queued("newer", { discoveredAt: "2026-11-09T00:00:00Z" }), o, open), false, "newer than the last one shown: it stays in its box");
+  assert.equal(shownAbove(queued("started", { workflow: "inprogress", discoveredAt: "2026-11-20T00:00:00Z" }), o, open), true, "started items come first, whatever their date");
+  const allStarted = rows({ toRead: row([queued("s1", { workflow: "inprogress" })], 9) });
+  assert.equal(shownAbove(queued("x", { discoveredAt: "2026-01-01T00:00:00Z" }), allStarted, open), false, "behind every started item");
 });

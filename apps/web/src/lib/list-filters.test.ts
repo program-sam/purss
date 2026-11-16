@@ -81,3 +81,16 @@ test("a chosen filter stays in the address unless it is the page's default", () 
   assert.equal(filterParam({ defaultFilter: "active" }, "active"), undefined);
   assert.equal(filterParam({ defaultFilter: "active" }, "all"), "all");
 });
+
+test("the queue page offers the filters that can show something: what is waiting, what is started, what is New", () => {
+  const r = { t: "r", id: "toread" } as const;
+  assert.deepEqual(filterChoices(r), ["active", "fresh", "toread", "inprogress"]);
+  assert.equal(filterFor(r, "inprogress", "active"), "inprogress");
+  assert.equal(filterFor(r, "toread", "active"), "toread");
+  assert.equal(filterFor(r, "finished", "active"), "active", "an address naming a state the queue never holds opens on All");
+  assert.equal(filterFor(r, "all", "active"), "active");
+  assert.equal(filterFor(r, undefined, "active"), "active");
+  assert.equal(defaultFilterFor(r, "list", 5), "active");
+  assert.equal(filterLabel(r, "active"), "All");
+  assert.equal(filterLabel(r, "inprogress"), "In progress");
+});

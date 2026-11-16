@@ -102,6 +102,28 @@ test("the picture of a post is asked of Bluesky once the post is here, and set o
   assert.equal(src.length > 0, true);
 });
 
+test("a post that quotes a post with pictures gets the quoted post's picture; its own pictures come first", async (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  applySyncBatch(app, p.engineUserId, batch([
+    entry("feed/bsky", { url: post(1), title: "", summaryHtml: "I need Kaylin to hold up all of my drawings [contains quote post or other embedded content]" }),
+    entry("feed/bsky", { url: post(2), title: "", summaryHtml: "Quoting, with my own picture [contains quote post or other embedded content]" }),
+    entry("feed/bsky", { url: post(3), title: "", summaryHtml: "Quoting a post that is only words [contains quote post or other embedded content]" }),
+  ]));
+  arrived(app);
+  const quote = (...embeds: unknown[]) => ({ $type: "app.bsky.embed.record#view", record: { $type: "app.bsky.embed.record#viewRecord", uri: "at://did:plc:other/app.bsky.feed.post/3kq", embeds } });
+  const { fetch } = api({
+    [rkey(1)]: quote({ $type: "app.bsky.embed.images#view", ...pic("drawings") }),
+    [rkey(2)]: { $type: "app.bsky.embed.recordWithMedia#view", record: quote(pic("theirs")), media: { $type: "app.bsky.embed.images#view", ...pic("mine") } },
+    [rkey(3)]: quote(),
+  });
+  assert.equal(await lookUpBlueskyPictures(app, { fetch, ignoreGap: true, handles: new Map() }), 2);
+  const byUrl = (u: string) => listItems(app, p, { scope: "all", limit: 50 }).items.find((i) => i.url === u)!;
+  assert.equal(byUrl(post(1)).imageUrl, `https://cdn.bsky.app/img/feed_thumbnail/plain/${DID}/drawings`, "the quoted post's picture");
+  assert.equal(byUrl(post(2)).imageUrl, `https://cdn.bsky.app/img/feed_thumbnail/plain/${DID}/mine`, "the post's own picture");
+  assert.equal(byUrl(post(3)).imageUrl, null);
+});
+
 test("when Bluesky cannot be reached the items stay as they are, are tried a few times with a pause, and then left alone; the sync is never involved", async (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);

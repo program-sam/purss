@@ -23,11 +23,14 @@ export function freshDaysChoices(current: number): { value: number; label: strin
   return FRESH_DAYS_CHOICES.some((c) => c.value === current) ? FRESH_DAYS_CHOICES : [...FRESH_DAYS_CHOICES, { value: current, label: `${current} days` }].sort((a, b) => (a.value || Infinity) - (b.value || Infinity));
 }
 
-/** What the person put aside is split into three rows by kind, as the state's own name is: articles are To read, videos To watch, podcasts To listen. */
+/** The queue: what the person put aside (To read) and what they started (In progress). */
+export const inQueue = (i: Pick<ItemDTO, "workflow">) => i.workflow === "toread" || i.workflow === "inprogress";
+
+/** The queue is split into three rows by kind, as the state's own name is: articles are To read, videos To watch, podcasts To listen. */
 type Aside = Pick<ItemDTO, "workflow" | "kind">;
-export const isToRead = (i: Aside) => i.workflow === "toread" && i.kind !== "video" && i.kind !== "podcast";
-export const isToWatch = (i: Aside) => i.workflow === "toread" && i.kind === "video";
-export const isToListen = (i: Aside) => i.workflow === "toread" && i.kind === "podcast";
+export const isToRead = (i: Aside) => inQueue(i) && i.kind !== "video" && i.kind !== "podcast";
+export const isToWatch = (i: Aside) => inQueue(i) && i.kind === "video";
+export const isToListen = (i: Aside) => inQueue(i) && i.kind === "podcast";
 
 /**
  * What Home says when nothing is marked New. It follows the facts: while older items nobody has looked at are still on Home it

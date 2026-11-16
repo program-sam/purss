@@ -1,5 +1,6 @@
 import type { Player, PlayerSnapshot } from "./player.ts";
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from "./logic.ts";
+import { playerArtwork } from "../lib/items.ts";
 
 /** The parts of the Media Session API the player uses (lock screen, headset buttons, OS media controls). */
 export type MediaSessionLike = {
@@ -41,7 +42,9 @@ export function bindMediaSession(player: Player, session: MediaSessionLike, Meta
     }
     if (now.itemId !== lastItem) {
       lastItem = now.itemId;
-      const artwork = now.imageUrl && /^https:\/\//.test(now.imageUrl) ? [{ src: now.imageUrl }] : undefined;
+      // A relative address (the show's art) is read against the page, like any other address a page gives the browser.
+      const art = playerArtwork(now.imageUrl);
+      const artwork = art ? [{ src: art }] : undefined;
       session.metadata = new Metadata({ title: now.title, artist: now.sourceTitle, ...(artwork ? { artwork } : {}) });
     }
     session.playbackState = snap.state.playing ? "playing" : "paused";

@@ -14,6 +14,10 @@
 // drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
 // A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
 // keeps its back catalogue off Home while it stays on the source's own page.
+// The queue is what was put aside and what was started: an article In progress is in Home's To read row, first and marked In progress, and on the
+// "To read, watch and listen" page, whose In progress filter shows it; a Home row marked To read keeps focus on a row that stays, and Play here moves
+// focus to the player; the account button, Sign out and the bell never sit on Customise, the page's tools or a row's buttons (desktop with a long
+// name and Sign out on a shared computer, with the reading pane open, with larger text, and on a phone).
 // Run: node tests/acceptance/home.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -22,7 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -75,7 +79,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-type Seed = { ids: Record<string, string>; reading: string; radio: string; almanac: string };
+type Seed = { ids: Record<string, string>; reading: string; radio: string; almanac: string; channel: string };
 const TITLES = ["Long essay", "Second essay", "Medium note", "Tiny abstract", "Night forecast", "Wire story 3"];
 
 /** The throwaway library: a collection shown on Home with a long article, a medium one, a tiny abstract and a busy source; one hidden from Home. */
@@ -108,6 +112,9 @@ function prepare(): Seed {
     // A source followed from now: what its feed already had is stored, and stays off Home.
     const almanac = makeSource(app, p, "Old Almanac", "feed/4", { settled: false, startFrom: "now" });
     applySyncBatch(app, eu, batch(["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"].map((title, i) => entry("feed/4", { title, summaryHtml: `<p>${title}: tables of tides.</p>`, publishedAt: at((40 + i) * 1440), crawledAt: at(39 * 1440) }))));
+    // A channel with one video whose page YouTube can play in the reader (Play here).
+    const channel = makeSource(app, p, "Art Channel", "feed/5", { kind: "youtube" });
+    applySyncBatch(app, eu, batch([entry("feed/5", { title: "Escher at work", url: "https://www.youtube.com/watch?v=abcdefghijk", summaryHtml: "<p>A film about prints.</p>", publishedAt: at(50), crawledAt: at(49) })]));
     const reading = createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", view: "list", sourceIds: [tidal, busy], query: null } as Parameters<typeof createCollection>[2]);
     const hidden = createCollection(app, p, { name: "Radio", emoji: null, mode: "sources", view: "list", sourceIds: [radio], query: null } as Parameters<typeof createCollection>[2]);
     app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", hidden.id);
@@ -118,17 +125,18 @@ function prepare(): Seed {
     changeState(app, p, id("Medium note"), { workflow: "toread", expectedRevision: rev(id("Medium note")) });
     app.db.run("UPDATE items SET kind = 'video' WHERE title = 'Short film'");
     changeState(app, p, id("Short film"), { workflow: "toread", expectedRevision: rev(id("Short film")) });
-    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id, almanac };
+    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id, almanac, channel };
   } finally {
     app.db.close();
   }
 }
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, o: { shared?: boolean } = {}): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
   await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+  if (o.shared) await page.getByRole("checkbox", { name: /This is a shared computer/ }).check();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
   const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
@@ -164,6 +172,86 @@ async function openItem(page: Page, title: string): Promise<void> {
   await sleep(400);
 }
 const closeItem = async (page: Page) => { await page.getByRole("button", { name: "Close details" }).click(); await sleep(300); };
+
+
+/**
+ * The corner's buttons (the account menu, Sign out on a shared computer, the bell) sit clear of what the page puts beside them: Customise, a
+ * list's tools and the top bar's own parts, and, with the reading pane open, of the rows' buttons. The name is a long one (the display name is
+ * stood in for in the browser: the layout depends only on its text) and the computer is a shared one, so every button is there.
+ */
+async function checkCornerRoom(browser: Browser, seed: Seed): Promise<void> {
+  const LONG = "Alexandria Papadopoulos-Karamanlis";
+  const cases = [
+    { name: "desktop", viewport: { width: 1366, height: 860 }, text: "100" },
+    { name: "desktop with larger text", viewport: { width: 1366, height: 860 }, text: "130" },
+    { name: "tablet", viewport: { width: 820, height: 1000 }, text: "100" },
+    { name: "phone", viewport: { width: 412, height: 900 }, text: "100", touch: true },
+    { name: "phone with larger text", viewport: { width: 412, height: 900 }, text: "130", touch: true },
+  ];
+  // One sign-in on a shared computer; every case is that session in a browser of its own size.
+  const first = await browser.newContext({ viewport: cases[0]!.viewport });
+  await signIn(await first.newPage(), { shared: true });
+  const session = await first.storageState();
+  await first.close();
+  for (const c of cases) {
+    // The page is told the long name by a stand-in for the session answer, which the app's own service worker would bypass.
+    const context = await browser.newContext({ viewport: c.viewport, storageState: session, serviceWorkers: "block", ...(c.touch ? { hasTouch: true, isMobile: true } : {}) });
+    await context.addInitScript((size) => localStorage.setItem("purss:text-size", size), c.text);
+    const page = await context.newPage();
+    await page.route("**/api/session", async (route) => {
+      const res = await route.fetch();
+      const body = await res.json() as { account?: { displayName: string | null } };
+      if (body.account) body.account.displayName = LONG;
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.goto(`${origin}/app/`);
+    const crowded = () => page.evaluate(() => {
+      const box = document.querySelector<HTMLElement>(".cbtns");
+      if (!box) return ["no corner"];
+      const r = box.getBoundingClientRect();
+      const names = [...box.querySelectorAll("button")].map((b) => (b.textContent ?? "").trim() || b.getAttribute("aria-label") || "");
+      const out: string[] = [];
+      const mainBox = document.getElementById("main")!.getBoundingClientRect();
+      for (const el of document.querySelectorAll<HTMLElement>(".home-top > *, .phead > *, .bar > *, .ltools > *, main .irow .racts > *")) {
+        if (el.closest(".cbtns")) continue;
+        let e = el.getBoundingClientRect();
+        if (!e.width || !e.height) continue;
+        if (el.closest("main")) {
+          // What the page has scrolled out of view is clipped by the page, so only its visible part can be covered.
+          e = new DOMRect(e.left, Math.max(e.top, mainBox.top), e.width, Math.min(e.bottom, mainBox.bottom) - Math.max(e.top, mainBox.top));
+          if (e.height <= 0) continue;
+        }
+        if (e.left < r.right - 0.5 && e.right > r.left + 0.5 && e.top < r.bottom - 0.5 && e.bottom > r.top + 0.5) out.push(`${el.className || el.tagName} (${(el.textContent ?? "").trim().slice(0, 24)}) under ${names.join(" / ")}`);
+      }
+      return out;
+    });
+    const name = (await page.locator(".cbtns .bar-acct").first().getAttribute("aria-label")) ?? "";
+    assert.match(name, /Alexandria Papadopoulos-Karamanlis/, `${c.name}: the account button carries the long name`);
+    assert.equal(await page.locator(".cbtns").getByRole("button", { name: "Sign out", exact: true }).count(), 1, `${c.name}: Sign out is offered on a shared computer`);
+    // The page's own start: Home.
+    await page.getByRole("heading", { name: "Home" }).waitFor();
+    await page.locator(".mod").first().waitFor();
+    assert.deepEqual(await crowded(), [], `${c.name}: Home's heading and Customise clear of the corner`);
+    // A list page: its tools.
+    await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await page.locator("main .irow").first().waitFor();
+    assert.deepEqual(await crowded(), [], `${c.name}: a list's tools and rows clear of the corner`);
+    if (c.viewport.width >= 1200) {
+      // With the reading pane open the list column is narrow: scrolled or not, no row button is under the corner.
+      await row(page, "Medium note").click();
+      await page.locator("#panel-in .p-title", { hasText: "Medium note" }).waitFor();
+      await sleep(400);
+      assert.deepEqual(await crowded(), [], `${c.name}: with the reading pane open the corner covers no row`);
+      await page.evaluate(() => { const m = document.getElementById("main")!; m.scrollTo({ top: 140 }); });
+      await sleep(300);
+      assert.deepEqual(await crowded(), [], `${c.name}: and none after scrolling the list`);
+      const strip = await page.evaluate(() => ({ corner: document.querySelector(".cbtns")!.getBoundingClientRect().bottom, main: document.getElementById("main")!.getBoundingClientRect().top }));
+      assert.ok(strip.corner <= strip.main + 1, `${c.name}: the list starts below the corner's buttons (${strip.corner} <= ${strip.main})`);
+    }
+    await context.close();
+    step(`${c.name}: the account button, Sign out and the bell clear the page's own controls`);
+  }
+}
 
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/sw.js"))) throw new Error("Build the web app first: npm run build");
@@ -280,14 +368,15 @@ async function main(): Promise<void> {
     step("Home's To read starts closed; once opened it stays open");
     assert.equal(await page.locator(".ccard").count(), 0, "Home has no Continue row");
     const toRead = await homeTitles(page, ".wb:has(h2 :text('To read')) .irow .title");
-    assert.deepEqual(toRead, ["Medium note"], "To read lists what was put aside");
+    assert.deepEqual(toRead, ["Night forecast", "Medium note"], "To read lists what was started first, then what was put aside");
+    assert.deepEqual(await page.locator(".wb:has(h2 :text('To read')) .irow .wf").evaluateAll((els) => els.map((e) => e.textContent)), ["In progress", "To read"], "each row says whether it was started");
     const boxes = await homeTitles(page, ".mod:not(.wb) .irow .title");
     for (const title of toRead) assert.ok(!boxes.includes(title), `${title} is shown once, above the boxes`);
     for (const title of ["Night forecast", "Crackle on long wave", "Numbers stations"]) assert.ok(!boxes.includes(title), `${title} (a collection hidden on Home) is not on Home`);
-    step("To read lists what was put aside; a collection hidden on Home is left out; the boxes do not repeat what is above");
+    step("To read lists what was started, then what was put aside, from any collection; the boxes do not repeat what is above");
 
     // To read is articles; a video put aside is in To watch, and a row with nothing in it (To listen) is not there.
-    assert.deepEqual(toRead, ["Medium note"], "a video is not in To read");
+    assert.deepEqual(toRead, ["Night forecast", "Medium note"], "a video is not in To read");
     await rowToggle("To watch").waitFor();
     assert.equal(await rowToggle("To watch").getAttribute("aria-expanded"), "false", "To watch starts closed like the other rows");
     await rowToggle("To watch").click();
@@ -296,6 +385,27 @@ async function main(): Promise<void> {
     assert.equal(await rowToggle("To listen").count(), 0, "no podcast was put aside: no To listen row");
     assert.ok(!(await homeTitles(page, ".mod:not(.wb) .irow .title")).includes("Short film"), "a video in To watch is not listed again in the boxes");
     step("a video put aside is in its own To watch row; a row with nothing in it is not shown");
+
+    // The page behind "Show all" and the sidebar's To read: the same queue, with its In progress filter showing what was started.
+    await page.goto(`${origin}/app/r/toread`);
+    await page.getByRole("heading", { name: "To read, watch and listen" }).waitFor();
+    await page.locator("main .irow").first().waitFor();
+    assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
+    await page.getByRole("button", { name: /^Filter: / }).click();
+    assert.equal(await page.getByRole("menuitemcheckbox", { name: "Show ignored items" }).count(), 0, "the queue never holds ignored items, so it does not offer them");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), ["All", "New", "To read", "In progress"], "the page offers the filters that can show something");
+    await page.getByRole("menuitemradio", { name: "In progress", exact: true }).click();
+    await page.waitForURL(/filter=inprogress/);
+    await sleep(600);
+    assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast"], "In progress shows what was started, which an episode half heard is");
+    await page.getByRole("button", { name: /^Filter: / }).click();
+    await page.getByRole("menuitemradio", { name: "To read", exact: true }).click();
+    await page.waitForURL(/filter=toread/);
+    await sleep(600);
+    assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), ["Medium note", "Short film"], "To read what was not started");
+    await page.goto(`${origin}/app/`);
+    await page.getByRole("heading", { name: "Home" }).waitFor();
+    step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
     // A source followed from now: its back catalogue is not on Home, in a collection list or in the counts; its own page and search have it.
     const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
@@ -473,6 +583,36 @@ async function main(): Promise<void> {
     const afterR = await activeRow();
     assert.equal(afterR.inRow, true, `r on "${firstTitle}": focus is on a row that stays`);
     step("with reduced motion, the r shortcut on a row keeps focus on a row that stays");
+
+    // A row on Home marked To read leaves its box for the To read row above (which then shows it): focus goes to a row that stays.
+    await stillPage.goto(`${origin}/app/`);
+    await stillPage.getByRole("heading", { name: "Home" }).waitFor();
+    await stillPage.locator(".wb h2:has(:text('To read')) button").click();
+    await stillPage.locator(".wb:has(h2 :text('To read')) .irow").first().waitFor();
+    const boxRow = stillPage.locator(".mod:not(.wb) .irow").filter({ has: stillPage.locator('button.tr[aria-pressed="false"]') }).first();
+    const movedTitle = (await boxRow.locator(".title").innerText()).trim();
+    await boxRow.getByRole("button", { name: `To read: ${movedTitle}`, exact: true }).focus();
+    await stillPage.keyboard.press("Enter");
+    await stillPage.waitForFunction((t) => ![...document.querySelectorAll(".mod:not(.wb) .irow .title")].some((e) => e.textContent?.trim() === t), movedTitle);
+    const afterHome = await activeRow();
+    assert.equal(afterHome.inMain, true, `To read on "${movedTitle}" in a Home box: focus is not on the page`);
+    assert.equal(afterHome.inRow, true, "it is on a row that stays");
+    assert.ok((await homeTitles(stillPage, ".wb:has(h2 :text('To read')) .irow .title")).includes(movedTitle), "and the item is in the To read row above");
+    step("a Home row marked To read leaves its box for the To read row above and focus goes to a row that stays");
+
+    // Play here puts the platform's player where the button was, and focus goes with it.
+    await stillPage.route("https://www.youtube-nocookie.com/**", (r) => r.fulfill({ contentType: "text/html", body: "<p>player</p>" }));
+    await stillPage.goto(`${origin}/app/s/${seed.channel}`);
+    await stillPage.locator("main .irow").first().click();
+    await stillPage.locator("#panel-in .p-title", { hasText: "Escher at work" }).waitFor();
+    const playHere = stillPage.locator("#panel-in").getByRole("button", { name: "Play here: Escher at work" });
+    await playHere.focus();
+    await stillPage.keyboard.press("Enter");
+    await stillPage.locator("#panel-in iframe").waitFor();
+    await stillPage.waitForFunction(() => document.activeElement?.tagName === "IFRAME");
+    assert.match(await stillPage.evaluate(() => document.activeElement?.getAttribute("title") ?? ""), /YouTube player: Escher at work/, "Play here: focus is on the player, not the page");
+    await stillPage.unroute("https://www.youtube-nocookie.com/**");
+    step("after Play here focus moves to the player that replaced the button");
     await still.close();
 
     // ---------- search reaches past the first eight ----------
@@ -533,6 +673,8 @@ async function main(): Promise<void> {
     assert.equal(await findPage.evaluate(() => document.activeElement?.tagName), "BUTTON", "after the basket is made focus is back on the reader's Keep button");
     step("a basket made from an item's Keep menu returns focus to the Keep button");
     await finder.close();
+
+    await checkCornerRoom(browser, seed);
   } finally {
     await browser.close();
   }

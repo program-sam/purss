@@ -2,10 +2,11 @@ import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
 import { cleanVideoExcerpt } from "./feed-text.ts";
 import { clock } from "./format.ts";
+import { inQueue } from "./returning.ts";
 
 /** Whether an item belongs in a list of this scope and filter, judged on the client so a change shows at once. */
 export function belongsInList(item: ItemDTO, scope: string, filter: ListFilter): boolean {
-  return matchesFilter(item, filter) && (scope !== "toread" || item.workflow === "toread");
+  return matchesFilter(item, filter) && (scope !== "toread" || inQueue(item));
 }
 
 /** Whether an item belongs in a list with this filter, judged on the client so a change shows at once. */
@@ -116,6 +117,11 @@ export function safeImage(url: string | null | undefined): string | null {
 
 /** A source's icon as the server serves it (same origin, versioned by its digest); nothing else counts as the show's art. */
 const SOURCE_ICON = /^\/api\/sources\/[\w%-]+\/icon\?v=\w+$/;
+
+/** The picture the player and the system's media controls show: an https picture, or the show's art as this app serves it. */
+export function playerArtwork(url: string | null | undefined): string | null {
+  return safeImage(url) ?? (url && SOURCE_ICON.test(url) ? url : null);
+}
 
 /**
  * The picture an item shows in a row, a card and the player: its own, or for a podcast episode that has none the show's art (the

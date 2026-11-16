@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ItemDTO } from "@purss/domain";
 import type { Embed } from "../lib/embeds.ts";
 import { Art, type Face } from "./item-bits.tsx";
@@ -14,12 +14,15 @@ import { youtubeStartWorkflow } from "../player/embedded-workflow.ts";
  */
 export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; embed: Embed }) {
   const [on, setOn] = useState(false);
+  const frame = useRef<HTMLIFrameElement>(null);
   const actions = useItemActions();
   const start = () => {
     const automatic = youtubeStartWorkflow(embed.platform, item.workflow, item.workflowRevision, newPlaybackSessionId());
     if (automatic) void actions.setPlaybackWorkflow(item.id, automatic.from, automatic.to, automatic.playback);
     setOn(true);
   };
+  // The button the person pressed is replaced by the player: focus goes to it, so it doesn't fall to the page.
+  useEffect(() => { if (on) frame.current?.focus(); }, [on]);
   if (!on) {
     return (
       <button type="button" className="art-link embed-start" onClick={start} aria-label={`Play here: ${item.title}`} title={`Play here, in ${embed.platform}'s player`}>
@@ -31,6 +34,7 @@ export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; e
     // Twitch's player needs at least 300 px of height (and 400 of width) to start by itself; narrower, it waits for its own play button.
     <div className={`embed${embed.platform === "Twitch" ? " embed-tw" : ""}`}>
       <iframe
+        ref={frame}
         src={embed.src}
         title={`${embed.platform} player: ${item.title}`}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"

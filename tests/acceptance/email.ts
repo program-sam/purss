@@ -148,7 +148,9 @@ async function main(sink: SmtpSink): Promise<void> {
     }
     const emailReminders = notificationSettings.getByRole("checkbox", { name: /^Email me reminders/ });
     await emailReminders.waitFor();
-    await emailReminders.check();
+    // Like Never above: the box shows ticked once the change is saved, so click and wait for it.
+    if (!await emailReminders.isChecked()) await emailReminders.click();
+    await waitFor("Email me reminders ticked", async () => await emailReminders.isChecked(), 10_000);
     await waitFor("reminder email enabled under Never", async () => await page.evaluate(async () => {
       const n = (await (await fetch("/api/preferences")).json()).notifications;
       return n.frequency === "off" && n.emailReminders === true;

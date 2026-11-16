@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, safeHref, safeImage, withNewerState } from "./items.ts";
+import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, playerArtwork, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
@@ -93,6 +93,11 @@ test("only a video's excerpt loses its download mark and leading link lines", ()
 
 test("the To read page keeps only To read items, whatever its filter", () => {
   assert.equal(belongsInList({ ...base, workflow: "toread" }, "toread", "active"), true);
+  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "active"), true, "started: stays on the page, first among what is waiting");
+  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "inprogress"), true);
+  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "toread"), false, "the To read filter is what has not been started");
+  assert.equal(belongsInList({ ...base, workflow: "new" }, "toread", "active"), false, "not put aside or started");
+  assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all"), false);
   assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "active"), false, "marked Finished: leaves the To read page");
   assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false);
   assert.equal(belongsInList({ ...base, workflow: "finished" }, "collection:col_1", "active"), true, "other pages go by their filter");
@@ -119,5 +124,16 @@ test("a podcast episode without a picture of its own shows the show's art; nothi
   assert.equal(itemPicture({ kind: "article", imageUrl: null }, art), null);
   for (const bad of ["https://evil.example/icon?v=1", "//evil.example/api/sources/a/icon?v=1", "/api/items/itm_1/images/img_1", "javascript:alert(1)", "/api/sources/../x/icon?v=1"]) {
     assert.equal(itemPicture({ kind: "podcast", imageUrl: null }, bad), null, bad);
+  }
+});
+
+test("the player shows an https picture or the show's art as this app serves it, and nothing else", () => {
+  const art = "/api/sources/src_1/icon?v=0123456789abcdef";
+  assert.equal(playerArtwork(art), art, "an episode without a picture plays with the show's art");
+  assert.equal(playerArtwork("https://cdn.example/ep.jpg"), "https://cdn.example/ep.jpg");
+  assert.equal(playerArtwork(null), null);
+  assert.equal(playerArtwork(undefined), null);
+  for (const bad of ["http://cdn.example/ep.jpg", "//evil.example/api/sources/a/icon?v=1", "/api/items/itm_1/images/img_1", "/api/sources/a/icon", "/api/sources/../x/icon?v=1", "javascript:alert(1)", "data:image/png;base64,AAAA"]) {
+    assert.equal(playerArtwork(bad), null, bad);
   }
 });

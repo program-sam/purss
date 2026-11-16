@@ -1,6 +1,5 @@
-/* Settings and Sign out sit beside the bell, in the corner layer, and the page leaves them room. */
+/* Settings and Sign out sit beside the bell, in the corner layer. The page leaves them the room Header measures (--corner-reserve), whatever
+   the name's length, the bell's unread count or the text size; a long name is cut. */
 .cbtns .bar-acct{flex:none}
-.stage:has(> .corner .ibtn.bar-acct) .bar{padding-right:calc(80px + 46px)}
-.stage:has(> .corner .mbtn.bar-acct) .bar{padding-right:calc(80px + 7rem)}
-.stage:has(> .corner.float .bar-acct) :is(.home-top,.phead){padding-right:calc(44px + 7rem)}
-@media (pointer:coarse){.stage:has(> .corner.float .bar-acct) :is(.home-top,.phead){padding-right:calc(52px + 7rem)}}
+.bar-acct span{max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stage:has(> .corner:not(.float)) .bar{padding-right:calc(var(--corner-reserve,72px) + 12px)}

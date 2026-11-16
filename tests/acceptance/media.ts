@@ -5,9 +5,11 @@
 // remembered, the sleep timer can be set and turned off, the player can be made smaller, an unreachable publisher file fails plainly, and nothing offers to save or download the file on
 // the server or, in a browser, to this device, and playing moves an episode to In progress and Finished by itself, quietly,
 // and only for real playing: jumping to the end is not finishing. Media folders left by an earlier version are removed at start.
+// An episode with no picture of its own plays with the show's art in the player (not initials).
 // Run: node tests/acceptance/media.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -86,6 +88,10 @@ function prepare(): { sourceId: string } {
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
     const p: Principal = { accountId, workspaceId: ws.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Slow Radio", "feed/1", { kind: "podcast" });
+    // The show has cover art (a one-pixel WebP stands in for it); its episodes have none of their own.
+    const art = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
+    app.db.run("INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      sourceId, accountId, ws.id, art, createHash("sha256").update(art).digest("hex"), "https://cdn.example.invalid/art.webp", new Date().toISOString());
     applySyncBatch(app, eu.id, batch([
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),
@@ -173,6 +179,13 @@ async function main(): Promise<void> {
     await bar.getByText("Streaming from the publisher").waitFor();
     await waitFor("playback to move", async () => Number(await bar.getByRole("slider", { name: "Position" }).inputValue()) >= 2, 15_000);
     step("the publisher's file plays in the mini-player");
+
+    // An episode without a picture of its own plays with the show's art, not with initials.
+    const artwork = bar.locator(".player-title img");
+    await artwork.waitFor();
+    assert.match((await artwork.getAttribute("src"))!, /^\/api\/sources\/[\w-]+\/icon\?v=[0-9a-f]+$/, "the player shows the show's art as this app serves it");
+    await waitFor("the show's art to load", async () => (await artwork.evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0)), 5000);
+    step("an episode with no picture of its own plays with the show's art");
 
     // Nothing sits under the player, in any layout: what the layout shows ends above its top edge.
     const clearOfPlayer = async (what: string, selector: string) => {

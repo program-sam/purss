@@ -19,19 +19,44 @@ test("a post's address is read the way Bluesky's feed writes it, and nothing els
   }
 });
 
-test("the pictures of a post: its images, a video's still, a link card's picture, or the media of a quote with media; a plain quote has none", () => {
+test("the pictures of a post: its images, a video's still, a link card's picture, or the media of a quote with media", () => {
   const url = (p: { url: string }) => p.url;
   assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.images#view", images: [image("a"), image("b", "")] } }).map((p) => [p.url, p.alt]),
     [[image("a").thumb, "A cartoon"], [image("b").thumb, null]]);
   assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.video#view", thumbnail: "https://video.cdn.bsky.app/hls/x/thumbnail.jpg", alt: "A boat" } }).map((p) => [p.url, p.alt]), [["https://video.cdn.bsky.app/hls/x/thumbnail.jpg", "A boat"]]);
   assert.deepEqual(readPostPictures({ embed: { external: { uri: "https://x.example", title: "T", thumb: "https://cdn.bsky.app/img/feed_thumbnail/plain/d/c" } } }).map(url), ["https://cdn.bsky.app/img/feed_thumbnail/plain/d/c"]);
   assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.recordWithMedia#view", record: { record: { uri: "at://x" } }, media: { images: [image("m")] } } }).map(url), [image("m").thumb]);
-  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.record#view", record: { uri: "at://x", embed: { images: [image("quoted")] } } } }), [], "the quoted post's own pictures are the quoted post's");
   assert.deepEqual(readPostPictures({ embed: { images: new Array(9).fill(image("z")) } }).length, 4, "no more than the four a post may carry");
   assert.deepEqual(readPostPictures({}), []);
   assert.deepEqual(readPostPictures(null), []);
   // Only Bluesky's own https picture hosts count, whatever the answer says.
   assert.deepEqual(readPostPictures({ embed: { images: [{ thumb: "https://evil.example/x.jpg", fullsize: "http://cdn.bsky.app/x.jpg" }, { thumb: "javascript:alert(1)" }, { thumb: "https://u:p@cdn.bsky.app/x.jpg" }, { thumb: `https://cdn.bsky.app/${"a".repeat(2100)}` }, { thumb: 5 }] } }), []);
+});
+
+// The shapes the public API gives a post that quotes another (checked against its answers): the quoted post is a `viewRecord`, and what it carries is in its `embeds`.
+const quoteOf = (...embeds: unknown[]) => ({ $type: "app.bsky.embed.record#view", record: { $type: "app.bsky.embed.record#viewRecord", uri: "at://did:plc:other/app.bsky.feed.post/3kq", embeds } });
+const imagesView = (...ids: string[]) => ({ $type: "app.bsky.embed.images#view", images: ids.map((id) => image(id)) });
+
+test("a post that quotes another with pictures and has none of its own shows the quoted post's", () => {
+  const url = (p: { url: string }) => p.url;
+  assert.deepEqual(readPostPictures({ embed: quoteOf(imagesView("drawing1", "drawing2")) }).map(url), [image("drawing1").thumb, image("drawing2").thumb], "images of the quoted post");
+  assert.deepEqual(readPostPictures({ embed: quoteOf({ $type: "app.bsky.embed.video#view", thumbnail: "https://video.cdn.bsky.app/hls/x/thumbnail.jpg", alt: "A boat" }) }).map((p) => [p.url, p.alt]), [["https://video.cdn.bsky.app/hls/x/thumbnail.jpg", "A boat"]], "a video's still");
+  assert.deepEqual(readPostPictures({ embed: quoteOf({ $type: "app.bsky.embed.external#view", external: { uri: "https://x.example", title: "T", thumb: "https://cdn.bsky.app/img/feed_thumbnail/plain/d/c" } }) }).map(url), ["https://cdn.bsky.app/img/feed_thumbnail/plain/d/c"], "a link card's picture");
+  assert.deepEqual(readPostPictures({ embed: quoteOf({ $type: "app.bsky.embed.recordWithMedia#view", record: { record: { uri: "at://x" } }, media: imagesView("inner") }) }).map(url), [image("inner").thumb], "the media a quoted post carries beside its own quote");
+  assert.deepEqual(readPostPictures({ embed: quoteOf({ $type: "app.bsky.embed.external#view", external: { uri: "https://x.example" } }, imagesView("second")) }).map(url), [image("second").thumb], "the first of its embeds that has a picture");
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.recordWithMedia#view", record: quoteOf(imagesView("quoted")), media: { $type: "app.bsky.embed.external#view", external: { uri: "https://x.example" } } } }).map(url), [image("quoted").thumb], "a quote with media that has no picture shows the quoted post's");
+});
+
+test("a post's own pictures come before those of the post it quotes, and nothing deeper or stranger is read", () => {
+  const url = (p: { url: string }) => p.url;
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.recordWithMedia#view", record: quoteOf(imagesView("quoted")), media: imagesView("mine") } }).map(url), [image("mine").thumb], "the author's own media, beside the quote");
+  assert.deepEqual(readPostPictures({ embed: quoteOf(quoteOf(imagesView("deep"))) }), [], "what the quoted post itself quotes is not read");
+  assert.deepEqual(readPostPictures({ embed: quoteOf() }), [], "a quoted post with no pictures");
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.record#view", record: { $type: "app.bsky.embed.record#viewNotFound", uri: "at://x", notFound: true } } }), [], "a quoted post that is gone");
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.record#view", record: { $type: "app.bsky.embed.record#viewBlocked", uri: "at://x", blocked: true } } }), [], "a quoted post that is blocked");
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.record#view", record: { $type: "app.bsky.graph.defs#starterPackViewBasic", uri: "at://x", record: { embeds: [imagesView("not-a-post")] } } } }), [], "a starter pack or list is not a post");
+  assert.deepEqual(readPostPictures({ embed: quoteOf({ images: [{ thumb: "https://evil.example/x.jpg" }] }) }), [], "only Bluesky's own picture hosts count in a quoted post too");
+  assert.deepEqual(readPostPictures({ embed: { $type: "app.bsky.embed.record#view", record: { uri: "at://x", embeds: "images" } } }), []);
 });
 
 function api(routes: { resolve?: (handle: string) => { status: number; body: unknown }; posts: (uris: string[]) => unknown[] | null }) {

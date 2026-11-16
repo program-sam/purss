@@ -41,6 +41,28 @@ function useColumnAlign(shown: boolean) {
   return ref;
 }
 
+/**
+ * Tells the page how much of its right edge the corner's buttons cover (their width and the gap to the edge), by setting
+ * --corner-reserve on the stage, so the page's heading, its tools and the bar keep clear of them whatever the account name's length,
+ * the bell's unread count, a Sign out button or the text size.
+ */
+function useCornerReserve(shown: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const corner = ref.current;
+    const stage = corner?.parentElement;
+    const buttons = corner?.querySelector<HTMLElement>(".cbtns");
+    if (!stage || !buttons) return;
+    const fit = () => stage.style.setProperty("--corner-reserve", `${Math.ceil(stage.getBoundingClientRect().right - buttons.getBoundingClientRect().left)}px`);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(buttons);
+    ro.observe(stage);
+    return () => { ro.disconnect(); stage.style.removeProperty("--corner-reserve"); };
+  }, [shown]);
+  return ref;
+}
+
 /** The top of the page area: the notifications bell in the corner, and on phones and tablets, where the sidebar
  *  is a drawer, a slim bar with its toggle and the way back. Desktop pages carry their own heading and tools. */
 export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawerOpen: boolean; overlaySidebar: boolean; onToggleSidebar: () => void }) {
@@ -57,11 +79,12 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
   const waiting = usePendingCount();
   const showBar = overlaySidebar;
   const barRef = useColumnAlign(showBar);
+  const cornerRef = useCornerReserve(showBar);
 
   // A zero-height layer, so the bell takes no row of its own: over the bar's right end, or over the page's top corner.
   // Settings (on a phone) and Sign out (on a shared computer) sit beside the bell.
   const corner = (
-    <div className={`corner${showBar ? "" : " float"}`}>
+    <div ref={cornerRef} className={`corner${showBar ? "" : " float"}`}>
       <div className="cbtns">
         <HeaderAccount />
         <button type="button" className="ibtn bell" aria-haspopup="dialog" aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}

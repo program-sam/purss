@@ -91,7 +91,9 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
       const { fresh, backlog } = arrivalOf(source, entry);
       const created = createFromEntry(app, eu, source, entry, fresh, backlog);
       addMapping(app, eu, created, entry);
-      if (source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, workspaceId: eu.workspace_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
+      // A copy is made by itself only for what the person will see: a source's back catalogue (a source followed from now) stays as it came, and
+      // a copy of it is made when the person keeps it or asks for one.
+      if (!backlog && source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, workspaceId: eu.workspace_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
       result.accepted++;
       touchedSources.set(source.id, (touchedSources.get(source.id) ?? 0) + 1);
       if (fresh) {

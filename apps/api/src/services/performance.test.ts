@@ -296,6 +296,26 @@ test("after a sync a source's newest item time is the latest date among its item
   } finally { cleanup(); }
 });
 
+test("the queue page and Home's To read rows find what was put aside or started by state in the workspace's own index, not by probing every item", (t) => {
+  const { app, p, cleanup } = populated();
+  t.after(cleanup);
+  const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
+  app.db.run("UPDATE item_state SET workflow = 'toread' WHERE item_id IN (SELECT id FROM items ORDER BY seq LIMIT 4)");
+  app.db.run("UPDATE item_state SET workflow = 'inprogress' WHERE item_id IN (SELECT id FROM items ORDER BY seq DESC LIMIT 3)");
+  const { seen: pages } = recordQueries(app, () => listItems(app, p, { scope: "toread", sort: "newest", limit: 5 }));
+  const { seen: rows } = recordQueries(app, () => homeOverview(app, p));
+  const queue = [
+    ...pages.filter((q) => /ORDER BY/.test(q.sql) && /st\.workspace_id = \? AND st\.workflow IN \('toread', 'inprogress'\)/.test(q.sql)),
+    ...rows.filter((q) => /COUNT\(\*\) OVER \(\)/.test(q.sql)),
+  ];
+  assert.equal(queue.length, 2 + 3, "the page's two runs and Home's three rows");
+  for (const q of queue) {
+    const lines = planOf(q);
+    assert.ok(lines.some((l) => /^SEARCH st USING INDEX item_state_ws \(workspace_id=\? AND workflow=\?\)/.test(l)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /^SCAN (i|items)\b/.test(l) || /USING (COVERING )?INDEX items_ws_(visible_sortkey|number)/.test(l)), `the items are looked up by id:\n${lines.join("\n")}`);
+  }
+});
+
 test("Home reads New items, the newest open items and its rows by id, and the kept and source orders read their indexes in order", (t) => {
   const { app, p, cleanup } = populated();
   t.after(cleanup);

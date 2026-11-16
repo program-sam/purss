@@ -247,7 +247,10 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
     case "fresh":
       return "st.fresh = 1";
     case "toread":
-      return "st.workflow = 'toread'";
+      // The queue: what is waiting (To read, To watch, To listen) and what is started (In progress). Looked up by state in the workspace's
+      // own item_state index (the states are rare), not found by probing every item.
+      params.push(p.workspaceId);
+      return `st.workspace_id = ? AND ${QUEUE_STATES_SQL}`;
     case "loose": {
       // Followed sources that are in no collection (Home's "Other sources"). When there are none, say so: the planner can't
       // tell that the set is empty and would otherwise walk every item looking for a match.
@@ -273,6 +276,9 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
       throw badRequest("Unknown view.");
   }
 }
+
+/** The queue is what is put aside (To read, To watch, To listen) and what is started (In progress). */
+export const QUEUE_STATES_SQL = "st.workflow IN ('toread', 'inprogress')";
 
 /**
  * Items from unfollowed sources leave lists and search unless kept, added by hand, carrying the
@@ -300,6 +306,8 @@ const orderBy = (sort: ListSort, key: string) => `ORDER BY ${sort.inOrder ? key 
 function listSort(app: App, p: Principal, q: { scope: string; source?: string; sort: keyof typeof SORT_SQL }): ListSort {
   const sort = SORT_SQL[q.sort];
   const inOrder = { ...sort, inOrder: true };
+  // The queue holds a few rare states (what a person put aside or started): found by state and sorted, not looked for along every item's date.
+  if (q.scope === "toread") return { ...sort, inOrder: false };
   if (q.sort !== "kept" && q.sort !== "source") return inOrder;
   // The list's sources, if it is limited to some: a source, a collection of sources, those in no collection, the source chips.
   const params: SqlParam[] = [p.workspaceId];
@@ -320,6 +328,10 @@ function listSort(app: App, p: Principal, q: { scope: string; source?: string; s
  * in the date order, so each reads the date index in order instead of sorting every candidate.
  */
 const HOME_RUNS = ["st.workflow = 'new'", "st.workflow <> 'new'"] as const;
+/** The queue's order: what is started first, then what is waiting, each in the list's own order. */
+const QUEUE_RUNS = ["st.workflow = 'inprogress'", "st.workflow = 'toread'"] as const;
+/** The runs a list is read in, or none when it is read in one pass. */
+const runsOf = (q: { scope: string; mix?: string }): readonly string[] | null => q.mix === "home" ? HOME_RUNS : q.scope === "toread" ? QUEUE_RUNS : null;
 
 /** Over items `i`: a readable copy failed and none is settled (pending, or finished and passed the checks: capture-state.ts), so the item says so. */
 export const CAPTURE_FAILED = `(EXISTS (SELECT 1 FROM captures fc WHERE fc.item_id = i.id AND fc.status = 'failed') AND NOT ${settledCopy("i.id")})`;
@@ -426,10 +438,11 @@ function sortedRows(app: App, where: string[], params: SqlParam[], sort: ListSor
 
 /** One page of a list; `muted`: the muted words (see `workspaceMuted`) whose items the list leaves out. */
 function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>, opts: ListOptions, muted: string | null): ListResult {
-  // Home's lists come in runs (see HOME_RUNS) and read the items that existed when paging began (a sequence number), so an
-  // arrival, even a backdated one, cannot join a page already past its place.
+  // Home's lists and the queue come in runs (see HOME_RUNS, QUEUE_RUNS). Home's also read the items that existed when paging began
+  // (a sequence number), so an arrival, even a backdated one, cannot join a page already past its place.
   const home = q.mix === "home";
-  // The cursor is the last row's sort key and id; a Home list's also holds its run and the snapshot its pages read.
+  const runs = runsOf(q);
+  // The cursor is the last row's sort key and id; a list in runs has its run too, and Home's the snapshot its pages read.
   let cur: [string, string] | null = null;
   let run = 0;
   let snapshot: number | null = null;
@@ -437,9 +450,9 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
     try {
       const c = JSON.parse(Buffer.from(q.cursor, "base64url").toString("utf8")) as unknown[];
       if (!Array.isArray(c) || typeof c[0] !== "string" || typeof c[1] !== "string") throw new Error("shape");
-      if (home && (!Number.isInteger(c[2]) || (c[3] !== 0 && c[3] !== 1))) throw new Error("shape");
+      if (runs && (!Number.isInteger(c[3]) || (c[3] as number) < 0 || (c[3] as number) >= runs.length || (home && !Number.isInteger(c[2])))) throw new Error("shape");
       cur = [c[0], c[1]];
-      if (home) { snapshot = c[2] as number; run = c[3] as number; }
+      if (runs) { run = c[3] as number; if (home) snapshot = c[2] as number; }
     } catch { throw badRequest("That page link has expired."); }
   } else if (home) {
     snapshot = app.db.get<{ m: number | null }>("SELECT MAX(seq) AS m FROM items")?.m ?? 0;
@@ -448,16 +461,16 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
   const sort = listSort(app, p, q);
   const want = q.limit + 1;
   let rows: (SortedRow & { run?: number })[] = [];
-  if (home) {
-    for (let r = run; r < HOME_RUNS.length && rows.length < want; r++) {
-      rows.push(...sortedRows(app, [...where, HOME_RUNS[r]!], params, sort, r === run ? cur : null, want - rows.length, muted).map((row) => ({ ...row, run: r })));
+  if (runs) {
+    for (let r = run; r < runs.length && rows.length < want; r++) {
+      rows.push(...sortedRows(app, [...where, runs[r]!], params, sort, r === run ? cur : null, want - rows.length, muted).map((row) => ({ ...row, run: r })));
     }
   } else {
     rows = sortedRows(app, where, params, sort, cur, want, muted);
   }
   const page = rows.slice(0, q.limit);
   const last = page[page.length - 1];
-  const nextCursor = rows.length > q.limit && last ? Buffer.from(JSON.stringify(home ? [last.sort_key, last.id, snapshot, last.run] : [last.sort_key, last.id])).toString("base64url") : null;
+  const nextCursor = rows.length > q.limit && last ? Buffer.from(JSON.stringify(runs ? [last.sort_key, last.id, snapshot, last.run] : [last.sort_key, last.id])).toString("base64url") : null;
   const kept = keptDisplays(app, p.workspaceId, page.filter((r) => r.basket_ids).map((r) => r.id));
   // A list narrowed by more than its scope and state has no total: counting it would read every item the narrowing looks at.
   const narrowed = !!(q.type || q.length || q.without || q.capture || opts.homeVisible || home || muted);
@@ -493,7 +506,7 @@ export const listTuning = { countFromRowsBelowShare: 0.2, sortFromRowsBelow: 200
 /** The part of a list's scope that depends on an item's state rather than on its source. */
 const SCOPE_STATE: Record<string, { sql: string; keep: CellFilter }> = {
   fresh: { sql: "st.fresh = 1", keep: (_w, fresh) => fresh },
-  toread: { sql: "st.workflow = 'toread'", keep: (w) => w === "toread" },
+  toread: { sql: QUEUE_STATES_SQL, keep: (w) => w === "toread" || w === "inprogress" },
 };
 
 /**

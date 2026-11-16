@@ -163,7 +163,7 @@ or replies; Bluesky the most recent ones, without reposts or replies. Posts have
 the start of the text stands in (a long post continues in the line under it, so its words are not shown twice). Bluesky's feed carries no pictures
 and marks a quote or attachment with a placeholder; PURSS shows the placeholder as *[quote or attachment: open the post to see it]*, and asks Bluesky's
 public service (from the server, never from your browser) for the pictures of the account's posts of the last three days, at most three tries each,
-and shows the first one with the post. A post that Bluesky doesn't answer for keeps the text alone; nothing about the posts is ever held back for this. A post its author later deletes or edits stays in your
+and shows the first one with the post. A post that quotes another one and has no picture of its own shows the quoted post's first picture (its images, video still or link card; one level only). A post that Bluesky doesn't answer for keeps the text alone; nothing about the posts is ever held back for this. A post its author later deletes or edits stays in your
 PURSS as it was collected.
 
 **Private links.** If a feed address looks like it contains a secret, the option to mark it
@@ -251,7 +251,10 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
 
 - It applies to new items, and to up to 20 of the source's newest items you haven't finished or
   ignored when you turn it on. Copies are fetched a few seconds apart, so a burst of new posts
-  takes a little while.
+  takes a little while. A source followed from now keeps its [back catalogue](#sources) as it came:
+  no copies are fetched by themselves for the posts it already had, so a site that refuses
+  automated readers doesn't fail them one by one. Keeping one of those posts in a basket that makes
+  a readable copy, or *Try again*, still fetches its copy.
 - It is the same readable copy a *Readable copy too* basket makes: text and links, no
   scripts. The copy reflects the page when it was fetched. Some sites need a login, block
   automated readers or only work with JavaScript; then the item keeps its feed summary and its
@@ -288,7 +291,7 @@ and the previous button skips back 15.
   here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
   in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
   videos open on the site. Other sites, PeerTube included, open in a new tab.
-- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player).
+- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player, and on the system's media controls in a browser; the phone apps' lock screen shows only a picture the publisher's own site serves).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
   it is back; whichever position was reached last wins. Within 15 seconds of the end, it starts from the beginning next time.
@@ -374,9 +377,10 @@ in that browser.
 
 - **Coming up:** the reminders you set on kept items for today and the next six days
   ([Reminders](#reminders)). Not there when you have none.
-- **To read:** the oldest articles you marked To read, with *Show all*.
-- **To watch:** the oldest videos you marked To watch, and **To listen:** the oldest podcast
-  episodes you marked To listen, each the same way. A row shows only when it has items.
+- **To read:** the articles you started (In progress), then the oldest you marked To read, with
+  *Show all*. Started items say *In progress* on their row, so a half-read article is where you left it.
+- **To watch:** the videos you started and then the oldest you marked To watch, and **To listen:** the
+  podcast episodes you started (playing one for 30 seconds does it) and then the oldest you marked To listen, each the same way. A row shows only when it has items.
 - **Needs attention:** sources that are failing, paused or being limited by their site.
 - **Mark all as seen:** marks every New item as seen (Undo brings the markers back). Nothing is
   finished, ignored or deleted. Shown when you come back after more than 30 days, or when
@@ -386,12 +390,14 @@ Filter collections leave out items from collections you hide from Home, and an i
 To watch or To listen is not listed again in the boxes below. A new filter collection starts off Home. Items that match your
 [muted words](#muted-words) are left out of Home too.
 
-A visit starts when you come back after half an hour away. **To read** in the sidebar lists every
-item you marked To read, across collections; its page is titled **To read, watch and listen**,
+A visit starts when you come back after half an hour away. **To read** in the sidebar lists your
+queue, across collections: every item you marked To read and every item you started (In progress),
+started ones first, then the rest, each newest first. Its page is titled **To read, watch and listen**,
 because a video's To read is *To watch* and a podcast's is *To listen* (the one-click button on a row, its tip and the tag
-on the row say the same word). Home's boxes and its one feed show
-what you haven't dealt with: New items first, then To read, newest first within each. Finished,
-ignored and in-progress items leave Home.
+on the row say the same word). Its *Show* menu has *All*, *New*, *To read* (not started yet) and
+*In progress*; an episode you half heard is in *In progress* until you finish it. Home's boxes and its one feed show
+what you haven't dealt with: New items first, then To read, newest first within each. Finished
+and ignored items leave Home, and an item you started shows in the To read, To watch or To listen row instead of its box.
 The summary line ("● 20 new in 14 sources") is plain text, not a link; to see only what is New,
 choose the *Only new* layout in Customise Home. With *Show counts* off the numbers are left out of the summary. When nothing is marked New, the
 summary says "Nothing new since your last visit" while older items you haven't looked at are still
@@ -417,7 +423,8 @@ the list) to see them too.
 
 A collection opens on *New* while it has new items, and on *All* once it has none (in
 the Board view it always shows everything, since the columns are the states). Pages for a single
-source, baskets and To read open on *All*.
+source, baskets and To read open on *All*. The To read page's menu has only the choices that can show something
+there: *All*, *New*, *To read* and *In progress*.
 
 The button says what is on ("Videos, Short"). A collection with several sources has a **Sources**
 drop-down below it, set to *All sources*. Untick a busy source to leave it out, press **Only** next
@@ -598,7 +605,8 @@ Item shortcuts don't fire while you are typing (`Ctrl K` / `⌘K` still works), 
 left to scrolling and screen readers. When a row leaves its list because of a button or shortcut
 (To read, Ignore, `r`), focus moves to the same control on the next row (or the one before it),
 or to the list's heading when none is left, so the next key press carries on from there, with
-or without reduced motion. On a phone, **Collections** opens the sidebar as a drawer: focus goes
+or without reduced motion. This includes a Home row marked To read that moves up into the To read,
+To watch or To listen row, and **Play here** on a video, which puts focus on the player that appears. On a phone, **Collections** opens the sidebar as a drawer: focus goes
 into it, Tab stays inside, the page behind is out of reach, and **Close sidebar** or `Esc` shuts it
 and puts focus back on the control that opened it. Right-click opens actions for whatever is under the
 pointer; Shift + right-click gives the browser's own menu.

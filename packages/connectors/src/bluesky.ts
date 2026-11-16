@@ -47,27 +47,46 @@ function pictureAddress(value: unknown): string | null {
 
 const record = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
-/**
- * The pictures of a post's embed, in the order the author attached them: its images, a video's still, a link card's picture; a post
- * that quotes another with pictures of its own (`recordWithMedia`) gives those. A quoted post's own pictures are the quoted post's.
- */
-export function readPostPictures(post: unknown): PostPicture[] {
+/** The pictures one embed view carries itself, in the order the author attached them: its images, a video's still, a link card's picture. */
+function viewPictures(view: Record<string, unknown> | null): PostPicture[] {
   const out: PostPicture[] = [];
-  const embed = record(record(post)?.embed);
-  const media = record(embed?.media) ?? embed;
-  if (!media) return out;
-  if (Array.isArray(media.images)) {
-    for (const raw of media.images.slice(0, 4)) {
+  if (!view) return out;
+  if (Array.isArray(view.images)) {
+    for (const raw of view.images.slice(0, 4)) {
       const image = record(raw);
       const url = pictureAddress(image?.thumb) ?? pictureAddress(image?.fullsize);
       if (url) out.push({ url, alt: typeof image?.alt === "string" && image.alt.trim() ? image.alt.trim().slice(0, 1000) : null });
     }
   }
-  const video = pictureAddress(media.thumbnail);
-  if (video) out.push({ url: video, alt: typeof media.alt === "string" && media.alt.trim() ? media.alt.trim().slice(0, 1000) : null });
-  const card = pictureAddress(record(media.external)?.thumb);
+  const video = pictureAddress(view.thumbnail);
+  if (video) out.push({ url: video, alt: typeof view.alt === "string" && view.alt.trim() ? view.alt.trim().slice(0, 1000) : null });
+  const card = pictureAddress(record(view.external)?.thumb);
   if (card) out.push({ url: card, alt: null });
   return out;
+}
+
+/** The post a post quotes, as the API shows it (a `viewRecord`), whether the quote comes alone or with media of its own; null when it is gone, blocked or not a post. */
+function quotedPost(embed: Record<string, unknown>): Record<string, unknown> | null {
+  const quote = embed.$type === "app.bsky.embed.recordWithMedia#view" ? record(record(embed.record)?.record) : record(embed.record);
+  return quote && Array.isArray(quote.embeds) ? quote : null;
+}
+
+/**
+ * The pictures of a post's embed, in the order the author attached them: its images, a video's still, a link card's picture (beside a
+ * quote, as `recordWithMedia` has them, those are the post's own). A post that quotes another and has none of its own shows the quoted
+ * post's: a drawing quoted with a line of comment is the post's picture. One level only: what the quoted post itself quotes is not read.
+ */
+export function readPostPictures(post: unknown): PostPicture[] {
+  const embed = record(record(post)?.embed);
+  if (!embed) return [];
+  const own = viewPictures(record(embed.media) ?? embed);
+  if (own.length) return own;
+  for (const raw of (quotedPost(embed)?.embeds as unknown[] | undefined)?.slice(0, 4) ?? []) {
+    const view = record(raw);
+    const found = viewPictures(record(view?.media) ?? view);
+    if (found.length) return found;
+  }
+  return [];
 }
 
 export type LookupOptions = {

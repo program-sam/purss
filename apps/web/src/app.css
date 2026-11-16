@@ -61,7 +61,13 @@ body{overflow:hidden}
 .corner.float .cbtns{top:23px}
 .corner.float :is(.bell,.bar-acct){background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:var(--shadow)}
 .corner.float :is(.bell,.bar-acct):hover{background:var(--surface)}
-.stage:has(> .corner.float) :is(.home-top,.phead){padding-right:44px}
+/* The page keeps its content clear of the corner's buttons: Header measures them into --corner-reserve (their width and the gap to the edge). */
+.stage:has(> .corner.float) :is(.home-top,.phead){padding-right:calc(var(--corner-reserve,46px) + 12px)}
+/* With the reading pane open the list column is narrow and its rows would pass under the buttons, so the corner takes a strip of its own
+   and the page starts below it, level with nothing. */
+.app[data-panel="open"] .corner.float{height:48px}
+.app[data-panel="open"] .corner.float .cbtns{top:8px}
+.app[data-panel="open"] .stage:has(> .corner.float) :is(.home-top,.phead){padding-right:0}
 /* A list page's tools sit beside its title when there is room, else on their own line just above the list. */
 .phead:has(> .ltools){grid-template-columns:minmax(0,1fr) auto;column-gap:16px}
 .phead:has(> .ltools)>*{grid-column:1/-1}
@@ -78,12 +84,13 @@ body{overflow:hidden}
 /* The bar's first line is as tall as the bell, and keeps room for it and its unread count. */
 .bar{padding-right:72px}
 .bar>.crumbs{display:flex;align-items:center;min-height:36px}
-@media (pointer:coarse){.corner .cbtns{top:6px}.corner.float .cbtns{top:19px}.bar{padding-right:80px}.bar>.crumbs{min-height:40px}.stage:has(> .corner.float) :is(.home-top,.phead){padding-right:52px}}
+@media (pointer:coarse){.corner .cbtns{top:6px}.corner.float .cbtns{top:19px}.bar{padding-right:80px}.bar>.crumbs{min-height:40px}.app[data-panel="open"] .corner.float{height:52px}.app[data-panel="open"] .corner.float .cbtns{top:6px}}
 [data-display="eink"] .corner .cbtns{top:6px}
 [data-display="eink"] .corner.float .cbtns{top:19px}
 [data-display="eink"] .bar{padding-right:80px}
 [data-display="eink"] .bar>.crumbs{min-height:40px}
-[data-display="eink"] .stage:has(> .corner.float) :is(.home-top,.phead){padding-right:52px}
+[data-display="eink"] .app[data-panel="open"] .corner.float{height:52px}
+[data-display="eink"] .app[data-panel="open"] .corner.float .cbtns{top:6px}
 .mbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 10px;border-radius:8px;border:1px solid var(--line-2);background:linear-gradient(var(--surface),var(--surface-2));box-shadow:inset 0 1px 0 var(--hi),var(--shadow);font-weight:700;font-size:0.8125rem;color:var(--ink);white-space:nowrap}
 .mbtn:hover{background:linear-gradient(var(--surface),var(--hover))}
 .mbtn[aria-expanded="true"],.mbtn[aria-pressed="true"]{background:linear-gradient(var(--sel-top),var(--sel-bot));border-color:var(--sel-bd)}

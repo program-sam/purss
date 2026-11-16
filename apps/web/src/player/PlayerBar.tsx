@@ -6,6 +6,7 @@ import { useNav } from "../nav.ts";
 import { usePopups } from "../state/popups.tsx";
 import { RATES, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, SLEEP_MINUTES, clock, rateLabel, seekKeyStep, sleepMinutesLeft, sourceLabel } from "./logic.ts";
 import { usePlayer } from "./PlayerProvider.tsx";
+import { playerArtwork } from "../lib/items.ts";
 import { hasKeyboard } from "../lib/returning.ts";
 
 /** Move focus to the player's Play/Pause button (the shortcut and the skip link). */
@@ -122,7 +123,7 @@ export function PlayerBar() {
   const { position, duration, playing, buffering } = snap.state;
   const max = duration ?? Math.max(position, 1);
   const face = nameFace(now.sourceTitle);
-  const art = now.imageUrl && /^https:\/\//.test(now.imageUrl) ? now.imageUrl : null;
+  const art = playerArtwork(now.imageUrl);
   return (
     <>
     {status}

@@ -31,14 +31,22 @@ export function defaultFilterFor(place: Place | null, view: ViewMode, freshCount
   return place?.t === "c" && view !== "board" && freshCount > 0 ? "fresh" : "active";
 }
 
-/** The filter a page uses for the one its address names: a basket has no Ignored filter, and its All keeps ignored items too. */
+/** The queue holds only what is put aside or started, so only these filters can show anything on its page. */
+const QUEUE_FILTERS: readonly ListFilter[] = ["active", "fresh", "toread", "inprogress"];
+
+/**
+ * The filter a page uses for the one its address names: a basket has no Ignored filter, and its All keeps ignored items too; the
+ * queue has only the filters that can show something, and an address naming another one opens on the page's own.
+ */
 export function filterFor(place: Place | null, named: ListFilter | undefined, fallback: ListFilter): ListFilter {
   if (place?.t === "b" && (named === "active" || named === "ignored")) return "all";
+  if (place?.t === "r") return named && QUEUE_FILTERS.includes(named) ? named : fallback;
   return named ?? fallback;
 }
 
 /** The filters a page's menu offers: a basket's All already includes ignored items, so it has no Ignored choice. */
 export function filterChoices(place: Place | null): ListFilter[] {
+  if (place?.t === "r") return [...QUEUE_FILTERS];
   return place?.t === "b" ? ["all", "fresh", "new", "toread", "inprogress", "finished"] : ["active", "fresh", "new", "toread", "inprogress", "finished", "ignored"];
 }
 

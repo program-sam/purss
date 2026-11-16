@@ -3,7 +3,7 @@ import type { HomeOverview, ItemDTO } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { badRequest, notFound } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
-import { CAPTURE_FAILED, ITEM_COLUMNS, VISIBLE_SOURCE, listItems, toDTO, typeLengthConditions } from "./items.ts";
+import { CAPTURE_FAILED, ITEM_COLUMNS, QUEUE_STATES_SQL, VISIBLE_SOURCE, listItems, toDTO, typeLengthConditions } from "./items.ts";
 import type { ItemRow } from "./items.ts";
 import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
@@ -105,21 +105,22 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     if (total) since = { total, boxes: [...boxes.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) };
   }
 
-  // To read, To watch and To listen are what the person put aside, wherever it came from; all leave out what the muted words match.
+  // To read, To watch and To listen are the queue: what the person put aside and what they started, wherever it came from; all leave
+  // out what the muted words match.
   const homeParams: SqlParam[] = [];
   const onHome = onHomeItem(app, ws, homeParams);
   const muted = workspaceMuted(app, ws, now);
 
-  // To read (articles), To watch (videos) and To listen (podcasts) are three rows, each the oldest items of its kind and how many there
-  // are, in one pass over them.
+  // To read (articles), To watch (videos) and To listen (podcasts) are three rows, each the started items of its kind first, then the
+  // oldest of the rest, and how many there are, in one pass over them.
   // With muted words the first thousand are read (see `mutedScan`) and each is asked about them, so a row takes the first unmuted
   // ones and its total leaves out those they match; with more items than that, the total is made in part and may be too high.
   const putAside = (kind: string) => {
     const rows = app.db.all<{ id: string; n: number; m: number }>(
       `SELECT id, n, ${muted ? "purss_muted(?, title, excerpt)" : "0"} AS m FROM (
          SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${FROM_VISIBLE}
-         WHERE st.workspace_id = ? AND i.workspace_id = ? AND st.workflow = 'toread' AND ${kind} AND ${VISIBLE_SOURCE}
-         ORDER BY COALESCE(i.published_at, i.discovered_at) ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
+         WHERE st.workspace_id = ? AND i.workspace_id = ? AND ${QUEUE_STATES_SQL} AND ${kind} AND ${VISIBLE_SOURCE}
+         ORDER BY st.workflow = 'inprogress' DESC, COALESCE(i.published_at, i.discovered_at) ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
       ...(muted ? [muted] : []), ws, ws);
     return {
       ids: rows.filter((r) => !r.m).map((r) => r.id).slice(0, ROW_ITEMS),

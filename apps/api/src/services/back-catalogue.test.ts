@@ -9,7 +9,7 @@ import { applySyncBatch, arrivalOf } from "./sync.ts";
 import { listItems, listTuning } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
-import { followSource, listSources, onSubscribed, unfollowSource } from "./sources.ts";
+import { followSource, listSources, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { putAnnotation } from "./annotations.ts";
 import { homeOverview } from "./home.ts";
@@ -340,4 +340,50 @@ test("the queries that leave the back catalogue out and count it read their inde
   }
   const muted = seen.find((q) => /purss_muted/.test(q.sql) && /st\.workflow IN \('new', 'toread'\)/.test(q.sql) && /i\.backlog = 0/.test(q.sql));
   assert.ok(muted, "what the muted words left out of Home is counted without the back catalogue too");
+});
+
+const pendingCaptures = (app: App, src: string) => app.db.all<{ title: string }>(
+  "SELECT i.title FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.status = 'pending' ORDER BY i.title", src).map((r) => r.title);
+
+test("full articles are fetched by themselves only for posts the person will see: a source followed from now keeps its back catalogue as it came", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const src = follow(app, p, "Journal of Tides", "feed/1", "now");
+  app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
+  const old = Array.from({ length: 4 }, (_, i) => entry("feed/1", { title: `Old paper ${i}`, publishedAt: ago((i + 1) * 30 * DAY), crawledAt: nowIso() }));
+  const undated = entry("feed/1", { title: "Old undated paper", publishedAt: null, crawledAt: nowIso() });
+  walk(app, p, [...old, undated]);
+  assert.deepEqual(pendingCaptures(app, src), [], "the back catalogue gets no automatic copies");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'capture.fulltext'")!.n, 0, "and no jobs that would fail one by one");
+  walk(app, p); // a walk that began after the engine confirmed the subscription: from here on a post is New
+  const brandNew = entry("feed/1", { title: "Brand new paper", publishedAt: ahead(60_000), crawledAt: nowIso() });
+  walk(app, p, [brandNew]);
+  assert.deepEqual(pendingCaptures(app, src), ["Brand new paper"], "a post that comes after the follow gets its copy");
+  for (const e of old) assert.equal(flags(app, e).backlog, true);
+
+  // Turning the setting off and on again fetches the newest unfinished items, still not the back catalogue.
+  patchSource(app, p, src, { fullText: false });
+  app.db.run("DELETE FROM captures WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", src);
+  patchSource(app, p, src, { fullText: true });
+  assert.deepEqual(pendingCaptures(app, src), ["Brand new paper"]);
+
+  // A person's own keep of a back-catalogue item still asks for its copy, and so does Try again.
+  const basket = createBasket(app, p, { name: "Papers", captureMode: "text" });
+  const target = idOf(app, old[0]!);
+  assert.equal(keepItem(app, p, target, basket.id).captureQueued, true, "an explicit keep with a readable copy is eligible");
+  assert.deepEqual(pendingCaptures(app, src), ["Brand new paper", "Old paper 0"]);
+  assert.equal(backlog(app, target), false, "and what a person has acted on is no longer back catalogue");
+});
+
+test("a source followed with its last week, or before the choice existed, gets copies of what it brings as New or as ordinary older items", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const week = follow(app, p, "Weekly", "feed/1", "week");
+  app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", week);
+  walk(app, p, [entry("feed/1", { title: "Three days ago", publishedAt: ago(3 * DAY), crawledAt: nowIso() }), entry("feed/1", { title: "A month ago", publishedAt: ago(30 * DAY), crawledAt: nowIso() })]);
+  assert.deepEqual(pendingCaptures(app, week), ["Three days ago"], "the last week is New and gets a copy; the older post is back catalogue and gets none");
+  const all = follow(app, p, "Everything", "feed/2");
+  app.db.run("UPDATE sources SET full_text = 1, start_from = 'all' WHERE id = ?", all);
+  walk(app, p, [entry("feed/2", { title: "Old but shown", publishedAt: ago(30 * DAY), crawledAt: nowIso() })]);
+  assert.deepEqual(pendingCaptures(app, all), ["Old but shown"], "a source whose older posts are ordinary items still gets a copy of each");
 });
