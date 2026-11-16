@@ -1,4 +1,5 @@
 import type { ItemDTO, WorkflowState } from "@purss/domain";
+import { focusable, survivorIndex } from "./focus.ts";
 
 /** What can take an item out of the list it is shown in: a new state, Restore, or removing it from the basket shown. */
 export type LeaveCause = WorkflowState | "restore" | "unkeep";
@@ -23,17 +24,26 @@ const CLOSE_MS = 70;
 
 const reduced = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** Where focus goes when a focused row leaves: the same control on the next row (or the one before), else that row. */
-function focusAfter(el: HTMLElement): (() => void) | null {
+/** The list's own heading, or its container: where focus goes when no row is left to take it. */
+function listAnchor(): HTMLElement | null {
+  const main = document.getElementById("main");
+  const heading = main?.querySelector<HTMLElement>("h1");
+  return heading ? focusable(heading) : main;
+}
+
+/**
+ * Where focus goes when the row it is in leaves with the others in `leaving`: the same control on the nearest row that
+ * stays, else that row's title, else (the list empties) the list's heading. Null when focus is not in this row.
+ */
+function focusAfter(el: HTMLElement, leaving: readonly HTMLElement[]): (() => void) | null {
   const active = document.activeElement as HTMLElement | null;
   if (!active || !el.contains(active)) return null;
-  const rows = [...document.querySelectorAll<HTMLElement>("main [data-item]")].filter((r) => !r.dataset.leaving);
-  const i = rows.indexOf(el);
-  const next = rows.slice(i + 1).find((r) => r !== el) ?? rows.slice(0, Math.max(0, i)).reverse()[0];
-  if (!next) return null;
-  const same = active.className ? next.querySelector<HTMLElement>(active.className.split(/\s+/).filter(Boolean).map((c) => `.${CSS.escape(c)}`).join("")) : null;
-  const target = same ?? next.querySelector<HTMLElement>("[data-act='open']");
-  return target ? () => target.focus({ preventScroll: true }) : null;
+  const rows = [...document.querySelectorAll<HTMLElement>("main [data-item]")];
+  const at = survivorIndex(rows.map((r) => leaving.includes(r) || !!r.dataset.leaving), rows.indexOf(el));
+  const next = at === null ? null : rows[at]!;
+  const same = next && active.className ? next.querySelector<HTMLElement>(active.className.split(/\s+/).filter(Boolean).map((c) => `.${CSS.escape(c)}`).join("")) : null;
+  const target = same ?? next?.querySelector<HTMLElement>("[data-act='open']") ?? null;
+  return () => (target?.isConnected ? target : listAnchor())?.focus({ preventScroll: true });
 }
 
 /** Slide one row or card out and close the gap it leaves, so the rows below move up instead of jumping. */
@@ -54,18 +64,21 @@ async function slideOut(el: HTMLElement): Promise<void> {
 
 /**
  * Animate the items' rows and cards out of the list they are leaving, then make the change. Items that stay in
- * their list (the cause isn't in its `data-leaves`), and screens that ask for less motion, change at once.
+ * their list (the cause isn't in its `data-leaves`), and screens that ask for less motion, change at once; either way
+ * focus moves off the row that goes.
  */
 export async function leaveThen(ids: readonly string[], cause: LeaveCause, change: () => void | Promise<void>): Promise<void> {
   const els = [...document.querySelectorAll<HTMLElement>("main [data-item]")]
     .filter((el) => ids.includes(el.dataset.item ?? "") && !el.dataset.leaving && (el.dataset.leaves ?? "").split(" ").includes(cause));
-  if (!els.length || reduced()) { await change(); return; }
-  const refocus = els.map(focusAfter).find(Boolean) ?? null;
-  await Promise.all(els.map(slideOut));
+  if (!els.length) { await change(); return; }
+  // The row with focus is going: focus is placed on a row that stays (or the list's heading) however the row leaves, or it would fall to the page.
+  const refocus = els.map((el) => focusAfter(el, els)).find(Boolean) ?? null;
+  const still = reduced();
+  if (!still) await Promise.all(els.map(slideOut));
   const done = change();
   refocus?.();
   // The change takes the rows out of the list. A row still there afterwards (the change was refused) is shown again.
-  setTimeout(() => {
+  if (!still) setTimeout(() => {
     for (const el of els) if (el.isConnected) { delete el.dataset.leaving; el.style.overflow = ""; el.getAnimations().forEach((a) => a.cancel()); }
   }, 600);
   await done;

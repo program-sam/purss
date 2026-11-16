@@ -307,7 +307,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
     if (health === "quiet" && ws.sourceById.get(place.id)?.itemCount === 0) return <div className="empty card-like"><h2>No posts yet</h2><p>Nothing in this feed yet. New posts will appear here.</p></div>;
     return <div className="empty card-like"><h2>No new items for now</h2></div>;
   }
-  if (place.t === "r") return <div className="empty card-like"><h2>Nothing queued yet</h2><p>Mark an item To read {KEYBOARD ? "(the page icon on its row, or press r)" : "with the page icon on its row"} and it waits here until you start it.</p></div>;
+  if (place.t === "r") return <div className="empty card-like"><h2>Nothing queued yet</h2><p>Mark an item To read, To watch or To listen {KEYBOARD ? "(the page icon on its row, or press r)" : "with the page icon on its row"} and it waits here until you start it.</p></div>;
   if (place.t === "b") {
     return (
       <div className="empty card-like"><h2>Nothing kept here yet</h2><p>Use the bookmark on any item to keep it here.</p>

@@ -279,6 +279,9 @@ async function main(): Promise<void> {
     // Search finds it.
     await page.keyboard.press("Escape");
     await page.keyboard.press("Control+k");
+    // Type once the search box has focus: keys pressed while it is still opening go to the page behind.
+    await page.locator("[role=dialog] input[role=combobox]").last().waitFor();
+    await page.waitForFunction(() => (document.activeElement as HTMLElement | null)?.getAttribute("role") === "combobox");
     await page.keyboard.type(kept.split(/\s+/).slice(0, 3).join(" "));
     await page.locator("[role=dialog]").last().getByText(kept.slice(0, 30)).first().waitFor();
     await page.keyboard.press("Escape");

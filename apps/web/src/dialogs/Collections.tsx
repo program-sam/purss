@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CollectionDTO, ViewMode } from "@purss/domain";
-import { Button, Check, Dialog, Field, SelectInput, Segmented, TextInput } from "@purss/ui";
+import { Button, Check, Dialog, Field, Icon, SelectInput, Segmented, TextInput } from "@purss/ui";
 import { del, messageOf, patch, post } from "../api/client.ts";
 import { refreshWorkspace } from "../api/queries.ts";
 import { VIEW_LABELS, VIEW_MODES } from "../lib/constants.ts";
 import { plural } from "../lib/format.ts";
+import { capacityOf, collectionLimitNote } from "../lib/plan-limits.ts";
+import { useAlertFocus } from "../lib/use-focus.ts";
 import { EMPTY_DRAFT, draftToQuery, queryToDraft } from "../lib/query-builder.ts";
 import type { QueryDraft } from "../lib/query-builder.ts";
 import { useNav } from "../nav.ts";
@@ -18,6 +20,7 @@ type Mode = CollectionDTO["mode"];
 
 export function NewCollectionDialog() {
   const ov = useOverlays();
+  const ws = useWorkspace();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -28,6 +31,9 @@ export function NewCollectionDialog() {
   const [draft, setDraft] = useState<QueryDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const alertRef = useAlertFocus<HTMLParagraphElement>(error);
+  // A plan with no room left is said before the form is filled in, not after it is sent.
+  const limit = collectionLimitNote(capacityOf(ws.data));
 
   async function create() {
     setError("");
@@ -49,6 +55,15 @@ export function NewCollectionDialog() {
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
+  if (limit) {
+    return (
+      <Dialog title="New collection" onClose={ov.close} size="md" initialFocus="dialog"
+        footer={<><Button onClick={ov.close}>Close</Button><Button variant="primary" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>See plans</Button></>}>
+        <p className="state note"><Icon name="info" /><span>{limit}</span></p>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog title="New collection" onClose={ov.close} size="md" initialFocus="#nc-name"
       footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>Create collection</Button></>}>
@@ -66,7 +81,7 @@ export function NewCollectionDialog() {
           <p className="fine">A source can be in several collections; you follow it once.</p></fieldset>
       ) : null}
       {mode === "query" ? <QueryBuilder draft={draft} onChange={setDraft} /> : null}
-      {error ? <p className="state note" role="alert">{error}</p> : null}
+      {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert">{error}</p> : null}
     </Dialog>
   );
 }
@@ -88,6 +103,7 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const alertRef = useAlertFocus<HTMLParagraphElement>(error);
   if (!c) return null;
 
   async function save() {
@@ -145,7 +161,7 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
       {c.mode === "query" ? (parsed.editable ? <QueryBuilder draft={draft} onChange={setDraft} />
         : <p className="state note">This collection's filter can't be edited here. It keeps working. You can rename it or change its view.</p>) : null}
       <Check checked={onHome} onChange={setOnHome}>Show on Home</Check>
-      {error ? <p className="state note" role="alert">{error}</p> : null}
+      {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert">{error}</p> : null}
     </Dialog>
   );
 }

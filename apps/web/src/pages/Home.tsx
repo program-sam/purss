@@ -283,7 +283,7 @@ function Headline({ c, items, pending }: { c: CollectionDTO; items: ItemDTO[]; p
         {items.length ? items.map((it) => (
           <li key={it.id} className="irow" data-item={it.id}>
             <button type="button" className="hli" data-act="open" onClick={() => rc.onOpen(it)}>
-              <span className="title" dir="auto"><FreshDot fresh={it.fresh} />{it.title}</span>
+              <span className="hlt"><FreshDot fresh={it.fresh} /><span className="title" dir="auto">{it.title}</span></span>
               <span className="m"><bdi>{it.sourceTitle}</bdi>, {timeAgo(itemDate(it), rc.now, rc.timeZone)}{it.workflow !== "new" ? `, ${workflowLabel(it.workflow, it.kind)}` : ""}</span>
             </button>
           </li>

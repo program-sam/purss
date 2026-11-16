@@ -27,7 +27,7 @@ import { PASSWORD_MAX, checkPassword, preparePassword, verifyPassword } from "..
 import { finishSignup, signupRequestEmail, startSignup } from "../auth/signup.ts";
 import { KNOWN_COOKIE, signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
 import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets } from "../services/items.ts";
-import { noteSnippets, searchItems } from "../services/search.ts";
+import { SEARCH_FIRST, SEARCH_MAX, noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
 import { applyUndo, bulk, changeState, clearFreshAll, keepWithUndo } from "../services/state.ts";
 import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
@@ -505,12 +505,16 @@ export function publicRouter(): Router<Ctx> {
   r.get("/api/search", (req, ctx): SearchResult => {
     const p = requirePrincipal(ctx);
     const q = (req.query.get("q") ?? "").trim().slice(0, 200);
-    if (!q) return { items: [], snippets: {}, sources: [], collections: [], baskets: [] };
+    if (!q) return { items: [], hasMore: false, snippets: {}, sources: [], collections: [], baskets: [] };
     const like = `%${q.replace(/[%_]/g, "")}%`;
-    const items = searchItems(ctx.app, p, q, 8);
+    // The search box starts with a few items and asks for more as the person goes on; one more than asked for says whether there are.
+    const limit = Math.min(SEARCH_MAX, Math.max(1, Math.trunc(Number(req.query.get("limit"))) || SEARCH_FIRST));
+    const found = searchItems(ctx.app, p, q, limit + 1);
+    const items = found.slice(0, limit);
     const snippets = searchSnippets(ctx.app, items.map((i) => i.id), q);
     return {
       items,
+      hasMore: found.length > limit,
       snippets,
       noteSnippets: noteSnippets(ctx.app, p, items.map((i) => i.id).filter((id) => !snippets[id]), q),
       sources: ctx.app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE workspace_id = ? AND followed = 1 AND title LIKE ? LIMIT 5", p.workspaceId, like),

@@ -14,6 +14,11 @@ import type { Place } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
+/** The search box shows this many items, and asks for this many more each time "Show more results" is chosen, up to the most the server returns. */
+const FIRST = 8;
+const STEP = 24;
+const MOST = 100;
+
 type Result = { key: string; label: string; sub: string; icon: IconName; run: () => void; item?: ItemDTO; snippet?: string; noteSnippet?: string };
 type Group = { heading: string; results: Result[] };
 
@@ -30,9 +35,13 @@ export function PaletteDialog({ query }: { query?: string }) {
   const nav = useNav();
   const [q, setQ] = useState(query ?? "");
   const [active, setActive] = useState(0);
+  const [limit, setLimit] = useState(FIRST);
   const term = q.trim();
   const debounced = useDebounced(term, 160);
-  const search = useQuery({ ...searchQuery(debounced), enabled: debounced.length > 0 });
+  const search = useQuery({ ...searchQuery(debounced, limit), enabled: debounced.length > 0 });
+  const more = search.data?.hasMore === true && debounced === term && limit < MOST;
+  const atMost = search.data?.hasMore === true && debounced === term && limit >= MOST;
+  const loadingMore = more && search.isFetching;
   const listRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo<Group[]>(() => {
@@ -55,20 +64,25 @@ export function PaletteDialog({ query }: { query?: string }) {
     const out: Group[] = [];
     const items: ItemDTO[] = debounced === term ? search.data?.items ?? [] : [];
     if (items.length) {
-      out.push({ heading: "Items in all sources", results: items.map((i) => ({
-        key: `i:${i.id}`, label: i.title, sub: i.sourceTitle, icon: "item" as const, item: i, snippet: search.data?.snippets?.[i.id], noteSnippet: search.data?.noteSnippets?.[i.id],
+      const rows: Result[] = items.map((i) => ({
+        key: `i:${i.id}`, label: i.title, sub: i.sourceTitle, icon: "item", item: i, snippet: search.data?.snippets?.[i.id], noteSnippet: search.data?.noteSnippets?.[i.id],
         run: go(i.basketIds[0] && !i.sourceId ? { t: "b", id: i.basketIds[0] } : i.sourceId && ws.sourceById.has(i.sourceId) ? { t: "s", id: i.sourceId } : i.basketIds[0] ? { t: "b", id: i.basketIds[0] } : { t: "home" }, { item: i.id }),
-      })) });
+      }));
+      // Not a result but a way on, last in the list: the arrow keys reach it and Enter asks for more, so the box never closes on the way.
+      if (more) rows.push({ key: "more", label: loadingMore ? "Loading more…" : "Show more results", sub: "Keep going through the items that match", icon: "plus", run: () => setLimit((l) => Math.min(MOST, l + STEP)) });
+      out.push({ heading: "Items in all sources", results: rows });
     }
     const where = places.filter((p) => p.label.toLowerCase().includes(lower)).slice(0, 6);
     if (where.length) out.push({ heading: "Go to", results: where });
     const acts = actions.filter((a) => a.label.toLowerCase().includes(lower));
     if (acts.length) out.push({ heading: "Actions", results: acts });
     return out;
-  }, [term, debounced, search.data, ws, ov, nav]);
+  }, [term, debounced, search.data, more, loadingMore, ws, ov, nav]);
 
   const flat = groups.flatMap((g) => g.results);
   useEffect(() => { setActive(0); }, [term]);
+  // Another search starts from the first few again.
+  useEffect(() => { setLimit(FIRST); }, [debounced]);
   useEffect(() => { listRef.current?.querySelector(`#po${active}`)?.scrollIntoView({ block: "nearest" }); }, [active]);
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
@@ -84,7 +98,10 @@ export function PaletteDialog({ query }: { query?: string }) {
   const searching = !!term && !answered;
   const nothing = answered && !search.isError && !flat.length;
   // One polite announcement for screen readers: that it is searching, then how many results.
-  const spoken = !term ? "" : searching ? "Searching…" : search.isError ? "The search didn't work." : flat.length ? `${flat.length === 1 ? "1 result" : `${flat.length} results`}` : "Nothing matches.";
+  // "Show more results" is a way on, not a result.
+  const found = flat.length - (more ? 1 : 0);
+  const count = `${found === 1 ? "1 result" : `${found} results`}`;
+  const spoken = !term ? "" : searching ? "Searching…" : search.isError ? "The search didn't work." : loadingMore ? "Loading more…" : found ? `${count}${more ? ", more available" : ""}` : "Nothing matches.";
   return (
     <PaletteLayer label="Search" onClose={ov.close}>
       <div className="pal-in">
@@ -110,11 +127,12 @@ export function PaletteDialog({ query }: { query?: string }) {
             })}
           </div>
         ))}
+        {atMost ? <p className="fine" style={{ padding: "6px 12px" }}>Showing the first {MOST} items that match. Add a word to narrow the search.</p> : null}
         {nothing ? <p className="pal-empty">Nothing matches <span dir="auto">“{term}”</span>.</p> : null}
         {searching ? <p className="fine" style={{ padding: "6px 12px" }}>Searching…</p> : null}
         {search.isError && answered ? <p className="fine" style={{ padding: "6px 12px" }} role="alert">{messageOf(search.error)}</p> : null}
       </div>
-      {flat.length ? <div className="pal-foot">{flat.length === 1 ? "1 result" : `${flat.length} results`}<span className="keys">↑↓ to choose · Enter to open</span></div> : null}
+      {flat.length ? <div className="pal-foot">{count}{more ? " so far" : ""}<span className="keys">↑↓ to choose · Enter to open</span></div> : null}
       <div className="sr" role="status" aria-live="polite">{spoken}</div>
     </PaletteLayer>
   );

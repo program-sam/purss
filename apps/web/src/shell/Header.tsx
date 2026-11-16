@@ -78,8 +78,9 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
       {showBar ? <header ref={barRef} className="bar al">
         <button type="button" className="ibtn" data-fk="tside" aria-label="Open sidebar" aria-expanded={drawerOpen} onClick={onToggleSidebar}><Icon name="sidebar" /></button>
         {bp === "xs" && place?.t === "home" ? (
-          // On a phone the Home page carries its own title, so the bar names the app instead.
-          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS{who ? <span className="who"><bdi>{who}</bdi></span> : null}</span>
+          // On a phone the Home page carries its own title, so the bar names the app instead. The name reads and is cut in its own
+          // direction (dir="auto" on the box that holds the ellipsis, not on something inside it), so a name that mixes scripts loses its end, not its middle.
+          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS{who ? <span className="who" dir="auto">{who}</span> : null}</span>
         ) : bp === "xs" && crumbs.length > 1 ? (
           // A phone has room for one step back and where you are, not the whole trail.
           <nav className="crumbs xs" aria-label="Breadcrumb">

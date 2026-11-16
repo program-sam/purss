@@ -1,7 +1,8 @@
 /* Home for someone coming back: the summary band, the rows above the boxes, and the activity panel's lists. */
 
 .home-sum-wrap{display:grid;gap:4px}
-.home-sum .since{display:inline-flex;align-items:center;gap:6px;color:var(--accent-ink);font-weight:800}
+/* What is New, said as a fact, not as a link: only the dot carries the accent. The collections named under it are the buttons. */
+.home-sum .since{display:inline-flex;align-items:center;gap:6px;color:var(--ink);font-weight:800}
 .since-boxes{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;font-size:13px;font-weight:700;color:var(--ink-2)}
 .since-boxes .link{font-weight:800}
 

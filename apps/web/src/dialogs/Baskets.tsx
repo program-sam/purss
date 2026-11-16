@@ -7,6 +7,7 @@ import type { BasketDeletePreview, KeepResult } from "../api/types.ts";
 import { keys, putBasket, putItem, refreshWorkspace } from "../api/queries.ts";
 import { isolate } from "../lib/bidi.ts";
 import { plural } from "../lib/format.ts";
+import { useAlertFocus } from "../lib/use-focus.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
@@ -29,6 +30,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
   const [mode, setMode] = useState<BasketDTO["captureMode"]>(existing?.captureMode ?? "metadata");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const alertRef = useAlertFocus<HTMLParagraphElement>(error);
 
   async function submit() {
     setBusy(true); setError("");
@@ -81,7 +83,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
         {keepItemId && !existing ? <p className="fine">The item you chose is kept in this basket once it's created.</p> : null}
         <p className="fine">The original page can still change or disappear. A basket keeps what it saved, not the page itself.{existing ? " Changes apply to items you keep from now on." : ""}</p>
       </fieldset>
-      {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+      {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
   );
 }

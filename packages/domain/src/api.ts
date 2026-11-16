@@ -639,6 +639,8 @@ export type AuditEventDTO = { id: string; at: string; actor: string | null; acti
 
 export type SearchResult = {
   items: ItemDTO[];
+  /** There are more matching items than `items` holds: ask again with a larger `limit` (the first answer is 8, at most 100). */
+  hasMore: boolean;
   /** Per item id: a few words around the match, with each match wrapped in U+0001 … U+0002. */
   snippets: Record<string, string>;
   /** for items found only through a note: a few words of the note around the match, marked the same way. */

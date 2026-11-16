@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, Ref } from "react";
 import type { ImportPreview, OpmlPreview, SourceDTO } from "@purss/domain";
 import { Avatar, Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural } from "../../lib/format.ts";
+import { useFocusResult } from "../../lib/use-focus.ts";
 import { useWorkspace } from "../../state/workspace.tsx";
 import { Note, Page, Section } from "../shared/bits.tsx";
 import { downloadFile } from "../shared/download.ts";
@@ -16,10 +17,16 @@ const OPML_LIMIT = 2 * 1024 * 1024;
 
 type Feedback = { tone: "ok" | "problem"; text: string } | null;
 
+/** What a download or a read came to: read out when it appears, and where focus lands when the button that started it was disabled meanwhile. */
+function Outcome({ tone, text, ref }: { tone: "ok" | "problem"; text: string; ref?: Ref<HTMLDivElement> }) {
+  return <div ref={ref} tabIndex={-1} role={tone === "ok" ? "status" : "alert"}><Note icon={tone === "ok" ? "check" : "info"}>{text}</Note></div>;
+}
+
 function ExportSection() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const result = useFocusResult<HTMLDivElement>(busy);
   async function run() {
     setBusy(true); setFeedback(null); setProgress(0);
     try {
@@ -37,7 +44,7 @@ function ExportSection() {
         <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? "Preparing…" : "Download export"}</Button>
         {busy ? <span className="state" role="status"><span className="spin" aria-hidden="true" />{progress ? `${bytesLabel(progress)} so far` : "Starting…"}</span> : null}
       </div>
-      {feedback ? <Note icon={feedback.tone === "ok" ? "check" : "info"}>{feedback.text}</Note> : null}
+      {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
     </Section>
   );
 }
@@ -46,6 +53,7 @@ function ExportSection() {
 function KeptLinksSection() {
   const [busy, setBusy] = useState<"html" | "md" | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const result = useFocusResult<HTMLDivElement>(busy !== null);
   async function run(format: "html" | "md") {
     setBusy(format); setFeedback(null);
     try {
@@ -61,7 +69,7 @@ function KeptLinksSection() {
         <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? "Preparing…" : "Download web page"}</Button>
         <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? "Preparing…" : "Download Markdown"}</Button>
       </div>
-      {feedback ? <Note icon={feedback.tone === "ok" ? "check" : "info"}>{feedback.text}</Note> : null}
+      {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
     </Section>
   );
 }
@@ -70,6 +78,7 @@ function ImportSection() {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const result = useFocusResult<HTMLDivElement>(busy);
   const [staged, setStaged] = useState<{ preview: ImportPreview; name: string } | null>(null);
 
   async function chosen(e: ChangeEvent<HTMLInputElement>) {
@@ -93,7 +102,7 @@ function ImportSection() {
         <input ref={input} type="file" accept=".json,application/json" hidden onChange={(e) => void chosen(e)} aria-label="Choose an export file" />
         <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? "Reading…" : "Choose a file…"}</Button>
       </div>
-      {error ? <Note>{error}</Note> : null}
+      {error ? <Outcome ref={result} tone="problem" text={error} /> : null}
       {staged ? <ImportDialog preview={staged.preview} fileName={staged.name} onClose={() => setStaged(null)} /> : null}
     </Section>
   );
@@ -105,6 +114,8 @@ function OpmlSection() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const exported = useFocusResult<HTMLDivElement>(exporting);
+  const read = useFocusResult<HTMLDivElement>(busy);
   const [staged, setStaged] = useState<{ preview: OpmlPreview; name: string } | null>(null);
 
   async function exportOpml() {
@@ -133,8 +144,8 @@ function OpmlSection() {
         <input ref={input} type="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" hidden onChange={(e) => void chosen(e)} aria-label="Choose an OPML file" />
         <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? "Reading…" : "Import a list…"}</Button>
       </div>
-      {feedback ? <Note icon={feedback.tone === "ok" ? "check" : "info"}>{feedback.text}</Note> : null}
-      {error ? <Note>{error}</Note> : null}
+      {feedback ? <Outcome ref={exported} tone={feedback.tone} text={feedback.text} /> : null}
+      {error ? <Outcome ref={read} tone="problem" text={error} /> : null}
       <OpmlImports />
       {staged ? <OpmlDialog preview={staged.preview} fileName={staged.name} onClose={() => setStaged(null)} /> : null}
     </Section>

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
+import { workflowLabel } from "../lib/constants.ts";
 import { timeAgo } from "../lib/format.ts";
 import { itemDate, itemExcerpt, itemPicture } from "../lib/items.ts";
 import { memo, useId, useState } from "react";
@@ -59,11 +60,13 @@ function DownloadButton({ item, tipAt }: { item: ItemDTO; tipAt?: "above" }) {
 export function TriageActions({ item, tipAt }: { item: ItemDTO; tipAt?: "above" }) {
   const c = useRowCtx();
   const later = item.workflow === "toread";
+  // The state is called what the item is for: To read, To watch or To listen.
+  const put = workflowLabel("toread", item.kind);
   return (
     <>
       <DownloadButton item={item} tipAt={tipAt} />
-      <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? "In To read. Click to take it out" : "To read"} data-tip-at={tipAt}
-        aria-pressed={later} aria-label={`To read: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "new" : "toread")}><Icon name="item" /></button>
+      <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? `In ${put}. Click to take it out` : put} data-tip-at={tipAt}
+        aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "new" : "toread")}><Icon name="item" /></button>
       {c.basket ? (
         <button type="button" className="rq ig" data-tip={`Remove from ${c.basket.name}`} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
       ) : (

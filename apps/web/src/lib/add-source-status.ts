@@ -16,3 +16,19 @@ export function addSourceStatus(o: { phase: AddSourcePhase; searching: boolean; 
   }
   return "";
 }
+
+/**
+ * Where focus goes when a step takes away the control that had it (a show chosen from the results, Find disabled while it
+ * looks, Follow disabled while it works), in the order tried: the message about what went wrong, else the step's first control.
+ */
+export function focusTargets(phase: AddSourcePhase, o: { searching: boolean; hasError: boolean }): string[] {
+  const error = o.hasError ? ["#as-error"] : [];
+  switch (phase) {
+    case "paste": return [...error, "#as-url"];
+    case "looking": return ["#as-looking"];
+    case "shows": return [...error, o.searching ? "#as-searching" : "#as-shows .cand", "#as-url"];
+    case "found": return [...error, ".cands input:checked", ".cands input", "#fnd"];
+    case "failed": return [...error, "#as-failed"];
+    case "single": return [...error, "#kl-b", "#kl-t"];
+  }
+}

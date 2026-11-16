@@ -18,7 +18,7 @@ export const keys = {
   notifications: ["notifications"] as const,
   reminders: ["reminders"] as const,
   security: ["security"] as const,
-  search: (q: string) => ["search", q] as const,
+  search: (q: string, limit: number) => ["search", q, limit] as const,
 };
 
 export const sessionQuery = queryOptions({
@@ -162,10 +162,13 @@ export const securityQuery = queryOptions({
   queryFn: () => get<SecurityInfo>("/api/account/security"),
 });
 
-export const searchQuery = (q: string) => queryOptions({
-  queryKey: keys.search(q),
-  queryFn: ({ signal }) => get<SearchResult>("/api/search", { q }, signal),
+/** `limit` items: the search box starts with 8 and asks for more. */
+export const searchQuery = (q: string, limit = 8) => queryOptions({
+  queryKey: keys.search(q, limit),
+  queryFn: ({ signal }) => get<SearchResult>("/api/search", { q, limit }, signal),
   staleTime: 10_000,
+  // Asking for more of the same search keeps what is shown until the larger answer arrives; another search starts empty.
+  placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === q ? previous : undefined),
 });
 
 // ---------- item cache helpers ----------

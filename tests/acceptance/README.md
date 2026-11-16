@@ -47,6 +47,23 @@ server can't take yet, sees the sign-out warning and that sign-out deletes it; s
 checks that no saved copy or record stays while the app shell does; and, in a context that reports
 itself as an installed app, that offline reading starts on by itself.
 
+## Right-to-left text
+
+`tests/acceptance/rtl.ts` is a hermetic journey like Home's (Node 26 and Chromium only; `npm run test:e2e` runs it after Home's, or
+`node tests/acceptance/rtl.ts` after `npm run build`; free ports). A person whose display name starts in Arabic follows Arabic and
+mixed-script sources in one collection, and the journey checks in the real page that the box's source names keep their order with each separator right
+after the name before it, that the Front page lays a New Arabic headline out right to left from the column's right edge, that a podcast's
+notes whose publisher joined every word with a no-break space wrap at spaces with no word cut in half, and that the phone's top
+bar reads a name that starts in Arabic in its own direction, so its start is what stays when it doesn't fit.
+
+## A Free account at its collection limit
+
+`tests/acceptance/limits.ts` is a hermetic journey on a hosted installation (Node 26 and Chromium only; `npm run test:e2e` runs it
+after the right-to-left journey, or `node tests/acceptance/limits.ts` after `npm run build`; free ports). A non-administrator
+account has the Free plan's 5 collections and 4 of them. When the server refuses a new collection after all, the reason shows and
+has focus; once the fifth exists, *New collection* says the plan's limit instead of asking for a name, with a link to the plan, and Add
+source's *New collection…* choice is unavailable with the same words under it.
+
 ## Connected apps
 
 `tests/acceptance/connect.ts` is a hermetic journey for connecting the phone app and the browser

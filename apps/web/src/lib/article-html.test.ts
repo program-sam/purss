@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseHTML } from "linkedom";
-import { isCitationLead, prepareArticleHtml, showStoredPictures } from "./article-html.ts";
+import { isCitationLead, prepareArticleHtml, showStoredPictures, softenNoBreakSpaces } from "./article-html.ts";
 
 /** The browser's DOMParser for a fragment: the markup lands in a body, as it does there. */
 (globalThis as unknown as { DOMParser: unknown }).DOMParser = class {
@@ -73,4 +73,18 @@ test("a table of data stays a table: several rows, headings, a caption, or no pi
     "<table><caption>Pictures</caption><tr><td>A</td><td><img src=\"https://x.example/a.png\"></td></tr></table>",
     "<table><tr><td>Name</td><td>Value</td></tr></table>",
   ]) assert.ok(/<table/.test(prepareArticleHtml(table)), table);
+});
+
+test("words a publisher joined with no-break spaces can wrap at them again, so none is cut in half at a line's end", () => {
+  const joined = "خاضت\u00a0نور\u00a0تجربة\u00a0إجهاض\u00a0قسري.";
+  assert.equal(softenNoBreakSpaces(joined), "خاضت نور تجربة إجهاض قسري.");
+  const html = prepareArticleHtml(`<p>${joined.replaceAll("\u00a0", "&nbsp;")}</p><p>هذه الحلقة من اعداد وانتاج.</p>`);
+  assert.ok(!html.includes("&nbsp;") && html.includes("خاضت نور تجربة إجهاض قسري."), "the paragraph's words are separated by ordinary spaces");
+  assert.ok(html.includes("هذه الحلقة من اعداد وانتاج."), "a paragraph that was fine is left as it was");
+});
+
+test("a no-break space that keeps a number with its unit, or a title with its name, stays", () => {
+  assert.equal(softenNoBreakSpaces("The walk is 10\u00a0km long and starts at nine."), "The walk is 10\u00a0km long and starts at nine.");
+  assert.equal(softenNoBreakSpaces("Mr.\u00a0Smith met Dr.\u00a0Jones in 2026\u00a0at the fair on the quay."), "Mr.\u00a0Smith met Dr.\u00a0Jones in 2026\u00a0at the fair on the quay.", "three, among many ordinary spaces");
+  assert.match(prepareArticleHtml("<pre>a\u00a0b\u00a0c\u00a0d</pre>"), /^<pre>a(&nbsp;|&#160;|\u00a0)b/, "code keeps its spacing");
 });

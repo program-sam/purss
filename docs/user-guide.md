@@ -387,10 +387,12 @@ To watch or To listen is not listed again in the boxes below. A new filter colle
 
 A visit starts when you come back after half an hour away. **To read** in the sidebar lists every
 item you marked To read, across collections; its page is titled **To read, watch and listen**,
-because a video's To read is *To watch* and a podcast's is *To listen*. Home's boxes and its one feed show
+because a video's To read is *To watch* and a podcast's is *To listen* (the one-click button on a row, its tip and the tag
+on the row say the same word). Home's boxes and its one feed show
 what you haven't dealt with: New items first, then To read, newest first within each. Finished,
 ignored and in-progress items leave Home.
-With *Show counts* off the numbers are left out of the summary. When nothing is marked New, the
+The summary line ("● 20 new in 14 sources") is plain text, not a link; to see only what is New,
+choose the *Only new* layout in Customise Home. With *Show counts* off the numbers are left out of the summary. When nothing is marked New, the
 summary says "Nothing new since your last visit" while older items you haven't looked at are still
 on Home; "You're up to date" is for a Home with nothing waiting.
 
@@ -562,7 +564,11 @@ in Settings.
 
 Press `/` or `Ctrl K` (`⌘K` on a Mac). Search covers item titles, summaries, authors, feed
 content and saved readable text, your highlights, comments and notes, plus the names of sources,
-collections and baskets, and the app's actions. Pick a result to jump to it.
+collections and baskets, and the app's actions. Pick a result to jump to it. Search starts with
+the eight best-matching items; when there are more, the last entry in the list is **Show more
+results** (reach it with the arrow keys and press Enter, or select it). Each press adds 24 more, up
+to 100 items, and the one you were on stays highlighted on the first new item; past that, add a
+word to narrow the search.
 
 Search matches the start of words and ignores capitals and accents. Arabic is read without its
 vowel marks, stretched letters, alef and heh variants and the leading *al-* ("the"), so
@@ -588,7 +594,12 @@ Arabic searches can miss items it hasn't reached yet.
 | `Esc` | Close a popup, menu or the panel; focus goes back to where you were |
 
 Item shortcuts don't fire while you are typing (`Ctrl K` / `⌘K` still works), and arrow keys are
-left to scrolling and screen readers. Right-click opens actions for whatever is under the
+left to scrolling and screen readers. When a row leaves its list because of a button or shortcut
+(To read, Ignore, `r`), focus moves to the same control on the next row (or the one before it),
+or to the list's heading when none is left, so the next key press carries on from there, with
+or without reduced motion. On a phone, **Collections** opens the sidebar as a drawer: focus goes
+into it, Tab stays inside, the page behind is out of reach, and **Close sidebar** or `Esc` shuts it
+and puts focus back on the control that opened it. Right-click opens actions for whatever is under the
 pointer; Shift + right-click gives the browser's own menu.
 
 ## Undo
@@ -612,7 +623,10 @@ select it to see collections too.
   any number of collections and [Smart filters](#smart-filters).
   Administrators are not limited. Saved links and sources you no longer follow don't count.
 - At the limit, following another source, adding a collection or importing more than fits is
-  refused with a message; unfollow a source or remove a collection first. Moving to a smaller
+  refused with a message; unfollow a source or remove a collection first. A Free account that
+  has all 5 collections is told so before it starts another: *New collection* says it instead of
+  asking for a name, with a link to **See plans**, and Add source's *New collection…* choice is
+  unavailable with the same words under it. Moving to a smaller
   plan never removes anything: what you have stays, and only new follows and collections wait
   until you are under the limits.
 - A self-hosted PURSS has no plans or limits.

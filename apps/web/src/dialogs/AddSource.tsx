@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, PodcastSearchHit, PodcastSearchResponse, SourceDTO } from "@purss/domain";
@@ -6,7 +6,9 @@ import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@pur
 import { del, messageOf, post } from "../api/client.ts";
 import { refreshWorkspace } from "../api/queries.ts";
 import type { ManualKeepResult } from "../api/types.ts";
-import { addSourceStatus } from "../lib/add-source-status.ts";
+import { addSourceStatus, focusTargets } from "../lib/add-source-status.ts";
+import { focusFirst, focusLost } from "../lib/focus.ts";
+import { capacityOf, collectionLimitNote } from "../lib/plan-limits.ts";
 import { shortDate } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { keptMessage } from "./KeepPage.tsx";
@@ -126,8 +128,18 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   /** The look-up came from a show picked in the results, so the typed words are not an address to keep. */
   const [fromShow, setFromShow] = useState(false);
 
+  // The control that had focus is replaced or disabled by each step (a show chosen from the results, Find and Follow while they work):
+  // focus goes to what the step shows, so it doesn't fall to the page.
+  useEffect(() => {
+    if (!focusLost()) return;
+    const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+    focusFirst(dialogs[dialogs.length - 1], focusTargets(phase, { searching, hasError: !!error }));
+  }, [phase, searching, error]);
+
   const candidates = result?.ok ? result.candidates : [];
   const cand = candidates[pick];
+  /** Said before "New collection…" is chosen, when the plan has no room for one. */
+  const collectionFull = collectionLimitNote(capacityOf(ws.data));
   // A bridged source (plan/41) has no link of its own to keep private.
   const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate ?? !!cand?.privateWarning);
   const canFullText = !!cand && (cand.kind === "feed" || cand.kind === "publication") && !isPrivate;
@@ -267,19 +279,19 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
       ) : null}
       <div className="sr" role="status">{addSourceStatus({ phase, searching, shows: shows.length, candidates: candidates.length, failure: result && !result.ok ? FAIL_TITLE[result.reason] : null, keeping: !!result?.ok && !!result.keep })}</div>
       <div style={{ display: "grid", gap: 16 }}>
-        {phase === "looking" ? <p className="state"><span className="spin" aria-hidden="true" />Looking…</p> : null}
-        {error && phase !== "single" ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+        {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />Looking…</p> : null}
+        {error && phase !== "single" ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         {phase === "failed" && result && !result.ok ? (
           <>
-            <p className="state note"><Icon name="info" /><span><b style={{ display: "block" }}>{FAIL_TITLE[result.reason]}</b>{result.message}</span></p>
+            <p className="state note" id="as-failed" tabIndex={-1}><Icon name="info" /><span><b style={{ display: "block" }}>{FAIL_TITLE[result.reason]}</b>{result.message}</span></p>
             {fromShow ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>Back to the shows found</button></div> : null}
             {CAN_KEEP.includes(result.reason) && !isHandle(url) && !fromShow ? <div><Button onClick={() => setPhase("single")}>Keep this link</Button></div> : null}
           </>
         ) : null}
         {phase === "shows" ? (
-          <div className="field">
+          <div className="field" id="as-shows">
             <div className="lbl" id="shw">{searching ? "Searching Apple's podcast directory…" : shows.length ? `Podcasts matching “${url.trim()}”` : "Shows in Apple's podcast directory"}</div>
-            {searching ? <p className="state"><span className="spin" aria-hidden="true" />Searching…</p> : null}
+            {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />Searching…</p> : null}
             {!searching && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>No shows found. Try other words, or paste the show's website or feed address.</span></p> : null}
             {shows.length ? (
               <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -321,9 +333,10 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                   <SelectInput id="as-col" value={colChoice} onChange={(e) => setColChoice(e.target.value)}>
                     <option value={LOOSE}>No collection</option>
                     {sourceCollections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    <option value={NEW}>New collection…</option>
+                    <option value={NEW} disabled={!!collectionFull}>New collection…{collectionFull ? " (limit reached)" : ""}</option>
                   </SelectInput>
                   {colChoice === NEW ? <input className="in" placeholder="Name your collection" aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
+                  {collectionFull ? <p className="fine">{collectionFull} <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>See plans</button></p> : null}
                   <p className="fine">{colChoice === LOOSE ? "Without a collection, it shows in “Other sources” on Home. You can group it later." : "A collection groups sources you read together. Home shows your collections."}</p>
                 </div>
                 <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Posts the source already has</legend>
@@ -356,7 +369,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
           <div style={{ display: "grid", gap: 14 }}>
             <p className="hint">This saves only the page at <b style={{ wordBreak: "break-all" }}>{url.trim()}</b> in a basket. You won't follow the site. The original page may change or disappear.</p>
             {keepFields}
-            {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
+            {error ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
           </div>
         ) : null}
       </div>

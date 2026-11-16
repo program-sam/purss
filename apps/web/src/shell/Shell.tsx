@@ -8,6 +8,7 @@ import { messageOf } from "../api/client.ts";
 import { bootstrapQuery, findItem } from "../api/queries.ts";
 import { useCachedItem } from "../api/use-item.ts";
 import { focusPageHeading } from "../lib/page-focus.ts";
+import { useDrawerFocus } from "./drawer.ts";
 import { TO_READ_TITLE } from "../lib/constants.ts";
 import { Header } from "./Header.tsx";
 import { ItemPanel } from "./ItemPanel.tsx";
@@ -233,8 +234,9 @@ function ShellFrame() {
     return () => document.removeEventListener("keydown", onKey);
   }, [overlays, popups.anchor, sel, itemId, drawer, closeItem, nav, qc, actions, place]);
 
+  useDrawerFocus(overlaySb && drawer);
   const toggleSidebar = () => {
-    if (overlaySb) { setDrawer((d) => !d); if (!drawer) requestAnimationFrame(() => document.querySelector<HTMLElement>("#side [data-fk='add']")?.focus()); }
+    if (overlaySb) setDrawer((d) => !d);
     else if (bp === "lg" && narrowLaptop && itemId) setSplitFull(sbMode === "rail");
     else setHints({ sidebar: sbMode === "full" ? "rail" : "full" });
   };
@@ -269,7 +271,7 @@ function ShellFrame() {
       {playerOpen ? <a className="skip" href="#player" onClick={(e) => { e.preventDefault(); focusPlayer(); }}>Skip to the player</a> : null}
       <ContextMenus />
       <div className="app" data-sb={sbMode} data-bp={bp} data-drawer={overlaySb && drawer ? "open" : "closed"} data-panel={itemId ? "open" : "closed"} data-player={playerOpen ? "open" : "closed"}>
-        <aside className="side" id="side" aria-label="Sidebar"><Sidebar mode={sbMode === "rail" ? "rail" : "full"} onToggle={overlaySb ? undefined : () => { toggleSidebar(); requestAnimationFrame(() => document.querySelector<HTMLElement>("#side [data-fk='tside']")?.focus()); }} /></aside>
+        <aside className="side" id="side" aria-label="Sidebar"><Sidebar mode={sbMode === "rail" ? "rail" : "full"} onClose={overlaySb ? () => setDrawer(false) : undefined} onToggle={overlaySb ? undefined : () => { toggleSidebar(); requestAnimationFrame(() => document.querySelector<HTMLElement>("#side [data-fk='tside']")?.focus()); }} /></aside>
         <div className="navscrim" onClick={() => setDrawer(false)} />
         <div className="pscrim" onClick={closeItem} />
         <div className="stage">

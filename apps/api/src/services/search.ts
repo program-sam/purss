@@ -3,6 +3,10 @@ import type { App, Principal } from "../app.ts";
 import { VISIBLE_SOURCE, getItem, listItems, snippetAround } from "./items.ts";
 import { indexedWord, searchTerms } from "./search-text.ts";
 
+/** The search box's first answer, and the most one search can return: it asks for more as the person goes on, up to this. */
+export const SEARCH_FIRST = 8;
+export const SEARCH_MAX = 100;
+
 /** A search word that is a version or a date ("26.12.1", "v2.0-rc1", "2026-11-05"): its numbers belong together. */
 const VERSION_LIKE = /\d+(?:[.\-]\d+)+/;
 
@@ -26,7 +30,7 @@ export function exactQuery(text: string): string | null {
  * Items for the search box. The items whose text holds a version exactly come first ("26.12.1" finds release 26.12.1
  * before 26.12.10 and 26.12.11, which also begin with those numbers), newest first within each group; the rest follow.
  */
-export function searchItems(app: App, p: Principal, query: string, limit = 8): ItemDTO[] {
+export function searchItems(app: App, p: Principal, query: string, limit = SEARCH_FIRST): ItemDTO[] {
   const found = listItems(app, p, { scope: "all", filter: "all", q: query, limit }).items;
   const exact = exactQuery(query);
   if (!exact) return found;

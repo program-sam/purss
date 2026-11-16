@@ -273,7 +273,7 @@ async function main(): Promise<void> {
     await row.waitFor();
     assert.equal(await row.getByRole("button", { name: /Download/ }).count(), 0, "no download button on a row");
     assert.equal(await page.getByRole("button", { name: /Save new episodes/ }).count(), 0, "a source can't save its episodes on the server");
-    await row.getByRole("button", { name: /^To read:/ }).waitFor();
+    await row.getByRole("button", { name: /^To listen:/ }).waitFor(); // an episode's one-click button says To listen
     step("rows and the source page offer no saving or downloading in a browser");
 
     // A phone-sized screen: the bar fits, and the reader, the list, the menu drawer (down to Settings) and

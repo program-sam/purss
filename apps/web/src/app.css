@@ -122,7 +122,7 @@ body{overflow:hidden}
 .home-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .home-top .mbtn.quietb{flex:none;background:var(--glass);border-color:var(--glass-bd)}
 .home-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;font-size:0.875rem;font-weight:700;color:var(--ink-2)}
-.home-sum .fr{display:inline-flex;align-items:center;gap:6px;color:var(--accent-ink);font-weight:800}
+.home-sum .fr{display:inline-flex;align-items:center;gap:6px;color:var(--ink);font-weight:800}
 @media (max-width:767px){.homewash .col{padding-top:14px;padding-bottom:12px}}
 .homewash h1{font-size:clamp(1.625rem,2.6vw,2.125rem);font-weight:900;letter-spacing:-.025em;line-height:1.05;text-shadow:0 1px 0 rgba(255,255,255,.7)}
 [data-theme="dark"] .homewash h1{text-shadow:0 1px 0 rgba(0,0,0,.4)}
@@ -156,10 +156,11 @@ body{overflow:hidden}
 .hl h3 button:hover{text-decoration:underline;text-underline-offset:3px}
 .hl li{border-bottom:1px solid var(--line)}
 .hl li:last-child{border-bottom:0}
-.hl .hli{display:grid;gap:2px;width:100%;text-align:left;padding:9px 0;border-radius:6px}
+.hl .hli{display:grid;gap:2px;width:100%;text-align:start;padding:9px 0;border-radius:6px}
 .hl .hli:hover .title{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
-.hl .title{font-weight:700;font-size:0.875rem;line-height:1.35;display:flex;gap:8px;align-items:baseline}
-.hl .title .dot{align-self:center}
+.hl .hlt{display:flex;gap:8px;align-items:baseline}
+.hl .hlt .dot{align-self:center;flex:none}
+.hl .title{font-weight:700;font-size:0.875rem;line-height:1.35;flex:1 1 auto;min-width:0;text-align:start}
 .hl .m{font-size:0.7812rem;font-weight:600;color:var(--ink-3)}
 .shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
 .bshelf{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow);text-align:left;width:100%;border-top:3px solid var(--tint-bd)}
@@ -817,6 +818,7 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .panel-bar .pt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;font-size:0.875rem}
 /* The docked sidebar's collapse button sits in its header, beside the app name. */
 .brand .side-collapse{margin-left:auto;margin-right:-6px;color:var(--ink-3)}
+.drawer-close{display:flex;justify-content:flex-end;margin:-4px -2px -6px;color:var(--ink-3)}
 .brand .side-collapse:hover{color:var(--ink)}
 /* Source page: one quiet line says what its two settings do. */
 .srcacts-hint{margin:6px 0 0;font-size:0.7812rem;font-weight:500;color:var(--ink-3)}

@@ -105,8 +105,11 @@ function Group({ id, label, sources, collection, place }: { id: string; label: s
 /** Sources shown per sidebar group before "Show all". */
 const GROUP_PREVIEW = 6;
 
-/** onToggle: a docked sidebar carries its own collapse or expand button, as the page has no bar above it. */
-export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: () => void }) {
+/**
+ * onToggle: a docked sidebar carries its own collapse or expand button, as the page has no bar above it.
+ * onClose: a drawer carries a Close button, as the page behind it can't be reached while it is open.
+ */
+export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; onToggle?: () => void; onClose?: () => void }) {
   const ws = useWorkspace();
   const nav = useNav();
   const place = useCurrentPlace();
@@ -184,6 +187,7 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
             <button type="button" className="ibtn side-collapse" data-fk="tside" aria-label="Collapse sidebar" aria-expanded={true} onClick={onToggle}><Icon name="sidebar" /></button></div>
           {session?.account?.displayName ? <p className="fine" style={{ margin: "-6px 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.account.displayName}</p> : null}
         </> : null}
+        {onClose ? <div className="drawer-close"><button type="button" className="ibtn" aria-label="Close sidebar" onClick={onClose}><Icon name="x" /></button></div> : null}
         <button type="button" className="btn primary lg" data-fk="add" onClick={openAdd}><Icon name="plus" />Add source</button>
         <div className="side-nav">
           <button type="button" className={`nav-row${homeHere ? " sel" : ""}`} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" />Home</button>

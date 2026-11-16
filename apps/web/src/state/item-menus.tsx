@@ -34,7 +34,7 @@ function KeepList({ itemId, onClose }: { itemId: string; onClose: (restore?: boo
       })}
       {!ws.data.baskets.length ? <p className="fine" style={{ padding: "6px 10px" }}>No baskets yet. A basket keeps items you choose, even after their source drops them.</p> : null}
       <hr className="mhr" />
-      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(false); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">New basket…</span></button>
+      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(true); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">New basket…</span></button>
     </>
   );
 }

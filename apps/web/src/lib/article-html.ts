@@ -17,6 +17,28 @@ export const STORED_PICTURE = /^\/api\/items\/[\w-]+\/images\/[\w-]+$/;
  */
 export const STORED_PICTURE_ATTR = "data-stored-src";
 
+/**
+ * Some publishers (podcast notes from Arabic shows among them) join every word of a paragraph with a no-break space, so
+ * it has no place to wrap at a space and the browser cuts words in half at the end of each line. Where no-break spaces
+ * are what separates the words of a text (three or more, and more than ordinary spaces), they are turned into ordinary ones.
+ * A "10 km" or "Mr. Smith" among ordinary spaces keeps its no-break space.
+ */
+export function softenNoBreakSpaces(text: string): string {
+  const joined = text.match(/\u00a0/g)?.length ?? 0;
+  if (joined < 3 || joined <= (text.match(/ /g)?.length ?? 0)) return text;
+  return text.replace(/\u00a0/g, " ");
+}
+
+function softenWordSpacing(doc: Document): void {
+  doc.body.normalize(); // one text node per run of text, whatever the parser made of the entities
+  const SHOW_TEXT = 4;
+  const walker = doc.createTreeWalker(doc.body, SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n as Text;
+    if (t.data.includes("\u00a0") && !t.parentElement?.closest("pre,code")) t.data = softenNoBreakSpaces(t.data);
+  }
+}
+
 /** Web addresses written out as plain text (feeds often send descriptions that way) become links; ones already in a link or in code stay as they are. */
 function linkifyBareAddresses(doc: Document): void {
   const SHOW_TEXT = 4;
@@ -96,6 +118,7 @@ export function prepareArticleHtml(html: string, opts: { dropCitation?: boolean;
   if (opts.video) tidyVideoDescription(doc, opts.video.pictureUrl);
   stackPictureTables(doc);
   doc.querySelectorAll(DROP).forEach((el) => el.remove());
+  softenWordSpacing(doc);
   linkifyBareAddresses(doc);
   doc.body.querySelectorAll("*").forEach((el) => {
     for (const attr of [...el.attributes]) {

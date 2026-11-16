@@ -9,6 +9,9 @@
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
 // phone the open drawer's Settings and capacity sit at its bottom.
+// Keyboard focus never falls to the page: a row that leaves its list (Ignore, `r`) hands it to a row that stays or to the list's heading,
+// with and without reduced motion; choosing a show in Add source, downloading an export and the open phone drawer move or keep it too (the
+// drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
 // A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
 // keeps its back catalogue off Home while it stays on the source's own page.
 // Run: node tests/acceptance/home.ts (after npm run build)
@@ -414,11 +417,122 @@ async function main(): Promise<void> {
     // The phone drawer starts with Add source: the app's name and who is signed in sit in Home's top bar instead.
     assert.equal(await phonePage.locator("#side .brand").count(), 0, "the phone drawer has no logo row");
     assert.equal(await phonePage.locator("#side").getByText("Reader", { exact: true }).count(), 0, "the phone drawer does not repeat the account name");
+    // The drawer takes focus, the page behind it can't be reached, Tab stays inside, and closing gives focus back to the tab that opened it.
+    const inDrawer = () => phonePage.evaluate(() => !!document.activeElement?.closest("#side"));
+    await phonePage.waitForFunction(() => !!document.activeElement?.closest("#side"));
+    assert.equal(await phonePage.evaluate(() => document.activeElement?.getAttribute("data-fk")), "add", "the drawer opens with focus on Add source");
+    for (const behind of [".stage", ".tabbar"]) assert.equal(await phonePage.locator(behind).evaluate((el) => (el as HTMLElement).inert), true, `${behind} is out of reach while the drawer is open`);
+    for (let i = 0; i < 45; i++) { await phonePage.keyboard.press("Tab"); assert.equal(await inDrawer(), true, `Tab ${i + 1} stays in the drawer`); }
+    for (let i = 0; i < 3; i++) { await phonePage.keyboard.press("Shift+Tab"); assert.equal(await inDrawer(), true, "Shift+Tab stays in the drawer"); }
     await phonePage.keyboard.press("Escape");
+    await phonePage.locator('[data-drawer="open"]').waitFor({ state: "detached" });
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), "Collections", "closing the drawer gives focus back to the tab that opened it");
+    for (const behind of [".stage", ".tabbar"]) assert.equal(await phonePage.locator(behind).evaluate((el) => (el as HTMLElement).inert), false, `${behind} works again`);
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Collections" }).tap();
+    await phonePage.getByRole("button", { name: "Close sidebar" }).tap();
+    await phonePage.waitForFunction(() => !document.querySelector('[data-drawer="open"]'));
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), "Collections", "the drawer's Close button gives focus back the same way");
+    step("on a phone the open drawer takes focus, shuts the page out, keeps Tab inside, and gives focus back when it closes");
     await phonePage.goto(`${origin}/app/`);
     await phonePage.locator(".bar .brand .who", { hasText: "Reader" }).waitFor({ state: "visible" });
     step("on a phone Home's top bar names the app and who is signed in, and the drawer leaves both out");
     await phone.close();
+
+    // ---------- focus after a row leaves its list, with reduced motion (rows leave at once) ----------
+    const still = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
+    const stillPage = await still.newPage();
+    await signIn(stillPage);
+    const activeRow = () => stillPage.evaluate(() => {
+      const a = document.activeElement as HTMLElement | null;
+      return { label: a?.getAttribute("aria-label") ?? null, inRow: !!a?.closest("main [data-item]"), tag: a?.tagName ?? null, inMain: !!a?.closest("main") && a !== document.body };
+    });
+    await stillPage.goto(`${origin}/app/s/${seed.almanac}`);
+    await stillPage.locator("main .irow").first().waitFor();
+    const ignoreOf = (title: string) => stillPage.locator("main .irow").getByRole("button", { name: `Ignore: ${title}`, exact: true });
+    await ignoreOf("Yearbook 1921").focus();
+    await stillPage.keyboard.press("Enter");
+    await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 2);
+    assert.deepEqual(await activeRow(), { label: "Ignore: Yearbook 1934", inRow: true, tag: "BUTTON", inMain: true }, "Ignore: focus moves to the same button on the next row");
+    await ignoreOf("Yearbook 1934").focus();
+    await stillPage.keyboard.press("Enter");
+    await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 1);
+    assert.deepEqual(await activeRow(), { label: "Ignore: Yearbook 1913", inRow: true, tag: "BUTTON", inMain: true }, "the last row leaving hands focus to the row before it");
+    await ignoreOf("Yearbook 1913").focus();
+    await stillPage.keyboard.press("Enter");
+    await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 0);
+    assert.equal((await activeRow()).tag, "H1", "the list emptied: focus is on its heading, not the page");
+    step("with reduced motion, Ignore on a row keeps focus on a row that stays, or on the list's heading when none is left");
+    await stillPage.goto(`${origin}/app/c/${seed.reading}?filter=fresh`);
+    await stillPage.locator("main .irow").first().waitFor();
+    const fresh = await stillPage.locator("main .irow").count();
+    const first = stillPage.locator("main .irow").first();
+    const firstTitle = (await first.locator(".title").innerText()).replace(/^New\.\s*/, "").trim();
+    await first.locator("[data-act='open']").focus();
+    await stillPage.keyboard.press("r");
+    await stillPage.waitForFunction((n) => document.querySelectorAll("main .irow").length === n - 1, fresh);
+    const afterR = await activeRow();
+    assert.equal(afterR.inRow, true, `r on "${firstTitle}": focus is on a row that stays`);
+    step("with reduced motion, the r shortcut on a row keeps focus on a row that stays");
+    await still.close();
+
+    // ---------- search reaches past the first eight ----------
+    const finder = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const findPage = await finder.newPage();
+    await signIn(findPage);
+    await findPage.keyboard.press("Control+k");
+    const searchBox = findPage.getByRole("combobox");
+    await searchBox.fill("wire");
+    await findPage.getByRole("option", { name: /Show more results/ }).waitFor();
+    assert.equal(await findPage.locator('.pal-list [role="option"][id^="po"]', { hasText: "Wire story" }).count(), 8, "the first answer is eight items");
+    assert.match(await findPage.locator(".pal-foot").innerText(), /results so far/, "the footer says there are more");
+    for (let i = 0; i < 8; i++) await findPage.keyboard.press("ArrowDown");
+    assert.equal(await findPage.getByRole("option", { name: /Show more results/ }).getAttribute("aria-selected"), "true", "the arrow keys reach Show more results");
+    await findPage.keyboard.press("Enter");
+    await findPage.waitForFunction(() => [...document.querySelectorAll('.pal-list [role="option"]')].filter((o) => o.textContent?.includes("Wire story")).length === 14);
+    assert.equal(await findPage.locator('.pal-list [role="option"]', { hasText: "Wire story" }).count(), 14, "Enter loads the rest of the matches");
+    assert.equal(await findPage.getByRole("option", { name: /Show more results/ }).count(), 0, "and there is nothing more to ask for");
+    assert.equal(await findPage.evaluate(() => document.activeElement?.id), "pq", "the search box keeps focus");
+    assert.equal(await findPage.getByRole("option", { name: /Wire story/ }).nth(8).getAttribute("aria-selected"), "true", "the highlight is on the first item that was added");
+    step("search's Show more results is reached by the arrow keys, loads the rest by Enter, and leaves focus in the search box");
+    await findPage.keyboard.press("Escape");
+
+    // ---------- focus after a download, and after choosing a show in Add source ----------
+    await findPage.goto(`${origin}/app/settings/data`);
+    const download = findPage.waitForEvent("download");
+    await findPage.getByRole("button", { name: "Download export" }).click();
+    await download;
+    await findPage.getByText(/^Saved purss-export/).waitFor();
+    assert.notEqual(await findPage.evaluate(() => document.activeElement === document.body), true, "after the export is saved focus is not on the page");
+    assert.match(await findPage.evaluate(() => document.activeElement?.textContent ?? ""), /Saved purss-export/, "it is on what was saved, which is read out");
+    await findPage.route("**/api/discover/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
+    await findPage.route("**/api/discover", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
+    await findPage.goto(`${origin}/app/`);
+    await findPage.getByRole("button", { name: "Add source" }).first().click();
+    await findPage.getByLabel("Link or podcast name").fill("quiet harbour");
+    await findPage.getByRole("button", { name: "Search podcasts" }).click();
+    await findPage.getByRole("button", { name: /Quiet Harbour Radio/ }).click();
+    await findPage.getByRole("radio", { name: /Quiet Harbour Radio/ }).waitFor();
+    assert.equal(await findPage.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "choosing a show puts focus on the feed that was found");
+    step("after the export is saved and after a show is chosen in Add source, focus is on what the step shows");
+    await findPage.keyboard.press("Escape");
+    await findPage.unroute("**/api/discover");
+    await findPage.unroute("**/api/discover/podcasts");
+
+    // ---------- a basket made from an item's Keep menu: focus goes back to Keep, not to the page ----------
+    await findPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await row(findPage, "Second essay").click();
+    await findPage.locator("#panel-in .p-title", { hasText: "Second essay" }).waitFor();
+    const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: /^Keep/ }).first();
+    await panelKeep.click();
+    await findPage.getByRole("menuitem", { name: "New basket…" }).click();
+    const basketDialog = findPage.getByRole("dialog", { name: "New basket" });
+    await basketDialog.getByRole("textbox", { name: "Name" }).fill("Focus basket");
+    await basketDialog.getByRole("button", { name: "Create basket" }).click();
+    await basketDialog.waitFor({ state: "detached" });
+    await findPage.waitForFunction(() => !!document.activeElement?.closest("#panel-in"));
+    assert.equal(await findPage.evaluate(() => document.activeElement?.tagName), "BUTTON", "after the basket is made focus is back on the reader's Keep button");
+    step("a basket made from an item's Keep menu returns focus to the Keep button");
+    await finder.close();
   } finally {
     await browser.close();
   }

@@ -18,5 +18,5 @@ export type { MenuEntry } from "./popover.tsx";
 export { ToastView } from "./toast.tsx";
 export type { ToastAction } from "./toast.tsx";
 export { TipLayer } from "./tooltip.tsx";
-export { useBreakpoint } from "./hooks.ts";
+export { trapTab, useBreakpoint } from "./hooks.ts";
 export type { Breakpoint } from "./hooks.ts";
