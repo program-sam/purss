@@ -30,7 +30,8 @@ export function activityFor(app: App, p: Principal, now: Date = new Date()): Act
     `SELECT id, title, health, health_text, paused, paused_until, engine_stream_id, last_item_at, created_at FROM sources
      WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual' ORDER BY lower(title)`, ws);
   const arrived = new Map(app.db.all<{ source_id: string; n: number; at: string }>(
-    "SELECT source_id, COUNT(*) AS n, MAX(discovered_at) AS at FROM items WHERE workspace_id = ? AND discovered_at >= ? AND source_id IS NOT NULL GROUP BY source_id", ws, since)
+    // "New items": a source followed from now does not report its back catalogue as arrivals (items.backlog, migration 065).
+    "SELECT source_id, COUNT(*) AS n, MAX(discovered_at) AS at FROM items WHERE workspace_id = ? AND discovered_at >= ? AND source_id IS NOT NULL AND backlog = 0 GROUP BY source_id", ws, since)
     .map((r) => [r.source_id, r]));
   const titles = new Map(sources.map((s) => [s.id, s.title]));
 

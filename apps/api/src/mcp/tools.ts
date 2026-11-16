@@ -257,7 +257,7 @@ export const TOOLS: Tool[] = [
   }),
   tool({
     name: "follow_source", title: "Follow a source", access: "write",
-    description: "Follow a candidate from find_sources, optionally into an existing collection (collectionId) or a new one (newCollectionName). fullArticles fetches each new item's page as a readable copy (feeds only).",
+    description: "Follow a candidate from find_sources, optionally into an existing collection (collectionId) or a new one (newCollectionName). fullArticles fetches each new item's page as a readable copy (feeds only). Following starts from now: the posts the feed already has stay on the source's page and in search, and are left out of Home and its counts.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     input: z.object({
       followToken: z.string().min(1).max(64),
@@ -268,7 +268,7 @@ export const TOOLS: Tool[] = [
     run: (ctx, a) => {
       const s = followSource(ctx.app, ctx.p, {
         token: a.followToken, collectionId: a.collectionId ?? null, newCollectionName: a.collectionId ? null : a.newCollectionName ?? null,
-        fullText: a.fullArticles ?? false,
+        fullText: a.fullArticles ?? false, startFrom: "now",
       });
       return sourceSummary(s);
     },

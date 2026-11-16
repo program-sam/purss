@@ -22,11 +22,13 @@ import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
  * storage objects and arrival notifications exactly as a real sync gives them), workflow states and
  * New markers through the bulk actions, and kept items and their readable-text captures through Keep.
  *
- *   node scripts/dataset.ts [--dir <dir>] [--accounts 1] [--sources 300] [--items 100000] [--seed 1]
+ *   node scripts/dataset.ts [--dir <dir>] [--accounts 1] [--sources 300] [--items 100000] [--seed 1] [--start-from all|now]
  *
  * Items follow the sync's own rules: the sources are followed 60 days ago, their back catalogue arrives first (not New),
  * the sources settle, and the later 8% arrive as New; New markers older than the default 30 days then expire.
- * Defaults are the size gate in plan/13: one account with 300 sources and 100,000 items. `--accounts 20`
+ * `--start-from now` follows the sources from now (the choice every new follow gets): the back catalogue is stored but
+ * marked as left out of Home, collection lists and counts (migration 065), which is most of the account's items; `all`
+ * (the default) is how sources followed before that choice behave. Defaults are the size gate in plan/13: one account with 300 sources and 100,000 items. `--accounts 20`
  * builds the host gate (20 such accounts, about 2 million items: allow an hour and several GB of disk).
  * `--items` and `--sources` are per account. The directory defaults to a new one under the repository's
  * ignored data/ folder; it is never deleted by this script. A few percent of the items end up New. Point PURSS_DATA_DIR
@@ -42,6 +44,8 @@ export type DatasetOptions = {
   /** Items per account. */
   items?: number;
   seed?: number;
+  /** What the sources do with the back catalogue they had when followed (sources.start_from): shown as older items (the default), or left out of lists. */
+  startFrom?: "all" | "now";
   /** Progress lines; defaults to silent. */
   log?: (line: string) => void;
 };
@@ -136,7 +140,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     const stream = `feed/${index + 1}${String(s + 1).padStart(4, "0")}`;
     streams.push(stream);
     kinds.push(kind);
-    sourceIds.push(makeSource(app, p, `Source ${tag}-${s + 1}`, stream, { kind, settled: false }));
+    sourceIds.push(makeSource(app, p, `Source ${tag}-${s + 1}`, stream, { kind, settled: false, startFrom: opts.startFrom }));
   }
   // Every tenth source is set to "Notify me", so its New arrivals are told at once; the rest wait for the weekly digest.
   for (const id of sourceIds.filter((_, s) => s % 10 === 0)) app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", id);
@@ -257,7 +261,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
 
 export function buildDataset(opts: DatasetOptions): Dataset {
   const log = opts.log ?? (() => {});
-  const full = { accounts: opts.accounts ?? 1, sources: opts.sources ?? 300, items: opts.items ?? 100_000, seed: opts.seed ?? 1 };
+  const full = { accounts: opts.accounts ?? 1, sources: opts.sources ?? 300, items: opts.items ?? 100_000, seed: opts.seed ?? 1, startFrom: opts.startFrom ?? "all" };
   const app = createApp(opts.dir);
   const accounts: DatasetAccount[] = [];
   for (let i = 0; i < full.accounts; i++) accounts.push(buildAccount(app, i, full, log));
@@ -265,13 +269,14 @@ export function buildDataset(opts: DatasetOptions): Dataset {
 }
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { dir: { type: "string" }, accounts: { type: "string" }, sources: { type: "string" }, items: { type: "string" }, seed: { type: "string" } } });
+  const { values } = parseArgs({ options: { dir: { type: "string" }, accounts: { type: "string" }, sources: { type: "string" }, items: { type: "string" }, seed: { type: "string" }, "start-from": { type: "string" } } });
+  if (values["start-from"] !== undefined && values["start-from"] !== "all" && values["start-from"] !== "now") throw new Error("--start-from is all or now");
   const dataRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
   mkdirSync(dataRoot, { recursive: true });
   const dir = values.dir ? path.resolve(values.dir) : mkdtempSync(path.join(dataRoot, "dataset-"));
   const n = (v: string | undefined) => (v === undefined ? undefined : Number(v));
   const started = Date.now();
-  const data = buildDataset({ dir, accounts: n(values.accounts), sources: n(values.sources), items: n(values.items), seed: n(values.seed), log: (l) => console.error(`[dataset] ${l}`) });
+  const data = buildDataset({ dir, accounts: n(values.accounts), sources: n(values.sources), items: n(values.items), seed: n(values.seed), startFrom: values["start-from"], log: (l) => console.error(`[dataset] ${l}`) });
   const count = data.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n;
   data.close();
   console.log(`Built ${data.accounts.length} account(s), ${count} items in ${Math.round((Date.now() - started) / 1000)} s: ${dir}`);

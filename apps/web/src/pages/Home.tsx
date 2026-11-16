@@ -123,7 +123,7 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
         </>
       ) : pending ? <div className="mod-empty"><span className="skel" style={{ height: 14, width: "60%" }} /></div> : (
         <div className="mod-empty">
-          <span>{other ? "Nothing here yet." : c.mode === "sources" ? (sources.length ? "No new items for now." : "No sources yet.") : "Nothing here yet."}</span>
+          <span>{other || (c.mode === "sources" && sources.length) ? "Nothing new yet. Posts from before you followed are on each source's page." : c.mode === "sources" ? "No sources yet." : "Nothing here yet."}</span>
         </div>
       )}
     </section>

@@ -176,7 +176,14 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   const noted = a.db.get<{ item_id: string }>(`SELECT b.item_id FROM basket_items b JOIN items i ON i.id = b.item_id JOIN sources s ON s.id = i.source_id
     WHERE b.basket_id = ? AND s.is_private = 0 ORDER BY b.item_id LIMIT 1`, lib.baskets.reading)!.item_id;
   setShareNote(a, pa, shareId, noted, "Worth it for the maps.");
+  // An item of a source followed from now that nobody has touched: left out of Home, and still so after the move.
+  const leftOut = a.db.get<{ id: string; title: string }>(
+    `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'new' AND st.opened_at IS NULL AND st.progress = 0
+       AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AND NOT EXISTS (SELECT 1 FROM annotations n WHERE n.item_id = i.id) ORDER BY i.seq LIMIT 1`)!;
+  a.db.run("UPDATE item_state SET fresh = 0 WHERE item_id = ?", leftOut.id);
+  a.db.run("UPDATE items SET backlog = 1 WHERE id = ?", leftOut.id);
   const { doc } = await exportDoc(a, pa);
+  assert.deepEqual(doc.items.filter((i: { backlog: boolean }) => i.backlog).map((i: { title: string }) => i.title), [leftOut.title]);
 
   const before = usedBytes(b, pb.accountId);
   const preview = stageImport(b, pb, doc);
@@ -214,6 +221,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(b.db.get<{ text: string }>("SELECT text FROM captures WHERE item_id = ?", item.id)!.text, "Captured readable text about sediment.");
   assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
 
+  assert.deepEqual(b.db.all<{ title: string }>("SELECT title FROM items WHERE backlog = 1").map((r) => r.title), [leftOut.title], "what was left out of Home still is");
   // Workflow and progress came across; the private item has no address.
   const state = b.db.get<{ workflow: string; progress: number }>("SELECT workflow, progress FROM item_state WHERE item_id = ?", item.id)!;
   assert.deepEqual([state.workflow, state.progress], ["toread", 0.5]);

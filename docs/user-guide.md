@@ -83,7 +83,9 @@ is chosen for you; if none of them clearly is, none is chosen until you pick. A 
 can still be followed ("No posts yet" shows on its page until the first one arrives). If you already
 follow a source with the same name under another address, the result says so before you follow a second. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
-you want to group it). *Save full articles* starts unticked, because it uses
+you want to group it). *Posts the source already has* starts on **Start from now**: only posts that come out after
+you follow are New, and what the feed already had stays out of Home ([Back catalogue](#sources)). Choose
+**Also show posts from the last week as New** to see the last week's posts too. *Save full articles* starts unticked, because it uses
 storage for every new post (see [Full articles](#full-articles)); tick it for a feed whose posts you
 want to read in full. A source in no collection is listed in the sidebar and shows in the *Other sources* box on Home.
 
@@ -195,6 +197,16 @@ gives the browser's own menu).
   arrive, but there's no guarantee that all of them will.
 - **Back catalogue:** what a source already had when you followed it is not New and sends no
   notification. Following an old podcast never shows "1,359 new"; only what comes after is New.
+  With **Start from now** (the choice Add source starts on, and the one a list you import uses)
+  those older posts are also left out of Home, of every collection list (filter collections too) and
+  of every count of items you haven't looked at. They are stored
+  all the same: they are on the source's own page, in search, and in your export. Choosing **Also
+  show posts from the last week as New** marks the posts published in the 7 days before you followed
+  as New and shows them like any new post; the older ones are left out as above. A post you do
+  anything with is never left out: marking it To read or any other state, opening it, reading it
+  partway, keeping it in a basket, highlighting it or adding a note brings it onto Home and into the
+  counts, and it stays there. Sources you followed before this choice existed keep showing their
+  back catalogue as older items, as they did.
 - **Unfollow:** collection stops and the source leaves your collections. Kept items stay; the
   rest no longer show in lists or search. Tick *Also delete the items you haven't kept* to
   delete those permanently and free their storage (kept and shared items are never deleted).
@@ -335,19 +347,21 @@ an **Other sources** box, which is listed there like a collection (shown by defa
 
 **Home when you come back.** Whatever the layout, Home starts with a summary line ("Since your
 last visit (3 days ago): 412 new in 6 collections") and, when there is something to say, these
-rows. To read, To listen and Needs attention start closed; one you open stays open
+rows. To read, To watch, To listen and Needs attention start closed; one you open stays open
 in that browser.
 
 - **Coming up:** the reminders you set on kept items for today and the next six days
   ([Reminders](#reminders)). Not there when you have none.
-- **To read:** the oldest items you marked To read, with *Show all*.
+- **To read:** the oldest articles you marked To read, with *Show all*.
+- **To watch:** the oldest videos you marked To watch, and **To listen:** the oldest podcast
+  episodes you marked To listen, each the same way. A row shows only when it has items.
 - **Needs attention:** sources that are failing, paused or being limited by their site.
 - **Mark all as seen:** marks every New item as seen (Undo brings the markers back). Nothing is
   finished, ignored or deleted. Shown when you come back after more than 30 days, or when
   50 or more items are New.
 
-Filter collections leave out items from collections you hide from Home, and an item in To read
-or To listen is not listed again in the boxes below. A new filter collection starts off Home. Items that match your
+Filter collections leave out items from collections you hide from Home, and an item in To read,
+To watch or To listen is not listed again in the boxes below. A new filter collection starts off Home. Items that match your
 [muted words](#muted-words) are left out of Home too.
 
 A visit starts when you come back after half an hour away. **To read** in the sidebar lists every
@@ -1041,7 +1055,9 @@ hosted installations sharing is part of Plus; a self-hosted PURSS always has it.
 
 The page shows each item's title, link, a short summary, source name and date, newest first (for a
 basket: most recently kept first), up to 200 items, and its feed the newest 100. Items from private
-sources and links that carry a key never show. Your reading progress and states, private notes and
+sources and links that carry a key never show. A collection's page leaves out what its list leaves out: the
+back catalogue of a source you followed from now ([Sources](#sources)) is not on it, unless you did something with a
+post. Your reading progress and states, private notes and
 highlights, and saved text never do. The page is live: what you keep in the basket, or what the
 collection gathers, appears on it without another review; taking something out of the basket takes
 it off the page.

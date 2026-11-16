@@ -63,6 +63,7 @@ notifications) in a throwaway data directory:
 | --- | --- | --- |
 | One large account | `node scripts/dataset.ts` (1 account, 300 sources, 100,000 items; about 2% New, 2% Ignored, 10% in other workflow states, 1.5% kept) | `GET /api/bootstrap` under 300 ms; item pages (`GET /api/items`, 50 per page, first page with its total, in the default order and in title order, for everything, New, To read, a collection, a source) under 150 ms |
 | A busy host | `node scripts/dataset.ts --accounts 20` (20 such accounts, about 2 million items) | The same two figures for every account while the others hold their data; the API and worker stay responsive during a sync pass |
+| A large account that followed from now | `node scripts/dataset.ts --start-from now` (the large account with its sources followed from now: 80% of the items are back catalogue that Home, collection lists and the counts leave out) | The same two figures, and Home's pages in a few milliseconds even when almost every item is left out (they read the index of the items that can show, `items_ws_visible_sortkey`) |
 
 Measure with the app serving the dataset, with a write between requests (so nothing is
 served from a reused count) and without, warm and cold, interleaved with the previous

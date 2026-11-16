@@ -10,7 +10,7 @@ import { categories, summary } from "./storage.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket, createCollection, listBaskets, listCollections } from "./collections.ts";
 import { listSources } from "./sources.ts";
-import { insertItem, listItems } from "./items.ts";
+import { insertItem, listItems, listTuning } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { completeCapture } from "./captures.ts";
 import { getPreferences, setPreferences } from "./preferences.ts";
@@ -123,7 +123,7 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
   designed(/CROSS JOIN stored_objects o ON o\.kind IN \('capture', 'image'\)/, /SEARCH o USING INDEX stored_objects_item/, "the kept copies' and pictures' lookup");
 
   // A page in the default order or in title order is read from its index in order, with no sorting of the rest.
-  for (const [sort, index] of [["newest", "items_ws_sortkey"], ["title", "items_ws_title"]] as const) {
+  for (const [sort, index] of [["newest", "items_ws_visible_sortkey"], ["title", "items_ws_title"]] as const) {
     const { seen: pageQueries } = recordQueries(app, () => listItems(app, p, { scope: "all", sort, limit: 5 }));
     const page = pageQueries.find((q) => /ORDER BY sort_key/.test(q.sql))!;
     const lines = planOf(page);
@@ -232,6 +232,46 @@ test("the dataset generator builds separate, realistic accounts", { timeout: 120
   }
 });
 
+test("an account that followed its sources from now has most items left out of Home: Home and the counts read only what shows", { timeout: 120_000 }, (t) => {
+  mkdirSync(DATA_ROOT, { recursive: true });
+  const dir = mkdtempSync(path.join(DATA_ROOT, "test-dataset-"));
+  const data = buildDataset({ dir, accounts: 1, sources: 12, items: 600, seed: 11, startFrom: "now" });
+  t.after(() => { data.close(); rmSync(dir, { recursive: true, force: true }); });
+  const { app } = data;
+  const { principal: p } = data.accounts[0]!;
+  const n = (sql: string) => app.db.get<{ n: number }>(sql, p.workspaceId)!.n;
+  const hidden = n("SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND backlog = 1");
+  assert.ok(hidden > 600 * 0.6, `most items are back catalogue the person has not touched (${hidden} of 600)`);
+  assert.equal(n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? AND i.backlog = 1 AND (st.workflow <> 'new' OR st.fresh = 1 OR st.opened_at IS NOT NULL OR st.progress > 0)"), 0, "a left-out item is always in the default state");
+  assert.equal(n("SELECT COUNT(*) AS n FROM items i JOIN basket_items b ON b.item_id = i.id WHERE i.workspace_id = ? AND i.backlog = 1"), 0, "and not kept");
+
+  const was = listTuning.countFromRowsBelowShare;
+  listTuning.countFromRowsBelowShare = 5; // the collection's total is counted from its rows, not from the counts
+  const { result, seen } = (() => {
+    try {
+      return recordQueries(app, () => {
+        const home = homeOverview(app, p);
+        const page = listItems(app, p, { scope: "home", mix: "home", filter: "open", limit: 50 });
+        const collection = listItems(app, p, { scope: `collection:${listCollections(app, p)[0]!.id}`, limit: 50 });
+        listSources(app, p);
+        return { home, page, collection };
+      });
+    } finally { listTuning.countFromRowsBelowShare = was; }
+  })();
+  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.workspace_id = ? AND s.followed = 1 AND i.backlog = 0 AND st.workflow = 'new' AND st.fresh = 0");
+  assert.equal(result.home.unread, shown, "Home counts the older items that show, not the ones left out");
+  const backlogIds = new Set(app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND backlog = 1", p.workspaceId).map((r) => r.id));
+  assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !backlogIds.has(i.id)) && result.collection.items.every((i) => !backlogIds.has(i.id)), "no left-out item on Home or in the collection");
+  const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
+  const pages = seen.filter((q) => /ORDER BY sort_key/.test(q.sql));
+  assert.ok(pages.length >= 2);
+  for (const q of pages) assert.ok(planOf(q).some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_visible_sortkey/.test(l)), `a page reads the index of the items that show:\n${planOf(q).join("\n")}`);
+  // Counting a collection from its rows reads the source index alone, the mark included (without it in the index, every item's row is fetched).
+  const counting = seen.filter((q) => /^\s*SELECT COUNT\(\*\) AS n FROM items i JOIN item_state st/.test(q.sql) && /i\.backlog = 0/.test(q.sql) && /collection_sources/.test(q.sql));
+  assert.ok(counting.length > 0, "the collection's total was counted from its rows");
+  for (const q of counting) assert.ok(planOf(q).some((l) => /COVERING INDEX items_source_sortkey/.test(l)), `counting a collection's rows reads the source index alone:\n${planOf(q).join("\n")}`);
+});
+
 test("after a sync a source's newest item time is the latest date among its items", () => {
   const { app, cleanup } = makeTestApp();
   try {
@@ -277,7 +317,7 @@ test("Home reads New items, the newest open items and its rows by id, and the ke
   const { result, seen } = recordQueries(app, () => homeOverview(app, p));
   assert.ok(result.since && result.toRead.items.length > 0 && result.mutedHidden > 0, "every part of Home is in play");
   planned(seen, /SELECT i\.source_id, COUNT\(\*\) AS n FROM item_state st/, /SEARCH st USING INDEX item_state_fresh/, "New since the last visit");
-  planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_ws_sortkey/, "what the muted words hid");
+  planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_ws_visible_sortkey/, "what the muted words hid");
   planned(seen, /AND \+i\.workspace_id = \?/, /USING INDEX sqlite_autoindex_(items|item_state)_1 \((id|item_id)=\?\)/, "the rows' items");
 
   // Counted among the first candidates only, newest first and by id within the same date: the muted items straddle the cut.

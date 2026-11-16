@@ -54,12 +54,13 @@ export function makeOperator(app: App): string {
 }
 
 /** Insert a followed source with an engine stream, as if engine.subscribe had completed. */
-export function makeSource(app: App, p: Principal, title: string, streamId: string, extra: { kind?: string; isPrivate?: boolean; settled?: boolean } = {}): string {
+export function makeSource(app: App, p: Principal, title: string, streamId: string, extra: { kind?: string; isPrivate?: boolean; settled?: boolean; startFrom?: "all" | "now" | "week" } = {}): string {
   const id = newId("src");
   // Established by default: its first sync is over, so what it brings is New. `settled: false` is a source just followed.
+  // `startFrom`: what it does with its back catalogue (see sync.ts arrivalOf); "all" is a source followed before that choice existed.
   app.db.run(
-    "INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, feed_url, is_private, engine_stream_id, health, created_at, subscribed_at, backlog_settled_at) VALUES (?, ?, ?, ?, ?, 'RSS feed', ?, ?, ?, 'ok', ?, ?, ?)",
-    id, p.accountId, p.workspaceId, extra.kind ?? "feed", title, extra.isPrivate ? null : `https://example.org/${streamId}.xml`, extra.isPrivate ? 1 : 0, streamId, nowIso(), nowIso(), extra.settled === false ? null : nowIso(),
+    "INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, feed_url, is_private, engine_stream_id, health, created_at, subscribed_at, backlog_settled_at, start_from) VALUES (?, ?, ?, ?, ?, 'RSS feed', ?, ?, ?, 'ok', ?, ?, ?, ?)",
+    id, p.accountId, p.workspaceId, extra.kind ?? "feed", title, extra.isPrivate ? null : `https://example.org/${streamId}.xml`, extra.isPrivate ? 1 : 0, streamId, nowIso(), nowIso(), extra.settled === false ? null : nowIso(), extra.startFrom ?? "all",
   );
   return id;
 }

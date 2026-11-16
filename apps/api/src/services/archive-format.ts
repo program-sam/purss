@@ -16,7 +16,8 @@ import { ANNOTATION_BODY_MAX, ANNOTATION_CONTEXT_MAX, ANNOTATION_QUOTE_MAX, ITEM
  *   memberships      basket -> item pins with the kept version and keep time
  *   items            items with every stored version (current and kept), captured text (fetched
  *                    by the server or sent by the person's browser, by `kind`),
- *                    workflow / progress / fresh state and original publisher GUIDs
+ *                    workflow / progress / fresh state, whether the item is back catalogue that Home
+ *                    leaves out (`backlog`; optional on import), and original publisher GUIDs
  *   preferences      one object
  *   stateLog         the account's own workflow changes (item, from, to, time), oldest first;
  *                    optional on import so older files still load
@@ -164,6 +165,8 @@ const itemSchema = z.object({
     openedAt: iso,
   }).default({ workflow: "new", fresh: false, progress: 0, openedAt: null }),
   originalGuids: z.array(text(2000)).max(5).default([]),
+  /** The item was part of a source's back catalogue when it was followed from now, and Home and the counts leave it out until the person acts on it. */
+  backlog: z.boolean().default(false),
 });
 
 const shareSchema = z.object({

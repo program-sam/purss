@@ -105,12 +105,13 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     if (total) since = { total, boxes: [...boxes.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) };
   }
 
-  // To read and To listen are what the person put aside, wherever it came from; both leave out what the muted words match.
+  // To read, To watch and To listen are what the person put aside, wherever it came from; all leave out what the muted words match.
   const homeParams: SqlParam[] = [];
   const onHome = onHomeItem(app, ws, homeParams);
   const muted = workspaceMuted(app, ws, now);
 
-  // To read and To listen (podcasts) are two rows, each the oldest items of its kind and how many there are, in one pass over them.
+  // To read (articles), To watch (videos) and To listen (podcasts) are three rows, each the oldest items of its kind and how many there
+  // are, in one pass over them.
   // With muted words the first thousand are read (see `mutedScan`) and each is asked about them, so a row takes the first unmuted
   // ones and its total leaves out those they match; with more items than that, the total is made in part and may be too high.
   const putAside = (kind: string) => {
@@ -126,13 +127,15 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
       totalAtMost: muted !== null && rows.length > mutedScan.rows,
     };
   };
-  const toRead = putAside("i.kind <> 'podcast'");
+  const toRead = putAside("i.kind NOT IN ('video', 'podcast')");
+  const toWatch = putAside("i.kind = 'video'");
   const toListen = putAside("i.kind = 'podcast'");
-  const putAsideIds = [...toRead.ids, ...toListen.ids];
+  const putAsideIds = [...toRead.ids, ...toWatch.ids, ...toListen.ids];
 
   const fresh = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.workspace_id = ? AND st.fresh = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
-  // Items on Home that were not looked at and are not New: the backlog a first follow brings, and what the New marker has outlived.
+  // Items on Home that were not looked at and are not New: the older posts of sources followed before the choice of where to start
+  // existed, and what the New marker has outlived. A source followed from now leaves its back catalogue out (see `ItemCounts.sum`).
   const counts = itemCounts(app, ws);
   const boxParams: SqlParam[] = [ws];
   const onBoxes = app.db.all<{ id: string }>(`SELECT s.id FROM sources s WHERE s.workspace_id = ? AND s.followed = 1 AND ${inHomeBox(app, ws, boxParams)}`, ...boxParams).map((r) => r.id);
@@ -142,7 +145,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   // every open item first.
   const hidden = muted
     ? countMuted(app, muted, "FROM items i CROSS JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id",
-      `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND ${VISIBLE_SOURCE} AND ${onHome}`,
+      `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND i.backlog = 0 AND ${VISIBLE_SOURCE} AND ${onHome}`,
       [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 
@@ -152,6 +155,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     lastVisitAt,
     since,
     toRead: { items: pick(toRead.ids), total: toRead.total, totalAtMost: toRead.totalAtMost },
+    toWatch: { items: pick(toWatch.ids), total: toWatch.total, totalAtMost: toWatch.totalAtMost },
     toListen: { items: pick(toListen.ids), total: toListen.total, totalAtMost: toListen.totalAtMost },
     fresh,
     unread,

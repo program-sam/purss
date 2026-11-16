@@ -45,7 +45,7 @@ function countQueryCollection(app: App, p: Principal, r: CollectionRow): { fresh
   const clause = q.ok ? compileQuery(q.query, params, p.workspaceId) : "0";
   return app.db.get<{ fresh: number; items: number }>(
     `SELECT COALESCE(SUM(st.fresh), 0) AS fresh, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND ${clause}`, ...params)!;
+     WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND i.backlog = 0 AND ${clause}`, ...params)!;
 }
 
 /** Names are how people find their collections and baskets; two with the same name are confusing. */

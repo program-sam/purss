@@ -20,6 +20,13 @@ import { preselect } from "../lib/discovery.ts";
 import { looksLikePodcastName } from "../lib/podcast-name.ts";
 
 type Failure = Extract<DiscoveryResult, { ok: false }>;
+
+type StartFrom = "now" | "week";
+/** What following does with the posts a source already has. Either way they stay on the source's page and in search. */
+const START_CHOICES: { value: StartFrom; label: string; blurb: string }[] = [
+  { value: "now", label: "Start from now", blurb: "Only posts that come after you follow are New. Older posts stay on the source's page and in search." },
+  { value: "week", label: "Also show posts from the last week as New", blurb: "Older posts stay on the source's page and in search." },
+];
 const FAIL_TITLE: Record<Failure["reason"], string> = {
   invalid: "That doesn't look like a web address",
   blocked: "We can't follow that address",
@@ -103,6 +110,8 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const [markPrivate, setMarkPrivate] = useState<boolean | null>(null);
   /** Off until the person ticks it; looking up another link starts again from off. */
   const [fullTextChoice, setFullTextChoice] = useState<boolean | null>(null);
+  /** What to do with the posts the source already has: leave them out of Home (the default), or also show the last week's as New. */
+  const [startFrom, setStartFrom] = useState<StartFrom>("now");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // Keep-a-single-link path
@@ -131,7 +140,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
     e?.preventDefault();
     const target = address ?? url.trim();
     if (!target) return;
-    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setFromShow(address !== undefined);
+    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setStartFrom("now"); setFromShow(address !== undefined);
     try {
       const out = await post<DiscoveryResult>("/api/discover", { url: target });
       setResult(out);
@@ -167,6 +176,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
         newCollectionName: colChoice === NEW ? newName.trim() : null,
         markPrivate: isPrivate,
         fullText,
+        startFrom,
       });
       refreshWorkspace(qc);
       ov.close();
@@ -316,6 +326,17 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                   {colChoice === NEW ? <input className="in" placeholder="Name your collection" aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
                   <p className="fine">{colChoice === LOOSE ? "Without a collection, it shows in “Other sources” on Home. You can group it later." : "A collection groups sources you read together. Home shows your collections."}</p>
                 </div>
+                <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Posts the source already has</legend>
+                  <div className="radiolist">
+                    {START_CHOICES.map((c) => (
+                      <label key={c.value} className="rl" style={{ alignItems: "flex-start", padding: "10px" }}>
+                        <input type="radio" name="as-start" checked={startFrom === c.value} onChange={() => setStartFrom(c.value)} />
+                        <span className="radio" aria-hidden="true" style={{ marginTop: 2 }} />
+                        <span style={{ display: "grid", gap: 2 }}><span>{c.label}</span><span className="fine">{c.blurb}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={isPrivate} onChange={setMarkPrivate}
                   hint={cand.privateWarning
                     ? "This link looks like it has a personal key in it, so it starts ticked. Untick it if this is an ordinary public feed."

@@ -9,6 +9,8 @@
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
 // phone the open drawer's Settings and capacity sit at its bottom.
+// A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
+// keeps its back catalogue off Home while it stays on the source's own page.
 // Run: node tests/acceptance/home.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -70,7 +72,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-type Seed = { ids: Record<string, string>; reading: string; radio: string };
+type Seed = { ids: Record<string, string>; reading: string; radio: string; almanac: string };
 const TITLES = ["Long essay", "Second essay", "Medium note", "Tiny abstract", "Night forecast", "Wire story 3"];
 
 /** The throwaway library: a collection shown on Home with a long article, a medium one, a tiny abstract and a busy source; one hidden from Home. */
@@ -96,9 +98,13 @@ function prepare(): Seed {
       entry("feed/1", { title: "Second essay", contentHtml: paras(40), publishedAt: at(15), crawledAt: at(14) }),
       entry("feed/1", { title: "Medium note", contentHtml: paras(14), publishedAt: at(20), crawledAt: at(19) }),
       entry("feed/1", { title: "Tiny abstract", contentHtml: "<p>A very short abstract of three lines that fits the screen without any scrolling at all.</p>", publishedAt: at(30), crawledAt: at(29) }),
+      entry("feed/1", { title: "Short film", summaryHtml: "<p>A film about low water.</p>", publishedAt: at(25), crawledAt: at(24) }),
       ...["Night forecast", "Crackle on long wave", "Numbers stations"].map((title, i) => entry("feed/2", { title, summaryHtml: `<p>${title}: an hour of quiet radio, football edition.</p>`, publishedAt: at(40 + i), crawledAt: at(39 + i) })),
       ...Array.from({ length: 14 }, (_, i) => entry("feed/3", { title: `Wire story ${i + 1}`, summaryHtml: `<p>Busy wire story ${i + 1}.</p>`, publishedAt: at(1 + i), crawledAt: at(i) })),
     ]));
+    // A source followed from now: what its feed already had is stored, and stays off Home.
+    const almanac = makeSource(app, p, "Old Almanac", "feed/4", { settled: false, startFrom: "now" });
+    applySyncBatch(app, eu, batch(["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"].map((title, i) => entry("feed/4", { title, summaryHtml: `<p>${title}: tables of tides.</p>`, publishedAt: at((40 + i) * 1440), crawledAt: at(39 * 1440) }))));
     const reading = createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", view: "list", sourceIds: [tidal, busy], query: null } as Parameters<typeof createCollection>[2]);
     const hidden = createCollection(app, p, { name: "Radio", emoji: null, mode: "sources", view: "list", sourceIds: [radio], query: null } as Parameters<typeof createCollection>[2]);
     app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", hidden.id);
@@ -107,7 +113,9 @@ function prepare(): Seed {
     changeState(app, p, id("Night forecast"), { workflow: "inprogress", expectedRevision: rev(id("Night forecast")) });
     changeState(app, p, id("Medium note"), { progress: 0.4, expectedRevision: rev(id("Medium note")) });
     changeState(app, p, id("Medium note"), { workflow: "toread", expectedRevision: rev(id("Medium note")) });
-    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id };
+    app.db.run("UPDATE items SET kind = 'video' WHERE title = 'Short film'");
+    changeState(app, p, id("Short film"), { workflow: "toread", expectedRevision: rev(id("Short film")) });
+    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id, almanac };
   } finally {
     app.db.close();
   }
@@ -274,6 +282,33 @@ async function main(): Promise<void> {
     for (const title of toRead) assert.ok(!boxes.includes(title), `${title} is shown once, above the boxes`);
     for (const title of ["Night forecast", "Crackle on long wave", "Numbers stations"]) assert.ok(!boxes.includes(title), `${title} (a collection hidden on Home) is not on Home`);
     step("To read lists what was put aside; a collection hidden on Home is left out; the boxes do not repeat what is above");
+
+    // To read is articles; a video put aside is in To watch, and a row with nothing in it (To listen) is not there.
+    assert.deepEqual(toRead, ["Medium note"], "a video is not in To read");
+    await rowToggle("To watch").waitFor();
+    assert.equal(await rowToggle("To watch").getAttribute("aria-expanded"), "false", "To watch starts closed like the other rows");
+    await rowToggle("To watch").click();
+    await page.locator(".wb:has(h2 :text('To watch')) .irow").first().waitFor();
+    assert.deepEqual(await homeTitles(page, ".wb:has(h2 :text('To watch')) .irow .title"), ["Short film"], "To watch lists the video put aside");
+    assert.equal(await rowToggle("To listen").count(), 0, "no podcast was put aside: no To listen row");
+    assert.ok(!(await homeTitles(page, ".mod:not(.wb) .irow .title")).includes("Short film"), "a video in To watch is not listed again in the boxes");
+    step("a video put aside is in its own To watch row; a row with nothing in it is not shown");
+
+    // A source followed from now: its back catalogue is not on Home, in a collection list or in the counts; its own page and search have it.
+    const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
+    const onHome = await homeTitles(page, "main .irow .title");
+    for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (back catalogue of a source followed from now) is not on Home`);
+    assert.match(await page.locator(".home-sum").innerText(), /new in|Since your last visit/, "Home still says what is New");
+    await page.goto(`${origin}/app/s/${seed.almanac}`);
+    await page.locator("main .irow").first().waitFor();
+    assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "the source's own page shows all of it");
+    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
+    assert.deepEqual(found, almanac, "and so does a search");
+    const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
+    assert.equal(held, 3, "the source counts what it holds");
+    await page.goto(`${origin}/app/`);
+    await page.getByRole("heading", { name: "Home" }).waitFor();
+    step("a source followed from now keeps its back catalogue off Home and out of the counts; its own page and search have it");
 
     // ---------- muted words, filters ----------
     await page.getByRole("button", { name: "Settings" }).first().click();

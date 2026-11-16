@@ -39,7 +39,9 @@ function emptyNumbers(): StatsNumbers {
 function scopeOf(app: App, p: Principal, scope: string): { where: string; params: SqlParam[] } {
   const params: SqlParam[] = [p.workspaceId];
   const clause = scopeClause(app, p, scope, params);
-  return { where: `i.workspace_id = ? AND ${clause} AND ${VISIBLE_SOURCE}`, params };
+  // Like the lists: a source followed from now keeps its back catalogue out of everything but its own page (items.backlog, migration 065).
+  const backlog = scope.startsWith("source:") ? "" : " AND i.backlog = 0";
+  return { where: `i.workspace_id = ? AND ${clause} AND ${VISIBLE_SOURCE}${backlog}`, params };
 }
 
 const isoDaysBefore = (now: string, days: number) => new Date(Date.parse(now) - days * DAY_MS).toISOString();

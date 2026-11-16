@@ -10,7 +10,7 @@ export type UiHints = {
   sidebar: "full" | "rail" | null;
   /** Home collection boxes the user collapsed; they start open. */
   collapsed: string[];
-  /** Home's To read, To listen and Needs attention rows the user opened; they start closed. */
+  /** Home's To read, To watch, To listen and Needs attention rows the user opened; they start closed. */
   opened: string[];
   /** Sidebar groups showing all their sources instead of the first few. */
   showAll: string[];

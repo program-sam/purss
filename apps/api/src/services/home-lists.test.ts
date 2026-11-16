@@ -404,7 +404,7 @@ test("Home's one feed and a list that leaves out muted items read the date index
   assert.equal(pages.length, 3, "Home's two runs (New, then To read) and the other list");
   for (const q of pages) {
     const plan = app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
-    assert.ok(plan.some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_sortkey/.test(l)), `the page reads the date index in order:\n${plan.join("\n")}`);
+    assert.ok(plan.some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_visible_sortkey/.test(l)), `the page reads the date index of the items that can show, in order:\n${plan.join("\n")}`);
     assert.ok(!plan.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), plan.join("\n"));
     assert.ok(!plan.some((l) => /^SCAN (i|st|s|items|item_state)\b/.test(l) && !/USING (COVERING )?INDEX/.test(l)), plan.join("\n"));
   }

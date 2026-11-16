@@ -425,6 +425,12 @@ export const followSchema = z.object({
   /** Omitted: private when the link looks like it carries a key. The person can override that either way. */
   markPrivate: z.boolean().optional(),
   fullText: z.boolean().default(false),
+  /**
+   * What the source already had when it was followed (its back catalogue). "now" (the default): it stays stored, on the source's own
+   * page and in search, and is left out of Home, collection lists and the counts of items not looked at. "week": the posts published
+   * in the week before are also marked New and shown like new posts; the older ones are left out as for "now".
+   */
+  startFrom: z.enum(["now", "week"]).default("now"),
 });
 /** Items already in a source when full articles are turned on that also get a copy (newest unfinished first). */
 export const FULL_TEXT_BACKFILL = 20;
@@ -635,15 +641,17 @@ export type HomeOverview = {
   /** New items (still marked New) that arrived since then, by Home box; null on the first visit or when none. */
   since: { total: number; boxes: { id: string; name: string; count: number }[] } | null;
   /**
-   * To read items that are not podcasts, oldest first. `total` leaves out the ones the muted words match among the first thousand;
-   * with more than that, `totalAtMost` says the rest were not looked at, so the total may be too high.
+   * To read articles (neither videos nor podcasts), oldest first. `total` leaves out the ones the muted words match among the first
+   * thousand; with more than that, `totalAtMost` says the rest were not looked at, so the total may be too high.
    */
   toRead: { items: ItemDTO[]; total: number; totalAtMost: boolean };
+  /** To read videos ("To watch"), counted the same way. */
+  toWatch: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** To read podcast episodes ("To listen"), counted the same way. */
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** Every New marker in PURSS, for "Start fresh". */
   fresh: number;
-  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. */
+  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. Leaves out a source's back catalogue when it was followed from now. */
   unread: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */
   mutedHidden: number;

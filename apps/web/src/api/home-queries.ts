@@ -23,7 +23,9 @@ export function homeOverviewQuery() {
       const o = await get<HomeOverview>("/api/home", undefined, signal);
       // Changes not yet sent show here as they do in every list.
       await outbox.ready;
-      return { ...o, toRead: { ...o.toRead, items: outbox.overlay(o.toRead.items) }, toListen: { ...o.toListen, items: outbox.overlay(o.toListen.items) } };
+      // The answer may be the copy kept for offline use from before To watch was a row of its own: that one has none.
+      const toWatch = o.toWatch ?? { items: [], total: 0, totalAtMost: false };
+      return { ...o, toRead: { ...o.toRead, items: outbox.overlay(o.toRead.items) }, toWatch: { ...toWatch, items: outbox.overlay(toWatch.items) }, toListen: { ...o.toListen, items: outbox.overlay(o.toListen.items) } };
     },
     staleTime: 20_000,
   });

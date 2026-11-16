@@ -13,7 +13,7 @@ import { RowContext, useRowCtx } from "../components/row-context.tsx";
 import { leavesOn } from "../lib/leave.ts";
 import { formatCount, interfaceLocale, plural } from "../lib/format.ts";
 import { isNewerCopy } from "../lib/items.ts";
-import { calmLine, sinceLine } from "../lib/returning.ts";
+import { calmLine, isToListen, isToRead, isToWatch, sinceLine } from "../lib/returning.ts";
 import { useNav } from "../nav.ts";
 import { useItemActions } from "../state/actions.ts";
 import { setHints, useHints } from "../state/ui-store.ts";
@@ -119,11 +119,7 @@ function Attention() {
   );
 }
 
-/** To read is split in two rows: podcasts are To listen, everything else To read. */
-const isToRead = (i: ItemDTO) => i.workflow === "toread" && i.kind !== "podcast";
-const isToListen = (i: ItemDTO) => i.workflow === "toread" && i.kind === "podcast";
-
-/** The items To read and To listen show right now (a collapsed row shows none): the boxes below leave these out. */
+/** The items To read, To watch and To listen show right now (a collapsed row shows none): the boxes below leave these out. */
 export function useShownAbove(): ReadonlySet<string> {
   const o = useHomeOverview().data;
   const hints = useHints();
@@ -132,6 +128,7 @@ export function useShownAbove(): ReadonlySet<string> {
     if (!o) return ids;
     const open = (row: string) => hints.opened.includes(`home:${row}`);
     if (open("toread")) for (const it of o.toRead.items) ids.add(it.id);
+    if (open("towatch")) for (const it of o.toWatch.items) ids.add(it.id);
     if (open("tolisten")) for (const it of o.toListen.items) ids.add(it.id);
     return ids;
   }, [o, hints.opened]);
@@ -150,7 +147,7 @@ const FRESH_AWAY_MS = 30 * 86_400_000;
 const FRESH_PILE = 50;
 
 /**
- * A row of items put aside (To read or To listen): the oldest few, and Show all for the rest. An item taken out of To read or
+ * A row of items put aside (To read, To watch or To listen): the oldest few, and Show all for the rest. An item taken out of To read or
  * ignored here leaves at once.
  */
 function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: string; row: HomeOverview["toRead"] | undefined; keeps: (i: ItemDTO) => boolean; type: string }) {
@@ -169,7 +166,7 @@ function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: strin
   );
 }
 
-/** To read, To listen, Needs attention and Mark all as seen. */
+/** To read, To watch, To listen, Needs attention and Mark all as seen. Each row shows only when it has items. */
 export function WelcomeRows() {
   const ws = useWorkspace();
   const actions = useItemActions();
@@ -178,7 +175,8 @@ export function WelcomeRows() {
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
   const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
-    <PutAsideRow key="toread" id="toread" title="To read" row={o?.toRead} keeps={isToRead} type="articles,videos" />,
+    <PutAsideRow key="toread" id="toread" title="To read" row={o?.toRead} keeps={isToRead} type="articles" />,
+    <PutAsideRow key="towatch" id="towatch" title="To watch" row={o?.toWatch} keeps={isToWatch} type="videos" />,
     <PutAsideRow key="tolisten" id="tolisten" title="To listen" row={o?.toListen} keeps={isToListen} type="podcasts" />,
     <Attention key="attention" />,
     offerFresh ? (

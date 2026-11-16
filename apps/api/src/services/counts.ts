@@ -17,27 +17,38 @@ const cellOf = (workflow: string, fresh: number): number => STATES.indexOf(workf
 export type CellFilter = (workflow: WorkflowState, fresh: boolean) => boolean;
 
 export class ItemCounts {
-  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, fresh)`. */
+  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, fresh)`. Every item the source holds. */
   readonly bySource: Map<string | null, number[]>;
+  /**
+   * Per source id, the items left out of Home, collection lists and counts because the source was followed from now and they were
+   * part of its back catalogue (migration 065). Always in the default cell (workflow "new", not New), which `bySource` includes.
+   */
+  readonly backCatalogue: Map<string, number>;
 
-  constructor(bySource: Map<string | null, number[]>) {
+  constructor(bySource: Map<string | null, number[]>, backCatalogue: Map<string, number> = new Map()) {
     this.bySource = bySource;
+    this.backCatalogue = backCatalogue;
   }
 
-  /** The items of these sources whose state passes the filter. */
+  /** The items of these sources whose state passes the filter, without the back catalogue that is left out of lists. */
   sum(sources: Iterable<string | null>, keep: CellFilter): number {
+    return this.add(sources, keep, false);
+  }
+
+  private add(sources: Iterable<string | null>, keep: CellFilter, withBackCatalogue: boolean): number {
     let n = 0;
     for (const s of sources) {
       const cells = this.bySource.get(s);
       if (!cells) continue;
       for (let c = 0; c < cells.length; c++) if (cells[c] && keep(STATES[c >> 1]!, (c & 1) === 1)) n += cells[c]!;
+      if (!withBackCatalogue && s !== null && keep("new", false)) n -= this.backCatalogue.get(s) ?? 0;
     }
     return n;
   }
 
-  /** Everything the source holds. */
+  /** Everything the source holds: its own page shows its whole back catalogue. */
   items(source: string): number {
-    return this.sum([source], () => true);
+    return this.add([source], () => true, true);
   }
 
   /** Items with the New marker, whatever their workflow state. */
@@ -100,5 +111,10 @@ function computeCounts(app: App, workspaceId: string): ItemCounts {
   };
   for (const w of STATES) if (w !== "new") rare("st.workflow = ?", w);
   rare("st.workflow = 'new' AND st.fresh = 1");
-  return new ItemCounts(bySource);
+  // The back catalogue left out of lists, from the partial index alone (it holds only those items).
+  const backCatalogue = new Map<string, number>();
+  for (const r of app.db.all<{ source_id: string; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE workspace_id = ? AND backlog = 1 AND source_id IS NOT NULL GROUP BY source_id", workspaceId)) {
+    backCatalogue.set(r.source_id, r.n);
+  }
+  return new ItemCounts(bySource, backCatalogue);
 }

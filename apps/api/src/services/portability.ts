@@ -163,10 +163,10 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
 
     await array("items", (function* () {
       type ItemRow = { id: string; number: number; source_id: string | null; kind: string; title: string; url: string | null; author: string | null; image_url: string | null; duration_seconds: number | null; doi: string | null;
-        curator_note: string | null; published_at: string | null; discovered_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; fresh: number; progress: number; opened_at: string | null };
+        curator_note: string | null; published_at: string | null; discovered_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; fresh: number; progress: number; opened_at: string | null; backlog: number };
       for (const i of iterate<ItemRow>(
         `SELECT i.id, i.number, i.source_id, i.kind, i.title, i.url, i.author, i.image_url, i.duration_seconds, i.doi, i.curator_note, i.published_at, i.discovered_at, i.created_at,
-                i.enclosures, i.current_version_id, st.workflow, st.fresh, st.progress, st.opened_at
+                i.enclosures, i.current_version_id, i.backlog, st.workflow, st.fresh, st.progress, st.opened_at
          FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? ORDER BY i.seq`, ws)) {
         const priv = i.source_id !== null && privateIds.has(i.source_id);
         const link = (u: string | null) => (u && (priv || hasCredentialShape(u)) ? null : u);
@@ -187,6 +187,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
           captures: captures.map((c) => ({ id: c.id, kind: c.kind, status: c.status, title: c.title, text: c.text, html: html(c.html), finalUrl: link(c.final_url), error: c.error, quality: c.quality, partialReason: c.partial_reason, createdAt: c.created_at, completedAt: c.completed_at })),
           state: { workflow: i.workflow, fresh: i.fresh === 1, progress: i.progress, openedAt: i.opened_at },
           originalGuids: guids,
+          backlog: i.backlog === 1,
         };
       }
     })());
@@ -1062,10 +1063,10 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const cur = pr.versions.find((v) => v.id === pr.currentId)!;
     const row = app.db.run(
       `INSERT INTO items (id, number, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
-         published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         published_at, discovered_at, current_version_id, enclosures, backlog, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       d.id, keptNumbers.get(d.id) ?? null, p.accountId, ws, d.sourceId, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
-      it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
+      it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), it.backlog ? 1 : 0, pr.createdAt, now);
     for (const v of pr.versions) {
       app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         v.id, d.id, ws, v.title, v.url, v.summaryHtml, v.contentHtml, v.hash, v.createdAt);

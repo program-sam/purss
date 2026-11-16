@@ -409,15 +409,23 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   changeState(app, p, d, { opened: true, expectedRevision: revision(app, d) });
   assert.deepEqual(homeOverview(app, p).toRead.items.map((i) => i.id), [a, b]);
 
-  // Podcast episodes put aside are To listen, not To read.
+  // Podcast episodes put aside are To listen and videos To watch, not To read.
   const e = addItem(app, p, news, { publishedAt: ago(10 * DAY) });
   app.db.run("UPDATE items SET kind = 'podcast' WHERE id = ?", e);
   work(e, "toread");
+  const [v1, v2] = [addItem(app, p, essays, { publishedAt: ago(11 * DAY), kind: "video" }), addItem(app, p, news, { publishedAt: ago(5 * DAY), kind: "video" })] as [string, string];
+  work(v2, "toread"); work(v1, "toread");
   const split = homeOverview(app, p);
-  assert.deepEqual(split.toRead.items.map((i) => i.id), [a, b]);
+  assert.deepEqual(split.toRead.items.map((i) => i.id), [a, b], "To read is articles");
   assert.equal(split.toRead.total, 2);
+  assert.deepEqual(split.toWatch.items.map((i) => i.id), [v1, v2], "To watch is videos, oldest first");
+  assert.equal(split.toWatch.total, 2);
   assert.deepEqual(split.toListen.items.map((i) => i.id), [e]);
   assert.equal(split.toListen.total, 1);
+  // A video that is only New or opened is in none of the rows.
+  const idle = addItem(app, p, essays, { kind: "video" });
+  changeState(app, p, idle, { opened: true, expectedRevision: revision(app, idle) });
+  assert.deepEqual(homeOverview(app, p).toWatch.items.map((i) => i.id), [v1, v2]);
 
   assert.equal(homeOverview(app, p).fresh, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND fresh = 1", p.workspaceId)!.n);
 });
@@ -426,7 +434,7 @@ test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------

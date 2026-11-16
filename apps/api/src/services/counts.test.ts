@@ -53,6 +53,11 @@ function build(seed: number): World {
     });
   }
   const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((x) => x.id);
+  // The back catalogue of sources followed from now (migration 065): items in the default state that are marked as left out of lists.
+  // The actions below act on some of them, and the marks of those must go (the triggers), or the counts would disagree with the rows.
+  const backCatalogue = ids().filter(() => r() < 0.3);
+  bulk(app, p, backCatalogue, { type: "clearFresh" });
+  app.db.run(`UPDATE items SET backlog = 1 WHERE id IN (SELECT value FROM json_each(?)) AND source_id IS NOT NULL`, JSON.stringify(backCatalogue));
   // Workflow states and cleared New markers, at random.
   for (const workflow of ["toread", "inprogress", "finished", "ignored"] as const) {
     const some = ids().filter(() => r() < 0.12);
@@ -80,6 +85,8 @@ function build(seed: number): World {
 function referenceTotal(app: App, p: Principal, scope: string, filter: string): number {
   const params: SqlParam[] = [p.workspaceId];
   const where = ["i.workspace_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
+  // A source's own page shows its whole back catalogue; every other list leaves it out.
+  if (!scope.startsWith("source:")) where.push("i.backlog = 0");
   if (filter === "fresh") where.push("st.fresh = 1");
   else if (filter === "active") where.push("st.workflow <> 'ignored'");
   else if (filter !== "all") { where.push("st.workflow = ?"); params.push(filter); }
@@ -103,7 +110,7 @@ test("source and collection counts equal the queries they replaced, in every awk
         if (c.mode !== "sources") continue;
         const row = w.app.db.get<{ fresh: number; items: number }>(
           `SELECT COALESCE(SUM(st.fresh), 0) AS fresh, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
-           WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.workspaceId, c.id)!;
+           WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND i.backlog = 0 AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.workspaceId, c.id)!;
         assert.deepEqual([c.freshCount, c.itemCount], [row.fresh, row.items], `seed ${seed}, ${c.name}`);
       }
     } finally { w.cleanup(); }

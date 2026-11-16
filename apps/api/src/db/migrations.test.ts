@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 import { Database, migrate } from "./database.ts";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
-/** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items): the tests below about rebuilt tables leave them aside. */
-const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept"]);
+/** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items, 065 keeps back catalogue marks to untouched items): the tests below about rebuilt tables leave them aside. */
+const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept",
+  "item_backlog_state_changed", "item_backlog_state_stored", "item_backlog_kept", "item_backlog_annotated"]);
 
 test("005 removes hand-picked collections and their membership table and leaves the other collections alone", () => {
   const db = new Database(":memory:");
@@ -381,8 +382,12 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const after = new Map(objects().map((o) => [(o as { name: string }).name, o]));
     // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
     const droppedIndexes = new Set(["sign_in_methods_username"]);
-    // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone.
-    const widened: Record<string, string> = { reservations_open: "CREATE INDEX reservations_open ON reservations(account_id, settled_at, released_at, expires_at, bytes)" };
+    // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone. 065 adds the back catalogue mark to the
+    // source index of items, so counting a collection's items (which leaves the marked ones out) still reads that index alone.
+    const widened: Record<string, string> = {
+      reservations_open: "CREATE INDEX reservations_open ON reservations(account_id, settled_at, released_at, expires_at, bytes)",
+      items_source_sortkey: "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, (COALESCE(published_at, discovered_at)) DESC, id DESC, backlog)",
+    };
     for (const o of objectsBefore) {
       const name = (o as { name: string }).name;
       if (removed.has((o as { tbl_name: string }).tbl_name) || droppedIndexes.has(name)) continue;
@@ -497,8 +502,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all("SELECT * FROM jobs ORDER BY id"), others.jobs, "other jobs are untouched");
     assert.deepEqual(db.all("SELECT * FROM playback_positions"), others.playback, "playback positions stay");
     assert.deepEqual(db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), others.sources, "sources are unchanged apart from the two columns");
-    // link_key (057), kept_key and source_title (058) and number (062) are columns later migrations add; everything the items had stays as it was.
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
+    // link_key (057), kept_key and source_title (058), number (062) and backlog (065) are columns later migrations add; everything the items had stays as it was.
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, backlog: _b, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
@@ -825,6 +830,58 @@ test("063 gives stored enclosure addresses the & their feed meant and leaves oth
     assert.equal((JSON.parse(stored("itm_escaped")!) as { url: string }[])[0]?.url, "https://traffic.example.fm/a.mp3?utm_source=Podcast&in_playlist=p1");
     assert.equal(stored("itm_plain"), plain);
     assert.equal(stored("itm_none"), null);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("065 leaves every existing source showing its back catalogue and no existing item left out, and keeps the left-out items to the default state", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "065")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_1', 'acc_1', 'ws_1', 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')");
+    for (const id of ["itm_a", "itm_b"]) {
+      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', 'src_1', 'article', 't', 'x', 'x', 'x')", id);
+      db.run("INSERT INTO item_state (item_id, workspace_id, fresh, updated_at) VALUES (?, 'ws_1', 0, 'x')", id);
+    }
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "065").length);
+    assert.equal(db.get<{ s: string }>("SELECT start_from AS s FROM sources WHERE id = 'src_1'")!.s, "all", "a source followed before the choice existed keeps today's behaviour");
+    assert.deepEqual(db.all<{ id: string; b: number }>("SELECT id, backlog AS b FROM items ORDER BY id").map((r) => [r.id, r.b]), [["itm_a", 0], ["itm_b", 0]], "nothing that is stored is left out");
+    assert.throws(() => db.run("UPDATE sources SET start_from = 'everything' WHERE id = 'src_1'"), /CHECK/, "only the three choices are stored");
+
+    // The mark is cleared by every kind of acting on an item, whichever code does it; bookkeeping alone leaves it.
+    const marked = (id: string) => db.get<{ b: number }>("SELECT backlog AS b FROM items WHERE id = ?", id)!.b;
+    const mark = () => db.run("UPDATE items SET backlog = 1 WHERE id = 'itm_a'");
+    mark();
+    db.run("UPDATE item_state SET state_version = state_version + 1, updated_at = 'y' WHERE item_id = 'itm_a'");
+    assert.equal(marked("itm_a"), 1, "a change that is not about the person's use of the item");
+    const acts: [string, string][] = [
+      ["To read", "UPDATE item_state SET workflow = 'toread' WHERE item_id = 'itm_a'"],
+      ["opening", "UPDATE item_state SET opened_at = 'z' WHERE item_id = 'itm_a'"],
+      ["reading partway", "UPDATE item_state SET progress = 0.2 WHERE item_id = 'itm_a'"],
+      ["New again", "UPDATE item_state SET fresh = 1 WHERE item_id = 'itm_a'"],
+      ["keeping", "INSERT INTO baskets (id, workspace_id, name, position, created_at) VALUES ('bsk_1', 'ws_1', 'B', 0, 'x'); INSERT INTO item_versions (id, item_id, workspace_id, title, content_hash, created_at) VALUES ('ver_1', 'itm_a', 'ws_1', 't', 'h', 'x'); INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES ('bsk_1', 'itm_a', 'ws_1', 'ver_1', 'x')"],
+      ["a note", "INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, body, created_at, updated_at, received_at) VALUES ('ann_1', 'acc_1', 'ws_1', 'itm_a', 'note', 'n', 'x', 'x', 'x')"],
+    ];
+    db.exec("PRAGMA foreign_keys = OFF");
+    for (const [what, sql] of acts) {
+      db.exec("UPDATE item_state SET workflow = 'new', fresh = 0, opened_at = NULL, progress = 0 WHERE item_id = 'itm_a'");
+      mark();
+      assert.equal(marked("itm_a"), 1, what);
+      db.exec(sql);
+      assert.equal(marked("itm_a"), 0, `${what} clears it`);
+    }
+    assert.equal(marked("itm_b"), 0);
     assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();

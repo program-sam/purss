@@ -159,7 +159,7 @@ function siteOrigin(url: string | null): string | null {
   try { return new URL(url).origin; } catch { return null; }
 }
 
-export function followSource(app: App, p: Principal, input: z.infer<typeof followSchema>): SourceDTO {
+export function followSource(app: App, p: Principal, input: z.input<typeof followSchema>): SourceDTO {
   const c = peekCandidate(input.token, p.workspaceId) as Candidate | null;
   if (!c) throw badRequest("That preview has expired. Please look up the link again.", "expired");
   const existing = followedSource(app, p, c.feedUrl);
@@ -177,6 +177,8 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
   const id = former?.id ?? newId("src");
   const title = input.title ?? former?.title ?? c.title;
   const fullText = input.fullText && fullTextAvailable({ kind: c.kind, is_private: isPrivate ? 1 : 0 });
+  // What the feed already has is back catalogue: left out of Home and the counts from now on, or with its last week as New (see sync.ts arrivalOf).
+  const startFrom = input.startFrom ?? "now";
   try {
     app.db.tx(() => {
       assertRoom(app, p.accountId, "sources");
@@ -184,18 +186,19 @@ export function followSource(app: App, p: Principal, input: z.infer<typeof follo
       if (!collectionId && input.newCollectionName) collectionId = createCollection(app, p, { name: input.newCollectionName, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id;
       if (collectionId && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", collectionId, p.workspaceId)) throw notFound("That collection");
       if (former) {
-        // Followed from now: what the feed already had is back catalogue again, not New, and the engine has yet to confirm this new subscription.
+        // Followed again: what the feed already has is back catalogue again, not New, and the engine has yet to confirm this new subscription.
+        // (The posts stored the first time keep what they were; only what arrives now is the back catalogue of this follow.)
         app.db.run(
-          `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, paused = 0, engine_stream_id = NULL,
+          `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
              health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), id,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
         app.db.run(
-          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, health, health_text, builtin, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0,
+          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
           isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", isNews ? "news" : null, nowIso(),
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);

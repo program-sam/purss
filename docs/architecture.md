@@ -107,12 +107,17 @@ the item tables, and its rows go with their item and travel in the export.
 
 **Coming back.** New markers are only the `fresh` field of an item's state. An entry a source already had when it
 was followed (published, or undated, before the follow time, until a sync walk that began after the engine confirmed the
-subscription has finished) is stored without one and tells no one. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
+subscription has finished) is stored without one and tells no one. What the person chose when following (`sources.start_from`) decides what else
+happens to it: followed from now (the default, and what an OPML import does), it is also marked `items.backlog` and left out of Home, collection lists, list
+totals and every count of items not looked at (`ItemCounts` takes it out of the default cell; lists ask for `backlog = 0`), while a source's own page
+(`scope=source:<id>`) and a search (`q`) still list it; followed with the last week, entries published in the 7 days before the follow are New like any
+arrival; a source followed before the choice existed (`all`) shows its back catalogue as ordinary older items. The mark is set once, when the entry is stored,
+and triggers (migration 065) clear it the first time the person does anything with the item, so nothing they touched is left out. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
 tick (`services/returning.ts`, throttled: every five minutes and every hour) expires markers older than the person's
 choice, resumes sources whose pause ran out, makes the digest that has come due, tells about sources that stopped
 working and failed text saves, and prunes notifications. `POST /api/activity/visit`, sent by the web app from any page on foreground interaction, records the start of a visit (after 30
 minutes of quiet) and `GET /api/home` returns, read-only, what Home says before its boxes (filter collections
-leave out what Home leaves out, `services/home-sources.ts`). `GET /api/items?mix=home` is a list as Home shows it (its boxes
+leave out what Home leaves out, `services/home-sources.ts`; the put-aside rows are `toRead` for articles, `toWatch` for videos and `toListen` for podcasts). `GET /api/items?mix=home` is a list as Home shows it (its boxes
 and its one feed, with `filter=open`: New and To read): only sources with a box on Home, New items first and then the rest, newest first within each, listed as two
 runs in date order and paged from a snapshot of the newest item when paging began. Lists also take `type`, `length`, `source`, `without` (one source left out) and
 `capture=failed`; with `mix=home` these narrow what Home would show (hidden collections stay out). Unless `muted=show`, lists leave out the items the PURSS's muted words match (title or summary, whole words, kept in the preferences; matched on the row
