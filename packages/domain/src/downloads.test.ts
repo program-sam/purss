@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "./api.ts";
 import {
-  chooseDownloads, connectionAllows, DEFAULT_DOWNLOAD_SETTINGS as DEFAULT_SETTINGS, downloadCandidate, downloadPlanRequestSchema, expectedBytes, isFinished,
+  chooseDownloads, connectionAllows, DEFAULT_DOWNLOAD_SETTINGS as DEFAULT_SETTINGS, downloadCandidate, downloadMovesToRead, downloadPlanRequestSchema, expectedBytes, isFinished,
   mediaExtension, mediaToDownload, parseDownloadSettings as parseSettings, removeWhenFinished, UNKNOWN_SIZE_BYTES,
 } from "./downloads.ts";
 import type { DownloadCandidate as Candidate, DownloadSettings } from "./downloads.ts";
@@ -51,6 +51,12 @@ test("finished means marked Finished or Ignored, or played to the end; cleanup o
   assert.equal(removeWhenFinished(S({ removeFinished: false }), "done", done), false);
   assert.equal(removeWhenFinished(S({ removeFinished: true }), "done", done), true, "every download, automatic or by hand");
   assert.equal(removeWhenFinished(S({ removeFinished: true }), "downloading", done), false);
+});
+
+test("downloading a podcast episode by hand moves it to To read unless it is To read or In progress already", () => {
+  for (const workflow of ["new", "finished", "ignored"]) assert.equal(downloadMovesToRead({ kind: "podcast", workflow }), true, workflow);
+  for (const workflow of ["toread", "inprogress"]) assert.equal(downloadMovesToRead({ kind: "podcast", workflow }), false, workflow);
+  for (const kind of ["video", "article"]) assert.equal(downloadMovesToRead({ kind, workflow: "new" }), false, kind);
 });
 
 test("settings read back field by field, with the defaults for anything damaged", () => {

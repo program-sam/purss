@@ -155,6 +155,14 @@ export function removeWhenFinished(settings: Pick<DownloadSettings, "removeFinis
   return settings.removeFinished && state === "done" && isFinished(item);
 }
 
+/**
+ * Downloading a podcast episode by hand counts as a click on To read (shown as To listen): an episode not yet
+ * there moves to it, and since that isn't finished, cleanup keeps the download. One already To read or In progress stays.
+ */
+export function downloadMovesToRead(item: { kind: string; workflow: string }): boolean {
+  return item.kind === "podcast" && item.workflow !== "toread" && item.workflow !== "inprogress";
+}
+
 /** A file extension for a media type or address, so the player and the system know what the file is. */
 export function mediaExtension(type: string | null, url: string): string {
   const t = (type ?? "").toLowerCase().split(";")[0]!.trim();

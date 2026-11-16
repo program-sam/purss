@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { ItemDTO } from "@purss/domain";
 import { useDownload } from "../downloads/hooks.ts";
+import { useDownloadMovesToRead } from "../downloads/to-read.ts";
 import { platform } from "../platform/index.ts";
 import { useToasts } from "../state/toasts.tsx";
 
@@ -20,16 +21,21 @@ export function useQuickDownloadState(item: ItemDTO): QuickDownloadState | null 
   return device?.state === "done" ? "done" : "none";
 }
 
-/** One click to download an item's audio or video (and its text) to this device, for use without a connection. */
+/**
+ * One click to download an item's audio or video (and its text) to this device, for use without a connection.
+ * A podcast episode also goes to To listen; that message, with its Undo, follows the one about the download.
+ */
 export function useQuickDownload(): (item: ItemDTO) => Promise<void> {
   const { toast } = useToasts();
+  const toRead = useDownloadMovesToRead();
   return useCallback(async (item: ItemDTO) => {
     const downloads = platform.downloads;
     if (!downloads || !offersQuickDownload(item) || downloads.get(item.id)?.state === "done") return;
     const waits = downloads.list().some((r) => r.state === "downloading");
     toast(waits ? "Queued: it downloads after the one in progress." : "Downloading to this device.");
+    void toRead(item);
     await downloads.download(item.id);
     const r = downloads.get(item.id);
     if (r?.state === "failed") toast(`Download failed: ${r.error ?? "it didn't finish."}`, { tone: "error" });
-  }, [toast]);
+  }, [toast, toRead]);
 }

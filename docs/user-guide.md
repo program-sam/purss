@@ -949,6 +949,8 @@ the app tells you once, and *Settings → This device → New version of the app
 notes, and its audio or video file on this phone, to read and play without a connection. The
 **Downloaded** page lists them.
 
+- Downloading a podcast episode yourself also puts it in **To listen**, as if you had pressed it, unless
+  it's already there or In progress; *Undo* on the message takes that back.
 - While it downloads, a ring around the row's download button fills up (it turns when the publisher
   doesn't say how big the file is), and the reader shows how much has arrived. Once it's done, the
   button becomes a filled check, the item shows **Downloaded** in lists and in the reader, and the

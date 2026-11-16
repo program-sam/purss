@@ -8,6 +8,7 @@ import { platform } from "../platform/index.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { DownloadRing, progressFraction } from "./DownloadRing.tsx";
 import { useDownload } from "./hooks.ts";
+import { useDownloadMovesToRead } from "./to-read.ts";
 import { pageToDownload } from "@purss/domain";
 import { useNav } from "../nav.ts";
 import type { DownloadProgress } from "./types.ts";
@@ -29,6 +30,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
   const { player, snap } = usePlayer();
   const { toast } = useToasts();
   const nav = useNav();
+  const toRead = useDownloadMovesToRead();
   const [busy, setBusy] = useState(false);
   if (!downloads) return null;
 
@@ -42,6 +44,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
 
   async function download() {
     setBusy(true);
+    void toRead(item);
     try { await downloads!.download(item.id); } finally { setBusy(false); }
     const r = downloads!.get(item.id);
     if (r?.state === "done") toast(`Downloaded to this device · ${bytesLabel(r.bytes)}`);
