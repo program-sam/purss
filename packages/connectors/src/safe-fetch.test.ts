@@ -317,6 +317,75 @@ test("allowPartial returns the start of an oversized body, flagged, for previews
   }
 });
 
+test("a sink reads a body as a stream without holding it, and can stop the download", async () => {
+  const big = Buffer.alloc(6 * 1024 * 1024, 97);
+  let wrote = 0;
+  const server = await startServer((req, res) => {
+    if (req.url === "/gz") return send(res, 200, "text/plain", gzipSync(big), { "content-encoding": "gzip" });
+    if (req.url === "/missing") return send(res, 404, "text/plain", "x".repeat(200_000));
+    if (req.url === "/declared") return send(res, 200, "text/plain", big, { "content-length": String(big.length) });
+    if (req.url === "/endless") {
+      res.writeHead(200, { "content-type": "text/plain" });
+      const timer = setInterval(() => { wrote += 65536; if (!res.write(Buffer.alloc(65536, 98))) return; }, 1);
+      res.on("close", () => clearInterval(timer));
+      return;
+    }
+    send(res, 200, "text/plain", big);
+  });
+  try {
+    for (const path of ["/plain", "/gz"]) {
+      let seen = 0;
+      const r = await safeFetch(`${server.url}${path}`, { testAllowAddress: allowLoopback, maxBytes: 8 * 1024 * 1024, sink: (c) => { seen += c.length; } });
+      assert.ok(r.ok, path);
+      assert.equal(seen, big.length, "the sink got every byte, decompressed");
+      assert.equal(r.response.body.length, 0, "nothing is buffered");
+      assert.equal(r.response.bytes, 0);
+      assert.equal(r.response.truncated, false);
+    }
+    // A body longer than the ceiling fails as too large; a plain declared length fails before anything is read.
+    let seen = 0;
+    const over = await safeFetch(`${server.url}/gz`, { testAllowAddress: allowLoopback, maxBytes: 1024 * 1024, sink: (c) => { seen += c.length; } });
+    assert.ok(!over.ok && over.reason === "toolarge");
+    assert.ok(seen <= 1024 * 1024, "the sink never gets more than the ceiling");
+    seen = 0;
+    const declared = await safeFetch(`${server.url}/declared`, { testAllowAddress: allowLoopback, maxBytes: 1024 * 1024, sink: (c) => { seen += c.length; } });
+    assert.ok(!declared.ok && declared.reason === "toolarge");
+    assert.equal(seen, 0);
+    // The sink stopping is not a failure, and the rest is not downloaded (an endless body ends).
+    let got = 0;
+    const stopped = await safeFetch(`${server.url}/endless`, { testAllowAddress: allowLoopback, maxBytes: 64 * 1024 * 1024, timeoutMs: 10_000, sink: (c) => { got += c.length; return got >= 200_000 ? "stop" : undefined; } });
+    assert.ok(stopped.ok);
+    assert.equal(stopped.response.truncated, true);
+    assert.ok(got >= 200_000 && got < 2_000_000, `stopped soon after enough (${got})`);
+    // An error answer never reaches the sink; its start comes back as the body.
+    let touched = false;
+    const missing = await safeFetch(`${server.url}/missing`, { testAllowAddress: allowLoopback, maxBytes: 8 * 1024 * 1024, sink: () => { touched = true; } });
+    assert.ok(missing.ok && missing.response.status === 404);
+    assert.equal(touched, false);
+    assert.equal(missing.response.body.length, 64 * 1024);
+    assert.equal(missing.response.truncated, true);
+  } finally {
+    await server.close();
+  }
+});
+
+test("a sink's address rules are the ordinary ones: a redirect to a private address is refused, and the sink hears nothing", async () => {
+  const server = await startServer((req, res) => {
+    if (req.url === "/start") return send(res, 302, "text/plain", "", { location: "http://169.254.169.254/latest/" });
+    send(res, 200, "text/plain", "hello");
+  });
+  try {
+    let heard = false;
+    const r = await safeFetch(`${server.url}/start`, { testAllowAddress: (ip) => ip === "127.0.0.1", resolver: async () => ["127.0.0.1"], sink: () => { heard = true; } });
+    assert.ok(!r.ok && r.reason === "blocked");
+    assert.equal(heard, false);
+    const direct = await safeFetch("http://10.0.0.5/feed", { resolver: neverResolve, sink: () => { heard = true; } });
+    assert.ok(!direct.ok && direct.reason === "blocked");
+  } finally {
+    await server.close();
+  }
+});
+
 test("decompression bombs are stopped by the decoded-size cap, quickly", async () => {
   const zeros = Buffer.alloc(48 * 1024 * 1024);
   const gz = gzipSync(zeros, { level: 9 });

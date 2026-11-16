@@ -62,7 +62,7 @@ services:
     sysctls: { net.ipv4.ip_unprivileged_port_start: 53 }
     volumes: [data:/data, secrets:/data/secrets:ro]
     depends_on: { init: { condition: service_completed_successfully } }
-    mem_limit: 160m
+    mem_limit: 192m
 
   # RSS-Bridge (plan/41), pinned by digest, only the catalogued bridges enabled. It reaches the
   # internet only through egress: its requests go to the proxy and its name lookups to egress's

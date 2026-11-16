@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { bridgeRoutePath, parseBridgeDescriptor } from "@purss/connectors";
+import { bridgeRoutePath, parseBridgeDescriptor, trimRoutePath } from "@purss/connectors";
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/;
 
@@ -47,6 +47,9 @@ export class EngineUserSecrets {
   }
 }
 
+/** Where the engine reaches the feed gateway (through the egress proxy's internal alias, which every installation has). */
+export const DEFAULT_GATEWAY_ENGINE_URL = "http://feed-gateway.internal:8947";
+
 const SECRET_REF = /^secret:source-urls\/(src_[0-9a-z]{26})$/;
 
 /** Where the engine reaches the bridge router (through the egress proxy's internal alias). */
@@ -71,6 +74,16 @@ export function resolveFeedUrl(secretsDir: string, feedUrl: string, bridgeEngine
   const m = SECRET_REF.exec(feedUrl);
   if (!m) return null;
   return readSecretFile(path.join(secretsDir, "source-urls", m[1]!));
+}
+
+/**
+ * The address the engine follows for a big feed (plan/44): the gateway's address for it, signed with <secrets>/feed-trim-key, which
+ * only the worker and the gateway hold. The source's own address is not changed. Null when this installation has no key.
+ */
+export function trimmedEngineUrl(secretsDir: string, feedUrl: string, gatewayEngineUrl: string = DEFAULT_GATEWAY_ENGINE_URL): string | null {
+  const key = readSecretFile(path.join(secretsDir, "feed-trim-key"));
+  if (!key || !/^https?:\/\//i.test(feedUrl)) return null;
+  return `${gatewayEngineUrl.replace(/\/+$/, "")}${trimRoutePath(key, feedUrl)}`;
 }
 
 function readSecretFile(file: string): string | null {

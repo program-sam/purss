@@ -17,6 +17,7 @@ import type { BridgeTarget } from "./bridges.ts";
 import { noFeedPlatform } from "./platforms.ts";
 import { PRIVATE_URL_WARNING, privateUrlReason, redactUrl } from "./privacy.ts";
 import { safeFetch } from "./safe-fetch.ts";
+import { TRIM_FEED_BYTES, TRIM_FEED_ITEMS, countFeedItems } from "./trimmed.ts";
 import type { PhaseTimeouts, Resolver, SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
 import { cleanLine, htmlToText } from "./text.ts";
 import { SOCIAL_NOTE, SOCIAL_ORIGIN, blueskyTitle, classifySocialInput, looksLikeProfilePath, looksLikeSocialPostPath, platformForFeed } from "./social.ts";
@@ -38,7 +39,11 @@ import {
  * (FreshRSS does that); every request goes through safeFetch.
  */
 
-export type DraftCandidate = Omit<DiscoveryCandidate, "token">;
+/**
+ * A found feed before it is held behind a token. `large`: the feed is bigger than the engine can read whole (`TRIM_FEED_BYTES` or `TRIM_FEED_ITEMS`), so
+ * it is followed through the feed gateway; the person is not shown it (plan/44).
+ */
+export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { large?: boolean };
 export type DiscoveryDraft = { ok: true; url: string; candidates: DraftCandidate[]; keep?: KeepOffer } | Extract<DiscoveryResult, { ok: false }>;
 type Failure = Extract<DiscoveryResult, { ok: false }>;
 
@@ -70,8 +75,10 @@ export type DiscoverOptions = {
 export type BridgeClient = (target: BridgeTarget, signal: AbortSignal) => Promise<{ status: number; body: Uint8Array } | { failed: true }>;
 
 const MAX_CANDIDATES = 8;
-const PAGE_MAX_BYTES = 4 * 1024 * 1024;
-const FEED_MAX_BYTES = 4 * 1024 * 1024;
+/** A pasted address is read this far before it is known to be a page or a feed; a feed read from it is cut at the same size as any other (FEED_MAX_BYTES). */
+const PAGE_MAX_BYTES = TRIM_FEED_BYTES;
+/** A feed is read up to this much: the size from which it goes through the feed gateway, so a preview that was cut short knows that. */
+const FEED_MAX_BYTES = TRIM_FEED_BYTES;
 const PROBE_PATHS = SITE_FEED_PATHS;
 const FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/feed+json, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.8, */*;q=0.5";
 
@@ -126,6 +133,14 @@ function makeCtx(opts: DiscoverOptions): Ctx {
       return result;
     },
   };
+}
+
+/**
+ * Whether a feed as far as it was read is too big for the engine to read whole (plan/44): the read stopped at FEED_MAX_BYTES (a body cut there
+ * is a feed larger than that), or what was read has more than TRIM_FEED_ITEMS items.
+ */
+function tooBigForEngine(r: { truncated: boolean; body: Uint8Array }): boolean {
+  return r.truncated || countFeedItems(r.body) > TRIM_FEED_ITEMS;
 }
 
 function fail(url: string, reason: Failure["reason"], message: string): Failure {
@@ -283,6 +298,8 @@ function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ct
     alreadyFollowingSourceId: null,
     privateWarning: privateUrlReason(feedUrl) ? PRIVATE_URL_WARNING : null,
     ...(overrides.note ? { note: overrides.note } : {}),
+    // The gateway trims RSS, Atom and RDF; a JSON Feed is read by the engine as it is.
+    ...(feed.large && feed.format !== "jsonfeed" ? { large: true } : {}),
   };
 }
 
@@ -333,7 +350,7 @@ async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedire
   const kind = sniffContent(r.body, r.contentType);
   if (!isFeedKind(kind)) return { failed: null, away };
   try {
-    return { feedUrl: stableFeedUrl(start, r.url), parsed: parseFeed(r.body, r.contentType, { baseUrl: r.url }) };
+    return { feedUrl: stableFeedUrl(start, r.url), parsed: { ...parseFeed(r.body, r.contentType, { baseUrl: r.url }), ...(tooBigForEngine(r) ? { large: true } : {}) } };
   } catch (error) {
     if (error instanceof FeedParseError) return { failed: null };
     throw error;
@@ -808,7 +825,7 @@ async function discoverAddress(ctx: Ctx, url: string, httpFallback: string | nul
   if (isFeedKind(kind)) {
     let parsed: ParsedFeed;
     try {
-      parsed = parseFeed(response.body, response.contentType, { baseUrl: response.url });
+      parsed = { ...parseFeed(response.body, response.contentType, { baseUrl: response.url }), ...(tooBigForEngine(response) ? { large: true } : {}) };
     } catch (error) {
       if (error instanceof FeedParseError) {
         return fail(inputUrl, "invalid", error.code === "toolarge" ? "That feed is too large for us to read safely." : "That address looks like a feed, but we couldn't read it. The feed may be damaged.");

@@ -2,16 +2,21 @@ import http from "node:http";
 import type { Logger } from "../proxy.ts";
 import { FEED_ID } from "./service.ts";
 import type { GatewayService } from "./service.ts";
+import type { TrimService } from "./trim-service.ts";
 
 /*
  * The engine-facing listener of the private feed gateway. It serves GET /feeds/<id>
- * and nothing else: no product, worker, admin or control routes exist here, and the
- * acknowledgement route lives only on the service-authenticated control listener.
- * Authentication is HTTP Basic (user name = feed id, password = revocable secret), the
- * form cURL, and therefore FreshRSS, can send.
+ * and GET /t/<signature>/<address> (a big feed, trimmed; plan/44) and nothing else: no
+ * product, worker, admin or control routes exist here, and the acknowledgement route lives
+ * only on the service-authenticated control listener.
+ * Authentication of /feeds is HTTP Basic (user name = feed id, password = revocable
+ * secret), the form cURL, and therefore FreshRSS, can send. A /t address is its own
+ * credential: the signature is made with the installation's feed-trim key, and anything
+ * unsigned is a 404.
  */
 
 const FEED_PATH = /^\/feeds\/([A-Za-z0-9_-]{8,64})$/;
+const TRIM_PATH = /^\/t\/([A-Za-z0-9_-]{43})\/([A-Za-z0-9_-]{1,4000})$/;
 const FAIL_LIMIT = 20;
 const FAIL_WINDOW_MS = 60_000;
 
@@ -24,19 +29,19 @@ function parseBasic(header: string | undefined): { user: string; pass: string } 
   return { user: decoded.slice(0, i), pass: decoded.slice(i + 1) };
 }
 
-export function createGatewayServer(service: GatewayService, opts: { log?: Logger; now?: () => number } = {}): http.Server {
+export function createGatewayServer(service: GatewayService, opts: { log?: Logger; now?: () => number; trim?: TrimService | null } = {}): http.Server {
   const log = opts.log ?? (() => {});
   const now = opts.now ?? Date.now;
   const failures = new Map<string, { count: number; resetAt: number }>();
 
-  const server = http.createServer({ maxHeaderSize: 8 * 1024, headersTimeout: 10_000, requestTimeout: 15_000, keepAliveTimeout: 2000 });
+  const server = http.createServer({ maxHeaderSize: 16 * 1024, headersTimeout: 10_000, requestTimeout: 15_000, keepAliveTimeout: 2000 });
   server.maxConnections = 128;
   server.on("clientError", (_e, socket) => {
     if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
     else socket.destroy();
   });
 
-  const send = (res: http.ServerResponse, status: number, headers: Record<string, string>, body: string) => {
+  const send = (res: http.ServerResponse, status: number, headers: Record<string, string>, body: string | Buffer) => {
     res.writeHead(status, { "content-length": Buffer.byteLength(body), connection: "close", ...headers });
     res.end(body);
   };
@@ -44,6 +49,21 @@ export function createGatewayServer(service: GatewayService, opts: { log?: Logge
   server.on("request", (req, res) => {
     const started = Date.now();
     const path = (req.url ?? "").split("?")[0] ?? "";
+    const trimMatch = TRIM_PATH.exec(path);
+    if (trimMatch && opts.trim) {
+      if (req.method !== "GET") {
+        send(res, 405, { allow: "GET", "content-type": "text/plain; charset=utf-8" }, "Method not allowed.\n");
+        return;
+      }
+      opts.trim
+        .serve(trimMatch[2]!, trimMatch[1]!)
+        .then((a) => send(res, a.status, a.headers, a.body))
+        .catch(() => {
+          log({ event: "gateway.error", route: "trim", status: 500 });
+          send(res, 500, { "content-type": "text/plain; charset=utf-8" }, "Internal error.\n");
+        });
+      return;
+    }
     const match = FEED_PATH.exec(path);
     if (!match) {
       send(res, 404, { "content-type": "text/plain; charset=utf-8" }, "Not found.\n");

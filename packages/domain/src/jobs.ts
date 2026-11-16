@@ -21,7 +21,8 @@ export type JobKind = (typeof JOB_KINDS)[number];
 
 export const jobPayloadSchemas = {
   "engine.provision": z.object({ engineUserId: z.string(), username: z.string() }),
-  "engine.subscribe": z.object({ engineUserId: z.string(), sourceId: z.string(), feedUrl: z.string(), title: z.string() }),
+  // trim: the feed is big (larger than the engine can read whole), so the engine is given the feed gateway's trimmed copy of it (plan/44).
+  "engine.subscribe": z.object({ engineUserId: z.string(), sourceId: z.string(), feedUrl: z.string(), title: z.string(), trim: z.boolean().optional() }),
   "engine.unsubscribe": z.object({ engineUserId: z.string(), streamId: z.string() }),
   "engine.rename": z.object({ engineUserId: z.string(), streamId: z.string(), title: z.string() }),
   "engine.sync": z.object({ engineUserId: z.string() }),

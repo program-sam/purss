@@ -92,7 +92,10 @@ Gateway hosts/routes are operator-fixed exceptions to internal-service egress ru
 not a general URL proxy. A gateway may share a process, but serves only feed-gateway
 routes on a dedicated internal listener/port. Only that listener is an engine egress
 exception; it has no product/worker/admin routes and no public reverse-proxy route.
-It still requires tenant/source authentication. Provider requests use declared destinations, redirect
+It still requires tenant/source authentication. (One route on it is not for a provider: `GET /t/<signature>/<address>` gives the
+engine a trimmed copy of a feed too big for it to read whole, [plan/44](44-big-feeds.md). It stores nothing and holds no
+credentials; the signature, made by the worker with an installation key the engine never holds, is its authentication, and it
+fetches only addresses this installation signed, through `safeFetch`.) Provider requests use declared destinations, redirect
 validation, response/resource limits, and secret isolation. Do not forward gateway
 credentials on redirects. Apply the same bounds to staging, engine backlog, cached
 payloads, product captures, and account storage; no unmetered parallel archive.

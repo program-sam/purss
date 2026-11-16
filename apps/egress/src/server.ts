@@ -12,6 +12,8 @@ import { createControlServer, loopbackHosts } from "./control.ts";
 import { createDnsServer } from "./dns.ts";
 import { createGatewayServer } from "./gateway/http.ts";
 import { GatewayService } from "./gateway/service.ts";
+import { TrimService } from "./gateway/trim-service.ts";
+import type { TrimServeOptions } from "./gateway/trim-service.ts";
 import type { GatewayAdapter } from "./gateway/types.ts";
 import { createProxyServer } from "./proxy.ts";
 import type { Logger } from "./proxy.ts";
@@ -34,12 +36,16 @@ export type StartDeps = {
   now?: () => number;
   /** TEST ONLY: replaces the RSS-Bridge backend of the bridge router. */
   bridgeBackends?: readonly BridgeBackend[];
+  /** TEST ONLY: limits of the trimming of big feeds. */
+  trimLimits?: TrimServeOptions;
 };
 
 export type RunningEgress = {
   ports: { proxy: number; gateway: number; control: number; bridge: number | null };
   stats: EgressStats;
   gateway: GatewayService;
+  /** The trimming of big feeds; null when this installation has no feed-trim key. */
+  trim: TrimService | null;
   bridgeLog: BridgeLog | null;
   stop: () => Promise<void>;
 };
@@ -89,7 +95,11 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
     bridgeLog?.close();
     if (dnsBound) dns?.close();
   };
-  const gatewayServer = createGatewayServer(gateway, { log: deps.log, now: deps.now });
+  // Big feeds (plan/44) are fetched with the same address rules as the proxy's: safeFetch, with the same in-process test allowances.
+  const trim = config.trimKey
+    ? new TrimService({ secret: config.trimKey, log: deps.log, now: deps.now, limits: deps.trimLimits, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver })
+    : null;
+  const gatewayServer = createGatewayServer(gateway, { log: deps.log, now: deps.now, trim });
   // The API reaches the listener at the address it is bound to (a private one in Compose), so a request addressed there is the
   // listener's own; any other name is refused.
   const controlHost = config.control.host.includes(":") ? `[${config.control.host.toLowerCase()}]` : config.control.host.toLowerCase();
@@ -128,6 +138,7 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
       ports: { proxy: proxyPort, gateway: gatewayPort, control: controlPort, bridge: bridgePort },
       stats,
       gateway,
+      trim,
       bridgeLog,
       stop: async () => {
         await Promise.all(started.map(close));

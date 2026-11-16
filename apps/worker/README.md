@@ -27,7 +27,7 @@ comes from the API (`GET /internal/engine-users/:id`), not from worker configura
 | Kind | What it does | Result |
 | --- | --- | --- |
 | `engine.provision` | stores a credential, creates the engine user (or resets its API password when it exists), logs in, reads the engine identity | `{engineUserId, username, engineIdentity, created}` |
-| `engine.subscribe` | quick-adds the feed; if the engine already has it, returns the existing stream | `{streamId, title, alreadySubscribed}` (title is the engine's discovered title; renaming is `engine.rename`) |
+| `engine.subscribe` | quick-adds the feed; if the engine already has it, returns the existing stream. A big feed (`trim` in the payload, from the follow's preview) is added at the feed gateway's signed address, and a plain feed the engine itself fails on (HTTP 500 or a dropped connection) is moved there when it really is that big (plan/44) | `{streamId, title, alreadySubscribed}`, plus `viaGateway: true` when the engine's subscription is the gateway's (title is the engine's discovered title; renaming is `engine.rename`) |
 | `engine.unsubscribe` | removes the subscription; an already-missing stream is success | `{streamId, removed}` |
 | `engine.rename` | renames the subscription; an unknown stream is a permanent failure | `{streamId, title}` |
 | `engine.sync` | walks the reading list forward from the stored checkpoint, one page per batch | `{pages, entries, accepted, duplicates, identityChanged, newestCrawlUsec}` |

@@ -22,6 +22,10 @@ export type FailureReason = "blocked" | "unreachable" | "toolarge" | "timeout" |
 export const USER_AGENT = "PURSS/0.1 (self-hosted feed reader)";
 export const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 export const HARD_MAX_BYTES = 32 * 1024 * 1024;
+/** The ceiling for a body that is read as a stream (`sink`) and never held whole. */
+export const HARD_STREAM_BYTES = 128 * 1024 * 1024;
+/** How much of an error answer is kept when the body of a successful one goes to a sink. */
+const SINK_ERROR_BYTES = 64 * 1024;
 export const MAX_REDIRECTS = 5;
 export const MAX_URL_LENGTH = 2048;
 
@@ -38,8 +42,16 @@ export type PhaseTimeouts = {
 
 export type Resolver = (hostname: string, signal?: AbortSignal) => Promise<string[]>;
 
+/**
+ * Reads the body of a successful (2xx) answer as it arrives instead of buffering it. It gets the decompressed bytes in order
+ * (a chunk is reused by the stream, so keep a copy of what must outlive the call) and answers "stop" once it has all it needs:
+ * the rest is then not downloaded, and the response says `truncated`. It must not throw. Answers that are not 2xx are still
+ * returned in `body` (their first 64 KiB), so a caller words them as before.
+ */
+export type BodySink = (chunk: Buffer) => "stop" | void;
+
 export type SafeFetchOptions = {
-  /** Cap on decompressed body bytes. Default 2 MiB, never above 32 MiB. */
+  /** Cap on decompressed body bytes. Default 2 MiB, never above 32 MiB (128 MiB when the body goes to a `sink`). */
   maxBytes?: number;
   /** Redirect hops followed. Default and ceiling 5. */
   maxRedirects?: number;
@@ -64,6 +76,11 @@ export type SafeFetchOptions = {
    * For previews that only need the start of a document, such as a very long podcast feed.
    */
   allowPartial?: boolean;
+  /**
+   * Read the body as a stream (see `BodySink`). A body that goes on past `maxBytes` fails as too large, as without a sink; a
+   * sink that stops early is not a failure. The response's `body` is then empty and `bytes` counts what the sink was given.
+   */
+  sink?: BodySink;
   /**
    * Send a POST with this body instead of a GET, for a fixed service the operator configured (the push
    * relay). Same address, connection, time and size rules; a POST never follows a redirect.
@@ -249,6 +266,7 @@ type Ctx = {
   resolver?: Resolver;
   tlsCa?: string | Buffer;
   allowPartial: boolean;
+  sink?: BodySink;
   headers: Record<string, string>;
   accept: string;
   post?: { body: string; contentType: string };
@@ -409,8 +427,12 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
         fail(new Failure("invalid", "That website sent a response we couldn't read.", "too many content encodings"));
         return;
       }
+      // With a sink only a successful answer streams to it; an error answer is read as a short buffered body.
+      const sinking = ctx.sink !== undefined && status >= 200 && status < 300;
+      const partial = sinking ? false : ctx.allowPartial || ctx.sink !== undefined;
+      const limit = ctx.sink !== undefined && !sinking ? Math.min(ctx.maxBytes, SINK_ERROR_BYTES) : ctx.maxBytes;
       const declared = Number(rawHeaders["content-length"]);
-      if (encodings.length === 0 && Number.isFinite(declared) && declared > ctx.maxBytes && !ctx.allowPartial) {
+      if (encodings.length === 0 && Number.isFinite(declared) && declared > limit && !partial) {
         fail(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `declared length ${declared} exceeds limit`));
         return;
       }
@@ -429,20 +451,28 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
       let truncated = false;
       const collector = new Writable({
         write(chunk: Buffer, _enc, cb) {
-          if (total + chunk.length > ctx.maxBytes) {
-            if (ctx.allowPartial) {
-              const room = ctx.maxBytes - total;
+          if (total + chunk.length > limit) {
+            if (partial) {
+              const room = limit - total;
               if (room > 0) chunks.push(chunk.subarray(0, room));
-              total = ctx.maxBytes;
+              total = limit;
               truncated = true;
               cb(new StopReading());
               return;
             }
-            cb(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `body exceeded ${ctx.maxBytes} bytes after decoding`));
+            cb(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `body exceeded ${limit} bytes after decoding`));
             return;
           }
           total += chunk.length;
-          chunks.push(chunk);
+          if (sinking) {
+            if (ctx.sink!(chunk) === "stop") {
+              truncated = true;
+              cb(new StopReading());
+              return;
+            }
+          } else {
+            chunks.push(chunk);
+          }
           cb();
         },
       });
@@ -465,7 +495,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
  * statuses are returned as responses (ok: true) so callers can word them.
  */
 export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Promise<SafeFetchResult> {
-  const maxBytes = Math.min(Math.max(1, opts.maxBytes ?? DEFAULT_MAX_BYTES), HARD_MAX_BYTES);
+  const maxBytes = Math.min(Math.max(1, opts.maxBytes ?? DEFAULT_MAX_BYTES), opts.sink ? HARD_STREAM_BYTES : HARD_MAX_BYTES);
   const maxRedirects = Math.min(Math.max(0, opts.maxRedirects ?? MAX_REDIRECTS), MAX_REDIRECTS);
   const totalMs = opts.timeoutMs ?? 20_000;
   const controller = new AbortController();
@@ -482,6 +512,7 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
     resolver: opts.resolver,
     tlsCa: opts.testTlsCa,
     allowPartial: opts.allowPartial === true,
+    sink: opts.sink,
     headers: opts.headers ?? {},
     accept: opts.accept ?? "*/*",
     post: opts.post,

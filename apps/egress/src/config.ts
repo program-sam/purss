@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { join, resolve } from "node:path";
 import { classifyAddress } from "@purss/connectors";
@@ -35,6 +35,11 @@ export type EgressConfig = {
   } | null;
   dataDir: string;
   serviceToken: string;
+  /**
+   * The key that signs the addresses of big feeds the gateway trims (plan/44), or null when this installation has none: the
+   * gateway then answers no such address and the product follows a big feed no differently from before.
+   */
+  trimKey: string | null;
   gatewayDbPath: string;
   internalDestinations: InternalDestination[];
   limits: {
@@ -97,6 +102,12 @@ export function parseInternalDestinations(value: string | undefined): InternalDe
     out.push({ host: m[1]!.toLowerCase(), port, connectHost, connectPort });
   }
   return out;
+}
+
+/** A secret file that may be absent (null); present, it must be long enough to be a key. */
+function readOptionalSecret(path: string, what: string): string | null {
+  if (!existsSync(path)) return null;
+  return readSecret(path, what);
 }
 
 function readSecret(path: string, what: string): string {
@@ -176,6 +187,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
     bridge,
     dataDir,
     serviceToken: readSecret(tokenPath, "service token"),
+    trimKey: readOptionalSecret(env.EGRESS_TRIM_KEY_FILE || join(dataDir, "secrets", "feed-trim-key"), "feed-trim key"),
     gatewayDbPath: env.EGRESS_GATEWAY_DB || join(dataDir, "egress", "gateway.db"),
     internalDestinations,
     limits: {

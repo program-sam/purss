@@ -68,6 +68,8 @@ const config = loadConfig();
 ensureDir(config.secretsDir);
 ensureSecret(config.secretsDir, "service-token");
 ensureSecret(config.secretsDir, "bridge-key");
+// Signs the gateway's addresses for big feeds (plan/44); egress and the worker read it.
+ensureSecret(config.secretsDir, "feed-trim-key");
 // The bridge (plan/41): RSS-Bridge in podman behind the egress router. Without it the stack runs and those services say they have no feeds.
 const bridgePort = Number(process.env.PURSS_BRIDGE_BACKEND_PORT ?? 8944);
 if (!Number.isInteger(bridgePort) || bridgePort < 1 || bridgePort > 65535) {

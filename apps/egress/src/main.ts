@@ -31,6 +31,7 @@ async function main(): Promise<void> {
     gateway: `${config.gateway.host}:${running.ports.gateway}`,
     control: `${config.control.host}:${running.ports.control}`,
     bridge: config.bridge ? `${config.bridge.host}:${running.ports.bridge}` : null,
+    trim: running.trim !== null,
     internalDestinations: config.internalDestinations.map((d) => `${d.host}:${d.port}`).join(","),
   });
   let stopping = false;

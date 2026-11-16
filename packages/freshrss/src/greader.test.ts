@@ -197,5 +197,10 @@ test("a site's rate limit and an overlarge feed are told apart from permanent re
   assert.equal(quickAddFailure('unsupported status code "403"').reason, "refused");
   assert.equal(quickAddFailure("cURL error 63: Maximum file size exceeded").reason, "too_large");
   assert.equal(quickAddFailure("cURL error 63: Maximum file size exceeded").retryable, false);
+  // The feed gateway answers 413 for a feed it cannot make small enough; the engine words it as one of its HTTP errors.
+  for (const message of ["HTTP 413 Payload Too Large!", 'unsupported status code "413"', "returned error: 413"]) {
+    const e = quickAddFailure(message, "http://feed-gateway.internal:8947/t/sig/aHR0cHM6Ly9leGFtcGxl");
+    assert.deepEqual([e.reason, e.retryable, e.kind], ["too_large", false, "rejected"], message);
+  }
   assert.equal(quickAddFailure("Feed could not be parsed").reason, "not_a_feed");
 });

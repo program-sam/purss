@@ -48,6 +48,8 @@ export type ParsedFeed = {
   /** The feed provides only short excerpts, so reading the full text needs the original page. */
   summariesOnly: boolean;
   warnings: string[];
+  /** Set by discovery, which knows how much of the document it read: the document was larger than `TRIM_FEED_BYTES` or has more than `TRIM_FEED_ITEMS` items (see trimmed.ts). */
+  large?: boolean;
 };
 
 export class FeedParseError extends Error {

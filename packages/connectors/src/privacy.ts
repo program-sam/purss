@@ -78,6 +78,8 @@ export function redactUrl(raw: string): string {
     if (TOKENISH_SEGMENT.test(s) || /^[0-9a-f]{20,}$/i.test(s) || SECRET_PATH_HINT.test(prev) || AMBIGUOUS_PATH_HINT.test(prev)) return "…";
     // The bridge router's signature (/b/<service>/<key>/<signature>, plan/41), whatever characters it happens to have.
     if (i === 4 && all.length === 5 && all[1] === "b" && /^[A-Za-z0-9_-]{43}$/.test(s)) return "…";
+    // The feed gateway's signature and address (/t/<signature>/<address>, plan/44): the address is the feed's own, base64 of it, private links included.
+    if ((i === 2 || i === 3) && all.length === 4 && all[1] === "t" && /^[A-Za-z0-9_-]{43}$/.test(all[2]!) && /^[A-Za-z0-9_-]+$/.test(s)) return "…";
     return s.length > 80 ? `${s.slice(0, 20)}…` : s;
   });
   const tail = url.search ? "?…" : "";

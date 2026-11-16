@@ -291,6 +291,8 @@ export function quickAddFailure(message: string, url = ""): EngineError {
   if (status) {
     const code = Number(status);
     if (code === 429) return new EngineError("rate_limited", "The feed's server is limiting requests (HTTP 429); this will be retried with a delay.", { retryable: true, reason: "rate_limited" });
+    // The feed gateway's answer for a feed it can't make small enough (plan/44): above its ceiling, or its channel alone is huge.
+    if (code === 413) return new EngineError("rejected", "The feed is larger than the engine will read, even trimmed.", { retryable: false, reason: "too_large" });
     if (code >= 500) return new EngineError("unavailable", `The feed's server is not answering properly (HTTP ${code}); this will be retried.`, { retryable: true, reason: "unavailable" });
     if (code === 403) return new EngineError("rejected", "The feed's server, or the egress policy, refused the request (HTTP 403).", { retryable: false, reason: "refused" });
     if (code === 404 && isYoutubeFeed(url)) return new EngineError("unavailable", "YouTube didn't hand out this channel's feed just now (HTTP 404); this will be retried.", { retryable: true, reason: "unavailable" });

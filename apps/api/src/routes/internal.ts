@@ -50,7 +50,7 @@ export function internalRouter(app: App): Router<{ app: App }> {
     app.db.tx(() => {
       if (job.kind === "engine.subscribe") {
         const streamId = z.string().min(1).parse(result.streamId);
-        onSubscribed(app, String(payload.sourceId), streamId, { empty: result.empty === true });
+        onSubscribed(app, String(payload.sourceId), streamId, { empty: result.empty === true, viaGateway: result.viaGateway === true });
       } else if (job.kind === "engine.provision") {
         app.db.run("UPDATE engine_users SET status = 'ready', engine_identity = COALESCE(engine_identity, ?) WHERE id = ?",
           typeof result.engineIdentity === "string" ? result.engineIdentity : null, String(payload.engineUserId));

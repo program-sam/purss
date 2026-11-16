@@ -24,6 +24,8 @@ ensureSecret(secrets, "service-token");
 ensureSecret(secrets, "engine-helper-token");
 // Signs the engine's bridge addresses (plan/41); egress, the API and the worker read it.
 ensureSecret(secrets, "bridge-key");
+// Signs the gateway's addresses for big feeds (plan/44); egress and the worker read it, never the engine.
+ensureSecret(secrets, "feed-trim-key");
 const adminFile = path.join(secrets, "engine-admin");
 if (!existsSync(adminFile)) {
   writeFileSync(adminFile, JSON.stringify({ username: "purss-engine-admin", password: randomHex(16), apiPassword: randomHex(16) }, null, 2) + "\n", { mode: 0o600 });
@@ -46,8 +48,10 @@ for (const [name, body] of [
   writeFileSync(file, body, { mode: 0o640 });
   chownSync(file, WWW_DATA, WWW_DATA);
 }
-chownSync(path.join(secrets, "bridge-key"), NODE, NODE);
-chmodSync(path.join(secrets, "bridge-key"), 0o600);
+for (const f of ["bridge-key", "feed-trim-key"]) {
+  chownSync(path.join(secrets, f), NODE, NODE);
+  chmodSync(path.join(secrets, f), 0o600);
+}
 chownSync(path.join(secrets, "service-token"), NODE, NODE);
 chmodSync(path.join(secrets, "service-token"), 0o600);
 for (const f of ["engine-helper-token", "engine-admin"]) {

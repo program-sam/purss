@@ -6,7 +6,7 @@ way private service feeds and bridged sources reach the engine.
 
 ```text
 FreshRSS container ──► proxy listener   127.0.0.1:8946   forward proxy, SSRF rules on every request
-                  └──► gateway listener 127.0.0.1:8947   GET /feeds/<id> only, Basic auth per feed
+                  └──► gateway listener 127.0.0.1:8947   GET /feeds/<id> (Basic auth per feed) and GET /t/<signature>/<address> (big feeds, trimmed)
                   └──► bridge router    127.0.0.1:8945   GET /b/<service>/<key>/<signature> only (through the proxy alias)
 API / worker ───────► control listener  127.0.0.1:8949   service token: status, gateway management, acknowledgement, bridge log
 RSS-Bridge ─────────► proxy + DNS on the bridge network  the same address rules; its only way out
@@ -124,6 +124,48 @@ OPML, and mark the source private. It is scoped to one feed, distinct from provi
 tokens, rotatable and revocable. A redirect from a public site to the alias carries no
 credential (cURL does not forward it across hosts).
 
+## Feed trimming (big feeds)
+
+A feed too big for the engine to read whole (tens of megabytes of repeated show notes; the engine parses it in PHP's 128 MB)
+is read here as a stream, and the engine is given a copy with only the newest items ([plan/44](../../plan/44-big-feeds.md)).
+FreshRSS stays the only ingestion engine: this serves it a smaller copy of the same public feed and never inserts anything.
+
+- Route: `GET /t/<signature>/<address>` on the gateway listener, where `<address>` is the feed's address in base64url and the
+  signature is an HMAC-SHA-256 of it under `<data>/secrets/feed-trim-key` (`EGRESS_TRIM_KEY_FILE`), made by the worker and
+  checked here. No stored state, no credentials per feed; anything unsigned or malformed is the same `404`. Without the key file
+  the route answers nothing.
+- Fetching is `safeFetch`'s (address, redirect, time and size rules; the same in-process test allowances), reading the body through
+  a `sink`, never buffered whole. `trim.ts` (`FeedTrimmer`) works on the bytes as Latin-1 text so every byte comes back as it
+  arrived, finds items by element structure (comments, CDATA and processing instructions are skipped) and keeps the channel's metadata
+  (everything before the first item) and the newest 100 items by their dates (`pubDate`, `dc:date`, `published`, `updated`).
+  The whole document is read, at most 64 MiB, whatever the order of its items: nothing in a feed says that the rest is older than
+  its first items, so the newest are kept in a bounded list as the items go past. Items over 1 MiB are left out whole; the kept items
+  stay under 4 MiB together (the oldest of them go first).
+- The copy is served from this listener's address, so its root element gets an `xml:base` with the address the feed was read from (after
+  redirects; a relative `xml:base` the root already had is resolved against it), and relative links keep resolving against the publisher.
+  Nothing else in the head and nothing in the items changes.
+- Bounded work: one fetch per feed at a time (concurrent requests share it), two fetches at once and sixteen waiting, then
+  `503` busy; after a failure the feed is left alone for a back-off (1 minute, doubling to 30), and a feed that answered before keeps its last
+  good answer while its host fails.
+- Reads are shared and conditional, since every refresh reads a feed to its end (The Daily is 20.7 MB). The trimmed answer is kept in memory per
+  upstream address, the whole address (a private feed's key included), so every account that follows a feed shares it and no address's answer is ever
+  given for another's: a request is checked against its signature before any answer is looked up. It is reused for ten minutes after it was made or
+  confirmed; then the publisher is asked with `If-None-Match` / `If-Modified-Since` from the ETag / Last-Modified of what is kept, and a `304` renews the
+  answer without reading the feed (log outcome `not_modified`). The answers kept weigh 8 MiB in all (body, address and validators; least recently used
+  out, validators with them) and 500 addresses at most.
+- A failure is never an empty feed: the feed's own `404`/`410`, `403` and `429` (with `Retry-After`) are passed on, `502`/`504` for an
+  unreachable, slow or broken host, `422` for something that is not a feed or has an encoding that can't be read (UTF-16), `413`
+  ("This feed is too large to follow") past the ceiling or when the channel's own details are huge, `403` for an address the rules refuse.
+- Memory: the process holds about 125 MiB idle in its 192 MiB container, and Node lets the garbage of a read (a buffer and a string for every
+  piece) pile up to tens of megabytes. A fetch is therefore collected explicitly: after each megabyte it reads past the first, and when it ends if it read
+  half a megabyte (`collectGarbage` in `trim-service.ts`, a few milliseconds each; every feed is read in full, so a big one is collected many times).
+  The measured peaks over idle, and what the answers kept cost, are in plan/44.
+- FreshRSS waits for the answer through the proxy, which gives an internal destination the whole request time
+  (`EGRESS_REQUEST_TIMEOUT_MS`) to begin answering instead of the connect timeout, because the gateway reads before it answers; FreshRSS's own
+  timeout is what a slow feed meets first. The engine's retry then finds the work done (answers are kept ten minutes, failures for the back-off).
+- The log line (`gateway.trim`) carries the feed's host, outcome, status, items kept and seen, bytes read, time and whether it was
+  cached, never the address; the proxy's log masks the path.
+
 ## Bridge router
 
 Turns the public pages of a few services without feeds into feeds through RSS-Bridge
@@ -176,6 +218,7 @@ address it is bound to, each with its port (browser DNS-rebinding guard), JSON b
 | `EGRESS_GATEWAY_HOST` / `_PORT` | `127.0.0.1` / `8947` |
 | `EGRESS_CONTROL_HOST` / `_PORT` | `127.0.0.1` / `8949` |
 | `EGRESS_GATEWAY_ALIAS` | `feed-gateway.internal` |
+| `EGRESS_TRIM_KEY_FILE` | `<data>/secrets/feed-trim-key` (none: no trimming) |
 | `EGRESS_BRIDGE_BACKEND` | none (no bridge router) |
 | `EGRESS_BRIDGE_HOST` / `_PORT` | `127.0.0.1` / `8945` |
 | `EGRESS_BRIDGE_ALIAS` | `feed-bridge.internal` |

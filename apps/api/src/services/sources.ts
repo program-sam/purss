@@ -148,10 +148,11 @@ function holdDraft(app: App, p: Principal, c: Parameters<typeof holdCandidate>[2
   const existing = followedSource(app, p, c.feedUrl);
   holdCandidate(token, p.workspaceId, c);
   const same = existing ? undefined : byName.get(coreName(c.title));
-  return { ...c, token, alreadyFollowingSourceId: existing?.id ?? null, sameNameSource: same ?? null };
+  const { large: _held, ...shown } = c; // how the engine will follow it is not the person's business
+  return { ...shown, token, alreadyFollowingSourceId: existing?.id ?? null, sameNameSource: same ?? null };
 }
 
-type Candidate = Omit<DiscoveryResult & { ok: true }, "ok" | "url">["candidates"][number];
+type Candidate = Omit<DiscoveryResult & { ok: true }, "ok" | "url">["candidates"][number] & { large?: boolean };
 
 /** For private sources keep only the site's origin: a feed's site link can carry the same secret. */
 function siteOrigin(url: string | null): string | null {
@@ -179,6 +180,9 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
   const fullText = input.fullText && fullTextAvailable({ kind: c.kind, is_private: isPrivate ? 1 : 0 });
   // What the feed already has is back catalogue: left out of Home and the counts from now on, or with its last week as New (see sync.ts arrivalOf).
   const startFrom = input.startFrom ?? "now";
+  // A feed the preview found bigger than the engine can read whole is followed through the feed gateway, which gives the engine a copy
+  // of its newest items (plan/44). The source keeps its own address; only what the engine is subscribed to differs.
+  const viaGateway = !isNews && c.large === true;
   try {
     app.db.tx(() => {
       assertRoom(app, p.accountId, "sources");
@@ -190,21 +194,21 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
         // (The posts stored the first time keep what they were; only what arrives now is the back catalogue of this follow.)
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
-             health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), id,
+             health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ? WHERE id = ?`,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), viaGateway ? 1 : 0, id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
         app.db.run(
-          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
-          isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", isNews ? "news" : null, nowIso(),
+          isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
       if (collectionId) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
-      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
+      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     });
   } catch (err) {
     // The link file was written inside the transaction; a source that was not made has no business keeping it (deletion lists only existing sources' files).
@@ -222,9 +226,11 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
  * Engine confirmed the subscription: remember its stream and pull the first items. `empty`: the engine, which fetches a feed
  * when it adds it, says that feed has nothing in it. That is evidence about this feed, so the source says "No posts yet"
  * now instead of "Getting the first items…" for ever; its first post (see applySyncBatch) makes it an ordinary source.
- * Without that word, nothing is claimed.
+ * Without that word, nothing is claimed. `viaGateway`: the engine's subscription is the feed gateway's copy of a feed too big for
+ * the engine to read whole (the worker moved it there when the engine failed on it, or the follow had chosen it): the source
+ * is marked, so a later subscription of it (a retry, a check of an empty feed) uses the gateway from the start.
  */
-export function onSubscribed(app: App, sourceId: string, streamId: string, evidence: { empty?: boolean } = {}): void {
+export function onSubscribed(app: App, sourceId: string, streamId: string, evidence: { empty?: boolean; viaGateway?: boolean } = {}): void {
   const s = app.db.get<{ account_id: string; workspace_id: string; followed: number }>("SELECT account_id, workspace_id, followed FROM sources WHERE id = ?", sourceId);
   if (!s) return;
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", s.account_id);
@@ -236,7 +242,8 @@ export function onSubscribed(app: App, sourceId: string, streamId: string, evide
   // A source that was waiting on a retry is following now; its first items are on the way.
   app.db.run(
     `UPDATE sources SET engine_stream_id = ?, subscribed_at = COALESCE(subscribed_at, ?), health = CASE WHEN health = 'error' THEN 'pending' ELSE health END,
-       health_text = CASE WHEN health = 'error' THEN 'Getting the first items…' ELSE health_text END WHERE id = ?`, streamId, nowIso(), sourceId);
+       health_text = CASE WHEN health = 'error' THEN 'Getting the first items…' ELSE health_text END, via_gateway = CASE WHEN ? THEN 1 ELSE via_gateway END WHERE id = ?`,
+    streamId, nowIso(), evidence.viaGateway === true ? 1 : 0, sourceId);
   if (evidence.empty === true) {
     app.db.run("UPDATE sources SET health = 'quiet', health_text = ? WHERE id = ? AND health = 'pending' AND NOT EXISTS (SELECT 1 FROM items WHERE items.source_id = sources.id)", NO_POSTS_YET, sourceId);
   }
@@ -256,8 +263,8 @@ export function onSubscribeFailed(app: App, sourceId: string, message: string): 
  * Nothing else can be retried from here: a source that is working has nothing to retry.
  */
 export function retrySource(app: App, p: Principal, id: string): SourceDTO {
-  const s = app.db.get<{ title: string; feed_url: string | null; is_private: number; health: string; engine_stream_id: string | null }>(
-    "SELECT title, feed_url, is_private, health, engine_stream_id FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
+  const s = app.db.get<{ title: string; feed_url: string | null; is_private: number; health: string; engine_stream_id: string | null; via_gateway: number }>(
+    "SELECT title, feed_url, is_private, health, engine_stream_id, via_gateway FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
   if (!s) throw notFound("That source");
   if (s.engine_stream_id || s.health !== "error") throw badRequest("This source is working, so there is nothing to retry.", "not_failed");
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
@@ -267,7 +274,7 @@ export function retrySource(app: App, p: Principal, id: string): SourceDTO {
   app.db.tx(() => {
     app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
     // The same key re-arms the finished job; one still waiting for its next try is brought forward.
-    const jobId = enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl, title: s.title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
+    const jobId = enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl, title: s.title, ...(s.via_gateway ? { trim: true } : {}) }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     app.db.run("UPDATE jobs SET run_after = ?, updated_at = ? WHERE id = ? AND status = 'queued' AND run_after > ?", nowIso(), nowIso(), jobId, nowIso());
   });
   emit(app, p.accountId, { type: "source", sourceId: id });
@@ -444,8 +451,8 @@ export const EMPTY_CHECK_AFTER_SECONDS = 600;
  * is already subscribed, and the answer carries what the feed holds (see engine.subscribe). The job's key remembers that it was asked.
  */
 export function checkEmptyFeeds(app: App): void {
-  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; workspace_id: string; eu: string }>(
-    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, eu.id AS eu
+  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; via_gateway: number; account_id: string; workspace_id: string; eu: string }>(
+    `SELECT s.id, s.title, s.feed_url, s.is_private, s.via_gateway, s.account_id, s.workspace_id, eu.id AS eu
      FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
      WHERE s.followed = 1 AND s.kind <> 'manual' AND s.health = 'pending' AND s.engine_stream_id IS NOT NULL AND s.subscribed_at <= ?
        AND NOT EXISTS (SELECT 1 FROM items i WHERE i.source_id = s.id)
@@ -455,7 +462,7 @@ export function checkEmptyFeeds(app: App): void {
     const feedUrl = s.is_private ? `secret:source-urls/${s.id}` : s.feed_url;
     if (!feedUrl) continue;
     try {
-      enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `empty-check:${s.id}` });
+      enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title, ...(s.via_gateway ? { trim: true } : {}) }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `empty-check:${s.id}` });
     } catch (err) {
       // An account that is suspended or being deleted starts nothing; it is looked at again when it is usable.
       if (!(err instanceof HttpError)) throw err;

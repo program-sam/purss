@@ -20,7 +20,7 @@ How the parts fit together today. Rationale and alternatives are in the plan:
                           GReader API + fixed admin ops│
                                                       ▼
  internet ◄── egress proxy :8946 ◄── all fetches ── FreshRSS (no other route out)
-              feed gateway :8947 ──► FreshRSS (private feeds; no adapters registered)
+              feed gateway :8947 ──► FreshRSS (big feeds, trimmed to their newest items; private feeds: no adapters registered)
               bridge router :8945 ──► FreshRSS (via the proxy alias) and api previews; asks RSS-Bridge
               control :8949 ◄── api (status, bridge fetch log)
  internet ◄── egress proxy + DNS (bridge network) ◄── RSS-Bridge (no other route out)
@@ -33,7 +33,7 @@ How the parts fit together today. Rationale and alternatives are in the plan:
 | Website | `apps/site` | Static public website, served by the API at `/` in hosted mode; self-hosted, `/` opens the app |
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
 | Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture and media downloads; never opens the database |
-| Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; private feed gateway; bridge router and its fetch log; control listener |
+| Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds; private service feeds, none registered); bridge router and its fetch log; control listener |
 | RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music) into feeds; pinned upstream image, only the catalogued bridges enabled |
 | FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
 | Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
@@ -83,6 +83,18 @@ router answers nothing a feed could redirect FreshRSS to. The router asks RSS-Br
 per source at a time, four at once, ten-minute cache, back-off after failures), gives every entry
 the post's own id (`telegram:durov/552`) so a backend change keeps items, never serves a failure
 as an empty feed, and records each answer in the fetch log the Service health page reads.
+
+**Big feeds** ([plan/44](../plan/44-big-feeds.md)). FreshRSS parses a feed whole in PHP's 128 MB limit and the
+largest podcast feeds are tens of megabytes, so a feed larger than 4 MiB (what discovery reads before it knows
+its size) or with more than 1,000 items is followed through the egress feed gateway: `GET /t/<HMAC>/<address>` on the gateway listener, where
+egress's `TrimService` streams the feed through `safeFetch` (a `sink` reads the body without buffering it),
+`FeedTrimmer` reads the feed to its end and keeps the channel's metadata and the newest 100 items byte for byte, and FreshRSS gets that copy
+(its root element carrying an `xml:base` of the publisher's address, so relative links keep resolving there). The trimmed answer is kept in memory per upstream address and
+shared by every account that follows the feed, and a stale one is renewed with a conditional request (`304`) rather than a second full read.
+The source row keeps the feed's own address and a flag (`sources.via_gateway`); only the worker turns the job's
+`trim` instruction into the signed gateway address, under `secrets/feed-trim-key`. A subscription the engine itself fails on
+(an HTTP 500 or a dropped connection, with no reason about the feed's site) is checked by the worker and moved to the gateway when the feed really is that big
+(imports, retries, subscriptions made before this); a feed beyond the gateway's ceiling is *too large to follow*.
 
 **Collecting items.** FreshRSS refreshes feeds on its cron (minutes 3, 18, 33, 48), fetching
 through egress. The API's maintenance tick (every 15 s) enqueues an `engine.sync` per account

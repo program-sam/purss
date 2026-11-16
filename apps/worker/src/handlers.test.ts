@@ -12,12 +12,13 @@ import { createLogger } from "./log.ts";
 import { JobFailure, SETTLED, classify } from "./runner.ts";
 import type { JobHandler } from "./runner.ts";
 import { EngineUserSecrets } from "./secrets.ts";
+import { trimRoutePath } from "@purss/connectors";
 import { FakeInternalApi } from "./testing/fake-internal-api.ts";
 
 const quiet = createLogger(() => {});
 const T0 = 1_762_000_000n;
 
-async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: IconFn; looksLikeFeed?: HandlerDeps["looksLikeFeed"]; makeClient?: HandlerDeps["makeClient"]; deleteUser?: (username: string) => Promise<void> } = {}) {
+async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: IconFn; looksLikeFeed?: HandlerDeps["looksLikeFeed"]; isLargeFeed?: HandlerDeps["isLargeFeed"]; makeClient?: HandlerDeps["makeClient"]; deleteUser?: (username: string) => Promise<void> } = {}) {
   const engine = new FakeEngine();
   engine.users.set("eng_user", "known-api-password-0123456789");
   const engineSrv = await engine.listen();
@@ -53,6 +54,7 @@ async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: 
     ...(opts.pictures ? { pictures: opts.pictures } : {}),
     ...(opts.icon ? { icon: opts.icon } : {}),
     ...(opts.looksLikeFeed ? { looksLikeFeed: opts.looksLikeFeed } : {}),
+    ...(opts.isLargeFeed ? { isLargeFeed: opts.isLargeFeed } : {}),
     syncPageSize: 10,
     syncOverlapSeconds: 0,
     syncMaxBatchBytes: 700_000,
@@ -308,6 +310,151 @@ test("without a way to check the preview the engine's refusal of a feed's type s
     assert.ok(err instanceof EngineError && err.reason === "not_a_feed");
     assert.equal(broken.engine.feeds.length, 0);
   } finally { await broken.close(); }
+});
+
+const TRIM_KEY = "g".repeat(43);
+const gatewayAddress = (feedUrl: string) => `http://feed-gateway.internal:8947${trimRoutePath(TRIM_KEY, feedUrl)}`;
+
+test("a follow decided from its preview as big gives the engine the gateway's signed address; the source's own address is not the engine's", async () => {
+  const t = await setup();
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    const url = "https://feeds.example/bigfeed/the-daily";
+    const r = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "The Daily", trim: true });
+    assert.equal(r.viaGateway, true);
+    assert.equal(r.alreadySubscribed, false);
+    assert.deepEqual(t.engine.feeds.map((f) => f.url), [gatewayAddress(url)], "the engine holds the gateway's address and never the feed's own");
+    assert.ok(t.engine.requests.every((q) => !(q.form?.get("quickadd") ?? "").includes("the-daily") || (q.form?.get("quickadd") ?? "").includes("/t/")));
+    // Subscribing again (a retry, the empty-feed check) finds the same subscription by the same address.
+    const again = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "The Daily", trim: true });
+    assert.deepEqual([again.alreadySubscribed, again.viaGateway, again.streamId], [true, true, r.streamId]);
+    assert.equal(t.engine.feeds.length, 1);
+  } finally { await t.close(); }
+});
+
+test("a private link that is big goes through the gateway too, and its link stays in the secrets folder, not in the job", async () => {
+  const t = await setup();
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    const id = "src_0000000000aaaaaaaaaaaaaaaa";
+    mkdirSync(path.join(t.dir, "source-urls"));
+    const link = "https://patreon.example/rss/bigfeed?auth=s3cret";
+    writeFileSync(path.join(t.dir, "source-urls", id), `${link}\n`);
+    const r = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: id, feedUrl: `secret:source-urls/${id}`, title: "Patrons", trim: true });
+    assert.equal(r.viaGateway, true);
+    assert.deepEqual(t.engine.feeds.map((f) => f.url), [gatewayAddress(link)]);
+  } finally { await t.close(); }
+});
+
+test("without the key, a big feed is refused plainly as too large, never as a site that doesn't answer", async () => {
+  const t = await setup({ isLargeFeed: async () => true });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    for (const trim of [true, undefined]) {
+      const err = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://feeds.example/bigfeed/a", title: "x", ...(trim ? { trim } : {}) }).catch((e: unknown) => e);
+      assert.ok(err instanceof JobFailure, String(err));
+      assert.deepEqual([classify(err).reason, classify(err).retryable], ["too_large", false]);
+    }
+    assert.equal(t.engine.feeds.length, 0);
+  } finally { await t.close(); }
+});
+
+test("a subscription the engine fails on with its own HTTP 500 is moved to the gateway when the feed really is big, and only then", async () => {
+  const asked: string[] = [];
+  let big: boolean | null = true;
+  const t = await setup({ isLargeFeed: async (url) => { asked.push(url); return big; } });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    const url = "https://feeds.example/bigfeed/old-subscription";
+    const moved = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x" });
+    assert.equal(moved.viaGateway, true);
+    assert.deepEqual(asked, [url], "the size is asked about the feed's own address");
+    assert.deepEqual(t.engine.feeds.map((f) => f.url), [gatewayAddress(url)]);
+    // A feed that is not big (the engine failed for another reason), or whose size can't be asked, keeps the engine's failure.
+    for (const answer of [false, null] as const) {
+      big = answer;
+      const other = `https://feeds.example/bigfeed/other-${answer}`;
+      const err = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s2", feedUrl: other, title: "x" }).catch((e: unknown) => e);
+      assert.ok(err instanceof EngineError && err.kind === "unavailable" && err.status === 500, String(err));
+    }
+    assert.equal(t.engine.feeds.length, 1);
+    // An ordinary feed never touches the gateway or asks about its size.
+    asked.length = 0;
+    const plain = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s3", feedUrl: "https://example.org/plain.xml", title: "x" });
+    assert.equal(plain.viaGateway, undefined);
+    assert.deepEqual(asked, []);
+    // The engine saying it could not reach the feed (a network error in its answer) is not the engine's own failure.
+    asked.length = 0;
+    const flaky = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s4", feedUrl: "https://example.org/flaky.xml", title: "x" }).catch((e: unknown) => e);
+    assert.ok(flaky instanceof EngineError && flaky.kind === "unavailable");
+    assert.deepEqual(asked, []);
+  } finally { await t.close(); }
+});
+
+test("a bridged source never goes through the trimming gateway, and a feed that is already trimmed is not asked about its size again", async () => {
+  const asked: string[] = [];
+  const t = await setup({ isLargeFeed: async (url) => { asked.push(url); return true; } });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    writeFileSync(path.join(t.dir, "bridge-key"), `${"q".repeat(43)}\n`);
+    const r = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "bridge:telegram/durov", title: "x", trim: true });
+    assert.equal(r.viaGateway, undefined);
+    assert.ok(t.engine.feeds[0]!.url.startsWith("http://feed-bridge.internal:8945/b/telegram/durov/"));
+    // The engine failing with its own 500 on the gateway's copy is not retried through the gateway again, and is about the feed's
+    // content, not its site: the source says it is too large, not that the site isn't answering.
+    t.engine.failNext = { status: 500, remaining: 1 };
+    const err = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s2", feedUrl: "https://feeds.example/bigfeed/x", title: "x", trim: true }).catch((e: unknown) => e);
+    assert.ok(err instanceof JobFailure, String(err));
+    assert.deepEqual([classify(err).reason, classify(err).retryable], ["too_large", false]);
+    assert.deepEqual(asked, []);
+  } finally { await t.close(); }
+});
+
+test("an engine that drops the connection on a subscription is treated like one that answers HTTP 500, and checked the same way", async () => {
+  const asked: string[] = [];
+  let reset = true;
+  const t = await setup({
+    isLargeFeed: async (url) => { asked.push(url); return true; },
+    makeClient: (args) => {
+      const client = defaultMakeClient(3000)(args);
+      const quickAdd = client.quickAdd.bind(client);
+      // The engine's process is killed under the request: the answer never comes (the client's own word for it is "unavailable", no reason, no status).
+      client.quickAdd = async (url, o) => {
+        if (reset && !url.includes("/t/")) throw new EngineError("unavailable", "The engine did not answer.", { retryable: true });
+        return quickAdd(url, o);
+      };
+      return client;
+    },
+  });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    const url = "https://feeds.example/big/plain-feed";
+    const moved = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x" });
+    assert.equal(moved.viaGateway, true);
+    assert.deepEqual(asked, [url]);
+    // The same drop on the gateway's copy is the engine's trouble, not the feed's: it stays a retryable failure.
+    reset = true;
+    const gone = new EngineError("unavailable", "The engine did not answer.", { retryable: true });
+    const t2 = await setup({ isLargeFeed: async () => true, makeClient: (args) => { const c = defaultMakeClient(3000)(args); c.quickAdd = async () => { throw gone; }; return c; } });
+    try {
+      t2.secrets.ensure("eu1");
+      t2.engine.users.set("eng_user", t2.secrets.read("eu1")!);
+      writeFileSync(path.join(t2.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+      const err = await t2.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x", trim: true }).catch((e: unknown) => e);
+      assert.equal(err, gone);
+    } finally { await t2.close(); }
+  } finally { await t.close(); }
 });
 
 /** Engine users eu2.. with their own credentials, next to the harness's eu1, so several accounts can act at once. */

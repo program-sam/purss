@@ -11,7 +11,7 @@ import type { Logger } from "./log.ts";
 import { JobAborted, JobFailure, KeyedLock, SETTLED } from "./runner.ts";
 import type { Handlers, HandlerArgs } from "./runner.ts";
 import type { EngineUserSecrets } from "./secrets.ts";
-import { resolveFeedUrl } from "./secrets.ts";
+import { resolveFeedUrl, trimmedEngineUrl } from "./secrets.ts";
 
 /** What `captureReadable` from `@purss/connectors` returns. */
 export type CaptureResult =
@@ -41,6 +41,8 @@ export type HandlerDeps = {
   secretsDir: string;
   /** Where the engine reaches the bridge router; see resolveFeedUrl. */
   bridgeEngineUrl?: string;
+  /** Where the engine reaches the feed gateway, which trims big feeds (plan/44); see trimmedEngineUrl. */
+  gatewayEngineUrl?: string;
   admin: Pick<EngineAdmin, "ensureUser" | "engineIdentity" | "userExists" | "deleteUser">;
   log: Logger;
   makeClient: (args: { baseUrl: string; username: string; apiPassword: string; signal: AbortSignal }) => EngineClient;
@@ -54,6 +56,12 @@ export type HandlerDeps = {
    * Absent: the engine's refusal stands.
    */
   looksLikeFeed?: (url: string, opts: { signal: AbortSignal }) => Promise<boolean>;
+  /**
+   * Whether an address answers with a document larger than the engine can read whole (`isLargeFeed`; null: could not be asked). Asked only
+   * when the engine itself fails on a subscription (its out-of-memory answer): a feed that is that big is then followed through the feed
+   * gateway. Absent: the engine's failure stands.
+   */
+  isLargeFeed?: (url: string, opts: { signal: AbortSignal }) => Promise<boolean | null>;
   /** Absent when the connectors package does not provide icon lookup; such jobs are then not leased at all. */
   icon?: IconFn;
   /** Jev for Smart filters (plan/36): the operator's address (keys are read from the secrets folder). Absent: not leased. */
@@ -153,29 +161,61 @@ export function createHandlers(deps: HandlerDeps): Handlers {
 
     "engine.subscribe": async ({ payload, signal }: HandlerArgs<"engine.subscribe">) =>
       lock.run(payload.engineUserId, async () => {
-        const feedUrl = resolveFeedUrl(deps.secretsDir, payload.feedUrl, deps.bridgeEngineUrl);
-        if (!feedUrl) {
+        const resolved = resolveFeedUrl(deps.secretsDir, payload.feedUrl, deps.bridgeEngineUrl);
+        if (!resolved) {
           throw new JobFailure(payload.feedUrl.startsWith("bridge:") ? "This installation has no bridge key, so the source can't be followed." : "The private feed address for this source is missing.", false);
         }
+        // A bridged source is already served by the router; any other address can be a big feed (plan/44).
+        const trimmable = !payload.feedUrl.startsWith("bridge:") && /^https?:\/\//i.test(resolved);
+        const viaGateway = (address: string): string => {
+          const trimmed = trimmedEngineUrl(deps.secretsDir, address, deps.gatewayEngineUrl);
+          if (!trimmed) throw new JobFailure("This feed is too large for the engine, and this installation has no feed gateway key to follow it through.", false, "too_large");
+          return trimmed;
+        };
         const { client } = await engineSession(payload.engineUserId, signal);
         // A private (secret-link) address belongs to one account and is never fetched for another, so it needs no ordering.
-        const add = async () => {
+        const add = async (address: string, force: boolean) => {
           try {
-            return await client.quickAdd(feedUrl);
+            return await client.quickAdd(address);
           } catch (e) {
-            if (!(await mayForce(e, payload.feedUrl, feedUrl, signal))) throw e;
-            return await client.quickAdd(feedUrl, { force: true });
+            if (!force || !(await mayForce(e, payload.feedUrl, address, signal))) throw e;
+            return await client.quickAdd(address, { force: true });
           }
         };
-        const added = payload.feedUrl.startsWith("secret:")
-          ? await add()
-          : await addressLock.run(createHash("sha256").update(normalizeFeedUrl(feedUrl)).digest("hex"), add);
-        if ("already" in added) {
-          const existing = await findSubscriptionByUrl(client, feedUrl);
-          if (!existing) throw new JobFailure("The engine reports an existing subscription for this feed but does not list it.", true);
-          return { streamId: existing.streamId, title: existing.title, alreadySubscribed: true, ...(await feedEmpty(client, existing.streamId)) };
+        const subscribe = (address: string, force: boolean) =>
+          payload.feedUrl.startsWith("secret:")
+            ? add(address, force)
+            : addressLock.run(createHash("sha256").update(normalizeFeedUrl(address)).digest("hex"), () => add(address, force));
+        // The follow decided from its preview that this feed is big; the engine's address is the gateway's.
+        let engineUrl = payload.trim && trimmable ? viaGateway(resolved) : resolved;
+        let trimmed = engineUrl !== resolved;
+        let added: Awaited<ReturnType<typeof add>>;
+        try {
+          added = await subscribe(engineUrl, !trimmed);
+        } catch (e) {
+          // The engine reads a feed whole, in a memory limit; one too big for it fails the request itself (an HTTP 500, or the connection
+          // dropped when its process is killed), which says nothing about the feed's site (the engine words a failure of the site with
+          // a reason; this has none). A feed that really is that big (imports, retries and subscriptions made before the gateway
+          // never had a preview to tell) is then followed through the gateway.
+          const overloaded = e instanceof EngineError && e.kind === "unavailable" && e.reason === null;
+          // The engine answering HTTP 500 to the gateway's own small copy is about the feed's content, not its site: say that (a dropped
+          // connection could as well be the engine restarting, and is retried as before).
+          if (trimmed && overloaded && e instanceof EngineError && e.status === 500) throw new JobFailure("The engine could not read this feed even trimmed to its newest items.", false, "too_large");
+          if (trimmed || !trimmable || !overloaded || !deps.isLargeFeed) throw e;
+          const large = await deps.isLargeFeed(resolved, { signal }).catch(() => null);
+          if (large !== true) throw e;
+          engineUrl = viaGateway(resolved);
+          trimmed = true;
+          added = await subscribe(engineUrl, false);
         }
-        return { streamId: added.streamId, title: added.title, alreadySubscribed: false, ...(await feedEmpty(client, added.streamId)) };
+        // What the engine holds is the gateway's address; the source keeps its own, and says so (the product records it).
+        const via = trimmed ? { viaGateway: true } : {};
+        if ("already" in added) {
+          const existing = await findSubscriptionByUrl(client, engineUrl);
+          if (!existing) throw new JobFailure("The engine reports an existing subscription for this feed but does not list it.", true);
+          return { streamId: existing.streamId, title: existing.title, alreadySubscribed: true, ...via, ...(await feedEmpty(client, existing.streamId)) };
+        }
+        return { streamId: added.streamId, title: added.title, alreadySubscribed: false, ...via, ...(await feedEmpty(client, added.streamId)) };
       }),
 
     "engine.unsubscribe": async ({ payload, signal }: HandlerArgs<"engine.unsubscribe">) =>

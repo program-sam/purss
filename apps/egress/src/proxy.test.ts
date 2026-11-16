@@ -337,6 +337,22 @@ test("silent and stalled upstreams are cut by the timeouts", async () => {
   }
 });
 
+test("an internal destination may take longer than the connect timeout to answer (the gateway reads a big feed first); a site on the internet may not", async () => {
+  const slow = await startUpstream((_req, res) => setTimeout(() => res.end("late"), 700));
+  const config = makeConfig({ limits: { connectTimeoutMs: 250, idleTimeoutMs: 5000, requestTimeoutMs: 8000 } });
+  config.internalDestinations.push({ host: "slow.internal", port: slow.port, connectHost: "127.0.0.1", connectPort: slow.port });
+  const egress = await startEgress(config, { testAllowAddress: allowLoopback, resolver: async () => ["127.0.0.1"] });
+  try {
+    const internal = await viaProxy(egress.ports.proxy, `http://slow.internal:${slow.port}/`);
+    assert.deepEqual([internal.status, internal.body.toString()], [200, "late"]);
+    const outside = await viaProxy(egress.ports.proxy, `http://feeds.test:${slow.port}/`);
+    assert.equal(outside.status, 504, "a site that is slower than the connect timeout to start answering is still refused");
+  } finally {
+    await egress.stop();
+    await slow.close();
+  }
+});
+
 test("logs carry host, port and a redacted path only: no query strings, credentials or tokens", async () => {
   const upstream = await startUpstream((_req, res) => res.end("ok"));
   try {

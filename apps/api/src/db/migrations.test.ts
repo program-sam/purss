@@ -917,3 +917,33 @@ test("067 makes the Bluesky posts already collected posts, counts none of them a
     db.close();
   }
 });
+
+test("068 leaves every source followed before it reading its feed directly, and only 0 or 1 can be stored", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "068")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    for (const [id, feed, priv, health] of [["src_pub", "https://feeds.example/a.xml", 0, "ok"], ["src_priv", null, 1, "ok"], ["src_err", "https://feeds.simplecast.com/54nAGcIl", 0, "error"]] as const) {
+      db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, feed_url, is_private, health, health_text, created_at) VALUES (?, 'acc_1', 'ws_1', 'feed', 'T', 'RSS feed', ?, ?, ?, ?, '2026-01-01T00:00:00.000Z')",
+        id, feed, priv, health, health === "error" ? "The site isn't answering right now; we'll keep trying." : null);
+    }
+    db.exec("PRAGMA foreign_keys = ON");
+    const before = db.all("SELECT id, feed_url, is_private, health, health_text FROM sources ORDER BY id");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "068").length);
+    assert.deepEqual(db.all<{ id: string; v: number }>("SELECT id, via_gateway AS v FROM sources ORDER BY id").map((r) => [r.id, r.v]), [["src_err", 0], ["src_priv", 0], ["src_pub", 0]], "none is moved by the migration: the worker moves a subscription the engine fails on");
+    assert.deepEqual(db.all("SELECT id, feed_url, is_private, health, health_text FROM sources ORDER BY id"), before, "nothing else about a source changes, its own address least");
+    db.run("UPDATE sources SET via_gateway = 1 WHERE id = 'src_pub'");
+    assert.throws(() => db.run("UPDATE sources SET via_gateway = 2 WHERE id = 'src_pub'"), /CHECK/);
+    assert.throws(() => db.run("UPDATE sources SET via_gateway = NULL WHERE id = 'src_pub'"), /NOT NULL/);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});

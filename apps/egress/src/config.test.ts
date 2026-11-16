@@ -54,6 +54,18 @@ test("the service token must exist and be long enough; ports and limits are rang
   });
 });
 
+test("the feed-trim key is optional (no key: big feeds are not trimmed), but a key that is there must be long enough", () => {
+  withDataDir((dir) => {
+    assert.equal(loadConfig({ PURSS_DATA_DIR: dir }, "/").trimKey, null);
+    writeFileSync(join(dir, "secrets", "feed-trim-key"), `${"k".repeat(40)}\n`, { mode: 0o600 });
+    assert.equal(loadConfig({ PURSS_DATA_DIR: dir }, "/").trimKey, "k".repeat(40));
+    writeFileSync(join(dir, "other-key"), "k".repeat(50));
+    assert.equal(loadConfig({ PURSS_DATA_DIR: dir, EGRESS_TRIM_KEY_FILE: join(dir, "other-key") }, "/").trimKey, "k".repeat(50));
+    writeFileSync(join(dir, "secrets", "feed-trim-key"), "short");
+    assert.throws(() => loadConfig({ PURSS_DATA_DIR: dir }, "/"), /feed-trim key.*too short/);
+  });
+});
+
 test("internal destinations are exact name:port mappings to fixed IP addresses", () => {
   assert.deepEqual(parseInternalDestinations("Bridge.internal:3000=10.89.0.5:3000; other.internal:81=[fd00::5]:81"), [
     { host: "bridge.internal", port: 3000, connectHost: "10.89.0.5", connectPort: 3000 },
@@ -67,7 +79,7 @@ test("internal destinations are exact name:port mappings to fixed IP addresses",
 test("no environment variable turns the address rules off", () => {
   withDataDir((dir) => {
     const c = loadConfig({ PURSS_DATA_DIR: dir, EGRESS_ALLOW_PRIVATE: "1", EGRESS_DISABLE_SSRF: "true", PURSS_ALLOW_PRIVATE_ADDRESSES: "1", EGRESS_ALLOW_ALL: "yes" }, "/");
-    assert.deepEqual(Object.keys(c).sort(), ["bridge", "control", "dataDir", "gateway", "gatewayDbPath", "internalDestinations", "limits", "proxy", "serviceToken"]);
+    assert.deepEqual(Object.keys(c).sort(), ["bridge", "control", "dataDir", "gateway", "gatewayDbPath", "internalDestinations", "limits", "proxy", "serviceToken", "trimKey"]);
     assert.equal(c.internalDestinations.length, 1);
   });
 });

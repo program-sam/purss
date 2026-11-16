@@ -1,6 +1,7 @@
 import type { FailureReason } from "@purss/domain";
 import type { App } from "../app.ts";
-import { nowIso } from "../http.ts";
+import { HttpError, nowIso } from "../http.ts";
+import { enqueue } from "./jobs.ts";
 import { failCapture } from "./captures.ts";
 import { failIconCheck } from "./icons.ts";
 import { onSubscribeFailed } from "./sources.ts";
@@ -97,5 +98,33 @@ export function settleFailedJob(app: App, job: { kind: string; payload: Record<s
        ON CONFLICT(engine_user_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error,
          consecutive_failures = consecutive_failures + ?`,
       String(payload.engineUserId), nowIso(), syncFailureText(reason), final, final);
+  }
+}
+
+/**
+ * A feed too big for the engine to read whole makes the engine fail the request itself, which a source showed as "The site isn't
+ * answering right now" (and, after the retries, "The site didn't answer"). Such a source has no subscription, so it is subscribed
+ * once more: the worker then asks whether the feed really is that big and, if so, follows it through the feed gateway (plan/44);
+ * for any other cause the answer is the same as before. Once per source (the job's key remembers it), and only for a source that
+ * has no subscription job waiting or running, so a retry already on its way is not doubled.
+ */
+export function retryOverloadedSubscribes(app: App): void {
+  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; workspace_id: string; eu: string }>(
+    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, eu.id AS eu
+     FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
+     WHERE s.followed = 1 AND s.kind <> 'manual' AND s.builtin IS NULL AND s.via_gateway = 0 AND s.health = 'error' AND s.engine_stream_id IS NULL
+       AND s.health_text IN (?, ?)
+       AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'subscribe:' || s.id AND j.status IN ('queued', 'leased'))
+       AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'gateway-retry:' || s.id)
+     LIMIT 50`, subscribeRetryText("unavailable"), subscribeGaveUpText("unavailable"));
+  for (const s of rows) {
+    const feedUrl = s.is_private ? `secret:source-urls/${s.id}` : s.feed_url;
+    if (!feedUrl || feedUrl.startsWith("bridge:")) continue;
+    try {
+      enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
+    } catch (err) {
+      // An account that is suspended or being deleted starts nothing; it is looked at again when it is usable.
+      if (!(err instanceof HttpError)) throw err;
+    }
   }
 }

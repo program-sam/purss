@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isPlainWord, privateUrlReason } from "./privacy.ts";
+import { trimRoutePath } from "./trimmed.ts";
+import { isPlainWord, privateUrlReason, redactUrl } from "./privacy.ts";
 
 test("public feeds of the common podcast hosts, ordinary slugs and ordinary query values are not taken for private links", () => {
   for (const url of [
@@ -94,4 +95,13 @@ test("Al Jazeera's own feed addresses, which its pages publish, are not private;
     `https://notaljazeera.net/aljazeerarss/${A}/${B}`,
     `https://example.org/feed/${A}`,
   ]) assert.notEqual(privateUrlReason(url), null, url);
+});
+
+test("the feed gateway's addresses are logged without their signature and without the feed address they carry", () => {
+  const key = "k".repeat(43);
+  for (const feed of ["https://feeds.simplecast.com/54nAGcIl", "https://x.example/f/abc", "https://patreon.example/rss/show?auth=0123456789abcdef"]) {
+    const redacted = redactUrl(`http://feed-gateway.internal:8947${trimRoutePath(key, feed)}`);
+    assert.equal(redacted, "http://feed-gateway.internal:8947/t/…/…", feed);
+  }
+  assert.equal(redactUrl("https://example.org/t/news/today"), "https://example.org/t/news/today", "an ordinary address of that shape is not touched");
 });

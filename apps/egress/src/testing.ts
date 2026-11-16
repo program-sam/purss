@@ -18,6 +18,7 @@ export function makeConfig(over: ConfigOverrides = {}): EgressConfig {
     bridge: null,
     dataDir: "/nonexistent",
     serviceToken: TOKEN,
+    trimKey: null,
     gatewayDbPath: ":memory:",
     internalDestinations: [],
     ...over,

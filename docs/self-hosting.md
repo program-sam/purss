@@ -11,7 +11,7 @@ parts named here.
   is pulled on first start if it is missing.
 - **Docker Compose:** Docker Engine with a recent Compose v2 (the proxy overlay uses
   `!reset`). The containers are limited to about 1.6 GiB of memory together (API 1 GiB,
-  worker 192 MiB, egress 160 MiB, FreshRSS 256 MiB). The API uses about 200 MiB; the rest is room for
+  worker 192 MiB, egress 192 MiB, FreshRSS 256 MiB). The API uses about 200 MiB; the rest is room for
   importing a large export, which is checked and applied whole. An export too large for that (roughly
   over 100,000 items) is refused with a message rather than imported. On a server with about 1 GiB of
   memory in all, lower the API's share in `.env` so a large import can't starve the other containers, for
@@ -31,8 +31,8 @@ npm install
 npm run dev
 ```
 
-`npm run dev` builds the web app, creates `data/secrets/service-token` and
-`data/secrets/bridge-key` if needed, starts RSS-Bridge in podman (`node scripts/bridge.ts up`; on
+`npm run dev` builds the web app, creates `data/secrets/service-token`,
+`data/secrets/bridge-key` and `data/secrets/feed-trim-key` if needed, starts RSS-Bridge in podman (`node scripts/bridge.ts up`; on
 127.0.0.1:8944, the image and settings Compose uses), the egress proxy and bridge router, starts
 or resumes FreshRSS in podman (`node scripts/engine.ts up`), then the API and the worker. If
 RSS-Bridge doesn't start, the stack runs without it and the bridged services say they have no
@@ -59,7 +59,7 @@ Local listeners, all on 127.0.0.1:
 | 8944 | RSS-Bridge (development only; reached by the bridge router) |
 | 8945 | Bridge router (signed source addresses for FreshRSS and the API's previews) |
 | 8946 | Egress proxy (FreshRSS's only way out) |
-| 8947 | Private feed gateway |
+| 8947 | Feed gateway (big feeds trimmed for FreshRSS; private service feeds, none registered) |
 | 8948 | API internal listener (worker jobs; service token) |
 | 8949 | Egress control (service token) |
 
@@ -448,6 +448,45 @@ example `jev-1.13.0`, or `typesafe/jev-1.13` on OpenRouter) if a new release jud
 address is always the operator's, never a person's. When Jev refuses the
 key, the Admin page says so, and filters stop using it until it is replaced.
 
+## Big feeds
+
+FreshRSS reads a whole feed into memory before it keeps anything, inside PHP's 128 MB limit per request. A
+podcast feed that lists every episode since it began, with the show notes repeated three times for each, is
+tens of megabytes (The Daily's is 20.7 MB for 3,039 episodes) and would take several times the limit, so the
+engine fails the request itself. PURSS follows such feeds through its own feed gateway instead
+([plan/44](../plan/44-big-feeds.md)): the gateway reads the feed as a stream, keeps its channel details and
+its newest 100 items exactly as written, and gives FreshRSS that smaller copy of the same public feed. FreshRSS
+stays the only thing that collects items. (It keeps a feed's items for 90 days, at least its newest 50 and at most 1,000,
+so 100 is twice what the engine would keep of any feed at the least; a feed that publishes more than a hundred items between
+two of its refreshes, every 15 minutes or so, would lose some, and none does.)
+
+- **When.** A feed larger than 4 MiB when it is looked up (the part a lookup reads), or with more than 1,000 items,
+  is followed through the gateway from the start. A subscription the engine itself fails on (an HTTP 500 or a dropped connection, not an
+  answer about the feed's site; an import, a retry, or a feed followed before this existed) is checked once, and moved there if the feed really is that big.
+  The source keeps its own address: it is what the person sees, what an export names and what is compared.
+- **What the engine is given.** `http://feed-gateway.internal:8947/t/<signature>/<address>`, reached through the
+  egress proxy's internal alias like the bridge router. The signature is an HMAC under
+  `<data>/secrets/feed-trim-key`, which `npm run dev` and Compose's `init` make. The worker signs, the gateway checks,
+  and anything unsigned is a 404, so a public feed that redirects FreshRSS to the alias gets nothing. Without the
+  key (an installation set up before it existed and not yet restarted under Compose, or `EGRESS_TRIM_KEY_FILE`
+  pointing nowhere) big feeds are followed or refused as before, and a big feed the engine can't read says
+  *The feed is too large to follow*.
+- **What the gateway does.** Every fetch goes through the same address, redirect, time and size rules as any other
+  feed fetch. It reads the whole feed, nothing in a feed saying that its later items are older than its first (at most
+  64 MiB, two feeds at once), and keeps the 100 newest. Items bigger than 1 MiB are left out whole. A feed longer than the
+  ceiling, or whose channel details alone are huge, answers *too large*; a page, JSON or text answers *not a feed*;
+  the feed's own 404, 403 and 429 are passed on. The log names the feed's host and the outcome, never its address.
+- **Bandwidth and memory.** Reading a feed whole costs its size (The Daily's is 20.7 MB), so the work is shared: the trimmed answer is kept in memory
+  only, per upstream address (a private feed's address, key included, is its own), 8 MiB in all, and every account that follows the feed
+  is given that one answer for ten minutes after it was made. Then the gateway asks the publisher whether the feed changed
+  (`If-None-Match` / `If-Modified-Since` from what the publisher last sent): a `304` costs a small request and renews the answer, and only a changed feed is read
+  again (at most once in ten minutes, however many accounts follow it). A feed from a publisher that sends neither ETag nor Last-Modified is read in full each time
+  it is asked for. Only a request signed for that exact address is given an answer.
+- **Links.** The copy is served from the gateway's address, so its root element carries `xml:base` with the address the feed was read from (after
+  redirects) and relative links in the feed keep resolving against the publisher.
+- **Under `npm run dev` and Compose alike:** the same code runs in the egress process; nothing to configure
+  beyond the key, which both create. FreshRSS's only way out is still the egress proxy.
+
 ## Operator CLI
 
 For the operator, including when the web app can't be used. It works on the database file directly and needs
@@ -513,7 +552,7 @@ The backup uses SQLite's online backup API, so the app can keep running. It writ
 file), checks integrity, and refuses to start without room for a full copy. `--out` defaults
 to `<data>/backups`. Never copy `product.db` by hand while the app runs.
 
-- `--include-secrets` adds the secrets directory (service token, bridge key, private source links, and the
+- `--include-secrets` adds the secrets directory (service token, bridge key, feed-trim key, private source links, and the
   server's Jev key for Smart filters). Such a backup must be protected like a
   password, and a restore puts the keys back. Without it, private sources need reconnecting and
   the Jev key adding again after a restore. Data exports from the app never contain keys.
@@ -618,12 +657,15 @@ used instead of `PURSS_ENGINE_EXEC` under Compose), `PURSS_WORKER_CONCURRENCY` (
 `PURSS_WORKER_POLL_MS` (2000), `PURSS_WORKER_MAX_BACKOFF_MS` (60000), `PURSS_WORKER_DRAIN_MS`
 (25000), `PURSS_WORKER_REQUEST_TIMEOUT_MS` (30000), `PURSS_SYNC_PAGE_SIZE` (200, max 500),
 `PURSS_SYNC_OVERLAP_SECONDS` (3600), `PURSS_SYNC_MAX_BATCH_BYTES` (700000), `PURSS_BRIDGE_ENGINE_URL`
-(`http://feed-bridge.internal:8945`, where FreshRSS reaches the bridge router through the proxy).
+(`http://feed-bridge.internal:8945`, where FreshRSS reaches the bridge router through the proxy) and
+`PURSS_GATEWAY_ENGINE_URL` (`http://feed-gateway.internal:8947`, where FreshRSS reaches the feed gateway
+for big feeds; change it only with `EGRESS_GATEWAY_ALIAS` or the gateway port).
 
 **Egress** (`apps/egress/src/config.ts`; table in the [egress README](../apps/egress/README.md)):
 `EGRESS_PROXY_HOST`/`_PORT` (`127.0.0.1`/8946), `EGRESS_GATEWAY_HOST`/`_PORT` (8947),
 `EGRESS_CONTROL_HOST`/`_PORT` (8949), `EGRESS_GATEWAY_ALIAS`, `EGRESS_INTERNAL_DESTINATIONS`,
-`EGRESS_GATEWAY_DB`, `EGRESS_SERVICE_TOKEN_FILE`, `EGRESS_MAX_CONNECTIONS` (256),
+`EGRESS_GATEWAY_DB`, `EGRESS_SERVICE_TOKEN_FILE`, `EGRESS_TRIM_KEY_FILE`
+(`<data>/secrets/feed-trim-key`; without that file big feeds are not trimmed), `EGRESS_MAX_CONNECTIONS` (256),
 `EGRESS_CONNECT_TIMEOUT_MS` (10 s), `EGRESS_IDLE_TIMEOUT_MS` (30 s), `EGRESS_REQUEST_TIMEOUT_MS`
 (60 s), `EGRESS_MAX_RESPONSE_BYTES` (32 MiB), `EGRESS_MAX_REQUEST_BODY_BYTES` (1 MiB),
 `EGRESS_MAX_TUNNEL_BYTES` (64 MiB), `EGRESS_MAX_TUNNEL_MS` (120 s); the bridge router runs only
@@ -715,6 +757,11 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   Compose only the product's containers can read it, and the internal listener (8948) and egress
   control (8949) listen only on the `services` network, which FreshRSS and the shared proxy network
   are not on.
+- **Feed-trim key:** `secrets/feed-trim-key` signs the gateway addresses that FreshRSS is given for big feeds
+  (see [Big feeds](#big-feeds)). Only egress and the worker read it; FreshRSS never does, so a feed that
+  redirects it can't make it fetch anything the installation didn't sign. Like the bridge key it is made once
+  and never rotated; a replaced key makes the gateway answer 404 to every address FreshRSS holds, so those
+  sources go quiet until they are followed again. Back it up with the rest of `secrets/`.
 - **Feed key:** `secrets/feed-key` keys the fingerprints that recognise a private feed link followed a second
   time. Back it up with the rest of `secrets/`; if it is lost, the API warns in its log and makes the
   fingerprints again from the private link files, so nothing is lost as long as those files are there.

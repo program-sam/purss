@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { JOB_KINDS } from "@purss/domain";
-import { DEFAULT_BRIDGE_ENGINE_URL } from "./secrets.ts";
+import { DEFAULT_BRIDGE_ENGINE_URL, DEFAULT_GATEWAY_ENGINE_URL } from "./secrets.ts";
 import type { JobKind } from "@purss/domain";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -13,6 +13,8 @@ export type WorkerConfig = {
   secretsDir: string;
   /** Where the engine reaches the bridge router (plan/41). */
   bridgeEngineUrl: string;
+  /** Where the engine reaches the feed gateway, which trims big feeds (plan/44). */
+  gatewayEngineUrl: string;
   serviceTokenFile: string;
   /** The engine admin helper's own token (Compose only); the engine never holds the service token. */
   engineHelperTokenFile: string;
@@ -41,6 +43,7 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerCo
     dataDir,
     secretsDir,
     bridgeEngineUrl: env.PURSS_BRIDGE_ENGINE_URL ?? DEFAULT_BRIDGE_ENGINE_URL,
+    gatewayEngineUrl: env.PURSS_GATEWAY_ENGINE_URL ?? DEFAULT_GATEWAY_ENGINE_URL,
     serviceTokenFile: path.join(secretsDir, "service-token"),
     engineHelperTokenFile: path.join(secretsDir, "engine-helper-token"),
     engineUsersDir: path.join(secretsDir, "engine-users"),

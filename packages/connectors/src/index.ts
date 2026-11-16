@@ -26,5 +26,6 @@ export * from "./privacy.ts";
 export * from "./readable.ts";
 export * from "./safe-fetch.ts";
 export * from "./sanitize.ts";
+export * from "./trimmed.ts";
 export { assertShallowMarkup, htmlToPlainText, htmlToText, escapeXml, escapeHtml, markupParagraphs, TooComplexError } from "./text.ts";
 export * from "./youtube.ts";
