@@ -178,9 +178,12 @@ export function Sidebar({ mode, onToggle }: { mode: "full" | "rail"; onToggle?: 
     <>
       <FirstVisitQuestion /><InterfaceUpdateQuestion /><VisitTracker />
       <div className="side-head">
-        <div className="brand"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS
-          {onToggle ? <button type="button" className="ibtn side-collapse" data-fk="tside" aria-label="Collapse sidebar" aria-expanded={true} onClick={onToggle}><Icon name="sidebar" /></button> : null}</div>
-        {session?.account?.displayName ? <p className="fine" style={{ margin: "-6px 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.account.displayName}</p> : null}
+        {/* A drawer opens under the top bar, which already names the app and who is signed in, so it starts with Add source. */}
+        {onToggle ? <>
+          <div className="brand"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS
+            <button type="button" className="ibtn side-collapse" data-fk="tside" aria-label="Collapse sidebar" aria-expanded={true} onClick={onToggle}><Icon name="sidebar" /></button></div>
+          {session?.account?.displayName ? <p className="fine" style={{ margin: "-6px 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.account.displayName}</p> : null}
+        </> : null}
         <button type="button" className="btn primary lg" data-fk="add" onClick={openAdd}><Icon name="plus" />Add source</button>
         <div className="side-nav">
           <button type="button" className={`nav-row${homeHere ? " sel" : ""}`} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" />Home</button>

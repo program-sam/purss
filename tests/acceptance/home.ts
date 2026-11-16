@@ -357,6 +357,13 @@ async function main(): Promise<void> {
     });
     assert.ok(foot.gap <= 20, `Settings sits at the bottom of the phone drawer (gap ${foot.gap}px)`);
     step("on a phone the drawer's Settings and capacity sit at its bottom");
+    // The phone drawer starts with Add source: the app's name and who is signed in sit in Home's top bar instead.
+    assert.equal(await phonePage.locator("#side .brand").count(), 0, "the phone drawer has no logo row");
+    assert.equal(await phonePage.locator("#side").getByText("Reader", { exact: true }).count(), 0, "the phone drawer does not repeat the account name");
+    await phonePage.keyboard.press("Escape");
+    await phonePage.goto(`${origin}/app/`);
+    await phonePage.locator(".bar .brand .who", { hasText: "Reader" }).waitFor({ state: "visible" });
+    step("on a phone Home's top bar names the app and who is signed in, and the drawer leaves both out");
     await phone.close();
   } finally {
     await browser.close();

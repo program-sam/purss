@@ -3,6 +3,7 @@ import { Icon, useBreakpoint } from "@purss/ui";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
+import { useSession } from "../api/hooks.ts";
 import { HeaderAccount } from "../auth/HeaderAccount.tsx";
 import { useOfflineStatus, showsSavedCopy } from "../offline/status.ts";
 import { usePendingCount } from "../outbox/hooks.ts";
@@ -49,6 +50,7 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
   const popups = usePopups();
   const bp = useBreakpoint();
   const crumbs = useCrumbs();
+  const who = useSession().data?.account?.displayName;
   // No badge while notifications are off, even for ones that arrived before.
   const unread = ws.prefs.notifications.frequency === "off" ? 0 : ws.data.unreadNotifications;
   const offline = useOfflineStatus();
@@ -78,7 +80,7 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
         <button type="button" className="ibtn" data-fk="tside" aria-label="Open sidebar" aria-expanded={drawerOpen} onClick={onToggleSidebar}><Icon name="sidebar" /></button>
         {bp === "xs" && place?.t === "home" ? (
           // On a phone the Home page carries its own title, so the bar names the app instead.
-          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS</span>
+          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS{who ? <span className="who"><bdi>{who}</bdi></span> : null}</span>
         ) : bp === "xs" && crumbs.length > 1 ? (
           // A phone has room for one step back and where you are, not the whole trail.
           <nav className="crumbs xs" aria-label="Breadcrumb">
