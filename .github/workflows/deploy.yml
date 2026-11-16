@@ -1,6 +1,6 @@
 # Every push to main is checked and tested; if that passes, the same commit is deployed to the
 # server. The deploy key can only run infra/deploy/purss-deploy.sh there (see infra/README.md).
-# The weekly dependency update calls it for the commit it pushed (its push starts no workflow).
+# The monthly dependency update calls it for the commit it pushed (its push starts no workflow).
 name: Test and deploy
 
 on:

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Is a weekly dependency update only what scripts/update-dependencies.ts may change? The publishing
+ * Is a monthly dependency update only what scripts/update-dependencies.ts may change? The publishing
  * job applies the update to the index (`git apply --index`) and runs this, never any updated code.
  * It compares the staged result with HEAD, not the patch text, so a patch can't hide anything:
  *

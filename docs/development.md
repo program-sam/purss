@@ -99,7 +99,7 @@ committed file and the code disagree.
 
 ## Dependency updates
 
-Every Monday [.github/workflows/weekly-updates.yml](../.github/workflows/weekly-updates.yml) runs
+On the first of every month [.github/workflows/monthly-updates.yml](../.github/workflows/monthly-updates.yml) runs
 `node scripts/update-dependencies.ts` and takes what is safe, after the same checks as a push to main:
 
 | What | Taken automatically | Reported for a person |
@@ -116,7 +116,7 @@ only dependency versions, the lockfile's registry packages and the RSS-Bridge di
 the change and compares the staged files with the tested commit (`node scripts/check-update.ts`),
 so the form of the patch can't hide anything — and pushes it only if main is still the commit that
 was tested; then the usual test-and-deploy workflow runs for that commit. One issue, *Dependency
-updates*, says what the last run couldn't do and what needs a person; it is updated each week and
+updates*, says what the last run couldn't do and what needs a person; it is updated each month and
 closed when both are empty. Run it now from the Actions tab (*Run workflow*, on main). The Node.js
 base images float on `node:26-bookworm-slim` and are refreshed whenever the server builds.
 

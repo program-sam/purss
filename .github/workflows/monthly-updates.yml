@@ -1,4 +1,4 @@
-# Every Monday: take the dependency updates that are safe once the checks pass, and report the rest
+# On the first of every month: take the dependency updates that are safe once the checks pass, and report the rest
 # (scripts/update-dependencies.ts says which is which). Four jobs, so new dependency code never runs
 # with the right to change the repository:
 #   prepare  read-only: finds the updates and runs every check on them; hands on the diff
@@ -6,18 +6,18 @@
 #            (scripts/check-update.ts), and pushes it to main only if main is still the commit that was tested
 #   deploy   the usual test-and-deploy workflow, for that commit
 #   report   keeps one issue, "Dependency updates", current: the last run's problem and what needs a person
-name: Weekly dependency update
+name: Monthly dependency update
 
 on:
   schedule:
-    - cron: "17 4 * * 1"
+    - cron: "17 4 1 * *"
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: weekly-updates
+  group: monthly-updates
   cancel-in-progress: false
 
 jobs:
@@ -101,7 +101,7 @@ jobs:
           BASE: ${{ needs.prepare.outputs.base }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$BASE" ]; then
-            echo "main moved while the update was checked; next week's run tries again." >&2
+            echo "main moved while the update was checked; next month's run tries again." >&2
             exit 1
           fi
       # Node runs only the repository's own check (from the tested commit, before the update is applied
@@ -162,7 +162,7 @@ jobs:
           problem=""
           if [ "$PREPARE" != "success" ]; then
             if [ "$BRIDGE" = "failure" ]; then problem="The new RSS-Bridge image failed the bridge check, so nothing was taken."
-            else problem="The checks of this week's updates failed, so nothing was taken."; fi
+            else problem="The checks of this month's updates failed, so nothing was taken."; fi
           elif [ "$PUBLISH" = "failure" ]; then problem="The checked update couldn't be committed (main moved, or the update changed more than versions), so nothing was taken."
           elif [ "$PUBLISH" = "success" ] && [ "$DEPLOY" != "success" ]; then problem="The update was committed to main (${SHA:0:7}) but its deploy failed, so what the server runs now isn't known: check it, and deploy again or revert."
           fi
@@ -172,7 +172,7 @@ jobs:
             exit 0
           fi
           {
-            echo "Kept current by the weekly dependency update; last run: $RUN"
+            echo "Kept current by the monthly dependency update; last run: $RUN"
             echo
             if [ -n "$problem" ]; then echo "**Last run:** $problem"; echo; fi
             if [ -s "$manual" ]; then cat "$manual"; fi

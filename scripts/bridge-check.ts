@@ -5,7 +5,7 @@
  * and, given a baseline image, compares: a service that works on the baseline and fails on the
  * candidate (also when asked again) is a regression. A service failing on both is the service's
  * problem, not the update's, and is only reported. An image that doesn't start, or a baseline on
- * which no service works, says nothing about the update: that is inconclusive. Used by the weekly
+ * which no service works, says nothing about the update: that is inconclusive. Used by the monthly
  * update check. Exit 0: no regression; 1: a regression; 2: inconclusive.
  *
  *   node scripts/bridge-check.ts --candidate <image> [--baseline <image>] [--summary <file.md>]

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The weekly dependency update (.github/workflows/weekly-updates.yml). It changes only what is safe to
+ * The monthly dependency update (.github/workflows/monthly-updates.yml). It changes only what is safe to
  * take after the tests pass, and reports the rest for a person:
  *
  * - npm: every dependency of every workspace goes to its newest release within its major version
@@ -109,7 +109,7 @@ export async function hubDigests(repository: string, tag: string): Promise<{ dig
 }
 
 async function github(pathname: string): Promise<unknown> {
-  const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "purss-weekly-updates" };
+  const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "purss-monthly-updates" };
   if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const res = await fetch(`https://api.github.com${pathname}`, { headers });
   if (!res.ok) throw new Error(`GitHub ${pathname}: HTTP ${res.status}`);
@@ -235,9 +235,9 @@ async function main(): Promise<void> {
   outputs.changed = String(updated.length > 0);
   outputs.manual = String(manual.length > 0);
   const summary = [
-    "## Weekly dependency update",
+    "## Monthly dependency update",
     "",
-    updated.length ? "Taken, if the checks pass:" : "Nothing to take this week.",
+    updated.length ? "Taken, if the checks pass:" : "Nothing to take this month.",
     ...updated,
     "",
     manual.length ? "Needs a person:" : "Nothing needs a person.",
@@ -247,8 +247,8 @@ async function main(): Promise<void> {
   console.log(summary);
   const out = (name: string, text: string) => { const f = arg(name); if (f) appendFileSync(f, text); };
   out("summary", `${summary}\n`);
-  out("manual", manual.length ? `Found by the weekly update check on ${new Date().toISOString().slice(0, 10)}. These aren't taken automatically:\n\n${manual.join("\n")}\n` : "");
-  out("message", `Weekly dependency update\n\n${updated.join("\n")}\n`);
+  out("manual", manual.length ? `Found by the monthly update check on ${new Date().toISOString().slice(0, 10)}. These aren't taken automatically:\n\n${manual.join("\n")}\n` : "");
+  out("message", `Monthly dependency update\n\n${updated.join("\n")}\n`);
   out("outputs", Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(""));
 }
 

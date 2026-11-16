@@ -3,7 +3,7 @@ import path from "node:path";
 
 /**
  * The bridge service's image and RSS-Bridge settings as Compose runs them (infra/compose.yaml), so the
- * development container (scripts/bridge.ts) and the weekly update check (scripts/bridge-check.ts) run the same thing.
+ * development container (scripts/bridge.ts) and the monthly update check (scripts/bridge-check.ts) run the same thing.
  */
 export function composeBridge(repo: string): { image: string; env: [string, string][] } {
   const yaml = readFileSync(path.join(repo, "infra/compose.yaml"), "utf8");
