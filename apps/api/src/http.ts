@@ -219,7 +219,7 @@ export async function readBody(req: IncomingMessage, limit = DEFAULT_BODY_LIMIT,
       if (from !== null) {
         const mine = bodiesBySender.get(from.key) ?? 0;
         if (bodiesInMemory[pool] + chunk.length > BODIES_IN_MEMORY_LIMIT || mine + chunk.length > from.share) {
-          throw new HttpError(503, "busy", "The server is busy. Please try again in a moment.", undefined, Date.now() + 5000);
+          throw new HttpError(503, "busy", "PURSS is busy. Please try again in a moment.", undefined, Date.now() + 5000);
         }
         bodiesInMemory[pool] += chunk.length;
         bodiesBySender.set(from.key, mine + chunk.length);
@@ -263,9 +263,9 @@ export async function saveUpload(req: IncomingMessage, file: string, limit: numb
   } catch (err) {
     if (err instanceof HttpError) throw err;
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOSPC" || code === "EDQUOT") throw new HttpError(507, "disk_reserve", "The server is low on disk space, so the file can't be stored. Nothing you kept was removed.");
+    if (code === "ENOSPC" || code === "EDQUOT") throw new HttpError(507, "disk_reserve", "There isn't enough free space to store this file right now. Nothing you kept was removed.");
     console.error("[api] an upload couldn't be stored:", code ?? (err instanceof Error ? err.message : "unknown error"));
-    throw new HttpError(500, "upload_not_stored", "The server couldn't store the upload. Please try again later.");
+    throw new HttpError(500, "upload_not_stored", "PURSS couldn't store the upload. Please try again later.");
   }
   return size;
 }

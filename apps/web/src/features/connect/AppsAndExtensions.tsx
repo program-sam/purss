@@ -3,10 +3,11 @@ import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, STORE_NAMES, desktopDo
 import type { Distributed } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { platform } from "../../platform/index.ts";
+import { useSession } from "../../api/hooks.ts";
 import type { IconName } from "@purss/ui";
 
 /** Store buttons for what is published, and an honest note with the install instructions for what isn't. */
-function Get({ what }: { what: Distributed }) {
+function Get({ what, selfHosted }: { what: Distributed; selfHosted: boolean }) {
   const d = DISTRIBUTION[what];
   const stores = publishedStores(what);
   const missing = d.stores.filter((id) => !stores.some((s) => s.id === id)).map((id) => STORE_NAMES[id]);
@@ -14,7 +15,7 @@ function Get({ what }: { what: Distributed }) {
     <>
       {stores.length < d.stores.length ? (
         <small>{`Not in ${missing.length < 2 ? missing.join("") : `${missing.slice(0, -1).join(", ")} or ${missing.at(-1)}`} yet.`}{" "}
-          <a className="link" href={d.install} target="_blank" rel="noopener noreferrer">{what === "extension" ? "How to install it" : "How to build it"}</a></small>
+          {selfHosted ? <a className="link" href={d.install} target="_blank" rel="noopener noreferrer">{what === "extension" ? "How to install it" : "How to build it"}</a> : null}</small>
       ) : null}
       {stores.length ? <span className="get-stores">{stores.map((s) => <a key={s.id} className="btn" href={s.url} target="_blank" rel="noopener noreferrer">{s.name}</a>)}</span> : null}
     </>
@@ -36,6 +37,7 @@ function Row({ icon, title, children, action }: { icon: IconName; title: string;
  * place. Store buttons appear by themselves once an address is set in @purss/domain's distribution.ts.
  */
 export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assistants") => void }) {
+  const selfHosted = useSession().data?.installation.mode === "self";
   const toBookmarklets = () => {
     const el = document.getElementById("bm-l");
     el?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -46,12 +48,12 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
       <ul className="seclist get-apps">
         <Row icon="ext" title="Browser extension">
           <small>Keep the page you're reading, add its site as a source, and search your PURSS from the address bar. For {DISTRIBUTION.extension.platforms}.</small>
-          <Get what="extension" />
+          <Get what="extension" selfHosted={selfHosted} />
         </Row>
         <Row icon="phone" title="Phone and tablet app" action={platform.connection && !platform.desktop ? undefined
           : <a className="btn" href={desktopDownloadUrl(ANDROID_APK)} target="_blank" rel="noopener noreferrer">Download for Android</a>}>
           <small>The same PURSS on {DISTRIBUTION.mobile.platforms}: listen with the screen off, download for reading offline, share links into it.</small>
-          <Get what="mobile" />
+          <Get what="mobile" selfHosted={selfHosted} />
         </Row>
         <Row icon="download" title="Desktop app" action={platform.desktop ? undefined
           : <a className="btn" href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer">Download</a>}>

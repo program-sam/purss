@@ -16,7 +16,7 @@ import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { startSmtpSink, textOf, type Received, type SmtpSink } from "../../apps/api/src/mail/testing.ts";
-import { testPassword } from "../../apps/api/src/testing.ts";
+import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = mkdtempSync(path.join(os.tmpdir(), "purss-email-"));
@@ -63,10 +63,22 @@ async function mailTo(sink: SmtpSink, to: string, subject: RegExp, nth = 0): Pro
 
 /** A new account is asked once how it wants to be told about new things; this journey is about something else. */
 async function dismissFirstVisit(page: Page): Promise<void> {
+  const question = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
   const later = page.getByRole("button", { name: "Not now" });
   const add = page.getByRole("button", { name: "Add source" }).first();
   await later.or(add).first().waitFor();
-  if (await later.isVisible()) await later.click();
+  if (await later.isVisible()) {
+    const share = question.getByRole("checkbox", { name: /Share my sources/ });
+    assert.equal(await share.isChecked(), true, "sharing starts checked on the hosted first question");
+    await question.getByText("PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.", { exact: true }).waitFor();
+    await question.getByRole("radio", { name: /^Never/ }).check();
+    await question.getByText("No digest. Sources set to “Notify me”, reminders and problem notices still show in the bell. Add browser alerts in Settings.", { exact: true }).waitFor();
+    await share.uncheck();
+    await later.click();
+    await question.waitFor({ state: "hidden" });
+    const prefs = await page.evaluate(async () => (await (await fetch("/api/preferences")).json()).discoveryShare as boolean);
+    assert.equal(prefs, true, "Not now leaves the default sharing preference unchanged");
+  }
   await add.waitFor();
 }
 
@@ -120,6 +132,50 @@ async function main(sink: SmtpSink): Promise<void> {
     if (await skipPasskey.isVisible()) await skipPasskey.click();
     await dismissFirstVisit(page);
     step("the link finished the account with a password, and Home opened");
+
+    await page.goto(`${origin}/app/?dialog=settings`);
+    const notificationSettings = page.getByRole("dialog", { name: "Settings" });
+    await notificationSettings.waitFor();
+    await notificationSettings.getByRole("button", { name: "Notifications and New" }).click();
+    const never = notificationSettings.getByRole("radio", { name: /Never/ });
+    // The choice shows once it is saved, so click and wait for it rather than expecting the radio to flip at once.
+    if (!await never.isChecked()) await never.click();
+    await waitFor("Never chosen", async () => await never.isChecked(), 10_000);
+    await notificationSettings.getByText("No digest. Sources you set to “Notify me”, your reminders and news of a source that stops working still tell you.", { exact: true }).waitFor();
+    await waitFor("Never setting", async () => await page.evaluate(async () => (await (await fetch("/api/preferences")).json()).notifications.frequency === "off"), 5000);
+    for (const label of [/^Reminders/, /^Sources that stop working/, /^Readable text that failed to save/]) {
+      assert.equal(await notificationSettings.getByRole("checkbox", { name: label }).isEnabled(), true, `${label} stays available under Never`);
+    }
+    const emailReminders = notificationSettings.getByRole("checkbox", { name: /^Email me reminders/ });
+    await emailReminders.waitFor();
+    await emailReminders.check();
+    await waitFor("reminder email enabled under Never", async () => await page.evaluate(async () => {
+      const n = (await (await fetch("/api/preferences")).json()).notifications;
+      return n.frequency === "off" && n.emailReminders === true;
+    }), 5000);
+    step("Never leaves reminder, source-problem and saved-text controls enabled, including reminder email");
+
+    // The operator account is hosted too. Saving the unticked choice changes its preference.
+    const operatorContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const operatorPage = await operatorContext.newPage();
+      currentPage = operatorPage;
+      await operatorPage.goto(`${origin}/app/signin`);
+      await operatorPage.getByRole("textbox", { name: "Email address" }).fill("operator@example.test");
+      await operatorPage.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
+      await operatorPage.getByRole("button", { name: "Sign in", exact: true }).click();
+      const question = operatorPage.getByRole("dialog", { name: "How often do you want to hear about new items?" });
+      const share = question.getByRole("checkbox", { name: /Share my sources/ });
+      await share.waitFor();
+      assert.equal(await share.isChecked(), true, "the hosted choice is checked before saving");
+      await share.uncheck();
+      await question.getByRole("button", { name: "Save", exact: true }).click();
+      await question.waitFor({ state: "hidden" });
+      const prefs = await operatorPage.evaluate(async () => (await (await fetch("/api/preferences")).json()).discoveryShare as boolean);
+      assert.equal(prefs, false, "Save persists the unticked choice");
+      step("the hosted first question explains anonymous source sharing; Not now preserves the default, Save keeps an opt-out");
+    } finally { await operatorContext.close(); }
+    currentPage = page;
 
     await page.goto(`${origin}/app/?dialog=security`);
     await page.getByText("robin@example.org").first().waitFor();

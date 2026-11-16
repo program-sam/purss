@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ShareDTO, SharePreview, ShareTarget } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { del, get, messageOf, post, put } from "../../api/client.ts";
+import { useSession } from "../../api/hooks.ts";
 import { useToasts } from "../../state/toasts.tsx";
 import { fkeys, shareForQuery } from "../shared/api.ts";
 import { Loading, LoadFailed } from "../shared/bits.tsx";
@@ -108,6 +109,7 @@ function Review({ share, onShared, onBack }: { share: ShareDTO; onShared: () => 
 /** A shared page's addresses and controls: pause, share again, settings, public notes, stop sharing. */
 function Live({ share, onStep }: { share: ShareDTO; onStep: (s: "settings" | "review" | "notes") => void }) {
   const qc = useQueryClient();
+  const hosted = useSession().data?.installation.mode === "hosted";
   const { toast } = useToasts();
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -132,7 +134,7 @@ function Live({ share, onStep }: { share: ShareDTO; onStep: (s: "settings" | "re
   return (
     <>
       {share.takenDown
-        ? <p className="p-warn" role="note"><Icon name="alert" /><span>An administrator took this page and its feed down after a report: <span dir="auto">{share.takenDown.reason}</span> You can still change it, but not share it again unless an administrator restores it.</span></p>
+        ? <p className="p-warn" role="note"><Icon name="alert" /><span>{hosted ? "PURSS took this page and its feed down after a report" : "An administrator took this page and its feed down after a report"}: <span dir="auto">{share.takenDown.reason}</span> You can still change it, but not share it again unless {hosted ? "PURSS restores it" : "an administrator restores it"}.</span></p>
         : <p className="hint">{state}</p>}
       <p className="fine">Shown as <b dir="auto">{share.curatorName}</b>{share.noteCount ? ` · ${share.noteCount === 1 ? "1 public note" : `${share.noteCount} public notes`}` : ""}</p>
       {live ? (

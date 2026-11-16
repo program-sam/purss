@@ -259,7 +259,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   const officialHost = officialOrigin ? new URL(officialOrigin).host : "";
   const serverLine = (origin: string) => (
     <p className="fine">
-      Server: {origin.replace(/^https?:\/\//, "")} · <button type="button" className="link" onClick={() => chooseServer(true)}>Use another server</button>
+      Connected to {origin.replace(/^https?:\/\//, "")} · <button type="button" className="link" onClick={() => chooseServer(true)}>Use another PURSS</button>
     </p>
   );
 
@@ -278,7 +278,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
               </Field>
               {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
               <div><Button variant="primary" type="submit" disabled={phase.kind === "checking" || !address.trim()}>{phase.kind === "checking" ? "Checking…" : "Continue"}</Button></div>
-              {officialOrigin ? <p className="fine"><button type="button" className="link" disabled={phase.kind === "checking"} onClick={() => chooseServer(false)}>Use the official server ({officialHost})</button></p> : null}
+              {officialOrigin ? <p className="fine"><button type="button" className="link" disabled={phase.kind === "checking"} onClick={() => chooseServer(false)}>Use the official PURSS ({officialHost})</button></p> : null}
             </form>
           ) : phase.kind === "opening" ? (
             <p className="state" role="status"><span className="spin" aria-hidden="true" />Opening your PURSS…</p>

@@ -15,7 +15,7 @@ import type { BoxLink } from "./home.ts";
 /*
  * Notifications (plan/29 §2). One place decides who is told what, when:
  *  - frequency "daily" / "weekly": arrivals wait, and one digest at the chosen time counts what is still New;
- *  - "off": nothing about new items;
+ *  - "off": no digest;
  *  - a source set to "Notify me" tells you as its items arrive, whatever the frequency: its new items within an hour
  *    share one notification.
  * Sources set to "muted" never notify. Collections hidden from Home are left out unless chosen.
@@ -278,7 +278,6 @@ const CAPTURE_NEWS_MS = 48 * 3_600_000;
  */
 export function runProblemCheck(app: App, workspaceId: string, accountId: string, now: Date = new Date()): number {
   const prefs = getPreferences(app, workspaceId);
-  if (prefs.notifications.frequency === "off") return 0;
   const inc = prefs.notifications.include;
   const iso = now.toISOString();
   const made = app.db.tx(() => {
@@ -380,11 +379,6 @@ export function deleteSourceNotifications(app: App, sourceId: string): number {
   return app.db.run("DELETE FROM notifications WHERE source_id = ?", sourceId).changes;
 }
 
-/** Whether anything about new items reaches the person (the bell badge follows this). */
-export function notificationsOn(prefs: Preferences): boolean {
-  return prefs.notifications.frequency !== "off";
-}
-
 // ---------- reading ----------
 
 /** What a capture-failure notification opens: its list filter, and the basket when it has no source to open. */
@@ -400,9 +394,8 @@ export function listNotifications(app: App, p: Principal, limit = 50): Notificat
     ...captureFailureLink(n.data) }));
 }
 
-/** Unread notifications for the bell; none while notifications are off. */
+/** Unread notifications for the bell. Digest frequency does not hide independent notices. */
 export function unreadCount(app: App, workspaceId: string): number {
-  if (!notificationsOn(getPreferences(app, workspaceId))) return 0;
   return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE workspace_id = ? AND read_at IS NULL", workspaceId)!.n;
 }
 

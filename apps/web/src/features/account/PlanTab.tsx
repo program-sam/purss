@@ -29,7 +29,8 @@ const euros = (n: number) => `€${Number.isInteger(n) ? n : n.toFixed(2)}`;
 export function PlanTab() {
   const qc = useQueryClient();
   const ws = useWorkspace();
-  const billing = useSession().data?.installation.billing ?? false;
+  const installation = useSession().data?.installation;
+  const billing = installation?.billing ?? false;
   const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
   const [period, setPeriod] = useState<Period>("year");
   const [busy, setBusy] = useState<Intent | null>(null);
@@ -51,7 +52,7 @@ export function PlanTab() {
     } catch (err) { setError(messageOf(err)); setBusy(null); }
   }
 
-  if (!capacity?.plan) return <p className="fine">No limits are set on this server.</p>;
+  if (!capacity?.plan) return <p className="fine">{installation?.mode === "self" ? "No limits are set on this PURSS." : "Your plan isn't available yet."}</p>;
   const plan = capacity.plan;
   const limits = PLAN_LIMITS[plan];
   const save = Math.round(100 - (100 * PLAN_PRICES_EUR.plus.year) / (12 * PLAN_PRICES_EUR.plus.month));
@@ -66,7 +67,7 @@ export function PlanTab() {
       </div>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       {plan === "unlimited" ? <p className="fine">Your account has no limits.</p>
-        : !billing ? <p className="fine">The administrator of this server sets plans.</p>
+        : !billing ? <p className="fine">{installation?.mode === "self" ? "The administrator of this PURSS sets plans." : "Paid plans aren't available yet."}</p>
         : plan === "free" ? (
           <>
             <Segmented label="Billing" value={period} onChange={setPeriod} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}

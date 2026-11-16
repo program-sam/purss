@@ -177,7 +177,7 @@ export function OpmlDialog({ preview, fileName, onClose }: { preview: OpmlPrevie
   return (
     <Dialog title="Import a list of feeds" size="lg" onClose={onClose} initialFocus="#op-all"
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!total || !destOk || busy} onClick={() => void run()}>{total ? `Follow ${plural(total, "feed")}` : "Follow"}</Button></>}>
-      <p className="hint"><b style={{ wordBreak: "break-all" }}>{fileName}</b> lists {plural(feeds.length, "feed")}. Choose which to follow. Each is looked up like Add source and keeps the name from the file. This runs on the server, so you can close this window. Progress is on the Your data page.</p>
+      <p className="hint"><b style={{ wordBreak: "break-all" }}>{fileName}</b> lists {plural(feeds.length, "feed")}. Choose which to follow. Each is looked up like Add source and keeps the name from the file. Importing continues in the background, so you can close this window. Progress is on the Your data page.</p>
       {preview.truncated ? <p className="state note"><Icon name="info" /><span>The list was longer than can be read at once, so only the first {feeds.length} are shown.</span></p> : null}
       {preview.skipped.notWebAddress || preview.skipped.duplicates ? (
         <p className="fine">Left out of the list: {[preview.skipped.notWebAddress ? `${plural(preview.skipped.notWebAddress, "entry", "entries")} without a web address` : "", preview.skipped.duplicates ? `${plural(preview.skipped.duplicates, "duplicate")}` : ""].filter(Boolean).join(", ")}.</p>

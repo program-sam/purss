@@ -80,7 +80,7 @@ registration budget) are kept in memory, at most 50,000 keys each. It has no acc
 The rules already deciding what reaches the bell decide what reaches the phone (`services/notifications.ts`);
 the push code adds only delivery:
 
-- nothing while notifications are off (frequency *Off*);
+- with frequency *Never* there is no digest; sources set to *Notify me*, reminders and problem notices still reach the bell and can wake the phone when their own switches are on;
 - **quiet hours are enforced on the server**: no wake during them; what arrived waits in the bell, and
   the first maintenance tick after they end wakes the phone once (`wakeHeld`), so overnight items arrive
   in the morning. The rule is `inQuietHours` in `packages/domain`, the one the web's

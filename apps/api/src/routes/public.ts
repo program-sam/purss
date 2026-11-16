@@ -422,7 +422,7 @@ export function publicRouter(): Router<Ctx> {
         status: eu?.status === "ready" ? (cp?.last_error ? "unavailable" : "ok") : eu?.status === "error" ? "unavailable" : "starting",
         lastSyncAt: cp?.last_success_at ?? null,
         // The sync's own words for what went wrong come first, then how long it has been.
-        message: eu?.status === "error" ? "The collection engine couldn't be set up for your PURSS. An administrator can retry it."
+        message: eu?.status === "error" ? ctx.app.config.mode === "hosted" ? "Your PURSS couldn't finish setting up. Try again later." : "The collection engine couldn't be set up for your PURSS. An administrator can retry it."
           : [
             cp?.last_error,
             staleDays(cp?.last_success_at) >= 1

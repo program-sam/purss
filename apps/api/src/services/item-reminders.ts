@@ -96,7 +96,7 @@ export function comingUp(app: App, p: Principal, now: Date = new Date(), days: n
  * Tell about the reminders whose day has come, once each: the bell, and email when allowed. Marking them told and
  * recording the notification happen in one transaction, so a failure leaves them to be told on the next run and a
  * second run never repeats them. Days missed by more than STALE_DAYS (the server was off) are marked without telling.
- * With notifications off, or the Reminders choice off, nobody is told either. Returns how many were told about.
+ * With Reminders off, nobody is told. Digest frequency does not affect these reminders. Returns how many were told about.
  */
 export function runItemReminders(app: App, workspaceId: string, accountId: string, now: Date = new Date()): number {
   const prefs = getPreferences(app, workspaceId);
@@ -110,7 +110,7 @@ export function runItemReminders(app: App, workspaceId: string, accountId: strin
     if (!due.length) return null;
     for (const r of due) app.db.run("UPDATE item_reminders SET notified_at = ? WHERE id = ?", iso, r.id);
     const current = due.filter((r) => r.remind_on >= stale);
-    if (!current.length || prefs.notifications.frequency === "off" || !prefs.notifications.include.reminders) return null;
+    if (!current.length || !prefs.notifications.include.reminders) return null;
     const single = current.length === 1 ? current[0]! : null;
     // Titles and notes only when the person turned titles on, and never for a private source.
     const showText = prefs.notifications.previews && !!single && !single.is_private;

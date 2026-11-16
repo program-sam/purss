@@ -66,10 +66,11 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
 /** Settings → Account: deleting the account, with a grace period and an export offered first. */
 export function DeleteAccountSection() {
   const [open, setOpen] = useState(false);
+  const selfHosted = useSession().data?.installation.mode === "self";
   return (
     <section className="field" aria-labelledby="acct-del">
       <div className="lbl" id="acct-del">Delete account</div>
-      <p className="fine">Deletes your PURSS and everything in it after 7 days. Sign in before then to keep it. The last administrator can't delete their account until someone else is an administrator.</p>
+      <p className="fine">Deletes your PURSS and everything in it after 7 days. Sign in before then to keep it.{selfHosted ? " The last administrator can't delete their account until someone else is an administrator." : ""}</p>
       <div><Button variant="danger" onClick={() => setOpen(true)}>Delete account…</Button></div>
       {open ? <DeleteAccountDialog onClose={() => setOpen(false)} /> : null}
     </section>

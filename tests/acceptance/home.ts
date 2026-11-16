@@ -131,6 +131,22 @@ const scrollState = (page: Page) => page.evaluate(() => { const el = document.ge
 const row = (page: Page, title: string) => page.locator("main .irow").filter({ has: page.locator(".title", { hasText: new RegExp(`^${title}$`) }) }).first();
 const homeTitles = (page: Page, selector: string) => page.locator(selector).evaluateAll((els) => els.map((e) => (e.textContent ?? "").trim().replace(/^New\.\s*/, "")));
 
+async function checkAccountMenu(page: Page): Promise<void> {
+  const account = page.getByRole("button", { name: "Account menu for Reader" });
+  await account.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: "Account" });
+  await menu.waitFor({ state: "visible" });
+  await menu.getByRole("menuitem", { name: "Settings", exact: true }).waitFor();
+  const signOut = menu.getByRole("menuitem", { name: "Sign out", exact: true });
+  await signOut.waitFor();
+  await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Sign out");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Account menu for Reader");
+  assert.equal(await account.evaluate((el) => el === document.activeElement), true, "Escape restores focus to the named account button");
+}
+
 async function openItem(page: Page, title: string): Promise<void> {
   await row(page, title).click();
   await page.locator("#panel-in .p-title", { hasText: title }).waitFor();
@@ -154,6 +170,8 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await signIn(page);
+    await checkAccountMenu(page);
+    step("the desktop account menu has Settings and Sign out, works by keyboard and returns focus");
     await page.getByText("Reading", { exact: true }).first().click();
     await page.locator("main .irow").first().waitFor();
     // A collection with new items opens on them; opened items stop being new, so read from everything.
@@ -341,6 +359,7 @@ async function main(): Promise<void> {
     const phone = await browser.newContext({ viewport: { width: 412, height: 900 }, hasTouch: true, isMobile: true });
     const phonePage = await phone.newPage();
     await signIn(phonePage);
+    await checkAccountMenu(phonePage);
     await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
     await phonePage.getByText("Ignored", { exact: true }).waitFor();

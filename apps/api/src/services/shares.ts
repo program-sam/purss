@@ -34,7 +34,9 @@ export function shareStatement(listed: boolean): string {
 }
 export const LISTING_STATEMENT = "Search engines may list this page from their next visit, so people can find it by searching. Turning it off later asks them to drop it, but they decide when.";
 export const REVOCATION_NOTICE = "The page and feed no longer show. Copies that were already fetched, cached or kept by others can't be recalled.";
-const TAKEN_DOWN_BLOCKER = "An administrator took this page down after a report, so it can't be shared again. The reason is shown above.";
+const takenDownBlocker = (app: App) => app.config.mode === "hosted"
+  ? "PURSS took this page down after a report, so it can't be shared again. The reason is shown above."
+  : "An administrator took this page down after a report, so it can't be shared again. The reason is shown above.";
 const PLUS_ONLY = "Sharing a basket or collection as a public page is part of Plus.";
 
 type ShareRow = {
@@ -251,7 +253,7 @@ export function previewShare(app: App, p: Principal, id: string): SharePreview {
     if (why) blockers.push(why);
   }
   if (!canShare(app, p.accountId)) blockers.push(PLUS_ONLY);
-  if (r.taken_down_at) blockers.push(TAKEN_DOWN_BLOCKER);
+  if (r.taken_down_at) blockers.push(takenDownBlocker(app));
   let confirmation: SharePreview["confirmation"] = null;
   if (!blockers.length && r.status !== "published") {
     const token = randomToken(18);
@@ -273,7 +275,7 @@ export function previewShare(app: App, p: Principal, id: string): SharePreview {
 export function publishShare(app: App, p: Principal, id: string, confirmToken: string): ShareDTO {
   return app.db.tx(() => {
     const r = own(app, p, id);
-    if (r.taken_down_at) throw new HttpError(403, "taken_down", TAKEN_DOWN_BLOCKER);
+    if (r.taken_down_at) throw new HttpError(403, "taken_down", takenDownBlocker(app));
     if (!canShare(app, p.accountId)) throw new HttpError(403, "plan_sharing", PLUS_ONLY);
     const t = target(app, r.target_kind, r.target_id, r.workspace_id);
     const why = t ? unshareable(t) : "This basket or collection no longer exists.";
@@ -300,7 +302,9 @@ export function pauseShare(app: App, p: Principal, id: string): { share: ShareDT
 /** Stop sharing: the page, its address and its public notes go. A page an administrator took down stays until restored. */
 export function stopSharing(app: App, p: Principal, id: string): { ok: true; notice: string } {
   const r = own(app, p, id);
-  if (r.taken_down_at) throw badRequest("An administrator took this page down; it stays (switched off) until they restore it.", "taken_down");
+  if (r.taken_down_at) throw badRequest(app.config.mode === "hosted"
+    ? "PURSS took this page down after a report. It stays switched off until the report is reviewed."
+    : "An administrator took this page down; it stays switched off until they restore it.", "taken_down");
   app.db.run("DELETE FROM shares WHERE id = ?", id);
   audit(app, p.accountId, "share_stop", id, "success");
   return { ok: true, notice: r.status === "published" ? REVOCATION_NOTICE : "Stopped." };
@@ -520,7 +524,7 @@ export function takeDownShare(app: App, admin: Principal, id: string, reason: st
     app.db.run("UPDATE shares SET taken_down_at = ?, takedown_reason = ?, status = CASE WHEN status = 'published' THEN 'paused' ELSE status END, updated_at = ? WHERE id = ?", now, text, now, id);
     app.db.run("UPDATE share_reports SET resolved_at = ?, resolution = 'taken_down', resolved_by = ? WHERE share_id = ? AND resolved_at IS NULL", now, admin.accountId, id);
     tellOwner(app, cur, `Your shared page “${plainText(head(app, cur).title, 80)}” was taken down`,
-      `An administrator took its page and feed down after a report: ${text} You can still change it, but not share it again unless an administrator restores it.`, `share-takedown:${id}:${now}`);
+      `${app.config.mode === "hosted" ? "PURSS took its page and feed down after a report" : "An administrator took its page and feed down after a report"}: ${text} You can still change it, but not share it again until the report is reviewed.`, `share-takedown:${id}:${now}`);
     return cur;
   });
   emit(app, accountOf(app, r.workspace_id), { type: "notification" });
@@ -535,7 +539,7 @@ export function restoreShare(app: App, admin: Principal, id: string): { ok: true
     if (!cur.taken_down_at) throw badRequest("That page isn't taken down.", "not_taken_down");
     app.db.run("UPDATE shares SET taken_down_at = NULL, takedown_reason = NULL, updated_at = ? WHERE id = ?", nowIso(), id);
     tellOwner(app, cur, `Your shared page “${plainText(head(app, cur).title, 80)}” can be shared again`,
-      "An administrator lifted the takedown. It is still paused: review it and share it again when you're ready.", `share-restore:${id}:${nowIso()}`);
+      `${app.config.mode === "hosted" ? "PURSS lifted the takedown" : "An administrator lifted the takedown"}. It is still paused: review it and share it again when you're ready.`, `share-restore:${id}:${nowIso()}`);
     return cur;
   });
   emit(app, accountOf(app, r.workspace_id), { type: "notification" });

@@ -11,7 +11,7 @@ export type Plan = (typeof PLAN_NAMES)[number];
 export type PlanLimits = { sources: number | null; collections: number | null };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
-  free: { sources: 100, collections: 4 },
+  free: { sources: 100, collections: 5 },
   plus: { sources: 1000, collections: null },
   pro: { sources: 5000, collections: null },
   // For accounts the operator exempts; administrators are unlimited whatever their plan.

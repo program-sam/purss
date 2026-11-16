@@ -61,17 +61,17 @@ test("following again an address already followed is not a new source, even at t
   assert.equal(followSource(app, p, { ...base, token: hold(p, 7) }).id, s.id);
 });
 
-test("Free allows 4 collections, also when made while following; Plus has no collection limit", (t) => {
+test("Free allows 5 collections, also when made while following; Plus has no collection limit", (t) => {
   const { app, cleanup } = hosted();
   t.after(cleanup);
   const p = makeOwner(app, { admin: false });
-  for (let i = 0; i < 4; i++) collection(app, p, `C${i}`);
-  assert.throws(() => collection(app, p, "C4"), refused("plan_limit"));
+  for (let i = 0; i < 5; i++) collection(app, p, `C${i}`);
+  assert.throws(() => collection(app, p, "C5"), refused("plan_limit"));
   assert.throws(() => followSource(app, p, { ...base, token: hold(p, 1), newCollectionName: "Via follow" }), refused("plan_limit"));
   assert.equal(capacity(app, p.accountId).sources.used, 0, "the refused follow added no source either");
 
   updateAccount(app, makeOwner(app), p.accountId, { plan: "plus" });
-  for (let i = 4; i < 12; i++) collection(app, p, `C${i}`);
+  for (let i = 5; i < 12; i++) collection(app, p, `C${i}`);
   assert.deepEqual(capacity(app, p.accountId).collections, { used: 12, limit: null });
 });
 
@@ -118,7 +118,7 @@ test("an import that would follow more sources or add more collections than the 
   t.after(from.cleanup);
   const pa = makeOwner(from.app);
   fill(from.app, pa, 30, "theirs");
-  for (let i = 0; i < 3; i++) collection(from.app, pa, `C${i}`);
+  for (let i = 0; i < 4; i++) collection(from.app, pa, `C${i}`);
   const parts: string[] = [];
   await streamExport(from.app, pa, (c) => { parts.push(c); });
   const doc = JSON.parse(parts.join(""));
@@ -136,7 +136,7 @@ test("an import that would follow more sources or add more collections than the 
   collection(app, p, "Mine too");
   app.db.run("DELETE FROM sources WHERE account_id = ? AND title LIKE 'Source 1%'", p.accountId);
   const again = stageImport(app, p, doc);
-  assert.match(again.overPlan ?? "", /allows 4 collections/, "now the sources fit, but 2 + 3 collections don't");
+  assert.match(again.overPlan ?? "", /allows 5 collections/, "now the sources fit, but 2 + 4 collections don't");
 });
 
 test("an administrator is unlimited while they are one, whatever plan they keep for afterwards", (t) => {

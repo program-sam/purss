@@ -36,7 +36,7 @@ export const STEP_UP_SECONDS = 10 * 60;
 
 export function requireAdmin(ctx: Ctx, opts: { stepUp?: boolean } = {}): Principal {
   const p = requirePrincipal(ctx);
-  if (!p.isAdmin) throw new HttpError(403, "forbidden", "This needs an administrator.");
+  if (!p.isAdmin) throw new HttpError(403, "forbidden", ctx.app.config.mode === "hosted" ? "You don't have access to this feature." : "This needs an administrator.");
   if (opts.stepUp) requireRecentAuth(p);
   return p;
 }

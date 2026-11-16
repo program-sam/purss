@@ -19,11 +19,13 @@ export const STATE_RECORD_BYTES = 64;
 export class StorageFull extends HttpError {
   readonly reason: "quota" | "disk";
   readonly accountId: string;
-  constructor(reason: "quota" | "disk", accountId: string) {
+  constructor(reason: "quota" | "disk", accountId: string, mode: "self" | "hosted") {
     super(507, reason === "quota" ? "quota_full" : "disk_reserve",
       reason === "quota"
-        ? "This PURSS has used all the space it is allowed. Reading and organising still work; new items and copies are paused until an administrator gives it more."
-        : "The server is low on disk space. New items and copies are paused; nothing you kept was removed.");
+        ? mode === "hosted"
+          ? "Your storage allowance is full. Reading and organising still work, but new items and copies are paused."
+          : "This PURSS has used all the space it is allowed. Reading and organising still work; new items and copies are paused until its administrator gives it more."
+        : "PURSS can't save new items and copies right now because there isn't enough free space. Nothing you kept was removed.");
     this.reason = reason;
     this.accountId = accountId;
   }
@@ -103,7 +105,7 @@ function diskBlocks(app: App, bytes: number): boolean {
 
 /** Refuses to store a file (an upload, a staged import) that would eat into the disk's reserve; it isn't account content, so nothing is paused. */
 export function assertDiskRoom(app: App, bytes: number): void {
-  if (diskBlocks(app, bytes)) throw new HttpError(507, "disk_reserve", "The server is low on disk space, so the file can't be stored. Nothing you kept was removed.");
+  if (diskBlocks(app, bytes)) throw new HttpError(507, "disk_reserve", "There isn't enough free space to store this file right now. Nothing you kept was removed.");
 }
 
 /**
@@ -114,7 +116,7 @@ export function assertDiskRoom(app: App, bytes: number): void {
  */
 export function checkGrowth(app: App, accountId: string, bytes: number, opts: { control?: boolean; reservationId?: string; onDisk?: boolean } = {}): void {
   if (bytes <= 0) return;
-  if (!opts.control && diskBlocks(app, opts.onDisk ? 0 : bytes)) throw new StorageFull("disk", accountId);
+  if (!opts.control && diskBlocks(app, opts.onDisk ? 0 : bytes)) throw new StorageFull("disk", accountId, app.config.mode);
   const alloc = allocation(app, accountId);
   if (alloc === null) return;
   const own = opts.reservationId
@@ -122,7 +124,7 @@ export function checkGrowth(app: App, accountId: string, bytes: number, opts: { 
     : 0;
   const committed = usedBytes(app, accountId) + reservedBytes(app, accountId) - own;
   const limit = alloc + (opts.control ? CONTROL_HEADROOM_BYTES : 0);
-  if (committed + bytes > limit) throw new StorageFull("quota", accountId);
+  if (committed + bytes > limit) throw new StorageFull("quota", accountId, app.config.mode);
 }
 
 /** Clear a pause once growth fits again (called after deletions or allocation changes). */
@@ -266,8 +268,10 @@ export function summary(app: App, accountId: string): StorageSummary {
     categories: cats,
     growthPaused: paused !== null,
     pausedReason: paused === "quota"
-      ? "This PURSS has used all the space it is allowed, so new items and copies are paused until an administrator gives it more. Reading, organising and deleting still work."
-      : paused === "disk" ? "The server is low on disk space, so new items and copies are paused." : null,
+      ? app.config.mode === "hosted"
+        ? "Your storage allowance is full, so new items and copies are paused. Reading, organising and deleting still work."
+        : "This PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work."
+      : paused === "disk" ? "PURSS can't save new items and copies right now because there isn't enough free space." : null,
     measuredAt: nowIso(),
   };
 }

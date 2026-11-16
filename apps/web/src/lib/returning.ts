@@ -9,7 +9,7 @@ import { dateFormat, formatCount, interfaceLocale, plural, timeAgo } from "./for
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
 export const FREQUENCY_LABELS: Record<Preferences["notifications"]["frequency"], { label: string; blurb: string }> = {
-  off: { label: "Never", blurb: "Look in when you feel like it. Sources you set to “Notify me” still tell you." },
+  off: { label: "Never", blurb: "No digest. Sources you set to “Notify me”, your reminders and news of a source that stops working still tell you." },
   daily: { label: "Once a day", blurb: "One summary of what's still New." },
   weekly: { label: "Once a week", blurb: "One summary of what's still New." },
 };

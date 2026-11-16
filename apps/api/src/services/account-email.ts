@@ -31,7 +31,7 @@ export function accountEmailAvailable(app: App): boolean {
 }
 
 function requireAvailable(app: App): void {
-  if (!accountEmailAvailable(app)) throw new HttpError(404, "not_available", "This server doesn't send email.");
+  if (!accountEmailAvailable(app)) throw new HttpError(404, "not_available", "Email isn't available yet.");
 }
 
 /** The address waiting for its confirmation link to become the account's, if any. */
@@ -133,7 +133,7 @@ export function confirmEmail(app: App, token: string): void {
     app.db.run("DELETE FROM email_tokens WHERE account_id = ? AND used_at IS NULL", row.account_id);
     return { accountId: row.account_id, previous: account.email_verified_at ? account.email : null, now: row.email };
   });
-  if (changed?.previous) sendLater(app, "email_changed", changed.accountId, emailChangedMail(changed.previous, { masked: maskAddress(changed.now) }));
+  if (changed?.previous) sendLater(app, "email_changed", changed.accountId, emailChangedMail(changed.previous, { masked: maskAddress(changed.now), mode: app.config.mode }));
 }
 
 type ResetTarget = { id: string; email: string };
@@ -221,5 +221,5 @@ export async function resetPassword(app: App, token: string, password: string): 
     signOutEverywhere(app, target.id, "everything");
     audit(app, target.id, "password_reset", target.id, "success");
   });
-  if (target.email) sendLater(app, "password_changed", target.id, passwordChangedMail(target.email));
+  if (target.email) sendLater(app, "password_changed", target.id, passwordChangedMail(target.email, app.config.mode));
 }

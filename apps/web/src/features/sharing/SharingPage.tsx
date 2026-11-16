@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ShareDTO } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { shortDate } from "../../lib/format.ts";
+import { useSession } from "../../api/hooks.ts";
 import { useNav } from "../../nav.ts";
 import { useOverlays } from "../../state/overlays.tsx";
 import { useWorkspace } from "../../state/workspace.tsx";
@@ -9,8 +10,8 @@ import { sharesQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Page } from "../shared/bits.tsx";
 import { LinkRow } from "./LinkRow.tsx";
 
-function status(s: ShareDTO): { label: string; tone: string; text: string } {
-  if (s.takenDown) return { label: "Taken down", tone: "failed", text: `An administrator took it down after a report: ${s.takenDown.reason}` };
+function status(s: ShareDTO, hosted: boolean): { label: string; tone: string; text: string } {
+  if (s.takenDown) return { label: "Taken down", tone: "failed", text: `${hosted ? "PURSS took it down" : "An administrator took it down"} after a report: ${s.takenDown.reason}` };
   if (s.problem === "gone") return { label: "Not showing", tone: "draft", text: "Its basket or collection was removed." };
   if (s.problem === "plan") return { label: "Not showing", tone: "draft", text: "Your plan doesn't include sharing, so it doesn't show. It shows again if you choose Plus." };
   if (s.problem === "rules") return { label: "Not showing", tone: "draft", text: "This filter collection now uses your reading state, so it doesn't show. Change its rules to share it again." };
@@ -21,9 +22,10 @@ function status(s: ShareDTO): { label: string; tone: string; text: string } {
 
 function Card({ share }: { share: ShareDTO }) {
   const ws = useWorkspace();
+  const hosted = useSession().data?.installation.mode === "hosted";
   const nav = useNav();
   const overlays = useOverlays();
-  const st = status(share);
+  const st = status(share, hosted);
   const live = share.status === "published" && !share.problem && !share.takenDown;
   const path = `/${share.targetKind === "basket" ? "b" : "c"}/${share.targetId}`;
   return (
@@ -50,6 +52,7 @@ function Card({ share }: { share: ShareDTO }) {
 /** Everything this PURSS shows the world: each shared basket and collection, and what state it is in. */
 export function SharingPage() {
   const q = useQuery(sharesQuery);
+  const hosted = useSession().data?.installation.mode === "hosted";
   const list = q.data ?? [];
   return (
     <Page title="Sharing" lead="Publish a basket or collection as a page and feed that anyone can read and follow, no account needed.">
@@ -63,7 +66,7 @@ export function SharingPage() {
       ) : null}
       <div className="fx-stack">{list.map((s) => <Card key={s.id} share={s} />)}</div>
       {list.length ? (
-        <p className="fine"><Icon name="info" size="sm" /> Visitors see each item's title, link, a short summary, its source name and date, and your public notes. Never your reading progress and states, private notes and highlights, or saved text. Anyone can report a public page; the people who run this installation can take it down.</p>
+        <p className="fine"><Icon name="info" size="sm" /> Visitors see each item's title, link, a short summary, its source name and date, and your public notes. Never your reading progress and states, private notes and highlights, or saved text. Anyone can report a public page; {hosted ? "PURSS can take it down." : "the people who run this PURSS can take it down."}</p>
       ) : null}
     </Page>
   );

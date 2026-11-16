@@ -85,7 +85,9 @@ export function AssistantSettings() {
   const ov = useOverlays();
   const nav = useNav();
   const { toast } = useToasts();
-  const isAdmin = !!useSession().data?.account?.isAdmin;
+  const session = useSession().data;
+  const isAdmin = !!session?.account?.isAdmin;
+  const hosted = session?.installation.mode === "hosted";
   const stepUp = useStepUp();
   // Always fresh when opened: an administrator may have just changed the installation switch.
   const q = useQuery({ queryKey: assistantKey, queryFn: () => get<AssistantAccess>("/api/assistant"), staleTime: 0 });
@@ -131,9 +133,9 @@ export function AssistantSettings() {
       {stepUp.dialog}
       <p className="hint">Assistants that support MCP (such as Claude or ChatGPT) can search and read your PURSS. If you allow it, they can also organise it: change states, keep items, manage sources and collections. They can't delete anything for good, share, publish, export or change your sign-in. What they read goes to the assistant and its provider.</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      {!data.available ? (
-        <Note>Your administrator hasn't turned on assistant access for this PURSS{data.tokens.length || data.grants.length ? ", so your tokens and connected assistants don't work now. They work again if it is turned back on; revoke any you no longer want" : ""}.{isAdmin ? <> <button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/admin"); }}>Turn it on in Administration → Assistants</button>.</> : null}</Note>
-      ) : null}
+      {!data.available && session ? <Note>{hosted
+        ? `Assistant access isn't available yet.${data.tokens.length || data.grants.length ? " Your tokens and connected assistants don't work now." : ""}`
+        : <>Your administrator hasn't turned on assistant access for this PURSS{data.tokens.length || data.grants.length ? ", so your tokens and connected assistants don't work now. They work again if it is turned back on; revoke any you no longer want" : ""}.{isAdmin ? <> <button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/admin"); }}>Turn it on in Administration → Assistants</button>.</> : null}</>}</Note> : null}
       {data.available || data.enabled ? (
         <Check checked={data.enabled} disabled={busy || (!data.available && !data.enabled)} onChange={(on) => void setEnabled(on)}
           hint="Turning it off revokes every token you made and disconnects every assistant.">Let assistants use my PURSS</Check>

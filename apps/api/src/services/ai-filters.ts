@@ -343,10 +343,11 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
   const s = scopeOf(app, p, scope);
   const key = keyFor(app, p);
   if (!key) {
+    const hosted = app.config.mode === "hosted";
     throw new HttpError(409, "ai_unavailable", !serverKeyReady(app)
-      ? "This server hasn't set up Smart filters yet. Ask your administrator."
+      ? hosted ? "Smart filters aren't available yet." : "This PURSS hasn't set up Smart filters yet. Ask its administrator."
       : aiSettings(app, p).allowanceUsedUp
-        ? "You've used this week's Smart filter allowance. Contact your administrator to change your limits."
+        ? hosted ? "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday." : "You've used this week's Smart filter allowance. Contact the administrator to change your limits."
         : "Smart filters are included in the Pro plan. Move to Pro to try a filter.");
   }
   const sources = s.column === "source_id" ? "SELECT ? AS id" : "SELECT source_id AS id FROM collection_sources WHERE collection_id = ?";
@@ -366,8 +367,8 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
   if (err) {
     if (err.failure === "key_rejected") markKeyRejected(app, jevKeyFingerprint(key));
     throw new HttpError(err.failure === "key_rejected" ? 409 : 502, `ai_${err.failure}`, err.failure === "key_rejected"
-      ? "Jev did not accept this server's key. An administrator can replace it."
-      : err.failure === "busy" ? "Jev is busy. Try again in a moment." : "Jev could not be reached. Try again in a moment.");
+      ? app.config.mode === "hosted" ? "Smart filters aren't available yet." : "The AI provider didn't accept this PURSS's key. Ask its administrator to replace it."
+      : err.failure === "busy" ? "The AI provider is busy. Try again in a moment." : "The AI provider couldn't be reached. Try again in a moment.");
   }
   const answers = answered;
   return {

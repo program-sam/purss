@@ -770,7 +770,7 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE kind = 'digest'")!.n, 2);
 });
 
-test("switching how often to be told starts from now; off silences the bell badge", (t) => {
+test("switching digest frequency starts from now; Never doesn't hide other unread notices", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
@@ -781,7 +781,7 @@ test("switching how often to be told starts from now; off silences the bell badg
   app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('n1', ?, 'arrivals', 'x', 'k', ?)", p.workspaceId, nowIso());
   assert.equal(unreadCount(app, p.workspaceId), 1);
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
-  assert.equal(unreadCount(app, p.workspaceId), 0, "no badge while off");
+  assert.equal(unreadCount(app, p.workspaceId), 1, "a frequency choice doesn't hide an existing notification");
   assert.equal(listNotifications(app, p).length, 1, "what is already there can still be read");
 });
 
@@ -836,7 +836,7 @@ test("a source that stops working is told about once for that failure, however o
   app.db.run("UPDATE sources SET problem_notified_for = NULL, problem_notified_at = NULL WHERE id = ?", src);
   assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 60)), 0, "switched off");
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off", include: { problems: true } } });
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 60)), 0, "and nothing while notifications are off");
+  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 60)), 1, "the problem notice still arrives when digests are off");
 });
 
 test("a failed text save is told about once; a new attempt that fails is told about again", (t) => {

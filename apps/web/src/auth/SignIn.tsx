@@ -118,11 +118,13 @@ export function SignInPage() {
           </>
         ) : null}
         {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${oidcQuery(search.next, sharedComputer)}`} />)}
-        {/* A reset link comes by email where this installation has account email; otherwise the administrator makes one at the server. */}
+        {/* A reset link comes by email where available; self-hosted installations without email need their administrator. */}
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.accountEmail
             ? <>Can't sign in? <a className="link" href={inApp("/reset-password")}>Reset your password by email</a></>
-            : "Can't sign in? Ask this server's administrator for a password reset link."}
+            : session?.installation.mode === "hosted" ? "Password reset emails aren't available yet."
+              : session ? "Can't sign in? Ask your PURSS administrator for a password reset link."
+                : null}
         </p>
         {/* With open sign-up an invitation is only ever followed from its email link, which fills in the code. */}
         <p className="fine" style={{ textAlign: "center" }}>

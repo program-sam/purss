@@ -109,17 +109,21 @@ export function resetMail(to: string, opts: { link: string; minutes: number }): 
   ]);
 }
 
-export function passwordChangedMail(to: string): Message {
+export function passwordChangedMail(to: string, mode: "self" | "hosted" = "self"): Message {
   return compose(to, "Your password was changed", [
     `The password for your ${NAME} account was just changed with a reset link. The account was signed out everywhere and its assistant tokens were revoked.`,
-    "If you didn't do this, reset your password again from the sign-in page, or contact the administrator.",
+    mode === "hosted"
+      ? "If you didn't do this, reset your password again from the sign-in page, or contact Program Sam through the legal notice in PURSS."
+      : "If you didn't do this, reset your password again from the sign-in page, or contact the PURSS administrator.",
   ]);
 }
 
-export function emailChangedMail(to: string, opts: { masked: string }): Message {
+export function emailChangedMail(to: string, opts: { masked: string; mode?: "self" | "hosted" }): Message {
   return compose(to, "Your email address was changed", [
     `The email address for your ${NAME} account was changed to ${opts.masked}. Messages about your account now go there.`,
-    "If you didn't do this, sign in and check your account's security settings, or contact the administrator.",
+    opts.mode === "hosted"
+      ? "If you didn't do this, sign in and check your account's security settings, or contact Program Sam through the legal notice in PURSS."
+      : "If you didn't do this, sign in and check your account's security settings, or contact the PURSS administrator.",
   ]);
 }
 

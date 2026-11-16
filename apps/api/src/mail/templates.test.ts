@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accountExistsMail, invitationMail, reminderMail, resetMail, signupMail, verifyMail } from "./templates.ts";
+import { accountExistsMail, emailChangedMail, invitationMail, passwordChangedMail, reminderMail, resetMail, signupMail, verifyMail } from "./templates.ts";
 
 const URL_ON_ITS_OWN_LINE = /^https?:\/\/\S+$/;
 /** Every address in the text is a whole line: nothing before it on the line, and no full stop or word after it. */
@@ -41,4 +41,14 @@ test("a reminder email names the item and note only when it is given them, and e
   assert.equal(several.subject, "2 reminders you set are due");
   assert.match(several.text, /A <b>title<\/b>: Call & ask/);
   assert.ok(!several.html.includes("<b>title</b>") && several.html.includes("A &lt;b&gt;title&lt;/b&gt;: Call &amp; ask"));
+});
+
+test("account security emails use hosted service wording and self-hosted administrator wording", () => {
+  for (const message of [passwordChangedMail("a@example.org", "hosted"), emailChangedMail("a@example.org", { masked: "a…@example.org", mode: "hosted" })]) {
+    assert.match(message.text, /Program Sam through the legal notice in PURSS/);
+    assert.doesNotMatch(message.text, /administrator|this server/i);
+  }
+  for (const message of [passwordChangedMail("a@example.org", "self"), emailChangedMail("a@example.org", { masked: "a…@example.org", mode: "self" })]) {
+    assert.match(message.text, /PURSS administrator/);
+  }
 });

@@ -166,7 +166,7 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
     });
   }
 
-  if (out.length && prefs.notifications.frequency !== "off" && prefs.notifications.include.reminders) {
+  if (out.length && prefs.notifications.include.reminders) {
     // Private sources' titles never go into notifications (they can show on a lock screen).
     const single = out.length === 1 ? out[0]! : null;
     const isPrivate = single ? !!app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", single.itemId) : false;

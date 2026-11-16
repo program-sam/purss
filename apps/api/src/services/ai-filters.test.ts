@@ -134,7 +134,7 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
   const noKey = await b.api("POST", `/api/sources/${source}/ai-filter/preview`, { keep: "sediment research" });
   assert.equal(noKey.status, 409);
   assert.equal(noKey.json.error.code, "ai_unavailable");
-  assert.equal(noKey.json.error.message, "This server hasn't set up Smart filters yet. Ask your administrator.");
+  assert.equal(noKey.json.error.message, "This PURSS hasn't set up Smart filters yet. Ask its administrator.");
 
   await b.setServerKey("server-key-1234");
   const settings = (await b.api("GET", "/api/ai")).json;
@@ -386,7 +386,7 @@ test("hosted: Pro uses the server key an administrator set, until the week's all
   assert.equal(capped.allowanceUsedUp, true);
   assert.equal(capped.ready, false, "the allowance is used up: filters wait");
   const waiting = await b.api("POST", `/api/sources/${source}/ai-filter/preview`, { keep: "sediment" });
-  assert.equal(waiting.json.error.message, "You've used this week's Smart filter allowance. Contact your administrator to change your limits.");
+  assert.equal(waiting.json.error.message, "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday.");
   assert.doesNotMatch(JSON.stringify(capped) + waiting.text, /token/i, "people never see tokens");
   // A new week starts afresh: last week's use doesn't count.
   b.app.db.run("UPDATE ai_usage SET week = ? WHERE account_id = ?", usageWeek(new Date(Date.now() - 7 * 86_400_000)), b.owner.accountId);

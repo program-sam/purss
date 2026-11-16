@@ -51,8 +51,7 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
   const bp = useBreakpoint();
   const crumbs = useCrumbs();
   const who = useSession().data?.account?.displayName;
-  // No badge while notifications are off, even for ones that arrived before.
-  const unread = ws.prefs.notifications.frequency === "off" ? 0 : ws.data.unreadNotifications;
+  const unread = ws.data.unreadNotifications;
   const offline = useOfflineStatus();
   const savedCopy = showsSavedCopy(offline);
   const waiting = usePendingCount();

@@ -569,7 +569,7 @@ highlights or notes.
 The meter at the foot of the sidebar shows how many sources you follow of what your plan allows;
 select it to see collections too.
 
-- On a hosted installation every account has a plan: **Free** allows 100 sources and 4
+- On a hosted installation every account has a plan: **Free** allows 100 sources and 5
   collections, **Plus** 1,000 sources and any number of collections, and **Pro** 5,000 sources,
   any number of collections and [Smart filters](#smart-filters).
   Administrators are not limited. Saved links and sources you no longer follow don't count.
@@ -644,9 +644,10 @@ to five years ahead. An item has one reminder: change it or remove it from the s
   titles are on in notifications, like every notification.
 - A reminder belongs to the keeping: while the item is in no basket, its reminder is hidden and
   not announced, and it comes back when you keep the item again. Each is announced once. One whose
-  day was missed by more than three days (the server was off) is dropped quietly, and a reminder
-  is deleted 30 days after its day. With notifications set to *Never*, or *Reminders*
-  unticked under *What about*, the bell and email stay quiet and Coming up still lists them.
+  day was missed by more than three days is dropped quietly, and a reminder is deleted 30 days
+  after its day. *Never* stops digests, not reminders: due reminders still appear in the bell unless
+  *Reminders* is unticked under *What about*. Reminder email follows its own *Email me reminders*
+  switch, so it can still arrive when digests are set to *Never*.
 - Reminders are part of [your data](#your-data): they are in the export and come back with an
   import (days that have gone by are left out).
 
@@ -671,21 +672,22 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
   to you), but never those of private sources.
 - **What about:** new items from every collection shown on Home, or only from the collections you
   tick; sources that stop working; reminders ("On this day" notes and the days you set with
-  [Remind me](#reminders)); saved text that couldn't be saved.
+  [Remind me](#reminders)); saved text that couldn't be saved. These come whatever the digest setting,
+  also with *Never*.
   Collections you hide from Home are left out unless you tick them. A source's own setting wins:
-  *Mute* never notifies, *Notify me* tells you as items arrive (at most one notification per source per hour, which grows
-  as more arrive), whatever the general setting.
+  *Mute* never notifies; *Notify me* tells you as items arrive, also with *Never* (at most one
+  notification per source per hour, which grows as more arrive).
 - **Where:** the bell, or also **browser alerts while this page is open** (press *Allow browser
   notifications* once).
 - **Show item titles in notifications:** off by default, so notifications leave out item titles. The
   source's name is still shown ("New from …"), and a private source's titles are never shown.
 - **Quiet hours:** browser alerts are held back; everything still waits in the bell.
 
-With notifications off the bell shows no number. Notifications are deleted after 90 days (and
-only the newest 500 are kept), and a source's notifications go when you unfollow it. Alerts to a
-closed browser (push) are *not built*. Email carries the digest (unless you turn it off), your
-[reminders](#reminders) when you ask for that, and your account's own messages; notifications of
-*Notify me* sources, failing sources and failed text saves stay in the bell.
+*Never* stops digests, but not sources set to *Notify me*, reminders or problem notices: their unread items
+still count in the bell. Notifications are deleted after 90 days (and only the newest 500 are kept),
+and a source's notifications go when you unfollow it. Alerts to a closed browser (push) are *not built*.
+Email carries the digest (unless you turn it off), your [reminders](#reminders) when you ask for that,
+and your account's own messages; source alerts, failing sources and failed text saves stay in the bell.
 
 **The count on the app's icon.** Where PURSS runs as an app, its icon shows how many items are New:
 the counts beside your sources in the sidebar, added up. Your system decides whether it shows the

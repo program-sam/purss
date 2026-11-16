@@ -37,8 +37,8 @@ function describe(state: AppUpdateState, needed: boolean): { kind: "newer" | "ne
   const update = where.name ? `Update it in ${where.name}.` : "Update it from where you installed it.";
   return {
     kind: "needed",
-    short: `This server's newest screens need a newer version of the app. ${update}`,
-    long: `This server's newest screens need a newer version of the app than this one, so the app shows the screens it was installed with. ${update}`,
+    short: `PURSS needs a newer version of the app. ${update}`,
+    long: `PURSS needs a newer version of the app than this one, so the app shows the screens it was installed with. ${update}`,
     action: where.url ? { label: `Open ${where.name}`, url: where.url } : null,
   };
 }
@@ -75,7 +75,7 @@ export function AppUpdateSection() {
       {said ? <>
         <p className="fine">{said.long}</p>
         {said.action ? <div><Button variant="primary" onClick={() => platform.openExternal(said.action!.url)}>{said.kind === "newer" ? `Download version ${u!.state.newer}` : said.action.label}</Button></div> : null}
-      </> : <p className="fine">This server's newest screens need a newer version of the app than this one. It isn't out yet; the app says so when it is.</p>}
+      </> : <p className="fine">PURSS needs a newer version of the app than this one. It isn't out yet; the app says so when it is.</p>}
     </section>
   );
 }

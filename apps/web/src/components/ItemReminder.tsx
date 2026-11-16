@@ -60,7 +60,7 @@ export function ItemReminder({ itemId }: { itemId: string }) {
 
   if (q.isPending) return null;
   const n = ws.prefs.notifications;
-  const quiet = n.frequency === "off" || !n.include.reminders;
+  const quiet = !n.include.reminders;
   if (!editing) {
     return current ? (
       <p className="p-remind" role="group" aria-label="Reminder">
@@ -88,7 +88,7 @@ export function ItemReminder({ itemId }: { itemId: string }) {
       <label className="rm-f">Note (optional)
         <TextInput value={note} maxLength={REMINDER_NOTE_MAX} onChange={(e) => setNote(e.target.value)} placeholder="Why, or what to do" dir="auto" />
       </label>
-      {quiet ? <p className="fine">Reminder notifications are off in Settings. This only shows under Coming up on Home.</p> : null}
+      {quiet ? <p className="fine">Reminders are off in Settings. This only shows under Coming up on Home.</p> : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div className="rm-acts">
         <Button variant="primary" type="submit" disabled={busy || !day}>{busy ? "Saving…" : "Save reminder"}</Button>

@@ -126,7 +126,7 @@ function OpmlSection() {
   }
   return (
     <Section title="Subscription list (OPML)" hint="The standard list other feed readers use.">
-      <p>Export what you follow as an OPML file, or import a list from another reader and choose which feeds to follow. An imported list is followed on the server, so it goes on if you close this page.</p>
+      <p>Export what you follow as an OPML file, or import a list from another reader and choose which feeds to follow. Importing continues in the background, so it keeps going if you close this page.</p>
       <p className="fine">Only public feeds are exported. Private links contain a secret, so they are left out.</p>
       <div className="fx-acts-row">
         <Button disabled={exporting} onClick={() => void exportOpml()}><Icon name="download" size="sm" />{exporting ? "Preparing…" : "Export subscriptions"}</Button>

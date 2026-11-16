@@ -54,7 +54,7 @@ function AllocationDialog({ account, onClose }: { account: AdminAccountDTO; onCl
 
 const limitText = (n: number | null, what: string) => (n === null ? `unlimited ${what}` : `${formatCount(n, "en")} ${what}`);
 
-/** "Free · 37 of 100 sources, 2 of 4 collections" */
+/** "Free · 37 of 100 sources, 2 of 5 collections" */
 function planLine(c: Capacity): string {
   const part = (used: number, limit: number | null, what: string) => (limit === null ? `${formatCount(used, "en")} ${what}` : `${formatCount(used, "en")} of ${formatCount(limit, "en")} ${what}`);
   return `${c.plan ? `${PLAN_LABELS[c.plan]} · ` : ""}${part(c.sources.used, c.sources.limit, "sources")}, ${part(c.collections.used, c.collections.limit, "collections")}`;

@@ -19,7 +19,7 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
   const overlays = useOverlays();
   const { toast } = useToasts();
   const q = useQuery(notificationsQuery);
-  const off = ws.prefs.notifications.frequency === "off";
+  const noDigest = ws.prefs.notifications.frequency === "off";
   const list = q.data ?? [];
   const unread = list.filter((n) => !n.read).length;
 
@@ -49,13 +49,11 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
         <strong>Notifications</strong>
         {unread ? <button type="button" className="link" onClick={() => void markRead("all")}>Mark all as read</button> : null}
       </div>
-      {off ? (
-        <p className="fine" style={{ padding: "8px 12px 4px" }}>Notifications are off. <button type="button" className="link" onClick={() => { onClose(); overlays.open({ kind: "settings", tab: "notifications" }); }}>Change this in Settings</button></p>
-      ) : null}
-      {off ? null : <PhoneNotificationsOffer />}
+      {noDigest ? <p className="fine" style={{ padding: "8px 12px 4px" }}>The digest is off. Sources set to “Notify me”, reminders and problem notices still appear here.</p> : null}
+      <PhoneNotificationsOffer />
       {q.isPending ? <p className="fine" style={{ padding: 12 }}>Loading…</p> : null}
       {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>Try again</Button></p> : null}
-      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>Nothing yet. Your digest, your reminders and news of a source that stops working arrive here.</p> : null}
+      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>Nothing yet. {noDigest ? "Sources set to “Notify me”, reminders and problem notices still appear here." : "Your digest, reminders and news of a source that stops working arrive here."}</p> : null}
       <ul className="notif-list">
         {list.map((n) => (
           <li key={n.id}>

@@ -9,7 +9,6 @@ import { HttpError, nowIso } from "../http.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { usableAccountSql } from "./deletion.ts";
 import { newItemCount } from "./sources.ts";
-import { notificationsOn } from "./notifications.ts";
 import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
 
@@ -19,9 +18,8 @@ import { validTimezone } from "./reminders.ts";
  * the API asks the relay, by handle only, to wake the phone; the phone then fetches the texts with that
  * credential (POST /api/push/pending). The relay, Google and Apple never see any text.
  *
- * Who is told follows the person's notification settings, which already decide what reaches the bell:
- * nothing while notifications are off, and nothing during quiet hours (it waits in the bell, and the
- * maintenance tick wakes the phone once they end: `wakeHeld`). Each phone is handed each notification
+ * Who is told follows the person's notification settings, which already decide what reaches the bell.
+ * Quiet hours hold a wake in the bell, and the maintenance tick wakes the phone once they end (`wakeHeld`). Each phone is handed each notification
  * once, and again when its text grows ("3 new from …"). Waking is best-effort: a failure is logged
  * without the handle and touches nothing else.
  */
@@ -100,7 +98,6 @@ export function takePending(app: App, fetchToken: string): PushPending | null {
     if (!row) return null;
     const prefs = getPreferences(app, row.workspace_id);
     const newItems = newItemCount(app, row.workspace_id);
-    if (!notificationsOn(prefs)) return { notifications: [], newItems };
     const latest = app.db.get<{ at: string | null }>(`SELECT MAX(COALESCE(changed_at, created_at)) AS at ${pendingSql}`, row.workspace_id, row.shown_until)?.at;
     if (!latest) return { notifications: [], newItems };
     const list = app.db.all<{ id: string; title: string; body: string | null; item_id: string | null; source_id: string | null }>(
@@ -165,7 +162,7 @@ export function wakeHeld(app: App, now = Date.now()): void {
        SELECT 1 FROM notifications n WHERE n.workspace_id = w.id AND n.read_at IS NULL
          AND COALESCE(n.changed_at, n.created_at) > pd.shown_until AND COALESCE(n.changed_at, n.created_at) > COALESCE(pd.pushed_at, ''))`,
     app.config.pushRelay, idleCutoff());
-  // wakePhones itself leaves out accounts still in quiet hours or with notifications off.
+  // wakePhones itself leaves out accounts still in quiet hours.
   for (const a of accounts) schedule(app, w, a.account_id, 0);
 }
 
@@ -179,7 +176,6 @@ export async function wakePhones(app: App, accountId: string, now = Date.now()):
   const ws = app.db.get<{ id: string }>(`SELECT id FROM workspaces WHERE account_id = ? AND ${usableAccountSql("workspaces.account_id")}`, accountId);
   if (!ws) return null;
   const prefs = getPreferences(app, ws.id);
-  if (!notificationsOn(prefs)) return null;
   const n = prefs.notifications;
   // Held back, as browser alerts are: it waits in the bell.
   if (inQuietHours(new Date(now), n.quietStart, n.quietEnd, validTimezone(prefs.timezone))) return null;

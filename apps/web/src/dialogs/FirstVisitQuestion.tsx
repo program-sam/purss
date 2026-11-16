@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { NotificationFrequency } from "@purss/domain";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Dialog, SelectInput, TextInput } from "@purss/ui";
+import { Button, Check, Dialog, SelectInput, TextInput } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
 import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
@@ -23,20 +23,23 @@ export function FirstVisitQuestion() {
 function Question() {
   const ws = useWorkspace();
   const save = useSavePreferences();
+  const preferences = ws.data.preferences;
   const n = ws.data.preferences.notifications;
   // The suggestion is a weekly digest on Monday at 08:00, unless the person has already said they want nothing.
   const [frequency, setFrequency] = useState<NotificationFrequency>(n.frequency === "off" ? "off" : "weekly");
   const [time, setTime] = useState(n.digestTime);
   const [day, setDay] = useState(n.digestDay);
   const [days, setDays] = useState(ws.data.preferences.freshDays);
+  const [discoveryShare, setDiscoveryShare] = useState(preferences.discoveryShare);
   // A digest also goes by email when this installation sends email and the account's address is confirmed.
   const session = useSession().data;
+  const hosted = session?.installation.mode === "hosted";
   const email = useQuery({ ...accountEmailQuery, enabled: !!session?.installation.accountEmail }).data;
   const emailed = !!session?.installation.mail && !!email?.address && email.confirmed && n.emailDigest;
 
   const done = (keep: boolean) => void save(keep
     ? { welcomeAsked: true }
-    : { welcomeAsked: true, freshDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day } });
+    : { welcomeAsked: true, freshDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day }, ...(hosted ? { discoveryShare } : {}) });
 
   return (
     <Dialog title="How often do you want to hear about new items?" size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
@@ -61,10 +64,18 @@ function Question() {
             <TextInput type="time" aria-label="Time of day" value={time} onChange={(e) => e.target.value && setTime(e.target.value)} />
           </div>
         ) : null}
-        <p className="fine">{emailed && (frequency === "daily" || frequency === "weekly")
-          ? `In your time zone. It arrives in the bell and by email to ${email.address}; turn the email off in Settings.`
-          : "In your time zone. It arrives in the bell; add browser alerts in Settings."}</p>
+        <p className="fine">{frequency === "off"
+          ? "No digest. Sources set to “Notify me”, reminders and problem notices still show in the bell. Add browser alerts in Settings."
+          : emailed
+            ? `In your time zone. It arrives in the bell and by email to ${email.address}; turn the email off in Settings.`
+            : "In your time zone. It arrives in the bell; add browser alerts in Settings."}</p>
       </fieldset>
+      {hosted ? <div className="field" style={{ gap: 2 }}>
+        <Check checked={discoveryShare} onChange={setDiscoveryShare}
+          hint="PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.">
+          Share my sources
+        </Check>
+      </div> : null}
       <div className="field"><label htmlFor="fresh-days">Keep items marked New for</label>
         <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {freshDaysChoices(ws.data.preferences.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}

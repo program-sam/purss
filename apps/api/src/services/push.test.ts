@@ -145,7 +145,7 @@ test("the fetch says how many new items there are, as the sidebar adds them up, 
   } finally { await b.close(); }
 });
 
-test("bodies follow 'Show item titles in notifications'; read notifications and notifications that are off aren't handed", async () => {
+test("bodies follow 'Show item titles in notifications'; read notices aren't handed and Never still delivers independent notices", async () => {
   const b = await boot();
   try {
     const token = await b.register();
@@ -163,10 +163,12 @@ test("bodies follow 'Show item titles in notifications'; read notifications and 
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "read in the bell already");
 
     setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "off" } });
-    b.app.db.run("UPDATE notifications SET read_at = NULL, changed_at = ?", new Date(Date.now() + 2000).toISOString());
-    assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "notifications are off");
-    assert.equal(await wakePhones(b.app, b.owner.accountId), null);
-    assert.equal(b.relay.requests.length, 0, "and nothing wakes the phone");
+    b.app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('reminder', ?, 'reminder', 'A reminder you set is due', 'reminder:test', ?)", b.owner.workspaceId, new Date(Date.now() + 2000).toISOString());
+    assert.equal(await wakePhones(b.app, b.owner.accountId), null, "a successful wake needs no retry");
+    assert.equal(b.relay.requests.length, 1, "the reminder wakes the phone under Never");
+    const reminder = (await b.fetchPending(token)).json.notifications;
+    assert.equal(reminder.length, 1, "Never leaves reminders available to the phone");
+    assert.equal(reminder[0]!.title, "A reminder you set is due");
   } finally { await b.close(); }
 });
 

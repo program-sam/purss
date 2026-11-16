@@ -8,6 +8,7 @@ import { sessionQuery } from "../api/queries.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { platform } from "../platform/index.ts";
 import { tokenFromLink } from "../lib/email-links.ts";
+import { useSession } from "../api/hooks.ts";
 
 const KEY = ["account-email"] as const;
 /** The account's address, whether it is confirmed and any new address waiting for its link (Settings → Security, and the choice to get digests by email). */
@@ -19,6 +20,7 @@ export const accountEmailQuery = queryOptions({ queryKey: KEY, queryFn: ({ signa
  * Changing it needs a recent sign-in, through the tab's step-up.
  */
 export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Promise<void>) => Promise<void> }) {
+  const selfHosted = useSession().data?.installation.mode === "self";
   const qc = useQueryClient();
   const { toast } = useToasts();
   const q = useQuery(accountEmailQuery);
@@ -74,7 +76,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
             {data.address ? <><b>{data.address}</b>{data.available ? ` · ${data.confirmed ? "confirmed" : "not confirmed yet"}` : ""}</> : "No address yet."} You sign in with it.{" "}
             {data.available
               ? "We email it only about your account, such as password resets, and with your digest of what's new, which you can turn off under Notifications and New. No newsletters or marketing."
-              : "This server doesn't send email, so nothing is sent to it."}
+              : selfHosted ? "This PURSS doesn't send email, so nothing is sent to it." : "Email isn't available for this service yet."}
           </p>
           {data.pending ? <p className="state" role="status"><Icon name="info" /><span>Waiting for you to confirm {data.pending}. You still sign in with {data.address} until then.</span></p> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

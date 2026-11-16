@@ -25,7 +25,6 @@ export function NotificationSettings() {
   const chosen = n.include.newItems === "all" ? null : n.include.newItems;
   const pickable = [...ws.collections.map((c) => ({ id: c.id, name: c.name })), ...(ws.looseSources.length ? [{ id: OTHER_BOX_ID, name: "Other sources" }] : [])];
   const toggleBox = (id: string, on: boolean) => include({ newItems: on ? [...new Set([...(chosen ?? []), id])] : (chosen ?? []).filter((x) => x !== id) });
-  const off = n.frequency === "off";
   const computer = platform.notifier.kind === "computer";
   // Digests and reminders by email need outgoing email on this installation and a confirmed address on the account.
   const session = useSession().data;
@@ -63,7 +62,7 @@ export function NotificationSettings() {
         <p className="fine">Times are in your time zone ({p.timezone.replace(/_/g, " ")}). New items arrive in batches when sources are checked; it isn't instant.</p>
       </fieldset>
 
-      <fieldset className="field" disabled={off} style={{ opacity: off ? 0.55 : 1 }}><legend className="lbl" style={{ marginBottom: 6 }}>What to tell me about</legend>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>What to tell me about</legend>
         <div className="inc">
           <div className="radiolist">
             <label className="rl"><input type="radio" name="ninc" checked={chosen === null} onChange={() => include({ newItems: "all" })} /><span className="radio" aria-hidden="true" />New items from every collection shown on Home</label>

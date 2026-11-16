@@ -55,7 +55,7 @@ Limit native engine backlog as well as product growth; keep a physical reserve.
 ## Plans, capacity and funding
 
 The owner decided the hosted plans (packages/domain/src/plans.ts): **Free** allows
-100 followed sources and 4 collections, **Plus** 1,000 sources and unlimited
+100 followed sources and 5 collections, **Plus** 1,000 sources and unlimited
 collections, at €48 a year or €5 a month including VAT. Administrators are
 Unlimited. The API enforces the counts inside the write transaction of every path
 that adds a followed source or a collection (follow, re-follow, OPML, MCP, import);

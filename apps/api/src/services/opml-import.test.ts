@@ -395,14 +395,14 @@ test("a folder's collection is made together with its first follow: a follow the
 
   // With room for sources but not for collections: the follow is refused as a whole, with no source and no half-made collection.
   const { app: app2, p: p2 } = hostedSetup(t);
-  for (let i = 0; i < 4; i++) createCollection(app2, p2, { name: `C${i}`, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
+  for (let i = 0; i < 5; i++) createCollection(app2, p2, { name: `C${i}`, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
   const u = "https://c.example/f";
   const full = startOpmlImport(app2, p2, request(feeds(["C", u, "Brand new folder"]), { kind: "folders" }));
   await wait(app2, answerEach([u]));
   const out = getOpmlImport(app2, p2, full.id);
-  assert.match(out.entries![0]!.message ?? "", /allows 4 collections/);
+  assert.match(out.entries![0]!.message ?? "", /allows 5 collections/);
   assert.equal(app2.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE kind <> 'manual'")!.n, 0);
-  assert.equal(listCollections(app2, p2).length, 4);
+  assert.equal(listCollections(app2, p2).length, 5);
 });
 
 test("feeds of one folder share the collection its first follow made, and two records of one source count it once", async (t) => {

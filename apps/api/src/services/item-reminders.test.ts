@@ -139,21 +139,22 @@ test("titles and notes stay out of the bell unless titles are on, and never for 
   assert.deepEqual([group.title, group.body, group.item_id], ["2 reminders you set are due", null, null]);
 });
 
-test("with notifications off, or Reminders off, nobody is told and the day is not told later", (t) => {
+test("Never still tells about due reminders; Reminders off does not tell later", (t) => {
   const { app, p, lib, cleanup } = setup();
   t.after(cleanup);
   const [a, b] = lib.keptIds as [string, string, string];
   setItemReminder(app, p, a, { remindOn: "2026-11-12", note: null }, NOW);
   setItemReminder(app, p, b, { remindOn: "2026-11-12", note: null }, NOW);
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T08:00:00.000Z")), 0);
+  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T08:00:00.000Z")), 2);
+  assert.equal(notes(app, p).length, 1, "the due reminders are grouped into one notice while digests are off");
   setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
   assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T09:00:00.000Z")), 0, "switching them back on does not tell about a day that has gone");
-  assert.equal(notes(app, p).length, 0);
+  assert.equal(notes(app, p).length, 1);
   setPreferences(app, p.workspaceId, { notifications: { include: { reminders: false } } });
   setItemReminder(app, p, a, { remindOn: "2026-11-13", note: null }, new Date("2026-11-12T10:00:00.000Z"));
   assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T08:00:00.000Z")), 0);
-  assert.equal(notes(app, p).length, 0);
+  assert.equal(notes(app, p).length, 1);
 });
 
 test("a day missed by more than three days (the server was off) is not announced late; an item no longer kept is not announced", (t) => {
@@ -212,6 +213,7 @@ test("email: only when allowed, with outgoing email set up and a confirmed addre
   assert.equal(sent.length, 0, "an unconfirmed address gets nothing");
   // Allowed and confirmed: one message, links alone, no title while titles are off.
   app.db.run("UPDATE accounts SET email_verified_at = ? WHERE id = ?", nowIso(), p.accountId);
+  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
   remind(kept(lib), 14, 13);
   runItemReminders(app, p.workspaceId, p.accountId, day(14));
   await settleMail(app);
@@ -222,7 +224,7 @@ test("email: only when allowed, with outgoing email set up and a confirmed addre
   const link = lines.find((l) => l.startsWith("https://ws.example.org/app/i/"));
   const number = app.db.get<{ number: number }>("SELECT number FROM items WHERE id = ?", kept(lib))!.number;
   assert.equal(link, `https://ws.example.org/app/i/${number}`, "the link is a line of its own: the item's short link");
-  // Titles on: title and note appear.
+  // Titles on: title and note appear, still when digest frequency remains off.
   setPreferences(app, p.workspaceId, { notifications: { previews: true } });
   remind(kept(lib), 15, 14);
   runItemReminders(app, p.workspaceId, p.accountId, day(15));

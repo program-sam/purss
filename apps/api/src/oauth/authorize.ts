@@ -4,7 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { audit, requireRecentAuth } from "../app.ts";
 import { HttpError, badRequest, rateLimit } from "../http.ts";
 import { CHALLENGE_PATTERN, issueCode } from "../connect/codes.ts";
-import { MAX_GRANTS, endpointFor, getAccess, grantCount } from "../services/assistant.ts";
+import { MAX_GRANTS, assistantUnavailableMessage, endpointFor, getAccess, grantCount } from "../services/assistant.ts";
 import { isLoopbackRedirect, matchRedirect, resolveClient } from "./clients.ts";
 import type { Client } from "./clients.ts";
 
@@ -110,7 +110,7 @@ export async function approveRequest(app: App, p: Principal, body: z.infer<typeo
   if (!c.ok) throw badRequest(c.message, "oauth_request");
   const { client, redirectUri, state, codeChallenge, access } = c.req;
   const status = getAccess(app, p);
-  if (!status.available) throw new HttpError(403, "assistant_unavailable", "Your administrator hasn't turned on assistant access for this PURSS.");
+  if (!status.available) throw new HttpError(403, "assistant_unavailable", assistantUnavailableMessage(app));
   if (!status.enabled) throw new HttpError(403, "assistant_off", "Turn on assistant access first.");
   // A connected assistant holds a long-lived credential: like a new token, approving one needs a recent sign-in.
   requireRecentAuth(p);

@@ -101,10 +101,17 @@ async function signIn(page: Page): Promise<void> {
 }
 
 async function openSettings(page: Page): Promise<void> {
-  // On a phone Settings has a button in the header; elsewhere it is at the foot of the sidebar.
+  // The older phone layout has a Settings button in the header; current layouts put it in the
+  // account menu, with the sidebar as the fallback.
   const inHeader = page.locator("header").getByRole("button", { name: "Settings", exact: true });
   if (await inHeader.isVisible()) await inHeader.click();
-  else await page.getByRole("button", { name: "Settings", exact: true }).click();
+  else {
+    const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
+    if (await account.isVisible()) {
+      await account.click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Settings", exact: true }).click();
+    } else await page.getByRole("button", { name: "Settings", exact: true }).click();
+  }
   await page.getByRole("dialog").waitFor();
 }
 const einkBox = (page: Page) => page.getByRole("checkbox", { name: /E-ink display/ });

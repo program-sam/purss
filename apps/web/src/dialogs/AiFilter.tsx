@@ -13,7 +13,7 @@ import { useWorkspace } from "../state/workspace.tsx";
 
 /*
  * Smart filters (plan/36): describe which posts of a source or collection to keep, try the words on the latest posts, then turn the
- * filter on. Posts it drops are marked Ignored; the questions go to Jev on the server's key (hosted: for accounts on Pro).
+ * filter on. Posts it drops are marked Ignored; the questions go to the AI provider configured for Smart filters.
  */
 
 const aiKey = ["ai-settings"] as const;
@@ -80,9 +80,13 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
         <Button variant="primary" type="submit" form="aif-form" disabled={!!busy || !ready || !route}>{filter ? "Save" : enabled ? "Turn on" : "Save"}</Button>
       </>}>
       <form id="aif-form" onSubmit={(e) => { e.preventDefault(); void save(); }} style={{ display: "grid", gap: 12 }}>
-        <p className="hint">Say in your own words which posts you want from {what}. An AI model (Jev) checks each new post and marks the rest Ignored. Nothing is deleted, and a post you move back stays put.</p>
+        <p className="hint">Say in your own words which posts you want from {what}. An AI model, Jev from TypeSafe AI, checks each new post and marks the rest Ignored. Nothing is deleted, and a post you move back stays put.</p>
         {!route ? (
-          <p className="state note" role="status"><Icon name="info" /><span>{!settings.serverKey ? "This server hasn't set up Smart filters yet. Ask your administrator." : settings.allowanceUsedUp ? "You've used this week's Smart filter allowance. Contact your administrator to change your limits." : "Smart filters are included in the Pro plan. Move to Pro to use a filter."}</span></p>
+          <p className="state note" role="status"><Icon name="info" /><span>{!settings.serverKey
+            ? settings.pro !== null ? "Smart filters aren't available yet." : "This PURSS hasn't set up Smart filters yet. Ask its administrator."
+            : settings.allowanceUsedUp
+              ? settings.pro !== null ? "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday." : "You've used this week's Smart filter allowance. Contact the administrator to change your limits."
+              : "Smart filters are included in the Pro plan. Move to Pro to use a filter."}</span></p>
         ) : null}
         <Field label="Keep posts that…" htmlFor="aif-keep" hint="e.g. are weeknight recipes with only a few ingredients">
           <TextInput id="aif-keep" value={keep} maxLength={AI_FILTER_TEXT_MAX} onChange={(e) => edit(() => setKeep(e.target.value))} autoComplete="off" />
@@ -114,24 +118,24 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
         </div>
         <Check checked={enabled} onChange={setEnabled} hint="Untick to pause: your wording is kept and new posts arrive unfiltered.">Filter new posts as they arrive</Check>
         {filter ? <p className="fine">So far it has judged {plural(filter.judgedCount, "post")} and {filter.droppedCount === 1 ? "1 post it dropped is" : `${filter.droppedCount} posts it dropped are`} still Ignored. Changing the words checks the Undecided posts of the last 30 days again, and gives back posts it would now keep.</p> : null}
-        <p className="fine">Only a post's title, summary, author and source name are sent to Jev, through {settings.keySource.split(" (")[0]}.</p>
+        <p className="fine">Only a post's title, summary, author and source name are sent to Jev, TypeSafe AI's model, through {settings.keySource.split(" (")[0]}, to check your rule.</p>
       </form>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
   );
 }
 
-/** Settings → Smart filters: whether this server has set them up and whether the plan includes them. Never amounts or tokens. */
+/** Settings → Smart filters: whether they are available and whether the plan includes them. Never amounts or tokens. */
 export function AiSettingsField() {
   const settings = useAiSettings();
   const s = settings.data;
   return (
     <fieldset className="field" aria-describedby="ai-hint"><legend className="lbl" style={{ marginBottom: 6 }}>Smart filters</legend>
-      <p className="fine" id="ai-hint">Optional. A source or collection can have a Smart filter that marks the posts you don't want as Ignored; set one up from its Manage menu. Filters ask Jev, TypeSafe AI's decision model, about each new post.</p>
+      <p className="fine" id="ai-hint">Optional. A source or collection can have a Smart filter that marks the posts you don't want as Ignored; set one up from its Manage menu. Filters ask an AI model, Jev from TypeSafe AI, whether each new post matches your rule.</p>
       {!s ? <p className="fine">{settings.error ? messageOf(settings.error) : "Loading…"}</p> : (
         <>
-          {!s.serverKey ? <p className="fine">This server hasn't set up Smart filters yet. Ask your administrator. Until then, new posts arrive as usual.</p>
-            : s.allowanceUsedUp ? <p className="fine">You've used this week's Smart filter allowance. Contact your administrator to change your limits. Until then, new posts arrive unfiltered.</p>
+          {!s.serverKey ? <p className="fine">{s.pro !== null ? "Smart filters aren't available yet. Until then, new posts arrive as usual." : "This PURSS hasn't set up Smart filters yet. Ask its administrator. Until then, new posts arrive as usual."}</p>
+            : s.allowanceUsedUp ? <p className="fine">{s.pro !== null ? "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday. Until then, new posts arrive unfiltered." : "You've used this week's Smart filter allowance. Contact the administrator to change your limits. Until then, new posts arrive unfiltered."}</p>
             : s.pro ? <p className="fine">{s.pro.included ? "Included in your plan." : "Included in the Pro plan."}</p> : null}
         </>
       )}

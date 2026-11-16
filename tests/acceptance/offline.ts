@@ -115,10 +115,17 @@ async function signIn(page: Page): Promise<void> {
 }
 
 async function openSettings(page: Page): Promise<void> {
-  // On a phone Settings has a button in the header; elsewhere it is at the foot of the sidebar.
+  // The header has a Settings button in the older phone layout. Current phone layouts put it in
+  // the account menu; desktop keeps Settings at the foot of the sidebar.
   const inHeader = page.locator("header").getByRole("button", { name: "Settings" });
   if (await inHeader.isVisible()) await inHeader.click();
-  else await page.getByRole("button", { name: "Settings" }).click();
+  else {
+    const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
+    if (await account.isVisible()) {
+      await account.click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Settings", exact: true }).click();
+    } else await page.getByRole("button", { name: "Settings" }).click();
+  }
   await page.getByRole("dialog").waitFor();
 }
 const offlineBox = (page: Page) => page.getByRole("checkbox", { name: /Offline reading on this device/ });

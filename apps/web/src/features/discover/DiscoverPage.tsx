@@ -77,7 +77,7 @@ function SharingChoice() {
   const qc = useQueryClient();
   return (
     <Check checked={ws.prefs.discoveryShare} onChange={(v) => { void save({ discoveryShare: v }).then(() => qc.invalidateQueries({ queryKey: fkeys.suggestions })); }}
-      hint="Your sources count anonymously. Private sources never count. Only people who share get suggestions.">
+      hint="PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.">
       Share my sources
     </Check>
   );

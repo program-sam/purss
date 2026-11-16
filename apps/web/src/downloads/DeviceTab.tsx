@@ -67,8 +67,8 @@ export function DeviceTab() {
         </section>
       ) : null}
       <section className="field" aria-labelledby="dv-ws">
-        <div className="lbl" id="dv-ws">Server</div>
-        <p className="fine">Connected to <b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? ", the official server" : ""}. To use another server, disconnect this app below and choose it when you connect again.</p>
+        <div className="lbl" id="dv-ws">Connection</div>
+        <p className="fine">Connected to <b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? ", the official PURSS" : ""}. To connect another PURSS, disconnect this app below and choose it when you connect again.</p>
         {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
       </section>
 

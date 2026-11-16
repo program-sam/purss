@@ -4,6 +4,7 @@ import type { OAuthApproveResult, OAuthRequestSummary } from "@purss/domain";
 import { Button, Check, Icon } from "@purss/ui";
 import { get, messageOf, post, put } from "../../api/client.ts";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";
+import { useSession } from "../../api/hooks.ts";
 import { useStepUp } from "../shared/step-up.tsx";
 import { Note } from "../shared/bits.tsx";
 
@@ -14,6 +15,8 @@ type Phase = { kind: "ask" } | { kind: "leaving"; title: string; text: string };
 
 /** OAuth consent: an assistant such as Claude or ChatGPT asks to use PURSS through MCP. */
 export function AuthorizePage() {
+  const session = useSession();
+  const hosted = session.data?.installation.mode === "hosted";
   // The query goes to the server exactly as the assistant wrote it (plan/33), repeats included: the
   // server reads it, and approving sends back the parameters it read, so both sides agree.
   const [search] = useState(() => window.location.search);
@@ -76,7 +79,7 @@ export function AuthorizePage() {
           <Check checked={allowWrite} onChange={(on) => setWrite(on)} hint={WRITE}>Also let it organise</Check>
         ) : null}
         <p className="fine">It can't delete anything for good, share, publish, export or change your sign-in. What it reads goes to the assistant and its provider. Disconnect it any time in Settings → Assistants.</p>
-        {!req.available ? <Note>Your administrator hasn't turned on assistant access for this PURSS, so nothing can be connected yet.</Note> : null}
+        {!req.available && session.data ? <Note>{hosted ? "Assistant access isn't available yet." : "Your administrator hasn't turned on assistant access for this PURSS, so nothing can be connected yet."}</Note> : null}
         {req.available && !req.enabled ? (
           <Note>Assistant access is off for your account. <button type="button" className="link" disabled={busy} onClick={() => void turnOn()}>Turn it on</button> to continue.</Note>
         ) : null}

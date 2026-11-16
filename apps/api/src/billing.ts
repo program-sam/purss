@@ -34,7 +34,7 @@ const mac = (secret: string, purpose: string, message: string) => createHmac("sh
 /** The address to send the person to: the service's /go with a signed ticket. */
 export function billingHandoff(app: App, accountId: string, intent: BillingIntent, now = Date.now()): { url: string } {
   const cfg = app.config.billing;
-  if (!cfg) throw new HttpError(404, "not_found", "Plans aren't paid for on this server.");
+  if (!cfg) throw new HttpError(404, "not_found", "Paid plans aren't available yet.");
   const plan = planOf(app, accountId);
   if (plan === "unlimited") throw new HttpError(409, "unlimited", "Your account has no limits, so there is no plan to pay for.");
   const row = app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", accountId);

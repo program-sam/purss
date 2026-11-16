@@ -11,7 +11,7 @@ export const LEGAL = {
 
 <h2>1. The plans</h2>
 <ul>
-<li><b>${PLANS.free.name}</b>, €0: up to 4 collections and 100 sources.</li>
+<li><b>${PLANS.free.name}</b>, €0: up to 5 collections and 100 sources.</li>
 <li><b>${PLANS.plus.name}</b>, €${PLUS.year} per year or €${PLUS.month} per month, including VAT: unlimited collections, up to 1,000 sources, and sharing baskets and collections as public pages.</li>
 <li><b>${PLANS.pro.name}</b>, €${PRO.year} per year or €${PRO.month} per month, including VAT: everything in Plus, up to 5,000 sources, and Smart filters under fair use. If an account reaches the week's fair-use limit, its filters pause until the next week and new posts arrive unfiltered.</li>
 </ul>

@@ -9,8 +9,8 @@ import { LEGACY_VERSIONS, MODERN_VERSION } from "./server.ts";
 import { TOOLS } from "./tools.ts";
 import { holdCandidate } from "../services/discovery-cache.ts";
 
-async function boot() {
-  const { app, cleanup } = makeTestApp();
+async function boot(mode: "self" | "hosted" = "self") {
+  const { app, cleanup } = makeTestApp({ PURSS_MODE: mode });
   const owner = makeOwner(app, { admin: true });
   const server = await startTestServer(app, extraRouters.api(), extraRouters.pages());
   const session = signIn(app, owner.accountId);
@@ -84,6 +84,14 @@ test("assistant access is off until the administrator and the account both turn 
   await b.api("PUT", "/api/assistant", { enabled: false });
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM assistant_tokens")!.n, 0);
   assert.equal((await rpc(b, made.json.secret, "ping")).status, 401);
+});
+
+test("hosted assistant access errors don't expose installation wiring", async (t) => {
+  const b = await boot("hosted");
+  t.after(b.close);
+  const result = await b.api("PUT", "/api/assistant", { enabled: true });
+  assert.equal(result.json.error.code, "assistant_unavailable");
+  assert.equal(result.json.error.message, "Assistant access isn't available yet.");
 });
 
 test("tokens stop working when revoked, expired or when the account is suspended", async (t) => {

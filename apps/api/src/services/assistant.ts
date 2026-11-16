@@ -31,6 +31,12 @@ export function installationEnabled(app: App): boolean {
   return getInstallation(app, INSTALLATION_KEY) === "on";
 }
 
+export function assistantUnavailableMessage(app: App): string {
+  return app.config.mode === "hosted"
+    ? "Assistant access isn't available yet."
+    : "Your administrator hasn't turned on assistant access for this PURSS.";
+}
+
 export function endpointFor(app: App): string {
   return `${app.config.publicOrigin}/mcp`;
 }
@@ -46,7 +52,7 @@ export function getAccess(app: App, p: Principal): AssistantAccess {
 
 /** The account's own switch. Turning it off revokes every token it made and every assistant it approved. */
 export function setEnabled(app: App, p: Principal, enabled: boolean): AssistantAccess {
-  if (enabled && !installationEnabled(app)) throw new HttpError(403, "assistant_unavailable", "Your administrator hasn't turned on assistant access for this PURSS.");
+  if (enabled && !installationEnabled(app)) throw new HttpError(403, "assistant_unavailable", assistantUnavailableMessage(app));
   app.db.tx(() => {
     app.db.run("UPDATE accounts SET assistant_access = ? WHERE id = ?", enabled ? 1 : 0, p.accountId);
     if (!enabled) revokeAllTokens(app, p.accountId);
@@ -58,7 +64,7 @@ export function setEnabled(app: App, p: Principal, enabled: boolean): AssistantA
 /** A new token: needs a recent sign-in, like other new credentials. The secret is returned once. */
 export function createToken(app: App, p: Principal, input: z.infer<typeof assistantTokenCreateSchema>): AssistantTokenCreated {
   const access = getAccess(app, p);
-  if (!access.available) throw new HttpError(403, "assistant_unavailable", "Your administrator hasn't turned on assistant access for this PURSS.");
+  if (!access.available) throw new HttpError(403, "assistant_unavailable", assistantUnavailableMessage(app));
   if (!access.enabled) throw new HttpError(403, "assistant_off", "Turn on assistant access first.");
   requireRecentAuth(p);
   if (access.tokens.length >= MAX_TOKENS) throw new HttpError(409, "too_many_tokens", `You can have up to ${MAX_TOKENS} tokens. Revoke one you no longer use first.`);

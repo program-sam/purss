@@ -136,7 +136,7 @@ test("hide is permanent for that day's reminder; snooze returns it tomorrow only
   assert.deepEqual(listReminders(app, p, NOW), []);
 });
 
-test("switching reminders off returns nothing and creates nothing; notifications off creates no notification", (t) => {
+test("switching anniversary reminders off returns nothing; Never still creates their notification", (t) => {
   const { app, p, basket, cleanup } = setup();
   t.after(cleanup);
   keptOn(app, p, basket, "2024-11-03T10:00:00.000Z", "Quiet");
@@ -145,7 +145,7 @@ test("switching reminders off returns nothing and creates nothing; notifications
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reminders")!.n, 0);
   setPreferences(app, p.workspaceId, { reminders: true, notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } });
   assert.equal(listReminders(app, p, NOW).length, 1);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'reminder'")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'reminder'")!.n, 1);
 });
 
 test("capture label reflects what was actually kept, and no network is involved", (t) => {

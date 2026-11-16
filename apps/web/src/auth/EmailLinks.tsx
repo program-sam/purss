@@ -50,6 +50,7 @@ export function VerifyEmailPage() {
 
 /** /reset-password: ask for a link; /reset-password?token=…: choose a new password. */
 export function ResetPasswordPage() {
+  const session = useSession().data;
   const token = useToken();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,7 +87,9 @@ export function ResetPasswordPage() {
             </Field>
             {alert}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !email.trim()}>Send a link</Button><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
-            <p className="fine">Administrators get a reset link from the server's operator tool instead.</p>
+            {session?.installation.mode === "hosted"
+              ? session.installation.accountEmail ? null : <p className="fine">Password reset emails aren't available yet.</p>
+              : session ? <p className="fine">Administrators get a reset link from the operator tool instead.</p> : null}
           </form>
         )}
       </AuthFrame>

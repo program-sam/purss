@@ -114,12 +114,14 @@ function reorder(app: App, table: "collections" | "baskets", workspaceId: string
 }
 
 /** A page an administrator took down stays, with its reports, until they restore it; so does what it shares. */
-const TAKEN_DOWN_TARGET = "An administrator took this one's shared page down after a report, so it can't be deleted until they restore the page.";
+const takenDownTarget = (app: App) => app.config.mode === "hosted"
+  ? "PURSS took this shared page down after a report, so it can't be deleted until the report is reviewed."
+  : "An administrator took this shared page down after a report, so it can't be deleted until they restore the page.";
 
 /** Deleting a collection removes the grouping only; sources, items and baskets stay. Its shared page goes with it. */
 export function deleteCollection(app: App, p: Principal, id: string): void {
   const r = app.db.tx(() => {
-    if (app.db.get("SELECT 1 FROM shares WHERE target_kind = 'collection' AND target_id = ? AND workspace_id = ? AND taken_down_at IS NOT NULL", id, p.workspaceId)) throw badRequest(TAKEN_DOWN_TARGET, "taken_down");
+    if (app.db.get("SELECT 1 FROM shares WHERE target_kind = 'collection' AND target_id = ? AND workspace_id = ? AND taken_down_at IS NOT NULL", id, p.workspaceId)) throw badRequest(takenDownTarget(app), "taken_down");
     forgetCollectionFilter(app, p.workspaceId, id);
     const out = app.db.run("DELETE FROM collections WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
     if (out.changes) app.db.run("DELETE FROM shares WHERE target_kind = 'collection' AND target_id = ?", id);
@@ -172,7 +174,7 @@ export function deleteBasket(app: App, p: Principal, id: string, confirmToken: s
   app.db.tx(() => {
     const t = app.db.get("SELECT 1 FROM confirm_tokens WHERE token = ? AND workspace_id = ? AND purpose = 'basket-delete' AND data = ? AND expires_at > ?", confirmToken, p.workspaceId, id, nowIso());
     if (!t) throw badRequest("Please review what will happen and confirm again.", "confirm");
-    if (app.db.get("SELECT 1 FROM shares WHERE target_kind = 'basket' AND target_id = ? AND taken_down_at IS NOT NULL", id)) throw badRequest(TAKEN_DOWN_TARGET, "taken_down");
+    if (app.db.get("SELECT 1 FROM shares WHERE target_kind = 'basket' AND target_id = ? AND taken_down_at IS NOT NULL", id)) throw badRequest(takenDownTarget(app), "taken_down");
     const members = app.db.all<{ item_id: string }>("SELECT item_id FROM basket_items WHERE basket_id = ?", id);
     for (const m of members) releaseObject(app, "record", `basket:${id}:${m.item_id}`, "basket deleted");
     app.db.run("DELETE FROM basket_items WHERE basket_id = ?", id);

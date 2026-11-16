@@ -7,6 +7,7 @@ import { listItems } from "./items.ts";
 import { createBasket } from "./collections.ts";
 import { keepItem } from "./state.ts";
 import { listNotifications, runProblemCheck } from "./notifications.ts";
+import { setPreferences } from "./preferences.ts";
 import { followSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { followSchema } from "@purss/domain";
@@ -72,6 +73,18 @@ test("a source's failed texts are one named notification for the day that counts
   assert.deepEqual(listItems(app, p, { scope: `source:${reddit}`, capture: "failed" }).items.map((i) => i.id).sort(), [...posts].sort());
   assert.deepEqual(listItems(app, p, { scope: `source:${blog}`, capture: "failed" }).items.map((i) => i.id).sort(), [...kept].sort());
   assert.equal(listItems(app, p, { scope: "all", capture: "failed" }).items.length, 5);
+});
+
+test("Never still announces readable text that failed to save", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const src = makeSource(app, p, "Journal", "feed/never");
+  app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
+  const [item] = items(app, p, src, "feed/never", 1);
+  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
+  failed(app, p, item!, minutes(-5));
+  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, NOW), 1);
+  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Journal"]);
 });
 
 test("a later failure the same day grows that day's notification and makes it unread; the next day is a new row", (t) => {

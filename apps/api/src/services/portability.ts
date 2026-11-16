@@ -816,7 +816,7 @@ export const MAX_IMPORT_DEPTH = 64;
 
 function parseExport(text: string): unknown {
   if (countJsonValues(text, MAX_IMPORT_VALUES + 1, MAX_IMPORT_DEPTH) > MAX_IMPORT_VALUES) {
-    throw new HttpError(413, "import_too_large", "That export has more in it than this server can import at once.");
+    throw new HttpError(413, "import_too_large", "That export has more in it than PURSS can import at once.");
   }
   try { return JSON.parse(text); } catch { throw badRequest("That file isn't a PURSS export (it isn't valid JSON).", "not_archive"); }
 }
@@ -885,7 +885,7 @@ export function checkUploadApart(app: App, p: Principal, file: string, heapMb = 
     child.once("message", (m: Answer) => { answer = m; });
     // Couldn't start (or the pipe broke): no "exit" may follow, but "close" always does.
     child.on("error", (err) => { stopped ??= new HttpError(500, "internal", "Something went wrong checking that file."); console.error("[api] import check could not run:", err.message); });
-    const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", "That export took too long to check on this server.")), IMPORT_CHECK_SECONDS * 1000);
+    const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", "That export took too long to check.")), IMPORT_CHECK_SECONDS * 1000);
     timer.unref();
     // The person went away: stop checking, so their next upload and everyone else's turn needn't wait for it.
     const onAbort = () => stop(new HttpError(400, "upload_aborted", "The upload was cut off."));
@@ -901,7 +901,7 @@ export function checkUploadApart(app: App, p: Principal, file: string, heapMb = 
       if (stopped) return reject(stopped);
       if (/heap out of memory|Reached heap limit/i.test(errText)) {
         console.error(`[api] an import check ran out of its ${heapMb} MB; the file was refused as too large`);
-        return reject(new HttpError(413, "import_too_large", "That export has more in it than this server can check at once."));
+        return reject(new HttpError(413, "import_too_large", "That export is too large to check at once."));
       }
       console.error(`[api] an import check ended without an answer (${sig ?? code}):`, errText.trim().split("\n").slice(-12).join("\n") || "no output");
       reject(new HttpError(500, "internal", "Something went wrong checking that file."));
@@ -924,7 +924,7 @@ export function applyImport(app: App, p: Principal, token: string): ImportResult
   const file = stage ? stageFile(app, stage.token) : null;
   if (!stage || !file || !existsSync(file)) throw badRequest("That import preview has expired. Please upload the file again.", "expired");
   const json = readFileSync(file, "utf8");
-  if (sha256Hex(json) !== stage.sha256) throw badRequest("The uploaded file changed on the server. Please upload it again.", "expired");
+  if (sha256Hex(json) !== stage.sha256) throw badRequest("The uploaded file changed while it was being checked. Please upload it again.", "expired");
   let doc: Archive;
   try { doc = parseArchive(parseExport(json)); } catch (err) { fail(err); }
 
@@ -1200,4 +1200,3 @@ export function reconnectSource(app: App, p: Principal, sourceId: string, discov
   emit(app, p.accountId, { type: "source", sourceId: s.id });
   return { ok: true, sourceId: s.id };
 }
-

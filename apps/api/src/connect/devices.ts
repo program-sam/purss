@@ -49,7 +49,7 @@ export const revokedEvent = (deviceId: string) => `device-revoked:${deviceId}`;
 export function createDeviceToken(app: App, accountId: string, kind: ConnectClientKind, name: string, authMethod = "connect"): { device: DeviceDTO; secret: string } {
   return app.db.tx(() => {
     const status = app.db.get<{ status: string }>("SELECT status FROM accounts WHERE id = ?", accountId)?.status;
-    if (status !== "active") throw new HttpError(403, "suspended", "This account is suspended. Contact the administrator.");
+    if (status !== "active") throw new HttpError(403, "suspended", app.config.mode === "hosted" ? "This account is suspended and can't be used right now." : "This account is suspended. Contact the PURSS administrator.");
     if (!isAccountUsable(app, accountId)) throw new HttpError(403, "account_deleting", "This account is set to be deleted, so no app can connect to it.");
     if (deviceCount(app, accountId) >= MAX_DEVICES) throw tooMany();
     const secret = `${DEVICE_TOKEN_PREFIX}${randomToken(32)}`;

@@ -316,7 +316,7 @@ and each account has its own PURSS and FreshRSS user, isolated from the others.
 | | `self` (default) | `hosted` |
 | --- | --- | --- |
 | Accounts | The owner plus people an administrator invites | The same, plus optional open sign-up |
-| Plans | None: no source or collection limits | Free (100 sources, 4 collections) for new accounts, Plus (1,000 sources) or Unlimited, set per account by an administrator; administrators are Unlimited |
+| Plans | None: no source or collection limits | Free (100 sources, 5 collections) for new accounts, Plus (1,000 sources) or Unlimited, set per account by an administrator; administrators are Unlimited |
 | Space allocation | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOCATION_BYTES`, per invitation or per account; a safeguard users don't see |
 | Sharing baskets and collections | Available, with a report link and takedowns | Plus only, with a report link and takedowns |
 | Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together ([plan/35](../plan/35-discover.md)); the graph is rebuilt every 6 hours in the API process |
@@ -668,9 +668,9 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   assistant reads leaves the server for the assistant's provider. See
   [plan/23](../plan/23-assistant-access.md).
 - **Phone notifications:** when a connected phone app turns on *Notifications on this phone*, it
-  registers a handle from the project's push relay with this server. When something new reaches the
-  bell (outside quiet hours, and unless notifications are off), the API asks the relay, by that handle
-  only, to wake the phone: a POST through the same safe fetcher (https, public addresses only, no
+  registers a handle from the project's push relay with this server. When a notice reaches the
+  bell (outside quiet hours), the API asks the relay, by that handle only, to wake the phone: a POST
+  through the same safe fetcher (https, public addresses only, no
   redirects, 10 seconds). The relay, Google and Apple learn that this server has something new for that
   phone, never what; the phone then fetches the texts from this server. Nothing is sent while no phone
   has registered. `PURSS_PUSH_RELAY_URL=` (empty) or `off` turns it off. See

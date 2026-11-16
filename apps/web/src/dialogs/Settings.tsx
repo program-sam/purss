@@ -123,7 +123,7 @@ function GeneralTab() {
       {session?.installation.mode === "hosted" ? (
         <div className="field" style={{ gap: 2 }}>
           <Check checked={p.discoveryShare} onChange={(v) => { void save({ discoveryShare: v }).then(() => qc.removeQueries({ queryKey: fkeys.suggestions })); }}
-            hint="For Discovery. Your sources count anonymously. Private sources never count. Only people who share get suggestions.">Share my sources</Check>
+            hint="PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.">Share my sources</Check>
         </div>
       ) : null}
       <div className="field"><label htmlFor="tz">Time zone</label>
@@ -270,7 +270,7 @@ function SecurityTab() {
             </div>
           </section>
           {passkeysAvailable() ? null : <p className="fine">{platform.connection
-            ? "Passkeys work in the app once this PURSS's operator sets them up (see the app section of the self-hosting guide)."
+            ? session?.installation.mode === "self" ? "Passkeys work in the app once the PURSS administrator sets them up (see the app section of the self-hosting guide)." : "Passkeys aren't available in this app yet."
             : "A passkey needs a secure (https) address, so one can't be added here."}</p>}
           <AccountEmailSection withStepUp={withStepUp} />
           <section className="field" aria-labelledby="sec-s">
