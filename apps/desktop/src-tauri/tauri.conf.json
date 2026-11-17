@@ -37,6 +37,8 @@
       "dmg"
     ],
     "category": "News",
+    "publisher": "PURSS",
+    "copyright": "© Program Sam, AGPL-3.0",
     "shortDescription": "Your feeds, videos, podcasts and kept pages in one calm place",
     "icon": [
       "icons/32x32.png",
