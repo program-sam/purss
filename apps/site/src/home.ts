@@ -180,7 +180,7 @@ export const home = {
 <div><h1 class="pf-h1">Your internet, organized by you.</h1>
 <p class="pf-lead">A reader you fill yourself. Pick the blogs, channels, podcasts and journals; PURSS brings what they post, in order, and nothing else.</p>
 <div class="pf-sw"><label class="l0" for="pf-t">Chosen for you</label><button class="pf-toggle" id="pf-t" type="button" role="switch" aria-checked="true" aria-label="Show only what you chose"><i>${ic("mark")}</i></button><label class="l1" for="pf-t">Chosen by you</label></div>
-<ul class="pf-points">${[["No algorithmic feed", "Everything in the order it was posted."], ["No ads, no trackers", "Nothing sponsored, nothing suggested."], ["You're in control", "You pick every source and what stays."], ["Yours to take with you", "Export everything, any time."]].map(([t, d]) => `<li><span class="pt">${ic("check")}</span><span>${t}<small>${d}</small></span></li>`).join("")}</ul>
+<ul class="pf-points">${[["No algorithmic feed", "Everything in the order it was posted."], ["No ads, no trackers", "Nothing sponsored, nothing suggested."], ["You're in control", "You pick every source and what stays."]].map(([t, d]) => `<li><span class="pt">${ic("check")}</span><span>${t}<small>${d}</small></span></li>`).join("")}</ul>
 <div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">Create a free account</a><a class="btn xl" href="#self-host">${ic("server")}Host it yourself</a></div></div>
 <div class="pf-stage" role="img" aria-label="PURSS Home: a dashboard with a box for each source you follow, and nothing else.">
 <div class="s-win pf-win"><div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="u0">the feed</span><span class="u1">your.purss</span></div>

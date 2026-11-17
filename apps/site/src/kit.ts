@@ -210,7 +210,7 @@ const APPS = (site: Site) => [
   ["laptop", "Windows, Mac and Linux", "Close the window and it keeps working: alerts and downloads carry on from the tray, and it updates itself.", () => getDesktop(site)],
   ["bookmark", "Bookmarklets", "Can't install anything? Two bookmarks send any page to PURSS, in any browser.", () => ""],
   ["key", "Your assistant, if you want one", "Ask Claude, ChatGPT or another assistant you already use what you've read about something, and let it tidy up if you allow. Connects through MCP; off until you turn it on.", () => ""],
-  ["page", "E-ink display", "Long reads are easier on the eyes on an e-reader: black on white, page buttons instead of scrolling.", () => ""],
+  ["page", "E-ink compatible", "Made to work on e-readers: black on white, with page buttons instead of scrolling.", () => ""],
 ] as const;
 
 export function appCards(site: Site): string {
