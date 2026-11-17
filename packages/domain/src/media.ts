@@ -56,4 +56,27 @@ export function pickMediaEnclosure(enclosures: readonly Enclosure[]): MediaEnclo
   return null;
 }
 
+/** The same web address, however it was written (a fragment is not part of it). */
+export function sameAddress(a: string, b: string): boolean {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    x.hash = "";
+    y.hash = "";
+    return x.href === y.href;
+  } catch {
+    return a === b;
+  }
+}
+
+/**
+ * Whether an item's own link is its audio or video file: the same address as one of its enclosures that is a media file, or an address that
+ * ends in a media file name. Judged on the item's enclosures as the feed sent them, so the server asks it before it withholds them (the file
+ * addresses of a private source can carry a secret) and tells the reader only the answer.
+ */
+export function linkIsMediaFile(url: string | null | undefined, enclosures: readonly Enclosure[]): boolean {
+  if (!url || !isWebAddress(url)) return false;
+  return !!pickMediaEnclosure([{ url, type: null }]) || enclosures.some((e) => !!pickMediaEnclosure([e]) && sameAddress(e.url, url));
+}
+
 const positive = (n: number | null | undefined) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : null);

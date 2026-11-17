@@ -258,6 +258,8 @@ export type ItemDTO = {
   curatorNote: string | null;
   /** The publisher's audio or video file for this item, if its feed offers one (never for private sources). */
   media: ItemMedia | null;
+  /** The item's own link (`url`) is its audio or video file, not a page. Said for private sources too, whose file addresses are withheld (`media` is null) because they can carry a secret. Absent on a copy saved offline by a build that did not say. */
+  linkIsMedia?: boolean;
   /** When the server last accepted a change to the person's annotations on this item (removals included), in server time; null if never annotated. */
   annotatedAt: string | null;
   /** for items kept in a basket, in the lists that return them: the state of the kept copy and the first line of the person's note. */

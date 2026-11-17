@@ -35,6 +35,22 @@ test("sync batch imports items once and replays idempotently", (t) => {
   assert.ok(cp.last_success_at);
 });
 
+test("an author's address is not shown, in the list or the panel, while search and the stored line keep it", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  applySyncBatch(app, p.engineUserId, batch([
+    entry("feed/1", { title: "Perdus en mer", author: "podcast@radiofrance.com (Radio France); Sonia Kronlund" }),
+    entry("feed/1", { title: "Mail only", author: "editor@repair.example" }),
+  ]));
+  const items = listItems(app, p, { scope: "all", filter: "all" }).items;
+  const sea = items.find((i) => i.title === "Perdus en mer")!;
+  assert.equal(sea.author, "Radio France; Sonia Kronlund");
+  assert.equal(getItemDetail(app, p, sea.id).author, "Radio France; Sonia Kronlund");
+  assert.equal(items.find((i) => i.title === "Mail only")!.author, null, "an address with no name leaves no byline");
+  assert.equal(app.db.get<{ author: string }>("SELECT author FROM items WHERE id = ?", sea.id)!.author, "podcast@radiofrance.com (Radio France); Sonia Kronlund", "what the feed sent stays stored");
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all", q: "radiofrance" }).items.map((i) => i.title), ["Perdus en mer"], "search still reads the stored line");
+});
+
 test("upstream edit creates a new version and never alters a kept snapshot", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);

@@ -85,3 +85,19 @@ test("a long list is produced in pages without losing or repeating anything, and
   assert.doesNotMatch([...keptLinksChunks(app, p, "html", NOW)].join(""), /secret basket/);
   assert.doesNotMatch([...keptLinksChunks(app, other, "md", NOW)].join(""), /Tides|To read/);
 });
+
+test("a private source's file address, which can carry its secret, is left out of both lists", async (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  makeSource(app, p, "Members feed", "feed/9", { isPrivate: true });
+  const file = "https://cdn.example.org/play?id=7&token=SECRET";
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/9", { title: "Members episode", url: file, enclosures: [{ url: file, type: "audio/mpeg", length: 10 }] })]));
+  const b = createBasket(app, p, { name: "Kept", captureMode: "metadata" });
+  keepItem(app, p, listItems(app, p, { scope: "all" }).items[0]!.id, b.id);
+  for (const format of ["html", "md"] as const) {
+    const out = [...keptLinksChunks(app, p, format, NOW)].join("");
+    assert.ok(out.includes("Members episode"), `${format}: the item is listed`);
+    assert.ok(!out.includes("SECRET"), `${format}: its file address is not`);
+  }
+});

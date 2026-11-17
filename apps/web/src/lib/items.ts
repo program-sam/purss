@@ -1,3 +1,4 @@
+import { linkIsMediaFile, sameAddress } from "@purss/domain";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
 import { cleanVideoExcerpt } from "./feed-text.ts";
@@ -115,6 +116,30 @@ export function safeHref(url: string | null | undefined): string | null {
     const u = new URL(url);
     return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
   } catch { return null; }
+}
+
+type Enclosed = { url: string; type: string | null };
+
+/**
+ * Where "Open original" goes. An item's own link, unless that link is its audio or video file (the same address as
+ * one of its enclosures, or an address that ends in a media file name): many podcast feeds have no page for an episode
+ * and PURSS's engine then gives the file as the link. The file opens with Listen or Watch, so such an item offers its
+ * show's website (`of: "show"`) when the source has one that is not its feed, and otherwise nothing. The server says
+ * whether the link is the file (`linkIsMedia`) for private sources too, whose enclosures it withholds.
+ */
+export function originalLink(
+  item: Pick<ItemDTO, "url" | "media" | "linkIsMedia">,
+  source?: { siteUrl: string | null; feedUrl: string | null } | null,
+  enclosures: readonly Enclosed[] = [],
+): { href: string; of: "item" | "show" } | null {
+  const own = safeHref(item.url);
+  // A private episode's file link is withheld by the server (its address can carry a secret); it still falls back to the show's website.
+  if (!own && !item.linkIsMedia) return null;
+  const files: Enclosed[] = [...(item.media ? [item.media] : []), ...enclosures];
+  if (own && !item.linkIsMedia && !linkIsMediaFile(own, files)) return { href: own, of: "item" };
+  const site = safeHref(source?.siteUrl);
+  const feed = safeHref(source?.feedUrl);
+  return site && !(feed && sameAddress(site, feed)) ? { href: site, of: "show" } : null;
 }
 
 /** Show images only from https origins (the page's policy allows nothing else). */

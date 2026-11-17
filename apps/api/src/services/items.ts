@@ -8,9 +8,9 @@ import type { z } from "zod";
 import { admitObject } from "./storage.ts";
 import { itemCounts } from "./counts.ts";
 import type { CellFilter } from "./counts.ts";
-import { contentHash, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
+import { contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
 import { linkKey, urlKey } from "./url-key.ts";
-import { getPlayback, itemMedia } from "./media.ts";
+import { getPlayback, itemLinkIsMedia, itemMedia } from "./media.ts";
 import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
 import { firstImage } from "./first-image.ts";
 import { looksLikeSummary } from "./teaser.ts";
@@ -122,15 +122,29 @@ export type ItemRow = {
 };
 
 export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
+  const linkIsMedia = itemLinkIsMedia(r.url, r.enclosures);
   return {
-    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.url, author: r.author,
+    // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
+    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
+    linkIsMedia,
     annotatedAt: r.annotated_at,
     ...(kept ? { kept } : {}),
   };
+}
+
+/**
+ * The title and link a kept item shows when the feed has changed it since: the kept version's. `shown` is the link the item itself is
+ * sent with (null when withheld). For a public source the kept link is a file when it matches the item's files, or when it is the very
+ * link the item has and that one is a file. A private source's kept link is sent only when it is the item's own page link: an older link
+ * that can't be told apart from a file address (which can carry the source's secret) is withheld and treated as the file.
+ */
+function keptLink(title: string, url: string | null, enclosuresJson: string | null, shown: string | null, currentIsMedia: boolean, isPrivate: boolean): { title: string; url: string | null; linkIsMedia: boolean } {
+  if (isPrivate) return url !== null && url === shown && !currentIsMedia ? { title, url, linkIsMedia: false } : { title, url: null, linkIsMedia: url !== null };
+  return { title, url, linkIsMedia: itemLinkIsMedia(url, enclosuresJson) || (url !== null && url === shown && currentIsMedia) };
 }
 
 /** Compile a validated query tree to a parameterised WHERE fragment over items i / item_state st. */
@@ -621,7 +635,7 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   return {
     ...dto,
     // A kept item reads as it was kept; the latest version is available alongside (plan/07).
-    ...(changedSinceKept && keptVersion ? { title: keptVersion.title, url: keptVersion.url } : {}),
+    ...(changedSinceKept && keptVersion ? keptLink(keptVersion.title, keptVersion.url, extra.enclosures, dto.url, dto.linkIsMedia === true, extra.is_private === 1) : {}),
     contentHtml: pictures(fulltext?.html ?? (changedSinceKept ? keptHtml : current)),
     keptPicture: dto.imageUrl && stored.has(dto.imageUrl) ? pictureUrl(id, stored.get(dto.imageUrl)!) : null,
     partialCopy: partial?.html ? { html: pictures(partial.html)!, reason: partial.partial_reason ?? "short", note: partialReasonText(partial.partial_reason ?? "short"), ref: { kind: "capture", id: partial.id } } : null,

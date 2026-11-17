@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeCharRefs, displayExcerpt, displayTitle, findDoi, readMinutes, repairMarkup, sanitize, toText, unwrapCdata } from "./content.ts";
+import { decodeCharRefs, displayAuthor, displayExcerpt, displayTitle, findDoi, readMinutes, repairMarkup, sanitize, toText, unwrapCdata } from "./content.ts";
 
 test("toText keeps words apart across block boundaries and line breaks", () => {
   assert.equal(toText("<p>doi:10.1038/x-1</p><p>Parkinson's disease</p>"), "doi:10.1038/x-1 Parkinson's disease");
@@ -19,6 +19,53 @@ test("displayTitle drops inline markup written into a title, and nothing else", 
   assert.equal(displayTitle("a < b and b > c"), "a < b and b > c");
   assert.equal(displayTitle("<script>x</script> stays as text"), "<script>x</script> stays as text");
   assert.equal(displayTitle("<i></i>"), "<i></i>");
+});
+
+test("displayAuthor shows each name without the address RSS writes beside it, and never an address alone", () => {
+  // As real podcast feeds send them (the engine joins the RSS author and the feed's own with "; ").
+  assert.equal(displayAuthor("podcast@radiofrance.com (Radio France)"), "Radio France");
+  assert.equal(displayAuthor("podcast@radiofrance.com (Radio France); Sonia Kronlund"), "Radio France; Sonia Kronlund");
+  assert.equal(displayAuthor("info@sowt.com (Sowt Media | صوت); Sowt Media | صوت"), "Sowt Media | صوت", "the name the engine joined twice is shown once");
+  assert.equal(displayAuthor("originals@stitcher.com (Chris Berube, Kelly Prime); Chris Berube, Kelly Prime"), "Chris Berube, Kelly Prime");
+  assert.equal(displayAuthor("Matt Abrahams, Think Fast Talk Smart; matt abrahams, think fast talk smart"), "Matt Abrahams, Think Fast Talk Smart", "repeats ignore case");
+  assert.equal(displayAuthor("Radio France <podcast@radiofrance.com>"), "Radio France");
+  assert.equal(displayAuthor("Sam Reporter (news@paper.example)"), "Sam Reporter");
+  // An address with no name says nothing: no byline.
+  assert.equal(displayAuthor("editor@repair.example"), null);
+  assert.equal(displayAuthor("<editor@repair.example>"), null);
+  assert.equal(displayAuthor("editor@repair.example; editor@repair.example"), null);
+  assert.equal(displayAuthor("editor@repair.example (  )"), null);
+  assert.equal(displayAuthor("editor@repair.example; Laura Beek"), "Laura Beek");
+  assert.equal(displayAuthor(null), null);
+  assert.equal(displayAuthor(""), null);
+});
+
+test("displayAuthor leaves names that carry no address as they came, journal lists with their ';' included", () => {
+  assert.equal(displayAuthor("A. Writer"), "A. Writer");
+  assert.equal(displayAuthor("Patrick (H) Willems"), "Patrick (H) Willems", "a bracket that is not an address is part of the name");
+  assert.equal(displayAuthor("@someone@mastodon.social"), "@someone@mastodon.social", "a handle is not an address");
+  assert.equal(displayAuthor("Contact us: info@x.org"), "Contact us: info@x.org", "an address inside a sentence is not one the feed gave as the author");
+  // Surname and initials alternate, and two people may share initials: none of those parts is a repeat.
+  assert.equal(displayAuthor("Kaur; S.; Turin; T. C."), "Kaur; S.; Turin; T. C.");
+  assert.equal(displayAuthor("Smith; J.; Jones; J."), "Smith; J.; Jones; J.");
+  assert.equal(displayAuthor("Suzanne Wrack; Tom Garry;  ; Sophie Downey"), "Suzanne Wrack; Tom Garry; Sophie Downey", "empty parts go");
+});
+
+test("displayAuthor drops a whole person who repeats, never a surname that two people share", () => {
+  // Two authors with one surname are two people, each kept with their own initials.
+  assert.equal(displayAuthor("Smith; J.; Smith; A."), "Smith; J.; Smith; A.");
+  assert.equal(displayAuthor("Kaur; S.; Kaur; T. C.; Turin; T. C."), "Kaur; S.; Kaur; T. C.; Turin; T. C.");
+  assert.equal(displayAuthor("Smith; J.-P.; Smith; AB"), "Smith; J.-P.; Smith; AB");
+  // The same person, joined twice by the engine, once; so is a whole list.
+  assert.equal(displayAuthor("Smith; J.; Smith; J."), "Smith; J.");
+  assert.equal(displayAuthor("Kaur; S.; Turin; T. C.; Kaur; S.; Turin; T. C."), "Kaur; S.; Turin; T. C.");
+  assert.equal(displayAuthor("kaur; S.; Turin; T. C.; Kaur; S."), "kaur; S.; Turin; T. C.", "repeats ignore case");
+  // A name that came with initials and again without is not known to be the same person.
+  assert.equal(displayAuthor("Smith; J.; Smith"), "Smith; J.; Smith");
+  // Names of people and shows still repeat as before.
+  assert.equal(displayAuthor("Jane Doe; John Smith; Jane Doe"), "Jane Doe; John Smith");
+  // Initials with no surname before them are kept as they were.
+  assert.equal(displayAuthor("J.; J."), "J.; J.");
 });
 
 test("displayExcerpt drops a journal's leading citation, glued on or not, and keeps everything else", () => {

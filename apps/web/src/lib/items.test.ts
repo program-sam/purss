@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
+import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, isYouTube, itemDate, itemExcerpt, itemPicture, lengthText, matchesFilter, newMarkerCleared, originalLink, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
@@ -144,4 +144,67 @@ test("the player shows an https picture or the show's art as this app serves it,
   for (const bad of ["http://cdn.example/ep.jpg", "//evil.example/api/sources/a/icon?v=1", "/api/items/itm_1/images/img_1", "/api/sources/a/icon", "/api/sources/../x/icon?v=1", "javascript:alert(1)", "data:image/png;base64,AAAA"]) {
     assert.equal(playerArtwork(bad), null, bad);
   }
+});
+
+const FILE = "https://pdst.fm/e/traffic.megaphone.fm/GLT2156782927.mp3";
+const episode: Pick<ItemDTO, "url" | "media"> = { url: FILE, media: { url: FILE, kind: "audio", type: "audio/mpeg", length: 4_000_000 } };
+const show = { siteUrl: "https://www.example-show.org/", feedUrl: "https://feeds.megaphone.fm/GLT8847082992" };
+
+test("Open original is the item's own page, and the page is never an audio or video file", () => {
+  assert.deepEqual(originalLink(base), { href: "https://example.com/a", of: "item" });
+  // A podcast whose feed gives each episode a page (Off Menu, Design Matters): that page, whether or not the show has a website.
+  const paged = { url: "https://shows.acast.com/offmenu/episodes/sara-cox", media: { url: "https://sphinx.acast.com/ep.mp3", kind: "audio" as const, type: "audio/mpeg", length: null } };
+  assert.deepEqual(originalLink(paged, show), { href: "https://shows.acast.com/offmenu/episodes/sara-cox", of: "item" });
+  assert.deepEqual(originalLink(paged, null), { href: "https://shows.acast.com/offmenu/episodes/sara-cox", of: "item" });
+  // A page address is kept whole (a fragment too), and an item with no address has nothing to open.
+  assert.deepEqual(originalLink({ ...base, url: "https://example.com/a?x=1#part" }), { href: "https://example.com/a?x=1#part", of: "item" });
+  assert.equal(originalLink({ ...base, url: null }, show), null);
+  assert.equal(originalLink({ ...base, url: "javascript:alert(1)" }, show), null);
+});
+
+test("an episode whose link is its audio file offers the show's website, or nothing", () => {
+  // The link is the enclosure itself (The Rest Is Football: 556 of 556 episodes): never opened as the original.
+  assert.deepEqual(originalLink(episode, show), { href: "https://www.example-show.org/", of: "show" });
+  assert.equal(originalLink(episode, { siteUrl: null, feedUrl: show.feedUrl }), null, "a show with no website: no button");
+  assert.equal(originalLink(episode, null), null);
+  assert.equal(originalLink(episode), null);
+  // A feed that names itself as its website (Ask AGRA) gives no site to open.
+  assert.equal(originalLink(episode, { siteUrl: "https://www.agra.org.uk/podcasts/feed", feedUrl: "https://www.agra.org.uk/podcasts/feed" }), null);
+  assert.equal(originalLink(episode, { siteUrl: "javascript:alert(1)", feedUrl: null }), null, "only a web address leaves the app");
+});
+
+test("the server's word that the link is the file counts where the panel has no enclosures to compare, as for a private source", () => {
+  // A private source's item has no `media` and no enclosures, and the address names no file: the file's address carries a token.
+  const file = "https://cdn.example.org/play?id=7&token=s3cr3t";
+  assert.deepEqual(originalLink({ url: file, media: null, linkIsMedia: true }, show), { href: "https://www.example-show.org/", of: "show" });
+  assert.equal(originalLink({ url: file, media: null, linkIsMedia: true }), null, "the file's address is never the original");
+  assert.equal(originalLink({ url: file, media: null, linkIsMedia: true }, { siteUrl: null, feedUrl: null }), null);
+  assert.deepEqual(originalLink({ url: "https://x.org/post", media: null, linkIsMedia: false }, show), { href: "https://x.org/post", of: "item" });
+});
+
+test("the link counts as the file by its enclosure, its extension, or both, whatever else the address says", () => {
+  // By enclosure, with the address written another way (a fragment).
+  assert.equal(originalLink({ url: `${FILE}#t=30`, media: episode.media }, show)?.of, "show");
+  // By enclosure list alone: a private source's item has no `media` but the panel still has its enclosures.
+  assert.equal(originalLink({ url: "https://cdn.example.org/play?id=7", media: null }, show, [{ url: "https://cdn.example.org/play?id=7", type: "audio/mpeg" }])?.of, "show");
+  assert.equal(originalLink({ url: "https://cdn.example.org/play?id=7", media: null }, show, [{ url: "https://cdn.example.org/play?id=7", type: "video/mp4" }])?.of, "show");
+  // By extension alone, with no enclosure to compare (an audio link that is not the one the feed lists, as in Live on KEXP).
+  for (const file of ["https://x.org/ep.mp3", "https://x.org/ep.M4A?sig=1", "https://x.org/v.mp4", "https://x.org/v.webm"]) {
+    assert.equal(originalLink({ url: file, media: null }, show)?.of, "show", file);
+    assert.equal(originalLink({ url: file, media: null }), null, file);
+  }
+  // Not files: a page, a stream playlist, and a link that merely matches an image or a document enclosure.
+  assert.equal(originalLink({ url: "https://x.org/episodes/12.html", media: null }, show)?.of, "item");
+  assert.equal(originalLink({ url: "https://x.org/live.m3u8", media: null }, show, [{ url: "https://x.org/live.m3u8", type: "application/x-mpegurl" }])?.of, "item");
+  assert.equal(originalLink({ url: "https://x.org/cover", media: null }, show, [{ url: "https://x.org/cover", type: "image/jpeg" }])?.of, "item");
+  assert.equal(originalLink({ url: "https://x.org/report.pdf", media: null }, show, [{ url: "https://x.org/report.pdf", type: "application/pdf" }])?.of, "item");
+  // Another page that happens to sit beside the file is not the file.
+  assert.equal(originalLink({ url: "https://x.org/ep", media: { url: "https://x.org/ep.mp3", kind: "audio", type: "audio/mpeg", length: null } }, show)?.of, "item");
+});
+
+test("a private episode whose file link the server withholds still falls back to the show's website", () => {
+  const withheld = { url: null, media: null, linkIsMedia: true };
+  assert.deepEqual(originalLink(withheld, { siteUrl: "https://members.example/", feedUrl: "https://members.example/feed" }), { href: "https://members.example/", of: "show" });
+  assert.equal(originalLink(withheld, { siteUrl: null, feedUrl: null }), null, "no website, no button");
+  assert.equal(originalLink({ url: null, media: null, linkIsMedia: false }, { siteUrl: "https://members.example/", feedUrl: null }), null, "an item with no link at all has no original");
 });

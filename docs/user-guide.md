@@ -97,7 +97,7 @@ What you can paste:
 
 | Link | What happens |
 | --- | --- |
-| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If a name without `www.` refuses (a bot check in front of the bare name answers 403), fails or doesn't answer, the same address with `www.` is asked for first, and the site's feed is offered from there as if the bare name had sent you on; a name that already starts with `www.`, a number, or one with a port has no such second try, and a page that isn't found (404) or a site asking you to slow down (429) isn't retried. If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
+| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If a name without `www.` refuses (a bot check in front of the bare name answers 403), fails or doesn't answer, the same address with `www.` is asked for next (before the bare name's plain-`http` form, with the lookup's time shared between the two so the wait is no longer), and the site's feed is offered from there as if the bare name had sent you on; a name that already starts with `www.`, a number, or one with a port written after it (`:443` and `:80` included) has no such second try, and a page that isn't found (404) or a site asking you to slow down (429) isn't retried. If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
 | A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the collection engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
@@ -173,7 +173,7 @@ listing the same private link again is recognised as already followed: PURSS kee
 fingerprint of the link (made with a key in the server's secrets folder), never the link itself.
 What it looks for is what says "key", not what merely looks random: a username and password in the address; a query value named like a
 credential (`token`, `auth`, `secret`, `password`, `signature`, `api_key`, `feed_token`, `X-Plex-Token`, …, and `key` or `code` when the value isn't a plain word); a path that says so (`/private/…`, `/secret/…`, `/token/…`);
-the member feeds of services that document them (Patreon's `rss/<creator>?auth=…`, Substack's private podcast feeds, GitHub's `.private.atom`, Feedbin's starred feed, Memberful's member feeds, Transistor's unlisted
+the member feeds of services that document them (Patreon's `rss/<creator>?auth=…`, Substack's private podcast feeds, GitHub's `.private.atom`, Feedbin's starred feed, Memberful's member feeds, Pinboard's `secret:` feeds, the feed of a Ghost site in private mode (its 30-character hash before `rss`, wherever the site keeps its feeds), Transistor's unlisted
 feeds); a long random value right after a word like `/feed/`, `/rss/`, `/u/` or `/subscribers/`; and a mixed-case token or 160 bits of hex on its own. Public feeds whose addresses hold a uuid or other
 id (Serious Eats, Al Jazeera, podcast hosts such as Acast, Omny, Megaphone and Simplecast), a topic in the query (`?key=tech-news`) and ordinary slugs, including those ending in an article's number,
 are not taken for private links. A link that holds a secret in a shape PURSS doesn't know is not warned about: if you know it is private, *Manage → Keep this feed's link private* marks it.
@@ -284,6 +284,18 @@ seconds, change the speed (0.8× to 2×, remembered on this device), set a sleep
 press plays or pauses, a double press (or a car's or headset's next button) skips forward 30 seconds,
 and the previous button skips back 15.
 
+- **Listen or Watch comes first** in the item's panel, above State and Keep, and is the item's main button. **Open original**
+  opens the item's own page. Many podcast feeds have no page for an episode and send only the audio file as its link;
+  that file is never offered as the original (Listen plays it, and **Open the audio** opens the file itself). Such an
+  episode offers **Open the show's website** instead when the feed names one (a feed that names only itself doesn't count),
+  and no original button otherwise. The item's other menus follow the same rule: the row's **…** menu and the
+  panel's **More** menu show **Open the show's website** or nothing, and **Copy link to the original** is left out, as an
+  episode with no page has no page to send. A source marked private is judged the same way, though PURSS withholds its files' addresses
+  (they can carry a secret): the server says only whether the link is the file. Other items, and episodes whose feed gives each one a page, are unchanged.
+- **Names:** a podcast's byline shows the names its feed gives, without the e-mail address feeds write beside them
+  ("podcast@radiofrance.com (Radio France)" shows as "Radio France"); an address with no name shows no byline, and a name
+  given twice shows once. Only what is shown changes: the feed's own line stays stored, search reads it, and your export
+  carries it.
 - **Where it plays from:** the publisher's site (or, in the phone apps, the download on your phone when
   you have one). The player says which. PURSS never stores audio or video files: it only plays the
   publisher's own file, so if the publisher removes it, it is gone. Streaming from the publisher works like
@@ -480,7 +492,8 @@ ask your administrator.
 ## Copying a link
 
 An item's **More** menu has two links. **Copy link to the original** copies the original page's address: the one to
-send to someone, who can open it without an account here. **Copy your private link to this
+send to someone, who can open it without an account here (an episode whose feed gives only its audio file has no
+page, so the entry isn't offered). **Copy your private link to this
 item** copies the item's short link, such as `/app/i/48213`: every item has a number of its own in your PURSS,
 and no other item ever gets it, even after the item is deleted. Only you can open the link (anyone
 else gets the sign-in page). On a device that saved the item for offline reading, the link opens it

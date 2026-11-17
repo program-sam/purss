@@ -303,8 +303,9 @@ export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "worksp
         reason: "feed item update",
       });
       const text = toText(contentHtml ?? summaryHtml);
-      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), current_version_id = ?, updated_at = ? WHERE id = ?",
-        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, excerpt(toText(summaryHtml) || text), entry.imageUrl, versionId, now, itemId);
+      // The files come with the revision: a rotated file address (a private feed's new token) must stay recognisable as the item's file.
+      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), enclosures = ?, current_version_id = ?, updated_at = ? WHERE id = ?",
+        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, excerpt(toText(summaryHtml) || text), entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
       const pinned = app.db.get("SELECT 1 FROM basket_items WHERE version_id = ?", cur.current_version_id);
       if (!pinned) {
         // The superseded version was never kept: it is replaced, not retained.

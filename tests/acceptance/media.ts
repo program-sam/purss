@@ -6,6 +6,9 @@
 // the server or, in a browser, to this device, and playing moves an episode to In progress and Finished by itself, quietly,
 // and only for real playing: jumping to the end is not finishing. Media folders left by an earlier version are removed at start.
 // An episode with no picture of its own plays with the show's art in the player (not initials).
+// Listen leads the episode's panel; "Open original" is the episode's page and never the audio file itself: an episode whose
+// link is only its file offers the show's website or nothing, in the panel and in the row's menu, and its byline has no e-mail address.
+// A private source's episode whose link is its file (an address with no file name, carrying a token) is judged the same way.
 // Run: node tests/acceptance/media.ts (after npm run build)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -31,6 +34,12 @@ const PORT = 19960;
 const INTERNAL = 19968;
 const FORECAST = "https://cdn.example.invalid/forecast.wav";
 const SERIAL = "https://cdn.example.invalid/serial.wav";
+const TIDES = "https://cdn.example.invalid/tides.mp3";
+const STATIC = "https://cdn.example.invalid/static.mp3";
+const SHOW_SITE = "https://slow-radio.example.invalid/";
+// A private source's episode, whose link is its file: the address names no file and carries a token.
+const MEMBERS_FILE = "https://members.example.invalid/play?id=7&token=SECRET";
+const MEMBERS_SITE = "https://members.example.invalid/";
 const origin = `http://localhost:${PORT}`;
 const env: NodeJS.ProcessEnv = {
   ...process.env, PURSS_DATA_DIR: dataDir, PURSS_PORT: String(PORT), PURSS_INTERNAL_PORT: String(INTERNAL),
@@ -76,7 +85,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 
 /** A podcast source with three episodes; the publisher's addresses are unreachable on purpose. */
-function prepare(): { sourceId: string } {
+function prepare(): { sourceId: string; quietId: string; membersId: string } {
   const app = createApp(loadConfig(env as Record<string, string>));
   try {
     const code = ensureClaimCode(app)!;
@@ -88,6 +97,12 @@ function prepare(): { sourceId: string } {
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
     const p: Principal = { accountId, workspaceId: ws.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Slow Radio", "feed/1", { kind: "podcast" });
+    app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", SHOW_SITE, sourceId);
+    // A second show with no website of its own.
+    const quietId = makeSource(app, p, "Quiet Hours", "feed/2", { kind: "podcast" });
+    // A private show: its files' addresses are withheld, so the server alone can say that an episode's link is its file.
+    const membersId = makeSource(app, p, "Members Hour", "feed/3", { kind: "podcast", isPrivate: true });
+    app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", MEMBERS_SITE, membersId);
     // The show has cover art (a one-pixel WebP stands in for it); its episodes have none of their own.
     const art = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
     app.db.run("INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -96,8 +111,12 @@ function prepare(): { sourceId: string } {
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),
       entry("feed/1", { title: "Long wave serial", enclosures: [{ url: SERIAL, type: "audio/wav", length: SERIAL_WAV.length }] }),
+      // Feeds with no page for an episode: the link the engine hands over is the audio file itself.
+      entry("feed/1", { title: "Tide tables, read aloud", url: TIDES, author: "radio@slow-radio.example.invalid (Slow Radio); Mara Venn", enclosures: [{ url: TIDES, type: "audio/mpeg", length: 5_000_000 }] }),
+      entry("feed/2", { title: "Static on the shortwave", url: STATIC, author: "static@quiet.example.invalid", enclosures: [{ url: STATIC, type: "audio/mpeg", length: 5_000_000 }] }),
+      entry("feed/3", { title: "Members only episode", url: MEMBERS_FILE, enclosures: [{ url: MEMBERS_FILE, type: "audio/mpeg", length: 5_000_000 }] }),
     ]));
-    return { sourceId };
+    return { sourceId, quietId, membersId };
   } finally {
     app.db.close();
   }
@@ -143,7 +162,7 @@ async function publisherServes(page: Page): Promise<void> {
 async function main(): Promise<void> {
   if (!existsSync(path.join(repo, "apps/web/dist/index.html"))) throw new Error("Build the web app first: npm run build");
   cpSync(path.join(repo, "apps/web/dist"), webDist, { recursive: true });
-  const { sourceId } = prepare();
+  const { sourceId, quietId, membersId } = prepare();
   // What an earlier version kept on this server: saved files and a download in progress.
   mkdirSync(path.join(dataDir, "media", "incoming"), { recursive: true });
   mkdirSync(path.join(dataDir, "media", "acc_0123456789abcdefghjkmnpqrs"), { recursive: true });
@@ -154,7 +173,7 @@ async function main(): Promise<void> {
   assert.equal(existsSync(path.join(dataDir, "media")), false, "the media folder an earlier version filled is removed when the API starts");
   const csp = (await fetch(`${origin}/app/`)).headers.get("content-security-policy") ?? "";
   assert.match(csp, /media-src https:;/, "the page may play publishers' https files, nothing else: PURSS serves none");
-  step("API started with a podcast source and three episodes; leftover media files were removed");
+  step("API started with three podcast sources (one private) and six episodes; leftover media files were removed");
 
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   try {
@@ -174,6 +193,68 @@ async function main(): Promise<void> {
     assert.deepEqual(media, { url: FORECAST, kind: "audio", type: "audio/wav", length: WAV.length }, "the item reports the publisher's file and nothing about a server copy");
     step("the reader offers to play the publisher's file and nothing to save or download it");
 
+    // Listen leads the panel, ahead of the State and Keep row, and is the only primary button; an episode with a page of its own keeps "Open original" for it.
+    const panelBox = async (selector: string) => (await page.locator(`aside.panel ${selector}`).first().boundingBox())!;
+    assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
+    assert.equal(await page.locator("aside.panel .p-acts .mbtn.go").count(), 0, "no other button is made the primary one beside Listen");
+    assert.match((await page.getByRole("link", { name: /^Open original/ }).getAttribute("href"))!, /^https:\/\/example\.org\/post\/\d+$/, "an episode with a page opens that page as its original");
+    assert.equal(await page.getByRole("link", { name: /^Open the show's website/ }).count(), 0, "the show's website is only for an episode with no page");
+    step("Listen leads the panel and an episode with a page keeps Open original for it");
+
+    // An episode whose link is its audio file: no original, one link to the file, the show's website instead, a clean byline.
+    await openEpisode(page, sourceId, "Tide tables, read aloud");
+    const panel = page.locator("aside.panel");
+    assert.equal(await panel.getByRole("link", { name: /^Open original/ }).count(), 0, "the audio file is not offered as the original");
+    assert.equal(await panel.locator(`a[href="${TIDES}"]`).count(), 1, "the audio file has one link, Open the audio");
+    await panel.getByRole("link", { name: /^Open the audio/ }).waitFor();
+    const site = panel.getByRole("link", { name: /^Open the show's website/ });
+    assert.equal(await site.getAttribute("href"), SHOW_SITE, "the show's website opens instead");
+    assert.equal(await panel.locator(".p-acts .mbtn.go").count(), 0, "the website is not the primary button");
+    assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
+    await panel.getByRole("button", { name: "Listen", exact: true }).waitFor();
+    assert.equal((await panel.locator(".p-by").textContent())?.trim(), "Slow Radio, Mara Venn", "the byline has the names without the e-mail address");
+    step("an episode whose link is its audio file offers Listen, Open the audio, the show's website and a name-only byline");
+
+    // The row's menu follows the same rule.
+    await page.goto(`${origin}/app/s/${sourceId}`);
+    const tidesRow = page.locator("main .irow", { hasText: "Tide tables, read aloud" }).first();
+    await tidesRow.waitFor();
+    await tidesRow.getByRole("button", { name: /^Actions for/ }).click();
+    const menu = page.getByRole("menu");
+    await menu.getByRole("menuitem", { name: "Open the show's website" }).waitFor();
+    assert.equal(await menu.getByRole("menuitem", { name: "Open original" }).count(), 0, "the row's menu does not offer the audio file as the original");
+    assert.equal(await menu.getByRole("menuitem", { name: "Copy link to the original" }).count(), 0, "there is no original page to copy");
+    await page.keyboard.press("Escape");
+    step("the row's menu offers the show's website, and no original page to open or copy");
+
+    // A show with no website, and an author that is only an address: no original at all and no byline.
+    await openEpisode(page, quietId, "Static on the shortwave");
+    assert.equal(await panel.getByRole("link", { name: /^Open original|^Open the show's website/ }).count(), 0, "no page and no website: no original button");
+    assert.equal(await panel.locator(`a[href="${STATIC}"]`).count(), 1, "the file is still one click away, as Open the audio");
+    assert.equal(await panel.locator(".p-by").count(), 0, "an address with no name leaves no byline");
+    await panel.getByRole("button", { name: "Listen", exact: true }).waitFor();
+    step("an episode with neither a page nor a website has no original button, and a bare address is no byline");
+
+    // A private source's episode whose link is its file, an address that names no file: the server says so, though it withholds the file's address, so
+    // neither the panel nor the menus offer the file (and its token) as the original, and the show's website is offered instead.
+    await openEpisode(page, membersId, "Members only episode");
+    assert.equal((await itemDetail(page, "Members only episode")).media, null, "a private source's file address is withheld");
+    assert.equal(await panel.getByRole("link", { name: /^Open original/ }).count(), 0, "the private file is not offered as the original");
+    assert.equal(await panel.locator('a[href*="token="]').count(), 0, "no link in the panel carries the file's token");
+    assert.equal(await panel.getByRole("link", { name: /^Open the show's website/ }).getAttribute("href"), MEMBERS_SITE, "the show's website opens instead");
+    await page.goto(`${origin}/app/s/${membersId}`);
+    const membersRow = page.locator("main .irow", { hasText: "Members only episode" }).first();
+    await membersRow.waitFor();
+    await membersRow.getByRole("button", { name: /^Actions for/ }).click();
+    const membersMenu = page.getByRole("menu");
+    await membersMenu.getByRole("menuitem", { name: "Open the show's website" }).waitFor();
+    assert.equal(await membersMenu.getByRole("menuitem", { name: "Open original" }).count(), 0, "the row's menu does not offer the private file as the original");
+    assert.equal(await membersMenu.getByRole("menuitem", { name: "Copy link to the original" }).count(), 0, "the private file's address is not copied");
+    await page.keyboard.press("Escape");
+    step("a private source's file link, which names no file, is not offered as the original either");
+    await openEpisode(page, sourceId, "Night shipping forecast");
+    await page.getByText(/Streams from the publisher's site/).waitFor();
+
     await page.getByRole("button", { name: "Listen", exact: true }).click();
     const bar = page.getByRole("region", { name: "Player" });
     await bar.getByText("Streaming from the publisher").waitFor();
@@ -186,6 +267,9 @@ async function main(): Promise<void> {
     assert.match((await artwork.getAttribute("src"))!, /^\/api\/sources\/[\w-]+\/icon\?v=[0-9a-f]+$/, "the player shows the show's art as this app serves it");
     await waitFor("the show's art to load", async () => (await artwork.evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0)), 5000);
     step("an episode with no picture of its own plays with the show's art");
+
+    // Text hidden for screen readers and live regions make no part of the page lie below the screen: the page itself never scrolls.
+    assert.deepEqual(await page.evaluate(() => ({ scrolls: document.documentElement.scrollHeight - innerHeight, y: scrollY })), { scrolls: 0, y: 0 }, "the page is no taller than the screen and has not scrolled");
 
     // Nothing sits under the player, in any layout: what the layout shows ends above its top edge,
     // and a sidebar beside the content runs to the bottom of the screen with the player clear of it.

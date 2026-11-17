@@ -6,7 +6,7 @@ import type { MenuEntry } from "@purss/ui";
 import { useCachedItem } from "../api/use-item.ts";
 import { workflowLabel } from "../lib/constants.ts";
 import { copyLinkEntries } from "../lib/copy-link.ts";
-import { safeHref } from "../lib/items.ts";
+import { originalLink } from "../lib/items.ts";
 import { platform } from "../platform/index.ts";
 import { useItemActions } from "./actions.ts";
 import { useOverlays } from "./overlays.tsx";
@@ -45,6 +45,7 @@ export function useItemMenus() {
   const popups = usePopups();
   const overlays = useOverlays();
   const { toast } = useToasts();
+  const { sourceById } = useWorkspace();
 
   const copy = useCallback(async (text: string, message: string) => {
     try { await navigator.clipboard.writeText(text); toast(message); } catch { toast("Couldn't copy the link."); }
@@ -55,8 +56,13 @@ export function useItemMenus() {
     copy: (text, message) => void copy(text, message),
   }), [copy]);
 
+  /** "Open original": the item's own page, or its show's website when its link is only the audio or video file; nothing when there is neither. */
+  const originalEntries = useCallback((item: ItemDTO): MenuEntry[] => {
+    const original = originalLink(item, item.sourceId ? sourceById.get(item.sourceId) : null);
+    return original ? [{ label: original.of === "show" ? "Open the show's website" : "Open original", icon: "ext", onSelect: () => platform.openExternal(original.href) }] : [];
+  }, [sourceById]);
+
   const common = useCallback((item: ItemDTO, anchor: HTMLElement, basketId: string | null): MenuEntry[] => {
-    const href = safeHref(item.url);
     return [
       { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
       { label: `Mark ${workflowLabel("finished", item.kind)}`, disabled: item.workflow === "finished", hint: item.workflow === "finished" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
@@ -66,12 +72,12 @@ export function useItemMenus() {
       { label: "Keep in…", onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
       ...(basketId ? [{ label: "Remove from basket", onSelect: () => void actions.keep(item.id, basketId, false) } as MenuEntry] : []),
       { type: "separator" },
-      ...(href ? [{ label: "Open original", icon: "ext" as const, onSelect: () => platform.openExternal(href) } as MenuEntry] : []),
+      ...originalEntries(item),
       ...linkEntries(item),
       { type: "separator" },
       { label: "Delete permanently…", icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
     ];
-  }, [actions, popups, overlays, linkEntries]);
+  }, [actions, popups, overlays, linkEntries, originalEntries]);
 
   const openRowMenu = useCallback((item: ItemDTO, anchor: HTMLElement, basketId: string | null) => {
     popups.menu(anchor, common(item, anchor, basketId), `Actions for ${item.title}`);
@@ -82,18 +88,17 @@ export function useItemMenus() {
     const moves: MenuEntry[] = (["new", "toread", "inprogress", "finished"] as const).map((k) => ({
       type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
     }));
-    const href = safeHref(item.url);
     popups.menu(anchor, [
       { type: "heading", label: "Move to" }, ...moves,
       item.workflow === "ignored" ? { label: "Restore", onSelect: () => void actions.restore(item.id) } : { label: "Ignore", onSelect: () => void actions.setWorkflow([item.id], "ignored") },
       { type: "separator" },
       { label: "Keep in…", onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
-      ...(href ? [{ label: "Open original", icon: "ext" as const, onSelect: () => platform.openExternal(href) } as MenuEntry] : []),
+      ...originalEntries(item),
       ...linkEntries(item),
       { type: "separator" },
       { label: "Delete permanently…", icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
     ], `Move or act on ${item.title}`);
-  }, [popups, actions, linkEntries, overlays]);
+  }, [popups, actions, linkEntries, originalEntries, overlays]);
 
   const openKeep = useCallback((item: ItemDTO, anchor: HTMLElement) => {
     popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" });

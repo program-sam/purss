@@ -6,7 +6,8 @@ h1,h2,h3,p,ul,ol,fieldset,legend,figure{margin:0;padding:0}
 ul,ol{list-style:none}
 fieldset{border:0;min-width:0}
 a{color:var(--accent-ink)}
-.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+/* Hidden text and live regions sit at their container's corner: left where they fall they can lie below the screen and make the page itself scroll. */
+.sr{position:absolute!important;top:0;left:0;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ic.sm{width:14px;height:14px}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}

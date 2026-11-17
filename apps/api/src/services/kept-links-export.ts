@@ -1,6 +1,7 @@
 import { escapeHtml } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
-import { displayTitle } from "./content.ts";
+import { displayAuthor, displayTitle } from "./content.ts";
+import { itemLinkIsMedia } from "./media.ts";
 
 /*
  * A readable list of what the person has kept, to read, print or keep beside the machine-readable export:
@@ -11,7 +12,7 @@ import { displayTitle } from "./content.ts";
 export type KeptListFormat = "html" | "md";
 
 type BasketRow = { id: string; name: string };
-type KeptRow = { item_id: string; title: string; url: string | null; author: string | null; source_title: string | null; source_kind: string | null; published_at: string | null; kept_at: string };
+type KeptRow = { item_id: string; title: string; url: string | null; author: string | null; source_title: string | null; source_kind: string | null; published_at: string | null; kept_at: string; is_private: number | null; enclosures: string | null };
 
 const PAGE = 500;
 const day = (iso: string | null) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : null);
@@ -22,7 +23,8 @@ function webAddress(url: string | null): string | null {
 }
 
 function details(r: KeptRow): string[] {
-  const from = r.source_kind === "manual" ? r.author : [r.source_title, r.author].filter((x, i, all) => x && all.indexOf(x) === i).join(", ");
+  const author = displayAuthor(r.author);
+  const from = r.source_kind === "manual" ? author : [r.source_title, author].filter((x, i, all) => x && all.indexOf(x) === i).join(", ");
   const published = day(r.published_at);
   const kept = day(r.kept_at);
   return [from || null, published ? `published ${published}` : null, kept ? `kept ${kept}` : null].filter((x): x is string => !!x);
@@ -42,7 +44,8 @@ const HTML_HEAD = (today: string) =>
 
 function line(format: KeptListFormat, r: KeptRow): string {
   const title = displayTitle(r.title);
-  const link = webAddress(r.url);
+  // The list is meant to be handed on: a private source's file address (which can carry its secret) is left out, as in the app.
+  const link = r.is_private === 1 && itemLinkIsMedia(r.url, r.enclosures) ? null : webAddress(r.url);
   const meta = details(r);
   if (format === "html") {
     return `<li>${link ? `<a dir="auto" href="${escapeHtml(link)}" rel="noopener noreferrer">${escapeHtml(title)}</a>` : `<span dir="auto">${escapeHtml(title)}</span>`}`
@@ -61,7 +64,7 @@ export function* keptLinksChunks(app: App, p: Principal, format: KeptListFormat,
     let any = false;
     for (;;) {
       const rows: KeptRow[] = app.db.all<KeptRow>(
-        `SELECT bi.item_id, i.title, i.url, i.author, s.title AS source_title, s.kind AS source_kind, i.published_at, bi.kept_at
+        `SELECT bi.item_id, i.title, i.url, i.author, s.title AS source_title, s.kind AS source_kind, i.published_at, bi.kept_at, s.is_private, i.enclosures
            FROM basket_items bi JOIN items i ON i.id = bi.item_id LEFT JOIN sources s ON s.id = i.source_id
           WHERE bi.basket_id = ? AND bi.workspace_id = ? ${cursor ? "AND (bi.kept_at < ? OR (bi.kept_at = ? AND bi.item_id < ?))" : ""}
           ORDER BY bi.kept_at DESC, bi.item_id DESC LIMIT ?`,

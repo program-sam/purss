@@ -15,7 +15,7 @@ import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { statusButton } from "../lib/status-label.ts";
 import { prepareArticleHtml, showStoredPictures } from "../lib/article-html.ts";
 import { dateTime, dayTime, shortDate } from "../lib/format.ts";
-import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, publishedApart, safeHref, safeImage } from "../lib/items.ts";
+import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, originalLink, publishedApart, safeHref, safeImage } from "../lib/items.ts";
 import { splitLinks } from "../lib/links.ts";
 import { useNav } from "../nav.ts";
 import { usePending, usePendingMark } from "../outbox/hooks.ts";
@@ -99,10 +99,12 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const source = item.sourceId ? ws.sourceById.get(item.sourceId) : undefined;
   const video = item.kind === "video";
   const media = isTimeBased(item.kind);
-  const play = videoLink(item);
   // A video page plays here in its platform's own player; a publisher's file plays in PURSS's player instead (MediaSection).
   const embed = item.media ? null : embedFor(item.url);
-  const href = safeHref(item.url);
+  // The item's page; when its link is only the audio or video file, the show's website, or nothing (that file is Listen or Watch).
+  const original = originalLink(item, source, detail?.enclosures);
+  const href = original?.href ?? null;
+  const play = original?.of === "item" ? videoLink(item) : null;
   const pending = usePending(item.id);
   const seen = useSeenNotice(item.id);
   const markPending = usePendingMark(item.id);
@@ -274,12 +276,14 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           </p>
           {seen ? <p className="fine p-seen">Marked as seen <button type="button" className="link" onClick={() => void actions.undoSeenMarker(seen)}>Undo</button></p> : null}
         </div>
+        {/* Listen or Watch leads: it is what an episode is for, and the file it plays is never the "original". */}
+        {detail?.media ? <MediaSection item={{ ...detail, media: detail.media }} /> : null}
         <div className="p-acts" role="group" aria-label="Item actions">
           {stateControl(true)}
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
             <Icon name="bookmark" />{kept ? <><span className="kin">Kept in</span><span className="k" dir="auto">{keptName}</span></> : "Keep"}<Icon name="chev" size="sm" />
           </button>
-          {href ? <a className={`mbtn${detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? `Open on ${embed.platform}` : video && play ? play.label : "Open original"}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
+          {href ? <a className={`mbtn${item.media || detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? `Open on ${embed.platform}` : original?.of === "show" ? "Open the show's website" : video && play ? play.label : "Open original"}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
           {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">Open the audio<NewTab /><Icon name="ext" size="sm" /></a> : null}
         </div>
         {kept ? <ItemReminder itemId={item.id} /> : null}
@@ -291,7 +295,6 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
         {item.curatorNote ? <p className="p-quote"><b>From {face.curator ?? "the person who shared this"}</b>{item.curatorNote}</p> : null}
         {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>Full text needs a login. Titles and summaries still arrive.</span></p> : null}
         {media ? null : <Progress value={item.progress} />}
-        {detail?.media ? <MediaSection item={{ ...detail, media: detail.media }} /> : null}
         {detail ? <DownloadSection item={detail} /> : null}
         {loading ? <><hr /><LoadingBlocks label="Loading the text…"><div className="skel" style={{ height: 14 }} /><div className="skel" style={{ height: 14, width: "90%", marginTop: 10 }} /><div className="skel" style={{ height: 14, width: "75%", marginTop: 10 }} /></LoadingBlocks></>
           : html ? <><hr />

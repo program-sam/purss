@@ -5,7 +5,7 @@ import type { SyncEntry } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { HttpError, badRequest, conflict, notFound, nowIso } from "../http.ts";
-import { detectKind, excerpt, findDoi, toText } from "./content.ts";
+import { detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.ts";
 import { insertItem } from "./items.ts";
 
 /*
@@ -51,7 +51,7 @@ function toDTO(app: App, row: QueueRow): ReconcileEntryDTO {
   }
   return {
     id: row.id, createdAt: row.created_at, sourceTitle: source?.title ?? null,
-    entry: { title: entry.title, url: entry.url, author: entry.author, publishedAt: entry.publishedAt, summary: excerpt(toText(entry.summaryHtml), 200) },
+    entry: { title: entry.title, url: entry.url, author: displayAuthor(entry.author), publishedAt: entry.publishedAt, summary: excerpt(toText(entry.summaryHtml), 200) },
     candidate,
     suggestion: candidate ? "match" : c && "ambiguous" in c ? "review" : "new",
     reason: c ? ("reason" in c ? c.reason : c.ambiguous) : "Nothing in your library matches this, so it looks new.",

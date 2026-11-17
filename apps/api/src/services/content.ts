@@ -165,6 +165,46 @@ export function displayTitle(title: string): string {
   return decodeCharRefs(embedLabelled(title).replace(TITLE_TAG, "")).replace(/\s+/g, " ").trim() || title;
 }
 
+/** "podcast@radiofrance.com (Radio France)": how RSS writes an author, an address with the name beside it. */
+const ADDRESS_THEN_NAME = /^[^\s@()<>]+@[^\s@()<>]+\s*\((.+)\)$/;
+const NAME_THEN_ADDRESS = /^(.+?)\s*[<(]\s*[^\s@()<>]+@[^\s@()<>]+\s*[>)]$/;
+const BARE_ADDRESS = /^<?[^\s@()<>]+@[^\s@()<>]+>?$/;
+/** Initials after a surname, as journal feeds split them: one person's "S." is not repeated by another's. */
+const INITIALS_ONLY = /^(?:\p{Lu}\.?[\s-]*)+$/u;
+
+/**
+ * An author line as it is shown: each name without the address RSS writes beside it ("podcast@radiofrance.com (Radio France)"
+ * is "Radio France"), an address with no name dropped (nothing left to show: null), and a person the engine joined twice
+ * ("; " between the RSS author and the feed's own) shown once. Parts stay separated by ";", which is how journal feeds list
+ * "Kaur; S.; Turin; T. C." (the reader sets those). A person there is a surname with the initials that follow it, and only a
+ * whole person that repeats is dropped: "Smith; J.; Smith; A." is two people. Display only, like displayTitle: the stored line,
+ * search and the data export keep what the feed sent.
+ */
+export function displayAuthor(author: string | null): string | null {
+  if (!author) return null;
+  // A name, with the initials parts that follow it. Initials with no name before them stand alone.
+  const people: { parts: string[]; named: boolean }[] = [];
+  for (const raw of author.split(";")) {
+    const part = raw.trim();
+    const name = (ADDRESS_THEN_NAME.exec(part) ?? NAME_THEN_ADDRESS.exec(part))?.[1]?.trim() ?? (BARE_ADDRESS.test(part) ? "" : part);
+    if (!name) continue;
+    const last = people.at(-1);
+    if (INITIALS_ONLY.test(name) && last) last.parts.push(name);
+    else people.push({ parts: [name], named: !INITIALS_ONLY.test(name) });
+  }
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const person of people) {
+    if (person.named) {
+      const key = person.parts.join("\u0000").toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    parts.push(...person.parts);
+  }
+  return parts.length ? parts.join("; ") : null;
+}
+
 /** Journal feeds open every summary with the same citation ("Nature, Published online: 4 November 2026;
  *  doi:10.1038/…"), which buries the summary and, in older excerpts, runs into it. Show the summary only.
  *  Display only, like displayTitle; the DOI itself is kept on the item. */

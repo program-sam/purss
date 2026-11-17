@@ -1,4 +1,4 @@
-import { pickMediaEnclosure } from "@purss/domain";
+import { linkIsMediaFile, pickMediaEnclosure } from "@purss/domain";
 import type { Enclosure, ItemMedia, PlaybackPosition } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { notFound, nowIso } from "../http.ts";
@@ -17,6 +17,13 @@ export function itemMedia(enclosuresJson: string | null, isPrivate: boolean): It
   try { list = JSON.parse(enclosuresJson ?? "[]") as Enclosure[]; } catch { /* stored by us; treat as none */ }
   const m = pickMediaEnclosure(Array.isArray(list) ? list : []);
   return m ? { url: m.url, kind: m.kind, type: m.type, length: m.length } : null;
+}
+
+/** Whether the item's own link is its audio or video file, from the enclosures as stored: asked of private sources too, whose files `itemMedia` withholds. */
+export function itemLinkIsMedia(url: string | null, enclosuresJson: string | null): boolean {
+  let list: Enclosure[] = [];
+  try { list = JSON.parse(enclosuresJson ?? "[]") as Enclosure[]; } catch { /* stored by us; treat as none */ }
+  return linkIsMediaFile(url, Array.isArray(list) ? list : []);
 }
 
 // ---------------------------------------------------------------- playback position
