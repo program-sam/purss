@@ -13,7 +13,7 @@
 // with and without reduced motion; choosing a show in Add source, downloading an export and the open phone drawer move or keep it too (the
 // drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
 // A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
-// keeps its back catalogue off Home while it stays on the source's own page.
+// has its back catalogue Ignored: off Home, and its own page says so ("Ignored items are hidden") and shows it on request, and search finds it.
 // The queue is what was put aside and what was started: an article In progress is in Home's To read row, first and marked In progress, and on the
 // "To read, watch and listen" page, whose In progress filter shows it; a Home row marked To read keeps focus on a row that stays, and Play here moves
 // focus to the player; the account button, Sign out and the bell never sit on Customise, the page's tools or a row's buttons (desktop with a long
@@ -79,7 +79,7 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-type Seed = { ids: Record<string, string>; reading: string; radio: string; almanac: string; channel: string };
+type Seed = { ids: Record<string, string>; reading: string; radio: string; almanac: string; focus: string; channel: string };
 const TITLES = ["Long essay", "Second essay", "Medium note", "Tiny abstract", "Night forecast", "Wire story 3"];
 
 /** The throwaway library: a collection shown on Home with a long article, a medium one, a tiny abstract and a busy source; one hidden from Home. */
@@ -109,9 +109,15 @@ function prepare(): Seed {
       ...["Night forecast", "Crackle on long wave", "Numbers stations"].map((title, i) => entry("feed/2", { title, summaryHtml: `<p>${title}: an hour of quiet radio, football edition.</p>`, publishedAt: at(40 + i), crawledAt: at(39 + i) })),
       ...Array.from({ length: 14 }, (_, i) => entry("feed/3", { title: `Wire story ${i + 1}`, summaryHtml: `<p>Busy wire story ${i + 1}.</p>`, publishedAt: at(1 + i), crawledAt: at(i) })),
     ]));
-    // A source followed from now: what its feed already had is stored, and stays off Home.
+    // A source followed from now: what its feed already had is stored as Ignored, and stays off Home.
     const almanac = makeSource(app, p, "Old Almanac", "feed/4", { settled: false, startFrom: "now" });
     applySyncBatch(app, eu, batch(["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"].map((title, i) => entry("feed/4", { title, summaryHtml: `<p>${title}: tables of tides.</p>`, publishedAt: at((40 + i) * 1440), crawledAt: at(39 * 1440) }))));
+    // A source to triage on without changing what Home says: its posts are not New, and its collection is not on Home.
+    const focus = makeSource(app, p, "Focus Notes", "feed/6");
+    applySyncBatch(app, eu, batch(["Focus note 1", "Focus note 2", "Focus note 3"].map((title, i) => entry("feed/6", { title, summaryHtml: `<p>${title}.</p>`, publishedAt: at(60 + i), crawledAt: at(59 + i) }))));
+    app.db.run("UPDATE item_state SET fresh = 0 WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", focus);
+    const focusBox = createCollection(app, p, { name: "Focus", emoji: null, mode: "sources", view: "list", sourceIds: [focus], query: null } as Parameters<typeof createCollection>[2]);
+    app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", focusBox.id);
     // A channel with one video whose page YouTube can play in the reader (Play here).
     const channel = makeSource(app, p, "Art Channel", "feed/5", { kind: "youtube" });
     applySyncBatch(app, eu, batch([entry("feed/5", { title: "Escher at work", url: "https://www.youtube.com/watch?v=abcdefghijk", summaryHtml: "<p>A film about prints.</p>", publishedAt: at(50), crawledAt: at(49) })]));
@@ -125,7 +131,7 @@ function prepare(): Seed {
     changeState(app, p, id("Medium note"), { workflow: "toread", expectedRevision: rev(id("Medium note")) });
     app.db.run("UPDATE items SET kind = 'video' WHERE title = 'Short film'");
     changeState(app, p, id("Short film"), { workflow: "toread", expectedRevision: rev(id("Short film")) });
-    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id, almanac, channel };
+    return { ids: Object.fromEntries(TITLES.map((t) => [t, id(t)])), reading: reading.id, radio: hidden.id, almanac, focus, channel };
   } finally {
     app.db.close();
   }
@@ -407,21 +413,26 @@ async function main(): Promise<void> {
     await page.getByRole("heading", { name: "Home" }).waitFor();
     step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
-    // A source followed from now: its back catalogue is not on Home, in a collection list or in the counts; its own page and search have it.
+    // A source followed from now: its back catalogue is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
     const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
     const onHome = await homeTitles(page, "main .irow .title");
     for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (back catalogue of a source followed from now) is not on Home`);
     assert.match(await page.locator(".home-sum").innerText(), /new in|Since your last visit/, "Home still says what is New");
     await page.goto(`${origin}/app/s/${seed.almanac}`);
+    await page.getByRole("heading", { name: "No new items for now" }).waitFor();
+    assert.equal(await page.locator("main .irow").count(), 0, "the source's own page hides what is Ignored, like every list");
+    assert.match(await page.locator("main").innerText(), /Ignored items are hidden\.\s*Show ignored/, "and says so, with the way to see it, when everything the source has is Ignored");
+    assert.equal(await page.getByText("Nothing here yet").count(), 0, "it does not say there is nothing");
+    await page.getByRole("button", { name: "Show ignored" }).click();
     await page.locator("main .irow").first().waitFor();
-    assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "the source's own page shows all of it");
-    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
-    assert.deepEqual(found, almanac, "and so does a search");
+    assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "Show ignored has all of it");
+    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
+    assert.deepEqual(found, almanac, "and a search finds it");
     const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
     assert.equal(held, 3, "the source counts what it holds");
     await page.goto(`${origin}/app/`);
     await page.getByRole("heading", { name: "Home" }).waitFor();
-    step("a source followed from now keeps its back catalogue off Home and out of the counts; its own page and search have it");
+    step("a source followed from now has its back catalogue Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
 
     // ---------- muted words, filters ----------
     await page.getByRole("button", { name: "Settings" }).first().click();
@@ -556,18 +567,18 @@ async function main(): Promise<void> {
       const a = document.activeElement as HTMLElement | null;
       return { label: a?.getAttribute("aria-label") ?? null, inRow: !!a?.closest("main [data-item]"), tag: a?.tagName ?? null, inMain: !!a?.closest("main") && a !== document.body };
     });
-    await stillPage.goto(`${origin}/app/s/${seed.almanac}`);
+    await stillPage.goto(`${origin}/app/s/${seed.focus}`);
     await stillPage.locator("main .irow").first().waitFor();
     const ignoreOf = (title: string) => stillPage.locator("main .irow").getByRole("button", { name: `Ignore: ${title}`, exact: true });
-    await ignoreOf("Yearbook 1921").focus();
+    await ignoreOf("Focus note 2").focus();
     await stillPage.keyboard.press("Enter");
     await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 2);
-    assert.deepEqual(await activeRow(), { label: "Ignore: Yearbook 1934", inRow: true, tag: "BUTTON", inMain: true }, "Ignore: focus moves to the same button on the next row");
-    await ignoreOf("Yearbook 1934").focus();
+    assert.deepEqual(await activeRow(), { label: "Ignore: Focus note 3", inRow: true, tag: "BUTTON", inMain: true }, "Ignore: focus moves to the same button on the next row");
+    await ignoreOf("Focus note 3").focus();
     await stillPage.keyboard.press("Enter");
     await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 1);
-    assert.deepEqual(await activeRow(), { label: "Ignore: Yearbook 1913", inRow: true, tag: "BUTTON", inMain: true }, "the last row leaving hands focus to the row before it");
-    await ignoreOf("Yearbook 1913").focus();
+    assert.deepEqual(await activeRow(), { label: "Ignore: Focus note 1", inRow: true, tag: "BUTTON", inMain: true }, "the last row leaving hands focus to the row before it");
+    await ignoreOf("Focus note 1").focus();
     await stillPage.keyboard.press("Enter");
     await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 0);
     assert.equal((await activeRow()).tag, "H1", "the list emptied: focus is on its heading, not the page");

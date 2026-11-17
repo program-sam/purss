@@ -167,11 +167,8 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         }
         // A bridged source is already served by the router; any other address can be a big feed (plan/44).
         const trimmable = !payload.feedUrl.startsWith("bridge:") && /^https?:\/\//i.test(resolved);
-        const viaGateway = (address: string): string => {
-          const trimmed = trimmedEngineUrl(deps.secretsDir, address, deps.gatewayEngineUrl);
-          if (!trimmed) throw new JobFailure("This feed is too large for the engine, and this installation has no feed gateway key to follow it through.", false, "too_large");
-          return trimmed;
-        };
+        // The gateway's address for a feed; null on an installation that has no feed gateway key (plan/44).
+        const viaGateway = (address: string): string | null => trimmedEngineUrl(deps.secretsDir, address, deps.gatewayEngineUrl);
         const { client } = await engineSession(payload.engineUserId, signal);
         // A private (secret-link) address belongs to one account and is never fetched for another, so it needs no ordering.
         const add = async (address: string, force: boolean) => {
@@ -186,8 +183,9 @@ export function createHandlers(deps: HandlerDeps): Handlers {
           payload.feedUrl.startsWith("secret:")
             ? add(address, force)
             : addressLock.run(createHash("sha256").update(normalizeFeedUrl(address)).digest("hex"), () => add(address, force));
-        // The follow decided from its preview that this feed is big; the engine's address is the gateway's.
-        let engineUrl = payload.trim && trimmable ? viaGateway(resolved) : resolved;
+        // The follow decided from its preview that this feed is big; the engine's address is the gateway's. Without a gateway key the engine is
+        // given the feed as it is, and fails on it if it must.
+        let engineUrl = (payload.trim && trimmable ? viaGateway(resolved) : null) ?? resolved;
         let trimmed = engineUrl !== resolved;
         let added: Awaited<ReturnType<typeof add>>;
         try {
@@ -196,15 +194,17 @@ export function createHandlers(deps: HandlerDeps): Handlers {
           // The engine reads a feed whole, in a memory limit; one too big for it fails the request itself (an HTTP 500, or the connection
           // dropped when its process is killed), which says nothing about the feed's site (the engine words a failure of the site with
           // a reason; this has none). A feed that really is that big (imports, retries and subscriptions made before the gateway
-          // never had a preview to tell) is then followed through the gateway.
-          const overloaded = e instanceof EngineError && e.kind === "unavailable" && e.reason === null;
-          // The engine answering HTTP 500 to the gateway's own small copy is about the feed's content, not its site: say that (a dropped
+          // never had a preview to tell) is then followed through the gateway. The engine refusing a feed for its size (its download limit) is the same.
+          const overloaded = e instanceof EngineError && ((e.kind === "unavailable" && e.reason === null) || e.reason === "too_large");
+          // The engine answering HTTP 500 to the gateway's own small copy is about the feed's content, not its site: say that plainly (a dropped
           // connection could as well be the engine restarting, and is retried as before).
-          if (trimmed && overloaded && e instanceof EngineError && e.status === 500) throw new JobFailure("The engine could not read this feed even trimmed to its newest items.", false, "too_large");
+          if (trimmed && overloaded && e instanceof EngineError && e.status === 500) throw new JobFailure("The engine could not read this feed even trimmed to its newest items.", false);
           if (trimmed || !trimmable || !overloaded || !deps.isLargeFeed) throw e;
           const large = await deps.isLargeFeed(resolved, { signal }).catch(() => null);
           if (large !== true) throw e;
-          engineUrl = viaGateway(resolved);
+          const gateway = viaGateway(resolved);
+          if (!gateway) throw new JobFailure("The engine could not read this feed, and this installation has no feed gateway key to give it a smaller copy.", false);
+          engineUrl = gateway;
           trimmed = true;
           added = await subscribe(engineUrl, false);
         }

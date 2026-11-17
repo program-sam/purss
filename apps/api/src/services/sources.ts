@@ -178,7 +178,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
   const id = former?.id ?? newId("src");
   const title = input.title ?? former?.title ?? c.title;
   const fullText = input.fullText && fullTextAvailable({ kind: c.kind, is_private: isPrivate ? 1 : 0 });
-  // What the feed already has is back catalogue: left out of Home and the counts from now on, or with its last week as New (see sync.ts arrivalOf).
+  // What the feed already has is back catalogue: it arrives Ignored, or with its last week as New (see sync.ts arrivalOf).
   const startFrom = input.startFrom ?? "now";
   // A feed the preview found bigger than the engine can read whole is followed through the feed gateway, which gives the engine a copy
   // of its newest items (plan/44). The source keeps its own address; only what the engine is subscribed to differs.
@@ -386,13 +386,13 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
 
 /**
  * Turning full articles on also fetches copies for the source's newest items that are still to
- * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive. A source followed from now keeps its
- * back catalogue out of this, as out of Home: no copies are made of posts the person chose not to start with.
+ * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive. The back catalogue of a source
+ * followed from now is Ignored, so it is left out of this: no copies are made of posts the person chose not to start with.
  */
 function backfillFullText(app: App, p: Principal, sourceId: string): void {
   const items = app.db.all<{ id: string; url: string }>(
     `SELECT i.id, i.url FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.source_id = ? AND i.workspace_id = ? AND i.backlog = 0 AND i.url IS NOT NULL AND st.workflow NOT IN ('finished', 'ignored')
+     WHERE i.source_id = ? AND i.workspace_id = ? AND i.url IS NOT NULL AND st.workflow NOT IN ('finished', 'ignored')
        AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status IN ('pending', 'done'))
      ORDER BY COALESCE(i.published_at, i.discovered_at) DESC LIMIT ?`, sourceId, p.workspaceId, FULL_TEXT_BACKFILL);
   for (const it of items) queueAutoCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: it.id, url: it.url });

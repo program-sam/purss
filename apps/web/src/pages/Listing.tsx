@@ -286,6 +286,12 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
   );
 }
 
+/** The line under a list that leaves Ignored items out: what a source followed from now already had is among them. */
+function IgnoredHidden({ ls }: { ls: ReturnType<typeof useListState> }) {
+  const nav = useNav();
+  return <p className="fine" style={{ marginTop: 12 }}>Ignored items are hidden. <button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>Show ignored</button></p>;
+}
+
 function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typeof useListState>; hasSources: boolean }) {
   const nav = useNav();
   const overlays = useOverlays();
@@ -298,6 +304,8 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   if (place.t === "c") {
     const c = ws.collectionById.get(place.id);
     if (c?.mode === "sources" && !hasSources) return <div className="empty card-like"><h2>No sources in this collection yet</h2><Button variant="primary" onClick={() => overlays.open({ kind: "add-source", collectionId: place.id })}><Icon name="plus" size="sm" />Add source</Button></div>;
+    // What its sources already had when they were followed is Ignored, so a collection of new follows has nothing to show until they post.
+    if (c?.mode === "sources") return <div className="empty card-like"><h2>No new items for now</h2></div>;
   }
   if (place.t === "s") {
     // The source's own note above says why nothing is arriving; only promise items when they can come.
@@ -345,7 +353,12 @@ export function ListingPage({ place }: { place: ListPlace }) {
   let body;
   if (loadingFirst) body = <div className="list" aria-busy="true">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="skel" style={{ height: 40, margin: 10 }} />)}</div>;
   else if (q.isError) body = <div className="empty card-like"><h2>Couldn't load these items</h2><p>{messageOf(q.error)}</p><Button onClick={() => void q.refetch()}>Try again</Button></div>;
-  else if (!items.length) body = <Empty place={place} ls={ls} hasSources={hasSources} />;
+  else if (!items.length) body = (
+    <>
+      <Empty place={place} ls={ls} hasSources={hasSources} />
+      {ls.filter === "active" && (place.t === "c" || place.t === "s") && !isNarrowed(ls) ? <IgnoredHidden ls={ls} /> : null}
+    </>
+  );
   else {
     const view = ls.view === "board" ? <BoardView params={{ scope: ls.scope, sort: ls.sort, ...listFilters(ls) }} onMove={(ids, to) => { sel.clear(); return actions.setWorkflow(ids, to); }} />
       : ls.view === "table" ? <TableView items={drawn} sort={ls.sort} onSort={(s) => nav.patchSearch({ sort: s === "newest" ? undefined : s })} />
@@ -356,7 +369,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <>
         {view}
         {ls.view !== "board" && drawn === items ? <LoadMore hasMore={!!q.hasNextPage} loading={q.isFetchingNextPage} onMore={() => void q.fetchNextPage()} /> : null}
-        {ls.filter === "active" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>Ignored items are hidden. <button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>Show ignored</button></p> : null}
+        {ls.filter === "active" && place.t !== "b" ? <IgnoredHidden ls={ls} /> : null}
         {ls.filter === "all" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>Ignored items are showing. <button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "active") })}>Hide ignored</button></p> : null}
       </>
     );

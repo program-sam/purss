@@ -282,7 +282,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
         {markPending ? <p className="fine p-pend" role="status"><Icon name="clock" size="sm" />Not sent yet. Saved on this device. It'll be sent when PURSS is reachable.</p> : null}
         {!html && !loading && excerpt ? <p className="p-ex" dir="auto" data-inapp="">{splitLinks(excerpt).map((p, i) => (p.href ? <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow">{p.text}</a> : <Fragment key={i}>{p.text}</Fragment>))}</p> : null}
         {!loading && !fromDevice && (detail?.contentOmitted || summaryOnly) ? (
-          <p className="p-warn p-sum" role="note"><Icon name="info" /><span>{detail?.contentOmitted ? "The feed's full text was too large to store; open the original." : "Summary only — the full article stays on the original site."}</span></p>
+          <p className="p-warn p-sum" role="note"><Icon name="info" /><span>Summary only — the full article stays on the original site.</span></p>
         ) : null}
         {item.curatorNote ? <p className="p-quote"><b>From {face.curator ?? "the person who shared this"}</b>{item.curatorNote}</p> : null}
         {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>Full text needs a login. Titles and summaries still arrive.</span></p> : null}

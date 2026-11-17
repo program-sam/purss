@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseFeed } from "@purss/connectors";
-import { FeedTrimmer, rootWithBase, trimDocument } from "./trim.ts";
+import { FeedTrimmer, rootWithBase, TRIM_LIMITS, trimDocument } from "./trim.ts";
 import type { TrimResult } from "./trim.ts";
 
 const NS =
@@ -193,8 +193,19 @@ test("huge items are left out whole and counted; the others are kept", () => {
   assert.deepEqual(guids(r.body), [52, 51, 49]);
   assert.ok(!r.body.toString("latin1").includes("xxxx"), "no part of it, cut or not");
   assert.ok(r.body.toString("latin1").endsWith("</channel></rss>\n"));
-  const allHuge = trimDocument(feed([huge, item(60, { body: "y".repeat(200_000) })]), { maxItems: 10, maxItemBytes: 100_000 });
-  assert.deepEqual(allHuge, { ok: false, reason: "too_large", bytesRead: allHuge.bytesRead });
+  // When every item is bigger than an item may be there is nothing to keep, and the feed is its channel: not a failure to be worded to anyone.
+  const allHuge = ok(trimDocument(feed([huge, item(60, { body: "y".repeat(200_000) })]), { maxItems: 10, maxItemBytes: 100_000 }));
+  assert.deepEqual([allHuge.kept, allHuge.seen, allHuge.tooBig, allHuge.complete], [0, 2, 2, true]);
+  assert.equal(allHuge.body.toString("latin1"), `${HEAD}</channel></rss>\n`);
+});
+
+test("the copy keeps the newest 50 items unless told otherwise: what the engine keeps of any feed", () => {
+  assert.equal(TRIM_LIMITS.maxItems, 50);
+  const doc = feed(Array.from({ length: 1000 }, (_, k) => item(1000 - k)));
+  const r = ok(trimDocument(doc));
+  assert.equal(r.kept, 50);
+  assert.deepEqual(guids(r.body), Array.from({ length: 50 }, (_, k) => 1000 - k));
+  assert.ok(r.body.length < doc.length / 15, `the copy is ${r.body.length} bytes of ${doc.length}`);
 });
 
 test("when the newest items are bigger together than the room, the oldest of them go", () => {
@@ -206,23 +217,69 @@ test("when the newest items are bigger together than the room, the oldest of the
   assert.ok(r.body.length < 260_000, `the copy is ${r.body.length} bytes of ${doc.length}`);
 });
 
-test("the byte ceiling is a clear failure, and reading stops there, whatever the order", () => {
+test("past the byte ceiling the newest of what was read is the answer, and reading stops there, whatever the order; nothing says it was cut", () => {
   const unordered = Array.from({ length: 2000 }, (_, k) => item((k * 7) % 2000));
   const doc = feed(unordered);
-  const t = new FeedTrimmer({ maxBytes: 100_000 });
+  const t = new FeedTrimmer({ maxBytes: 100_000, maxItems: 100 });
   let wrote = 0;
   for (let at = 0; at < doc.length; at += 8192) {
     wrote = at;
     if (t.write(Buffer.from(doc.slice(at, at + 8192), "latin1")) === "stop") break;
   }
-  assert.ok(wrote < 120_000, `stopped near the ceiling (${wrote})`);
-  const r = t.finish();
-  assert.deepEqual(r, { ok: false, reason: "too_large", bytesRead: r.bytesRead });
-  // A newest-first feed is no exception: it is read to its end, so the ceiling is the size of the document.
+  assert.ok(wrote <= 100_000, `stopped at the ceiling (${wrote})`);
+  const r = ok(t.finish());
+  assert.equal(r.bytesRead, 100_000, "exactly the ceiling was read, in the middle of whatever it came to");
+  assert.deepEqual([r.capped, r.complete, r.kept], [true, false, 100]);
+  const readBytes = doc.slice(0, 100_000);
+  const read = [...readBytes.slice(0, readBytes.lastIndexOf("</item>")).matchAll(/<guid[^>]*>ep-(\d+)<\/guid>/g)].map((m) => Number(m[1]));
+  assert.deepEqual(guids(r.body), read.sort((a, b) => b - a).slice(0, 100), "the newest of what came before the ceiling, and the item it cut is not in it");
+  assert.ok(r.body.toString("latin1").endsWith("</channel></rss>\n"), "the copy is a whole feed");
+  assert.equal(titles(r.body).length, 100, "the preview parser reads it");
+
+  // The same through any chunking, and a newest-first feed is no exception: its ceiling is a size, not a count.
   const ordered = feed(Array.from({ length: 2000 }, (_, k) => item(2000 - k)));
-  assert.equal(ok(trimDocument(ordered, { maxBytes: ordered.length, maxItems: 100 })).kept, 100);
-  const over = trimDocument(ordered, { maxBytes: ordered.length - 1, maxItems: 100 });
-  assert.ok(!over.ok && over.reason === "too_large");
+  const exact = ok(trimDocument(ordered, { maxBytes: ordered.length, maxItems: 100 }));
+  assert.deepEqual([exact.kept, exact.capped, exact.complete], [100, false, true], "a document exactly the ceiling is not cut");
+  for (const size of [8192, 997, 1 << 20]) {
+    const over = ok(trimDocument(ordered, { maxBytes: ordered.length - 1000, maxItems: 100 }, size));
+    assert.deepEqual([over.kept, over.capped, over.complete], [100, true, false], `chunks of ${size}`);
+    assert.deepEqual(guids(over.body), Array.from({ length: 100 }, (_, k) => 2000 - k));
+  }
+  // A document that is all ceiling and no feed (it ended inside the channel's details before any item) has nothing to serve.
+  const inHead = trimDocument(ordered, { maxBytes: HEAD.length - 5 });
+  assert.ok(!inHead.ok && inHead.reason === "malformed");
+});
+
+test("a ceiling that falls inside the first item leaves the channel and no piece of that item; only a feed with no readable item at all fails", () => {
+  const big = item(7, { body: `<p>${"long notes ".repeat(60_000)}</p>` }); // about 660 KB, so under the item limit and well past the ceiling
+  const doc = feed([big, item(6)]);
+  for (const size of [8192, 997, 1 << 20]) {
+    const r = ok(trimDocument(doc, { maxBytes: 100_000 }, size));
+    assert.deepEqual([r.kept, r.seen, r.tooBig, r.capped, r.complete, r.bytesRead], [0, 0, 0, true, false, 100_000], `chunks of ${size}`);
+    const text = r.body.toString("latin1");
+    assert.ok(text.startsWith(HEAD.slice(0, 40)) && text.includes("<title>The Show</title>"), "the channel's own markup is kept");
+    assert.ok(text.endsWith("</channel></rss>\n"), "the channel is closed");
+    // The channel's own description holds "<item>" inside CDATA on purpose; only markup outside CDATA counts.
+    assert.doesNotMatch(text.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, ""), /<item|long notes/, "no piece of the cut item");
+    const parsed = parseFeed(r.body, "application/rss+xml", { maxItems: 1000 });
+    assert.equal(parsed.title, "The Show");
+    assert.equal(parsed.items.length, 0);
+  }
+  // After items that were whole the cut one is dropped and the whole ones are kept.
+  const later = feed([item(1), item(2), big]);
+  const after = ok(trimDocument(later, { maxBytes: 100_000 }));
+  assert.deepEqual([after.kept, after.capped, after.complete], [2, true, false]);
+  assert.deepEqual(guids(after.body), [2, 1]);
+  assert.doesNotMatch(after.body.toString("latin1"), /long notes/);
+  // An item over the item limit is left out whole whether or not the ceiling comes inside it.
+  const tooBig = ok(trimDocument(doc, { maxBytes: 100_000, maxItemBytes: 10_000 }));
+  assert.deepEqual([tooBig.kept, tooBig.capped, tooBig.complete], [0, true, false]);
+  assert.equal(parseFeed(tooBig.body, "application/rss+xml", { maxItems: 1000 }).items.length, 0);
+  // Not the ceiling's doing: a document that just ends inside its first item, or inside the channel before any item, is still not a feed.
+  const ends = trimDocument(doc.slice(0, HEAD.length + 200), {});
+  assert.ok(!ends.ok && ends.reason === "malformed");
+  const inHead = trimDocument(doc, { maxBytes: HEAD.length - 5 });
+  assert.ok(!inHead.ok && inHead.reason === "malformed");
 });
 
 test("what is not a feed, or can't be read, fails with a reason", () => {

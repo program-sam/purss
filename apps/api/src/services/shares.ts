@@ -115,7 +115,8 @@ type Row = { id: string; title: string; url: string | null; excerpt: string | nu
 
 /**
  * Exactly what visitors can see now, newest first; null when the target is gone or can no longer be shared. A shared collection shows
- * what its owner's list of it shows: the back catalogue of a source followed from now is not in it (items.backlog), until the owner acts on a post.
+ * what its owner's list of it shows: Ignored items, which include the back catalogue of a source followed from now, are not in it.
+ * A basket shows everything kept in it, as its owner's list of it does.
  */
 export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" | "target_id" | "workspace_id">, limit = PAGE_ITEMS): (PageItem & { itemId: string; ownLink: boolean })[] | null {
   const t = target(app, share.target_kind, share.target_id, share.workspace_id);
@@ -137,8 +138,8 @@ export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" 
   // Read a margin past the limit: links that carry a key (in the query or the path) are dropped below, after the query.
   const rows = app.db.all<Row>(
     `SELECT i.id, i.title, i.url, i.excerpt, i.published_at, i.discovered_at, s.title AS source_title, s.kind AS source_kind, n.note
-     FROM items i LEFT JOIN sources s ON s.id = i.source_id LEFT JOIN share_notes n ON n.share_id = ? AND n.item_id = i.id
-     WHERE i.workspace_id = ? AND COALESCE(s.is_private, 0) = 0 AND i.url IS NOT NULL AND i.backlog = 0 AND ${scope}
+     FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id LEFT JOIN share_notes n ON n.share_id = ? AND n.item_id = i.id
+     WHERE i.workspace_id = ? AND COALESCE(s.is_private, 0) = 0 AND i.url IS NOT NULL AND ${t.mode === "basket" ? "1" : "st.workflow <> 'ignored'"} AND ${scope}
      ORDER BY ${order} LIMIT ${Math.ceil(limit * 1.5) + 20}`, ...params);
   const sha = (s: string) => createHash("sha256").update(s).digest("hex");
   const out: (PageItem & { itemId: string; ownLink: boolean })[] = [];

@@ -84,7 +84,8 @@ test("a sync that fails for good tells the person why on Home and waits longer e
   const home = await call(b.app, b.pubBase, "GET", "/api/bootstrap", b.session);
   assert.equal(home.status, 200);
   assert.equal(home.json.engine.status, "unavailable");
-  assert.match(home.json.engine.message, /too large to save/, "Home's engine notice carries the reason");
+  assert.match(home.json.engine.message, /couldn't be saved/, "Home's engine notice says an update couldn't be saved");
+  assert.doesNotMatch(home.json.engine.message, /too large|too big/, "and says nothing about sizes");
 
   // The maintenance tick leaves a failing sync alone until its wait is over.
   const queuedSync = () => b.app.db.get("SELECT 1 FROM jobs WHERE idempotency_key = ? AND status = 'queued'", `sync:${b.owner.engineUserId}`);
@@ -203,7 +204,7 @@ test("the source says what went wrong when the engine can't follow it for good",
   const cases: Array<[string, boolean, RegExp]> = [
     ["not_found", false, /no feed at that address/],
     ["refused", false, /refused/],
-    ["too_large", false, /too large to follow/],
+    ["too_large", false, /couldn't follow this feed/],
     ["not_a_feed", false, /not with a feed we can read/],
     ["unavailable", true, /didn't answer/],
     ["other", false, /couldn't follow this feed/],

@@ -2,8 +2,9 @@
 
 The owner approved following feeds that are too big for the collection engine to read through PURSS's own feed
 gateway, which gives FreshRSS a smaller copy of the same public feed. FreshRSS stays the only engine that
-collects; the gateway never inserts product items. This page records the problem as measured, the design, and
-what it defers.
+collects; the gateway never inserts product items. A person following a big feed is told nothing about its size: the
+gateway serves the newest items it could read, silently, and no message in the product speaks of it. This page records
+the problem as measured, the design, and what it defers.
 
 ## The problem
 
@@ -20,7 +21,9 @@ so it never needs a feed's whole back catalogue.
 ## Decision
 
 Big feeds reach FreshRSS through the egress feed gateway, which streams the upstream feed to its end and serves the engine
-the channel's metadata and the newest 100 items, otherwise untouched. Considered and not taken:
+the channel's metadata and the newest 50 items, otherwise untouched. Fifty is what FreshRSS keeps of any feed at the least, and
+the smaller copy is cheaper for it: measured on The Daily, the copy is 330 KB, which the engine parses and caches in about 24 ms at a
+6 MB peak (a 100-item copy was 660 KB, 35 ms and 10 MB). Considered and not taken:
 
 - *Raise the engine's memory limit.* The container, not PHP's limit, is the budget: three concurrent big
   requests would need more than the server has free, and the limit would have to follow the largest feed.
@@ -71,19 +74,19 @@ nested elements of the item's own name don't end it. Nothing is parsed inside an
 **The whole document is read.** Nothing in a feed guarantees the order of its items: a pinned old item may come first, a feed may list 200
 items newest first and append a newer batch after them (a 1,001-item feed whose first 200 items descend and whose newest item is the 201st
 lost that item on every refresh when reading stopped once the first items were in order). So the trimmer never stops early: it reads to the end of the
-document and keeps the newest 100 in a bounded list ordered by date as the items go past, one item at a time. The cost is bandwidth,
+document, or to its ceiling, and keeps the newest 50 in a bounded list ordered by date as the items go past, one item at a time. The cost is bandwidth,
 not memory (see Memory), which is why the gateway spares the publisher and itself the repeated reads (Failure and bounds).
 
 | Limit | Value | Why |
 | --- | --- | --- |
-| Items kept | 100 | twice what the engine keeps |
-| One item | 1 MiB | a bigger one is left out whole, never cut inside its markup |
+| Items kept | 50 | what the engine keeps of any feed at the least |
+| One item | 1 MiB | a bigger one is left out whole, never cut inside its markup (a feed of nothing but those is served as its channel) |
 | Kept items together | 4 MiB | when the newest are bigger together, the oldest of them go |
-| Channel details (before the first item) | 1 MiB | beyond it the feed answers *too large* |
-| Document read | 64 MiB | the whole document is read, so beyond it the feed answers *too large* however it is ordered (the gateway's ceiling) |
+| Channel details (before the first item) | 1 MiB | beyond it there is no feed to make of the document: it answers 422, *not a feed* |
+| Document read | 64 MiB | the whole document is read, however it is ordered; past this (the gateway's ceiling) reading stops and the newest items of what was read are the answer, with the item the ceiling cut left out (a ceiling inside the first item leaves the channel alone, closed, and none of that item) |
 
 Which items: the newest by `pubDate`, `dc:date`, `published`, `updated` (any namespace prefix); an item with no
-date has the one before it (a feed with no dates at all keeps the first 100 listed). The copy is the head up to the first
+date has the one before it (a feed with no dates at all keeps the first 50 listed). The copy is the head up to the first
 item (its root tag carrying the `xml:base`), the kept items newest first, and the closing tags the head left open. Channel
 elements listed after the first item are not carried.
 
@@ -113,7 +116,7 @@ elements listed after the first item are not carried.
   machine. What a feed's text is matters too (a 20.7 MB feed that repeated one set of notes was read, in 67 s, where The Daily
   fails), which is why the bytes alone are not the rule.
 - **Subscriptions the engine fails on.** The worker, when `engine.subscribe` gets the engine's own failure (an HTTP 500 from the quick-add
-  or a dropped connection, with no reason: the engine words a failure of the feed's site with one) for a web address that is
+  or a dropped connection, with no reason: the engine words a failure of the feed's site with one; or its refusal of a feed over its download limit) for a web address that is
   not already trimmed, asks `isLargeFeed` (a streaming size check with `safeFetch`'s rules that stops at the first
   byte past 4 MiB), and if the feed is bigger subscribes at the gateway's address and reports `viaGateway`; the API marks the
   source. This covers imports (which never had a preview), retries and everything followed before this existed.
@@ -122,6 +125,11 @@ elements listed after the first item are not carried.
   source, the followed sources that say *The site isn't answering right now…* or *The site didn't answer…* and have no
   subscription and no subscription job waiting: those are what the engine's overload looked like. The worker then
   decides as above; for any other cause the answer is what it was.
+  Earlier versions also stored *The feed is too large to follow.* (and a not-a-feed message that added *It may be too large*) on sources they gave up on.
+  `retryEarlierSizeFailures`, on the same tick, rewords every such source to what the same failure says now (no size, ever) and, for
+  a followed source with no subscription and none waiting, queues one more subscription **through the gateway** (`trim`), whether or not
+  the source was already marked `via_gateway`. The old text is the marker and is replaced in the same transaction that queues the try, so a
+  source is looked at once: a try that fails again says the plain message, which that tick does not match. A suspended or deleting account is left until it can act.
 - **Subscriptions that work are left as they are.** Moving one means unsubscribing and subscribing again
   (a new stream), and the engine can't tell the product that a feed has since outgrown its limit (its per-feed errors
   are not read; plan/41 defers that too). A subscription that starts failing to refresh looks quiet, as any
@@ -129,13 +137,16 @@ elements listed after the first item are not carried.
 
 ## What a person sees
 
+Nothing about size, ever. A big feed is an ordinary source whose first items are its newest.
+
 | Case | The source says |
 | --- | --- |
 | A big feed, through the gateway | an ordinary source; its first items arrive as any source's do |
-| Past the gateway's ceiling, or channel details beyond 1 MiB (HTTP 413 from the gateway) | *The feed is too large to follow.* (not retried) |
-| A big feed on an installation without the feed-trim key | *The feed is too large to follow.* |
+| Past the gateway's ceiling, or with items over 1 MiB | an ordinary source: the newest items that were read, the rest left out without a word |
+| A big feed on an installation without the feed-trim key | the engine is given the feed as it is; when it fails on it, *The collection engine couldn't follow this feed. Try again later or check the link.* (not retried; the worker's job log says why) |
+| The engine can't read even the gateway's small copy (its HTTP 500) | the same generic words, not retried |
 | The feed's own site down or slow (502/504) | *The site isn't answering right now; we'll keep trying.* (retried at 1, 5 and 30 minutes) |
-| Not a feed, or an encoding that can't be read (422) | *The address answers, but not with a feed we can read…* |
+| Not a feed, an encoding that can't be read, or channel details over 1 MiB (422) | *The address answers, but not with a feed we can read. It may be in a format we don't support.* |
 | The feed's own 404, 403, 429 | as for any feed |
 
 ## Failure and bounds of the gateway
@@ -144,7 +155,9 @@ elements listed after the first item are not carried.
 waiting before *busy* (503), a back-off after a failure with the last good answer served while the host is failing, never an empty
 feed in place of a failure. Its log carries the feed's host, never its address. A fetch has the gateway's 60 s in all and 15 s of silence
 (reading a feed whole is slower than reading its start, so a feed from a host that can't deliver all of it in that time, 64 MiB at the most, answers
-*the site isn't answering* and is tried again, not *too large*). Since every refresh reads a feed to its end, the reads are shared and conditional:
+*the site isn't answering* and is tried again). What a publisher declares is no reason to refuse its feed: the gateway reads through `safeFetch` with `streamPastDeclaredLength`, so a
+`Content-Length` over 128 MiB (`safeFetch`'s limit for a body that is read as a stream) is read as far as the trimmer's own 64 MiB ceiling like any other,
+and only the bytes that actually arrive are bounded. A transfer that still went past 128 MiB would be answered 502 with `too_large` in the log, for the operator. Since every refresh reads a feed to its end, the reads are shared and conditional:
 
 - **One trimmed answer per upstream address, shared by every account.** Each account that follows a feed has its own engine subscription, but they all hold
   the same gateway address (the signature is a function of the address), and FreshRSS's cron refreshes the feeds that are due at minutes 3, 18, 33 and 48,
@@ -158,7 +171,7 @@ feed in place of a failure. Its log carries the feed's host, never its address. 
   the one the kept answer was read from (a redirect that moved) is not reused: the feed is read again, plainly, so the answer's base is always the address
   it was read from. A publisher that sends no validators is asked plainly each time. The validators go with the answer: when the answer is dropped, so are they.
 - **Bounded memory.** The answers kept weigh 8 MiB in all (a body, the address and base it is kept under, and its validators; least recently used out), and at most
-  500 addresses are remembered; an answer bigger than the whole budget is served once and not kept. The Daily's answer is 0.6 MB, so about 13 fit.
+  500 addresses are remembered; an answer bigger than the whole budget is served once and not kept. The Daily's answer is 0.33 MB, so about 25 fit.
 
 ## Memory
 
@@ -171,13 +184,13 @@ collection (a throwaway script, not kept):
 
 | Read | Answer | Time | Peak over idle |
 | --- | --- | --- | --- |
-| The Daily (20.7 MB, 3,039 episodes, newest first), read in full | 0.6 MB, 100 items | 0.4 s | 5.4 MiB (five in a row from a publisher with no validators: 16 MiB, levelling off) |
+| The Daily (20.7 MB, 3,039 episodes, newest first), read in full | 0.33 MB, 50 items | 0.4 s | 5.4 MiB (five in a row from a publisher with no validators: 16 MiB, levelling off) |
 | Two of those at once | | 0.8 s | 13 MiB |
-| A synthetic feed of 7,689 episodes (45.7 MB), newest first | 0.6 MB | 0.9 to 1.1 s | 11 MiB |
-| The same listed in no order | 0.6 MB | 1.0 s | 17 MiB |
+| A synthetic feed of 7,689 episodes (45.7 MB), newest first | 0.33 MB | 0.9 to 1.1 s | 11 MiB |
+| The same listed in no order | 0.33 MB | 1.0 s | 17 MiB |
 | Two of those at once (the most the gateway runs) | | 2.4 s | 32 MiB |
 | **A refresh of an unchanged feed** (the publisher answers 304), either feed | the kept copy | 21 to 38 ms | nothing read: the peak rises 0.1 MiB |
-| The answers kept, at their 8 MiB budget (The Daily's, 0.6 MB each, over 24 addresses) | 7.5 MiB in all | | 7.5 MiB held once collected; resident 26 to 30 MiB over idle while it filled |
+| The answers kept, at their 8 MiB budget (The Daily's, 0.33 MB each, over 24 addresses) | 7.5 MiB in all | | 7.5 MiB held once collected; resident 26 to 30 MiB over idle while it filled |
 | The worst case: the cache full, then two of the 45.7 MB feeds in no order at once | | 4.7 s | **42 MiB** (newest first: 30 MiB) |
 
 Nothing is held but the text not yet classified, the channel's head, the item being read and the items kept (4 MiB at most), so the
@@ -187,7 +200,9 @@ the proxy. A fetch is therefore collected after each megabyte it reads past the 
 time) and when it ends if it read more than half a megabyte: a few milliseconds each, which a full read now pays on every feed (The Daily, with
 its 20 collections, takes 0.4 s; the 45.7 MB feed about a second). The cache costs what it keeps (the answers, their addresses and validators: 8 MiB at most), and
 Node keeps the pages it has used, so the process stays resident at what the largest recent read needed.
-These runs were queued as `hostlock work`, not `hostlock measure`: a resident-memory peak does not depend on quiet cores, and the timings
+These runs were made when the copy held 100 items (0.6 MB for The Daily); the copy now holds 50 and is about half as big, which changes only what
+an answer weighs and what the cache holds (the answer and cache rows above are those figures at the new size; the budget now holds about twice as many), not what
+reading a feed costs. These runs were queued as `hostlock work`, not `hostlock measure`: a resident-memory peak does not depend on quiet cores, and the timings
 here are only indications.
 
 The worst case the limits allow, the cache full and two reads in full at once, is **42 MiB over idle: 167 of the container's 192 MiB, 25 MiB to
@@ -200,7 +215,7 @@ and the cache's budget (`maxCachedBytes`, 8 MiB), not the limit.
 
 The same code runs in the egress process under `npm run dev` and Compose. The key is created by `npm run dev` and
 `init`; an installation upgraded under Compose gets it the next time `init` runs; without it nothing changes except
-that a big feed says it is too large. `PURSS_GATEWAY_ENGINE_URL` (worker) must follow `EGRESS_GATEWAY_ALIAS` or the
+that a big feed goes to the engine as it is, and fails there if it must. `PURSS_GATEWAY_ENGINE_URL` (worker) must follow `EGRESS_GATEWAY_ALIAS` or the
 gateway port if they are changed.
 
 ## Not built
@@ -208,8 +223,8 @@ gateway port if they are changed.
 - Trimming for JSON Feed.
 - Moving subscriptions that work today, or noticing that a feed has outgrown the engine's limit since it was followed
   (needs the engine's per-feed errors, deferred in plan/41).
-- A per-feed item count; 100 is fixed.
-- Answering the engine's own conditional requests (the gateway sends no ETag, so a refresh costs the engine a local read of the 0.6 MB copy; the
+- A per-feed item count; 50 is fixed.
+- Answering the engine's own conditional requests (the gateway sends no ETag, so a refresh costs the engine a local read of the 0.33 MB copy; the
   publisher is not touched by it while the answer is fresh).
 - Per-source health from the gateway in the product (the administrator sees the outcome in egress's log line).
 
@@ -217,9 +232,9 @@ gateway port if they are changed.
 
 `npm run check`, `npm test`, `npm run test:engine` (`tests/engine/big-feed.test.ts`: the 20 MB fixture fails when added
 directly, is followed through the gateway within the engine's 128 MB with the whole feed read, a changed feed is read again on refresh,
-an unchanged one is a 304 that gives the engine the kept copy, it moves, and the too-large case),
-plus unit tests for the trimmer (order, a newer item after 200 in order, CDATA, namespaces, huge items, the ceiling, malformed input, chunk
-boundaries, the root's `xml:base`), the gateway (signature, address rules, failures, sharing, bounds, logs, a late newest item, conditional requests and
+an unchanged one is a 304 that gives the engine the kept copy, it moves, and an endless feed that is followed from what was read up to the ceiling),
+plus unit tests for the trimmer (order, the default of 50, a newer item after 200 in order, CDATA, namespaces, huge items, the ceiling that serves what was read, malformed input, chunk
+boundaries, the root's `xml:base`), the gateway (signature, address rules, failures that never speak of size, a feed past the ceiling, sharing, bounds, logs, a late newest item, conditional requests and
 their 304, the cache keyed by the whole address, validators dropped with their answer, the base after a redirect), the follow decision, the retry
 and migration 068. `tests/engine/big-feed.test.ts` also follows RSS and Atom feeds with relative links (root-relative and path-relative links and enclosures,
 relative `xml:base` on the root and on an entry) through the gateway and compares each with the same feed read by the engine at its own address.

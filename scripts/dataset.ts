@@ -26,8 +26,8 @@ import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
  *
  * Items follow the sync's own rules: the sources are followed 60 days ago, their back catalogue arrives first (not New),
  * the sources settle, and the later 8% arrive as New; New markers older than the default 30 days then expire.
- * `--start-from now` follows the sources from now (the choice every new follow gets): the back catalogue is stored but
- * marked as left out of Home, collection lists and counts (migration 065), which is most of the account's items; `all`
+ * `--start-from now` follows the sources from now (the choice every new follow gets): the back catalogue is stored as
+ * Ignored (hidden from lists, left out of Home and the counts), which is most of the account's items; `all`
  * (the default) is how sources followed before that choice behave. Defaults are the size gate in plan/13: one account with 300 sources and 100,000 items. `--accounts 20`
  * builds the host gate (20 such accounts, about 2 million items: allow an hour and several GB of disk).
  * `--items` and `--sources` are per account. The directory defaults to a new one under the repository's
@@ -44,7 +44,7 @@ export type DatasetOptions = {
   /** Items per account. */
   items?: number;
   seed?: number;
-  /** What the sources do with the back catalogue they had when followed (sources.start_from): shown as older items (the default), or left out of lists. */
+  /** What the sources do with the back catalogue they had when followed (sources.start_from): shown as older items (the default), or stored as Ignored. */
   startFrom?: "all" | "now";
   /** Progress lines; defaults to silent. */
   log?: (line: string) => void;

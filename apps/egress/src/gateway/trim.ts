@@ -1,4 +1,4 @@
-import { parseFeedDate } from "@purss/connectors";
+import { parseFeedDate, TRIM_ITEMS } from "@purss/connectors";
 
 /*
  * The streaming feed trimmer (plan/44). Some feeds are tens of megabytes (a podcast that repeats every episode's show notes three
@@ -6,7 +6,9 @@ import { parseFeedDate } from "@purss/connectors";
  * (90 days of them, at least 50). The trimmer reads such a feed as a stream to its end, keeps its channel metadata and its newest items exactly as they were written,
  * and hands back a much smaller copy of the same feed. It never holds the document or a parse of it: only the text that has
  * not been classified yet, the head, the item being read and the items kept. Nothing in a feed guarantees the order of its items
- * (a pinned old item first, a newer batch appended after 200 descending ones), so it is never read only part of the way.
+ * (a pinned old item first, a newer batch appended after 200 descending ones), so it is not read only part of the way: it stops
+ * at the byte ceiling, and what it has kept from what it read is the answer (a feed bigger than that is served from its first
+ * `maxBytes`, with no complaint: a person following a big feed is not told about its size).
  *
  * It works on bytes read as Latin-1 text, so every byte comes back as it arrived whatever the feed's encoding (any ASCII-based
  * one: UTF-8, ISO-8859-x, Windows-125x); UTF-16 is refused. It finds items by the element structure (comments, CDATA, processing
@@ -22,12 +24,12 @@ export type TrimLimits = {
   maxKeptBytes: number;
   /** Everything before the first item: the channel's metadata. */
   maxHeadBytes: number;
-  /** The whole document: it is read to its end, since the newest item can be anywhere in it. */
+  /** The most of the document that is read: it is read to its end, since the newest item can be anywhere in it, and past this the newest of what was read is the answer. */
   maxBytes: number;
 };
 
 export const TRIM_LIMITS: TrimLimits = {
-  maxItems: 100,
+  maxItems: TRIM_ITEMS,
   maxItemBytes: 1024 * 1024,
   maxKeptBytes: 4 * 1024 * 1024,
   maxHeadBytes: 1024 * 1024,
@@ -41,11 +43,9 @@ export type TrimFailure =
   | "not_feed"
   /** UTF-16 or another encoding whose bytes can't be scanned as ASCII markup. */
   | "unsupported_encoding"
-  /** The document ended before its channel did, or its tags can't be followed. */
+  /** The document ended before its channel did with no item read (unless the ceiling cut its first item, which is only left out), or its tags can't be followed. */
   | "malformed"
-  /** More than `maxBytes` had to be read, or everything in it is bigger than a kept item may be. */
-  | "too_large"
-  /** The channel's own metadata is longer than `maxHeadBytes`. */
+  /** The channel's own metadata is longer than `maxHeadBytes`: there is no feed to make of it. */
   | "head_too_large";
 
 export type TrimResult =
@@ -59,8 +59,10 @@ export type TrimResult =
       /** Items left out because each was bigger than `maxItemBytes`. */
       tooBig: number;
       bytesRead: number;
-      /** The document's root element was closed (false: the document ended before its channel did, and what came before is what there is). */
+      /** The document's root element was closed (false: the document ended before its channel did, or was read only as far as `maxBytes`, and what came before is what there is). */
       complete: boolean;
+      /** The document was longer than `maxBytes`, and what is kept is the newest of what came before that. */
+      capped: boolean;
       root: "rss" | "rdf" | "feed";
     }
   | { ok: false; reason: TrimFailure; bytesRead: number };
@@ -205,6 +207,8 @@ export class FeedTrimmer {
   #keptBytes = 0;
   #prevT: number | null = null;
   #checked = false;
+  /** More than `maxBytes` came: what was read is all there is. */
+  #capped = false;
   /** The root element's start tag, as offsets into the head text. */
   #rootTag: { start: number; end: number } | null = null;
 
@@ -215,15 +219,17 @@ export class FeedTrimmer {
   /** Feed bytes in order. "stop" means nothing more is needed (the document has ended, or it can't be read): the caller may stop reading and call `finish`. */
   write(chunk: Buffer): "stop" | undefined {
     if (this.#done) return "stop";
-    this.#bytes += chunk.length;
-    if (this.#bytes > this.#limits.maxBytes) {
-      this.#fail("too_large");
-      return "stop";
+    // Up to the ceiling is read; the rest of the document is not. An item cut by the ceiling is dropped (see `#scan`).
+    const room = this.#limits.maxBytes - this.#bytes;
+    if (chunk.length > room) {
+      chunk = chunk.subarray(0, Math.max(0, room));
+      this.#capped = true;
     }
+    this.#bytes += chunk.length;
     this.#buf += chunk.toString("latin1");
     if (!this.#checked && this.#buf.length >= 4) this.#checkEncoding();
     if (!this.#done) this.#scan(false);
-    return this.#done ? "stop" : undefined;
+    return this.#done || this.#capped ? "stop" : undefined;
   }
 
   /**
@@ -240,18 +246,22 @@ export class FeedTrimmer {
     if (this.#root === null) return { ok: false, reason: this.#bytes === 0 ? "empty" : "not_feed", bytesRead: this.#bytes };
     const head = this.#headText(base, httpCharset);
     if (this.#seen === 0) {
-      // A feed with no items is its own head, as long as its channel was closed.
-      if (!this.#rootClosed) return { ok: false, reason: "malformed", bytesRead: this.#bytes };
-      return { ok: true, body: Buffer.from(head, "latin1"), kept: 0, seen: 0, tooBig: 0, bytesRead: this.#bytes, complete: true, root: this.#root };
+      if (this.#rootClosed) {
+        // A feed with no items is its own head, as long as its channel was closed.
+        return { ok: true, body: Buffer.from(head, "latin1"), kept: 0, seen: 0, tooBig: 0, bytesRead: this.#bytes, complete: true, capped: false, root: this.#root };
+      }
+      // The ceiling came inside the first item: the item is recognised (its start tag was met, so the channel's closing tags are known) but never
+      // completed, so it is left out like any item that is too big, and the feed is its channel. A document that ends before its channel
+      // without the ceiling being why, or whose first item never began, is not a feed that can be read.
+      if (!(this.#capped && this.#itemDepth >= 0)) return { ok: false, reason: "malformed", bytesRead: this.#bytes };
     }
     if (this.#kept.length === 0) {
-      // Every item was bigger than an item may be: nothing to give. Items that were only empty elements leave an empty feed.
-      if (this.#tooBig > 0) return { ok: false, reason: "too_large", bytesRead: this.#bytes };
-      return { ok: true, body: Buffer.from(`${head}${this.#closers}\n`, "latin1"), kept: 0, seen: this.#seen, tooBig: 0, bytesRead: this.#bytes, complete: this.#rootClosed, root: this.#root };
+      // Nothing to keep: the items were empty elements, each was bigger than an item may be, or the ceiling cut the first one (left out, as any one of them is). The feed is its channel.
+      return { ok: true, body: Buffer.from(`${head}${this.#closers}\n`, "latin1"), kept: 0, seen: this.#seen, tooBig: this.#tooBig, bytesRead: this.#bytes, complete: this.#rootClosed, capped: this.#capped, root: this.#root };
     }
     const items = [...this.#kept].sort((a, b) => b.t - a.t || a.order - b.order).map((k) => k.raw);
     const body = Buffer.from(`${head}${items.join("\n")}\n${this.#closers}\n`, "latin1");
-    return { ok: true, body, kept: this.#kept.length, seen: this.#seen, tooBig: this.#tooBig, bytesRead: this.#bytes, complete: this.#rootClosed, root: this.#root };
+    return { ok: true, body, kept: this.#kept.length, seen: this.#seen, tooBig: this.#tooBig, bytesRead: this.#bytes, complete: this.#rootClosed, capped: this.#capped, root: this.#root };
   }
 
   #headText(base: string | undefined, httpCharset?: string | null): string {

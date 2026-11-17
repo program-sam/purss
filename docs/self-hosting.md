@@ -455,10 +455,11 @@ podcast feed that lists every episode since it began, with the show notes repeat
 tens of megabytes (The Daily's is 20.7 MB for 3,039 episodes) and would take several times the limit, so the
 engine fails the request itself. PURSS follows such feeds through its own feed gateway instead
 ([plan/44](../plan/44-big-feeds.md)): the gateway reads the feed as a stream, keeps its channel details and
-its newest 100 items exactly as written, and gives FreshRSS that smaller copy of the same public feed. FreshRSS
+its newest 50 items exactly as written, and gives FreshRSS that smaller copy of the same public feed. FreshRSS
 stays the only thing that collects items. (It keeps a feed's items for 90 days, at least its newest 50 and at most 1,000,
-so 100 is twice what the engine would keep of any feed at the least; a feed that publishes more than a hundred items between
-two of its refreshes, every 15 minutes or so, would lose some, and none does.)
+so 50 is what the engine would keep of any feed at the least; a feed that publishes more than fifty items between
+two of its refreshes, every 15 minutes or so, would lose some, and none does.) A person following a big feed is told nothing about
+its size: the source is an ordinary one, and its page starts at the newest items.
 
 - **When.** A feed larger than 4 MiB when it is looked up (the part a lookup reads), or with more than 1,000 items,
   is followed through the gateway from the start. A subscription the engine itself fails on (an HTTP 500 or a dropped connection, not an
@@ -469,12 +470,13 @@ two of its refreshes, every 15 minutes or so, would lose some, and none does.)
   `<data>/secrets/feed-trim-key`, which `npm run dev` and Compose's `init` make. The worker signs, the gateway checks,
   and anything unsigned is a 404, so a public feed that redirects FreshRSS to the alias gets nothing. Without the
   key (an installation set up before it existed and not yet restarted under Compose, or `EGRESS_TRIM_KEY_FILE`
-  pointing nowhere) big feeds are followed or refused as before, and a big feed the engine can't read says
-  *The feed is too large to follow*.
+  pointing nowhere) a feed goes to the engine as it is, as before: one the engine can't read fails there, the source says
+  *The collection engine couldn't follow this feed*, and the worker's log for the job says that the installation has no feed gateway key.
 - **What the gateway does.** Every fetch goes through the same address, redirect, time and size rules as any other
   feed fetch. It reads the whole feed, nothing in a feed saying that its later items are older than its first (at most
-  64 MiB, two feeds at once), and keeps the 100 newest. Items bigger than 1 MiB are left out whole. A feed longer than the
-  ceiling, or whose channel details alone are huge, answers *too large*; a page, JSON or text answers *not a feed*;
+  64 MiB, two feeds at once), and keeps the 50 newest. Items bigger than 1 MiB are left out whole. A feed longer than the
+  ceiling is served from what was read, the newest items of its first 64 MiB, with no complaint (the log says `capped`);
+  a page, JSON, text or a channel whose own details are over 1 MiB answers *not a feed*;
   the feed's own 404, 403 and 429 are passed on. The log names the feed's host and the outcome, never its address.
 - **Bandwidth and memory.** Reading a feed whole costs its size (The Daily's is 20.7 MB), so the work is shared: the trimmed answer is kept in memory
   only, per upstream address (a private feed's address, key included, is its own), 8 MiB in all, and every account that follows the feed

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { brotliCompressSync, constants, deflateSync, gzipSync } from "node:zlib";
-import { boundLookup, resolveDestination, safeFetch, USER_AGENT } from "./safe-fetch.ts";
+import { boundLookup, HARD_STREAM_BYTES, resolveDestination, safeFetch, USER_AGENT } from "./safe-fetch.ts";
 import type { Resolver } from "./safe-fetch.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
@@ -364,6 +364,49 @@ test("a sink reads a body as a stream without holding it, and can stop the downl
     assert.equal(touched, false);
     assert.equal(missing.response.body.length, 64 * 1024);
     assert.equal(missing.response.truncated, true);
+  } finally {
+    await server.close();
+  }
+});
+
+test("a sink may be given a body that declares more than the ceiling: only the bytes that arrive are bounded, and every other rule holds", async () => {
+  const server = await startServer((req, res) => {
+    if (req.url === "/start") return send(res, 302, "text/plain", "", { location: "http://169.254.169.254/latest/" });
+    if (req.url === "/missing") return send(res, 404, "text/plain", "x".repeat(200_000), { "content-length": "200000" });
+    // Declares more than any transfer may be and sends some of it (or all of what the ceiling lets through, and more): the publisher goes on while the reader decides.
+    res.writeHead(200, { "content-type": "text/plain", "content-length": String(HARD_STREAM_BYTES + 5 * 1024 * 1024) });
+    const timer = setInterval(() => res.write(Buffer.alloc(65536, 98)), 1);
+    res.on("close", () => clearInterval(timer));
+  });
+  try {
+    const url = `${server.url}/declared`;
+    // Refused for its declared length without the option, as before; nothing is read.
+    let seen = 0;
+    const refused = await safeFetch(url, { testAllowAddress: allowLoopback, maxBytes: HARD_STREAM_BYTES, sink: (c) => { seen += c.length; } });
+    assert.ok(!refused.ok && refused.reason === "toolarge");
+    assert.equal(seen, 0);
+    // With it, a sink that stops once it has what it needs is not a failure, and the rest is not downloaded.
+    const stopped = await safeFetch(url, { testAllowAddress: allowLoopback, maxBytes: HARD_STREAM_BYTES, timeoutMs: 10_000, streamPastDeclaredLength: true, sink: (c) => { seen += c.length; return seen >= 200_000 ? "stop" : undefined; } });
+    assert.ok(stopped.ok);
+    assert.equal(stopped.response.truncated, true);
+    assert.ok(seen >= 200_000 && seen < 2_000_000, `stopped soon after enough (${seen})`);
+    // A sink that never stops is still held to the ceiling by the bytes that arrive: the declared length changes nothing about that.
+    seen = 0;
+    const endless = await safeFetch(url, { testAllowAddress: allowLoopback, maxBytes: 1024 * 1024, timeoutMs: 10_000, streamPastDeclaredLength: true, sink: (c) => { seen += c.length; } });
+    assert.ok(!endless.ok && endless.reason === "toolarge");
+    assert.ok(seen <= 1024 * 1024, `the sink never gets more than the ceiling (${seen})`);
+    // Only a sink gets it: a body that is held whole is still refused for its declared length.
+    const held = await safeFetch(url, { testAllowAddress: allowLoopback, maxBytes: 1024 * 1024, streamPastDeclaredLength: true });
+    assert.ok(!held.ok && held.reason === "toolarge");
+    // Address and redirect rules are untouched, and an error answer is still its short buffered body.
+    let heard = false;
+    const hop = await safeFetch(`${server.url}/start`, { testAllowAddress: (ip) => ip === "127.0.0.1", resolver: async () => ["127.0.0.1"], streamPastDeclaredLength: true, sink: () => { heard = true; } });
+    assert.ok(!hop.ok && hop.reason === "blocked");
+    const direct = await safeFetch("http://10.0.0.5/feed", { resolver: neverResolve, streamPastDeclaredLength: true, sink: () => { heard = true; } });
+    assert.ok(!direct.ok && direct.reason === "blocked");
+    const missing = await safeFetch(`${server.url}/missing`, { testAllowAddress: allowLoopback, maxBytes: 1024 * 1024, streamPastDeclaredLength: true, sink: () => { heard = true; } });
+    assert.ok(missing.ok && missing.response.status === 404 && missing.response.body.length === 64 * 1024);
+    assert.equal(heard, false);
   } finally {
     await server.close();
   }

@@ -43,8 +43,8 @@ export type NewItem = {
   /** The feed's full text was too large to send; the item holds its summary only. */
   contentOmitted?: boolean;
   fresh: boolean;
-  /** Back catalogue of a source followed from now: stored, but left out of Home, collection lists and counts until the person acts on it (migration 065). */
-  backlog?: boolean;
+  /** Back catalogue of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
+  ignored?: boolean;
   reason: string;
 };
 
@@ -59,17 +59,17 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const ex = excerpt(toText(summaryHtml) || text);
   const r = app.db.run(
     `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
-       read_minutes, doi, curator_note, published_at, discovered_at, current_version_id, enclosures, backlog, created_at, updated_at)
-     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       read_minutes, doi, curator_note, published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
+     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
     n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, versionId,
-    JSON.stringify(n.enclosures.slice(0, 10)), n.backlog ? 1 : 0, now, now,
+    JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
   app.db.run(
     "INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     versionId, id, n.workspaceId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
   );
-  app.db.run("INSERT INTO item_state (item_id, workspace_id, fresh, updated_at) VALUES (?, ?, ?, ?)", id, n.workspaceId, n.fresh ? 1 : 0, now);
+  app.db.run("INSERT INTO item_state (item_id, workspace_id, source_id, workflow, fresh, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.workspaceId, n.sourceId, n.ignored ? "ignored" : "new", n.fresh ? 1 : 0, now);
   indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
   admitObject(app, {
     accountId: n.accountId, workspaceId: n.workspaceId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
@@ -387,9 +387,6 @@ function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQ
   // the items whose readable copy couldn't be saved (what the bell's "Couldn't save the text of N items" opens).
   if (q.capture === "failed") where.push(CAPTURE_FAILED);
   where.push(...typeLengthConditions(q));
-  // What a source followed from now already had (its back catalogue) is left out of every list but the source's own page and a
-  // search. Items the person has acted on are never marked as such (migration 065), so nothing they touched is left out.
-  if (!q.q && !q.scope.startsWith("source:")) where.push("i.backlog = 0");
   if (opts.homeVisible || q.mix === "home") where.push(onHomeItem(app, p.workspaceId, params));
   if (snapshot !== null) { where.push("i.seq <= ?"); params.push(snapshot); }
   if (q.q) where.push(textMatch(q.q, params));

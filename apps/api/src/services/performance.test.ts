@@ -117,13 +117,13 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
     assert.ok(hits.length > 0, `bootstrap runs ${what}`);
     for (const q of hits) assert.ok(planOf(q).some((l) => expected.test(l)), `${what} should plan as ${expected}:\n${planOf(q).join("\n")}`);
   };
-  designed(/FROM item_state st JOIN items i ON i\.id = st\.item_id\s+WHERE st\.workspace_id = \?/, /COVERING INDEX item_state_rare/, "the counts of acted-on and New items");
+  designed(/FROM item_state\s+WHERE workspace_id = \? AND NOT \(workflow = 'new' AND fresh = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
   designed(/GROUP BY kind, is_current/, /COVERING INDEX stored_objects_account/, "the storage split's totals");
   designed(/CROSS JOIN stored_objects o ON o\.kind = 'item_version'/, /SEARCH o USING INDEX stored_objects_live/, "the pinned versions' lookup");
   designed(/CROSS JOIN stored_objects o ON o\.kind IN \('capture', 'image'\)/, /SEARCH o USING INDEX stored_objects_item/, "the kept copies' and pictures' lookup");
 
   // A page in the default order or in title order is read from its index in order, with no sorting of the rest.
-  for (const [sort, index] of [["newest", "items_ws_visible_sortkey"], ["title", "items_ws_title"]] as const) {
+  for (const [sort, index] of [["newest", "items_ws_sortkey"], ["title", "items_ws_title"]] as const) {
     const { seen: pageQueries } = recordQueries(app, () => listItems(app, p, { scope: "all", sort, limit: 5 }));
     const page = pageQueries.find((q) => /ORDER BY sort_key/.test(q.sql))!;
     const lines = planOf(page);
@@ -232,7 +232,7 @@ test("the dataset generator builds separate, realistic accounts", { timeout: 120
   }
 });
 
-test("an account that followed its sources from now has most items left out of Home: Home and the counts read only what shows", { timeout: 120_000 }, (t) => {
+test("an account that followed its sources from now has most items Ignored: Home and the counts leave them out, and a page reads the date index in order", { timeout: 120_000 }, (t) => {
   mkdirSync(DATA_ROOT, { recursive: true });
   const dir = mkdtempSync(path.join(DATA_ROOT, "test-dataset-"));
   const data = buildDataset({ dir, accounts: 1, sources: 12, items: 600, seed: 11, startFrom: "now" });
@@ -240,10 +240,9 @@ test("an account that followed its sources from now has most items left out of H
   const { app } = data;
   const { principal: p } = data.accounts[0]!;
   const n = (sql: string) => app.db.get<{ n: number }>(sql, p.workspaceId)!.n;
-  const hidden = n("SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND backlog = 1");
-  assert.ok(hidden > 600 * 0.6, `most items are back catalogue the person has not touched (${hidden} of 600)`);
-  assert.equal(n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? AND i.backlog = 1 AND (st.workflow <> 'new' OR st.fresh = 1 OR st.opened_at IS NOT NULL OR st.progress > 0)"), 0, "a left-out item is always in the default state");
-  assert.equal(n("SELECT COUNT(*) AS n FROM items i JOIN basket_items b ON b.item_id = i.id WHERE i.workspace_id = ? AND i.backlog = 1"), 0, "and not kept");
+  const hidden = n("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND workflow = 'ignored'");
+  assert.ok(hidden > 600 * 0.6, `most items are back catalogue, which arrived Ignored (${hidden} of 600)`);
+  assert.equal(n("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND workflow = 'ignored' AND fresh = 1"), 0, "and none of them is New");
 
   const was = listTuning.countFromRowsBelowShare;
   listTuning.countFromRowsBelowShare = 5; // the collection's total is counted from its rows, not from the counts
@@ -258,16 +257,16 @@ test("an account that followed its sources from now has most items left out of H
       });
     } finally { listTuning.countFromRowsBelowShare = was; }
   })();
-  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.workspace_id = ? AND s.followed = 1 AND i.backlog = 0 AND st.workflow = 'new' AND st.fresh = 0");
-  assert.equal(result.home.unread, shown, "Home counts the older items that show, not the ones left out");
-  const backlogIds = new Set(app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND backlog = 1", p.workspaceId).map((r) => r.id));
-  assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !backlogIds.has(i.id)) && result.collection.items.every((i) => !backlogIds.has(i.id)), "no left-out item on Home or in the collection");
+  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.workspace_id = ? AND s.followed = 1 AND st.workflow = 'new' AND st.fresh = 0");
+  assert.equal(result.home.unread, shown, "Home counts the older items that show, not the Ignored ones");
+  const ignoredIds = new Set(app.db.all<{ id: string }>("SELECT item_id AS id FROM item_state WHERE workspace_id = ? AND workflow = 'ignored'", p.workspaceId).map((r) => r.id));
+  assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !ignoredIds.has(i.id)) && result.collection.items.every((i) => !ignoredIds.has(i.id)), "no Ignored item on Home or in the collection");
   const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
   const pages = seen.filter((q) => /ORDER BY sort_key/.test(q.sql));
   assert.ok(pages.length >= 2);
-  for (const q of pages) assert.ok(planOf(q).some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_visible_sortkey/.test(l)), `a page reads the index of the items that show:\n${planOf(q).join("\n")}`);
-  // Counting a collection from its rows reads the source index alone, the mark included (without it in the index, every item's row is fetched).
-  const counting = seen.filter((q) => /^\s*SELECT COUNT\(\*\) AS n FROM items i JOIN item_state st/.test(q.sql) && /i\.backlog = 0/.test(q.sql) && /collection_sources/.test(q.sql));
+  for (const q of pages) assert.ok(planOf(q).some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_sortkey/.test(l)) && !planOf(q).some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), `a page reads the date index in order:\n${planOf(q).join("\n")}`);
+  // Counting a collection from its rows reads the source index alone for the items.
+  const counting = seen.filter((q) => /^\s*SELECT COUNT\(\*\) AS n FROM items i JOIN item_state st/.test(q.sql) && /collection_sources/.test(q.sql));
   assert.ok(counting.length > 0, "the collection's total was counted from its rows");
   for (const q of counting) assert.ok(planOf(q).some((l) => /COVERING INDEX items_source_sortkey/.test(l)), `counting a collection's rows reads the source index alone:\n${planOf(q).join("\n")}`);
 });
@@ -337,7 +336,7 @@ test("Home reads New items, the newest open items and its rows by id, and the ke
   const { result, seen } = recordQueries(app, () => homeOverview(app, p));
   assert.ok(result.since && result.toRead.items.length > 0 && result.mutedHidden > 0, "every part of Home is in play");
   planned(seen, /SELECT i\.source_id, COUNT\(\*\) AS n FROM item_state st/, /SEARCH st USING INDEX item_state_fresh/, "New since the last visit");
-  planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_ws_visible_sortkey/, "what the muted words hid");
+  planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_ws_sortkey/, "what the muted words hid");
   planned(seen, /AND \+i\.workspace_id = \?/, /USING INDEX sqlite_autoindex_(items|item_state)_1 \((id|item_id)=\?\)/, "the rows' items");
 
   // Counted among the first candidates only, newest first and by id within the same date: the muted items straddle the cut.

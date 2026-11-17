@@ -136,7 +136,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const fresh = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.workspace_id = ? AND st.fresh = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
   // Items on Home that were not looked at and are not New: the older posts of sources followed before the choice of where to start
-  // existed, and what the New marker has outlived. A source followed from now leaves its back catalogue out (see `ItemCounts.sum`).
+  // existed, and what the New marker has outlived. A source followed from now has its back catalogue Ignored, so it is not in the count.
   const counts = itemCounts(app, ws);
   const boxParams: SqlParam[] = [ws];
   const onBoxes = app.db.all<{ id: string }>(`SELECT s.id FROM sources s WHERE s.workspace_id = ? AND s.followed = 1 AND ${inHomeBox(app, ws, boxParams)}`, ...boxParams).map((r) => r.id);
@@ -146,7 +146,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   // every open item first.
   const hidden = muted
     ? countMuted(app, muted, "FROM items i CROSS JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id",
-      `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND i.backlog = 0 AND ${VISIBLE_SOURCE} AND ${onHome}`,
+      `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND ${VISIBLE_SOURCE} AND ${onHome}`,
       [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 

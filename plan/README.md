@@ -53,7 +53,7 @@ an official hosted option with free storage is part of the product direction.
 | [41 Source bridges](41-source-bridges.md) | Bundled RSS-Bridge behind the egress bridge router: signed source addresses, post ids that survive a backend change, fetch log, isolation |
 | [42 Desktop app](42-desktop-app.md) | Windows, macOS and Linux app in Tauri: the phones' model (device token, live interface updates), its own updates from GitHub releases, tray, notifications without a relay, downloads as files, feed links and OPML files |
 | [43 Originals in the reader](43-originals-in-the-reader.md) | An original or a link in an article opens over the reader: the desktop app's own web view, a frame in the browser when the page's headers allow it, a new tab otherwise; credit, isolation, signed-out pages |
-| [44 Big feeds](44-big-feeds.md) | Feeds too big for the engine to read whole (tens of MB of repeated show notes) reach it through the egress feed gateway, trimmed to the newest 100 items: signed addresses, the streaming trimmer, when a feed goes through it, honest failures |
+| [44 Big feeds](44-big-feeds.md) | Feeds too big for the engine to read whole (tens of MB of repeated show notes) reach it through the egress feed gateway, trimmed to the newest 50 items: signed addresses, the streaming trimmer, when a feed goes through it, what a person sees (nothing about its size) |
 
 ## How to use this plan
 

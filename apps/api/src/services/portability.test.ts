@@ -176,14 +176,14 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   const noted = a.db.get<{ item_id: string }>(`SELECT b.item_id FROM basket_items b JOIN items i ON i.id = b.item_id JOIN sources s ON s.id = i.source_id
     WHERE b.basket_id = ? AND s.is_private = 0 ORDER BY b.item_id LIMIT 1`, lib.baskets.reading)!.item_id;
   setShareNote(a, pa, shareId, noted, "Worth it for the maps.");
-  // An item of a source followed from now that nobody has touched: left out of Home, and still so after the move.
+  // An item of a source followed from now that nobody has touched arrives Ignored: it goes in the export as any Ignored item does, and stays so after the move.
   const leftOut = a.db.get<{ id: string; title: string }>(
     `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'new' AND st.opened_at IS NULL AND st.progress = 0
        AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AND NOT EXISTS (SELECT 1 FROM annotations n WHERE n.item_id = i.id) ORDER BY i.seq LIMIT 1`)!;
-  a.db.run("UPDATE item_state SET fresh = 0 WHERE item_id = ?", leftOut.id);
-  a.db.run("UPDATE items SET backlog = 1 WHERE id = ?", leftOut.id);
+  a.db.run("UPDATE item_state SET fresh = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
   const { doc } = await exportDoc(a, pa);
-  assert.deepEqual(doc.items.filter((i: { backlog: boolean }) => i.backlog).map((i: { title: string }) => i.title), [leftOut.title]);
+  assert.deepEqual(doc.items.filter((i: { state: { workflow: string } }) => i.state.workflow === "ignored").map((i: { title: string }) => i.title), [leftOut.title]);
+  assert.ok(doc.items.every((i: Record<string, unknown>) => !("backlog" in i)), "the export has no mark besides the workflow state");
 
   const before = usedBytes(b, pb.accountId);
   const preview = stageImport(b, pb, doc);
@@ -221,7 +221,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(b.db.get<{ text: string }>("SELECT text FROM captures WHERE item_id = ?", item.id)!.text, "Captured readable text about sediment.");
   assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
 
-  assert.deepEqual(b.db.all<{ title: string }>("SELECT title FROM items WHERE backlog = 1").map((r) => r.title), [leftOut.title], "what was left out of Home still is");
+  assert.deepEqual(b.db.all<{ title: string }>("SELECT i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'ignored'").map((r) => r.title), [leftOut.title], "what was Ignored still is");
   // Workflow and progress came across; the private item has no address.
   const state = b.db.get<{ workflow: string; progress: number }>("SELECT workflow, progress FROM item_state WHERE item_id = ?", item.id)!;
   assert.deepEqual([state.workflow, state.progress], ["toread", 0.5]);
@@ -338,6 +338,65 @@ test("an older export with saved searches imports without them, says so, and kee
   assert.ok(one.conflicts.some((c) => /1 saved search wasn't restored/.test(c)), one.conflicts.join(" | "));
   const none = stageImport(b, pb, doc);
   assert.ok(!none.conflicts.some((c) => /saved search/.test(c)), "a current export has nothing to skip");
+});
+
+test("an older export that marked back catalogue with `backlog` imports its untouched items as Ignored, and nothing keeps the mark", async (t) => {
+  const a = makeTestApp();
+  t.after(a.cleanup);
+  const pa = makeOwner(a.app);
+  seedLibrary(a.app, pa);
+  const { doc } = await exportDoc(a.app, pa);
+  const by = (title: string) => doc.items.find((i: any) => i.title.startsWith(title)) as any;
+  const untouched = { workflow: "new", fresh: false, progress: 0, openedAt: null };
+  const third = by("Third post").id as string;
+  const kept = by("Second post").id as string; // in a basket in the file
+  const [firstId, privateId] = [by("Tidal flats").id as string, by("Private note").id as string];
+  assert.ok(doc.memberships.some((m: any) => m.itemId === kept));
+  assert.ok(doc.items.every((i: any) => !("backlog" in i)), "a current export has no mark besides the workflow state");
+
+  // What a file looked like when the mark existed: `backlog: true` beside the default state.
+  const legacy = (edit: (items: Record<string, any>) => void, extra: Record<string, unknown> = {}) => {
+    const items = Object.fromEntries(doc.items.map((i: any) => [i.id, { ...i, state: { ...untouched }, backlog: false }]));
+    edit(items);
+    return rebuild({ ...doc, ...extra, items: Object.values(items) });
+  };
+  const imported = (file: unknown) => {
+    const b = makeTestApp();
+    t.after(b.cleanup);
+    const pb = makeOwner(b.app);
+    applyImport(b.app, pb, stageImport(b.app, pb, file).token);
+    return { b: b.app, pb, workflows: Object.fromEntries(b.app.db.all<{ title: string; workflow: string }>("SELECT i.title, st.workflow FROM items i JOIN item_state st ON st.item_id = i.id").map((r) => [r.title, r.workflow])) };
+  };
+
+  const file = legacy((items) => {
+    items[third].backlog = true;
+    items[kept].backlog = true; // kept: the old version cleared the mark when an item was kept
+    items[firstId].backlog = true;
+    items[firstId].state = { workflow: "toread", fresh: false, progress: 0, openedAt: null };
+    items[privateId].backlog = true;
+    items[privateId].state = { ...untouched, fresh: true };
+  });
+  const { b, pb, workflows } = imported(file);
+  assert.equal(workflows["Third post"], "ignored", "an untouched item that was back catalogue arrives the way it is stored now");
+  assert.equal(workflows["Second post"], "new", "one that was kept is an ordinary item");
+  assert.equal(workflows[by("Tidal flats").title], "toread", "one the person had acted on stays as they left it");
+  assert.equal(workflows["Private note"], "new", "and one marked New");
+  assert.equal(b.db.all("SELECT 1 FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0, "the database has no such mark");
+  assert.equal(imported(legacy(() => {})).workflows["Third post"], "new", "an item with no mark is as it was written");
+  assert.equal(imported(legacy((items) => { items[third].backlog = false; })).workflows["Third post"], "new", "so is one marked false");
+
+  // An annotation or a "started" state in the file also means the person had touched it.
+  const noted = legacy((items) => { items[third].backlog = true; }, {
+    annotations: [{ id: "ann_1", itemId: third, kind: "note", quote: null, position: null, target: null, body: "mine", createdAt: "2026-10-30T09:00:00.000Z", updatedAt: "2026-10-30T09:00:00.000Z" }],
+  });
+  assert.equal(imported(noted).workflows["Third post"], "new");
+  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.progress = 0.4; })).workflows["Third post"], "new");
+  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.openedAt = "2026-10-30T09:00:00.000Z"; })).workflows["Third post"], "new");
+
+  // It round-trips as an ordinary Ignored item: the next export has the state and no mark.
+  const { doc: again } = await exportDoc(b, pb);
+  assert.ok(again.items.every((i: any) => !("backlog" in i)));
+  assert.equal(again.items.find((i: any) => i.title === "Third post").state.workflow, "ignored");
 });
 
 test("highlights and notes round-trip: removed ones stay out, text references follow the new ids, and a second import adds none", async (t) => {

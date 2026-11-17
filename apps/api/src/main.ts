@@ -12,7 +12,7 @@ import { internalRouter } from "./routes/internal.ts";
 import { extraRouters } from "./routes/index.ts";
 import { internalServer, publicServer } from "./server.ts";
 import { enqueue, expireLeases } from "./services/jobs.ts";
-import { retryOverloadedSubscribes, settleFailedJob, syncDelaySeconds } from "./services/failures.ts";
+import { retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, syncDelaySeconds } from "./services/failures.ts";
 import { expireReservations, refreshPause } from "./services/storage.ts";
 import { addSeconds, nowIso, watchTrustedProxies } from "./http.ts";
 import { runReminderPass } from "./services/reminders.ts";
@@ -134,6 +134,7 @@ export function tick(app: App): void {
   backfillFeedKeys(app); // private sources made before they had a key
   checkEmptyFeeds(app); // sources still waiting for their first items long after they were followed
   retryOverloadedSubscribes(app); // sources the engine failed on, once, for the feed gateway to take up if the feed is too big for the engine
+  retryEarlierSizeFailures(app); // sources an earlier version gave up on for a feed's size: reworded, and tried once more through the gateway
   purgeStages(app);
   runDeletions(app);
   wakeHeld(app); // phone wakes quiet hours held back, once they end (throttled inside)

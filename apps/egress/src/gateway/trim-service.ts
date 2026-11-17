@@ -1,6 +1,6 @@
 import v8 from "node:v8";
 import vm from "node:vm";
-import { parseContentType, parseTrimTarget, safeFetch, trimSignatureMatches, TRIM_ITEMS } from "@purss/connectors";
+import { HARD_STREAM_BYTES, parseContentType, parseTrimTarget, safeFetch, trimSignatureMatches } from "@purss/connectors";
 import type { Resolver, SafeFetchOptions, SafeFetchResult } from "@purss/connectors";
 import type { Logger } from "../proxy.ts";
 import { FeedTrimmer, TRIM_LIMITS } from "./trim.ts";
@@ -49,7 +49,7 @@ export const DEFAULT_TRIM_SERVE_LIMITS: TrimServeLimits = {
   maxRemembered: 500,
   maxCachedBytes: 8 * 1024 * 1024,
   timeoutMs: 60_000,
-  trim: { ...TRIM_LIMITS, maxItems: TRIM_ITEMS },
+  trim: { ...TRIM_LIMITS },
 };
 
 /**
@@ -98,12 +98,9 @@ const text = (status: number, message: string, headers: Record<string, string> =
   body: Buffer.from(`${message}\n`),
 });
 
-/** What the engine is told when a feed can't be trimmed. 413 is the status the product words as "too large to follow". */
+/** What the engine is told when a feed can't be trimmed. Size is never the reason: a big feed is served as far as it was read. */
 function failureAnswer(reason: TrimFailure): TrimAnswer {
   switch (reason) {
-    case "too_large":
-    case "head_too_large":
-      return text(413, "This feed is too large to follow.");
     case "unsupported_encoding":
       return text(422, "This feed's text encoding can't be read.");
     default:
@@ -258,7 +255,7 @@ export class TrimService {
     }
     let answer = result.answer;
     const state = this.#commit(url, (s) => {
-      // What won't change by itself (not a feed, too large) is remembered too, so the engine's retries do not each cost a read.
+      // What won't change by itself (not a feed) is remembered too, so the engine's retries do not each cost a read.
       const streak = (s.failure?.streak ?? 0) + 1;
       const wait = Math.min(this.#limits.backoffMs * 2 ** (streak - 1), this.#limits.maxBackoffMs);
       s.failure = { until: this.#now() + wait, streak, answer, retryable: result.retryable };
@@ -279,8 +276,10 @@ export class TrimService {
     const res = await this.#fetch(url, {
       ...this.#test,
       headers: conditional,
-      // The trimmer reports the ceiling itself (as a failure the engine is told about); this one only guards the transfer.
-      maxBytes: this.#limits.trim.maxBytes + 1024 * 1024,
+      // The trimmer stops reading at its own ceiling and serves what it kept; this one is only the most a transfer may be. What the feed
+      // declares is not a reason to refuse it (a big feed is read as far as is useful), so only the bytes that actually arrive count.
+      maxBytes: HARD_STREAM_BYTES,
+      streamPastDeclaredLength: true,
       timeoutMs: this.#limits.timeoutMs,
       phaseTimeoutsMs: { firstByteMs: 15_000, idleMs: 15_000 },
       accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.5",
@@ -301,7 +300,8 @@ export class TrimService {
         case "blocked":
           return { answer: text(403, "This address is not one this service fetches."), outcome: "blocked", retryable: false };
         case "toolarge":
-          return { answer: failureAnswer("too_large"), outcome: "too_large", retryable: false };
+          // Bytes went on arriving past the most a transfer may be (HARD_STREAM_BYTES) without the trimmer stopping, which it does at its own, lower ceiling. The engine is told as for any answer that can't be read.
+          return { answer: text(502, "The feed's host sent an answer that could not be read."), outcome: "too_large", retryable: false };
         case "timeout":
           return { answer: text(504, "The feed's host took too long to answer."), outcome: "timeout", retryable: true };
         case "invalid":
@@ -329,7 +329,7 @@ export class TrimService {
       outcome: "ok",
       retryable: false,
       validators: { etag: validator(r.headers.etag), lastModified: validator(r.headers["last-modified"]), base: r.url },
-      more: { kept: trimmed.kept, seen: trimmed.seen, bytes: trimmed.bytesRead, skipped: trimmed.tooBig, complete: trimmed.complete ? 1 : 0 },
+      more: { kept: trimmed.kept, seen: trimmed.seen, bytes: trimmed.bytesRead, skipped: trimmed.tooBig, complete: trimmed.complete ? 1 : 0, capped: trimmed.capped ? 1 : 0 },
     };
   }
 

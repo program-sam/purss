@@ -82,6 +82,12 @@ export type SafeFetchOptions = {
    */
   sink?: BodySink;
   /**
+   * Only with a `sink`: a 2xx answer is not refused for the length it declares, so a sink that stops early reads only what it
+   * needs of a body that declares more than `maxBytes` (a big feed read as far as it is useful). Everything else holds: the address,
+   * redirect and time rules, and `maxBytes` still fails a body whose bytes actually go past it.
+   */
+  streamPastDeclaredLength?: boolean;
+  /**
    * Send a POST with this body instead of a GET, for a fixed service the operator configured (the push
    * relay). Same address, connection, time and size rules; a POST never follows a redirect.
    */
@@ -267,6 +273,7 @@ type Ctx = {
   tlsCa?: string | Buffer;
   allowPartial: boolean;
   sink?: BodySink;
+  streamPastDeclaredLength: boolean;
   headers: Record<string, string>;
   accept: string;
   post?: { body: string; contentType: string };
@@ -432,7 +439,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
       const partial = sinking ? false : ctx.allowPartial || ctx.sink !== undefined;
       const limit = ctx.sink !== undefined && !sinking ? Math.min(ctx.maxBytes, SINK_ERROR_BYTES) : ctx.maxBytes;
       const declared = Number(rawHeaders["content-length"]);
-      if (encodings.length === 0 && Number.isFinite(declared) && declared > limit && !partial) {
+      if (encodings.length === 0 && Number.isFinite(declared) && declared > limit && !partial && !(sinking && ctx.streamPastDeclaredLength)) {
         fail(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `declared length ${declared} exceeds limit`));
         return;
       }
@@ -513,6 +520,7 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
     tlsCa: opts.testTlsCa,
     allowPartial: opts.allowPartial === true,
     sink: opts.sink,
+    streamPastDeclaredLength: opts.sink !== undefined && opts.streamPastDeclaredLength === true,
     headers: opts.headers ?? {},
     accept: opts.accept ?? "*/*",
     post: opts.post,

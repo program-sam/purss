@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type http from "node:http";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { parseFeed, trimRoutePath } from "@purss/connectors";
+import { HARD_STREAM_BYTES, parseFeed, trimRoutePath } from "@purss/connectors";
 import { startEgress } from "../server.ts";
 import type { RunningEgress } from "../server.ts";
 import type { LogEvent } from "../proxy.ts";
@@ -81,13 +81,13 @@ test("a big feed is served trimmed: its newest items and its channel metadata, r
     assert.equal(r.status, 200);
     assert.match(String(r.headers["content-type"]), /^application\/rss\+xml/);
     const parsed = parseFeed(r.body, "application/rss+xml", { maxItems: 1000 });
-    assert.equal(parsed.items.length, 100);
+    assert.equal(parsed.items.length, 50, "the newest 50: what the engine keeps of a feed");
     assert.equal(parsed.title, "Big Show");
     assert.deepEqual(parsed.items.slice(0, 2).map((i) => i.title), ["Episode 2999", "Episode 2998"]);
     assert.ok(r.body.includes('<itunes:image href="https://show.example/art.jpg"/>'), "the channel's own markup comes through");
     assert.ok(r.body.length < doc.length / 10, `${r.body.length} bytes for ${doc.length}`);
     const served = h.logs.find((e) => e.event === "gateway.trim" && e.outcome === "ok");
-    assert.ok(served && served.kept === 100 && served.cached === false, JSON.stringify(h.logs));
+    assert.ok(served && served.kept === 50 && served.cached === false, JSON.stringify(h.logs));
     assert.equal(Number(served.bytes), doc.length, "nothing says the rest of the document is older, so all of it was read");
     assert.equal(sent, doc.length);
     assert.equal(served.complete, 1);
@@ -106,9 +106,9 @@ test("a shuffled feed gives its newest items however they are listed; a gzipped 
     const r = await h.get(trimRoutePath(KEY, h.url("/f")));
     assert.equal(r.status, 200);
     const titles = parseFeed(r.body, "application/xml", { maxItems: 1000 }).items.map((i) => i.title);
-    assert.equal(titles.length, 100);
+    assert.equal(titles.length, 50);
     assert.deepEqual(titles.slice(0, 3), ["Episode 699", "Episode 698", "Episode 697"]);
-    assert.equal(titles.at(-1), "Episode 600");
+    assert.equal(titles.at(-1), "Episode 650");
   } finally {
     await h.stop();
   }
@@ -190,13 +190,13 @@ test("the address rules are safeFetch's: private and local addresses, and redire
     landing = hop.url("/new");
     const r = await hop.get(trimRoutePath(KEY, hop.url("/old")));
     assert.equal(r.status, 200);
-    assert.equal(parseFeed(r.body, "application/rss+xml", { maxItems: 1000 }).items.length, 100);
+    assert.equal(parseFeed(r.body, "application/rss+xml", { maxItems: 1000 }).items.length, 50);
   } finally {
     await hop.stop();
   }
 });
 
-test("what goes wrong is told truthfully: the feed's own statuses, not a feed, too large, too slow", async () => {
+test("what goes wrong is told truthfully: the feed's own statuses, not a feed, too slow, never its size", async () => {
   const huge = podcast(400, "shuffled");
   const h = await harness(
     (req, res) => {
@@ -223,12 +223,88 @@ test("what goes wrong is told truthfully: the feed's own statuses, not a feed, t
     assert.equal(slow.headers["retry-after"], "120");
     assert.equal((await status("/page")).status, 422);
     assert.equal((await status("/json")).status, 422);
-    const large = await status("/huge");
-    assert.equal(large.status, 413);
-    assert.match(large.body, /too large to follow/);
     const stalled = await status("/stall");
     assert.equal(stalled.status, 504);
-    for (const p of ["/gone", "/down", "/page", "/huge"]) assert.doesNotMatch((await status(p)).body, /<rss|<item/, "a failure is never a feed");
+    for (const p of ["/gone", "/down", "/page"]) assert.doesNotMatch((await status(p)).body, /<rss|<item/, "a failure is never a feed");
+    for (const p of ["/gone", "/refused", "/down", "/slow-down", "/page", "/json", "/stall"]) assert.doesNotMatch((await status(p)).body, /large|big|size/i, `${p} says nothing about size`);
+  } finally {
+    await h.stop();
+  }
+});
+
+test("a feed bigger than the ceiling is served from what was read: its newest items, with no complaint and no word about size", async () => {
+  const doc = podcast(600, "shuffled");
+  // It declares its whole length, which is more than the ceiling: that is no reason to refuse it.
+  const h = await harness(feedHandler(doc, { "content-length": String(Buffer.byteLength(doc)) }), { trimLimits: { trim: { maxBytes: 200_000 } } });
+  try {
+    const r = await h.get(trimRoutePath(KEY, h.url("/feed.xml")));
+    assert.equal(r.status, 200);
+    const parsed = parseFeed(r.body, "application/rss+xml", { maxItems: 1000 });
+    assert.equal(parsed.items.length, 50);
+    assert.equal(parsed.title, "Big Show");
+    // The newest 50 of the part that came before the ceiling, none of them cut.
+    const readPart = doc.slice(0, 200_000);
+    const read = [...readPart.slice(0, readPart.lastIndexOf("</item>")).matchAll(/<title>Episode (\d+)<\/title>/g)].map((m) => Number(m[1])).sort((a, b) => b - a).slice(0, 50);
+    assert.deepEqual(parsed.items.map((i) => i.title), read.map((n) => `Episode ${n}`));
+    const served = h.logs.find((e) => e.event === "gateway.trim" && e.outcome === "ok")!;
+    assert.deepEqual([served.kept, served.bytes, served.complete, served.capped], [50, 200_000, 0, 1], "the operator's log says what was read and that it was cut");
+    for (const e of h.logs) assert.doesNotMatch(JSON.stringify(e), /large|big/i);
+  } finally {
+    await h.stop();
+  }
+});
+
+test("what a publisher declares is no reason to refuse its feed: a length past any transfer is read as far as is useful, and only the bytes that arrive are bounded", async () => {
+  const doc = podcast(600, "shuffled");
+  const open = (body: string, declared: number | null) => (_req: http.IncomingMessage, res: http.ServerResponse) => {
+    res.writeHead(200, { "content-type": "application/rss+xml", ...(declared === null ? {} : { "content-length": String(declared) }) });
+    // The publisher goes on sending (or says it will) after what the gateway needs: the gateway is what ends the transfer.
+    res.write(body);
+  };
+  const h = await harness(
+    (req, res) => {
+      if (req.url === "/declared") return open(doc, HARD_STREAM_BYTES + 5 * 1024 * 1024)(req, res);
+      if (req.url === "/chunked") return open(doc, null)(req, res);
+      if (req.url === "/whole") return open(podcast(30), HARD_STREAM_BYTES + 1)(req, res); // a whole feed that declares more than it sends
+      res.writeHead(404).end();
+    },
+    { trimLimits: { timeoutMs: 5000, trim: { maxBytes: 200_000 } } },
+  );
+  try {
+    const declared = await h.get(trimRoutePath(KEY, h.url("/declared")));
+    const chunked = await h.get(trimRoutePath(KEY, h.url("/chunked")));
+    assert.deepEqual([declared.status, chunked.status], [200, 200], "the same bytes are served whatever the length said");
+    const parsed = parseFeed(declared.body, "application/rss+xml", { maxItems: 1000 });
+    assert.equal(parsed.items.length, 50);
+    assert.equal(parsed.title, "Big Show");
+    assert.deepEqual(parseFeed(chunked.body, "application/rss+xml", { maxItems: 1000 }).items.map((i) => i.title), parsed.items.map((i) => i.title));
+    const whole = await h.get(trimRoutePath(KEY, h.url("/whole")));
+    assert.equal(whole.status, 200);
+    assert.equal(parseFeed(whole.body, "application/rss+xml", { maxItems: 1000 }).items.length, 30);
+    for (const e of h.logs) assert.notEqual(e.outcome, "too_large");
+    assert.equal(h.logs.filter((e) => e.event === "gateway.trim" && e.outcome === "ok").length, 3);
+    for (const e of h.logs) assert.doesNotMatch(JSON.stringify(e), /large|big/i);
+  } finally {
+    await h.stop();
+  }
+});
+
+test("a ceiling that falls inside the feed's first item serves the channel and nothing of that item, and says nothing about size", async () => {
+  const first = `<item><title>Episode 9</title><guid>ep-9</guid><pubDate>${new Date(Date.UTC(2026, 5, 1)).toUTCString()}</pubDate><description><![CDATA[${"<p>long notes</p>".repeat(20_000)}]]></description></item>\n`;
+  const doc = podcast(5).replace("<item>", `${first}<item>`);
+  assert.ok(first.length > 300_000);
+  const h = await harness(feedHandler(doc, { "content-length": String(Buffer.byteLength(doc)) }), { trimLimits: { trim: { maxBytes: 200_000 } } });
+  try {
+    const r = await h.get(trimRoutePath(KEY, h.url("/feed.xml")));
+    assert.equal(r.status, 200, r.body);
+    assert.doesNotMatch(r.body, /<item|long notes/, "no piece of the cut item");
+    const parsed = parseFeed(r.body, "application/rss+xml", { maxItems: 1000 });
+    assert.equal(parsed.title, "Big Show");
+    assert.equal(parsed.items.length, 0);
+    assert.ok(r.body.includes('<itunes:image href="https://show.example/art.jpg"/>'), "the channel's own markup comes through");
+    const served = h.logs.find((e) => e.event === "gateway.trim" && e.outcome === "ok")!;
+    assert.deepEqual([served.kept, served.seen, served.bytes, served.complete, served.capped], [0, 0, 200_000, 0, 1]);
+    for (const e of h.logs) assert.doesNotMatch(JSON.stringify(e), /large|big|malformed/i);
   } finally {
     await h.stop();
   }
@@ -253,7 +329,7 @@ test("concurrent requests share one fetch; a good answer is reused for a while; 
     const stale = await h.get(path);
     assert.equal(h.upstream.requests.length, 2, "asked again after the good answer aged");
     assert.equal(stale.status, 200, "a feed that answered before keeps its last good answer while its host is down");
-    assert.equal(parseFeed(stale.body, "application/rss+xml", { maxItems: 1000 }).items.length, 100);
+    assert.equal(parseFeed(stale.body, "application/rss+xml", { maxItems: 1000 }).items.length, 50);
     await h.get(path);
     await h.get(path);
     assert.equal(h.upstream.requests.length, 2, "and the host is left alone for the back-off");
@@ -333,10 +409,10 @@ test("a newer episode after more than 200 in descending order is served: the ord
     const r = await h.get(trimRoutePath(KEY, h.url("/f")));
     assert.equal(r.status, 200);
     const titles = parseFeed(r.body, "application/rss+xml", { maxItems: 1000 }).items.map((i) => i.title);
-    assert.equal(titles.length, 100);
+    assert.equal(titles.length, 50);
     assert.equal(titles[0], "Episode 1000", "the newest episode, listed 201st");
     assert.equal(titles[1], "Episode 999");
-    assert.equal(titles.at(-1), "Episode 901");
+    assert.equal(titles.at(-1), "Episode 951");
     const served = h.logs.find((e) => e.event === "gateway.trim" && e.outcome === "ok")!;
     assert.deepEqual([served.seen, served.complete], [1001, 1]);
   } finally {

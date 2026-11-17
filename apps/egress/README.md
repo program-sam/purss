@@ -137,10 +137,11 @@ FreshRSS stays the only ingestion engine: this serves it a smaller copy of the s
 - Fetching is `safeFetch`'s (address, redirect, time and size rules; the same in-process test allowances), reading the body through
   a `sink`, never buffered whole. `trim.ts` (`FeedTrimmer`) works on the bytes as Latin-1 text so every byte comes back as it
   arrived, finds items by element structure (comments, CDATA and processing instructions are skipped) and keeps the channel's metadata
-  (everything before the first item) and the newest 100 items by their dates (`pubDate`, `dc:date`, `published`, `updated`).
+  (everything before the first item) and the newest 50 items by their dates (`pubDate`, `dc:date`, `published`, `updated`).
   The whole document is read, at most 64 MiB, whatever the order of its items: nothing in a feed says that the rest is older than
-  its first items, so the newest are kept in a bounded list as the items go past. Items over 1 MiB are left out whole; the kept items
-  stay under 4 MiB together (the oldest of them go first).
+  its first items, so the newest are kept in a bounded list as the items go past. A feed longer than that is served from its first 64 MiB:
+  the newest of what was read, an item cut by the ceiling left out (when it is the first, the feed is served as its channel, closed), and the log's `capped` set. Items over 1 MiB are left out whole (a feed
+  of nothing but those is served as its channel); the kept items stay under 4 MiB together (the oldest of them go first).
 - The copy is served from this listener's address, so its root element gets an `xml:base` with the address the feed was read from (after
   redirects; a relative `xml:base` the root already had is resolved against it), and relative links keep resolving against the publisher.
   Nothing else in the head and nothing in the items changes.
@@ -154,8 +155,9 @@ FreshRSS stays the only ingestion engine: this serves it a smaller copy of the s
   answer without reading the feed (log outcome `not_modified`). The answers kept weigh 8 MiB in all (body, address and validators; least recently used
   out, validators with them) and 500 addresses at most.
 - A failure is never an empty feed: the feed's own `404`/`410`, `403` and `429` (with `Retry-After`) are passed on, `502`/`504` for an
-  unreachable, slow or broken host, `422` for something that is not a feed or has an encoding that can't be read (UTF-16), `413`
-  ("This feed is too large to follow") past the ceiling or when the channel's own details are huge, `403` for an address the rules refuse.
+  unreachable, slow or broken host (a publisher's declared length is no reason to refuse a feed: one that declares more than 128 MiB is read to the trimmer's ceiling like any other, and only a transfer that actually goes past 128 MiB is refused, with `too_large` in the log),
+  `422` for something that is not a feed, has a channel whose own details are over 1 MiB, or has an encoding that can't be read (UTF-16), `403` for an address the rules refuse.
+  No answer speaks of the feed's size: a person is never told about it.
 - Memory: the process holds about 125 MiB idle in its 192 MiB container, and Node lets the garbage of a read (a buffer and a string for every
   piece) pile up to tens of megabytes. A fetch is therefore collected explicitly: after each megabyte it reads past the first, and when it ends if it read
   half a megabyte (`collectGarbage` in `trim-service.ts`, a few milliseconds each; every feed is read in full, so a big one is collected many times).

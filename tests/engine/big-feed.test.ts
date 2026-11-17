@@ -2,7 +2,7 @@
  * Contract test of the feed gateway's trimming of big feeds (plan/44) against the real pinned FreshRSS container: a feed far too big for
  * the engine's PHP memory limit (a podcast feed of 3,000 episodes that repeats its show notes three times, about 20 MB, like The Daily's)
  * makes the engine fail the request itself (HTTP 500) when it is added directly, and is followed without trouble through the gateway,
- * which gives the engine a copy of the newest 100 episodes. The path is the real one except the product's database: FreshRSS fetches
+ * which gives the engine a copy of the newest 50 episodes (what it keeps of a feed). The path is the real one except the product's database: FreshRSS fetches
  * through the real egress proxy, whose internal alias leads to the real gateway, which streams the fixture feed through safeFetch;
  * the subscriptions are made by the worker's own `engine.subscribe` handler.
  * Run with `npm run test:engine`; on this shared host wrap it: `~/.t3/bin/hostlock work engine-tests -- npm run test:engine`.
@@ -211,11 +211,11 @@ describe("a feed too big for the engine, through the feed gateway", () => {
     assert.ok(subs[0]!.url.startsWith(`http://${ALIAS}:${egress.ports.gateway}/t/`), subs[0]!.url);
     assert.ok(!subs[0]!.url.includes("127.0.0.1"), "the engine holds the gateway's address, never the feed's own");
     const titles = await u.titles();
-    assert.ok(titles.length >= 50 && titles.length <= 100, `the engine holds ${titles.length} items`);
+    assert.equal(titles.length, 50, "the engine holds the newest 50 episodes");
     assert.deepEqual(titles.slice(0, 3), ["Episode 2999", "Episode 2998", "Episode 2997"], "the newest, newest first");
     const served = trimEvents(logsBefore).filter((e) => e.outcome === "ok");
     assert.equal(served.length, 1);
-    assert.deepEqual([served[0]!.kept, served[0]!.seen, served[0]!.complete], [100, 3000, 1]);
+    assert.deepEqual([served[0]!.kept, served[0]!.seen, served[0]!.complete], [50, 3000, 1]);
     assert.ok(Number(served[0]!.bytes) > 15 * 1024 * 1024, `the gateway read ${served[0]!.bytes} bytes of a 20 MB feed: all of it, since nothing says the rest is older`);
     assert.equal(fixture.hits, 1, "one request to the feed's site");
     // Subscribing again (a retry, the empty-feed check) finds the same subscription.
@@ -235,7 +235,7 @@ describe("a feed too big for the engine, through the feed gateway", () => {
     const refreshed = await engine.refresh(u.username, streamId);
     assert.equal(refreshed.feeds, 1);
     assert.ok(fixture.hits > hitsBefore, "the engine's refresh reached the feed's site through the gateway");
-    assert.ok(trimEvents(logsBefore).every((e) => e.outcome === "ok" && e.kept === 100 && e.seen === 3001 && Number(e.bytes) > 15 * 1024 * 1024), JSON.stringify(trimEvents(logsBefore)));
+    assert.ok(trimEvents(logsBefore).every((e) => e.outcome === "ok" && e.kept === 50 && e.seen === 3001 && Number(e.bytes) > 15 * 1024 * 1024), JSON.stringify(trimEvents(logsBefore)));
     const titles = await u.titles();
     assert.equal(titles[0], "Episode 3000", "the new episode is in");
     assert.ok(titles.includes("Episode 2999"));
@@ -284,20 +284,24 @@ describe("a feed too big for the engine, through the feed gateway", () => {
     assert.equal(served.complete, 1, "all of it was read: only then are the newest known");
     const titles = await u.titles();
     assert.equal(titles[0], "Episode 1799");
-    assert.ok(titles.length >= 50);
+    assert.equal(titles.length, 50);
     const nums = titles.map((t) => Number(t.replace("Episode ", "")));
-    assert.ok(nums.every((n) => n >= 1700), "only the newest 100 of 1800 were given to the engine");
+    assert.ok(nums.every((n) => n >= 1750), "only the newest 50 of 1800 were given to the engine");
   });
 
-  test("a feed beyond what the gateway reads says so truthfully: too large to follow, not that the site isn't answering", async () => {
+  test("a feed that never ends is followed from what the gateway read before its ceiling: the newest of that, with no failure and nothing said about its size", async () => {
     addFixture("endless", 0, "shuffled");
-    const u = await newAccount("toolarge");
-    const err = await u.subscribe(`http://127.0.0.1:${originPort}/endless.xml`, { trim: true }).catch((e: unknown) => e);
-    assert.ok(err instanceof EngineError, String(err));
-    assert.deepEqual([err.reason, err.retryable], ["too_large", false], `${err.message} ${JSON.stringify(egressLogs.slice(-6))}`);
-    assert.deepEqual(await u.client.listSubscriptions(), []);
-    const refused = trimEvents(0).find((e) => e.outcome === "too_large");
-    assert.ok(refused && refused.status === 413, JSON.stringify(trimEvents(0).map((e) => e.outcome)));
+    const u = await newAccount("endless");
+    const logsBefore = egressLogs.length;
+    const r = await u.subscribe(`http://127.0.0.1:${originPort}/endless.xml`, { trim: true });
+    assert.equal(r.viaGateway, true);
+    assert.equal(r.empty, false);
+    assert.equal((await u.client.listSubscriptions()).length, 1);
+    const served = trimEvents(logsBefore).find((e) => e.outcome === "ok")!;
+    assert.ok(served, JSON.stringify(trimEvents(logsBefore).map((e) => e.outcome)));
+    assert.deepEqual([served.status, served.complete, served.capped, served.bytes], [200, 0, 1, 64 * 1024 * 1024], "read to the ceiling and served as far as it went");
+    assert.ok((await u.titles()).length >= 1);
+    assert.ok(trimEvents(logsBefore).every((e) => e.outcome !== "too_large" && e.status !== 413));
   });
 
   describe("relative links", () => {

@@ -24,10 +24,10 @@ import { looksLikePodcastName } from "../lib/podcast-name.ts";
 type Failure = Extract<DiscoveryResult, { ok: false }>;
 
 type StartFrom = "now" | "week";
-/** What following does with the posts a source already has. Either way they stay on the source's page and in search. */
+/** What following does with the posts a source already has. Either way the older ones are kept as Ignored, and search finds them. */
 const START_CHOICES: { value: StartFrom; label: string; blurb: string }[] = [
-  { value: "now", label: "Start from now", blurb: "Only posts that come after you follow are New. Older posts stay on the source's page and in search." },
-  { value: "week", label: "Also show posts from the last week as New", blurb: "Older posts stay on the source's page and in search." },
+  { value: "now", label: "Start from now", blurb: "Only posts that come after you follow are New. Older posts are kept as Ignored: search finds them." },
+  { value: "week", label: "Also show posts from the last week as New", blurb: "Older posts are kept as Ignored: search finds them." },
 ];
 const FAIL_TITLE: Record<Failure["reason"], string> = {
   invalid: "That doesn't look like a web address",
@@ -35,7 +35,7 @@ const FAIL_TITLE: Record<Failure["reason"], string> = {
   unreachable: "We couldn't reach that site",
   nofeed: "Nothing to follow there",
   unsupported: "We can't follow that kind of link",
-  toolarge: "That page is too large to check",
+  toolarge: "We couldn't read that page",
   timeout: "That took too long",
 };
 /** Reasons where keeping the page as a single saved link is still a sensible thing to offer. */

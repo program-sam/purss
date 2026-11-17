@@ -115,9 +115,10 @@ async function follow(page: Page, url: string, collection: string): Promise<void
     assert.ok(await dlg.getByRole("button", { name: "Follow" }).isDisabled(), "Follow waits for the collection name");
     await dlg.getByLabel("New collection name").fill(collection);
   }
-  // Following starts from now, which keeps what the feed already has off Home. This journey works with the items on screen, so it also asks
-  // for the last week's posts as New.
+  // Following starts from now: what the feed already has is kept as Ignored (and the dialog says so), so it is off Home. This journey works
+  // with the items on screen, so it also asks for the last week's posts as New.
   assert.equal(await dlg.getByRole("radio", { name: /^Start from now/ }).isChecked(), true, "following starts from now");
+  assert.match(await dlg.locator("fieldset").innerText(), /Older posts are kept as Ignored: search finds them\./, "the dialog says what happens to the posts the source already has");
   const lastWeek = dlg.getByRole("radio", { name: /^Also show posts from the last week as New/ });
   await lastWeek.check();
   assert.equal(await lastWeek.isChecked(), true);

@@ -88,13 +88,13 @@ as an empty feed, and records each answer in the fetch log the Service health pa
 largest podcast feeds are tens of megabytes, so a feed larger than 4 MiB (what discovery reads before it knows
 its size) or with more than 1,000 items is followed through the egress feed gateway: `GET /t/<HMAC>/<address>` on the gateway listener, where
 egress's `TrimService` streams the feed through `safeFetch` (a `sink` reads the body without buffering it),
-`FeedTrimmer` reads the feed to its end and keeps the channel's metadata and the newest 100 items byte for byte, and FreshRSS gets that copy
+`FeedTrimmer` reads the feed to its end (or to its 64 MiB ceiling, past which the newest items of what was read are the answer) and keeps the channel's metadata and the newest 50 items byte for byte, and FreshRSS gets that copy
 (its root element carrying an `xml:base` of the publisher's address, so relative links keep resolving there). The trimmed answer is kept in memory per upstream address and
 shared by every account that follows the feed, and a stale one is renewed with a conditional request (`304`) rather than a second full read.
 The source row keeps the feed's own address and a flag (`sources.via_gateway`); only the worker turns the job's
 `trim` instruction into the signed gateway address, under `secrets/feed-trim-key`. A subscription the engine itself fails on
 (an HTTP 500 or a dropped connection, with no reason about the feed's site) is checked by the worker and moved to the gateway when the feed really is that big
-(imports, retries, subscriptions made before this); a feed beyond the gateway's ceiling is *too large to follow*.
+(imports, retries, subscriptions made before this). Size is never worded to a person: the gateway serves what it could read, and what the engine can't follow fails with the generic message.
 
 **Collecting items.** FreshRSS refreshes feeds on its cron (minutes 3, 18, 33, 48), fetching
 through egress. The API's maintenance tick (every 15 s) enqueues an `engine.sync` per account
@@ -117,15 +117,20 @@ clears its New marker in the same change, and Undo restores it. Finished and Ign
 through `engine.mark_read` jobs. Every workflow change (single, bulk, undo) also appends a row
 to `state_log` in the same transaction; the private statistics (`/api/stats/...`) read it and
 the item tables, and its rows go with their item and travel in the export.
+The counts behind the source and collection lists and the lists' totals (`services/counts.ts`) take most of an account's items as one cell (Undecided, not New)
+from `items` and read every other cell (the items acted on, the New ones, the Ignored ones) from `item_state_rare`, a partial index of the state rows that
+are not that cell; each state row repeats its item's source (`item_state.source_id`, stated by the two writers of the row) so the index alone answers, however
+many items are Ignored (most of an account that followed its sources from now).
 
 **Coming back.** New markers are only the `fresh` field of an item's state. An entry a source already had when it
 was followed (published, or undated, before the follow time, until a sync walk that began after the engine confirmed the
 subscription has finished) is stored without one and tells no one. What the person chose when following (`sources.start_from`) decides what else
-happens to it: followed from now (the default, and what an OPML import does), it is also marked `items.backlog` and left out of Home, collection lists, list
-totals and every count of items not looked at (`ItemCounts` takes it out of the default cell; lists ask for `backlog = 0`), while a source's own page
-(`scope=source:<id>`) and a search (`q`) still list it; followed with the last week, entries published in the 7 days before the follow are New like any
-arrival; a source followed before the choice existed (`all`) shows its back catalogue as ordinary older items. The mark is set once, when the entry is stored,
-and triggers (migration 065) clear it the first time the person does anything with the item, so nothing they touched is left out. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
+happens to it: followed from now (the default, and what an OPML import does), it is stored with workflow Ignored (`arrivalOf` in `services/sync.ts`), so lists hide it
+(their default filter leaves Ignored out; "Show ignored" has it), Home, collection totals and every count of items not looked at leave it out, a search
+(`q`, which lists every state) finds it, and nothing marks it but the state itself: no log entry, no `engine.mark_read` job, and the person can move it to any
+state like any other item (migration 069 converted the earlier `items.backlog` mark to this); followed with the last week, entries published in the 7 days before the follow are New like any
+arrival; a source followed before the choice existed (`all`) shows its back catalogue as ordinary older items. Automatic full-text copies and Smart-filter
+judging are for New arrivals only, so they skip it. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
 tick (`services/returning.ts`, throttled: every five minutes and every hour) expires markers older than the person's
 choice, resumes sources whose pause ran out, makes the digest that has come due, tells about sources that stopped
 working and failed text saves, and prunes notifications. `POST /api/activity/visit`, sent by the web app from any page on foreground interaction, records the start of a visit (after 30

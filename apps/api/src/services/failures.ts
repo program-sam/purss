@@ -1,6 +1,7 @@
 import type { FailureReason } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
+import { usableAccountSql } from "./deletion.ts";
 import { enqueue } from "./jobs.ts";
 import { failCapture } from "./captures.ts";
 import { failIconCheck } from "./icons.ts";
@@ -39,7 +40,7 @@ export function syncFailureText(reason: FailureReason | undefined): string {
     case "unavailable":
       return "New items are delayed: the collection engine isn't responding. Everything you have is still here, and we'll keep trying.";
     case "too_large":
-      return "New items are held back: an update from one of your sources was too large to save. Everything you have is still here, and we'll keep trying.";
+      return "New items are held back: an update from one of your sources couldn't be saved. Everything you have is still here, and we'll keep trying.";
     default:
       return "New items are held back by a problem we couldn't work out. Everything you have is still here. We'll keep trying, a little less often each time; if it lasts, the person running this PURSS can check the worker log.";
   }
@@ -63,10 +64,8 @@ export function subscribeGaveUpText(reason: FailureReason | undefined): string {
       return "There's no feed at that address any more. Check the link and add it again.";
     case "refused":
       return "The site refused the request. Check that the link is public and still works.";
-    case "too_large":
-      return "The feed is too large to follow.";
     case "not_a_feed":
-      return "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
+      return "The address answers, but not with a feed we can read. It may be in a format we don't support.";
     default:
       return "The collection engine couldn't follow this feed. Try again later or check the link.";
   }
@@ -124,6 +123,48 @@ export function retryOverloadedSubscribes(app: App): void {
       enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
     } catch (err) {
       // An account that is suspended or being deleted starts nothing; it is looked at again when it is usable.
+      if (!(err instanceof HttpError)) throw err;
+    }
+  }
+}
+
+/**
+ * What an earlier version stored in `sources.health_text` when a feed could not be followed: "The feed is too large to follow." for
+ * a feed the engine or the feed gateway refused for its size, and a not-a-feed message that added "It may be too large". No size is
+ * ever stored or shown now (a big feed is followed through the gateway; one that can't be followed says what any other failure says),
+ * so a source still carrying either is brought up to date: its text becomes what the same failure says now.
+ */
+const EARLIER_TOO_LARGE_TEXT = "The feed is too large to follow.";
+const EARLIER_NOT_A_FEED_TEXT = "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
+
+/**
+ * Sources that failed with the earlier size message get the plain message and one more subscription through the feed gateway (`trim`),
+ * whether or not they were already marked as followed through it: the gateway reads a feed that is too big for the engine as far as is
+ * useful, which is what the earlier versions refused. The text is the marker, and it is replaced in the same transaction that starts the
+ * try, so a source is looked at once: a try that fails again says the plain message, which this does not match, and nothing starts twice
+ * (the job's key re-arms a finished try of the same source and leaves one that is still on its way). Sources whose message was the
+ * not-a-feed one are only reworded: nothing says a retry would help. A source that can't be asked again (no engine yet, no address,
+ * not followed, a subscription already waiting) is reworded and left. An account that is suspended or being deleted is left as it is until it is usable.
+ */
+export function retryEarlierSizeFailures(app: App): void {
+  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; workspace_id: string; eu: string; health_text: string; retryable: number; waiting: number }>(
+    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, s.health_text, eu.id AS eu,
+            (s.followed = 1 AND s.kind <> 'manual' AND s.builtin IS NULL AND s.engine_stream_id IS NULL) AS retryable,
+            EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'subscribe:' || s.id AND j.status IN ('queued', 'leased')) AS waiting
+     FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
+     WHERE s.health = 'error' AND s.health_text IN (?, ?) AND ${usableAccountSql("s.account_id")}
+     LIMIT 50`, EARLIER_TOO_LARGE_TEXT, EARLIER_NOT_A_FEED_TEXT);
+  for (const s of rows) {
+    const tooLarge = s.health_text === EARLIER_TOO_LARGE_TEXT;
+    const feedUrl = s.is_private ? `secret:source-urls/${s.id}` : s.feed_url;
+    const retry = tooLarge && s.retryable === 1 && s.waiting === 0 && !!feedUrl && !feedUrl.startsWith("bridge:");
+    try {
+      app.db.tx(() => {
+        app.db.run("UPDATE sources SET health_text = ? WHERE id = ? AND health = 'error' AND health_text = ?", subscribeGaveUpText(tooLarge ? undefined : "not_a_feed"), s.id, s.health_text);
+        if (retry) enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title, trim: true }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
+      });
+    } catch (err) {
+      // An account that became unusable since it was read starts nothing, and keeps its text for the next time; any other failure is not hidden.
       if (!(err instanceof HttpError)) throw err;
     }
   }

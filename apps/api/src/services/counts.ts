@@ -5,10 +5,12 @@ import type { App } from "../app.ts";
  * How many items a PURSS has, by source, workflow state and New marker.
  *
  * The source list, the collection list and the totals of item lists all need these numbers, and computing each from the
- * item rows costs a probe per item. Here the cost follows what is rare: almost every item is in the default cell (workflow
+ * item rows costs a probe per item. Here the cost follows what is rare: most items are in the default cell (workflow
  * "new", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
- * other nine are found through a partial index on `item_state` that holds only those rows: a few New items, and the items a person
- * has moved to To read, In progress, Finished or Ignored.
+ * other nine are found through a partial index on `item_state` that holds only those rows: a few New items, the items a person
+ * has moved to To read, In progress, Finished or Ignored, and the back catalogue of sources followed from now, which arrives Ignored
+ * (in a PURSS that has just followed many sources that is most of the items). `item_state.source_id` is there for that: the counts never
+ * join to `items` for the source of a state row (migration 070).
  */
 
 const STATES: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished", "ignored"];
@@ -19,36 +21,25 @@ export type CellFilter = (workflow: WorkflowState, fresh: boolean) => boolean;
 export class ItemCounts {
   /** Per source id (null: items without a source), ten counts: `cellOf(workflow, fresh)`. Every item the source holds. */
   readonly bySource: Map<string | null, number[]>;
-  /**
-   * Per source id, the items left out of Home, collection lists and counts because the source was followed from now and they were
-   * part of its back catalogue (migration 065). Always in the default cell (workflow "new", not New), which `bySource` includes.
-   */
-  readonly backCatalogue: Map<string, number>;
 
-  constructor(bySource: Map<string | null, number[]>, backCatalogue: Map<string, number> = new Map()) {
+  constructor(bySource: Map<string | null, number[]>) {
     this.bySource = bySource;
-    this.backCatalogue = backCatalogue;
   }
 
-  /** The items of these sources whose state passes the filter, without the back catalogue that is left out of lists. */
+  /** The items of these sources whose state passes the filter. */
   sum(sources: Iterable<string | null>, keep: CellFilter): number {
-    return this.add(sources, keep, false);
-  }
-
-  private add(sources: Iterable<string | null>, keep: CellFilter, withBackCatalogue: boolean): number {
     let n = 0;
     for (const s of sources) {
       const cells = this.bySource.get(s);
       if (!cells) continue;
       for (let c = 0; c < cells.length; c++) if (cells[c] && keep(STATES[c >> 1]!, (c & 1) === 1)) n += cells[c]!;
-      if (!withBackCatalogue && s !== null && keep("new", false)) n -= this.backCatalogue.get(s) ?? 0;
     }
     return n;
   }
 
-  /** Everything the source holds: its own page shows its whole back catalogue. */
+  /** Everything the source holds, Ignored items included. */
   items(source: string): number {
-    return this.add([source], () => true, true);
+    return this.sum([source], () => true);
   }
 
   /** Items with the New marker, whatever their workflow state. */
@@ -97,24 +88,15 @@ function computeCounts(app: App, workspaceId: string): ItemCounts {
   for (const r of app.db.all<{ source_id: string | null; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE workspace_id = ? GROUP BY source_id", workspaceId)) {
     cells(r.source_id)[cellOf("new", 0)] = r.n;
   }
-  // The other cells: items a person has acted on, and the New ones, joined to their source.
-  const rare = (where: string, ...params: string[]) => {
-    for (const r of app.db.all<{ source_id: string | null; workflow: string; fresh: number; n: number }>(
-      // The first condition is the partial index's own, which lets the planner use it.
-      `SELECT i.source_id AS source_id, st.workflow AS workflow, st.fresh AS fresh, COUNT(*) AS n
-       FROM item_state st JOIN items i ON i.id = st.item_id
-       WHERE st.workspace_id = ? AND NOT (st.workflow = 'new' AND st.fresh = 0) AND ${where} GROUP BY i.source_id, st.workflow, st.fresh`, workspaceId, ...params)) {
-      const c = cells(r.source_id);
-      c[cellOf(r.workflow, r.fresh)] = r.n;
-      c[cellOf("new", 0)]! -= r.n;
-    }
-  };
-  for (const w of STATES) if (w !== "new") rare("st.workflow = ?", w);
-  rare("st.workflow = 'new' AND st.fresh = 1");
-  // The back catalogue left out of lists, from the partial index alone (it holds only those items).
-  const backCatalogue = new Map<string, number>();
-  for (const r of app.db.all<{ source_id: string; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE workspace_id = ? AND backlog = 1 AND source_id IS NOT NULL GROUP BY source_id", workspaceId)) {
-    backCatalogue.set(r.source_id, r.n);
+  // The other cells: the items a person has acted on, the New ones and the Ignored ones (the back catalogue of a source followed from now
+  // arrives so). The partial index holds exactly those rows and each one's source, so they are counted from it alone, however many there are.
+  for (const r of app.db.all<{ source_id: string | null; workflow: string; fresh: number; n: number }>(
+    // The condition is the partial index's own, which lets the planner use it.
+    `SELECT source_id, workflow, fresh, COUNT(*) AS n FROM item_state
+     WHERE workspace_id = ? AND NOT (workflow = 'new' AND fresh = 0) GROUP BY source_id, workflow, fresh`, workspaceId)) {
+    const c = cells(r.source_id);
+    c[cellOf(r.workflow, r.fresh)] = r.n;
+    c[cellOf("new", 0)]! -= r.n;
   }
-  return new ItemCounts(bySource, backCatalogue);
+  return new ItemCounts(bySource);
 }

@@ -350,7 +350,7 @@ test("a private link that is big goes through the gateway too, and its link stay
   } finally { await t.close(); }
 });
 
-test("without the key, a big feed is refused plainly as too large, never as a site that doesn't answer", async () => {
+test("without the key, a big feed goes to the engine as it is, and when the engine fails on it the failure is generic and final: never about its size, never a site that doesn't answer", async () => {
   const t = await setup({ isLargeFeed: async () => true });
   try {
     t.secrets.ensure("eu1");
@@ -358,9 +358,13 @@ test("without the key, a big feed is refused plainly as too large, never as a si
     for (const trim of [true, undefined]) {
       const err = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: "https://feeds.example/bigfeed/a", title: "x", ...(trim ? { trim } : {}) }).catch((e: unknown) => e);
       assert.ok(err instanceof JobFailure, String(err));
-      assert.deepEqual([classify(err).reason, classify(err).retryable], ["too_large", false]);
+      assert.deepEqual([classify(err).reason, classify(err).retryable], ["other", false]);
     }
     assert.equal(t.engine.feeds.length, 0);
+    assert.ok(t.engine.requests.some((q) => (q.form?.get("quickadd") ?? "") === "https://feeds.example/bigfeed/a"), "the engine was given the feed's own address");
+    // A feed that is not big follows as ever when there is no key.
+    const plain = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s2", feedUrl: "https://example.org/plain.xml", title: "x", trim: true });
+    assert.equal(plain.viaGateway, undefined);
   } finally { await t.close(); }
 });
 
@@ -398,6 +402,21 @@ test("a subscription the engine fails on with its own HTTP 500 is moved to the g
   } finally { await t.close(); }
 });
 
+test("a feed the engine itself refuses for its size is moved to the gateway like one it fails on, and a person is never told why", async () => {
+  const asked: string[] = [];
+  const t = await setup({ isLargeFeed: async (url) => { asked.push(url); return true; } });
+  try {
+    t.secrets.ensure("eu1");
+    t.engine.users.set("eng_user", t.secrets.read("eu1")!);
+    writeFileSync(path.join(t.dir, "feed-trim-key"), `${TRIM_KEY}\n`);
+    const url = "https://feeds.example/toobig/the-engine-refuses";
+    const r = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s", feedUrl: url, title: "x" });
+    assert.equal(r.viaGateway, true);
+    assert.deepEqual(asked, [url]);
+    assert.deepEqual(t.engine.feeds.map((f) => f.url), [gatewayAddress(url)]);
+  } finally { await t.close(); }
+});
+
 test("a bridged source never goes through the trimming gateway, and a feed that is already trimmed is not asked about its size again", async () => {
   const asked: string[] = [];
   const t = await setup({ isLargeFeed: async (url) => { asked.push(url); return true; } });
@@ -410,11 +429,11 @@ test("a bridged source never goes through the trimming gateway, and a feed that 
     assert.equal(r.viaGateway, undefined);
     assert.ok(t.engine.feeds[0]!.url.startsWith("http://feed-bridge.internal:8945/b/telegram/durov/"));
     // The engine failing with its own 500 on the gateway's copy is not retried through the gateway again, and is about the feed's
-    // content, not its site: the source says it is too large, not that the site isn't answering.
+    // content, not its site: the failure is final and generic, not that the site isn't answering and not about the feed's size.
     t.engine.failNext = { status: 500, remaining: 1 };
     const err = await t.run("engine.subscribe", { engineUserId: "eu1", sourceId: "s2", feedUrl: "https://feeds.example/bigfeed/x", title: "x", trim: true }).catch((e: unknown) => e);
     assert.ok(err instanceof JobFailure, String(err));
-    assert.deepEqual([classify(err).reason, classify(err).retryable], ["too_large", false]);
+    assert.deepEqual([classify(err).reason, classify(err).retryable], ["other", false]);
     assert.deepEqual(asked, []);
   } finally { await t.close(); }
 });

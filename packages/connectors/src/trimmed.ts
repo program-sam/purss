@@ -25,8 +25,8 @@ export const TRIM_FEED_BYTES = 4 * 1024 * 1024;
  */
 export const TRIM_FEED_ITEMS = 1000;
 
-/** The newest items of a big feed that the engine is given: twice the 50 it keeps of any feed at the least (its retention is 90 days, 50 to 1,000 items). */
-export const TRIM_ITEMS = 100;
+/** The newest items of a big feed that the engine is given: the 50 it keeps of a feed at the least (its retention is 90 days, 50 to 1,000 items). */
+export const TRIM_ITEMS = 50;
 
 const MAX_URL_LENGTH = 2048;
 

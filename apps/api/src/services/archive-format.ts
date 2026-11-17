@@ -16,8 +16,7 @@ import { ANNOTATION_BODY_MAX, ANNOTATION_CONTEXT_MAX, ANNOTATION_QUOTE_MAX, ITEM
  *   memberships      basket -> item pins with the kept version and keep time
  *   items            items with every stored version (current and kept), captured text (fetched
  *                    by the server or sent by the person's browser, by `kind`),
- *                    workflow / progress / fresh state, whether the item is back catalogue that Home
- *                    leaves out (`backlog`; optional on import), and original publisher GUIDs
+ *                    workflow / progress / fresh state, and original publisher GUIDs
  *   preferences      one object
  *   stateLog         the account's own workflow changes (item, from, to, time), oldest first;
  *                    optional on import so older files still load
@@ -165,8 +164,8 @@ const itemSchema = z.object({
     openedAt: iso,
   }).default({ workflow: "new", fresh: false, progress: 0, openedAt: null }),
   originalGuids: z.array(text(2000)).max(5).default([]),
-  /** The item was part of a source's back catalogue when it was followed from now, and Home and the counts leave it out until the person acts on it. */
-  backlog: z.boolean().default(false),
+  /** Only ever read, from files made when a source's back catalogue was marked this way instead of Ignored; `parseArchive` turns it into the workflow state and nothing keeps it. */
+  backlog: z.boolean().optional(),
 });
 
 const shareSchema = z.object({
@@ -331,7 +330,23 @@ export function parseArchive(raw: unknown): Archive {
     const where = issue?.path.length ? ` (${issue.path.slice(0, 3).join(".")})` : "";
     throw new ArchiveError("invalid", `That export file has details this version can't read${where}.`);
   }
-  return parsed.data;
+  return ignoreMarkedBackCatalogue(parsed.data);
+}
+
+/**
+ * A file made when the back catalogue of a source followed from now was marked `backlog: true` (and its items left `workflow: "new"`) is read
+ * the way those items are stored now: Ignored. Only an item still in the default state was ever marked (the old version cleared the mark when
+ * the item was opened, started, made New or changed in state, kept in a basket or annotated), so one that is no longer in it is left as the person had it.
+ */
+function ignoreMarkedBackCatalogue(doc: Archive): Archive {
+  const touched = new Set<string>([...doc.memberships.map((m) => m.itemId), ...doc.annotations.map((a) => a.itemId)]);
+  for (const item of doc.items) {
+    const marked = item.backlog === true;
+    delete item.backlog;
+    const { workflow, fresh, progress, openedAt } = item.state;
+    if (marked && workflow === "new" && !fresh && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
+  }
+  return doc;
 }
 
 export const KNOWN_KINDS: readonly string[] = ITEM_KINDS;

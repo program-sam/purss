@@ -6,9 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Database, migrate } from "./database.ts";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
-/** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items, 065 keeps back catalogue marks to untouched items): the tests below about rebuilt tables leave them aside. */
-const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept",
-  "item_backlog_state_changed", "item_backlog_state_stored", "item_backlog_kept", "item_backlog_annotated"]);
+/** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items): the tests below about rebuilt tables leave them aside. */
+const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept"]);
 
 test("005 removes hand-picked collections and their membership table and leaves the other collections alone", () => {
   const db = new Database(":memory:");
@@ -382,11 +381,11 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const after = new Map(objects().map((o) => [(o as { name: string }).name, o]));
     // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
     const droppedIndexes = new Set(["sign_in_methods_username"]);
-    // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone. 065 adds the back catalogue mark to the
-    // source index of items, so counting a collection's items (which leaves the marked ones out) still reads that index alone.
+    // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone.
+    // 070 adds the item's source to the index of the states that are not the default, so the counts read it alone.
     const widened: Record<string, string> = {
       reservations_open: "CREATE INDEX reservations_open ON reservations(account_id, settled_at, released_at, expires_at, bytes)",
-      items_source_sortkey: "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, (COALESCE(published_at, discovered_at)) DESC, id DESC, backlog)",
+      item_state_rare: "CREATE INDEX item_state_rare ON item_state(workspace_id, workflow, fresh, source_id) WHERE NOT (workflow = 'new' AND fresh = 0)",
     };
     for (const o of objectsBefore) {
       const name = (o as { name: string }).name;
@@ -502,8 +501,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all("SELECT * FROM jobs ORDER BY id"), others.jobs, "other jobs are untouched");
     assert.deepEqual(db.all("SELECT * FROM playback_positions"), others.playback, "playback positions stay");
     assert.deepEqual(db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), others.sources, "sources are unchanged apart from the two columns");
-    // link_key (057), kept_key and source_title (058), number (062), backlog (065) and embed_tries and embed_at (067) are columns later migrations add; everything the items had stays as it was.
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, backlog: _b, embed_tries: _et, embed_at: _ea, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
+    // link_key (057), kept_key and source_title (058), number (062) and embed_tries and embed_at (067) are columns later migrations add; everything the items had stays as it was.
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, embed_tries: _et, embed_at: _ea, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
@@ -836,52 +835,100 @@ test("063 gives stored enclosure addresses the & their feed meant and leaves oth
   }
 });
 
-test("065 leaves every existing source showing its back catalogue and no existing item left out, and keeps the left-out items to the default state", () => {
+test("069 makes the back catalogue Ignored, leaves everything else as it was, and removes what marked it", () => {
   const db = new Database(":memory:");
   try {
     db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
     const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
-    for (const file of files.filter((f) => f < "065")) {
+    for (const file of files.filter((f) => f < "069")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    // What 065 left: the mark, its indexes and its triggers.
+    const names = (type: string) => db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = ? AND name LIKE '%backlog%' OR name = 'items_ws_visible_sortkey' AND type = ?", type, type).map((o) => o.name).sort();
+    assert.deepEqual(names("trigger"), ["item_backlog_annotated", "item_backlog_kept", "item_backlog_state_changed", "item_backlog_state_stored"]);
+    assert.deepEqual(names("index"), ["items_backlog", "items_ws_visible_sortkey"]);
+
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at, start_from) VALUES ('src_1', 'acc_1', 'ws_1', 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z', 'now')");
+    const item = (id: string, backlog: number, seq: string) => {
+      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at, backlog) VALUES (?, 'acc_1', 'ws_1', 'src_1', 'article', ?, ?, 'x', 'x', ?)", id, `Post ${id}`, `2026-01-0${seq}T00:00:00.000Z`, backlog);
+      db.run("INSERT INTO item_state (item_id, workspace_id, fresh, updated_at) VALUES (?, 'ws_1', 0, 'x')", id);
+    };
+    item("itm_old1", 1, "1");
+    item("itm_old2", 1, "2");
+    item("itm_shown", 0, "3");
+    item("itm_new", 0, "4");
+    item("itm_read", 0, "5");
+    db.run("UPDATE item_state SET fresh = 1 WHERE item_id = 'itm_new'");
+    db.run("UPDATE item_state SET workflow = 'toread', revision = 3, state_version = 7 WHERE item_id = 'itm_read'");
+    db.run("INSERT INTO state_log (account_id, workspace_id, item_id, from_state, to_state, at) VALUES ('acc_1', 'ws_1', 'itm_read', 'new', 'toread', 'x')");
+    db.run("UPDATE item_state SET revision = 2, state_version = 4 WHERE item_id = 'itm_old2'");
+    db.exec("PRAGMA foreign_keys = ON");
+    const state = () => db.all<Record<string, unknown>>("SELECT item_id, workflow, fresh, revision, state_version, workflow_revision, opened_at, progress, updated_at FROM item_state ORDER BY item_id").map((r) => ({ ...r }));
+    const before = state();
+    const itemsBefore = db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ backlog: _b, ...row }) => ({ ...row }));
+    const logBefore = db.all("SELECT * FROM state_log").map((r) => ({ ...(r as object) }));
+
+    assert.equal(migrate(db), files.filter((f) => f >= "069").length);
+    const byId = new Map(state().map((r) => [r.item_id, r]));
+    const was = new Map(before.map((r) => [r.item_id, r]));
+    for (const id of ["itm_old1", "itm_old2"]) {
+      assert.deepEqual(byId.get(id), { ...was.get(id), workflow: "ignored", state_version: (was.get(id)!.state_version as number) + 1 }, `${id} is Ignored, and caches see the change; nothing else about it`);
+    }
+    for (const id of ["itm_shown", "itm_new", "itm_read"]) assert.deepEqual(byId.get(id), was.get(id), `${id} is as it was`);
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map((r) => ({ ...r })), itemsBefore, "items are as they were, without the mark");
+    assert.deepEqual(db.all("SELECT * FROM state_log").map((r) => ({ ...(r as object) })), logBefore, "the person's workflow log has nothing of it");
+    assert.equal(db.get<{ start_from: string }>("SELECT start_from FROM sources WHERE id = 'src_1'")!.start_from, "now", "what the source does with its back catalogue is kept");
+
+    // The mark and everything that read it are gone; the source index is as it was before 065.
+    assert.equal(db.all<{ name: string }>("SELECT name FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0);
+    assert.deepEqual(names("trigger"), []);
+    assert.deepEqual(names("index"), []);
+    assert.equal(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'items_source_sortkey'")!.sql, "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, (COALESCE(published_at, discovered_at)) DESC, id DESC)");
+    // Nothing moves an Ignored item back by itself any more: what the person does to it leaves its state as it is.
+    db.run("UPDATE item_state SET opened_at = 'z', progress = 0.3 WHERE item_id = 'itm_old1'");
+    assert.equal(db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = 'itm_old1'")!.w, "ignored");
+    assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("070 gives every state row its item's source, and the index of the states that are not the default holds it", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "070")) {
       db.exec(readFileSync(path.join(DIR, file), "utf8"));
       db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
     }
     db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
     db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
-    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_1', 'acc_1', 'ws_1', 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')");
-    for (const id of ["itm_a", "itm_b"]) {
-      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', 'src_1', 'article', 't', 'x', 'x', 'x')", id);
-      db.run("INSERT INTO item_state (item_id, workspace_id, fresh, updated_at) VALUES (?, 'ws_1', 0, 'x')", id);
-    }
+    for (const id of ["src_1", "src_2"]) db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES (?, 'acc_1', 'ws_1', 'feed', 'S', 'RSS feed', 'ok', 'x')", id);
+    const item = (id: string, source: string | null, workflow: string, fresh: number) => {
+      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', ?, 'article', 't', 'x', 'x', 'x')", id, source);
+      db.run("INSERT INTO item_state (item_id, workspace_id, workflow, fresh, updated_at) VALUES (?, 'ws_1', ?, ?, 'x')", id, workflow, fresh);
+    };
+    item("itm_a", "src_1", "ignored", 0);
+    item("itm_b", "src_2", "new", 0);
+    item("itm_c", "src_2", "toread", 0);
+    item("itm_d", null, "ignored", 0);
+    item("itm_e", "src_1", "new", 1);
     db.exec("PRAGMA foreign_keys = ON");
+    const stateBefore = db.all<Record<string, unknown>>("SELECT item_id, workflow, fresh, revision, state_version, updated_at FROM item_state ORDER BY item_id").map((r) => ({ ...r }));
 
-    assert.equal(migrate(db), files.filter((f) => f >= "065").length);
-    assert.equal(db.get<{ s: string }>("SELECT start_from AS s FROM sources WHERE id = 'src_1'")!.s, "all", "a source followed before the choice existed keeps today's behaviour");
-    assert.deepEqual(db.all<{ id: string; b: number }>("SELECT id, backlog AS b FROM items ORDER BY id").map((r) => [r.id, r.b]), [["itm_a", 0], ["itm_b", 0]], "nothing that is stored is left out");
-    assert.throws(() => db.run("UPDATE sources SET start_from = 'everything' WHERE id = 'src_1'"), /CHECK/, "only the three choices are stored");
-
-    // The mark is cleared by every kind of acting on an item, whichever code does it; bookkeeping alone leaves it.
-    const marked = (id: string) => db.get<{ b: number }>("SELECT backlog AS b FROM items WHERE id = ?", id)!.b;
-    const mark = () => db.run("UPDATE items SET backlog = 1 WHERE id = 'itm_a'");
-    mark();
-    db.run("UPDATE item_state SET state_version = state_version + 1, updated_at = 'y' WHERE item_id = 'itm_a'");
-    assert.equal(marked("itm_a"), 1, "a change that is not about the person's use of the item");
-    const acts: [string, string][] = [
-      ["To read", "UPDATE item_state SET workflow = 'toread' WHERE item_id = 'itm_a'"],
-      ["opening", "UPDATE item_state SET opened_at = 'z' WHERE item_id = 'itm_a'"],
-      ["reading partway", "UPDATE item_state SET progress = 0.2 WHERE item_id = 'itm_a'"],
-      ["New again", "UPDATE item_state SET fresh = 1 WHERE item_id = 'itm_a'"],
-      ["keeping", "INSERT INTO baskets (id, workspace_id, name, position, created_at) VALUES ('bsk_1', 'ws_1', 'B', 0, 'x'); INSERT INTO item_versions (id, item_id, workspace_id, title, content_hash, created_at) VALUES ('ver_1', 'itm_a', 'ws_1', 't', 'h', 'x'); INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES ('bsk_1', 'itm_a', 'ws_1', 'ver_1', 'x')"],
-      ["a note", "INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, body, created_at, updated_at, received_at) VALUES ('ann_1', 'acc_1', 'ws_1', 'itm_a', 'note', 'n', 'x', 'x', 'x')"],
-    ];
-    db.exec("PRAGMA foreign_keys = OFF");
-    for (const [what, sql] of acts) {
-      db.exec("UPDATE item_state SET workflow = 'new', fresh = 0, opened_at = NULL, progress = 0 WHERE item_id = 'itm_a'");
-      mark();
-      assert.equal(marked("itm_a"), 1, what);
-      db.exec(sql);
-      assert.equal(marked("itm_a"), 0, `${what} clears it`);
-    }
-    assert.equal(marked("itm_b"), 0);
+    assert.equal(migrate(db), files.filter((f) => f >= "070").length);
+    assert.deepEqual(db.all<{ item_id: string; source_id: string | null }>("SELECT item_id, source_id FROM item_state ORDER BY item_id").map((r) => [r.item_id, r.source_id]),
+      [["itm_a", "src_1"], ["itm_b", "src_2"], ["itm_c", "src_2"], ["itm_d", null], ["itm_e", "src_1"]], "the source of each item, and none for an item that has none");
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT item_id, workflow, fresh, revision, state_version, updated_at FROM item_state ORDER BY item_id").map((r) => ({ ...r })), stateBefore, "nothing else about a state changed");
+    assert.equal(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'item_state_rare'")!.sql,
+      "CREATE INDEX item_state_rare ON item_state(workspace_id, workflow, fresh, source_id) WHERE NOT (workflow = 'new' AND fresh = 0)");
+    const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT source_id, workflow, fresh, COUNT(*) FROM item_state WHERE workspace_id = 'ws_1' AND NOT (workflow = 'new' AND fresh = 0) GROUP BY source_id, workflow, fresh").map((r) => r.detail);
+    assert.ok(plan.some((l) => /COVERING INDEX item_state_rare/.test(l)), plan.join("\n"));
     assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();

@@ -441,9 +441,9 @@ export const followSchema = z.object({
   markPrivate: z.boolean().optional(),
   fullText: z.boolean().default(false),
   /**
-   * What the source already had when it was followed (its back catalogue). "now" (the default): it stays stored, on the source's own
-   * page and in search, and is left out of Home, collection lists and the counts of items not looked at. "week": the posts published
-   * in the week before are also marked New and shown like new posts; the older ones are left out as for "now".
+   * What the source already had when it was followed (its back catalogue). "now" (the default): it is stored as Ignored, so lists hide it,
+   * Home and the counts of items not looked at leave it out, and search finds it. "week": the posts published in the week before are
+   * also marked New and shown like new posts; the older ones are Ignored as for "now".
    */
   startFrom: z.enum(["now", "week"]).default("now"),
 });
@@ -668,7 +668,7 @@ export type HomeOverview = {
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** Every New marker in PURSS, for "Start fresh". */
   fresh: number;
-  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. Leaves out a source's back catalogue when it was followed from now. */
+  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's back catalogue is not in it when the source was followed from now: that is Ignored. */
   unread: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */
   mutedHidden: number;

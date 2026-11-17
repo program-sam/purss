@@ -7,7 +7,7 @@ import type { Principal } from "../app.ts";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { generateOpml } from "./opml.ts";
-import { retryOverloadedSubscribes, settleFailedJob, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
+import { retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
 import { checkEmptyFeeds, followSource, getSource, onSubscribed, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
 
 const BIG = "https://feeds.simplecast.com/54nAGcIl";
@@ -141,13 +141,84 @@ test("sources the engine failed on with its own overload are subscribed once mor
   assert.deepEqual([row(app, gaveUp).via_gateway, row(app, gaveUp).health], [1, "pending"]);
 });
 
-test("a feed that can't be followed even trimmed says it is too large to follow, not that the site isn't answering", (t) => {
+test("sources an earlier version gave up on for a feed's size are reworded and tried once more through the gateway, whether or not they were marked as followed through it", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const follow = (url: string, over: Record<string, unknown> = {}, owner: Principal = p) => followSource(app, owner, { ...base, token: hold(owner, url, over) }).id;
+  const earlier = "The feed is too large to follow.";
+  const earlierNotAFeed = "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
+  const plain = subscribeGaveUpText(undefined);
+  const unmarked = follow("https://feeds.example/a.xml");
+  const marked = follow("https://feeds.example/b.xml", { large: true }); // the gateway itself had been refused
+  const privateOne = follow("https://patreon.example/rss?auth=0123456789abcdef0123456789abcdef", { privateWarning: "secret" });
+  const triedBefore = follow("https://feeds.example/c.xml", { large: true }); // an earlier try through the gateway exists, finished
+  const notAFeed = follow("https://feeds.example/d.xml");
+  const unfollowed = follow("https://feeds.example/e.xml");
+  const working = follow("https://feeds.example/f.xml");
+  const otherFailure = follow("https://feeds.example/g.xml");
+  const waiting = follow("https://feeds.example/h.xml");
+  const other = makeOwner(app);
+  const suspended = follow("https://feeds.example/i.xml", {}, other);
+  app.db.run("UPDATE jobs SET status = 'failed'");
+  app.db.run("INSERT INTO jobs (id, kind, payload, status, run_after, idempotency_key, created_at, updated_at) VALUES ('job_before', 'engine.subscribe', ?, 'failed', ?, ?, ?, ?)",
+    JSON.stringify({ engineUserId: p.engineUserId, sourceId: triedBefore, feedUrl: "https://feeds.example/c.xml", title: "c" }), "2026-11-01T00:00:00.000Z", `gateway-retry:${triedBefore}`, "2026-11-01T00:00:00.000Z", "2026-11-01T00:00:00.000Z");
+  unfollowSource(app, p, unfollowed);
+  app.db.run("UPDATE sources SET engine_stream_id = 'feed/1' WHERE id = ?", working);
+  app.db.run("UPDATE accounts SET status = 'suspended' WHERE id = ?", other.accountId);
+  app.db.run("UPDATE jobs SET status = 'queued' WHERE idempotency_key = ?", `subscribe:${waiting}`);
+  const fail = (id: string, text: string) => app.db.run("UPDATE sources SET health = 'error', health_text = ? WHERE id = ?", text, id);
+  for (const id of [unmarked, marked, privateOne, triedBefore, unfollowed, waiting, working, suspended]) fail(id, earlier);
+  fail(notAFeed, earlierNotAFeed);
+  fail(otherFailure, plain);
+
+  const before = jobs(app).length;
+  retryEarlierSizeFailures(app);
+  const tries = () => jobs(app).filter((j) => j.idempotency_key.startsWith("gateway-retry:"));
+  assert.deepEqual(tries().map((j) => j.payload.sourceId).sort(), [unmarked, marked, privateOne, triedBefore].sort(), "every source that failed for its size and can be asked again, however it was marked");
+  assert.equal(jobs(app).length, before + 3, "an earlier finished try of a source is re-armed, not added to");
+  for (const j of tries()) assert.deepEqual([j.payload.trim, j.idempotency_key, j.status], [true, `gateway-retry:${j.payload.sourceId}`, "queued"], "through the gateway, from the start");
+  assert.equal(tries().find((j) => j.payload.sourceId === privateOne)!.payload.feedUrl, `secret:source-urls/${privateOne}`, "a private link stays in the secrets folder");
+  // Every message is the plain one now, the ones nothing is tried for too; an account that can't act is left as it is until it can.
+  assert.deepEqual([unmarked, marked, privateOne, triedBefore, unfollowed, waiting, working].map((id) => row(app, id).health_text), Array(7).fill(plain));
+  assert.equal(row(app, notAFeed).health_text, subscribeGaveUpText("not_a_feed"));
+  assert.equal(row(app, otherFailure).health_text, plain);
+  assert.equal(row(app, suspended).health_text, earlier);
+  for (const id of [unmarked, marked, privateOne, triedBefore, notAFeed, unfollowed, waiting, working, otherFailure]) assert.doesNotMatch(row(app, id).health_text!, /large|big|size/i, id);
+  assert.equal(row(app, unmarked).via_gateway, 0, "whether the feed is followed through the gateway is for the subscription's answer to say");
+
+  // Once: whatever comes of the tries, nothing is asked again (the message that was the reason to is gone), and a try that fails again says the plain one.
+  const count = jobs(app).length;
+  app.db.run("UPDATE jobs SET status = 'failed' WHERE idempotency_key LIKE 'gateway-retry:%'");
+  for (const j of tries()) settleFailedJob(app, { kind: "engine.subscribe", payload: j.payload }, { finalFailure: true }, "too_large");
+  retryEarlierSizeFailures(app);
+  retryEarlierSizeFailures(app);
+  assert.equal(jobs(app).length, count);
+  assert.ok(tries().every((j) => j.status === "failed"), "a try that failed again is not re-armed");
+  for (const j of tries()) assert.equal(row(app, String(j.payload.sourceId)).health_text, plain);
+  // One that came across through the gateway at last is a working source.
+  onSubscribed(app, marked, "feed/30", { viaGateway: true });
+  assert.deepEqual([row(app, marked).health, row(app, marked).via_gateway], ["pending", 1]);
+  // Once the account can act again its source is looked at the same way, once.
+  app.db.run("UPDATE accounts SET status = 'active' WHERE id = ?", other.accountId);
+  retryEarlierSizeFailures(app);
+  retryEarlierSizeFailures(app);
+  assert.equal(row(app, suspended).health_text, plain);
+  assert.equal(tries().filter((j) => j.payload.sourceId === suspended).length, 1);
+});
+
+test("a big feed that can't be followed never says anything about its size, and not that the site isn't answering", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
   const s = followSource(app, p, { ...base, token: hold(p, BIG, { large: true }) });
   settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: s.id } }, { finalFailure: true }, "too_large");
-  assert.deepEqual([getSource(app, p, s.id).health, getSource(app, p, s.id).healthText], ["error", "The feed is too large to follow."]);
+  assert.deepEqual([getSource(app, p, s.id).health, getSource(app, p, s.id).healthText], ["error", "The collection engine couldn't follow this feed. Try again later or check the link."]);
+  for (const reason of ["too_large", "not_a_feed", "other", undefined] as const) {
+    const t2 = followSource(app, p, { ...base, token: hold(p, `https://example.org/${reason}.xml`) });
+    settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: t2.id } }, { finalFailure: true }, reason);
+    assert.doesNotMatch(getSource(app, p, t2.id).healthText!, /large|big|size/i, String(reason));
+  }
   // The same engine failure that is a real outage still says so.
   const o = followSource(app, p, { ...base, token: hold(p, "https://example.org/other.xml") });
   settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: o.id } }, { finalFailure: false }, "unavailable");

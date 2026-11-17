@@ -422,3 +422,33 @@ test("self-hosted: a server key an administrator sets serves every account, with
   assert.equal((await b.api("GET", "/api/ai")).json.ready, true, "a new key clears it");
   assert.equal((await b.api("DELETE", "/api/admin/ai/key", undefined, adminSession)).json.key, null);
 });
+
+test("the posts a source already had when it was followed from now arrive Ignored and are never judged, not even when the filter changes", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const source = makeSource(b.app, b.owner, "Delta Notes", "feed/1", { settled: false, startFrom: "now" });
+  await b.setServerKey("server-key-1234");
+  assert.equal((await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment research", drop: "job ads" })).status, 200);
+  const old = (title: string) => entry("feed/1", { title, summaryHtml: "<p>Nothing to see.</p>", publishedAt: new Date(Date.now() - 400 * 86_400_000).toISOString(), crawledAt: new Date().toISOString() });
+  applySyncBatch(b.app, b.owner.engineUserId, batch([old("Sediment cores, long ago"), old("Hiring, long ago")]));
+  assert.equal(await runJudging(b), 0, "the back catalogue is not sent to be judged");
+  assert.equal(b.jev.seen.length, 0, "and Jev is asked nothing about it");
+  assert.deepEqual([post(b.app, b.owner.workspaceId, "Sediment cores, long ago").workflow, post(b.app, b.owner.workspaceId, "Hiring, long ago").workflow], ["ignored", "ignored"]);
+
+  // The source is settled once a walk that began after the follow has finished; what comes after is New and judged as ever.
+  applySyncBatch(b.app, b.owner.engineUserId, batch([]));
+  applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Sediment cores from the delta", "feed/1"), neutral("We're hiring a designer", "feed/1")]));
+  assert.equal(await runJudging(b), 1);
+  assert.deepEqual(b.jev.seen.map((s) => s.body.state.title).sort(), ["Sediment cores from the delta", "We're hiring a designer"]);
+  assert.equal(post(b.app, b.owner.workspaceId, "We're hiring a designer").workflow, "ignored");
+  assert.equal(post(b.app, b.owner.workspaceId, "Sediment cores from the delta").workflow, "new");
+
+  // A looser filter gives back what it dropped, and re-checks what is Undecided: never the back catalogue, which no filter had a say in.
+  b.jev.seen.length = 0;
+  assert.equal((await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment research and anything else", drop: "nothing" })).status, 200);
+  await runJudging(b);
+  const judged = b.jev.seen.map((s) => s.body.state.title);
+  assert.ok(!judged.some((title) => /long ago/.test(title)), `the back catalogue was not judged: ${judged.join(", ")}`);
+  assert.deepEqual([post(b.app, b.owner.workspaceId, "Sediment cores, long ago").workflow, post(b.app, b.owner.workspaceId, "Hiring, long ago").workflow], ["ignored", "ignored"]);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_filter_verdicts v JOIN items i ON i.id = v.item_id WHERE i.title LIKE '%long ago'")!.n, 0);
+});

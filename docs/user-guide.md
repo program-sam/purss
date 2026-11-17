@@ -84,7 +84,7 @@ can still be followed ("No posts yet" shows on its page until the first one arri
 follow a source with the same name under another address, the result says so before you follow a second. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
 you want to group it). *Posts the source already has* starts on **Start from now**: only posts that come out after
-you follow are New, and what the feed already had stays out of Home ([Back catalogue](#sources)). Choose
+you follow are New, and what the feed already had is kept as Ignored: search finds it ([Back catalogue](#sources)). Choose
 **Also show posts from the last week as New** to see the last week's posts too. *Save full articles* starts unticked, because it uses
 storage for every new post (see [Full articles](#full-articles)); tick it for a feed whose posts you
 want to read in full. A source in no collection is listed in the sidebar and shows in the *Other sources* box on Home.
@@ -100,7 +100,6 @@ What you can paste:
 | A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
 | A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the collection engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
-| A very big feed (more than about 4 MB or 1,000 items: a podcast that lists thousands of episodes, each with its notes repeated) | Followed all the same. PURSS gets the feed's newest 100 items and no more, so the source's page starts there, not at the first episode (an ordinary feed keeps its last 90 days, up to 1,000 items). A feed too big even for that, or one the engine can't read, says **The feed is too large to follow** on its source instead of a site that isn't answering |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
 | A YouTube video | Keeping the video (with its real title, channel and picture) and following its channel are choices in one list, starting on keeping the video. If the link names a playlist, that playlist is offered too |
 | A podcast's name instead of a link | **Search podcasts** looks the name up in Apple's podcast directory (what you typed is sent there, and the screen says so). Choose a show to see its latest episodes, then follow its own feed |
@@ -203,15 +202,16 @@ gives the browser's own menu).
 - **Back catalogue:** what a source already had when you followed it is not New and sends no
   notification. Following an old podcast never shows "1,359 new"; only what comes after is New.
   With **Start from now** (the choice Add source starts on, and the one a list you import uses)
-  those older posts are also left out of Home, of every collection list (filter collections too) and
-  of every count of items you haven't looked at. They are stored
-  all the same: they are on the source's own page, in search, and in your export. Choosing **Also
+  those older posts are kept as **Ignored**: hidden from lists (under a list, *Ignored items are
+  hidden* has **Show ignored**), left out of Home, of every count of items you haven't looked at
+  and of the digests, and found by search. They are stored
+  all the same, with the rest of your items, and they are in your export. Choosing **Also
   show posts from the last week as New** marks the posts published in the 7 days before you followed
-  as New and shows them like any new post; the older ones are left out as above. A post you do
-  anything with is never left out: marking it To read or any other state, opening it, reading it
-  partway, keeping it in a basket, highlighting it or adding a note brings it onto Home and into the
-  counts, and it stays there. Sources you followed before this choice existed keep showing their
-  back catalogue as older items, as they did.
+  as New and shows them like any new post; the older ones are Ignored as above. Ignored is a state
+  like any other, and yours to change: moving a post to To read or Undecided brings it onto Home and into the
+  counts; opening it, reading it partway, keeping it in a basket (a basket shows what is kept in it,
+  Ignored or not), highlighting it or adding a note leaves it as it is. Sources you followed before this
+  choice existed keep showing their back catalogue as older items, as they did.
 - **Unfollow:** collection stops and the source leaves your collections. Kept items stay; the
   rest no longer show in lists or search. Tick *Also delete the items you haven't kept* to
   delete those permanently and free their storage (kept and shared items are never deleted).
@@ -251,8 +251,8 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
 
 - It applies to new items, and to up to 20 of the source's newest items you haven't finished or
   ignored when you turn it on. Copies are fetched a few seconds apart, so a burst of new posts
-  takes a little while. A source followed from now keeps its [back catalogue](#sources) as it came:
-  no copies are fetched by themselves for the posts it already had, so a site that refuses
+  takes a little while. A source followed from now keeps its [back catalogue](#sources), which is
+  Ignored, as it came: no copies are fetched by themselves for the posts it already had, so a site that refuses
   automated readers doesn't fail them one by one. Keeping one of those posts in a basket that makes
   a readable copy, or *Try again*, still fetches its copy.
 - It is the same readable copy a *Readable copy too* basket makes: text and links, no
@@ -267,7 +267,7 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
   **Summary only — the full article stays on the original site**, and the reading time (which
   would only describe the summary) is left out. When a copy is made, the reading time is
   worked out again from it. If a copy failed, the panel lists it with **Try again**.
-- When a feed's own text was too large to store, the item keeps its details and summary, and the panel says **The feed's full text was too large to store; open the original.**
+- When a feed's own text can't be kept in full, the item keeps its details and summary, and the panel says **Summary only**: the full article stays on the original site.
 
 ## Listening and watching
 
@@ -486,7 +486,8 @@ Change it from the item panel, the board, the keyboard, or for many items at onc
 (videos say *To watch*, podcasts *To listen*). The arrow beside it opens every state; once an item
 is Finished or Ignored the button names that state and opens the same menu. Any state can move to any other. Finished doesn't delete anything; Ignored hides an
 item from the usual lists (tick *Show ignored items* to see it) and doesn't unfollow its
-source.
+source. The posts a source already had when you followed it from now arrive Ignored
+([Back catalogue](#sources)).
 
 Changing an item's state, or keeping it in or taking it out of a basket, clears its New marker.
 Otherwise state, baskets and collections never change each other.
@@ -658,7 +659,8 @@ feeds, and the app doesn't read anything into them.
 - **Items** and **Latest item:** how many items the source has, and the date of the newest.
 - **Longest gap:** the most days between two consecutive items dated in the last 12 months.
 - **Workflow states:** how many items are in each state, as a count with its share of the
-  source's items, such as "31 (24%)". The count always comes first.
+  source's items, such as "31 (24%)". The count always comes first. A source followed from now has the
+  posts it already had under Ignored.
 - **Filtered out by a Smart filter:** of the Ignored items, those a Smart filter moved there and
   whose workflow you haven't changed since. It appears only when there are some, also after the
   filter is turned off; deleting the filter removes its record, so its posts then count as plain
@@ -1102,9 +1104,9 @@ hosted installations sharing is part of Plus; a self-hosted PURSS always has it.
 
 The page shows each item's title, link, a short summary, source name and date, newest first (for a
 basket: most recently kept first), up to 200 items, and its feed the newest 100. Items from private
-sources and links that carry a key never show. A collection's page leaves out what its list leaves out: the
-back catalogue of a source you followed from now ([Sources](#sources)) is not on it, unless you did something with a
-post. Your reading progress and states, private notes and
+sources and links that carry a key never show. A collection's page leaves out what its list leaves out: Ignored items, which include the
+back catalogue of a source you followed from now ([Sources](#sources)), are not on it, unless you move a
+post to another state. A basket's page shows everything kept in it. Your reading progress and states, private notes and
 highlights, and saved text never do. The page is live: what you keep in the basket, or what the
 collection gathers, appears on it without another review; taking something out of the basket takes
 it off the page.
@@ -1159,7 +1161,9 @@ their own reader. The button is one link with no script or image, so nobody is t
 - **Import:** shows what an export file would add before anything changes. Nothing is deleted,
   items already here aren't added twice, sharing settings arrive switched off, and private
   sources arrive as *needs reconnecting*. Reminders come back on their items when the item is
-  kept; days that have gone by, and items that already have a reminder, are left alone.
+  kept; days that have gone by, and items that already have a reminder, are left alone. A file from an
+  earlier version that marked the posts a source already had when you followed it from now, and that you
+  hadn't touched, brings them in as Ignored, which is how they are kept now.
 - **OPML:** export the public feeds you follow, or import a list (see above).
 - **Reconnect** a private source by pasting its link again.
 

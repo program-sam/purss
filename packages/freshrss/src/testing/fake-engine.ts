@@ -145,6 +145,8 @@ export class FakeEngine {
       // The engine parses a feed whole in a memory limit; a feed too big for it (a 20 MB podcast feed) fails the request itself with an HTTP 500,
       // which says nothing about the feed's site. The feed gateway's copy of the same feed (a /t/ address) is small and fine.
       if (target.includes("bigfeed") && !target.includes("/t/")) return send(500, "Internal Server Error", "text/plain");
+      // A feed over the engine's own download limit is refused in cURL's words.
+      if (target.includes("toobig") && !target.includes("/t/")) return send(200, JSON.stringify({ numResults: 0, error: `cURL error 63: Maximum file size exceeded [${target}]` }));
       if (this.feeds.some((f) => f.url === target)) return send(200, JSON.stringify({ numResults: 0, error: "FreshRSS_AlreadySubscribed_Exception: already subscribed" }));
       if (target.includes("broken")) return send(200, JSON.stringify({ numResults: 0, error: `Retrieved unsupported status code "404" [${target}]` }));
       // The engine's own wording when the feed's site answers 429 (seen for Reddit feeds).

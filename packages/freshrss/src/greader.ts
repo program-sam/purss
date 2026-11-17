@@ -281,7 +281,7 @@ export function quickAddFailure(message: string, url = ""): EngineError {
   // The engine words an HTTP refusal in three ways: its own "HTTP 429 Too Many Requests!", and the library's
   // 'unsupported status code "429"' and "returned error: 429".
   const status = /unsupported status code "(\d{3})"/i.exec(message)?.[1] ?? /returned error: (\d{3})/i.exec(message)?.[1] ?? /\bHTTP (\d{3})\b/i.exec(message)?.[1];
-  // cURL 63: the feed is larger than the engine will download.
+  // cURL 63: the feed is larger than the engine will download. The product follows such a feed through the feed gateway (plan/44).
   if (curl === "63" || /maximum file size|too large|too big/i.test(message)) {
     return new EngineError("rejected", "The feed is larger than the engine will read.", { retryable: false, reason: "too_large" });
   }
@@ -291,8 +291,6 @@ export function quickAddFailure(message: string, url = ""): EngineError {
   if (status) {
     const code = Number(status);
     if (code === 429) return new EngineError("rate_limited", "The feed's server is limiting requests (HTTP 429); this will be retried with a delay.", { retryable: true, reason: "rate_limited" });
-    // The feed gateway's answer for a feed it can't make small enough (plan/44): above its ceiling, or its channel alone is huge.
-    if (code === 413) return new EngineError("rejected", "The feed is larger than the engine will read, even trimmed.", { retryable: false, reason: "too_large" });
     if (code >= 500) return new EngineError("unavailable", `The feed's server is not answering properly (HTTP ${code}); this will be retried.`, { retryable: true, reason: "unavailable" });
     if (code === 403) return new EngineError("rejected", "The feed's server, or the egress policy, refused the request (HTTP 403).", { retryable: false, reason: "refused" });
     if (code === 404 && isYoutubeFeed(url)) return new EngineError("unavailable", "YouTube didn't hand out this channel's feed just now (HTTP 404); this will be retried.", { retryable: true, reason: "unavailable" });
