@@ -7,7 +7,7 @@ import type { ParsedFeed } from "./feed.ts";
 import { isDiscourse, isGenericTitle, isMediaWiki, isSiteWideFeed, isSubscribeEndpoint, isWikiSiteFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, nameMatchesTitle, orderByVia, probeLandedOnName, rankByPage, sameEntries, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
 import { extractPageFacts, findDirectoryLinks } from "./html-links.ts";
 import type { FoundLink } from "./html-links.ts";
-import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce } from "./input.ts";
+import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce, wwwAlternative } from "./input.ts";
 import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
 import type { CrossrefJournal } from "./journals.ts";
 import { planKnownFeeds, resolveKnown } from "./known-feeds.ts";
@@ -83,6 +83,8 @@ const PROBE_PATHS = SITE_FEED_PATHS;
 const FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/feed+json, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.8, */*;q=0.5";
 
 const MAX_REQUESTS = 40;
+/** One request waits this long at most. */
+const REQUEST_MS = 15_000;
 /** The usual addresses are asked for with a short redirect chain: a site that needs more is not serving a feed there. */
 const PROBE_REDIRECTS = 2;
 
@@ -121,7 +123,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
         // A preview needs only the start of a document (a podcast feed can be tens of MB).
         allowPartial: true,
         accept: o?.accept ?? FEED_ACCEPT,
-        timeoutMs: o?.timeoutMs ?? 15_000,
+        timeoutMs: o?.timeoutMs ?? REQUEST_MS,
         phaseTimeoutsMs: o?.phaseTimeoutsMs ?? { firstByteMs: 10_000, idleMs: 8000 },
         ...(o?.maxRedirects !== undefined ? { maxRedirects: o.maxRedirects } : {}),
         testAllowAddress: opts.testAllowAddress,
@@ -189,13 +191,27 @@ function failFromStatus(url: string, status: number): Failure | null {
 
 /** Fetch with an https-first attempt when the person gave no scheme or plain http. */
 async function getWithUpgrade(ctx: Ctx, url: string, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string }): Promise<SafeFetchResult> {
-  const first = await ctx.get(url, o);
+  return withHttpFallback(ctx, await ctx.get(url, o), httpFallback, o);
+}
+
+/** What the https attempt gave, or when it could not do better, what plain http gives for the same address. */
+async function withHttpFallback(ctx: Ctx, first: SafeFetchResult, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string }): Promise<SafeFetchResult> {
   if (!httpFallback) return first;
   if (first.ok && first.response.status < 400) return first;
   if (!first.ok && (first.reason === "blocked" || first.reason === "aborted" || first.reason === "toolarge")) return first;
   const second = await ctx.get(httpFallback, o);
   if (second.ok && second.response.status < 400) return second;
   return first.ok ? first : second.ok ? second : first;
+}
+
+/**
+ * The address did not open because of the host: it refused us (403), is broken (5xx), failed to connect or did not answer. A page that is
+ * not found (404, 410) or a site that asks for slowness (429) says something about the page or the traffic, not about the name.
+ */
+function hostTrouble(ctx: Ctx, result: SafeFetchResult): boolean {
+  if (ctx.signal.aborted) return false;
+  if (!result.ok) return result.reason === "unreachable" || result.reason === "timeout";
+  return result.response.status === 403 || result.response.status >= 500;
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
@@ -794,8 +810,24 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
  * Fetch an address and find its feeds: the address is a feed itself, or a page whose feeds are looked for. `url` is what
  * is fetched, `inputUrl` what the person gave (the two differ for a DOI, fetched through doi.org).
  */
-async function discoverAddress(ctx: Ctx, url: string, httpFallback: string | null, max: number, inputUrl: string, prior?: Pick<Trouble, "timeout" | "busy">, accept?: string): Promise<DiscoveryDraft> {
-  const first = await getWithUpgrade(ctx, url, httpFallback, accept ? { accept } : undefined);
+async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | null, max: number, inputUrl: string, prior?: Pick<Trouble, "timeout" | "busy">, accept?: string, www: { url: string; httpFallback: string | null } | null = null): Promise<DiscoveryDraft> {
+  let url = asked;
+  const o = accept ? { accept } : undefined;
+  // With a `www.` form to fall back on, the bare host may use half of what is left of the budget on its first try, so that the other host
+  // gets the other half whatever the first one does.
+  let first = await ctx.get(asked, www ? { ...o, timeoutMs: Math.min(REQUEST_MS, Math.floor(ctx.remainingMs() / 2)) } : o);
+  // A bare host can be the one that refuses (a bot challenge in front of the bare name), fails or does not answer while the site's usual
+  // `www.` address works: that is asked as soon as the bare host's own first try has shown it, before its plain-http form is tried. It is
+  // the same site, followed like a redirect to it.
+  if (www && hostTrouble(ctx, first)) {
+    const other = await getWithUpgrade(ctx, www.url, www.httpFallback, o);
+    // Only if it stays on the site: a `www.` host that sends everyone to a login or another site is not the site's own page.
+    if (other.ok && other.response.status < 400 && bareHost(other.response.url) === bareHost(asked)) {
+      first = other;
+      url = www.url;
+    }
+  }
+  if (url === asked) first = await withHttpFallback(ctx, first, httpFallback, o);
   if (!first.ok) return failFromFetch(inputUrl, first);
   const response = first.response;
   // Sent on to a journal's page (a DOI, a short link): its feed is made from that address, even when the page is walled.
@@ -1126,7 +1158,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
         return { ok: true, url: norm.url, candidates: [...ordered.filter((c) => c.matchesPage), ...ordered.filter((c) => !c.matchesPage)].slice(0, max) };
       }
     }
-    return await discoverAddress(ctx, norm.url, norm.httpFallback, max, norm.url, prior);
+    return await discoverAddress(ctx, norm.url, norm.httpFallback, max, norm.url, prior, undefined, wwwAlternative(norm));
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);

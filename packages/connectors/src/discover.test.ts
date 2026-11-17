@@ -200,7 +200,8 @@ test("https is tried first and plain http is the fallback; a failed https attemp
     "http://old.example/feed": feed,
   });
   const d = okDraft(await discover("http://old.example/feed", { fetch, now: NOW }));
-  assert.deepEqual(calls, ["https://old.example/feed", "http://old.example/feed"]);
+  // The bare name's https failure is judged first: its www. form is asked (https, then http) before the bare name's plain-http form, which then answers.
+  assert.deepEqual(calls, ["https://old.example/feed", "https://www.old.example/feed", "http://www.old.example/feed", "http://old.example/feed"]);
   assert.equal(d.candidates[0]!.feedUrl, "http://old.example/feed");
   const { fetch: f2, calls: c2 } = stub({
     "https://modern.example/feed": fakeResponse("https://modern.example/feed", rssWithDates("Modern", WEEKLY), "application/rss+xml"),

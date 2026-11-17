@@ -97,7 +97,7 @@ What you can paste:
 
 | Link | What happens |
 | --- | --- |
-| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
+| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If a name without `www.` refuses (a bot check in front of the bare name answers 403), fails or doesn't answer, the same address with `www.` is asked for first, and the site's feed is offered from there as if the bare name had sent you on; a name that already starts with `www.`, a number, or one with a port has no such second try, and a page that isn't found (404) or a site asking you to slow down (429) isn't retried. If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
 | A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the collection engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
@@ -166,14 +166,17 @@ and shows the first one with the post. A post that quotes another one and has no
 PURSS as it was collected.
 
 **Private links.** If a feed address looks like it contains a secret, the option to mark it
-private starts ticked; untick it if the link is an ordinary public feed (a journal's feed address
-with a long product number, for example). A source marked private is treated as private: the address is stored apart from your
-data and never shown again; it's left out of exports and OPML; item titles never appear in
+private starts ticked; untick it if the link is an ordinary public feed. A source marked private is treated as private: the address is stored apart from your
+data and never shown again; it's left out of exports and OPML (after an OPML export the Your data page says how many were left out); item titles never appear in
 notifications; readable copies aren't made; and its items can't be shared publicly. Pasting or
 listing the same private link again is recognised as already followed: PURSS keeps only a keyed
-fingerprint of the link (made with a key in the server's secrets folder), never the link itself. A
-podcast host's public show addresses (Acast, Omny, Megaphone, Simplecast and the like), addresses with a
-topic in the query (`?key=tech-news`) and ordinary slugs are not taken for private links.
+fingerprint of the link (made with a key in the server's secrets folder), never the link itself.
+What it looks for is what says "key", not what merely looks random: a username and password in the address; a query value named like a
+credential (`token`, `auth`, `secret`, `password`, `signature`, `api_key`, `feed_token`, `X-Plex-Token`, …, and `key` or `code` when the value isn't a plain word); a path that says so (`/private/…`, `/secret/…`, `/token/…`);
+the member feeds of services that document them (Patreon's `rss/<creator>?auth=…`, Substack's private podcast feeds, GitHub's `.private.atom`, Feedbin's starred feed, Memberful's member feeds, Transistor's unlisted
+feeds); a long random value right after a word like `/feed/`, `/rss/`, `/u/` or `/subscribers/`; and a mixed-case token or 160 bits of hex on its own. Public feeds whose addresses hold a uuid or other
+id (Serious Eats, Al Jazeera, podcast hosts such as Acast, Omny, Megaphone and Simplecast), a topic in the query (`?key=tech-news`) and ordinary slugs, including those ending in an article's number,
+are not taken for private links. A link that holds a secret in a shape PURSS doesn't know is not warned about: if you know it is private, *Manage → Keep this feed's link private* marks it.
 
 **Importing a list.** *Your data → OPML* takes a subscription list from another reader. You
 pick which feeds to follow, and each one goes through the same look-up as pasting a link, keeping
@@ -259,6 +262,8 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
   scripts. The copy reflects the page when it was fetched. Some sites need a login, block
   automated readers or only work with JavaScript; then the item keeps its feed summary and its
   panel says the copy failed.
+- A copy is checked before it is called the article. A cookie banner (found by the names pages give them, and taken out before the article is looked for), a sign-in, subscription or consent page,
+  a page that is only its menus, a page of mostly references, or a copy much shorter than the feed's own text is only part of the page: the item says *Only part of the page could be saved*, shows the feed's own text first, and keeps the copy behind a toggle. A page whose only text is a cookie notice or its menus gives no copy at all, and the panel lists the failed copy with **Try again**.
 - When the server is short of space, new items still arrive, without a copy. Deleting or cleaning up an item deletes its copy.
 - Turning it off stops new copies; copies already saved stay, and ones already waiting still
   finish.

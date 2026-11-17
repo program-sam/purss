@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fetchPictures } from "./pictures.ts";
+import { assessCapture } from "./capture-quality.ts";
 import { captureReadable, captureReadableWith } from "./readable.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
@@ -144,4 +146,83 @@ test("a gallery whose pictures load with a script keeps its pictures and caption
   } finally {
     await server.close();
   }
+});
+
+// ---------- cookie banners and menus ----------
+
+const page = (name: string) => readFileSync(new URL(`./fixtures/captures/${name}`, import.meta.url), "utf8");
+
+/** Serve one page and capture it as Keep does. */
+async function captureOf(html: string) {
+  const server = await startServer((_req, res) => send(res, 200, "text/html; charset=utf-8", html));
+  try {
+    return await captureReadableWith(`${server.url}/page`, { fetch: { testAllowAddress: allowLoopback } });
+  } finally {
+    await server.close();
+  }
+}
+
+test("a GOV.UK service's cookie banner is taken out first, and the vacancy is what is saved", async () => {
+  const r = await captureOf(page("govuk-vacancy.html"));
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.match(r.title ?? "", /Apprentice Bench Joiner/);
+  assert.match(r.text, /estate joinery workshop/);
+  assert.doesNotMatch(r.text, /cookies/i, "nothing of the banner is in the copy");
+  assert.doesNotMatch(r.html, /cookie/i);
+  assert.deepEqual(assessCapture({ text: r.text, feedTextLength: 0 }), { full: true });
+});
+
+test("a vacancy page that has no more text than its banner is not saved as the banner", async () => {
+  // The service's own page as it was served (trimmed of scripts and pictures): a closed vacancy, whose few lines of text are fewer than
+  // the cookie banner's. Readability takes the banner for the page; it is what was saved and called the full text.
+  const r = await captureOf(page("govuk-vacancy-closed.html"));
+  assert.ok(!r.ok, "the banner is not the copy");
+  assert.equal(r.reason, "noarticle");
+  assert.match(r.message, /enough readable text/, "it is the page that had too little, not a copy of the banner");
+});
+
+test("a page that gives only its menus gives no copy, and says so", async () => {
+  const r = await captureOf(page("bbc-sounds.html"));
+  assert.ok(!r.ok, "the menus are not a readable copy");
+  assert.equal(r.reason, "noarticle");
+  assert.match(r.message, /only a cookie notice or its menus/);
+});
+
+test("a consent screen with nothing else on it gives no copy", async () => {
+  const wall = `<!DOCTYPE html><html><head><title>Example News</title></head><body><div class="wrapper"><div class="privacy-gate"><h1>We value your privacy</h1>
+    <p>We and our partners use cookies to store and access information on your device. You can accept all cookies, reject all cookies or manage cookie preferences at any time, and read our cookie policy to find out more.</p>
+    <p>Accept all cookies</p><p>Reject all cookies</p><p>Manage cookie preferences</p></div></div></body></html>`;
+  const r = await captureOf(wall);
+  assert.ok(!r.ok);
+  assert.match(r.message, /only a cookie notice or its menus/);
+});
+
+test("consent banners in front of a normal article leave the article whole, whatever the tool that put them there", async () => {
+  const banners = [
+    `<div id="onetrust-consent-sdk"><div id="onetrust-banner-sdk"><p>We value your privacy. We use cookies to improve your experience; you can accept all cookies or manage cookie preferences.</p><button>Accept all cookies</button></div></div>`,
+    `<div id="CybotCookiebotDialog"><p>This website uses cookies to personalise content and to analyse our traffic. Accept all cookies, reject them or change your cookie settings below.</p></div>`,
+    `<div class="cc-window cc-banner"><span>This website uses cookies to ensure you get the best experience. View cookies. Accept all cookies.</span></div>`,
+    `<aside aria-label="Cookies on this site"><p>We use some essential cookies to make this site work. We’d like to set additional cookies to understand how it is used. View cookies.</p></aside>`,
+  ];
+  for (const banner of banners) {
+    const html = ARTICLE().replace("<header>", `${banner}<header>`).replace("<body ", '<body class="cookie-banner-open" ');
+    const r = await captureOf(html);
+    assert.ok(r.ok, `${banner.slice(0, 40)}: ${JSON.stringify(r)}`);
+    assert.match(r.text, /small gardens cope with heavy rain/);
+    assert.doesNotMatch(r.text, /cookie/i, banner.slice(0, 40));
+    assert.deepEqual(assessCapture({ text: r.text, feedTextLength: 300 }), { full: true }, banner.slice(0, 40));
+  }
+});
+
+test("an article about cookie banners, whatever it quotes, and a wrapper that says a banner is showing, are saved whole", async () => {
+  const about = ARTICLE().replace("Why mulch matters</h1>", "Why every website asks about cookies</h1>")
+    .replace(PARA.repeat(2), "A banner usually says “We use some essential cookies to make this service work”, and offers to accept all cookies, reject them or manage cookie preferences. ".repeat(3));
+  const a = await captureOf(about);
+  assert.ok(a.ok, JSON.stringify(a));
+  assert.match(a.text, /essential cookies/);
+  // A site that marks everything with the banner's state: nothing inside it is taken out for that.
+  const wrapped = ARTICLE().replace("<header>", '<div class="page has-cookie-banner cookie-banner-open"><header>').replace("</footer></body>", "</footer></div></body>");
+  const w = await captureOf(wrapped);
+  assert.ok(w.ok, JSON.stringify(w));
+  assert.match(w.text, /small gardens cope with heavy rain/);
 });

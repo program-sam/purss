@@ -928,7 +928,7 @@ export const REMINDER_NOTE_MAX = 300;
 export const COMING_UP_DAYS = 7;
 
 // ---------- captured text honesty ----------
-/** Why a readable copy is only part of the page: a sign-in, subscription or consent page; mostly a list of references; shorter than the feed's own text. */
+/** Why a readable copy is only part of the page: a sign-in, subscription, consent or menu page; mostly a list of references; shorter than the feed's own text. */
 export type PartialReason = "gated" | "references" | "short";
 /**
  * A readable copy that failed the checks. It is kept, but it is not "the full text": the reader shows the feed's own text

@@ -18,6 +18,9 @@ const fixture = (name: string) => readFileSync(new URL(`../../../../packages/con
 const esurf = fixture("esurf-references.txt");
 const marsactu = fixture("marsactu-paywall.txt");
 const kottke = fixture("kottke-members.txt");
+// What was saved, and called the full text, for a GOV.UK vacancy (its cookie banner) and a BBC Sounds page (its menus).
+const govukBanner = fixture("govuk-cookie-banner.txt").trim();
+const bbcMenus = fixture("bbc-sounds-menus.txt").trim();
 
 type Owner = Principal & { engineUserId: string };
 
@@ -52,7 +55,7 @@ test("a capture that is a subscription page is kept but not called the full text
   const level = detail.captures.find((c) => c.id === captureId)!;
   assert.equal(level.level, "partial");
   assert.doesNotMatch(level.label, /Full text/);
-  assert.equal(level.note, "Only part of the page could be saved: it looks like a sign-in, subscription or consent page.");
+  assert.equal(level.note, "Only part of the page could be saved: it looks like a sign-in, subscription, consent or menu page.");
   assert.match(detail.contentHtml!, /manifestante/, "the reader opens on the feed's own text");
   assert.doesNotMatch(detail.contentHtml!, /Abonnez-vous/);
   assert.equal(detail.partialCopy?.reason, "gated");
@@ -74,6 +77,23 @@ test("the three real failures are called partial for their own reasons; a whole 
   assert.deepEqual({ ...reasons("A short summary of the article.", paragraphs(20)) }, { quality: "full", partial_reason: null });
   // Shorter than the feed's own text.
   assert.deepEqual({ ...reasons(`${paragraphs(12).replace(/\n\n/g, " ")}`, paragraphs(3)) }, { quality: "partial", partial_reason: "short" });
+});
+
+test("a cookie banner or a page of menus that arrives as a readable copy is only part of the page, so the feed's text is shown and the label is honest", (t) => {
+  const { app, p, src, cleanup } = setup();
+  t.after(cleanup);
+  for (const [text, feed] of [[govukBanner, "Apprentice Bench Joiner, York."], [bbcMenus, "Burnham vows to save Jodrell Bank."]] as const) {
+    const { itemId, captureId } = capture(app, p, src, feed, text);
+    const row = app.db.get<{ status: string; quality: string; partial_reason: string }>("SELECT status, quality, partial_reason FROM captures WHERE id = ?", captureId)!;
+    assert.deepEqual({ ...row }, { status: "done", quality: "partial", partial_reason: "gated" }, text.slice(0, 20));
+    const detail = getItemDetail(app, p, itemId);
+    const level = detail.captures.find((c) => c.id === captureId)!;
+    assert.equal(level.level, "partial");
+    assert.doesNotMatch(level.label, /Full text|Text saved/i);
+    assert.match(detail.contentHtml!, new RegExp(feed.slice(0, 12)), "the reader opens on the feed's own text");
+    assert.equal(detail.captures.some((c) => c.level === "fulltext"), false);
+    assert.equal(detail.summaryOnly, true, "and it is not called the article");
+  }
 });
 
 test("a full capture is the article: shown first, labelled so, and it sets the reading time and the search", (t) => {
@@ -318,7 +338,7 @@ test("a try that is no better is recorded, so the item is still listed and told 
   const detail = getItemDetail(app, p, itemId);
   const tried = detail.captures.find((c) => c.level === "failed")!;
   assert.equal(tried.label, "Tried again, nothing better");
-  assert.match(tried.note!, /^The page still gave only part of its text: it looks like a sign-in, subscription or consent page\. The copy saved earlier stays\.$/);
+  assert.match(tried.note!, /^The page still gave only part of its text: it looks like a sign-in, subscription, consent or menu page\. The copy saved earlier stays\.$/);
   assert.equal(detail.partialCopy?.reason, "short", "the copy it had is still what the toggle shows");
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [itemId], "still listed as failed to improve");
   runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 1000));

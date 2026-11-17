@@ -1,4 +1,4 @@
-import { isPlainWord } from "@purss/connectors";
+import { isCredentialParam } from "@purss/connectors";
 
 /*
  * Small helpers shared by the export, sharing, OPML and admin features:
@@ -41,10 +41,6 @@ export function httpUrlOrNull(raw: string | null | undefined, max = 2000): strin
   return url.href;
 }
 
-/** Names whose value only counts as a secret when it looks like one (`key=tech-news` is a topic); a word under `pass` or `auth` is a password. */
-const AMBIGUOUS_PARAM = /^key$/i;
-const SECRET_PARAM = /^(?:token|access_token|auth_token|auth|authkey|api[-_]?key|apikey|key|secret|sig|signature|sign|password|passwd|pwd|pass|session|sessionid|sid|bearer|jwt|private|passkey|pk|uid_token|feed_token|rsstoken|x-amz-signature|x-amz-credential|x-goog-signature)$/i;
-
 /**
  * True when an address carries an obvious credential: embedded user/password, or a query
  * value under a secret-looking name. This is a warning signal, not proof of safety: the
@@ -56,7 +52,7 @@ export function hasCredentialShape(raw: string): boolean {
   try { url = new URL(raw); } catch { return true; }
   if (url.username || url.password) return true;
   for (const [name, value] of url.searchParams) {
-    if (SECRET_PARAM.test(name) && value.length >= 6 && !(AMBIGUOUS_PARAM.test(name) && isPlainWord(value))) return true;
+    if (isCredentialParam(name, value)) return true;
   }
   return false;
 }

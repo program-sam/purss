@@ -3,7 +3,7 @@
  * and on a page behind a wall that block is the wall itself; on a journal page it can be the reference list.
  * A capture that is one of these is kept, but it is not called the full text:
  *
- *  - gated:      a sign-in, subscription, cookie-consent or security-check notice, alone or nearly so;
+ *  - gated:      a sign-in, subscription, cookie-consent or security-check notice, or only the page's own menus, alone or nearly so;
  *  - references: a body that is mostly a list of references;
  *  - short:      shorter than the text the feed already gave for the same item.
  *
@@ -26,6 +26,12 @@ const GATED_SHARE = 0.35;
 /** A consent page: this many phrases, at this rate for every 1,000 characters. */
 const GATED_DENSE_PHRASES = 3;
 const GATED_DENSE_RATE = 1.5;
+/** Menus only: at least this many blocks, this share of them a word or three with no sentence, and under this many words in the rest. */
+const MENUS_MIN_BLOCKS = 10;
+const MENUS_SHARE = 0.9;
+const MENUS_PROSE_WORDS = 15;
+/** Only a notice: this share of the text sits in blocks that hold consent wording. */
+const NOTICE_SHARE = 0.8;
 /** References: at least this many paragraphs, and this share of the text. */
 const REFERENCES_MIN = 5;
 const REFERENCES_SHARE = 0.6;
@@ -33,6 +39,16 @@ const REFERENCES_SHARE = 0.6;
 const FEED_MIN_CHARS = 200;
 const FEED_SHARE = 0.6;
 
+/**
+ * What a cookie banner says when it names itself: the heading it carries ("Cookies on Find an apprenticeship", as GOV.UK services
+ * write it, on a line of its own) and its first sentences. An article about cookies does not open with these, but an article can have a
+ * banner in front of it, so they make a wall only when the banner is nearly all the text (see `consentNotice`).
+ */
+const BANNER_PHRASES: RegExp[] = [
+  /(?<![^\n])cookies on [^\n]{2,80}(?![^\n])/i,
+  /\bwe(?:'|’)d like to set (?:additional|optional|analytics|non-essential) cookies\b/i,
+  /\bwe use (?:some |a few |only )?(?:essential|necessary|functional|strictly necessary) cookies\b/i,
+];
 /**
  * What a wall says, in English, French, German, Spanish, Dutch and Italian. Strong phrases are specific to a wall ("subscribe to
  * continue reading", "pour accéder à l'intégralité", "verify you are a human"): "subscribe to our newsletter" and "log in to
@@ -81,7 +97,8 @@ const STRONG_PHRASES: RegExp[] = [
   /\b(?:abbonati|accedi|registrati) per (?:continuare a leggere|leggere|accedere)\b/i,
 ];
 const WEAK_PHRASES: RegExp[] = [
-  /\b(?:accept|reject|manage) (?:all )?(?:cookies|consent|tracking)\b/i,
+  /\b(?:accept|reject|manage) (?:all |additional |optional |non-essential |analytics )?(?:cookies|consent|tracking)\b/i,
+  /\b(?:view|change|update) (?:your )?cookie(?:s| settings| preferences)\b/i,
   /\bwe (?:use|value|care about) (?:cookies|your privacy)\b/i,
   /\bcookie (?:settings|preferences|policy|notice|banner)\b/i,
   /\b(?:accepter|refuser|gérer) (?:tous )?(?:les |mes |vos )?(?:cookies|préférences|choix)\b/i,
@@ -118,6 +135,7 @@ const paragraphs = (text: string): string[] => text.split(/\n+/).map((p) => p.tr
  * In a long text the short blocks that hold phrases must be a good share of it.
  */
 function gated(text: string): boolean {
+  if (consentNotice(text)) return true;
   const strong = spansOf(text, STRONG_PHRASES);
   const weak = spansOf(text, WEAK_PHRASES);
   const found = strong.length + weak.length;
@@ -138,6 +156,40 @@ function wallBlockShare(text: string): number {
     if (p.length <= GATED_BLOCK_CHARS && (spansOf(p, STRONG_PHRASES).length || spansOf(p, [...STRONG_PHRASES, ...WEAK_PHRASES]).length >= 2)) chars += p.length;
   }
   return chars / Math.max(1, text.length);
+}
+
+const wordCount = (text: string): number => (text.match(/[\p{L}\p{N}]+/gu) ?? []).length;
+
+/**
+ * Whether the text is only the page's own menus: a page that is built with scripts leaves Readability its navigation (Home, News, Sport,
+ * Weather, … once for the header, again for the footer). Many blocks, nearly all of them a word or three with no sentence in them, and
+ * hardly any running text; a recipe's ingredients or a list of names has a method or a lead-in in the same text.
+ */
+function menusOnly(text: string): boolean {
+  const blocks = paragraphs(text);
+  if (blocks.length < MENUS_MIN_BLOCKS) return false;
+  const fragment = (p: string): boolean => wordCount(p) <= 3 && !/[.!?…:;]["')\]»”’]*$/.test(p);
+  const rest = blocks.filter((p) => !fragment(p));
+  if ((blocks.length - rest.length) / blocks.length < MENUS_SHARE) return false;
+  return rest.reduce((n, p) => n + wordCount(p), 0) < MENUS_PROSE_WORDS;
+}
+
+/** The share of the text that sits in blocks holding consent wording (a banner's own phrases, or the vocabulary of a consent page). */
+function consentShare(text: string): number {
+  const consent = [...BANNER_PHRASES, ...WEAK_PHRASES];
+  let chars = 0;
+  for (const p of paragraphs(text)) if (spansOf(p, consent).length) chars += p.length;
+  return chars / Math.max(1, text.length);
+}
+
+/** Whether the text is a cookie banner and little else: a banner names itself, and nearly every block of the text is its. */
+function consentNotice(text: string): boolean {
+  return spansOf(text, BANNER_PHRASES).length > 0 && consentShare(text) >= NOTICE_SHARE;
+}
+
+/** Whether a capture has nothing of the page's own in it: a cookie notice or its menus, and no article. */
+export function isNoticeOnly(text: string): boolean {
+  return menusOnly(text) || (gated(text) && consentShare(text) >= NOTICE_SHARE);
 }
 
 const YEAR = /\b(?:1[5-9]|20)\d{2}[a-z]?\b/;
@@ -173,7 +225,7 @@ function mostlyReferences(text: string): boolean {
  * itself gave for the item (0 when it gave none). Returns the first reason it is only part of the page.
  */
 export function assessCapture(capture: { text: string; feedTextLength: number }): CaptureAssessment {
-  if (gated(capture.text)) return { full: false, reason: "gated" };
+  if (gated(capture.text) || menusOnly(capture.text)) return { full: false, reason: "gated" };
   if (mostlyReferences(capture.text)) return { full: false, reason: "references" };
   if (capture.feedTextLength >= FEED_MIN_CHARS && capture.text.length < capture.feedTextLength * FEED_SHARE) return { full: false, reason: "short" };
   return { full: true };
@@ -182,7 +234,7 @@ export function assessCapture(capture: { text: string; feedTextLength: number })
 /** What the reader says when a capture is only part of the page. */
 export function partialReasonText(reason: PartialReason): string {
   switch (reason) {
-    case "gated": return "Only part of the page could be saved: it looks like a sign-in, subscription or consent page.";
+    case "gated": return "Only part of the page could be saved: it looks like a sign-in, subscription, consent or menu page.";
     case "references": return "Only part of the page could be saved: what was captured is mostly a list of references.";
     case "short": return "Only part of the page could be saved: what was captured is shorter than the text the feed already gave.";
   }

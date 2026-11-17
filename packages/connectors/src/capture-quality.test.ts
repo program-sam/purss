@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { assessCapture, partialReasonText } from "./capture-quality.ts";
+import { assessCapture, isNoticeOnly, partialReasonText } from "./capture-quality.ts";
 
 // The first three are invented text shaped like real captures: a journal paper that came out as its reference list,
 // a news paywall notice and a members-only notice.
@@ -150,4 +150,67 @@ test("a short piece about cookies is a piece, not a cookie page", () => {
 
 test("every reason has words the reader can show", () => {
   for (const reason of ["gated", "references", "short"] as const) assert.match(partialReasonText(reason), /^Only part of the page could be saved: /);
+});
+
+// The next two are what was saved for real: a GOV.UK service's cookie banner in place of a vacancy, and a BBC page built with
+// scripts that gave only its menus. Both were called the full text.
+test("a cookie banner captured in place of the page is only part of the page, whatever the feed gave", () => {
+  const banner = fixture("govuk-cookie-banner.txt");
+  for (const feedTextLength of [0, 97, 800]) assert.deepEqual(assessCapture({ text: banner, feedTextLength }), { full: false, reason: "gated" }, String(feedTextLength));
+  assert.ok(isNoticeOnly(banner));
+  // The same banners as other services write them.
+  for (const text of [
+    "Cookies on GOV.UK\n\nWe use some essential cookies to make this service work.\n\nWe’d like to set additional cookies so we can understand how you use GOV.UK, remember your settings and improve government services.\n\nAccept additional cookies\n\nReject additional cookies\n\nView cookies",
+    "Cookies on the Planning Portal\n\nWe use some essential cookies to make this website work. We’d like to set additional cookies to understand how you use the service.\n\nManage cookie preferences",
+  ]) {
+    assert.deepEqual(assessCapture({ text, feedTextLength: 0 }), { full: false, reason: "gated" }, text.slice(0, 30));
+    assert.ok(isNoticeOnly(text), text.slice(0, 30));
+  }
+});
+
+test("a page's own menus captured in place of the page is only part of the page", () => {
+  const menus = fixture("bbc-sounds-menus.txt");
+  // A short feed summary (a BBC item is one sentence) made no difference: the menus are not the page.
+  for (const feedTextLength of [0, 120, 800]) assert.deepEqual(assessCapture({ text: menus, feedTextLength }), { full: false, reason: "gated" }, String(feedTextLength));
+  assert.ok(isNoticeOnly(menus));
+});
+
+test("a cookie notice is a notice only when it is nearly all the text: a banner in front of an article is not that, and the article passes", () => {
+  const banner = fixture("govuk-cookie-banner.txt");
+  assert.equal(isNoticeOnly(`${banner}\n\n${article(6)}`), false);
+  assert.deepEqual(assessCapture({ text: `${banner}\n\n${article(6)}`, feedTextLength: 200 }), { full: true });
+  // A short page with a banner on top has its own lines: the notice is not all of it.
+  assert.equal(isNoticeOnly(`${banner}\n\nApprentice Bench Joiner\n\nYou will learn to make and repair doors, windows and staircases in a busy estate joinery workshop, working alongside experienced craftspeople.`), false);
+});
+
+test("short blocks that are not menus still pass: ingredients with their method, a list with its lead-in, lines of a poem, a short post", () => {
+  // A real recipe capture: ingredient lines of a word or three, then the method.
+  const recipe = fixture("recipe-short-blocks.txt");
+  assert.deepEqual(assessCapture({ text: recipe, feedTextLength: 0 }), { full: true });
+  assert.equal(isNoticeOnly(recipe), false);
+  const list = ["The ten best walks near Leeds, chosen by readers who have done all of them in every kind of weather over many years of Sundays.", ...["Ilkley Moor", "Roundhay Park", "Otley Chevin", "Golden Acre", "Meanwood Valley", "Temple Newsam", "Adel Woods", "Hetchell Wood", "Harewood House", "Bramhope Tunnel", "Kirkstall Abbey"]].join("\n\n");
+  assert.deepEqual(assessCapture({ text: list, feedTextLength: 0 }), { full: true });
+  const poem = Array.from({ length: 14 }, (_, i) => `Line ${i + 1} of the poem walks slowly down to the river`).join("\n");
+  assert.deepEqual(assessCapture({ text: poem, feedTextLength: 0 }), { full: true });
+  // Fewer than ten blocks is never judged as menus.
+  assert.deepEqual(assessCapture({ text: ["Home", "News", "Sport", "Weather"].join("\n\n").padEnd(260, " x"), feedTextLength: 0 }), { full: true });
+});
+
+test("an explainer about cookie banners that quotes their wording is an article", () => {
+  const explainer = [
+    "Why every website asks about cookies",
+    "Since the rules changed, a website that sets cookies which are not strictly needed has to ask first. That is why you see a banner. Most banners say something like “We use some essential cookies to make this service work” and then offer a choice about the rest.",
+    "The choice is usually between accepting additional cookies and rejecting them. A good banner makes both equally easy, and remembers the answer, so you are asked once and not on every visit to the site.",
+    "Regulators have criticised banners that hide the reject button, that tick the boxes in advance, or that bury the choice in a settings page. Some sites now use a short heading and two buttons of the same size.",
+    "If you run a website, the first question is what you actually need to set. Essential cookies, such as the one that keeps a person signed in, do not need consent. Analytics and advertising cookies do.",
+    "The second question is who else sets cookies on your pages. Embedded maps and videos from other companies often do, and you are responsible for telling people about them in your cookie policy.",
+  ].join("\n\n");
+  assert.deepEqual(assessCapture({ text: explainer, feedTextLength: 0 }), { full: true });
+  assert.equal(isNoticeOnly(explainer), false);
+});
+
+test("a menu list under ten blocks, or one with a real paragraph, is not menus only", () => {
+  const nav = ["Home", "News", "Sport", "Weather", "iPlayer", "Sounds", "Bitesize", "CBeebies", "CBBC", "Food", "Travel", "Earth"];
+  assert.deepEqual(assessCapture({ text: nav.join("\n\n"), feedTextLength: 0 }), { full: false, reason: "gated" });
+  assert.deepEqual(assessCapture({ text: `${nav.join("\n\n")}\n\n${article(2)}`, feedTextLength: 0 }), { full: true });
 });

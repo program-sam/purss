@@ -31,6 +31,18 @@ test("OPML export writes validated fields only and leaves out private and creden
   assert.doesNotMatch(out.xml, /token=|abcdef123|user:pw|javascript:|members\.example|ok\.example/);
 });
 
+test("OPML export leaves out the feed of a private Ghost site, which anyone with its address can read", () => {
+  const out = generateOpml([
+    { title: "Open blog", feedUrl: "https://blog.example.com/rss/" },
+    { title: "Private Ghost", feedUrl: "https://blog.example.com/0123456789abcdef0123456789abcd/rss/" },
+    { title: "Private Ghost tag", feedUrl: "https://news.example.org/tag/news/0123456789abcdef0123456789abcd/rss/" },
+    { title: "Pinboard private", feedUrl: "https://feeds.pinboard.in/rss/secret:6493a84f72d86e7de130/u:someone/private/" },
+  ]);
+  assert.equal(out.included, 1);
+  assert.deepEqual(out.omitted.map((o) => o.title), ["Private Ghost", "Private Ghost tag", "Pinboard private"]);
+  assert.doesNotMatch(out.xml, /0123456789abcdef|secret:/);
+});
+
 test("OPML round trip: export then import returns the same subscriptions and folders", () => {
   const out = generateOpml(SUBS.slice(0, 3));
   const parsed = parseOpml(out.xml);
@@ -132,6 +144,8 @@ test("redactUrl strips query, credentials and token-looking path pieces", () => 
   assert.equal(redactUrl("https://x.example/u/3f9a1c7e5b2d4f8a9c0e1d2b3a4f5e6d/feed.xml"), "https://x.example/u/…/feed.xml");
   assert.equal(redactUrl("https://x.example/private/mysecretword/feed"), "https://x.example/private/…/feed");
   assert.equal(redactUrl("not a url"), "[invalid address]");
+  assert.equal(redactUrl("https://feeds.pinboard.in/rss/secret:6493a84f72d86e7de130/u:someone/private/"), "https://feeds.pinboard.in/rss/secret:…/u:someone/private/");
+  assert.equal(redactUrl("https://blog.example.com/tag/news/0123456789abcdef0123456789abcd/rss/"), "https://blog.example.com/tag/news/…/rss/");
 });
 
 test("connector catalog is declarative, complete and honest", () => {

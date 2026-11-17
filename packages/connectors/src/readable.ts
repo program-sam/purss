@@ -1,5 +1,8 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
+import { isNoticeOnly } from "./capture-quality.ts";
+import { removeConsentBanners } from "./consent-banners.ts";
+import type { ConsentDocument } from "./consent-banners.ts";
 import { decodeBody, parseContentType, sniffContent } from "./content-type.ts";
 import { promoteLazyImages } from "./lazy-images.ts";
 import { sanitizeArticleHtml } from "./sanitize.ts";
@@ -68,6 +71,8 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
     const { document } = parseHTML(html);
     // Pictures a page loads with a script (a placeholder in `src`) are given their real address, or Readability keeps their captions only.
     promoteLazyImages(document as unknown as Document, r.url);
+    // A cookie banner is prose, and on a thin page Readability takes it for the article: it goes first.
+    removeConsentBanners(document as unknown as ConsentDocument);
     // Readability rewrites links against the document URL; linkedom has no URL, so
     // relative links are resolved later by the sanitizer against the final URL.
     const reader = new Readability(document as unknown as Document, { charThreshold: 150, maxElemsToParse: MAX_ELEMENTS, keepClasses: false });
@@ -82,6 +87,8 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
   if (!clean.ok) return fail(clean.reason === "toolarge" ? "toolarge" : "invalid", "That page is too large or complex to save a readable copy.");
   const text = htmlToPlainText(clean.html);
   if (text.length < MIN_TEXT) return fail("noarticle", "We couldn't find enough readable text on that page. It may need JavaScript or a login.");
+  // What is left is a cookie notice or the page's own menus, nothing of the page: no copy is made of it.
+  if (isNoticeOnly(text)) return fail("noarticle", "That page gave only a cookie notice or its menus, not its text, so no readable copy could be saved. It may need JavaScript or a login.");
   const bytes = Buffer.byteLength(clean.html) + Buffer.byteLength(text);
   if (bytes > OUTPUT_MAX_BYTES) return fail("toolarge", "That article is longer than we keep as a readable copy.");
   return { ok: true, title: cleanLine(article.title ?? null, 300), text, html: clean.html, finalUrl: r.url, bytes };

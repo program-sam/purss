@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BUSY_MESSAGE, COMMENTS_ONLY_MESSAGE, discover, MISSING_HOST_MESSAGE, TIMEOUT_MESSAGE } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
-import { EMAIL_MESSAGE, NAME_MESSAGE, normalizeInput } from "./input.ts";
+import { EMAIL_MESSAGE, NAME_MESSAGE, normalizeInput, wwwAlternative } from "./input.ts";
 import { noFeedMessage } from "./platforms.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
@@ -612,7 +612,7 @@ test("probing a site's usual addresses stops each wave at its first batch when t
   const d = await discover("https://wall.example/", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.match(d.message, /403/);
-  assert.equal(calls.length, 1 + 3 + 3, "the page, then one batch of the usual addresses and one of the second wave, and no more");
+  assert.equal(calls.length, 1 + 1 + 3 + 3, "the page, its www. form (which also leads elsewhere), then one batch of the usual addresses and one of the second wave, and no more");
   // The same for a page that opened but has no feed.
   const open = elsewhereStub(fakeResponse("https://wall.example/", "<html><head><title>Plain</title></head></html>", "text/html"));
   const n = await discover("https://wall.example/", { fetch: open.fetch, now: NOW });
@@ -623,7 +623,7 @@ test("probing a site's usual addresses stops each wave at its first batch when t
 test("the usual addresses are asked for with at most two redirects each, and one lookup has a cap on what it asks", async () => {
   const { fetch, opts } = elsewhereStub(fakeResponse("https://wall.example/", "<html>no</html>", "text/html", 500));
   await discover("https://wall.example/", { fetch, now: NOW });
-  assert.ok(opts.slice(1).every((o) => o.maxRedirects === 2), "probes of conventional paths do not follow long redirect chains");
+  assert.ok(opts.slice(2).every((o) => o.maxRedirects === 2), "probes of conventional paths do not follow long redirect chains");
   // Every address answers 404: the cap ends the probing, and what was found so far (nothing) is the answer.
   const calls: string[] = [];
   const answer = (url: string) => url === "https://plain.example/" ? fakeResponse(url, BARE, "text/html") : fakeResponse(url, "nope", "text/html", 404);
@@ -669,4 +669,151 @@ test("redirects count toward the cap, and a lookup that hit the cap says so inst
   assert.equal(d.reason, "nofeed");
   assert.match(d.message, /stopped looking/i);
   assert.doesNotMatch(d.message, /took too long|busy/i);
+});
+
+// ---------- a bare host that refuses, fails or does not answer ----------
+
+/** A bot challenge in front of the bare name, as Cloudflare puts in front of spab.org.uk: every request is answered 403. */
+const challenge = (url: string): SafeFetchResult => fakeResponse(url, "<html><title>Just a moment...</title></html>", "text/html", 403);
+const WWW_HOME = `<html><head><title>SPAB</title><link rel="alternate" type="application/rss+xml" title="SPAB news" href="/news/rss.xml"></head></html>`;
+
+test("a bare host that answers 403, fails or does not answer is asked again as www., and the site's feed found there is offered", async () => {
+  const feed = "https://www.spab.example/news/rss.xml";
+  const wwwOk = { "https://www.spab.example/": page("https://www.spab.example/", WWW_HOME), [feed]: feedRes(feed, rss("SPAB news", WEEKLY, "https://www.spab.example")) };
+  const refusals: [string, (url: string) => SafeFetchResult][] = [
+    ["a bot challenge (403)", challenge],
+    ["a broken front (503)", (url) => fakeResponse(url, "down", "text/html", 503)],
+    ["no connection", () => fakeFailure("unreachable", "We couldn't connect to that website.")],
+    ["no such name", () => ({ ok: false, reason: "unreachable", message: "We couldn't find that website.", detail: "dns ENOTFOUND" })],
+    ["a timeout", () => fakeFailure("timeout")],
+  ];
+  for (const [name, refuse] of refusals) {
+    // Typed bare: https first, then http for each host.
+    const bare = stub({ "https://spab.example/": refuse, "http://spab.example/": refuse, ...wwwOk });
+    const d = ok(await discover("spab.example", { fetch: bare.fetch, now: NOW }));
+    assert.equal(d.candidates[0]!.feedUrl, feed, name);
+    assert.equal(d.url, "https://spab.example/", `${name}: the answer is to what was typed`);
+    assert.ok(!bare.calls.some((c) => /^https?:\/\/spab\.example\/(?!$)/.test(c)), `${name}: the bare host's usual addresses were not probed once www. had answered`);
+    // Typed with a scheme and a path, the same host trouble is met the same way, and the path is kept.
+    const inner = stub({ "https://spab.example/news": refuse, "https://www.spab.example/news": page("https://www.spab.example/news", WWW_HOME), [feed]: feedRes(feed, rss("SPAB news", WEEKLY, "https://www.spab.example")) });
+    assert.equal(ok(await discover("https://spab.example/news", { fetch: inner.fetch, now: NOW })).candidates[0]!.feedUrl, feed, `${name}: with a path`);
+  }
+});
+
+test("when www. fails too, or is no better, the answer is the bare host's own, as before", async () => {
+  // Both refuse: the 403's message, and the bare host's usual addresses are still looked at.
+  const both = stub({ "https://spab.example/": challenge("https://spab.example/"), "https://www.spab.example/": challenge("https://www.spab.example/") });
+  const d = await discover("https://spab.example/", { fetch: both.fetch, now: NOW });
+  assert.ok(!d.ok);
+  assert.match(d.message, /refused to show us the page \(error 403\)/);
+  assert.ok(both.calls.includes("https://spab.example/feed"), "the usual addresses of the bare host are tried after www. was");
+  // www. does not exist: nothing changes for the person.
+  const missing = stub({ "https://spab.example/": challenge("https://spab.example/") });
+  const m = await discover("https://spab.example/", { fetch: async (url) => (url.includes("//www.") ? { ok: false, reason: "unreachable", message: "x", detail: "dns ENOTFOUND" } : missing.fetch(url)), now: NOW });
+  assert.ok(!m.ok && /error 403/.test(m.message));
+  // A www. that opens but has no feed says so, rather than the bare host's 403.
+  const none = stub({ "https://spab.example/": challenge("https://spab.example/"), "https://www.spab.example/": page("https://www.spab.example/", BARE) });
+  const n = await discover("https://spab.example/", { fetch: none.fetch, now: NOW });
+  assert.ok(!n.ok && n.reason === "nofeed");
+  // A www. that sends people to another site (a login, a parked page) is not the site's own page.
+  const away = elsewhereStub(challenge("https://wall.example/"));
+  const a = await discover("https://wall.example/", { fetch: away.fetch, now: NOW });
+  assert.ok(!a.ok && /error 403/.test(a.message));
+});
+
+test("what is no trouble of the host is not retried: a page that is not found, a site asking for slowness, a host that works", async () => {
+  for (const status of [404, 410, 429, 401]) {
+    const s = stub({ "https://spab.example/": fakeResponse("https://spab.example/", "x", "text/html", status) });
+    await discover("https://spab.example/", { fetch: s.fetch, now: NOW });
+    assert.deepEqual(s.calls, ["https://spab.example/"], String(status));
+  }
+  const works = stub({ "https://spab.example/": page("https://spab.example/", WWW_HOME), "https://spab.example/news/rss.xml": feedRes("https://spab.example/news/rss.xml", rss("SPAB news")) });
+  ok(await discover("https://spab.example/", { fetch: works.fetch, now: NOW }));
+  assert.ok(!works.calls.some((c) => c.includes("//www.")), "a host that answers is never asked for its www. form");
+  // A name that already has it, or a number, a single word or a port, has none.
+  // A port written after the name, even the default one that the address then leaves out, is the person's own name to the letter.
+  for (const typed of ["https://www.spab.example/", "https://203.0.113.9/", "https://spab.example:8443/", "http://[2001:db8::1]/", "https://spab.example:443/", "http://spab.example:80/", "spab.example:443", "feed://spab.example:80/rss"]) {
+    const s = stub({});
+    await discover(typed, { fetch: async (url) => { s.calls.push(url); return challenge(url); }, now: NOW, testAllowAddress: () => true });
+    assert.ok(!s.calls.some((c) => c.startsWith("https://www.www.") || (!typed.includes("www.") && c.includes("//www."))), typed);
+  }
+});
+
+test("an explicit port stays known after the address drops a default one, and a name with a port has no www. form", () => {
+  for (const typed of ["https://spab.example:443/", "http://spab.example:80/", "spab.example:443", "https://spab.example:8443/", "feed://spab.example:80/rss"]) {
+    const n = normalizeInput(typed);
+    assert.ok(n.ok, typed);
+    assert.equal(n.explicitPort, true, typed);
+    assert.equal(wwwAlternative(n), null, typed);
+  }
+  for (const typed of ["https://spab.example/", "http://spab.example/news", "spab.example", "feed://spab.example/rss"]) {
+    const n = normalizeInput(typed);
+    assert.ok(n.ok, typed);
+    assert.equal(n.explicitPort, false, typed);
+    assert.equal(wwwAlternative(n)?.url.startsWith("https://www.spab.example/"), true, typed);
+  }
+  assert.equal(normalizeInput("https://spab.example:443/")?.ok && (normalizeInput("https://spab.example:443/") as { url: string }).url, "https://spab.example/", "the address itself is still the clean one");
+});
+
+/** A fetcher whose bare host waits as long as it is allowed and then times out, as a host that takes the connection and says nothing does. */
+function hangingBare(answers: Record<string, SafeFetchResult>): { fetch: FetchFn; calls: string[] } {
+  const calls: string[] = [];
+  const fetch: FetchFn = (url, o) => {
+    calls.push(url);
+    const answer = answers[url];
+    if (answer) return Promise.resolve(answer);
+    if (o?.signal?.aborted) return Promise.resolve(fakeFailure("aborted"));
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(fakeFailure("timeout")), o?.timeoutMs ?? 15_000);
+      o?.signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(fakeFailure("timeout")); }, { once: true });
+    });
+  };
+  return { fetch, calls };
+}
+
+test("a bare host that uses up its time on https is asked as www. before its plain-http form, and the lookup takes no longer than its budget", async () => {
+  const feed = "https://www.spab.example/news/rss.xml";
+  const wwwOk = { "https://www.spab.example/": page("https://www.spab.example/", WWW_HOME), [feed]: feedRes(feed, rss("SPAB news", WEEKLY, "https://www.spab.example")) };
+  // Typed bare, so both https and http are tried for each host. Both bare tries would take the whole 1.2 s.
+  const found = hangingBare(wwwOk);
+  const started = Date.now();
+  const d = ok(await discover("spab.example", { fetch: found.fetch, now: NOW, timeoutMs: 1200 }));
+  assert.equal(d.candidates[0]!.feedUrl, feed, "the site's feed was found on www.");
+  assert.ok(Date.now() - started < 1100, "it did not wait out the budget");
+  assert.ok(found.calls.indexOf("https://www.spab.example/") < (found.calls.indexOf("http://spab.example/") === -1 ? Infinity : found.calls.indexOf("http://spab.example/")), `www. before the bare host's http form: ${found.calls.join(" ")}`);
+  // When www. says nothing either, what time is left goes to the bare host's http form, and the budget still holds.
+  const nothing = hangingBare({});
+  const t0 = Date.now();
+  const f = await discover("spab.example", { fetch: nothing.fetch, now: NOW, timeoutMs: 1200 });
+  assert.ok(!f.ok);
+  assert.ok(Date.now() - t0 < 1700, "the budget was not lengthened to make room for the retry");
+  assert.equal(nothing.calls[0], "https://spab.example/");
+  assert.equal(nothing.calls[1], "https://www.spab.example/", "the www. form is the second request, not the last");
+  // www. that fails at once leaves the bare host's http form its turn.
+  const quick = hangingBare({ "https://www.spab.example/": fakeFailure("unreachable"), "http://www.spab.example/": fakeFailure("unreachable"), "http://spab.example/": page("http://spab.example/", WWW_HOME.replace("/news/rss.xml", "http://spab.example/news/rss.xml")), "http://spab.example/news/rss.xml": feedRes("http://spab.example/news/rss.xml", rss("SPAB news")) });
+  const h = ok(await discover("spab.example", { fetch: quick.fetch, now: NOW, timeoutMs: 1200 }));
+  assert.equal(h.candidates[0]!.feedUrl, "http://spab.example/news/rss.xml", "the plain-http form still answers when https and www. do not");
+});
+
+test("the www. form is judged like any pasted address: a name that resolves to a private address is refused before anything connects", async () => {
+  const connected: string[] = [];
+  const resolver = async (host: string): Promise<string[]> => {
+    if (host === "www.spab.example") return ["10.0.0.7"];
+    throw Object.assign(new Error("not found"), { code: "ENOTFOUND" });
+  };
+  const d = await discover("spab.example", { resolver, now: NOW, fetch: async (url, o) => { connected.push(url); return (await import("./safe-fetch.ts")).safeFetch(url, o); } });
+  assert.ok(!d.ok);
+  assert.equal(d.message, MISSING_HOST_MESSAGE, "the person is told what the typed name did");
+  assert.ok(connected.includes("https://www.spab.example/"), "it was asked for, and the address rules stopped it");
+  // An internal name has no www. form at all.
+  assert.equal(wwwAlternative({ url: "https://intranet.local/", httpFallback: null }), null);
+});
+
+test("wwwAlternative: the www. form of a plain name, with its http fallback, and none for anything else", () => {
+  assert.deepEqual(wwwAlternative({ url: "https://spab.org.uk/", httpFallback: "http://spab.org.uk/" }), { url: "https://www.spab.org.uk/", httpFallback: "http://www.spab.org.uk/" });
+  assert.deepEqual(wwwAlternative({ url: "https://spab.org.uk/news?x=1", httpFallback: null }), { url: "https://www.spab.org.uk/news?x=1", httpFallback: null });
+  assert.deepEqual(wwwAlternative({ url: "https://blog.example.com/", httpFallback: null })?.url, "https://www.blog.example.com/");
+  for (const url of ["https://www.spab.org.uk/", "https://spab.org.uk:8443/", "https://localhost/", "https://203.0.113.9/", "https://[2001:db8::1]/", "https://intranet/", "https://printer.local/", "not a url"]) {
+    assert.equal(wwwAlternative({ url, httpFallback: null }), null, url);
+  }
 });
