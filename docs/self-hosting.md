@@ -35,8 +35,9 @@ npm run dev
 `data/secrets/bridge-key` and `data/secrets/feed-trim-key` if needed, starts RSS-Bridge in podman (`node scripts/bridge.ts up`; on
 127.0.0.1:8944, the image and settings Compose uses), the egress proxy and bridge router, starts
 or resumes FreshRSS in podman (`node scripts/engine.ts up`), then the API and the worker. If
-RSS-Bridge doesn't start, the stack runs without it and the bridged services say they have no
-feeds. Their logs share the terminal, each line prefixed with the process name.
+RSS-Bridge doesn't start, the stack runs without it and the services it collects (Telegram,
+Bandcamp and the rest) say they have no feeds; journals through Crossref
+([plan/45](../plan/45-crossref-feeds.md)) need only the bridge router and still work. Their logs share the terminal, each line prefixed with the process name.
 Ctrl+C stops everything and removes the FreshRSS and RSS-Bridge containers (FreshRSS's data stays in `data/engine`).
 
 - `npm run dev -- --keep-engine` leaves FreshRSS and RSS-Bridge running on exit.
@@ -645,7 +646,8 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_ENGINE_URL` | `http://127.0.0.1:8941` | FreshRSS address handed to the worker |
 | `PURSS_EGRESS_CONTROL_URL` | `http://127.0.0.1:8949/status` | Egress status for admin health |
-| `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest of [plan/41](../plan/41-source-bridges.md)) get the "no feeds" answer |
+| `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest of [plan/41](../plan/41-source-bridges.md), and journals through Crossref, [plan/45](../plan/45-crossref-feeds.md)) get the "no feeds" answer |
+| `PURSS_RSS_BRIDGE` | off | `1` when the bridge router has RSS-Bridge behind it (Compose sets it): only then are the services RSS-Bridge collects offered. Crossref needs only the router |
 | `PURSS_SYNC_INTERVAL` | `120` | Seconds between scheduled syncs per account |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | `https://api.typesafe.ai`, the newest Jev | Jev's address (`https://openrouter.ai/api` for OpenRouter keys) and the model Smart filters use (API and worker) |
 | `PURSS_TRUST_PROXY` | off | A comma-separated list of the reverse proxy's addresses or host names (looked up every 30 seconds): the client address is taken from the right-most `X-Forwarded-For` hop only on connections from them. `1` accepts it from any private-network peer, which is safe only when nothing but the proxy can reach the API's port |

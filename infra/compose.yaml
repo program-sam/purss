@@ -164,6 +164,7 @@ services:
       PURSS_ENGINE_URL: http://engine
       PURSS_EGRESS_CONTROL_URL: http://172.31.90.10:8949/status
       PURSS_BRIDGE_URL: http://172.31.88.10:8945
+      PURSS_RSS_BRIDGE: "1"
     ports: ["${PURSS_BIND_ADDRESS:-127.0.0.1}:${PURSS_HOST_PORT:-8940}:8940"]
     networks: { internal: { ipv4_address: 172.31.88.30 }, services: { ipv4_address: 172.31.90.30 }, outside: {} }
     volumes: [data:/data, secrets:/data/secrets]

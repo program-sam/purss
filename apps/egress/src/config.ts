@@ -23,11 +23,15 @@ export type EgressConfig = {
   proxy: { host: string; port: number };
   gateway: { host: string; port: number };
   control: { host: string; port: number };
-  /** The bridge router (plan/41); null when no backend is configured, so nothing listens. */
+  /**
+   * The bridge router (plan/41). It runs whenever the bridge key exists (every installation's setup makes one): Crossref
+   * (plan/45) needs nothing else, and RSS-Bridge's services are served only when `backendUrl` names RSS-Bridge. Null
+   * without a key, so nothing listens.
+   */
   bridge: {
     host: string;
     port: number;
-    backendUrl: string;
+    backendUrl: string | null;
     secret: string;
     dbPath: string;
     /** Egress's own address on the bridge container's network: the proxy and a DNS resolver also listen there. */
@@ -157,7 +161,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
     internalDestinations.unshift({ host: alias, port: gateway.port, connectHost: gateway.host, connectPort: gateway.port });
   }
   let bridge: EgressConfig["bridge"] = null;
-  if (env.EGRESS_BRIDGE_BACKEND) {
+  const bridgeKeyPath = env.EGRESS_BRIDGE_KEY_FILE || join(dataDir, "secrets", "bridge-key");
+  // With RSS-Bridge configured the key is required (a missing one stops egress); without, the router runs when there is one.
+  const bridgeSecret = env.EGRESS_BRIDGE_BACKEND ? readSecret(bridgeKeyPath, "bridge key") : readOptionalSecret(bridgeKeyPath, "bridge key");
+  if (bridgeSecret) {
     const host = env.EGRESS_BRIDGE_HOST || "127.0.0.1";
     const port = portEnv(env, "EGRESS_BRIDGE_PORT", 8945);
     assertInternalBind(host, "EGRESS_BRIDGE_HOST");
@@ -166,8 +173,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
     bridge = {
       host,
       port,
-      backendUrl: backendUrl(env.EGRESS_BRIDGE_BACKEND),
-      secret: readSecret(env.EGRESS_BRIDGE_KEY_FILE || join(dataDir, "secrets", "bridge-key"), "bridge key"),
+      backendUrl: env.EGRESS_BRIDGE_BACKEND ? backendUrl(env.EGRESS_BRIDGE_BACKEND) : null,
+      secret: bridgeSecret,
       dbPath: env.EGRESS_BRIDGE_DB || join(dataDir, "egress", "bridge.db"),
       net: env.EGRESS_BRIDGE_NET_HOST ? { host: env.EGRESS_BRIDGE_NET_HOST, dnsPort: portEnv(env, "EGRESS_BRIDGE_DNS_PORT", 53) } : null,
     };

@@ -38,6 +38,7 @@ export function normalIssn(raw: string): string | null {
 }
 
 const TANDF_CODE = /^[a-z]{2,8}\d{2}$/i;
+const WILEY_CODE = /^[a-z][a-z0-9]{1,11}$/i;
 const UCHICAGO_CODE = /^[a-z]{1,12}$/i;
 const BERGHAHN_CODE = /^[a-z0-9][a-z0-9-]{0,39}$/i;
 const RESERVED_BERGHAHN = new Set(["www", "api", "static", "assets", "cdn", "mail"]);
@@ -52,10 +53,12 @@ export function journalFromUrl(url: URL): JournalRef | null {
   const h = hostOf(url);
   const s = segmentsOf(url);
   if (isHostOrSub(h, "onlinelibrary.wiley.com")) {
-    // The code in a Wiley journal address is the journal's electronic ISSN.
+    // The code in a Wiley journal address is the journal's electronic ISSN, or for some journals (the former Hindawi
+    // ones) a short name; both make its feed address.
     const code = codeAfterPrefix(s, ["journal", "toc", "loi"]);
     const issn = code ? normalIssn(code) : null;
-    return issn ? { platform: "wiley", id: issn } : null;
+    if (issn) return { platform: "wiley", id: issn };
+    return code && WILEY_CODE.test(code) ? { platform: "wiley", id: code.toLowerCase() } : null;
   }
   if (h === "tandfonline.com" || h === "www.tandfonline.com") {
     const code = codeAfterPrefix(s, ["journals", "journal", "toc", "loi"]);
@@ -232,7 +235,7 @@ export function crossrefWorkUrl(doi: string): string {
 }
 
 /** What Crossref says about the journal a work appeared in. */
-export type CrossrefJournal = { title: string | null; publisher: string | null; issns: string[] };
+export type CrossrefJournal = { title: string | null; publisher: string | null; issns: string[]; electronic: string | null };
 
 /** Read a Crossref work record; electronic ISSNs first, then print, then any untyped ones. */
 export function readCrossrefWork(data: unknown): CrossrefJournal | null {
@@ -246,7 +249,7 @@ export function readCrossrefWork(data: unknown): CrossrefJournal | null {
   const plain = Array.isArray(m.ISSN) ? (m.ISSN as unknown[]).filter((v): v is string => typeof v === "string") : [];
   const platform = issnPlatform(publisher);
   const ordered = platform === "sciencedirect" ? [...byType("print"), ...byType("electronic"), ...plain] : [...byType("electronic"), ...byType("print"), ...plain];
-  return { title, publisher, issns: [...new Set(ordered)].slice(0, 4) };
+  return { title, publisher, issns: [...new Set(ordered)].slice(0, 4), electronic: byType("electronic")[0] ?? null };
 }
 
 /** Crossref's journal search for a ScienceDirect address's name. */

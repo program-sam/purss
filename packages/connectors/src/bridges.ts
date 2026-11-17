@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 
 /*
  * Services followed through the installation's bridge (plan/41): pages that publish no feed of
@@ -10,6 +11,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  * Only services that worked without credentials from both a home and a datacenter address are
  * listed. Each key pattern is the service's own handle syntax; a renamed handle is a new source.
+ * Most services are collected by RSS-Bridge; Crossref (plan/45) by the router's own backend, so it
+ * runs on every installation, with or without RSS-Bridge.
  */
 
 export type BridgeService = {
@@ -26,8 +29,8 @@ export type BridgeService = {
   keyFromPage(url: URL): string | null;
   /** The public page of a key: the source's site address, and what OPML exports. */
   pageUrl(key: string): string;
-  /** RSS-Bridge's bridge and parameters for a key. */
-  rssBridge: { bridge: string; params(key: string): Record<string, string> };
+  /** Which backend collects it: RSS-Bridge (with its bridge and parameters for a key), or Crossref's API. */
+  backend: { kind: "rss-bridge"; bridge: string; params(key: string): Record<string, string> } | { kind: "crossref" };
   /** The stable id of a post, from its address, or null when the address isn't one of this key's posts. */
   postId(key: string, link: URL): string | null;
   /** A well-formed post the backend includes that isn't this source's own, left out on purpose (not a sign the output changed). */
@@ -64,7 +67,7 @@ const telegram: BridgeService = {
     return TELEGRAM_NAME.test(name) ? name : null;
   },
   pageUrl: (key) => `https://t.me/${key}`,
-  rssBridge: { bridge: "TelegramBridge", params: (key) => ({ username: key }) },
+  backend: { kind: "rss-bridge", bridge: "TelegramBridge", params: (key) => ({ username: key }) },
   cleanTitle: (title) => title.replace(/\s+-\s+Telegram$/, ""),
   // The public web preview says what it can't show; the post link opens it in Telegram anyway.
   cleanHtml: (html) => html
@@ -98,7 +101,7 @@ const bandcamp: BridgeService = {
   },
   pageUrl: (key) => `https://${key}.bandcamp.com/`,
   // "releases" names each release by its own address; "changes" would repeat one whenever its track list changes.
-  rssBridge: { bridge: "BandcampBridge", params: (key) => ({ context: "By band", band: key, type: "releases", limit: "20" }) },
+  backend: { kind: "rss-bridge", bridge: "BandcampBridge", params: (key) => ({ context: "By band", band: key, type: "releases", limit: "20" }) },
   cleanTitle: (title) => title.replace(/\s+-\s+Bandcamp(?: Band)?$/, ""),
   postId(key, link) {
     if (hostOf(link) !== `${key}.bandcamp.com`) return null;
@@ -130,7 +133,7 @@ const soundcloud: BridgeService = {
     return SOUNDCLOUD_NAME.test(name) && !SOUNDCLOUD_RESERVED.has(name) ? name : null;
   },
   pageUrl: (key) => `https://soundcloud.com/${key}`,
-  rssBridge: { bridge: "SoundcloudBridge", params: (key) => ({ u: key, t: "all" }) },
+  backend: { kind: "rss-bridge", bridge: "SoundcloudBridge", params: (key) => ({ u: key, t: "all" }) },
   cleanTitle: (title) => title.replace(/\s+-\s+All\s+-\s+Soundcloud$/i, ""),
   postId(key, link) {
     if (!SOUNDCLOUD_HOSTS.has(hostOf(link))) return null;
@@ -164,7 +167,7 @@ const twitch: BridgeService = {
     return TWITCH_NAME.test(name) && !TWITCH_RESERVED.has(name) ? name : null;
   },
   pageUrl: (key) => `https://www.twitch.tv/${key}`,
-  rssBridge: { bridge: "TwitchBridge", params: (key) => ({ channel: key, type: "all" }) },
+  backend: { kind: "rss-bridge", bridge: "TwitchBridge", params: (key) => ({ channel: key, type: "all" }) },
   postId(_key, link) {
     if (!TWITCH_HOSTS.has(hostOf(link))) return null;
     const s = segmentsOf(link);
@@ -205,7 +208,7 @@ const mixcloud: BridgeService = {
     return MIXCLOUD_NAME.test(name) && !MIXCLOUD_RESERVED.has(name) ? name : null;
   },
   pageUrl: (key) => `https://www.mixcloud.com/${key}/`,
-  rssBridge: { bridge: "MixCloudBridge", params: (key) => ({ u: key }) },
+  backend: { kind: "rss-bridge", bridge: "MixCloudBridge", params: (key) => ({ u: key }) },
   cleanTitle: (title) => title.replace(/^MixCloud\s+-\s+/i, ""),
   // The backend mixes in shows the account listened to; only its own uploads have its name in their address.
   excluded(key, link) {
@@ -233,7 +236,7 @@ const rutube: BridgeService = {
     return s.length === 2 || (s.length === 3 && ["videos", "about", "shorts"].includes(s[2]!)) ? s[1]! : null;
   },
   pageUrl: (key) => `https://rutube.ru/channel/${key}/`,
-  rssBridge: { bridge: "RutubeBridge", params: (key) => ({ context: "По каналу", c: key }) },
+  backend: { kind: "rss-bridge", bridge: "RutubeBridge", params: (key) => ({ context: "По каналу", c: key }) },
   cleanTitle: (title) => title.replace(/\s+-\s+Rutube$/, ""),
   // Rutube's API gives Moscow time without a zone, which the backend labels UTC (checked 2026-11-08: a video
   // published at 13:48 UTC carried 16:24 when it was 13:48 UTC). Moscow keeps UTC+3 all year.
@@ -262,7 +265,7 @@ const appleMusic: BridgeService = {
   },
   pageUrl: (key) => `https://music.apple.com/artist/${key}`,
   // The backend lists the artist's releases in no particular order, so ask for as many as it gives.
-  rssBridge: { bridge: "AppleMusicBridge", params: (key) => ({ artist: key, limit: "50" }) },
+  backend: { kind: "rss-bridge", bridge: "AppleMusicBridge", params: (key) => ({ artist: key, limit: "50" }) },
   postId(_key, link) {
     if (hostOf(link) !== "music.apple.com") return null;
     const s = segmentsOf(link);
@@ -272,7 +275,31 @@ const appleMusic: BridgeService = {
   },
 };
 
-export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic]);
+/** A journal's articles as registered with Crossref (plan/45). The key is the journal's ISSN without its hyphen. */
+const crossref: BridgeService = {
+  id: "crossref",
+  example: "15481433",
+  name: "Crossref",
+  origin: "Crossref",
+  keyPattern: /^\d{7}[\dX]$/,
+  keyFromPage: (url) => issnFromPortalUrl(url),
+  pageUrl: (key) => issnPortalUrl(key),
+  backend: { kind: "crossref" },
+  // DOIs are case-insensitive; the link escapes each part of the DOI (`#`, `<`), so its path is decoded once.
+  postId(_key, link) {
+    if (hostOf(link) !== "doi.org" || link.search || link.hash) return null;
+    let doi: string;
+    try { doi = decodeURIComponent(link.pathname.slice(1)); } catch { return null; }
+    return /^10\.\d{4,9}\/\S+$/.test(doi) ? `doi:${doi.toLowerCase()}` : null;
+  },
+};
+
+export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, crossref]);
+
+/** True for services collected by RSS-Bridge, which an installation may not run. */
+export function needsRssBridge(service: BridgeService): boolean {
+  return service.backend.kind === "rss-bridge";
+}
 
 export function bridgeService(id: string): BridgeService | undefined {
   return BRIDGE_SERVICES.find((s) => s.id === id);

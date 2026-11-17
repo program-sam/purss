@@ -1,6 +1,6 @@
 import http from "node:http";
-import { bridgeRoutePath } from "@purss/connectors";
-import type { BridgeClient } from "@purss/connectors";
+import { bridgeRoutePath, needsRssBridge } from "@purss/connectors";
+import type { BridgeClient, DiscoverOptions } from "@purss/connectors";
 import type { App } from "../app.ts";
 import { readSecret } from "../secrets.ts";
 
@@ -12,6 +12,12 @@ import { readSecret } from "../secrets.ts";
 
 const TIMEOUT_MS = 60_000;
 const MAX_BYTES = 8 * 1024 * 1024;
+
+/** What discovery needs to offer bridged sources: the router client and which services this installation's router serves. */
+export function bridgeOptions(app: App): Pick<DiscoverOptions, "bridge" | "bridgeServes"> {
+  const bridge = bridgeClient(app);
+  return bridge ? { bridge, bridgeServes: (service) => !needsRssBridge(service) || app.config.rssBridge } : {};
+}
 
 /** The router client, or undefined when this installation runs no bridge (or its key is missing). */
 export function bridgeClient(app: App): BridgeClient | undefined {

@@ -84,6 +84,8 @@ export type Config = {
   egressControlUrl: string;
   /** The egress bridge router (plan/41), reached directly; null when this installation runs no bridge. */
   bridgeUrl: string | null;
+  /** True when the bridge router has RSS-Bridge behind it (PURSS_RSS_BRIDGE=1): only then are Telegram, Bandcamp and the rest offered. Crossref needs only the router. */
+  rssBridge: boolean;
   syncIntervalSeconds: number;
   /** Behind a reverse proxy: which peers may give the client address in X-Forwarded-For (http.ts). */
   trustProxy: TrustProxy;
@@ -223,6 +225,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     engineBaseUrl: env.PURSS_ENGINE_URL ?? "http://127.0.0.1:8941",
     egressControlUrl: env.PURSS_EGRESS_CONTROL_URL ?? "http://127.0.0.1:8949/status",
     bridgeUrl: env.PURSS_BRIDGE_URL ? env.PURSS_BRIDGE_URL.replace(/\/+$/, "") : null,
+    rssBridge: env.PURSS_RSS_BRIDGE === "1",
     syncIntervalSeconds: int(env.PURSS_SYNC_INTERVAL, 120),
     trustProxy: parseTrustProxy(env.PURSS_TRUST_PROXY),
     signup: mode === "hosted" && env.PURSS_SIGNUP === "open" ? "open" : "invite",

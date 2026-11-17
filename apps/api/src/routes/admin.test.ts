@@ -291,7 +291,7 @@ test("health shows the bridge's last week from the egress log: every catalogued 
       { id: "bandcamp", name: "Bandcamp", attempts: 1000, ok: 990, empty: 9, failed: 1, cachedAnswers: 40, successPercent: 99 },
       { id: "soundcloud", name: "SoundCloud", attempts: 3, ok: 2, empty: 0, failed: 1, cachedAnswers: 0, successPercent: 67 },
       { id: "twitch", name: "Twitch", attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null },
-      ...[["mixcloud", "Mixcloud"], ["rutube", "Rutube"], ["applemusic", "Apple Music"]].map(([id, name]) => ({ id, name, attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null })),
+      ...[["mixcloud", "Mixcloud"], ["rutube", "Rutube"], ["applemusic", "Apple Music"], ["crossref", "Crossref"]].map(([id, name]) => ({ id, name, attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null })),
       { id: "fine", name: "fine", attempts: 400, ok: 400, empty: 0, failed: 0, cachedAnswers: 12, successPercent: 100 },
       { id: "retired", name: "retired", attempts: 3, ok: 0, empty: 0, failed: 3, cachedAnswers: 0, successPercent: 0 },
     ],

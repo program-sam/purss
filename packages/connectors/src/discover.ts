@@ -8,12 +8,14 @@ import { isDiscourse, isGenericTitle, isMediaWiki, isSiteWideFeed, isSubscribeEn
 import { extractPageFacts, findDirectoryLinks } from "./html-links.ts";
 import type { FoundLink } from "./html-links.ts";
 import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce, wwwAlternative } from "./input.ts";
-import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
-import type { CrossrefJournal } from "./journals.ts";
+import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, journalTitle, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
+import type { CrossrefJournal, Platform } from "./journals.ts";
 import { planKnownFeeds, resolveKnown } from "./known-feeds.ts";
 import type { KnownDeps, KnownFeed, KnownPlan } from "./known-feeds.ts";
-import { bridgeDescriptor, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
-import type { BridgeTarget } from "./bridges.ts";
+import { bridgeDescriptor, bridgeService, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
+import type { BridgeService, BridgeTarget } from "./bridges.ts";
+import { crossrefJournalSearchUrl, crossrefJournalUrl, findCrossrefJournal, issnFromInput, issnPortalUrl, readCrossrefJournal } from "./crossref.ts";
+import type { CrossrefJournalRecord } from "./crossref.ts";
 import { noFeedPlatform } from "./platforms.ts";
 import { PRIVATE_URL_WARNING, privateUrlReason, redactUrl } from "./privacy.ts";
 import { safeFetch } from "./safe-fetch.ts";
@@ -69,6 +71,8 @@ export type DiscoverOptions = {
   maxRequests?: number;
   /** The installation's bridge router (plan/41); without it, bridged services get the "no feeds" answer. */
   bridge?: BridgeClient;
+  /** Which services the router serves here (RSS-Bridge's only where RSS-Bridge runs). Default: all of them. */
+  bridgeServes?: (service: BridgeService) => boolean;
 };
 
 /** Asks the bridge router for a source's feed: what the engine will see, through the internal listener only. */
@@ -97,6 +101,8 @@ type Ctx = {
   spent: () => boolean;
   now: () => Date;
   get: (url: string, opts?: { maxBytes?: number; accept?: string; timeoutMs?: number; phaseTimeoutsMs?: PhaseTimeouts; maxRedirects?: number }) => Promise<SafeFetchResult>;
+  /** What was learned on the way about the journal the address belongs to, for its Crossref choice (plan/45). */
+  journal: JournalClue;
 };
 
 function makeCtx(opts: DiscoverOptions): Ctx {
@@ -108,6 +114,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
   const maxRequests = opts.maxRequests ?? MAX_REQUESTS;
   let requests = 0;
   return {
+    journal: { issns: [], names: [] },
     retryDelayMs: opts.retryDelayMs ?? 1500,
     signal,
     remainingMs: () => Math.max(0, budgetMs - (Date.now() - started)),
@@ -704,6 +711,9 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   };
   const publisherPage = isPublisherHost(new URL(pageUrl).hostname.toLowerCase());
   const pageIssns = new Set(facts.journal.issns.map(normalIssn).filter((v): v is string => !!v));
+  // The journal the page belongs to, for its Crossref choice: its scholarly metadata, or an Open Journal Systems journal's name.
+  ctx.journal.issns.push(...pageIssns);
+  if (OJS_GENERATOR.test(html) && (siteName ?? facts.title)) ctx.journal.names.push({ name: (siteName ?? facts.title)! });
   if (!publisherPage && facts.platformLinks.length) {
     // A society's page for its journal links to the journal on the publisher's platform; at most two journals, the page's own first.
     const picks = new Map<string, { link: { url: string; title: string | null }; ref: NonNullable<ReturnType<typeof journalFromUrl>> }>();
@@ -885,6 +895,130 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
 // ---------- scholarly journals ----------
 
 export const LINKED_JOURNAL_NOTE = "Linked from that page.";
+export const CROSSREF_VIA = "Registered articles";
+export const CROSSREF_NOTE = "Every article the publisher registers with Crossref, the open registry of scholarly articles. Can arrive a few days after the publisher's own feed, and some publishers send no abstracts.";
+const OJS_GENERATOR = /<meta[^>]+name=["']generator["'][^>]+content=["']Open Journal Systems/i;
+
+/**
+ * What discovery learned about the journal an address belongs to (plan/45): ISSNs it was told (a page's metadata, a DOI's
+ * Crossref record), names to look up in Crossref with the publisher that must match, the platform a journal page is on
+ * (its feeds' journal name is then looked up), and a Wiley journal code that isn't an ISSN.
+ */
+type JournalClue = { issns: string[]; names: { name: string; publisher?: RegExp }[]; platform?: Platform; wileyCode?: string };
+
+/** Crossref's publisher names for each platform: a journal found by name must be one of the platform's. */
+const PLATFORM_PUBLISHER: Record<Platform, RegExp | undefined> = {
+  wiley: /\b(?:wiley|hindawi)\b/i,
+  tandf: /\b(?:taylor|informa|routledge)\b/i,
+  uchicago: /\bchicago\b/i,
+  berghahn: /\bberghahn\b/i,
+  // Project MUSE hosts many publishers' journals: an exact, single title match is required instead.
+  muse: undefined,
+  sciencedirect: /\belsevier\b/i,
+};
+const DUKE_SLUG = /^[a-z][a-z0-9-]{2,60}$/;
+const DUKE_NOT_JOURNALS = new Set(["books", "journals", "search", "account", "about", "contact", "cart", "series", "authors", "subjects", "news", "sign-in", "my-account", "content", "pb-assets", "rss"]);
+
+/** What a journal page's address says about its journal. */
+function noteJournalAddress(ctx: Ctx, url: URL): void {
+  const ref = journalFromUrl(url);
+  if (ref) ctx.journal.platform = ref.platform;
+  if (ref?.platform === "wiley") {
+    if (normalIssn(ref.id)) ctx.journal.issns.push(ref.id);
+    else ctx.journal.wileyCode = ref.id;
+  }
+  const s = url.pathname.split("/").filter(Boolean);
+  if (isDuke(url.href) && DUKE_SLUG.test(s[0] ?? "") && !DUKE_NOT_JOURNALS.has(s[0]!)) ctx.journal.names.push({ name: s[0]!.replace(/-/g, " "), publisher: /\bduke\b/i });
+}
+
+/** A pasted ISSN: Crossref names the journal and its publisher, whose ISSN-made feed (Wiley, Elsevier) is offered when it answers. */
+async function discoverIssn(ctx: Ctx, issn: string, max: number): Promise<DiscoveryDraft> {
+  ctx.journal.issns.push(issn);
+  const label = `ISSN ${issn.slice(0, 4)}-${issn.slice(4)}`;
+  const record = await knownDeps(ctx).json(crossrefJournalUrl(issn));
+  const journal = record.ok ? readCrossrefJournal(record.data) : null;
+  if (!journal) return fail(label, "nofeed", "Crossref doesn't know a journal with that ISSN. Check the number, or paste the journal's own page.");
+  const plan = planFromIssns(journal.publisher, [issn, ...journal.issns], journal.title);
+  const known = plan ? await resolveKnown(plan, knownDeps(ctx), label) : null;
+  if (known && "candidates" in known) return { ok: true, url: label, candidates: known.candidates.slice(0, max) };
+  return fail(label, "nofeed", `${journal.title ?? "That journal"}${journal.publisher ? ` (${journal.publisher})` : ""} has no feed of its own that we could find.`);
+}
+
+/** The journal's ISSN for its Crossref choice: one it was told, else one Crossref finds for the journal's name. */
+async function journalIssn(ctx: Ctx, draft: DiscoveryDraft): Promise<string | null> {
+  const told = ctx.journal.issns.map(normalIssn).find((v): v is string => !!v);
+  if (told) return told;
+  const names = [...ctx.journal.names];
+  const platform = ctx.journal.platform;
+  if (platform) {
+    const publisher = PLATFORM_PUBLISHER[platform];
+    // The journal feeds found say the journal's name ("Wiley: Oceania: Table of Contents" → "Oceania").
+    for (const c of draft.ok ? draft.candidates : []) if (isJournalArticlesFeed(c)) names.push({ name: c.title, publisher });
+    if (ctx.journal.wileyCode && !names.length) {
+      // A Wiley feed that is switched off still answers (404) with a channel that names the journal.
+      const name = await wileyJournalName(ctx, ctx.journal.wileyCode);
+      if (name) names.push({ name, publisher });
+    }
+  }
+  const tried = new Set<string>();
+  for (const { name, publisher } of names.slice(0, 3)) {
+    // "Social Anthropology/Anthropologie sociale" is "Social Anthropology" in Crossref's journal list.
+    for (const variant of [name, name.split(/\s*\/\s*/)[0]!]) {
+      const key = variant.toLowerCase().trim();
+      if (!key || tried.has(key)) continue;
+      tried.add(key);
+      const search = await knownDeps(ctx).json(crossrefJournalSearchUrl(variant));
+      const found: CrossrefJournalRecord | null = search.ok ? findCrossrefJournal(search.data, variant, publisher) : null;
+      if (found) return found.issns[0]!;
+    }
+  }
+  return null;
+}
+
+async function wileyJournalName(ctx: Ctx, code: string): Promise<string | null> {
+  const res = await ctx.get(`https://onlinelibrary.wiley.com/feed/${code}/most-recent`, { maxBytes: 256 * 1024, maxRedirects: 0 });
+  if (!res.ok || (res.response.status !== 200 && res.response.status !== 404)) return null;
+  try {
+    return journalTitle(parseFeed(res.response.body, res.response.contentType).title);
+  } catch {
+    return null;
+  }
+}
+
+/** A journal's own articles (or issues) feed, as opposed to its announcements or a site's other feeds. */
+function isJournalArticlesFeed(c: DraftCandidate): boolean {
+  return (c.via === "Articles feed" || c.via === "Early articles feed" || c.via === "Issues feed") && !c.feedUrl.startsWith("bridge:");
+}
+
+/**
+ * The journal's Crossref choice (plan/45), added after everything else was found and ordered. Next to the journal's own
+ * articles feed it is an alternative, never chosen first; without one it is the journal's feed. A journal Crossref
+ * doesn't know, or a router that can't reach Crossref just now, leaves the result as it was.
+ */
+async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDraft, max: number): Promise<DiscoveryDraft> {
+  const service = bridgeService("crossref");
+  if (!service || !opts.bridge || !(opts.bridgeServes?.(service) ?? true)) return draft;
+  if (!draft.ok && draft.reason === "blocked") return draft;
+  if (draft.ok && draft.candidates.some((c) => c.feedUrl.startsWith(`bridge:${service.id}/`))) return draft;
+  if (ctx.signal.aborted) return draft;
+  const issn = await journalIssn(ctx, draft);
+  if (!issn || ctx.signal.aborted) return draft;
+  const answer = await opts.bridge({ service, key: issn }, ctx.signal).catch(() => ({ failed: true }) as const);
+  if ("failed" in answer || answer.status !== 200) return draft;
+  let parsed: ParsedFeed;
+  try {
+    parsed = parseFeed(answer.body, "application/rss+xml");
+  } catch {
+    return draft;
+  }
+  const site = issnPortalUrl(issn);
+  const c = { ...buildCandidate(bridgeDescriptor(service.id, issn), parsed, { url: site }, ctx, { origin: service.origin, via: CROSSREF_VIA, note: CROSSREF_NOTE }), siteUrl: site };
+  if (!draft.ok) return { ok: true, url: draft.url, candidates: [{ ...c, matchesPage: true }] };
+  const others = draft.candidates.slice(0, max - 1);
+  // Without the journal's own articles feed, its articles come first (before its announcements, say), and start out chosen.
+  if (!draft.candidates.some(isJournalArticlesFeed)) return { ...draft, candidates: [{ ...c, matchesPage: true }, ...others] };
+  return { ...draft, candidates: [...others, { ...c, alternative: true }] };
+}
 export const OJS_ANNOUNCEMENTS_NOTE = "The journal's news and calls, not its articles.";
 
 function isDuke(url: string): boolean {
@@ -901,6 +1035,8 @@ async function discoverDoi(ctx: Ctx, doi: string, pageUrl: string, max: number, 
   const deps = knownDeps(ctx);
   const record = await deps.json(crossrefWorkUrl(doi));
   const journal: CrossrefJournal | null = record.ok ? readCrossrefWork(record.data) : null;
+  // Crossref's own records are fullest under the electronic ISSN; the publisher's feed may take the print one.
+  if (journal) ctx.journal.issns.push(...(journal.electronic ? [journal.electronic] : []), ...journal.issns);
   const plan = journal ? planFromIssns(journal.publisher, journal.issns, journal.title) : null;
   let trouble: { timeout: boolean; busy: boolean } | undefined;
   if (plan) {
@@ -922,6 +1058,7 @@ async function discoverDoi(ctx: Ctx, doi: string, pageUrl: string, max: number, 
 async function scienceDirectPlan(ctx: Ctx, slug: string): Promise<KnownPlan | null> {
   const search = await knownDeps(ctx).json(crossrefJournalQueryUrl(slug));
   const journal = search.ok ? readCrossrefJournalSearch(search.data, slug) : null;
+  if (journal) ctx.journal.issns.push(...(journal.electronic ? [journal.electronic] : []), ...journal.issns);
   return journal ? planFromIssns(journal.publisher, journal.issns, journal.title) : null;
 }
 
@@ -1082,7 +1219,8 @@ async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: 
   } catch {
     return fail(label, "unreachable", `${service.name} didn't give us the posts of ${key} just now. Try again in a few minutes.`);
   }
-  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, { origin: service.origin, via: "Posts feed", note: BRIDGE_NOTE });
+  const crossref = service.backend.kind === "crossref";
+  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, { origin: service.origin, via: crossref ? CROSSREF_VIA : "Posts feed", note: crossref ? CROSSREF_NOTE : BRIDGE_NOTE });
   return { ok: true, url: service.pageUrl(key), candidates: [{ ...candidate, siteUrl: service.pageUrl(key) }] };
 }
 
@@ -1092,7 +1230,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const trimmed = typeof input === "string" ? input.trim() : "";
   if (trimmed.startsWith("bridge:")) {
     const described = parseBridgeDescriptor(trimmed);
-    if (!described || !opts.bridge) return fail(trimmed.slice(0, 200), "unsupported", "That source comes from a server bridge this installation doesn't run, so it can't be followed here.");
+    if (!described || !opts.bridge || !(opts.bridgeServes?.(described.service) ?? true)) return fail(trimmed.slice(0, 200), "unsupported", "That source comes from a server bridge this installation doesn't run, so it can't be followed here.");
     return await discoverBridged(described, opts.bridge, makeCtx(opts), trimmed);
   }
   // An article's DOI, bare (10.1111/…), as doi:10.1111/… or as a doi.org address. Read before the address rules: a bare DOI
@@ -1104,9 +1242,20 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     const given = doi.viaResolver ? normalizeInput(input, { testAllowAddress: opts.testAllowAddress }) : null;
     const pageUrl = given?.ok ? given.url : resolverUrl(doi.doi);
     try {
-      return await discoverDoi(ctx, doi.doi, pageUrl, max, doi.viaResolver ? pageUrl : doi.doi);
+      return await withCrossref(ctx, opts, await discoverDoi(ctx, doi.doi, pageUrl, max, doi.viaResolver ? pageUrl : doi.doi), max);
     } catch {
       return fail(doi.doi.slice(0, 200), "unreachable", "Something went wrong while looking up that DOI. Try again in a moment.");
+    }
+  }
+  // A journal's ISSN: the publisher's feed when its address is made from the ISSN, and the journal's Crossref choice.
+  const issn = typeof input === "string" ? issnFromInput(input) : null;
+  if (issn) {
+    const ctx = makeCtx(opts);
+    const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
+    try {
+      return await withCrossref(ctx, opts, await discoverIssn(ctx, issn, max), max);
+    } catch {
+      return fail(issn, "unreachable", "Something went wrong while looking up that ISSN. Try again in a moment.");
     }
   }
   const social = typeof input === "string" ? classifySocialInput(input) : null;
@@ -1123,14 +1272,26 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const ctx = makeCtx(opts);
   const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
   try {
+    return await withCrossref(ctx, opts, await discoverUrl(ctx, opts, norm, max), max);
+  } catch (error) {
+    // Programming errors must not leak details or secrets into the user message.
+    return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);
+  }
+}
+
+/** Discovery for a web address (normalised). */
+async function discoverUrl(ctx: Ctx, opts: DiscoverOptions, norm: Extract<ReturnType<typeof normalizeInput>, { ok: true }>, max: number): Promise<DiscoveryDraft> {
+  {
     const entry = new URL(norm.url);
+    noteJournalAddress(ctx, entry);
     if (isYoutubeHost(entry.hostname)) {
       const draft = await discoverYoutube(norm, ctx, max);
       if (!draft.ok || draft.candidates.length > 0 || draft.keep) return draft;
       return fail(norm.url, "nofeed", "We couldn't find a feed for that YouTube address.");
     }
     // Pages of services this server follows through its bridge.
-    const bridged = opts.bridge ? bridgeTargetForPage(entry) : null;
+    const found = opts.bridge ? bridgeTargetForPage(entry) : null;
+    const bridged = found && (opts.bridgeServes?.(found.service) ?? true) ? found : null;
     if (bridged && opts.bridge) return await discoverBridged(bridged, opts.bridge, ctx, norm.url);
     // Services that publish no feeds are named as such, without asking them for one.
     const platform = noFeedPlatform(entry);
@@ -1159,8 +1320,5 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
       }
     }
     return await discoverAddress(ctx, norm.url, norm.httpFallback, max, norm.url, prior, undefined, wwwAlternative(norm));
-  } catch (error) {
-    // Programming errors must not leak details or secrets into the user message.
-    return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);
   }
 }

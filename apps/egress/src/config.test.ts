@@ -148,9 +148,9 @@ async function withDataDirAsync<T>(fn: (dir: string) => Promise<T>): Promise<T> 
   }
 }
 
-test("the bridge router runs only with a backend; it needs the bridge key and is reachable from the engine by its alias only", () => {
+test("the bridge router runs with the bridge key, RSS-Bridge or not; RSS-Bridge needs the key and the router is reachable from the engine by its alias only", () => {
   withDataDir((dir) => {
-    assert.equal(loadConfig({ PURSS_DATA_DIR: dir }, "/").bridge, null, "no backend, no router");
+    assert.equal(loadConfig({ PURSS_DATA_DIR: dir }, "/").bridge, null, "no key and no RSS-Bridge: no router");
     const env = { PURSS_DATA_DIR: dir, EGRESS_BRIDGE_BACKEND: "http://172.31.89.20:80" };
     assert.throws(() => loadConfig(env, "/"), /bridge key/, "the key is required");
     writeFileSync(join(dir, "secrets", "bridge-key"), "short", { mode: 0o600 });
@@ -160,6 +160,8 @@ test("the bridge router runs only with a backend; it needs the bridge key and is
     assert.deepEqual(c.bridge, { host: "172.31.88.10", port: 8945, backendUrl: "http://172.31.89.20", secret: "b".repeat(43), dbPath: join(dir, "egress", "bridge.db"), net: null });
     assert.deepEqual(loadConfig({ ...env, EGRESS_BRIDGE_NET_HOST: "172.31.89.10" }, "/").bridge?.net, { host: "172.31.89.10", dnsPort: 53 });
     assert.throws(() => loadConfig({ ...env, EGRESS_BRIDGE_NET_HOST: "8.8.8.8" }, "/"), ConfigError);
+    // Without RSS-Bridge the router still runs, for Crossref (plan/45).
+    assert.deepEqual(loadConfig({ PURSS_DATA_DIR: dir }, "/").bridge, { host: "127.0.0.1", port: 8945, backendUrl: null, secret: "b".repeat(43), dbPath: join(dir, "egress", "bridge.db"), net: null });
     assert.deepEqual(c.internalDestinations.at(-1), { host: "feed-bridge.internal", port: 8945, connectHost: "172.31.88.10", connectPort: 8945 });
     for (const backend of ["https://172.31.89.20", "http://example.com", "http://8.8.8.8", "http://u:p@10.0.0.2", "http://10.0.0.2/x"]) {
       assert.throws(() => loadConfig({ ...env, EGRESS_BRIDGE_BACKEND: backend }, "/"), ConfigError, backend);

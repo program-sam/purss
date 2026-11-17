@@ -17,7 +17,7 @@ import { randomBytes } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BRIDGE_SERVICES, bridgeRoutePath } from "@purss/connectors";
+import { BRIDGE_SERVICES, bridgeRoutePath, needsRssBridge } from "@purss/connectors";
 import { BridgeLog } from "../apps/egress/src/bridge/log.ts";
 import { BridgeRouter, rssBridgeBackend } from "../apps/egress/src/bridge/router.ts";
 import { composeBridge } from "./bridge-config.ts";
@@ -58,7 +58,7 @@ async function check(image: string, port: number): Promise<Map<string, Result>> 
     const secret = randomBytes(32).toString("base64url");
     const log = new BridgeLog();
     const results = new Map<string, Result>();
-    for (const s of BRIDGE_SERVICES) {
+    for (const s of BRIDGE_SERVICES.filter(needsRssBridge)) {
       // A failure is asked again (a fresh router each time, so no back-off) before it counts: services have bad minutes.
       for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
         const router = new BridgeRouter({ secret, backends: [rssBridgeBackend(base)], log });
@@ -100,7 +100,8 @@ const shown = (r: Result | undefined) => (!r ? "–" : r.status === 200 ? `${r.e
 const lines = ["| Service | Account | " + (before ? "Current image | " : "") + "New image |", "| --- | --- | " + (before ? "--- | " : "") + "--- |"];
 const regressions: string[] = [];
 const failingBoth: string[] = [];
-for (const s of BRIDGE_SERVICES) {
+// Only RSS-Bridge's services depend on its image; Crossref (plan/45) has a backend of its own.
+for (const s of BRIDGE_SERVICES.filter(needsRssBridge)) {
   const a = after.get(s.id);
   const b = before?.get(s.id);
   lines.push(`| ${s.name} | ${s.example} | ${before ? `${shown(b)} | ` : ""}${shown(a)} |`);

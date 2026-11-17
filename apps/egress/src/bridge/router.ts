@@ -7,8 +7,8 @@ import type { BridgeLog, FetchOutcome, FetchPhase } from "./log.ts";
 
 /*
  * The bridge router (plan/41). It answers the engine's signed source addresses
- * (`/b/<service>/<key>/<signature>`) by asking the service's backends in order (RSS-Bridge in this
- * build), and re-serves the result as RSS in which every entry's id comes from its post address, so
+ * (`/b/<service>/<key>/<signature>`) by asking the backends of the service's kind in order (RSS-Bridge
+ * for most services, Crossref's API for journals; plan/45), and re-serves the result as RSS in which every entry's id comes from its post address, so
  * a source keeps its items whichever backend answered. Upstream work is bounded: one fetch per
  * source at a time (concurrent requests share it), a few fetches at once overall, a short cache of
  * good answers (public content only), and a back-off after a failure during which the last good
@@ -18,6 +18,8 @@ import type { BridgeLog, FetchOutcome, FetchPhase } from "./log.ts";
 export type BridgeBackend = {
   /** Recorded in the fetch log. */
   name: string;
+  /** The services it collects: those whose catalogue entry names this kind of backend. */
+  kind: BridgeService["backend"]["kind"];
   /** Fetch a source's feed: the body and status, or a transport failure. */
   fetch(service: BridgeService, key: string): Promise<{ status: number; body: Buffer } | { failed: "timeout" | "too_large" | "unreachable" }>;
 };
@@ -89,6 +91,8 @@ export class BridgeRouter {
     let key: string;
     try { key = decodeURIComponent(rawKey); } catch { return NOT_FOUND; }
     if (!service || !service.keyPattern.test(key) || !bridgeSignatureMatches(this.#secret, service.id, key, signature)) return NOT_FOUND;
+    // A service whose backend this installation doesn't run (RSS-Bridge's, without RSS-Bridge) is not served here.
+    if (!this.#backends.some((b) => b.kind === service.backend.kind)) return NOT_FOUND;
 
     const id = `${service.id}/${key}`;
     const running = this.#inflight.get(id);
@@ -172,7 +176,7 @@ export class BridgeRouter {
     if (!(await this.#slot())) return this.#failure(60_000);
     let last: { outcome: FetchOutcome } = { outcome: "unreachable" };
     try {
-      for (const backend of this.#backends) {
+      for (const backend of this.#backends.filter((b) => b.kind === service.backend.kind)) {
         const started = this.#now();
         const result = await this.#ask(backend, service, key);
         const ms = this.#now() - started;
@@ -272,12 +276,15 @@ export function rssBridgeBackend(baseUrl: string, opts: { timeoutMs?: number; ma
   const maxBytes = opts.maxBytes ?? 8 * 1024 * 1024;
   return {
     name: "rss-bridge",
+    kind: "rss-bridge",
     fetch(service, key) {
+      if (service.backend.kind !== "rss-bridge") return Promise.resolve({ failed: "unreachable" as const });
+      const { bridge, params } = service.backend;
       const url = new URL("/", base);
       url.searchParams.set("action", "display");
       url.searchParams.set("format", "Atom");
-      url.searchParams.set("bridge", service.rssBridge.bridge);
-      for (const [k, v] of Object.entries(service.rssBridge.params(key))) url.searchParams.set(k, v);
+      url.searchParams.set("bridge", bridge);
+      for (const [k, v] of Object.entries(params(key))) url.searchParams.set(k, v);
       return new Promise((resolve) => {
         let settled = false;
         const done = (v: { status: number; body: Buffer } | { failed: "timeout" | "too_large" | "unreachable" }) => {

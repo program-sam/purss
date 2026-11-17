@@ -121,9 +121,10 @@ test("DOIs: bare, doi:, doi.org and walled article addresses; nothing else", () 
 
 test("Crossref: a work's journal with the ISSN its publisher's feed takes first; a journal search counts only when exactly one title matches", () => {
   const work = { message: { publisher: "Wiley", "container-title": ["American Anthropologist"], "issn-type": [{ type: "print", value: "0002-7294" }, { type: "electronic", value: "1548-1433" }] } };
-  assert.deepEqual(readCrossrefWork(work), { title: "American Anthropologist", publisher: "Wiley", issns: ["1548-1433", "0002-7294"] });
+  assert.deepEqual(readCrossrefWork(work), { title: "American Anthropologist", publisher: "Wiley", issns: ["1548-1433", "0002-7294"], electronic: "1548-1433" });
   const elsevier = { message: { publisher: "Elsevier BV", "container-title": ["Journal of Anthropological Archaeology"], "issn-type": [{ type: "electronic", value: "1090-2686" }, { type: "print", value: "0278-4165" }] } };
   assert.deepEqual(readCrossrefWork(elsevier)?.issns, ["0278-4165", "1090-2686"]);
+  assert.equal(readCrossrefWork(elsevier)?.electronic, "1090-2686", "Crossref's own records are asked for under the electronic one");
   const item = (title: string, publisher = "Elsevier") => ({ title, publisher, "issn-type": [{ type: "print", value: "0278-4165" }] });
   const slug = "journal-of-anthropological-archaeology";
   assert.equal(readCrossrefJournalSearch({ message: { items: [item("Journal of Anthropological Archaeology"), item("Journal of Historical Archaeology & Anthropological Sciences")] } }, slug)?.title, "Journal of Anthropological Archaeology");

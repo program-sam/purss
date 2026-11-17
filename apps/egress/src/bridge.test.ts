@@ -23,6 +23,7 @@ function telegramAtom(channel: string, posts: number[], opts: { hashedIds?: bool
 
 class FakeBackend implements BridgeBackend {
   name: string;
+  kind = "rss-bridge" as const;
   calls = 0;
   answer: () => Awaited<ReturnType<BridgeBackend["fetch"]>>;
   gate: Promise<void> | null = null;
@@ -169,6 +170,7 @@ test("at most the configured number of backend fetches run at once; beyond the q
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const backend: BridgeBackend = {
     name: "slow",
+    kind: "rss-bridge",
     async fetch(service: BridgeService, key: string) {
       running++;
       peak = Math.max(peak, running);
@@ -273,6 +275,7 @@ test("a source's fetch under way can't lose what it learns to eviction, and requ
   let alphaCalls = 0;
   const backend: BridgeBackend = {
     name: "rss-bridge",
+    kind: "rss-bridge",
     async fetch(_service: BridgeService, key: string) {
       if (key === "alpha") { alphaCalls++; await gate; return { status: 500, body: Buffer.from("x") }; }
       return { status: 200, body: Buffer.from(telegramAtom(key, [1])) };

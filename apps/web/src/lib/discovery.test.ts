@@ -20,3 +20,12 @@ test("several feeds merely listed on the page and none of them its own: none is 
   assert.equal(preselect(m(false, false, false)), -1);
   assert.equal(preselect(m(false, undefined)), -1);
 });
+
+test("an alternative (a journal through Crossref) is never chosen over the others, and is chosen when it is all there is", () => {
+  const alt = { matchesPage: undefined, alternative: true };
+  assert.equal(preselect([{ matchesPage: true }, alt]), 0, "the journal's own feed and its Crossref choice");
+  assert.equal(preselect([{ matchesPage: false }, alt]), 0, "a lone listed feed stays chosen as it was without the alternative");
+  assert.equal(preselect([{ matchesPage: false }, { matchesPage: false }, alt]), -1, "several listed feeds: still none");
+  assert.equal(preselect([{ ...alt, matchesPage: true }, { matchesPage: false }]), 1, "an alternative claiming the page doesn't win");
+  assert.equal(preselect([alt]), 0);
+});

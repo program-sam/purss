@@ -6,7 +6,7 @@ import type { PodcastSearchOptions } from "@purss/connectors";
 import type { z } from "zod";
 import type { followSchema, sourcePatchSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { bridgeClient } from "./bridge.ts";
+import { bridgeOptions } from "./bridge.ts";
 import { recordDiscoveryMiss } from "./discovery-misses.ts";
 import { emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
@@ -105,7 +105,7 @@ export function getSource(app: App, p: Principal, id: string): SourceDTO {
 export async function discoverSources(app: App, p: Principal, url: string): Promise<DiscoveryResult> {
   const news = newsCandidate(app, url);
   if (news) return { ok: true, url, candidates: presentCandidates(app, p, [news]) };
-  const result = await discover(url, { bridge: bridgeClient(app) });
+  const result = await discover(url, bridgeOptions(app));
   if (!result.ok) {
     recordDiscoveryMiss(app, url, result.reason); // counts the site only, for the administrator; never changes the answer
     return result;
@@ -328,7 +328,7 @@ function pointSubscribeJobs(app: App, sourceId: string, feedUrl: string): void {
  * Shared pages and exports made while the link was public are not taken back.
  */
 export async function setSourcePrivacy(app: App, p: Principal, id: string, makePrivate: boolean,
-  find: (url: string) => Promise<DiscoveryDraft> = (url) => discover(url, { bridge: bridgeClient(app) })): Promise<SourceDTO> {
+  find: (url: string) => Promise<DiscoveryDraft> = (url) => discover(url, bridgeOptions(app))): Promise<SourceDTO> {
   const s = app.db.get<{ kind: string; feed_url: string | null; site_url: string | null; is_private: number; health: string; builtin: string | null }>(
     "SELECT kind, feed_url, site_url, is_private, health, builtin FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
   if (!s) throw notFound("That source");

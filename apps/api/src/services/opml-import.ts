@@ -5,7 +5,7 @@ import type { OpmlImportDestination, OpmlImportDTO, OpmlImportEntryDTO, OpmlImpo
 import { discover } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
-import { bridgeClient } from "./bridge.ts";
+import { bridgeOptions } from "./bridge.ts";
 import { emit } from "../app.ts";
 import { HttpError, badRequest, consumeRateLimit, notFound, nowIso } from "../http.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
@@ -310,7 +310,7 @@ function collectionFor(app: App, row: ImportRow, p: Principal, entry: EntryRow):
 }
 
 async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: OpmlImportDeps): Promise<void> {
-  const look = deps.discover ?? ((url: string) => discover(url, { bridge: bridgeClient(app) }));
+  const look = deps.discover ?? ((url: string) => discover(url, bridgeOptions(app)));
   const dropLink = () => { if (entry.looks_private) removeSecret(app.config.secretsDir, secretName(row.id, entry.position)); };
   const settle = (state: OpmlImportEntryDTO["state"], message: string | null, sourceId: string | null = null) => settleRow(app, row.id, entry.position, state, message, sourceId);
   const p = principalOf(row);

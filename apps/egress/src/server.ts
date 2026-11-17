@@ -5,6 +5,7 @@ import { dirname } from "node:path";
 import type { Resolver } from "@purss/connectors";
 import { createBridgeServer } from "./bridge/http.ts";
 import { BridgeLog } from "./bridge/log.ts";
+import { crossrefBackend } from "./bridge/crossref.ts";
 import { BridgeRouter, rssBridgeBackend } from "./bridge/router.ts";
 import type { BridgeBackend } from "./bridge/router.ts";
 import type { EgressConfig } from "./config.ts";
@@ -34,7 +35,7 @@ export type StartDeps = {
   /** TEST ONLY, in-process DNS stand-in. */
   resolver?: Resolver;
   now?: () => number;
-  /** TEST ONLY: replaces the RSS-Bridge backend of the bridge router. */
+  /** TEST ONLY: replaces the bridge router's backends (RSS-Bridge's and Crossref's). */
   bridgeBackends?: readonly BridgeBackend[];
   /** TEST ONLY: limits of the trimming of big feeds. */
   trimLimits?: TrimServeOptions;
@@ -81,7 +82,10 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
     if (config.bridge.dbPath !== ":memory:") mkdirSync(dirname(config.bridge.dbPath), { recursive: true, mode: 0o700 });
     bridgeLog = new BridgeLog({ path: config.bridge.dbPath, now: deps.now });
     if (config.bridge.dbPath !== ":memory:") chmodSync(config.bridge.dbPath, 0o600);
-    const router = new BridgeRouter({ secret: config.bridge.secret, backends: deps.bridgeBackends ?? [rssBridgeBackend(config.bridge.backendUrl)], log: bridgeLog, now: deps.now });
+    const router = new BridgeRouter({ secret: config.bridge.secret, backends: deps.bridgeBackends ?? [
+      crossrefBackend({ testAllowAddress: deps.testAllowAddress }),
+      ...(config.bridge.backendUrl ? [rssBridgeBackend(config.bridge.backendUrl)] : []),
+    ], log: bridgeLog, now: deps.now });
     bridgeServer = createBridgeServer(router, { log: deps.log });
   }
   const proxy = createProxyServer({ config, stats, log: deps.log, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver });

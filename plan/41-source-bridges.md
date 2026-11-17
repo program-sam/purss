@@ -4,6 +4,8 @@ The owner approved following services that publish no feed through a bundled, se
 [RSS-Bridge](https://github.com/RSS-Bridge/rss-bridge), with a router in front of it so a
 second backend (RSSHub) can be added later without changing anyone's sources. FreshRSS
 stays the only engine that polls. This page records the design and what it defers.
+Journals followed through Crossref are a service of the same router with a backend of its
+own ([plan/45](45-crossref-feeds.md)); the router runs on every installation for it.
 
 ## Scope
 
@@ -144,7 +146,8 @@ the server's budget.
 
 ## Deferred
 
-- RSSHub as a second backend (the router takes an ordered backend list per service).
+- RSSHub as a second backend (each catalogue entry names its kind of backend, and the router
+  asks the backends of that kind in order).
 - Services needing credentials, and Meta, X and TikTok.
 - Per-source health from bridge failures in the product (a failing bridged source shows as
   quiet after the usual quiet period; the administrator sees the failure at once).

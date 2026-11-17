@@ -77,12 +77,13 @@ if (!Number.isInteger(bridgePort) || bridgePort < 1 || bridgePort > 65535) {
   process.exit(1);
 }
 const bridgeEnv: NodeJS.ProcessEnv = bridge("up") ? { EGRESS_BRIDGE_BACKEND: `http://127.0.0.1:${bridgePort}` } : {};
-if (!bridgeEnv.EGRESS_BRIDGE_BACKEND) console.error("The bridge didn't start; Telegram, Bandcamp and the other bridged services can't be followed in this run.");
+if (!bridgeEnv.EGRESS_BRIDGE_BACKEND) console.error("RSS-Bridge didn't start; Telegram, Bandcamp and the other bridged services can't be followed in this run (Crossref journals still can).");
 run("egress", process.execPath, ["apps/egress/src/main.ts"], bridgeEnv);
 if (!engine("up")) {
   console.error("The FreshRSS engine didn't start; see the messages above.");
   await shutdown(1);
 }
-run("api", process.execPath, ["apps/api/src/main.ts"], bridgeEnv.EGRESS_BRIDGE_BACKEND ? { PURSS_BRIDGE_URL: "http://127.0.0.1:8945" } : {});
+// The router runs with or without RSS-Bridge (Crossref needs only the router); the API offers RSS-Bridge's services only when it started.
+run("api", process.execPath, ["apps/api/src/main.ts"], { PURSS_BRIDGE_URL: "http://127.0.0.1:8945", ...(bridgeEnv.EGRESS_BRIDGE_BACKEND ? { PURSS_RSS_BRIDGE: "1" } : {}) });
 await new Promise((r) => setTimeout(r, 800));
 run("worker", process.execPath, ["apps/worker/src/main.ts"]);

@@ -7,6 +7,7 @@ export * from "./addresses.ts";
 export * from "./bluesky.ts";
 export * from "./bridges.ts";
 export * from "./cadence.ts";
+export * from "./crossref.ts";
 export * from "./capture-quality.ts";
 export * from "./catalog.ts";
 export * from "./content-type.ts";

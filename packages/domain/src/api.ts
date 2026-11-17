@@ -422,6 +422,8 @@ export type DiscoveryCandidate = {
   matchesPage?: boolean;
   /** a source already followed under the same name (another address), so following this one makes a second. */
   sameNameSource?: { id: string; title: string } | null;
+  /** another way to follow the same source (a journal through Crossref next to its own feed): offered, never chosen first. */
+  alternative?: boolean;
 };
 /** A page worth keeping as it is rather than following (a single video), with what could be learned about it. */
 export type KeepOffer = { url: string; kind: "video" | "link"; title: string; siteName: string | null; author: string | null; imageUrl: string | null };
