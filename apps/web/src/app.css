@@ -5,8 +5,9 @@ body{overflow:hidden}
 :root{--row-h:56px;--row-py:9px;--av-row:26px}
 .skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--surface);padding:8px 14px;border-radius:8px;border:2px solid var(--focus);font-weight:700}
 .skip:focus{top:10px}
-/* The mini-player takes a band at the bottom (--player-space, extra.css); the whole layout, drawers and panels included, ends above it. */
-.app{display:grid;grid-template-columns:var(--sbw,276px) minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);height:calc(100dvh - var(--player-space))}
+/* The mini-player takes a band at the bottom (--player-space, extra.css); the content, drawers and panels end above it,
+   while a sidebar beside the content runs the full height (the player sits over the content, extra.css). */
+.app{display:grid;grid-template-columns:var(--sbw,276px) minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr) var(--player-space);height:100dvh}
 .app[data-sb="rail"]{--sbw:68px}
 .app[data-sb="drawer"],.app[data-sb="hidden"]{--sbw:0px}
 .side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;width:var(--sbw)}
@@ -538,7 +539,7 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 @media (max-width:700px){.two{grid-template-columns:1fr}.lopts.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .crumbs{flex:1 1 200px}
-.side{grid-column:1;grid-row:1}
+.side{grid-column:1;grid-row:1/-1}
 .stage{grid-column:2;grid-row:1}
 .panel{grid-column:3;grid-row:1}
 

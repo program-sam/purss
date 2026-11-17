@@ -236,7 +236,7 @@ html[data-ts] .app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main { padding
 
 /* Player: the mini-player floats at the bottom while you move around; the item panel's audio/video box.
    --player-space is the band it takes at the bottom of the screen (its measured height --player-h, set by
-   PlayerBar, plus its offset and a gap); the layout ends above that band (app.css), so nothing sits under it. */
+   PlayerBar, plus its offset and a gap); the content ends above that band (app.css), so nothing sits under it. */
 .app{--player-bottom:12px;--player-space:0px}
 .app[data-player="open"]{--player-space:calc(var(--player-h,0px) + var(--player-bottom) + 8px)}
 .player{position:fixed;left:50%;bottom:var(--player-bottom);transform:translateX(-50%);width:min(960px,calc(100vw - 20px));z-index:58;display:grid;gap:10px;padding:12px 16px;border-radius:18px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow-pop);container-type:inline-size}
@@ -293,6 +293,9 @@ html[data-ts] .app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main { padding
   .player-title .av{--s:40px!important}
 }
 @container (max-width:340px){.player-controls{gap:10px}.player-pill{padding:0 8px;min-width:40px}.player-unit{display:none}}
+/* Beside a sidebar the player centres over the content, so the sidebar's foot stays clear. */
+.app:is([data-sb="full"],[data-sb="rail"]) .player{left:calc(var(--sbw) + (100vw - var(--sbw)) / 2);width:min(960px,calc(100vw - var(--sbw) - 20px))}
+.app:is([data-sb="full"],[data-sb="rail"]) .player[data-mini]{width:min(560px,calc(100vw - var(--sbw) - 20px))}
 @media (max-width:560px){.app{--player-bottom:6px}.player{padding:10px 12px;border-radius:16px}}
 /* The size toggle: a chevron pointing down to make the player smaller, up to show it in full. */
 .player-size .ic{transform:rotate(90deg)}

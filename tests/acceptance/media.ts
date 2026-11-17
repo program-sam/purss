@@ -187,23 +187,32 @@ async function main(): Promise<void> {
     await waitFor("the show's art to load", async () => (await artwork.evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0)), 5000);
     step("an episode with no picture of its own plays with the show's art");
 
-    // Nothing sits under the player, in any layout: what the layout shows ends above its top edge.
+    // Nothing sits under the player, in any layout: what the layout shows ends above its top edge,
+    // and a sidebar beside the content runs to the bottom of the screen with the player clear of it.
+    const besidePlayer = async (what: string) => {
+      const p = await bar.boundingBox();
+      const b = await page.locator("#side").boundingBox();
+      const h = page.viewportSize()!.height;
+      assert.ok(p && b, `${what} and the player are on screen`);
+      assert.ok(Math.abs(b.y + b.height - h) <= 0.5, `${what} runs to the bottom of the screen (${b.y + b.height} of ${h})`);
+      assert.ok(b.x + b.width <= p.x + 0.5, `the player is clear of ${what} (${b.x + b.width} > ${p.x})`);
+    };
     const clearOfPlayer = async (what: string, selector: string) => {
       const p = await bar.boundingBox();
       const b = await page.locator(selector).first().boundingBox();
       assert.ok(p && b, `${what} and the player are on screen`);
       assert.ok(b.y + b.height <= p.y + 0.5, `${what} ends above the player (${b.y + b.height} > ${p.y})`);
     };
-    await clearOfPlayer("the sidebar rail", "#side");
+    await besidePlayer("the sidebar rail");
     await clearOfPlayer("the reader", "aside.panel");
     await clearOfPlayer("the list", "#main");
-    step("on a laptop the rail, the reader and the list end above the player");
+    step("on a laptop the reader and the list end above the player, and the rail runs beside it");
 
     // With the reader open, a laptop's sidebar steps back to its rail, where Home is an icon button.
     await page.locator("#side").getByRole("button", { name: "Home", exact: true }).first().click();
     await page.waitForURL(`${origin}/app/`);
     assert.ok(await bar.isVisible(), "the player stays while moving around");
-    await clearOfPlayer("the full sidebar", "#side");
+    await besidePlayer("the full sidebar");
     await clearOfPlayer("the list", "#main");
     // Past the first few seconds, so that resuming starts from the saved position rather than the beginning.
     // The slider shows whole seconds, so wait for one more than needed.
