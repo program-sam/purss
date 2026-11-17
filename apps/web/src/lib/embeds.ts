@@ -1,5 +1,6 @@
 /**
- * A video page's own embedded player (plan/25): YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch.
+ * A video page's own embedded player (plan/25): YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch; and an Instagram
+ * post's own embed, the only way its pictures and videos can be shown here (Instagram's picture servers refuse other sites).
  * The reader loads one only when the person presses play, so opening an item asks nothing of the platform. The
  * player is the platform's own, so the play counts as a view on that platform and its ads play as on its site.
  * Any other page, PeerTube included (every instance has its own address), still opens on its own site.
@@ -13,9 +14,11 @@ export const EMBED_ORIGINS = [
   "https://odysee.com",
   "https://player.twitch.tv",
   "https://clips.twitch.tv",
+  "https://www.instagram.com",
 ] as const;
 
-export type Embed = { src: string; platform: string };
+/** `post`: a post to show, not a video to play. */
+export type Embed = { src: string; platform: string; post?: true };
 
 const YT_ID = /^[\w-]{11}$/;
 const DM_ID = /^[a-z0-9]{5,12}$/i;
@@ -99,6 +102,13 @@ function twitch(u: URL, page: { protocol: string; hostname: string } | null): st
   return null;
 }
 
+/** instagram.com/p/<code>/ or /reel/<code>/: the post's embed (a reel is a post with a video). */
+function instagram(u: URL): string | null {
+  if (host(u) !== "instagram.com") return null;
+  const seg = u.pathname.split("/").filter(Boolean);
+  return seg.length === 2 && (seg[0] === "p" || seg[0] === "reel") && /^[A-Za-z0-9_-]{5,64}$/.test(seg[1]!) ? `https://www.instagram.com/p/${seg[1]}/embed/` : null;
+}
+
 /**
  * The embedded player for a video page's address, or null when it isn't one we embed. `page` is where this app runs.
  * An app whose page isn't a web address (the desktop app on macOS and Linux at tauri://, the iPhone app at capacitor://)
@@ -121,5 +131,7 @@ export function embedFor(url: string | null | undefined, page: { protocol: strin
   if (dm) return { src: dm, platform: "Dailymotion" };
   const tw = twitch(u, page);
   if (tw) return { src: tw, platform: "Twitch" };
+  const ig = instagram(u);
+  if (ig) return { src: ig, platform: "Instagram", post: true };
   return null;
 }

@@ -27,10 +27,11 @@ export function fullTextAvailable(source: { kind: string; is_private: number; bu
 /**
  * Whether an item's page is something a readable copy can be made of. A video or a podcast episode from a feed is a page of
  * players and comments: its description and picture are what the feed gave, and a copy of the page would only fail and be
- * reported as a text that couldn't be saved. A page kept by hand (a saved link) is the person's own choice, whatever it is.
+ * reported as a text that couldn't be saved. A post (Bluesky, Instagram) is whole in its feed, and its page shows nothing without
+ * its site's script or a login. A page kept by hand (a saved link) is the person's own choice, whatever it is.
  */
 function pageHasReadableText(app: App, itemId: string): boolean {
-  return !app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.kind IN ('video', 'podcast') AND s.kind <> 'manual'", itemId);
+  return !app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.kind IN ('video', 'podcast', 'post') AND s.kind <> 'manual'", itemId);
 }
 
 /** The item has a copy on its way or finished, a partial one included: nothing is fetched by itself again (capture-state.ts). */
@@ -40,8 +41,8 @@ const hasCapture = (app: App, itemId: string) => !!app.db.get("SELECT 1 FROM cap
  * Queue a readable-text capture of an item's page for Keep, inside the caller's transaction:
  * reserve storage so the copy is sure to fit, record the pending capture and enqueue the job.
  * Returns false when the item already has a capture that is pending or finished (a partial one included, unless `again`: the
- * person tried again, see capture-state.ts), belongs to a private source (whose pages are never fetched), or is a feed's video or
- * podcast episode (unless `again`). Throws StorageFull when there is no room. The person asked for this copy, so a failure of it is theirs to hear about.
+ * person tried again, see capture-state.ts), belongs to a private source (whose pages are never fetched), or is a feed's video,
+ * podcast episode or post (unless `again`). Throws StorageFull when there is no room. The person asked for this copy, so a failure of it is theirs to hear about.
  */
 export function queueCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string }, opts: { again?: boolean } = {}): boolean {
   if (opts.again ? app.db.get(`SELECT 1 WHERE ${settledCopy("?")}`, target.itemId) : hasCapture(app, target.itemId)) return false;
@@ -59,10 +60,11 @@ export function queueCapture(app: App, target: { accountId: string; workspaceId:
  * reservation would hold room that the source's own new items need. It is admitted when it
  * completes if there is room then, and dropped otherwise. When the account is already out of room
  * nothing is queued and growth isn't marked paused for it. Each one runs AUTO_CAPTURE_SPACING_SECONDS
- * after the last capture scheduled in the PURSS, so a burst of new items is spread out.
+ * after the last capture scheduled in the PURSS, so a burst of new items is spread out. A feed's video, podcast episode or post
+ * has no page to copy (pageHasReadableText).
  */
 export function queueAutoCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string | null }): boolean {
-  if (!target.url || hasCapture(app, target.itemId)) return false;
+  if (!target.url || hasCapture(app, target.itemId) || !pageHasReadableText(app, target.itemId)) return false;
   try {
     checkGrowth(app, target.accountId, 1);
   } catch (err) {

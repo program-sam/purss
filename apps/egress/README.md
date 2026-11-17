@@ -185,7 +185,9 @@ post-id rules is `packages/connectors/src/bridges.ts`.
   (64 more may wait, then `503`), one per source at a time with concurrent requests sharing it,
   good answers reused for ten minutes (24 MiB of them at most, least recently used dropped first), and after a failure a back-off (5 minutes, doubling to an
   hour) during which the last good answer, or the failure, is repeated. A failure with nothing
-  good to repeat is `503` with `Retry-After`, never an empty feed; a real empty feed is `200`.
+  good to repeat is `503` with `Retry-After`, never an empty feed; a real empty feed is `200`,
+  except for a service whose backend answers empty when it misread the page (Instagram): no posts
+  is asked again once at once and is otherwise a failure (`no_posts`).
 - Output is RSS whose GUIDs are post ids from the post address (`telegram:durov/552`); entries
   without one are dropped, and output with entries none of which is this source's post or one its
   catalogue entry leaves out on purpose (Mixcloud's listened-to shows) is a failure (`no_ids`). Each answer is recorded in `<data>/egress/bridge.db` (30 days, at most

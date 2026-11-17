@@ -259,9 +259,11 @@ export function findDoi(...texts: (string | null | undefined)[]): string | null 
 
 /** A post on Bluesky, as its feed links it (`https://bsky.app/profile/<handle or DID>/post/<id>`). */
 const BLUESKY_POST = /^https:\/\/(?:www\.)?bsky\.app\/profile\/[^/?#]+\/post\/[A-Za-z0-9]+/;
+/** A post or reel on Instagram (`https://www.instagram.com/p/<code>/`, as the bridge links it, or a shared link with a query). */
+const INSTAGRAM_POST = /^https:\/\/(?:www\.|m\.)?instagram\.com\/(?:p|reel)\/[A-Za-z0-9_-]+\/?(?:[?#].*)?$/;
 
 export function detectKind(opts: { sourceKind: string; url: string | null; doi: string | null; enclosures: { type: string | null }[] }): ItemKind {
-  if (opts.url && BLUESKY_POST.test(opts.url)) return "post";
+  if (opts.url && (BLUESKY_POST.test(opts.url) || INSTAGRAM_POST.test(opts.url))) return "post";
   if (opts.sourceKind === "youtube" || (opts.url && /youtube\.com\/watch|youtu\.be\//.test(opts.url))) return "video";
   if (opts.enclosures.some((e) => e.type?.startsWith("audio/"))) return "podcast";
   if (opts.enclosures.some((e) => e.type?.startsWith("video/"))) return "video";

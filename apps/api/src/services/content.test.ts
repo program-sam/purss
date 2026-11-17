@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeCharRefs, displayAuthor, displayExcerpt, displayTitle, findDoi, readMinutes, repairMarkup, sanitize, toText, unwrapCdata } from "./content.ts";
+import { decodeCharRefs, detectKind, displayAuthor, displayExcerpt, displayTitle, findDoi, readMinutes, repairMarkup, sanitize, toText, unwrapCdata } from "./content.ts";
 
 test("toText keeps words apart across block boundaries and line breaks", () => {
   assert.equal(toText("<p>doi:10.1038/x-1</p><p>Parkinson's disease</p>"), "doi:10.1038/x-1 Parkinson's disease");
@@ -176,4 +176,15 @@ test("reading time rounds up whole minutes of the text there is; a few lines are
   assert.equal(readMinutes(words(1151)), 6);
   assert.equal(readMinutes(""), null);
   assert.equal(readMinutes("   \n "), null);
+});
+
+test("posts on Bluesky and Instagram are posts, whatever their source", () => {
+  const kind = (url: string, sourceKind = "rss") => detectKind({ sourceKind, url, doi: null, enclosures: [] });
+  assert.equal(kind("https://www.instagram.com/p/DfxGoxTl16O/"), "post");
+  assert.equal(kind("https://www.instagram.com/reel/DfxGoxTl16O/", "manual"), "post");
+  assert.equal(kind("https://instagram.com/p/DfxGoxTl16O/?igsh=abc"), "post");
+  assert.equal(kind("https://www.instagram.com/p/DfxGoxTl16O/media"), "article");
+  assert.equal(kind("https://bsky.app/profile/a.bsky.social/post/3abc"), "post");
+  assert.equal(kind("https://www.instagram.com/natgeo/"), "article");
+  assert.equal(kind("https://www.instagram.com/natgeo/", "manual"), "link");
 });

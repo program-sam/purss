@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { BRIDGE_SERVICES, bridgeDescriptor, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
 import { discover } from "./discover.ts";
+import { parseFeed } from "./feed.ts";
 import type { BridgeClient } from "./discover.ts";
 
 const target = (url: string) => {
@@ -42,6 +44,22 @@ test("page addresses name a source; the service's other pages don't", () => {
     ["https://music.apple.com/us/artist/jack-johnson/909253", "applemusic/909253"],
     ["https://music.apple.com/artist/909253", "applemusic/909253"],
     ["https://music.apple.com/us/album/yard-sale-single/1876582352", null],
+    ["https://www.instagram.com/some.maker_studio/", "instagram/some.maker_studio"],
+    ["https://instagram.com/NatGeo", "instagram/natgeo"],
+    ["https://www.instagram.com/natgeo/reels/", "instagram/natgeo"],
+    ["https://www.instagram.com/natgeo/?hl=en", "instagram/natgeo"],
+    ["https://www.instagram.com/p/DfxGoxTl16O/", null],
+    ["https://www.instagram.com/reel/Df2QAetAuYB/", null],
+    ["https://www.instagram.com/stories/natgeo/123/", null],
+    ["https://www.instagram.com/explore/tags/glacier/", null],
+    ["https://www.instagram.com/accounts/login/", null],
+    ["https://www.instagram.com/creators/", "instagram/creators"],
+    ["https://www.instagram.com/legal/", "instagram/legal"],
+    ["https://www.instagram.com/.natgeo/", null],
+    ["https://www.instagram.com/nat..geo/", null],
+    ["https://www.instagram.com/natgeo./", null],
+    ["https://www.instagram.com/natgeo/followers/", null],
+    ["https://about.instagram.com/blog", null],
     ["https://example.com/durov", null],
     ["ftp://t.me/durov", null],
   ];
@@ -65,13 +83,18 @@ test("post ids come from the post address and belong to the source", () => {
   assert.equal(id("mixcloud", "ntsradio", "https://www.mixcloud.com/NTSRadio/temporal-cove-5th-november-2026/"), "mixcloud:ntsradio/temporal-cove-5th-november-2026");
   assert.equal(id("mixcloud", "djjazzyjeff", "https://www.mixcloud.com/someone-else/their-show/"), null, "a show the account listened to isn't its own");
   assert.equal(id("rutube", "1342940", "https://rutube.ru/video/526a0a452bab5e0d81341a49f61ea26b/"), "rutube:video/526a0a452bab5e0d81341a49f61ea26b");
+  assert.equal(id("instagram", "natgeo", "https://www.instagram.com/p/DfxGoxTl16O/"), "instagram:p/DfxGoxTl16O", "short codes keep their case");
+  assert.equal(id("instagram", "natgeo", "https://www.instagram.com/reel/DfxGoxTl16O/"), "instagram:p/DfxGoxTl16O", "a reel is the same post");
+  assert.equal(id("instagram", "natgeo", "https://www.instagram.com/natgeo/"), null);
+  assert.equal(id("instagram", "natgeo", "https://www.instagram.com/p/DfxGoxTl16O/media"), null);
+  assert.equal(id("instagram", "natgeo", "https://example.com/p/DfxGoxTl16O/"), null);
   assert.equal(id("applemusic", "909253", "https://music.apple.com/us/album/yard-sale-single/1876582352?uo=4"), "applemusic:album/1876582352");
 });
 
 test("descriptors carry no host, backend or credential, and only catalogued keys parse", () => {
   assert.equal(bridgeDescriptor("telegram", "durov"), "bridge:telegram/durov");
   assert.equal(parseBridgeDescriptor("bridge:telegram/durov")?.key, "durov");
-  for (const bad of ["bridge:telegram/Du rov", "bridge:instagram/nasa", "bridge:telegram/a", "bridge:telegram/durov/x", "telegram/durov", "bridge:telegram/durov?x=1"]) {
+  for (const bad of ["bridge:telegram/Du rov", "bridge:tiktok/nasa", "bridge:instagram/.nasa", "bridge:telegram/a", "bridge:telegram/durov/x", "telegram/durov", "bridge:telegram/durov?x=1"]) {
     assert.equal(parseBridgeDescriptor(bad), null, bad);
   }
 });
@@ -158,4 +181,18 @@ test("every service's example account is a valid key that its own page address n
     assert.match(service.example, service.keyPattern, service.id);
     assert.equal(service.keyFromPage(new URL(service.pageUrl(service.example))), service.example, service.id);
   }
+});
+
+test("Instagram posts keep their caption and lose their media, which can't be shown here; an escape linked as a hashtag is undone", () => {
+  const ig = bridgeService("instagram")!;
+  const feed = parseFeed(readFileSync(new URL("./fixtures/bridges/instagram-natgeo.atom", import.meta.url)), "application/atom+xml");
+  assert.equal(ig.cleanTitle!(feed.title!), "natgeo");
+  const [video, carousel, picture] = feed.items.map((i) => ig.cleanHtml!(i.contentHtml!));
+  for (const html of [video!, carousel!, picture!]) assert.doesNotMatch(html, /<img|<video|<source|cdninstagram|fbcdn|media\?size/);
+  assert.match(video!, /^Not sure we can think of an answer better than @tanyabadillo/);
+  assert.match(carousel!, /^National Geographic photographers/);
+  assert.match(picture!, /^Drawn to the light filtering through its ice formations/);
+  assert.match(picture!, /Alaska&#039;s Sheridan Glacier/);
+  assert.equal(ig.noMedia, true);
+  assert.equal(ig.emptyIsFailure, true);
 });

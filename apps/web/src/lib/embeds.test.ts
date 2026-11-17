@@ -54,12 +54,19 @@ test("in an app whose page isn't a web address only Odysee is embedded: the othe
   assert.equal(embedFor("https://youtu.be/dQw4w9WgXcQ", { protocol: "http:", hostname: "tauri.localhost" })?.platform, "YouTube", "the Windows desktop app's page is a web address");
 });
 
+test("an Instagram post or reel is shown in the post's own embed; its other pages stay links", () => {
+  assert.deepEqual(embedFor("https://www.instagram.com/p/DfxGoxTl16O/", https), { src: "https://www.instagram.com/p/DfxGoxTl16O/embed/", platform: "Instagram", post: true });
+  assert.equal(embedFor("https://instagram.com/reel/DfxGoxTl16O/?igsh=x", https)?.src, "https://www.instagram.com/p/DfxGoxTl16O/embed/");
+  for (const notPost of ["https://www.instagram.com/natgeo/", "https://www.instagram.com/p/DfxGoxTl16O/media", "https://www.instagram.com/p/a%22b/", "https://instagram.com.evil.example/p/DfxGoxTl16O/"]) assert.equal(embedFor(notPost, https), null, notPost);
+  assert.equal(embedFor("https://www.instagram.com/p/DfxGoxTl16O/", { protocol: "tauri:", hostname: "localhost" }), null, "untried in the apps whose page isn't a web address");
+});
+
 test("PeerTube and other sites, and anything that isn't a web address, stay links", () => {
   for (const url of ["https://peertube.example/w/abc", "https://example.com/video.mp4", "javascript:alert(1)", "not a url", "", null]) assert.equal(embedFor(url, https), null, String(url));
 });
 
 test("every player address is on an origin the page policies allow, over https", () => {
-  for (const url of ["https://youtu.be/dQw4w9WgXcQ", "https://vimeo.com/1", "https://dai.ly/x8j6v5c", "https://odysee.com/a:1", "https://www.twitch.tv/videos/1", "https://clips.twitch.tv/c"]) {
+  for (const url of ["https://youtu.be/dQw4w9WgXcQ", "https://vimeo.com/1", "https://dai.ly/x8j6v5c", "https://odysee.com/a:1", "https://www.twitch.tv/videos/1", "https://clips.twitch.tv/c", "https://www.instagram.com/p/DfxGoxTl16O/"]) {
     const src = new URL(embedFor(url, https)!.src);
     assert.ok((EMBED_ORIGINS as readonly string[]).includes(src.origin), src.origin);
   }

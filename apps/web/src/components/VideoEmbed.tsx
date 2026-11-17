@@ -10,7 +10,8 @@ import { youtubeStartWorkflow } from "../player/embedded-workflow.ts";
  * A video page's own player in the reader. Until the person presses play only the item's picture shows and
  * nothing is asked of the platform; then the platform's player loads in its place and starts. It runs walled off
  * from PURSS (another origin, sandboxed, no navigating this page). Some videos refuse to be embedded: the
- * platform's player says so, and the "Open on …" link beside it still opens the video's own page.
+ * platform's player says so, and the "Open on …" link beside it still opens the video's own page. A post (Instagram)
+ * has no picture of its own here, so a button shows it instead.
  */
 export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; embed: Embed }) {
   const [on, setOn] = useState(false);
@@ -23,6 +24,9 @@ export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; e
   };
   // The button the person pressed is replaced by the player: focus goes to it, so it doesn't fall to the page.
   useEffect(() => { if (on) frame.current?.focus(); }, [on]);
+  if (!on && embed.post) {
+    return <button type="button" className="mbtn embed-show" onClick={start} title={`Load the post from ${embed.platform}`}>Show the post here</button>;
+  }
   if (!on) {
     return (
       <button type="button" className="art-link embed-start" onClick={start} aria-label={`Play here: ${item.title}`} title={`Play here, in ${embed.platform}'s player`}>
@@ -32,11 +36,11 @@ export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; e
   }
   return (
     // Twitch's player needs at least 300 px of height (and 400 of width) to start by itself; narrower, it waits for its own play button.
-    <div className={`embed${embed.platform === "Twitch" ? " embed-tw" : ""}`}>
+    <div className={`embed${embed.platform === "Twitch" ? " embed-tw" : embed.post ? " embed-post" : ""}`}>
       <iframe
         ref={frame}
         src={embed.src}
-        title={`${embed.platform} player: ${item.title}`}
+        title={`${embed.platform} ${embed.post ? "post" : "player"}: ${item.title}`}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
         // The platforms want to know which site plays their video (YouTube refuses to play without it): the origin only.

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title type="text">natgeo - Instagram</title>
+  <link rel="alternate" type="text/html" href="https://www.instagram.com/natgeo/"/>
+  <link rel="self" type="application/atom+xml" href="https://rss-bridge.invalid/?action=display&amp;bridge=InstagramBridge&amp;context=Username&amp;u=natgeo&amp;format=Atom"/>
+  <icon>https://www.instagram.com/favicon.ico</icon>
+  <logo>https://www.instagram.com/favicon.ico</logo>
+  <id>https://rss-bridge.invalid/?action=display&amp;bridge=InstagramBridge&amp;context=Username&amp;u=natgeo&amp;format=Atom</id>
+  <updated>2026-11-17T17:22:06+00:00</updated>
+  <author>
+    <name>RSS-Bridge</name>
+  </author>
+  <entry>
+    <title type="html">▶ Not sure we can think of an answer better than @tanyabadillo's 🌅...</title>
+    <published>2026-11-17T17:00:03+00:00</published>
+    <updated>2026-11-17T17:00:03+00:00</updated>
+    <id>https://www.instagram.com/p/Df2QAetAuYB/</id>
+    <link rel="alternate" type="text/html" href="https://www.instagram.com/p/Df2QAetAuYB/"/>
+    <author>
+      <name>natgeo</name>
+    </author>
+    <content type="html">&lt;video controls&gt;&lt;source src="" poster="https://www.instagram.com/p/Df2QAetAuYB/media?size=l" type="video/mp4"&gt;&lt;img src="https://www.instagram.com/p/Df2QAetAuYB/media?size=l" alt=""&gt;&lt;/video&gt;&lt;br&gt;&lt;br&gt;Not sure we can think of an answer better than @tanyabadillo&amp;#039;s 🌅&lt;br /&gt;
+&lt;br /&gt;
+Catch the full #NatGeo9 interview with Tanya, part of the Creator Cohort, on the Nat Geo YouTube channel at the link in bio.</content>
+    <link rel="enclosure" type="application/octet-stream" href="https://www.instagram.com/p/Df2QAetAuYB/media?size=l"/>
+  </entry><entry>
+    <title type="html">National Geographic photographers ventured to places far and wide to capture the year’s most fascinating images. Out...</title>
+    <published>2026-11-17T12:05:09+00:00</published>
+    <updated>2026-11-17T12:05:09+00:00</updated>
+    <id>https://www.instagram.com/p/Df147tCiAyB/</id>
+    <link rel="alternate" type="text/html" href="https://www.instagram.com/p/Df147tCiAyB/"/>
+    <author>
+      <name>natgeo</name>
+    </author>
+    <content type="html">&lt;a href="https://scontent.cdninstagram.com/v/t51.82787-15/912032737_18720223195019133_3854183847552490578_n.jpg?stp=dst-jpg&amp;oe=00000000" target="_blank"&gt;&lt;img src="https://scontent.cdninstagram.com/v/t51.82787-15/912032737_18720223195019133_3854183847552490578_n.jpg?stp=dst-jpg&amp;oe=00000000" alt="National Geographic photographers ventured to places far and wide to capture the year’s most fascinating images. Out..." /&gt;&lt;/a&gt;&lt;br&gt;&lt;a href="https://scontent.cdninstagram.com/v/t51.82787-15/914384603_18720223210019133_7491756309452445712_n.jpg?stp=dst-jpg&amp;oe=00000000" target="_blank"&gt;&lt;img src="https://scontent.cdninstagram.com/v/t51.82787-15/914384603_18720223210019133_7491756309452445712_n.jpg?stp=dst-jpg&amp;oe=00000000" alt="National Geographic photographers ventured to places far and wide to capture the year’s most fascinating images. Out..." /&gt;&lt;/a&gt;&lt;br&gt;&lt;br&gt;National Geographic photographers ventured to places far and wide to capture the year&amp;rsquo;s most fascinating images. Out of millions of photos, just 25 were selected as our Pictures of the Year. &lt;br /&gt;
+&lt;br /&gt;
+We thought these photos of a juvenile Greenland shark, possibly born arou</content>
+    <link rel="enclosure" type="image/jpeg" href="https://scontent.cdninstagram.com/v/t51.82787-15/912032737_18720223195019133_3854183847552490578_n.jpg?stp=dst-jpg&amp;oe=00000000"/>
+    <link rel="enclosure" type="image/jpeg" href="https://scontent.cdninstagram.com/v/t51.82787-15/914384603_18720223210019133_7491756309452445712_n.jpg?stp=dst-jpg&amp;oe=00000000"/>
+    
+  </entry><entry>
+    <title type="html">Drawn to the light filtering through its ice formations, photographer Christoph Johann (@johann_photography) explored...</title>
+    <published>2026-11-16T11:00:01+00:00</published>
+    <updated>2026-11-16T11:00:01+00:00</updated>
+    <id>https://www.instagram.com/p/DfxGoxTl16O/</id>
+    <link rel="alternate" type="text/html" href="https://www.instagram.com/p/DfxGoxTl16O/"/>
+    <author>
+      <name>natgeo</name>
+    </author>
+    <content type="html">&lt;a href="https://www.instagram.com/p/DfxGoxTl16O/" target="_blank"&gt;&lt;img src="https://www.instagram.com/p/DfxGoxTl16O/media?size=l" alt="Drawn to the light filtering through its ice formations, photographer Christoph Johann (@johann_photography) explored..." /&gt;&lt;/a&gt;&lt;br&gt;&lt;br&gt;Drawn to the light filtering through its ice formations, photographer Christoph Johann (&lt;a href="https://www.instagram.com/johann_photography"&gt;@johann_photography&lt;/a&gt;) explored Alaska&amp;&lt;a href="https://www.instagram.com/explore/tags/039"&gt;#039&lt;/a&gt;;s Sheridan Glacier alongsi</content>
+    <link rel="enclosure" type="application/octet-stream" href="https://www.instagram.com/p/DfxGoxTl16O/media?size=l"/>
+  </entry>
+</feed>

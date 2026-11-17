@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
  * and the table never holds more than MAX_ROWS.
  */
 
-export type FetchOutcome = "ok" | "empty" | "timeout" | "too_large" | "parse_error" | "no_ids" | "unreachable" | `http_${number}`;
+export type FetchOutcome = "ok" | "empty" | "no_posts" | "timeout" | "too_large" | "parse_error" | "no_ids" | "unreachable" | `http_${number}`;
 export type FetchPhase = "backend" | "parse" | "identity";
 
 export type FetchRecord = {

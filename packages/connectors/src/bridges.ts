@@ -41,6 +41,10 @@ export type BridgeService = {
   cleanHtml?(html: string): string;
   /** Minutes to add to the backend's dates, when it labels local times as UTC. */
   dateCorrectionMinutes?: number;
+  /** The service's pictures and attachments can't be shown on another site, so entries carry none (the reader embeds the post instead). */
+  noMedia?: boolean;
+  /** The backend answers with no posts when it couldn't read the page, so an answer without posts is a failure, not an empty source. */
+  emptyIsFailure?: boolean;
 };
 
 const hostOf = (url: URL): string => url.hostname.toLowerCase().replace(/\.$/, "");
@@ -275,6 +279,67 @@ const appleMusic: BridgeService = {
   },
 };
 
+/** Instagram user names: letters, digits, periods and underscores, at most 30, no period first, last or twice in a row; the site ignores case. */
+const INSTAGRAM_NAME = /^(?!.*\.\.)[a-z0-9_](?:[a-z0-9._]{0,28}[a-z0-9_])?$/;
+/** The site's own pages; names that are also accounts with posts (creators, media, lite, legal, directory) are left out. */
+const INSTAGRAM_RESERVED = new Set([
+  "p", "reel", "reels", "tv", "stories", "explore", "accounts", "direct", "about", "developer", "developers", "web", "api", "graphql", "emails",
+  "challenge", "privacy", "terms", "s", "ar", "topics", "popular", "embed", "oauth", "session", "static", "press", "business", "blog",
+  "help", "download", "nametag", "invites", "your_activity", "ads", "login", "signup",
+]);
+const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
+/** A post's short code, from `/p/<code>/` or `/reel/<code>/` (the same code space); case matters. */
+const instagramShortcode = (link: URL): string | null => {
+  if (!INSTAGRAM_HOSTS.has(hostOf(link))) return null;
+  const s = segmentsOf(link);
+  return s.length === 2 && (s[0] === "p" || s[0] === "reel") && /^[A-Za-z0-9_-]{5,64}$/.test(s[1]!) ? s[1]! : null;
+};
+
+/*
+ * Read from the profile's embed widget (`instagram.com/<name>/embed/`), the page websites use to show
+ * someone's latest posts: RSS-Bridge falls back to it when Instagram's other pages want a login, which
+ * from a server address is always. It carries the latest six posts and could be closed by Instagram.
+ */
+const instagram: BridgeService = {
+  id: "instagram",
+  example: "natgeo",
+  name: "Instagram",
+  origin: "Instagram account",
+  keyPattern: INSTAGRAM_NAME,
+  keyFromPage(url) {
+    if (!INSTAGRAM_HOSTS.has(hostOf(url))) return null;
+    const s = segmentsOf(url);
+    const name = s[0]?.toLowerCase() ?? "";
+    // The profile and its own tabs; a post, reel or story is a page of its own.
+    if (s.length > 2 || (s.length === 2 && !["reels", "tagged", "embed"].includes(s[1]!))) return null;
+    return INSTAGRAM_NAME.test(name) && !INSTAGRAM_RESERVED.has(name) ? name : null;
+  },
+  pageUrl: (key) => `https://www.instagram.com/${key}/`,
+  backend: { kind: "rss-bridge", bridge: "InstagramBridge", params: (key) => ({ context: "Username", u: key, media_type: "all" }) },
+  cleanTitle: (title) => title.replace(/\s+-\s+Instagram$/, ""),
+  // The embed widget names no owner per post, so a post's id is its short code alone (codes are global).
+  postId(_key, link) {
+    const code = instagramShortcode(link);
+    return code ? `instagram:p/${code}` : null;
+  },
+  // Instagram's picture servers refuse to be shown on other sites (Cross-Origin-Resource-Policy: same-origin) and the widget gives videos
+  // no address, so the post's media are left out: its caption stays, and the reader shows the post in Instagram's own embed.
+  cleanHtml: (html) => html
+    .replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, "")
+    // A picture's link wraps it, and its alt is the caption unescaped, so the link runs to its end.
+    .replace(/<a\b[^>]*>\s*<img\b[\s\S]*?<\/a>(?:\s*<br\s*\/?>)?/gi, "")
+    .replace(/<img\b[^>]*>/gi, "")
+    // The backend escapes captions that were escaped already ("it&amp;#039;s", which the reader undoes), and in a picture's caption
+    // then links the "#039" as a hashtag.
+    .replace(/&(?:amp;)?<a href="https:\/\/www\.instagram\.com\/explore\/tags\/(\d{1,7}|x[0-9a-f]{1,6})">#\1<\/a>;/gi, "&#$1;")
+    .replace(/^(?:\s*<br\s*\/?>)+/i, ""),
+  noMedia: true,
+  // RSS-Bridge serves an empty feed when it can't decode the widget's data, which a token in a signed address can break at random
+  // (its escape repair reads "uDe2d" in "…AsjuDe2d…" as half an emoji). That can't be told from an account without posts or with its
+  // widget switched off, which therefore also read as failing rather than as a source that never posts.
+  emptyIsFailure: true,
+};
+
 /** A journal's articles as registered with Crossref (plan/45). The key is the journal's ISSN without its hyphen. */
 const crossref: BridgeService = {
   id: "crossref",
@@ -294,7 +359,7 @@ const crossref: BridgeService = {
   },
 };
 
-export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, crossref]);
+export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, instagram, crossref]);
 
 /** True for services collected by RSS-Bridge, which an installation may not run. */
 export function needsRssBridge(service: BridgeService): boolean {

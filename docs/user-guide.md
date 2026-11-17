@@ -123,7 +123,7 @@ What you can paste:
 | A Mastodon or other fediverse account: `@name@server`, or its profile page (`https://server/@name`) | The account's public feed, which its profile page advertises |
 | A Bluesky account: `@name.bsky.social`, a custom-domain handle such as `@example.com`, `name.bsky.social`, or a `bsky.app/profile/…` link | The account's public feed on bsky.app; a post link offers its author to confirm |
 | A private feed link (one containing a token or key) | Followed and marked private (below) |
-| A public Telegram channel (`t.me/name`, `t.me/s/name`, or one of its posts), a Bandcamp artist or label (`name.bandcamp.com`), a SoundCloud account (`soundcloud.com/name`), a Twitch channel's videos (`twitch.tv/name`), a Mixcloud account's own shows (`mixcloud.com/name`), a Rutube channel (`rutube.ru/channel/123…`) or an Apple Music artist's releases (`music.apple.com/…/artist/…/123…`) | Collected by the server's bridge from the public page, as the latest posts at each check. The preview says so. A bridge source can stop working when the service changes its site, and an export lists it by its page address. A server without the bridge says the service has no feeds |
+| A public Telegram channel (`t.me/name`, `t.me/s/name`, or one of its posts), a Bandcamp artist or label (`name.bandcamp.com`), a SoundCloud account (`soundcloud.com/name`), a Twitch channel's videos (`twitch.tv/name`), a Mixcloud account's own shows (`mixcloud.com/name`), a Rutube channel (`rutube.ru/channel/123…`), an Apple Music artist's releases (`music.apple.com/…/artist/…/123…`) or a public Instagram account (`instagram.com/name`; its latest six posts, as captions, with the post itself shown on request) | Collected by the server's bridge from the public page, as the latest posts at each check. The preview says so. A bridge source can stop working when the service changes its site, and an export lists it by its page address. A server without the bridge says the service has no feeds |
 
 What doesn't work:
 
@@ -134,9 +134,11 @@ What doesn't work:
   link afterwards (*More → Rename…* in the item). On a page that is part of a bigger site, the
   page's own feed comes first; a feed for the whole site is offered only when nothing narrower
   exists, and is labelled *Whole site feed*.
-- Services that publish no feeds: Instagram, TikTok, Facebook, X (Twitter), Threads, WhatsApp,
-  Discord, Signal, Snapchat, Spotify and LinkedIn, and the pages of Telegram, Twitch and
-  Bandcamp that aren't a channel or artist (an invite link, say). You're told so at once, and
+- Services that publish no feeds: TikTok, Facebook, X (Twitter), Threads, WhatsApp,
+  Discord, Signal, Snapchat, Spotify and LinkedIn, and the pages of Telegram, Twitch,
+  Bandcamp and Instagram that aren't a channel, artist or account (an invite link or a single
+  post, say). Private Instagram accounts, and accounts that switched off embedding, can't be
+  followed. You're told so at once, and
   pointed at a YouTube channel, blog or newsletter the same person may have. You can still keep
   the link.
 - An email address (a newsletter that only arrives by email can't be followed yet; many have a
@@ -309,6 +311,9 @@ and the previous button skips back 15.
   here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
   in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
   videos open on the site. Other sites, PeerTube included, open in a new tab.
+- **Instagram posts** show their caption. *Show the post here* loads the post itself (its pictures or
+  video) in Instagram's own embed, which only happens when you press it; Instagram doesn't let its
+  pictures be shown any other way. *Open on Instagram* opens the post on Instagram.
 - **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player, and on the system's media controls in a browser; the phone apps' lock screen shows only a picture the publisher's own site serves).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
@@ -356,7 +361,7 @@ once. Each basket has a capture mode:
 - **Link and summary** (the default): keeps the item's details and whatever content its
   feed supplied, with no extra copy of the page.
 - **Readable copy too:** also queues a readable copy of the page in the background (unless the
-  item already has one, or it is a video or podcast episode from a feed: those keep their description and picture and no copy of their page is tried, so no
+  item already has one, or it is a video, podcast episode or post (Bluesky, Instagram) from a feed: those keep what the feed gave and no copy of their page is tried, so no
   "couldn't save the text" follows; a page you keep by hand always gets its copy). The copy reflects the page when it is fetched, if it can be fetched.
   Not done for private sources, or when the server is short of space. The basket also keeps the item's picture
   and the pictures inside the readable text (up to 20 pictures and 10 MB for one item), so a

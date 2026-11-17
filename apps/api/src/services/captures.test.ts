@@ -4,7 +4,7 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
-import { completeCapture, failCapture, queueCapture, retryCapture } from "./captures.ts";
+import { completeCapture, failCapture, queueAutoCapture, queueCapture, retryCapture } from "./captures.ts";
 
 function setup() {
   const { app, cleanup } = makeTestApp();
@@ -121,4 +121,16 @@ test("over HTTP, a failed copy is retried through the mounted route, and only fo
   assert.deepEqual(getItemDetail(app, p, item.id).captures.map((c) => c.level), ["pending"]);
   const stranger = signIn(app, makeOwner(app, { admin: false }).accountId);
   assert.equal((await call(app, server.base, "POST", `/api/items/${item.id}/capture/retry`, stranger, {})).status, 404);
+});
+
+test("a feed's post (Instagram, Bluesky) is whole in its feed: neither keeping nor full articles fetch its page", (t) => {
+  const { app, p, src, cleanup } = setup();
+  t.after(cleanup);
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { url: "https://www.instagram.com/p/DfxGoxTl16O/" })]));
+  const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
+  assert.equal(item.kind, "post");
+  const target = { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! };
+  assert.equal(queueCapture(app, target), false);
+  assert.equal(queueAutoCapture(app, target), false);
+  assert.equal(app.db.get("SELECT 1 FROM captures WHERE item_id = ?", item.id), undefined);
 });

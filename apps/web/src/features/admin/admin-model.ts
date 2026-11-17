@@ -27,6 +27,7 @@ export function bridgeFailureText(outcome: string): string {
     case "too_large": return "The answer was too big to use.";
     case "parse_error": return "The answer couldn't be read.";
     case "no_ids": return "Its posts had no usable address.";
+    case "no_posts": return "The answer had no posts, which for this service means its page couldn't be read.";
   }
   const status = /^http_(\d{3})$/.exec(outcome)?.[1];
   if (!status) return "It failed, and no more is known.";

@@ -194,6 +194,8 @@ a.btn.lg{height:36px}
 .embed { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #000; }
 /* Without the width above, the 300 px minimum height would widen the box through its 16:9 ratio, past a phone's screen. */
 .embed-tw { min-height: 300px; }
+/* Instagram's post embed is a portrait card that sizes itself only with Instagram's script, which isn't loaded here. */
+.embed-post { aspect-ratio: auto; height: min(760px, 80vh); max-width: 540px; margin: 0 auto; background: none; }
 .embed iframe { display: block; width: 100%; height: 100%; border: 0; }
 
 .p-title:focus { outline: none; }

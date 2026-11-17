@@ -13,14 +13,16 @@ own ([plan/45](45-crossref-feeds.md)); the router runs on every installation for
 - Services: only those that work without credentials from both a home and a datacenter
   address when enabled (tested live; see "Enabling a service"). Native feeds keep their
   existing discovery (Bluesky, Mastodon, YouTube and the rest are not bridged).
-- Not now (owner's decision): Instagram, Facebook, Threads, X, TikTok, and anything that
+- Instagram (owner's decision, 2026-11-17): through the profile's embed widget, which RSS-Bridge
+  falls back to and Instagram doesn't put behind a login. It is a side door Instagram could close.
+- Not now (owner's decision): Facebook, Threads, X, TikTok, and anything that
   needs a session cookie or API key. Server-held provider tokens are allowed in principle
   but are a later step with their own review.
 - Not now: RSSHub. The owner decides from the failure log whether it is needed.
 
 ## Services
 
-Surveyed live on 2026-11-08 through RSS-Bridge from a home and a datacenter address.
+Surveyed live on 2026-11-08 (Instagram on 2026-11-17) through RSS-Bridge from a home and a datacenter address.
 
 | Enabled | Notes |
 | --- | --- |
@@ -31,6 +33,7 @@ Surveyed live on 2026-11-08 through RSS-Bridge from a home and a datacenter addr
 | Mixcloud accounts | The backend mixes in shows the account listened to; only its own (its name in the address) are kept |
 | Rutube channels | The backend labels Moscow time as UTC; dates are moved back three hours |
 | Apple Music artists | Releases in no order, up to 50 |
+| Instagram accounts | The latest 6 posts, from the profile's embed widget, as captions without media: Instagram's picture servers refuse other sites (`Cross-Origin-Resource-Policy: same-origin`), their addresses expire, and the widget gives videos none. The reader shows each post in Instagram's own embed on request (plan/25). The backend misreads the widget at random (its escape repair takes tokens in signed addresses for half an emoji; about 1 fetch in 30 from home, more from the server) and then answers empty, so an empty answer is asked again once and is otherwise a failure: an account with its widget switched off or no posts reads as failing too |
 
 | Not enabled | Why |
 | --- | --- |
@@ -44,7 +47,7 @@ Surveyed live on 2026-11-08 through RSS-Bridge from a home and a datacenter addr
 | Discogs | Invented dates and broken label links |
 | Google Play, App Store, 9GAG | Not a person or channel to follow; the App Store gives every version one id |
 | VK Video | Works by posing as Google's crawler; left to the owner |
-| Instagram, Facebook, Threads, X, TikTok | Owner's decision, for later |
+| Facebook, Threads, X, TikTok | Owner's decision, for later |
 
 ## Source identity
 
@@ -103,7 +106,8 @@ API discovery ─────────────► egress: bridge router (
     `telegram:<channel>/<message>`), its link the canonical post address. An entry without
     one is dropped. A source thus keeps its items when its backend changes.
   - A failure is `502`/`503` with `Retry-After`, never an empty success; a real empty feed
-    is `200` with no items.
+    is `200` with no items, except for a service whose backend answers empty when it misread
+    the page (Instagram), where no posts is a failure, asked again once at once.
 - **Discovery** (`packages/connectors`): resolves an enabled service's page address to the
   descriptor and previews it through a narrow internal client for the router (the API's
   `safeFetch` and its address rules are unchanged).
@@ -148,7 +152,7 @@ the server's budget.
 
 - RSSHub as a second backend (each catalogue entry names its kind of backend, and the router
   asks the backends of that kind in order).
-- Services needing credentials, and Meta, X and TikTok.
+- Services needing credentials, and Facebook, Threads, X and TikTok.
 - Per-source health from bridge failures in the product (a failing bridged source shows as
   quiet after the usual quiet period; the administrator sees the failure at once).
 - Reading FreshRSS's per-feed errors for ordinary feeds into the failure log.

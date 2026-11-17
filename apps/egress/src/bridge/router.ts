@@ -58,6 +58,7 @@ export const DEFAULT_ROUTER_LIMITS: RouterLimits = {
 export type RouterAnswer = { status: number; headers: Record<string, string>; body: string };
 
 type Good = { at: number; body: string; entries: number };
+type Asked = { phase: FetchPhase; outcome: FetchOutcome; entries?: StagedEntry[]; title?: string | null };
 type State = { good: Good | null; failure: { at: number; until: number; streak: number; outcome: FetchOutcome } | null };
 
 const XML = "application/rss+xml; charset=utf-8";
@@ -177,10 +178,15 @@ export class BridgeRouter {
     let last: { outcome: FetchOutcome } = { outcome: "unreachable" };
     try {
       for (const backend of this.#backends.filter((b) => b.kind === service.backend.kind)) {
-        const started = this.#now();
-        const result = await this.#ask(backend, service, key);
-        const ms = this.#now() - started;
-        this.#log.record({ service: service.id, key, backend: backend.name, phase: result.phase, outcome: result.outcome, entries: result.entries?.length ?? 0, ms, cached: false });
+        let result: Asked | undefined;
+        // An answer without posts from a service where that means a misread page is asked again once at once: misreads come and go.
+        for (let attempt = 0; attempt < (service.emptyIsFailure ? 2 : 1) && (!result || result.outcome === "no_posts"); attempt++) {
+          const started = this.#now();
+          result = await this.#ask(backend, service, key);
+          const ms = this.#now() - started;
+          this.#log.record({ service: service.id, key, backend: backend.name, phase: result.phase, outcome: result.outcome, entries: result.entries?.length ?? 0, ms, cached: false });
+        }
+        if (!result) continue;
         if (result.entries) {
           const body = this.#render(service, key, result.title, result.entries);
           const entries = result.entries.length;
@@ -206,7 +212,7 @@ export class BridgeRouter {
     return this.#failure(wait);
   }
 
-  async #ask(backend: BridgeBackend, service: BridgeService, key: string): Promise<{ phase: FetchPhase; outcome: FetchOutcome; entries?: StagedEntry[]; title?: string | null }> {
+  async #ask(backend: BridgeBackend, service: BridgeService, key: string): Promise<Asked> {
     let r: Awaited<ReturnType<BridgeBackend["fetch"]>>;
     try {
       r = await backend.fetch(service, key);
@@ -230,6 +236,7 @@ export class BridgeRouter {
     }
     // Entries none of which is a post of this source or one the service's rule leaves out on purpose: the backend's output changed shape.
     if (parsed.items.length > 0 && recognised === 0) return { phase: "identity", outcome: "no_ids" };
+    if (!entries.length && service.emptyIsFailure) return { phase: "backend", outcome: "no_posts" };
     return { phase: "backend", outcome: entries.length ? "ok" : "empty", entries, title: parsed.title };
   }
 
@@ -253,8 +260,8 @@ export class BridgeRouter {
         : item.publishedAt,
       summaryHtml: item.summaryHtml && service.cleanHtml ? service.cleanHtml(item.summaryHtml) : item.summaryHtml,
       contentHtml: item.contentHtml && service.cleanHtml ? service.cleanHtml(item.contentHtml) : item.contentHtml,
-      imageUrl: item.imageUrl,
-      enclosures: item.enclosures,
+      imageUrl: service.noMedia ? null : item.imageUrl,
+      enclosures: service.noMedia ? [] : item.enclosures,
     };
   }
 

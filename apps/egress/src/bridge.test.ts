@@ -64,7 +64,7 @@ test("an unsigned, wrongly signed, unknown or malformed address is the same 404 
     ["telegram", "durov", "x".repeat(43)],
     ["telegram", "durov", sig("telegram", "pavel")],
     ["telegram", "pavel", sig("telegram", "durov")],
-    ["instagram", "durov", sig("instagram", "durov")],
+    ["tiktok", "durov", sig("tiktok", "durov")],
     ["telegram", "Du rov", sig("telegram", "Du rov")],
     ["telegram", "%E0%A4%A", sig("telegram", "durov")],
   ] as const) {
@@ -309,4 +309,47 @@ test("a Mixcloud answer of site pages or malformed links is still a failure, not
     const { r } = router([new FakeBackend("rss-bridge", ok(atom))]);
     assert.equal((await r.serve("mixcloud", "someone", sig("mixcloud", "someone"))).status, 503, link);
   }
+});
+
+/** RSS-Bridge's Atom for an Instagram account's widget: a video whose player has nothing to play, with its picture as an attachment. */
+function instagramAtom(codes: string[]): string {
+  const entries = codes.map((c) => `<entry><title>Post ${c}</title><id>https://www.instagram.com/p/${c}/</id><link rel="alternate" href="https://www.instagram.com/p/${c}/"/>`
+    + `<updated>2026-11-08T10:00:00+00:00</updated><content type="html">&lt;video controls&gt;&lt;source src="" poster="https://www.instagram.com/p/${c}/media?size=l" type="video/mp4"&gt;&lt;/video&gt;&lt;br&gt;Caption ${c}</content>`
+    + `<link rel="enclosure" type="application/octet-stream" href="https://scontent.cdninstagram.com/v/${c}.jpg?oe=6B0271F4"/></entry>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>natgeo - Instagram</title><id>x</id><updated>2026-11-08T10:00:00+00:00</updated>${entries}</feed>`;
+}
+
+test("Instagram posts carry no picture or attachment, which can't be shown on another site", async () => {
+  const { r } = router([new FakeBackend("rss-bridge", ok(instagramAtom(["DfxGoxTl16O"])))]);
+  const a = await r.serve("instagram", "natgeo", sig("instagram", "natgeo"));
+  assert.equal(a.status, 200);
+  const feed = parseFeed(a.body, a.headers["content-type"]);
+  assert.equal(feed.title, "natgeo");
+  const [item] = feed.items;
+  assert.equal(item!.guid, "instagram:p/DfxGoxTl16O");
+  assert.equal(item!.imageUrl, null);
+  assert.deepEqual(item!.enclosures, []);
+  assert.doesNotMatch(a.body, /cdninstagram|&lt;video/);
+});
+
+test("an Instagram answer without posts is a misread page: asked again at once, then a failure that keeps the last good answer", async () => {
+  let answers = [instagramAtom([]), instagramAtom(["DfxGoxTl16O"])];
+  const backend = new FakeBackend("rss-bridge", () => ({ status: 200, body: Buffer.from(answers.shift() ?? instagramAtom([])) }));
+  const { r, clock, log } = router([backend]);
+  const s = sig("instagram", "natgeo");
+  const first = await r.serve("instagram", "natgeo", s);
+  assert.equal(first.status, 200, "the second try read the page");
+  assert.equal(backend.calls, 2);
+  assert.equal(parseFeed(first.body).items.length, 1);
+
+  clock.now += 11 * 60_000;
+  answers = [];
+  const again = await r.serve("instagram", "natgeo", s);
+  assert.equal(backend.calls, 4, "two tries, both empty");
+  assert.equal(again.status, 200, "the last good answer is served");
+  assert.equal(parseFeed(again.body).items.length, 1);
+  assert.deepEqual(log.summary().failing.map((f) => [f.key, f.outcome]), [["natgeo", "no_posts"]]);
+
+  const { r: fresh } = router([new FakeBackend("rss-bridge", ok(instagramAtom([])))]);
+  assert.equal((await fresh.serve("instagram", "natgeo", s)).status, 503, "with nothing good yet, never an empty source");
 });
