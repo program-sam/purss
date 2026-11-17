@@ -30,8 +30,8 @@ export type DownloadCandidate = {
   kind: ItemKind;
   workflow: WorkflowState;
   durationSeconds: number | null;
-  publishedAt: string | null;
-  discoveredAt: string;
+  /** The item's time in lists (ItemDTO.listedAt), which "newest first" goes by. */
+  listedAt: string;
   media: { kind: "audio" | "video"; length: number | null } | null;
 };
 
@@ -81,7 +81,7 @@ export function downloadCandidate(it: ItemDTO): DownloadCandidate {
   // Nothing to fetch automatically: a publisher's file over plain http would only fail.
   const fetchable = !!m && publisherFileAllowed(m.url);
   return {
-    id: it.id, kind: it.kind, workflow: it.workflow, durationSeconds: it.durationSeconds, publishedAt: it.publishedAt, discoveredAt: it.discoveredAt,
+    id: it.id, kind: it.kind, workflow: it.workflow, durationSeconds: it.durationSeconds, listedAt: it.listedAt,
     media: m && fetchable ? { kind: m.kind, length: m.length } : null,
   };
 }
@@ -108,7 +108,7 @@ export function wanted(settings: Pick<DownloadSettings, "autoToRead">, c: Downlo
   return false;
 }
 
-const dateOf = (c: DownloadCandidate) => Date.parse(c.publishedAt ?? c.discoveredAt) || 0;
+const dateOf = (c: DownloadCandidate) => Date.parse(c.listedAt) || 0;
 
 /** The lists automatic downloads choose from, each its first 200 items, newest first (only To read items are wanted). */
 export const CANDIDATE_FILTERS = ["toread"] as const;

@@ -30,9 +30,9 @@ class WidgetListsTest {
 
     @Test fun aPageBecomesRowsWithTheirDates() {
         val page = """{"items":[
-            {"id":"itm_1","title":"  ","sourceTitle":"A","publishedAt":null,"discoveredAt":"2026-11-12T08:00:00.000Z"},
-            {"id":"../x","title":"Bad","sourceTitle":"B","publishedAt":null,"discoveredAt":"2026-11-12T08:00:00.000Z"},
-            {"id":"itm_2","title":"${"x".repeat(300)}","sourceTitle":"B","publishedAt":"2026-11-11T08:00:00+02:00","discoveredAt":"2026-11-12T08:00:00.000Z"}
+            {"id":"itm_1","title":"  ","sourceTitle":"A","publishedAt":null,"listedAt":"2026-11-12T08:00:00.000Z"},
+            {"id":"../x","title":"Bad","sourceTitle":"B","publishedAt":null,"listedAt":"2026-11-12T08:00:00.000Z"},
+            {"id":"itm_2","title":"${"x".repeat(300)}","sourceTitle":"B","publishedAt":"2026-11-10T08:00:00.000Z","listedAt":"2026-11-11T08:00:00+02:00"}
         ],"nextCursor":null,"total":null}"""
         val (rows, total) = WidgetLists.parsePage(page)
         assertEquals(listOf("itm_1", "itm_2"), rows.map { it.id })
@@ -41,7 +41,7 @@ class WidgetListsTest {
         assertEquals("2026-11-11T08:00:00+02:00", rows[1].at)
         assertEquals(200, rows[1].title.length)
         assertNull("typed lists have no total", total)
-        val many = """{"items":[${(1..12).joinToString(",") { """{"id":"itm_$it","title":"T","sourceTitle":"S","discoveredAt":"2026-11-12T08:00:00.000Z"}""" }}],"total":12}"""
+        val many = """{"items":[${(1..12).joinToString(",") { """{"id":"itm_$it","title":"T","sourceTitle":"S","listedAt":"2026-11-12T08:00:00.000Z"}""" }}],"total":12}"""
         assertEquals(WidgetLists.ROWS, WidgetLists.parsePage(many).first.size)
         assertEquals(12L, WidgetLists.parsePage(many).second)
     }

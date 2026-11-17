@@ -23,7 +23,7 @@ const GAP_WINDOW_DAYS = 365;
 const LOG_WINDOW_DAYS = 30;
 
 const FROM = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id";
-const EFFECTIVE = "COALESCE(i.published_at, i.discovered_at)";
+const EFFECTIVE = "i.listed_at";
 
 type Sid = string | null;
 

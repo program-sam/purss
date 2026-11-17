@@ -48,7 +48,7 @@ object WidgetLists {
             val id = it.optString("id")
             if (!Paths.isId(id)) null
             else Row(id, clip(it.optString("title").trim().ifEmpty { "Untitled" }), clip(it.optString("sourceTitle")),
-                (if (it.isNull("publishedAt")) null else it.optString("publishedAt")) ?: it.optString("discoveredAt").ifEmpty { null })
+                it.optString("listedAt").ifEmpty { null })
         }.take(ROWS)
         return rows to (if (p.isNull("total")) null else p.optLong("total"))
     }

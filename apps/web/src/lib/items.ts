@@ -53,9 +53,17 @@ export function manualSiteName(item: Pick<ItemDTO, "sourceTitle" | "url">): stri
   try { return new URL(item.url).hostname.replace(/^www\./i, "") || null; } catch { return null; }
 }
 
-/** Date used for ordering and day grouping: publication date, else the day it arrived. */
+/** Date shown in lists and used for ordering and day grouping: the item's time in lists (ItemDTO.listedAt). */
 export function itemDate(item: ItemDTO): string {
-  return item.publishedAt ?? item.discoveredAt;
+  // A copy this device saved for offline reading can come from a build whose items had no listedAt.
+  return (item.listedAt as string | undefined) ?? item.publishedAt ?? item.discoveredAt;
+}
+
+/** The publisher's own date, when it is more than an hour from the item's time in lists (so the item view shows both); else null. */
+export function publishedApart(item: ItemDTO): string | null {
+  if (!item.publishedAt) return null;
+  const gap = Math.abs(Date.parse(itemDate(item)) - Date.parse(item.publishedAt));
+  return gap > 3_600_000 ? item.publishedAt : null;
 }
 
 /**

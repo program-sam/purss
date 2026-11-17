@@ -89,7 +89,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
         continue;
       }
       const { fresh, ignored } = arrivalOf(source, entry);
-      const created = createFromEntry(app, eu, source, entry, fresh, ignored);
+      const created = createFromEntry(app, eu, source, entry, fresh, ignored, listedAtOf(source, entry));
       addMapping(app, eu, created, entry);
       // A copy is made by itself only for what the person will see: a source's back catalogue (a source followed from now) arrives Ignored and
       // stays as it came, and a copy of it is made when the person keeps it or asks for one.
@@ -114,7 +114,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
 
     for (const [sourceId] of touchedSources) {
       // The newest item is the first in the source's own index order: one row, not every item the source has.
-      app.db.run("UPDATE sources SET last_item_at = (SELECT COALESCE(published_at, discovered_at) FROM items WHERE workspace_id = ? AND source_id = ? ORDER BY COALESCE(published_at, discovered_at) DESC LIMIT 1), health = CASE WHEN health IN ('pending', 'quiet') THEN 'ok' ELSE health END, health_text = CASE WHEN health IN ('pending', 'quiet') THEN NULL ELSE health_text END, last_success_at = ? WHERE id = ?",
+      app.db.run("UPDATE sources SET last_item_at = (SELECT listed_at FROM items WHERE workspace_id = ? AND source_id = ? ORDER BY listed_at DESC LIMIT 1), health = CASE WHEN health IN ('pending', 'quiet') THEN 'ok' ELSE health END, health_text = CASE WHEN health IN ('pending', 'quiet') THEN NULL ELSE health_text END, last_success_at = ? WHERE id = ?",
         eu.workspace_id, sourceId, now, sourceId);
     }
     app.db.run(
@@ -211,6 +211,15 @@ export function arrivalOf(source: { created_at: string; backlog_settled_at: stri
   return { fresh: false, ignored: true };
 }
 
+/**
+ * An entry's time in lists (`items.listed_at`): a post that comes after the follow is listed when it arrived, so it is never listed
+ * below posts that came before it because its publisher dated it before putting it in the feed. The back catalogue is listed at its
+ * publication date, else its arrival: everything a source had arrives at once, and it is ordered by when it was published.
+ */
+export function listedAtOf(source: { created_at: string; backlog_settled_at: string | null }, entry: Pick<SyncEntry, "publishedAt" | "crawledAt">): string {
+  return isBackCatalogue(source, entry) ? entry.publishedAt ?? entry.crawledAt : entry.crawledAt;
+}
+
 const titleKey = (title: string) => title.replace(/\s+/g, " ").trim().toLowerCase();
 
 /**
@@ -230,7 +239,7 @@ function matchSameLink(app: App, workspaceId: string, sourceId: string, entry: S
   return rows.find((r) => titleKey(r.title) === title)?.id ?? null;
 }
 
-function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: string; curator: string | null }, entry: SyncEntry, fresh: boolean, ignored: boolean): string {
+function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: string; curator: string | null }, entry: SyncEntry, fresh: boolean, ignored: boolean, listedAt: string): string {
   // A DOI in the link, or in short abstract-like text, marks a paper; a long post that merely cites one is not.
   const text = toText(entry.summaryHtml ?? entry.contentHtml);
   const doi = findDoi(entry.url) ?? (text.length < 3000 ? findDoi(entry.summaryHtml, entry.contentHtml) : null);
@@ -251,6 +260,7 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
     curatorNote: null,
     publishedAt: entry.publishedAt,
     discoveredAt: entry.crawledAt,
+    listedAt,
     enclosures: entry.enclosures,
     contentOmitted: entry.contentOmitted === true,
     fresh,

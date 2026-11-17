@@ -7,7 +7,7 @@ import { findItem, itemDetailQuery, itemListQuery, itemPreviewQuery, keys, putIt
 function item(over: Partial<ItemDTO> = {}): ItemDTO {
   return {
     id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
     progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }

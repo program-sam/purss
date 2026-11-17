@@ -79,6 +79,19 @@ export function dateTime(iso: string | null, timeZone?: string, locale = interfa
   return dateFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(t));
 }
 
+/**
+ * A day and time for the item view's "Published … · Arrived …": "16 Nov, 03:27" (with the year for another year), the time alone
+ * ("17:48") when `sameDayAs` is on the same calendar day, and the day alone for a midnight UTC date (a feed that gives the day only).
+ */
+export function dayTime(iso: string, opts: { now?: number; timeZone?: string; sameDayAs?: string; locale?: string } = {}): string {
+  const { now = Date.now(), timeZone, sameDayAs, locale = interfaceLocale() } = opts;
+  const d = new Date(iso);
+  if (iso.endsWith("T00:00:00.000Z") || iso.endsWith("T00:00:00Z")) return shortDate(iso, now, timeZone, locale);
+  const time = dateFormat(locale, { timeStyle: "short", timeZone }).format(d);
+  if (sameDayAs && dayKey(sameDayAs, timeZone) === dayKey(iso, timeZone)) return time;
+  return `${shortDate(iso, now, timeZone, locale)}, ${time}`;
+}
+
 function yearOf(d: Date, timeZone?: string): string {
   return dateFormat("en-GB", { year: "numeric", timeZone }).format(d);
 }

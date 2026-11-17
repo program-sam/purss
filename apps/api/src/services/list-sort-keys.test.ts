@@ -13,12 +13,12 @@ import { applyImport, stageImport, streamExport } from "./portability.ts";
 /*
  * Lists sorted by when items were kept, and by source, read keys stored with the items (migration 058) instead of working each
  * one out. These tests pin that such a list is, page by page and cursor by cursor, what the keys as they were defined give: the
- * latest keep of the item's memberships ('' when none), and the source's title, char(1) and the item's date; ties go by id.
+ * latest keep of the item's memberships ('' when none), and the source's title, char(1) and the item's time in lists; ties go by id.
  */
 
 const DEFINED = {
   kept: { key: "COALESCE((SELECT MAX(b.kept_at) FROM basket_items b WHERE b.item_id = i.id), '')", dir: "DESC" },
-  source: { key: "COALESCE(s.title, '') || char(1) || COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
+  source: { key: "COALESCE(s.title, '') || char(1) || i.listed_at", dir: "ASC" },
 } as const;
 type Sorted = keyof typeof DEFINED;
 

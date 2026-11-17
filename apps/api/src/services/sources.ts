@@ -394,7 +394,7 @@ function backfillFullText(app: App, p: Principal, sourceId: string): void {
     `SELECT i.id, i.url FROM items i JOIN item_state st ON st.item_id = i.id
      WHERE i.source_id = ? AND i.workspace_id = ? AND i.url IS NOT NULL AND st.workflow NOT IN ('finished', 'ignored')
        AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status IN ('pending', 'done'))
-     ORDER BY COALESCE(i.published_at, i.discovered_at) DESC LIMIT ?`, sourceId, p.workspaceId, FULL_TEXT_BACKFILL);
+     ORDER BY i.listed_at DESC LIMIT ?`, sourceId, p.workspaceId, FULL_TEXT_BACKFILL);
   for (const it of items) queueAutoCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: it.id, url: it.url });
 }
 

@@ -152,6 +152,8 @@ const itemSchema = z.object({
   curatorNote: text(5000).nullable().default(null),
   publishedAt: iso,
   discoveredAt: iso,
+  /** The item's time in lists; an item without it is listed at its publication date, else its arrival. */
+  listedAt: iso,
   createdAt: iso,
   enclosures: z.array(z.object({ url: text(4000), type: text(200).nullable().default(null), length: z.number().nullable().default(null) })).max(10).default([]),
   currentVersionId: id.nullable().default(null),

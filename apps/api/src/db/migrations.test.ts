@@ -344,7 +344,7 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const at = "2026-01-01T00:00:00.000Z";
     db.run("INSERT INTO accounts (id, display_name, created_at) VALUES ('acc_1', 'Ann', ?), ('acc_2', 'Bo', ?)", at, at);
     db.run("INSERT INTO workspaces (id, account_id, created_at, last_visit_at) VALUES ('wsp_1', 'acc_1', ?, ?), ('wsp_2', 'acc_2', ?, NULL)", at, at, at);
-    db.run("INSERT INTO account_enrollment (account_id, recovery_generation, durable_method_exists) VALUES ('acc_1', 1, 1)");    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, created_at, home_share, posts_per_day) VALUES ('src_1', 'acc_1', 'wsp_1', 'feed', 'Feed', 'RSS feed', ?, 'own', 2.5)", at);
+    db.run("INSERT INTO account_enrollment (account_id, recovery_generation, durable_method_exists) VALUES ('acc_1', 1, 1)");    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, created_at, last_item_at, home_share, posts_per_day) VALUES ('src_1', 'acc_1', 'wsp_1', 'feed', 'Feed', 'RSS feed', ?, ?, 'own', 2.5)", at, at); // its newest item time as the sync keeps it (069 sets it again)
     db.exec("PRAGMA foreign_keys = OFF"); // items and their versions point at each other
     db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, url, discovered_at, current_version_id, created_at, updated_at) VALUES ('itm_1', 'acc_1', 'wsp_1', 'src_1', 'article', 't', 'https://Example.org/a?utm_source=x', ?, 'ver_1', ?, ?)", at, at, at);
     db.run("INSERT INTO item_versions (id, workspace_id, item_id, title, content_hash, summary_html, created_at, content_omitted) VALUES ('ver_1', 'wsp_1', 'itm_1', 't', 'h', '<p>s</p>', ?, 1)", at);
@@ -382,10 +382,13 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
     const droppedIndexes = new Set(["sign_in_methods_username"]);
     // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone.
-    // 070 adds the item's source to the index of the states that are not the default, so the counts read it alone.
+    // 070 adds the item's source to the index of the states that are not the default, so the counts read it alone. 071 orders the date
+    // indexes of items by the item's time in lists.
     const widened: Record<string, string> = {
       reservations_open: "CREATE INDEX reservations_open ON reservations(account_id, settled_at, released_at, expires_at, bytes)",
       item_state_rare: "CREATE INDEX item_state_rare ON item_state(workspace_id, workflow, fresh, source_id) WHERE NOT (workflow = 'new' AND fresh = 0)",
+      items_ws_sortkey: "CREATE INDEX items_ws_sortkey ON items(workspace_id, listed_at DESC, id DESC)",
+      items_source_sortkey: "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, listed_at DESC, id DESC)",
     };
     for (const o of objectsBefore) {
       const name = (o as { name: string }).name;
@@ -501,8 +504,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all("SELECT * FROM jobs ORDER BY id"), others.jobs, "other jobs are untouched");
     assert.deepEqual(db.all("SELECT * FROM playback_positions"), others.playback, "playback positions stay");
     assert.deepEqual(db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), others.sources, "sources are unchanged apart from the two columns");
-    // link_key (057), kept_key and source_title (058), number (062) and embed_tries and embed_at (067) are columns later migrations add; everything the items had stays as it was.
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, embed_tries: _et, embed_at: _ea, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
+    // link_key (057), kept_key and source_title (058), number (062), embed_tries and embed_at (067) and listed_at (071) are columns later migrations add; everything the items had stays as it was.
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ link_key: _l, kept_key: _k, source_title: _s, number: _n, embed_tries: _et, embed_at: _ea, listed_at: _la, ...row }) => row), others.items.map((r) => ({ ...r })), "items are unchanged");
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
@@ -751,7 +754,7 @@ test("058 stores each existing item's latest keep and source title, indexes the 
     assert.deepEqual(keys(), { itm_1: ["2026-10-05T00:00:00.000Z", "Sediment Letters"], itm_2: ["", "Sediment Letters"], itm_3: ["2026-10-03T00:00:00.000Z", ""] });
     const plan = (sql: string) => db.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`).map((r) => r.detail).join(" | ");
     assert.match(plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.kept_key DESC, i.id DESC LIMIT 5"), /items_ws_kept/);
-    const bySource = plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.source_title || char(1) || COALESCE(i.published_at, i.discovered_at), i.id LIMIT 5");
+    const bySource = plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.source_title || char(1) || i.listed_at, i.id LIMIT 5");
     assert.match(bySource, /items_ws_source_title/);
     assert.doesNotMatch(bySource, /TEMP B-TREE/);
 
@@ -878,7 +881,7 @@ test("069 makes the back catalogue Ignored, leaves everything else as it was, an
       assert.deepEqual(byId.get(id), { ...was.get(id), workflow: "ignored", state_version: (was.get(id)!.state_version as number) + 1 }, `${id} is Ignored, and caches see the change; nothing else about it`);
     }
     for (const id of ["itm_shown", "itm_new", "itm_read"]) assert.deepEqual(byId.get(id), was.get(id), `${id} is as it was`);
-    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map((r) => ({ ...r })), itemsBefore, "items are as they were, without the mark");
+    assert.deepEqual(db.all<Record<string, unknown>>("SELECT * FROM items ORDER BY id").map(({ listed_at: _la, ...r }) => ({ ...r })), itemsBefore, "items are as they were, without the mark (071 adds listed_at)");
     assert.deepEqual(db.all("SELECT * FROM state_log").map((r) => ({ ...(r as object) })), logBefore, "the person's workflow log has nothing of it");
     assert.equal(db.get<{ start_from: string }>("SELECT start_from FROM sources WHERE id = 'src_1'")!.start_from, "now", "what the source does with its back catalogue is kept");
 
@@ -886,7 +889,7 @@ test("069 makes the back catalogue Ignored, leaves everything else as it was, an
     assert.equal(db.all<{ name: string }>("SELECT name FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0);
     assert.deepEqual(names("trigger"), []);
     assert.deepEqual(names("index"), []);
-    assert.equal(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'items_source_sortkey'")!.sql, "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, (COALESCE(published_at, discovered_at)) DESC, id DESC)");
+    assert.equal(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'items_source_sortkey'")!.sql, "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, listed_at DESC, id DESC)", "without the mark (and ordered by the time in lists, 071)");
     // Nothing moves an Ignored item back by itself any more: what the person does to it leaves its state as it is.
     db.run("UPDATE item_state SET opened_at = 'z', progress = 0.3 WHERE item_id = 'itm_old1'");
     assert.equal(db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = 'itm_old1'")!.w, "ignored");
@@ -989,6 +992,53 @@ test("068 leaves every source followed before it reading its feed directly, and 
     db.run("UPDATE sources SET via_gateway = 1 WHERE id = 'src_pub'");
     assert.throws(() => db.run("UPDATE sources SET via_gateway = 2 WHERE id = 'src_pub'"), /CHECK/);
     assert.throws(() => db.run("UPDATE sources SET via_gateway = NULL WHERE id = 'src_pub'"), /NOT NULL/);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("071 lists a feed post that came after its source was followed at its arrival, and everything else at its publication date", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "071")) {
+      db.exec(readFileSync(path.join(DIR, file), "utf8"));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF"); // seed rows without building the whole account tree
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_1', 'acc_1', 'x')");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at, backlog_settled_at) VALUES ('src_feed', 'acc_1', 'ws_1', 'feed', 'Journal', 'RSS feed', 'ok', '2026-11-04T08:00:00.000Z', '2026-11-04T09:00:00.000Z')");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_new', 'acc_1', 'ws_1', 'feed', 'Just followed', 'RSS feed', 'ok', '2026-11-16T08:00:00.000Z')");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_man', 'acc_1', 'ws_1', 'manual', 'Saved links', 'Kept by hand', 'ok', '2026-01-01T00:00:00.000Z')");
+    const item = (id: string, source: string, published: string | null, discovered: string, fromEngine: boolean) => {
+      db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, published_at, discovered_at, created_at, updated_at) VALUES (?, 'acc_1', 'ws_1', ?, 'article', 't', ?, ?, 'x', 'x')", id, source, published, discovered);
+      if (fromEngine) db.run("INSERT INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, created_at) VALUES (?, 'ws_1', ?, 'eu_1', ?, 'feed/1', 'x')", `ext_${id}`, id, `tag:${id}`);
+    };
+    item("itm_late", "src_feed", "2026-11-16T03:27:40.000Z", "2026-11-16T17:48:04.089Z", true); // dated hours before it was in the feed
+    item("itm_repost", "src_feed", "2026-11-06T15:31:00.000Z", "2026-11-16T10:18:03.772Z", true); // an old story put back in the feed, after the source settled
+    item("itm_undated", "src_feed", null, "2026-11-15T10:00:00.000Z", true);
+    item("itm_backcat", "src_feed", "2026-10-01T00:00:00.000Z", "2026-11-04T08:01:00.000Z", true); // what the feed had when it was followed
+    item("itm_pending", "src_new", "2026-11-10T00:00:00.000Z", "2026-11-16T08:01:00.000Z", true); // back catalogue of a source not settled yet
+    item("itm_saved", "src_man", "2026-03-01T00:00:00.000Z", "2026-11-10T00:00:00.000Z", false); // kept by hand
+    item("itm_reconciled", "src_feed", "2026-11-12T00:00:00.000Z", "2026-11-17T09:00:00.000Z", true); // added from the reconciliation review
+    db.run("INSERT INTO reconciliation_queue (id, workspace_id, engine_user_id, entry, candidate_item_id, status, created_at) VALUES ('rec_1', 'ws_1', 'eu_1', '{}', 'itm_reconciled', 'new', 'x')");
+    db.run("UPDATE sources SET last_item_at = '2026-11-16T03:27:40.000Z' WHERE id = 'src_feed'");
+    db.exec("PRAGMA foreign_keys = ON");
+
+    assert.equal(migrate(db), files.filter((f) => f >= "071").length);
+    assert.deepEqual(Object.fromEntries(db.all<{ id: string; l: string }>("SELECT id, listed_at AS l FROM items").map((r) => [r.id, r.l])), {
+      itm_late: "2026-11-16T17:48:04.089Z", itm_repost: "2026-11-16T10:18:03.772Z", itm_undated: "2026-11-15T10:00:00.000Z",
+      itm_backcat: "2026-10-01T00:00:00.000Z", itm_pending: "2026-11-10T00:00:00.000Z", itm_saved: "2026-03-01T00:00:00.000Z",
+      itm_reconciled: "2026-11-12T00:00:00.000Z",
+    });
+    assert.equal(db.get<{ t: string }>("SELECT last_item_at AS t FROM sources WHERE id = 'src_feed'")!.t, "2026-11-16T17:48:04.089Z", "a source's newest item time follows");
+    const plan = (sql: string) => db.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`).map((r) => r.detail).join(" | ");
+    const home = plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' ORDER BY i.listed_at DESC, i.id DESC LIMIT 5");
+    assert.match(home, /items_ws_sortkey/);
+    assert.doesNotMatch(home, /TEMP B-TREE/, "a page is read in order from the index");
+    assert.doesNotMatch(plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' AND source_id = 'src_feed' ORDER BY i.listed_at DESC, i.id DESC LIMIT 5"), /TEMP B-TREE/);
     assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();

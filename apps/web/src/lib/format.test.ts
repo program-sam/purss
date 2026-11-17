@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bytesLabel, clock, dateFormat, dateTime, dayKey, dayLabel, formatCount, groupByDay, interfaceLocale, plural, shortDate, timeAgo } from "./format.ts";
+import { bytesLabel, clock, dateFormat, dateTime, dayKey, dayTime, dayLabel, formatCount, groupByDay, interfaceLocale, plural, shortDate, timeAgo } from "./format.ts";
 
 const NOW = Date.parse("2026-11-03T09:00:00Z");
 
@@ -118,4 +118,19 @@ test("formatters are built once per language and options, and keep answering per
 test("an unknown time zone still fails, every time", () => {
   assert.throws(() => dayKey("2026-11-03T08:00:00Z", "Mars/Olympus"), RangeError);
   assert.throws(() => dayKey("2026-11-03T08:00:00Z", "Mars/Olympus"), RangeError);
+});
+
+test("dayTime gives a day and time, the time alone on the same day, and the day alone for a date without a time", () => {
+  const opts = { now: Date.parse("2026-11-17T12:00:00Z"), timeZone: "Europe/Amsterdam", locale: "en-GB" };
+  assert.equal(dayTime("2026-11-16T03:27:00.000Z", opts), "16 Nov, 04:27");
+  assert.equal(dayTime("2026-11-16T16:48:00.000Z", { ...opts, sameDayAs: "2026-11-16T03:27:00.000Z" }), "17:48");
+  assert.equal(dayTime("2026-11-17T10:18:00.000Z", { ...opts, sameDayAs: "2026-11-06T15:31:00.000Z" }), "17 Nov, 11:18");
+  assert.equal(dayTime("2026-11-17T00:00:00.000Z", opts), "17 Nov", "a feed that dates posts by day only");
+  assert.equal(dayTime("2025-03-01T09:00:00.000Z", opts), "1 Mar 2025, 10:00");
+});
+
+test("dayTime writes the time the way the language does", () => {
+  const opts = { now: Date.parse("2026-11-17T12:00:00Z"), timeZone: "Europe/Amsterdam", locale: "en-US" };
+  assert.equal(dayTime("2026-11-16T17:48:00.000Z", { ...opts, sameDayAs: "2026-11-16T10:04:00.000Z" }), "6:48 PM");
+  assert.equal(dayTime("2026-11-16T10:04:00.000Z", opts), "Nov 16, 11:04 AM");
 });

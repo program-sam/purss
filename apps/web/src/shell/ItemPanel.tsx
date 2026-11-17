@@ -14,8 +14,8 @@ import { RenameTitle } from "./RenameTitle.tsx";
 import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { statusButton } from "../lib/status-label.ts";
 import { prepareArticleHtml, showStoredPictures } from "../lib/article-html.ts";
-import { dateTime, shortDate } from "../lib/format.ts";
-import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, safeHref, safeImage } from "../lib/items.ts";
+import { dateTime, dayTime, shortDate } from "../lib/format.ts";
+import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, publishedApart, safeHref, safeImage } from "../lib/items.ts";
 import { splitLinks } from "../lib/links.ts";
 import { useNav } from "../nav.ts";
 import { usePending, usePendingMark } from "../outbox/hooks.ts";
@@ -166,6 +166,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const audio = detail?.enclosures.find((e) => e.type?.startsWith("audio/"));
   const audioHref = safeHref(audio?.url);
   const lenTxt = lengthText(item);
+  const published = publishedApart(item);
   const kept = item.basketIds.length > 0;
   const keptName = item.basketIds.length === 1 ? ws.basketById.get(item.basketIds[0]!)?.name ?? "" : `${item.basketIds.length} baskets`;
   const status = statusButton(item.workflow, item.kind);
@@ -263,7 +264,10 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <p className="p-meta dotted">
             <span>{KIND_LABELS[item.kind]}</span>
             {lenTxt && !summaryOnly ? <span>{lenTxt}{media ? "" : " read"}</span> : null}
-            <time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{shortDate(itemDate(item), Date.now(), tz)}</time>
+            {published ? <>
+              <span>Published <time dateTime={published} title={dateTime(published, tz)}>{dayTime(published, { timeZone: tz })}</time></span>
+              <span>Arrived <time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{dayTime(itemDate(item), { timeZone: tz, sameDayAs: published })}</time></span>
+            </> : <time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{shortDate(itemDate(item), Date.now(), tz)}</time>}
             {collections.map((c) => <span key={c.id}><bdi>{c.name}</bdi></span>)}
             {item.doi ? <span className="nowrap">DOI {item.doi}</span> : null}
             <DownloadedTag itemId={item.id} />

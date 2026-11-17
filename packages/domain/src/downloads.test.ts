@@ -10,7 +10,7 @@ import type { DownloadCandidate as Candidate, DownloadSettings } from "./downloa
 const MB = 1024 * 1024;
 const S = (over: Partial<DownloadSettings> = {}): DownloadSettings => ({ ...DEFAULT_SETTINGS, autoToRead: true, ...over });
 const ep = (id: string, over: Partial<Candidate> = {}, mediaOver: Partial<NonNullable<Candidate["media"]>> = {}): Candidate => ({
-  id, kind: "podcast", workflow: "toread", durationSeconds: null, publishedAt: `2026-11-0${id.slice(-1)}T00:00:00Z`, discoveredAt: "2026-11-01T00:00:00Z",
+  id, kind: "podcast", workflow: "toread", durationSeconds: null, listedAt: `2026-11-0${id.slice(-1)}T00:00:00Z`,
   media: { kind: "audio", length: 50 * MB, ...mediaOver }, ...over,
 });
 const ids = (list: Candidate[]) => list.map((c) => c.id);
@@ -69,7 +69,7 @@ test("settings read back field by field, with the defaults for anything damaged"
 
 const item = (media: ItemDTO["media"]): ItemDTO => ({
   id: "itm_1", number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", kind: "podcast", title: "One", url: null, author: null, excerpt: null, imageUrl: null,
-  durationSeconds: 600, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1,
+  durationSeconds: 600, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-01T00:00:00Z", listedAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1,
   fresh: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media, annotatedAt: null,
 });
 test("a publisher's file over plain http is never a candidate", () => {

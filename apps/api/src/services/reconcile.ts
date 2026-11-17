@@ -114,7 +114,7 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
     });
     app.db.run("INSERT INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       newId("ext"), p.workspaceId, created.id, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
-    app.db.run("UPDATE sources SET last_item_at = (SELECT MAX(COALESCE(published_at, discovered_at)) FROM items WHERE source_id = ?) WHERE id = ?", source.id, source.id);
+    app.db.run("UPDATE sources SET last_item_at = (SELECT MAX(listed_at) FROM items WHERE source_id = ?) WHERE id = ?", source.id, source.id);
     app.db.run("UPDATE reconciliation_queue SET status = 'new', candidate_item_id = ? WHERE id = ?", created.id, id);
     return { status: "new", itemId: created.id };
   });

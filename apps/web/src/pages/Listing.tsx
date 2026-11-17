@@ -58,7 +58,7 @@ type ListPlace = Exclude<Place, { t: "home" }>;
 function useItems(place: ListPlace) {
   const ls = useListState(place);
   const board = ls.view === "board";
-  // The board always needs the ignored column; timeline follows publication date, so it only sorts by date.
+  // The board always needs the ignored column; the timeline groups by date, so it only sorts by date.
   const apiFilter = board && (ls.filter === "active" || ls.filter === "all") ? "all" : ls.filter;
   const sort = ls.view === "timeline" && ls.sort !== "oldest" ? "newest" : ls.sort;
   const params: ListParams = { scope: ls.scope, filter: apiFilter, sort, ...listFilters(ls) };

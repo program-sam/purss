@@ -237,8 +237,12 @@ export type ItemDTO = {
   durationSeconds: number | null;
   readMinutes: number | null;
   doi: string | null;
+  /** The date the publisher gave the item, shown in the item view. */
   publishedAt: string | null;
+  /** When the item reached the PURSS. */
   discoveredAt: string;
+  /** The item's time in lists, which they are ordered by: its arrival for a post that came after its source was followed, its publication date (else its arrival) for anything else. */
+  listedAt: string;
   workflow: WorkflowState;
   revision: number;
   /** Moves only when the workflow does. The player's own changes are checked against it, so a state set by hand is never overridden. */

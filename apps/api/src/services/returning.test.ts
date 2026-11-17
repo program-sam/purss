@@ -1045,8 +1045,8 @@ test("the new queries use indexes, not whole-table scans", (t) => {
   assert.deepEqual(scans(freshCount), [], freshCount.join("\n"));
   const kept = plan("SELECT item_id FROM basket_items WHERE workspace_id = ? AND kept_at >= ? ORDER BY kept_at DESC LIMIT 30", ws, "x");
   assert.deepEqual(scans(kept), [], kept.join("\n"));
-  const feed = plan(`SELECT i.id, COALESCE(i.published_at, i.discovered_at) AS k ${fromVisible} WHERE i.workspace_id = ? AND st.workflow <> 'ignored'
-     ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC LIMIT 201`, ws);
+  const feed = plan(`SELECT i.id, i.listed_at AS k ${fromVisible} WHERE i.workspace_id = ? AND st.workflow <> 'ignored'
+     ORDER BY i.listed_at DESC, i.id DESC LIMIT 201`, ws);
   assert.deepEqual(scans(feed), [], feed.join("\n"));
   assert.ok(!feed.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), `the default order reads the index:\n${feed.join("\n")}`);
   const pending = plan("SELECT COUNT(*) FROM captures WHERE workspace_id = ? AND status = 'pending'", ws);

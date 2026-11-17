@@ -271,7 +271,7 @@ test("an account that followed its sources from now has most items Ignored: Home
   for (const q of counting) assert.ok(planOf(q).some((l) => /COVERING INDEX items_source_sortkey/.test(l)), `counting a collection's rows reads the source index alone:\n${planOf(q).join("\n")}`);
 });
 
-test("after a sync a source's newest item time is the latest date among its items", () => {
+test("after a sync a source's newest item time is the latest time its items are listed at", () => {
   const { app, cleanup } = makeTestApp();
   try {
     const p = makeOwner(app);
@@ -281,17 +281,17 @@ test("after a sync a source's newest item time is the latest date among its item
     applySyncBatch(app, p.engineUserId, batch([
       entry("feed/a", { publishedAt: day(3), crawledAt: day(20) }),
       entry("feed/a", { publishedAt: day(9), crawledAt: day(10) }),
-      entry("feed/a", { publishedAt: null, crawledAt: day(15) }), // no publication date: its discovery date counts
+      entry("feed/a", { publishedAt: null, crawledAt: day(15) }),
       entry("feed/b", { publishedAt: day(1), crawledAt: day(2) }),
     ]));
-    const latest = (id: string) => app.db.get<{ t: string }>("SELECT MAX(COALESCE(published_at, discovered_at)) AS t FROM items WHERE source_id = ?", id)!.t;
+    const latest = (id: string) => app.db.get<{ t: string }>("SELECT MAX(listed_at) AS t FROM items WHERE source_id = ?", id)!.t;
     const stored = (id: string) => app.db.get<{ t: string | null }>("SELECT last_item_at AS t FROM sources WHERE id = ?", id)!.t;
-    assert.equal(stored(a), day(15));
+    assert.equal(stored(a), day(20), "the sources are settled, so their posts are listed when they arrived");
     assert.equal(stored(a), latest(a));
     assert.equal(stored(b), latest(b));
     applySyncBatch(app, p.engineUserId, batch([entry("feed/a", { publishedAt: day(12), crawledAt: day(30) })]));
     assert.equal(stored(a), latest(a), "a later item moves it; an older one would not");
-    assert.equal(stored(a), day(15));
+    assert.equal(stored(a), day(30));
   } finally { cleanup(); }
 });
 
@@ -340,12 +340,12 @@ test("Home reads New items, the newest open items and its rows by id, and the ke
   planned(seen, /AND \+i\.workspace_id = \?/, /USING INDEX sqlite_autoindex_(items|item_state)_1 \((id|item_id)=\?\)/, "the rows' items");
 
   // Counted among the first candidates only, newest first and by id within the same date: the muted items straddle the cut.
-  app.db.run("UPDATE items SET published_at = '2027-01-01T00:00:00.000Z' WHERE id IN (SELECT id FROM items ORDER BY seq DESC LIMIT 8)");
+  app.db.run("UPDATE items SET listed_at = '2027-01-01T00:00:00.000Z' WHERE id IN (SELECT id FROM items ORDER BY seq DESC LIMIT 8)");
   const was = mutedScan.rows;
   mutedScan.rows = 5;
   try {
     const candidates = app.db.all<{ id: string; title: string; excerpt: string | null; key: string }>(
-      `SELECT i.id, i.title, i.excerpt, COALESCE(i.published_at, i.discovered_at) AS key FROM items i JOIN item_state st ON st.item_id = i.id
+      `SELECT i.id, i.title, i.excerpt, i.listed_at AS key FROM items i JOIN item_state st ON st.item_id = i.id
        WHERE i.workspace_id = ? AND st.workflow IN ('new', 'toread')`, p.workspaceId)
       .sort((a, b) => (a.key === b.key ? (a.id < b.id ? 1 : -1) : a.key < b.key ? 1 : -1)).slice(0, mutedScan.rows + 1);
     const patterns = mutedPatterns(["garden"])!;

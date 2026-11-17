@@ -39,6 +39,8 @@ export type NewItem = {
   curatorNote: string | null;
   publishedAt: string | null;
   discoveredAt: string;
+  /** The item's time in lists (migration 071); its publication date, else its arrival, when not given. */
+  listedAt?: string;
   enclosures: { url: string; type: string | null; length?: number | null }[];
   /** The feed's full text was too large to send; the item holds its summary only. */
   contentOmitted?: boolean;
@@ -59,10 +61,10 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const ex = excerpt(toText(summaryHtml) || text);
   const r = app.db.run(
     `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
-       read_minutes, doi, curator_note, published_at, discovered_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       read_minutes, doi, curator_note, published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
+     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
-    n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, versionId,
+    n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, n.listedAt ?? n.publishedAt ?? n.discoveredAt, versionId,
     JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
   app.db.run(
@@ -107,7 +109,7 @@ export function indexText(app: App, seq: number, t: { title: string; excerpt: st
 // ---------- listing ----------
 
 export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Saved link') AS source_title, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
-  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
+  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
   (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at`;
@@ -115,7 +117,7 @@ export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Sav
 export type ItemRow = {
   id: string; number: number; source_id: string | null; source_title: string; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
-  published_at: string | null; discovered_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
+  published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
 };
 
@@ -123,7 +125,7 @@ export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   return {
     id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.url, author: r.author,
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
-    publishedAt: r.published_at, discoveredAt: r.discovered_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
+    publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
     annotatedAt: r.annotated_at,
@@ -289,10 +291,10 @@ export const VISIBLE_SOURCE = `(i.source_id IS NULL OR s.followed = 1 OR s.kind 
   OR EXISTS (SELECT 1 FROM annotations va WHERE va.item_id = i.id AND va.deleted_at IS NULL))`;
 
 const SORT_SQL = {
-  newest: { key: "COALESCE(i.published_at, i.discovered_at)", dir: "DESC" },
-  oldest: { key: "COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
+  newest: { key: "i.listed_at", dir: "DESC" },
+  oldest: { key: "i.listed_at", dir: "ASC" },
   // The source's title and the kept time are stored with the item (migration 058) and indexed in these orders.
-  source: { key: "i.source_title || char(1) || COALESCE(i.published_at, i.discovered_at)", dir: "ASC" },
+  source: { key: "i.source_title || char(1) || i.listed_at", dir: "ASC" },
   title: { key: "lower(i.title)", dir: "ASC" },
   kept: { key: "i.kept_key", dir: "DESC" },
 } as const;

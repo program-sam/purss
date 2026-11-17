@@ -365,6 +365,14 @@ Every collection, source and basket can be shown as:
 - **Table:** sortable columns.
 - **Timeline:** grouped by day.
 
+An item's date in every view, and the order of "newest first", is when the post reached your PURSS.
+Publishers often date a post before it is in their feed (a journal adds the day's papers in the
+afternoon, some feeds give the day only, a site puts an older story back in its feed), so a post is
+never listed below posts that came before it. The panel shows the publisher's own date too, as
+**Published … · Arrived …**, when the two are more than an hour apart. The posts a feed already had
+when you followed it are dated by their publication date. The **Published** date filter goes by
+the publisher's date.
+
 Each collection remembers its view. **Customise Home** picks one of four Home layouts (one box
 per collection, one feed, only new items, or a front page with headlines and baskets) and which
 collections appear there, and in what order. Sources that are in no collection appear together in
@@ -652,10 +660,10 @@ items you hold. They are private to your account: they never appear on shared pa
 feeds, and the app doesn't read anything into them.
 
 - **Items per week:** the items in each of the last 26 weeks (consecutive seven-day periods
-  counting back from now), as small bars and as an average. An item is placed by the date its
-  feed gave it, or by the day it arrived when the feed gave none, so a feed you have just
-  followed doesn't show its back catalogue as one burst. Items dated in the future count in the
-  total but aren't placed in a week.
+  counting back from now), as small bars and as an average. An item is placed by its date in
+  lists: when it arrived, or for what the feed already had when you followed it its publication
+  date, so a feed you have just followed doesn't show its back catalogue as one burst. Items dated
+  in the future count in the total but aren't placed in a week.
 - **Items** and **Latest item:** how many items the source has, and the date of the newest.
 - **Longest gap:** the most days between two consecutive items dated in the last 12 months.
 - **Workflow states:** how many items are in each state, as a count with its share of the

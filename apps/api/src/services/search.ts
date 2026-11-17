@@ -37,7 +37,7 @@ export function searchItems(app: App, p: Principal, query: string, limit = SEARC
   const ids = app.db.all<{ id: string }>(
     `SELECT i.id FROM items i LEFT JOIN sources s ON s.id = i.source_id
       WHERE i.workspace_id = ? AND ${VISIBLE_SOURCE} AND i.seq IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)
-      ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC LIMIT ?`, p.workspaceId, exact, limit).map((r) => r.id);
+      ORDER BY i.listed_at DESC, i.id DESC LIMIT ?`, p.workspaceId, exact, limit).map((r) => r.id);
   const first = ids.map((id) => getItem(app, p, id));
   const seen = new Set(ids);
   return [...first, ...found.filter((i) => !seen.has(i.id))].slice(0, limit);

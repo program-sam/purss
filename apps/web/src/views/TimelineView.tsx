@@ -5,13 +5,13 @@ import { itemDate } from "../lib/items.ts";
 import { ItemRow } from "../components/ItemRow.tsx";
 import { useRowCtx } from "../components/row-context.tsx";
 
-/** Items grouped by calendar day of their publication date (arrival date when a feed gave none). */
+/** Items grouped by the calendar day of their time in lists (ItemDTO.listedAt). */
 export function TimelineView({ items }: { items: ItemDTO[] }) {
   const c = useRowCtx();
   const groups = groupByDay(items, itemDate, c.now, c.timeZone);
   return (
     <>
-      <p className="fine tl-note"><Icon name="cal" size="sm" />Grouped by publication date. Items without one use the day they arrived.</p>
+      <p className="fine tl-note"><Icon name="cal" size="sm" />Grouped by the day each item arrived. What a feed already had when you followed it goes by its publication date.</p>
       <div className="list">
         {groups.map((g) => (
           <section className="day" key={g.key} aria-label={g.label}>

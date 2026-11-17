@@ -120,14 +120,8 @@ enum WidgetLists {
         for item in items {
             guard let id = item["id"] as? String, isId(id) else { continue }
             let title = (item["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let at: String?
-            if let published = item["publishedAt"] as? String {
-                at = published
-            } else if let discovered = item["discoveredAt"] as? String, !discovered.isEmpty {
-                at = discovered
-            } else {
-                at = nil
-            }
+            let listed = item["listedAt"] as? String ?? ""
+            let at: String? = listed.isEmpty ? nil : listed
             found.append(Row(id: id, title: clip(title.isEmpty ? "Untitled" : title), sourceTitle: clip(item["sourceTitle"] as? String ?? ""), at: at))
             if found.count == rows { break }
         }

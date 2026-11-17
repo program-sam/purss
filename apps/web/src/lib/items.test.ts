@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, playerArtwork, safeHref, safeImage, withNewerState } from "./items.ts";
+import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, itemExcerpt, newMarkerCleared, isYouTube, itemDate, lengthText, matchesFilter, itemPicture, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
   id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null,
 };
 
@@ -23,9 +23,17 @@ test("filters judge workflow and freshness independently", () => {
   assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "open"), false);
 });
 
-test("item date prefers publication, falls back to arrival", () => {
-  assert.equal(itemDate(base), "2026-11-03T08:00:00Z");
-  assert.equal(itemDate({ ...base, publishedAt: "2026-11-01T00:00:00Z" }), "2026-11-01T00:00:00Z");
+test("an item's date is its time in lists; the publisher's date is shown apart only when it is more than an hour away", () => {
+  const late = { ...base, publishedAt: "2026-11-03T03:27:00Z", listedAt: "2026-11-03T17:48:00Z" };
+  assert.equal(itemDate(late), "2026-11-03T17:48:00Z");
+  assert.equal(publishedApart(late), "2026-11-03T03:27:00Z");
+  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:00:00Z" }), null, "within the hour: one date is enough");
+  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:48:00Z" }), null, "listed at its publication date (back catalogue)");
+  assert.equal(publishedApart(base), null, "no publication date");
+  // A copy saved on the device by a build whose items had no listedAt.
+  const saved = { ...base, publishedAt: "2026-11-01T00:00:00Z" } as Partial<ItemDTO>;
+  delete saved.listedAt;
+  assert.equal(itemDate(saved as ItemDTO), "2026-11-01T00:00:00Z");
 });
 
 test("length text: minutes for reading, a clock for video", () => {

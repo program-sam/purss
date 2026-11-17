@@ -120,7 +120,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
       `SELECT id, n, ${muted ? "purss_muted(?, title, excerpt)" : "0"} AS m FROM (
          SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${FROM_VISIBLE}
          WHERE st.workspace_id = ? AND i.workspace_id = ? AND ${QUEUE_STATES_SQL} AND ${kind} AND ${VISIBLE_SOURCE}
-         ORDER BY st.workflow = 'inprogress' DESC, COALESCE(i.published_at, i.discovered_at) ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
+         ORDER BY st.workflow = 'inprogress' DESC, i.listed_at ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
       ...(muted ? [muted] : []), ws, ws);
     return {
       ids: rows.filter((r) => !r.m).map((r) => r.id).slice(0, ROW_ITEMS),
@@ -147,7 +147,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const hidden = muted
     ? countMuted(app, muted, "FROM items i CROSS JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id",
       `st.workspace_id = ? AND i.workspace_id = ? AND st.workflow IN ('new', 'toread') AND ${VISIBLE_SOURCE} AND ${onHome}`,
-      [ws, ws, ...homeParams], "ORDER BY COALESCE(i.published_at, i.discovered_at) DESC, i.id DESC")
+      [ws, ws, ...homeParams], "ORDER BY i.listed_at DESC, i.id DESC")
     : { hidden: 0, atLeast: false };
 
   const dtos = new Map(itemsByIds(app, ws, putAsideIds).map((d) => [d.id, d]));
