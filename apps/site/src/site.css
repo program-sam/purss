@@ -71,27 +71,11 @@ a{text-decoration:none}
 .s-feat p{color:var(--ink-2);font-weight:600;font-size:15px}
 
 /* Plans */
-.s-plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}
-.s-plan{position:relative;display:flex;flex-direction:column;gap:14px;padding:26px;border-radius:18px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);text-align:left}
-.s-plan.featured{border-color:var(--accent-line);box-shadow:0 0 0 1px var(--accent-line),0 18px 50px hsl(var(--h) 60% 30% / .16);background:linear-gradient(var(--tint),var(--surface) 45%)}
-.s-plan h3{font-size:17px;font-weight:800}
-.s-price{display:flex;align-items:baseline;gap:8px}
-.s-price b{font-size:46px;font-weight:900;letter-spacing:-.03em;line-height:1}
-.s-price span{font-weight:700;color:var(--ink-3)}
-.s-lede{font-weight:600;color:var(--ink-2);font-size:15px}
-.s-plan ul{display:grid;gap:9px;flex:1;align-content:start;font-weight:700;font-size:15px}
-.s-plan li{display:flex;gap:9px;align-items:flex-start}
-.s-plan li .ic{color:var(--ok);margin-top:4px;stroke-width:3}
-.s-plan li.no{color:var(--ink-3);font-weight:600}
-.s-plan li.no .ic{color:var(--ink-3)}
-.s-plan .btn{width:100%}
 /* Billing toggle: the yearly/monthly radios show the matching prices on the plan cards and in the comparison table. */
 .s-bill-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 20px;margin-top:28px}
 .s-cur{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--ink-2)}
 .s-cur[hidden]{display:none}
 .s-cur select{min-height:38px;max-width:220px;padding:0 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:inherit;font-weight:700}
-.s-fx{margin-top:-8px;font-weight:700;font-size:14px;color:var(--ink-2)}
-.s-fx:has(span:empty){display:none}
 .s-bill{display:flex;width:max-content;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--hover);box-shadow:inset 0 1px 2px rgba(0,0,0,.05)}
 .s-bill label{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 18px;border-radius:999px;font-weight:800;font-size:15px;color:var(--ink-2);cursor:pointer}
 .s-bill label:hover{color:var(--ink)}
@@ -99,10 +83,6 @@ a{text-decoration:none}
 .s-bill input:focus-visible+label{outline:2px solid var(--accent-line);outline-offset:2px}
 .s-save{padding:2px 8px;border-radius:999px;background:linear-gradient(var(--accent-top),var(--accent-bot));color:#fff;font-size:12px;border:1px solid var(--accent-bd)}
 body:has(#bill-year:checked) .bill-m,body:has(#bill-month:checked) .bill-y{display:none!important}
-.s-badge{position:absolute;top:-12px;left:24px;padding:3px 10px;border-radius:999px;background:linear-gradient(var(--accent-top),var(--accent-bot));color:#fff;font-size:12px;font-weight:800;border:1px solid var(--accent-bd)}
-.s-always{display:grid;grid-template-columns:repeat(3,minmax(0,max-content));gap:10px 28px;justify-content:center;margin-top:26px;font-weight:700;color:var(--ink-2);font-size:14.5px}
-.s-always span{display:inline-flex;align-items:center;gap:7px}
-.s-always .ic{color:var(--ok);stroke-width:3}
 
 /* Comparison */
 .s-compare{border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
@@ -184,7 +164,7 @@ main:focus{outline:none}
 @media (max-width:480px){.s-long{display:none}.s-short{display:inline}.s-nav .brand{font-size:15px}.s-nav-in{gap:12px}}
 @media (min-width:1800px){.s-wrap{max-width:1360px}body{font-size:17px}}
 @media (max-width:900px){
-  .s-feats,.s-plans{grid-template-columns:1fr}
+  .s-feats{grid-template-columns:1fr}
   .s-nav-in>nav{display:none}
   .s-nav-cta .btn.ghost{display:none}
   .s-menu{display:block}
@@ -199,13 +179,7 @@ main:focus{outline:none}
 
 @media (min-width:601px) and (max-width:900px){
   .s-feats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .s-plans{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-  .s-plan{padding:18px}
-  .s-price b{font-size:36px}
-  .s-plan ul{font-size:14px}
 }
-@media (max-width:1000px){.s-always{grid-template-columns:repeat(2,minmax(0,max-content))}}
-@media (max-width:600px){.s-always{grid-template-columns:minmax(0,max-content)}.s-always span{align-items:flex-start}.s-always .ic{margin-top:4px}}
 
 
 /* Mock windows end in a soft fade instead of a hard cut. */
@@ -238,12 +212,10 @@ main:focus{outline:none}
 /* Cards demo: whole rows only. */
 .s-term .c{padding-left:2ch;text-indent:-2ch}
 @media (max-width:1180px){.s-term .cmd .ind{display:none}}
-.s-plan li,.s-plan .s-lede{text-wrap:pretty}
 .s-term .ok{padding-left:2ch;text-indent:-2ch}
 @media (min-width:2000px){.s-wrap{max-width:1500px}}
 @media (max-width:480px){.s-nav-cta .btn.primary{min-height:40px}.s-menu summary{height:40px}}
 .s-src{max-width:90ch;margin-left:auto;margin-right:auto}
-@media (min-width:601px) and (max-width:900px){.s-price{flex-wrap:wrap;row-gap:2px}.s-price span{flex-basis:100%}}
 /* Legal pages */
 .s-doc{padding:56px 0 80px}
 .s-doc article{max-width:720px;margin:0 auto}

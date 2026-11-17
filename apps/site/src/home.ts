@@ -1,4 +1,4 @@
-import { ALWAYS, PLANS, appCards, billingToggle, compareTable, faq, av, footer, ic, planCard, quilt, sidebar, terminal } from "./kit.ts";
+import { PLANS, appCards, billingToggle, compareTable, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
 
@@ -15,7 +15,35 @@ const FEATURES = [
   { k: "Share", icon: "share", h: "You're the one people ask for good links.", p: "Share a basket or collection as a page anyone can open. Anyone who follows it gets each new pick as you add it." },
 ] as const;
 
-const HOST_POINTS = ["Every feature, free forever", "Runs on a spare computer, in about 1&nbsp;GB of memory", "Backups and invitations for family and friends built in", "Open source, AGPL-3.0"];
+const HOST_POINTS = ["Every feature, free forever", "Runs on a spare computer, in about 1&nbsp;GB of memory", "Open source, AGPL-3.0"];
+
+const HOSTED = ["free", "plus", "pro"] as const;
+const planLine = (k: (typeof HOSTED)[number]) => {
+  const has = PLANS[k].has;
+  return [`${has.sources} sources`, `${has.collections === "Unlimited" ? "unlimited" : has.collections} collections`, ...(has.sharing ? ["public pages"] : []), ...(has.smart ? ["Smart filters"] : [])].join(" · ");
+};
+const planRow = (site: Site, k: (typeof HOSTED)[number]) => {
+  const p = PLANS[k];
+  const price = p.yearly ? `<span class="bill-y">${p.yearly.price}</span><span class="bill-m">${p.price}</span>` : p.price;
+  const per = p.yearly ? `<span class="bill-y">${p.yearly.per}</span><span class="bill-m">${p.per}</span>` : p.per;
+  const fx = p.eur ? `<span class="pk-fx"><span class="bill-y">${money({ amount: p.eur.year / 12, cur: "EUR" }, " a month, charged in euros", true)}</span><span class="bill-m">${money({ amount: p.eur.month, cur: "EUR" }, " a month, charged in euros", true)}</span></span>` : "";
+  return `<li class="pk-row"><h4 class="title">${p.name}</h4><p class="row-s">${planLine(k)}</p><p class="pk-p">${price}</p>
+<div class="pk-per"><span>${per}${fx}</span><a class="btn" href="${links(site).signUp}">${p.cta}</a></div></li>`;
+};
+
+/** Pricing as two doors of equal weight: you run it (the install commands) or we run it (the three hosted plans). */
+const pricingDoors = (site: Site): string => `<div class="pk">
+<section class="mod" id="self-host" aria-labelledby="pk-you"><div class="mod-h"><h3 class="pk-n" id="pk-you">You run it</h3></div>
+<div class="pk-own"><div class="pk-row"><h4 class="title">Your own server</h4><p class="row-s">unlimited sources · unlimited collections · public pages</p><p class="pk-p">€0</p></div>
+${terminal(site)}
+<div class="pk-per"><span>${HOST_POINTS[0]}</span><a class="btn" href="${links(site).install}">Read the install guide</a></div></div>
+<p class="pk-foot">${HOST_POINTS.slice(1).join(" · ")}</p>
+</section>
+<section class="mod" aria-labelledby="pk-we"><div class="mod-h"><h3 class="pk-n" id="pk-we">We run it</h3>${billingToggle()}</div>
+<ul>${HOSTED.map((k) => planRow(site, k)).join("")}</ul>
+<p class="pk-foot">Cancel any time · Export everything, any time · Prices include VAT</p>
+</section>
+</div>`;
 
 type Mine = { l: string; h: number; t: string; src: string; when: string; box: number; fresh?: true };
 type Junk = { tag: string; t: string; sub: string; c: string };
@@ -154,15 +182,37 @@ const css = `
 .pf-feats .mod-b{padding:14px 16px 18px;display:grid;gap:8px}
 .pf-feats h3{font-size:18px;font-weight:900;line-height:1.2;letter-spacing:-.01em}
 .pf-feats p{font-size:14.5px;font-weight:600;color:var(--ink-2)}
-.pf-host{display:grid;grid-template-columns:1fr 1.15fr;gap:36px;align-items:center}
-.pf-host .pf-h2,.pf-host .pf-p{text-align:left;margin-left:0}
 .pf-why{margin-top:0}
-.pf-pts{display:grid;gap:10px;margin-top:18px;font-weight:700;font-size:16.5px}
-.pf-pts li{display:flex;gap:10px}
-.pf-pts .ic{flex:none;margin-top:5px;stroke-width:3;color:var(--ok)}
 .pf-end{padding:80px 24px 90px;text-align:center}
 .pf-end .s-cta{justify-content:center}
-@media (max-width:1200px){.pf-nav a:not(.btn){display:none}.pf-hero{grid-template-columns:minmax(0,1fr);gap:28px;padding-top:8px}.pf-stage{height:520px}.pf-feats{grid-template-columns:1fr 1fr}.pf-host{grid-template-columns:minmax(0,1fr)}.pf-hero>div:first-child{display:contents}.pf-h1{order:1}.pf-lead{order:2;margin-top:0}.pf-sw{order:3;margin-top:0;font-size:14px;gap:10px}.pf-sw label{flex:1}.pf-sw .l0{text-align:right}.pf-stage{order:4;height:540px;min-height:0}.pf-points{order:5;margin-top:0}.pf[data-on="1"] .pf-content{padding-left:0}.pf-main>.s-side{display:none}.pf[data-on="1"] .pf-bar{padding-left:18px}.pf-hero .s-cta{order:6;margin-top:0;grid-template-columns:minmax(0,1fr)}.pf-hero{gap:18px;min-height:0;padding-bottom:40px}.pf-sw{white-space:normal}.pf-toggle{width:112px;height:54px}.pf-toggle i{width:42px;height:42px}.pf[data-on="1"] .pf-toggle i{translate:58px 0}}
+.pk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:32px;text-align:left;align-items:stretch}
+.pk .mod{display:flex;flex-direction:column}
+.pk .mod-h{flex-wrap:wrap;gap:8px 16px;min-height:60px;padding:10px 14px 10px 18px}
+.pk-n{margin:0 auto 0 0;font-size:17px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+.pk .s-bill-row{margin:0;gap:8px 12px;justify-content:flex-start}
+.pk .s-bill{background:var(--surface)}
+.pk .s-bill label{min-height:32px;padding:0 12px;font-size:14px}
+.pk .s-cur{font-size:13px}
+.pk .s-cur label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.pk .s-cur select{min-height:34px;max-width:150px}
+.pk-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.pk-row .title{align-self:end;margin:0}
+.pk-row .row-s{align-self:start}
+.pk-row .title{font-weight:800;font-size:17px;color:var(--ink)}
+.pk-row .row-s{font-size:14.5px;font-weight:700}
+.pk-p{grid-column:2;grid-row:1/span 2;align-self:center;text-align:right;font-size:40px;font-weight:900;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+.pk-per{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-top:8px;font-weight:700;font-size:13.5px;color:var(--ink-2)}
+.pk-per .pk-fx{display:block}
+.pk-per .btn{margin-left:auto}
+.pk-own{display:grid;gap:16px;padding:16px 18px 18px;flex:1;align-content:start}
+.pk-own .pk-row{padding:0;border:0}
+.pk-own .s-term{box-shadow:none}
+.pk-own .s-term pre{font-size:12.5px;padding:14px 16px}
+.pk-foot{margin-top:auto;padding:12px 18px 14px;border-top:1px solid var(--line);background:var(--surface-2);font-weight:700;font-size:13.5px;color:var(--ink-2)}
+@media (max-width:980px){.pk{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:420px){.pk-p{font-size:34px}.pk-row{padding:14px}.pk-own{padding:14px}.pk-per .btn{width:100%}}
+.pk-fx:has([data-money]:empty){display:none}
+@media (max-width:1200px){.pf-nav a:not(.btn){display:none}.pf-hero{grid-template-columns:minmax(0,1fr);gap:28px;padding-top:8px}.pf-stage{height:520px}.pf-feats{grid-template-columns:1fr 1fr}.pf-hero>div:first-child{display:contents}.pf-h1{order:1}.pf-lead{order:2;margin-top:0}.pf-sw{order:3;margin-top:0;font-size:14px;gap:10px}.pf-sw label{flex:1}.pf-sw .l0{text-align:right}.pf-stage{order:4;height:540px;min-height:0}.pf-points{order:5;margin-top:0}.pf[data-on="1"] .pf-content{padding-left:0}.pf-main>.s-side{display:none}.pf[data-on="1"] .pf-bar{padding-left:18px}.pf-hero .s-cta{order:6;margin-top:0;grid-template-columns:minmax(0,1fr)}.pf-hero{gap:18px;min-height:0;padding-bottom:40px}.pf-sw{white-space:normal}.pf-toggle{width:112px;height:54px}.pf-toggle i{width:42px;height:42px}.pf[data-on="1"] .pf-toggle i{translate:58px 0}}
 @media (min-width:1600px){.pf-nav,.pf-hero{max-width:1640px}.pf-hero{grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:64px}.pf-h1{font-size:clamp(54px,3.7vw,76px)}.pf-lead{font-size:22px}.pf-points{font-size:19px}.pf-points small{font-size:15.5px}.pf-stage{height:min(840px,calc(100vh - 120px))}.pf-nav{font-size:16px}}
 @media (min-width:2200px){.pf-nav,.pf-hero{max-width:2100px}.pf-hero{grid-template-columns:minmax(0,600px) minmax(0,1fr);gap:90px}.pf-h1{font-size:clamp(72px,3.4vw,96px)}.pf-lead{font-size:27px}.pf-points{font-size:23px;gap:16px}.pf-points small{font-size:18px}.pf-stage{height:min(1080px,calc(100vh - 140px))}.pf-nav{font-size:18px}}
 @media (max-width:480px){.pf-nav{padding:10px 18px}.pf-h1{font-size:29px;line-height:1.04}.pf-lead{font-size:15px;line-height:1.42}.pf-sw{font-size:13px}.pf-stage{height:clamp(420px,calc(100svh - 300px),560px)!important}.pf-hero{gap:12px;padding-top:2px}}
@@ -199,13 +249,10 @@ export const home = {
 <section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}Apps and extensions</span><h2 class="s-h2" style="margin:10px 0 12px">Wherever you come across things.</h2><p class="s-lead">Save it where you find it, read it where you are. Your browser, phone, computer and e-reader all share one PURSS.</p></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
-<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">Pricing</span><h2 class="s-h2" style="margin:10px 0 12px">Simple, honest pricing.</h2><p class="s-lead">We run it for you, from free to Pro. Every plan includes the full reader, baskets, search and export. Prefer to run it yourself? <a class="link" href="#self-host">It's free</a>.</p></div>${billingToggle()}
-<div class="s-plans" style="margin-top:36px">${planCard(site, PLANS.free)}${planCard(site, PLANS.plus, { featured: true, badge: "Public sharing" })}${planCard(site, PLANS.pro, { badge: "Smart filters" })}</div>
-<div class="s-always">${ALWAYS.map((x) => `<span>${ic("check")}${x}</span>`).join("")}</div></div></section>
+<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">Pricing</span><h2 class="s-h2" style="margin:10px 0 12px">Simple, honest pricing.</h2><p class="s-lead pk-say">No ads, no engagement algorithm, and we don't sell your data. Run it yourself or let us run it: it's the same app, and one export moves you between them.</p></div>
+${pricingDoors(site)}</div></section>
 
 <section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">Compare</span><h2 class="s-h2" style="margin-top:10px">The only one of the five you can run yourself.</h2><p class="s-lead" style="margin-top:12px">Hosted by us or on your own server, it's the same app, and one export moves you between them.</p></div>${compareTable()}</div></section>
-
-<section class="pf-sec" id="self-host"><div class="pf-host"><div><h2 class="pf-h2">Prefer to run it yourself? It's free.</h2><p class="pf-p">Your reading on your own hardware, where nobody can change the rules on you. The same PURSS with no limits, running with Docker in about 30 minutes.</p><ul class="pf-pts">${HOST_POINTS.map((t) => `<li>${ic("check")}${t}</li>`).join("")}</ul><div class="s-cta" style="margin-top:22px"><a class="btn primary lg" href="${links(site).install}">Read the install guide</a><a class="btn lg" href="${links(site).source}">View the source</a></div></div>${terminal(site)}</div></section>
 
 <section class="s-sec" id="faq"><div class="s-wrap"><h2 class="s-h2 s-center" style="margin-bottom:30px">Questions</h2>${faq(site)}</div></section>
 

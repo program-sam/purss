@@ -62,12 +62,16 @@ test("pictures of PURSS keep their buttons away from assistive technology and th
   assert.equal(exposedInsidePictures('<div role="img" aria-label="x"><div aria-hidden="true"><button>Go</button></div></div>').length, 0);
 });
 
-test("the hosted story comes before the self-hosting detail", () => {
+test("pricing is two doors, you run it and we run it, and there is no separate self-hosting section", () => {
   const h = html("index");
   const at = (id: string) => h.indexOf(`id="${id}"`);
   assert.ok(at("apps") < at("pricing") && at("pricing") < at("self-host") && at("self-host") < at("faq"));
-  const main = h.slice(h.indexOf('<main'), h.indexOf("</main>"));
-  assert.ok(main.indexOf("git clone") > main.indexOf('id="pricing"'), "the terminal commands are below the hosted pricing");
+  assert.equal(h.match(/<section class="pf-sec" id="self-host"/g), null);
+  const pricing = h.slice(at("pricing"), at("faq"));
+  assert.match(pricing, /You run it/);
+  assert.match(pricing, /We run it/);
+  assert.ok(pricing.indexOf("git clone") > pricing.indexOf("You run it") && pricing.indexOf("git clone") < pricing.indexOf("We run it"), "the install commands are in the self-hosting door");
+  assert.equal(pricing.match(/class="pk-row"/g)?.length, 4, "your own server and the three hosted plans");
   assert.ok(h.indexOf('<a href="#pricing">Pricing</a>') < h.indexOf('<a href="#self-host">Host it yourself</a>'), "the menu follows the page");
 });
 
@@ -95,7 +99,6 @@ test("the questions people looked for are answered", () => {
   for (const topic of [/other languages/, /reminded/, /share something/, /keep pictures/, /without a connection/, /borrowed or shared computer/, /Who runs/, /accessible/, /phone app or a browser extension/]) {
     assert.ok(questions.some((q) => topic.test(q)), String(topic));
   }
-  assert.match(text(h), /Fingerprint, face or password sign-in/);
   // The service keeps no episode files and the site shows no storage amounts.
   assert.doesNotMatch(text(h), /saved on the server|save [^.]{0,30} on the server|\d+ MB (of|for)\b|\d+ GB of storage|counted in your storage/);
   assert.match(h, /href="https:\/\/github\.com\/program-sam\/purss\/issues"/);

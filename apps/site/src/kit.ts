@@ -101,20 +101,10 @@ type Price = { price: string; per: string };
 export const PLUS = PLAN_PRICES_EUR.plus;
 export const PRO = PLAN_PRICES_EUR.pro;
 
-/** Self-hosting: free, with no limits; offered in the "Host it yourself" section, not as a plan card. */
+/** Self-hosting: free, with no limits; offered as the "You run it" door in the pricing section, not as a plan. */
 export const SELF_HOSTED = { name: "Self-hosted", price: "0" };
 
-/**
- * What a hosted plan includes, row by row in the same order on every card, so the cards compare at a glance. A row a plan
- * doesn't have is shown as not included. What every plan has is listed once, below the cards (ALWAYS).
- */
-export const PLAN_ROWS = [
-  { key: "sources", label: (v: string) => `${v} sources` },
-  { key: "collections", label: (v: string) => `${v} collections` },
-  { key: "sharing", label: () => "Share baskets and collections as public pages" },
-  { key: "smart", label: () => "Smart filters: plain-language rules for what you want to see" },
-] as const;
-type Row = (typeof PLAN_ROWS)[number]["key"];
+type Row = "sources" | "collections" | "sharing" | "smart";
 
 /** A plan's price; `yearly` is shown while the pricing toggle is on yearly billing, `price`/`per` while it is on monthly. */
 export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; lede: string; has: Partial<Record<Row, string>>; cta: string }> = {
@@ -123,26 +113,11 @@ export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eu
   pro: { name: "Pro", price: `€${PRO.month}`, per: "per month, billed monthly", yearly: { price: `€${PRO.year / 12}`, per: `per month, billed yearly as €${PRO.year}` }, eur: PRO, lede: "For busy feeds you want curated for you.", has: { sources: "5,000", collections: "Unlimited", sharing: "yes", smart: "yes" }, cta: "Start with Pro" },
 };
 
-/** What every hosted plan includes, shown once under the cards. */
-export const ALWAYS = ["Every view, baskets and search", "Export everything, any time", "Cancel any time", "No ads", "No engagement algorithm: your order, your rules", "No AI you didn't ask for", "Fingerprint, face or password sign-in", "Install as an app; read the text offline", "Prices include VAT"];
-
-const price = (p: Price, cls = "") => `<p class="s-price ${cls}"><b>${p.price}</b><span>${p.per}</span></p>`;
 
 /** Yearly or monthly billing for the plan cards and the comparison table; CSS shows the matching prices, so it works without scripts. */
 export function billingToggle(): string {
   const opt = (id: string, label: string, checked = false) => `<input type="radio" name="billing" id="${id}" class="sr"${checked ? " checked" : ""}><label for="${id}">${label}</label>`;
   return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", `Yearly <span class="s-save">save ${Math.round(100 - (100 * PLUS.year) / (12 * PLUS.month))}%</span>`, true)}${opt("bill-month", "Monthly")}</fieldset>${currencyPicker()}</div>`;
-}
-
-export function planCard(site: Site, p: (typeof PLANS)[keyof typeof PLANS], opts: { featured?: boolean; badge?: string } = {}): string {
-  return `<article class="s-plan ${opts.featured ? "featured" : ""}">${opts.badge ? `<span class="s-badge">${opts.badge}</span>` : ""}
-<h3>${p.name}</h3>${p.yearly && p.eur ? price(p.yearly, "bill-y") + price(p, "bill-m") + `<p class="s-fx bill-y">${money({ amount: p.eur.year / 12, cur: "EUR" }, " a month, charged in euros", true)}</p><p class="s-fx bill-m">${money({ amount: p.eur.month, cur: "EUR" }, " a month, charged in euros", true)}</p>` : price(p)}<p class="s-lede">${p.lede}</p>
-<ul>${PLAN_ROWS.map((r) => {
-    const v = p.has[r.key];
-    const text = r.label(v ?? "");
-    return v ? `<li>${ic("check")}${text}</li>` : `<li class="no">${ic("minus")}<span><span class="sr">Not included: </span>${text}</span></li>`;
-  }).join("")}</ul>
-<a href="${links(site).signUp}" class="btn lg ${opts.featured ? "primary" : ""}">${p.cta}</a></article>`;
 }
 
 /**
@@ -158,7 +133,7 @@ const RIVALS: { n: string; self: string; year: Money; month: Money; tier: string
 ];
 
 /** A price the visitor's currency script can rewrite; `approx` prices are ours, shown converted only outside the euro. */
-const money = (m: Money, suffix = "", approx = false) =>
+export const money = (m: Money, suffix = "", approx = false) =>
   `<span data-money="${m.amount} ${m.cur}"${approx ? " data-approx" : ""}${suffix ? ` data-suffix="${suffix}"` : ""}>${approx ? "" : show(m, "EUR") + suffix}</span>`;
 
 const OURS = { year: { amount: PLUS.year / 12, cur: "EUR" }, month: { amount: PLUS.month, cur: "EUR" } } as const;
@@ -188,7 +163,7 @@ function getIt(what: Distributed): string {
   return stores.length ? `<span class="a-stores">${stores.map((s) => `<a class="btn" href="${s.url}">${s.name}</a>`).join("")}</span>` : "";
 }
 
-/** For developers: the apps can already be built from the source code. Shown with the install commands in the self-hosting section. */
+/** For developers: the apps can already be built from the source code. Shown with the install commands in the pricing section's "You run it" door. */
 const developerLinks = () => `<p class="fine a-dev">Developers: <a class="link" href="${DISTRIBUTION.mobile.install}">build the phone app</a> or <a class="link" href="${DISTRIBUTION.extension.install}">load the browser extension</a> from the source.</p>`;
 
 /**
