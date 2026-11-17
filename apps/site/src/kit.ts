@@ -2,8 +2,8 @@ import { CURRENCIES, ECB, currencyName, show, type Money } from "./currency.ts";
 import { links, type Site } from "./site.ts";
 
 /**
- * Shared pieces for the site: icons, sample PURSS data, and mock app screens built from the
- * app's own CSS classes so every screenshot on the site looks exactly like the product.
+ * Shared pieces for the site: icons, the plans and their prices, the comparison, the apps, the FAQ and the footer, and the
+ * sidebar picture, built from the app's own CSS classes so it looks exactly like the product.
  */
 import { ANDROID_APK, DESKTOP_DOWNLOADS, DISTRIBUTION, publishedStores } from "@purss/domain/distribution";
 import type { Distributed } from "@purss/domain/distribution";
@@ -62,61 +62,23 @@ export function ic(name: string, cls = ""): string {
 const brand = (label = "PURSS") =>
   `<span class="brand"><span class="mark" aria-hidden="true">${ic("mark")}</span><span class="brand-t">${label}</span></span>`;
 
-const av = (letters: string, hue: number, size = 24) =>
+export const av = (letters: string, hue: number, size = 24) =>
   `<span class="av" style="--ah:${hue};--s:${size}px" aria-hidden="true">${letters}</span>`;
 
-// ---------- Sample PURSS ----------
-
-interface Item { t: string; src: string; l: string; h: number; when: string; kind?: "vid" | "pod" | "art"; fresh?: boolean; kept?: boolean; wf?: string; len?: string }
-
-const ITEMS = [
-  { t: "The night sky is getting brighter", src: "Slow Light Journal", l: "SL", h: 228, when: "12 min ago", fresh: true, kind: "art", len: "9 min read" },
-  { t: "Restoring a 1970s hand plane", src: "Maker Bench", l: "MB", h: 18, when: "1 h ago", fresh: true, kind: "vid", len: "24:10" },
-  { t: "Ep. 112: Small libraries", src: "Night Shift Radio", l: "NS", h: 280, when: "3 h ago", kind: "pod", kept: true, len: "58 min" },
-  { t: "Interfaces that respect attention", src: "HCI Preprints", l: "HP", h: 160, when: "Yesterday", kind: "art", wf: "To read", len: "Paper" },
-  { t: "A quiet guide to growing tomatoes on a north-facing balcony", src: "Balcony Garden", l: "BG", h: 120, when: "Yesterday", kind: "art", kept: true },
-  { t: "How a town rebuilt its train line", src: "Long Read Weekly", l: "LR", h: 40, when: "Tue", kind: "art", wf: "In progress", len: "31 min read" },
-  { t: "A tiny weather station", src: "Maker Bench", l: "MB", h: 18, when: "Mon", kind: "vid", wf: "Finished", len: "12:48" },
-] as const satisfies readonly Item[];
-
-/** Local news and a football club's fan site, for Home's first box. */
-const LOCAL: Item[] = [
-  { t: "Council approves the Mill Road cycle path", src: "Millbrook Gazette", l: "MG", h: 210, when: "12 min ago", fresh: true, kind: "art", len: "3 min read" },
-  { t: "Rovers sign a young keeper for the winter run", src: "Millbrook Rovers Fans", l: "MR", h: 8, when: "1 h ago", fresh: true, kind: "art", len: "2 min read" },
-];
-
-/** The Recipes collection, shown as a table. */
-const RECIPES: Item[] = [
-  { t: "Slow-roast tomato sauce that keeps all week", src: "Kitchen Table", l: "KT", h: 12, when: "Yesterday", wf: "To read", kept: true },
-  { t: "A weeknight dal in 25 minutes", src: "Kitchen Table", l: "KT", h: 12, when: "4 Nov", wf: "Finished", kept: true },
-  { t: "Sourdough for people who keep giving up", src: "Crumb & Crust", l: "CC", h: 38, when: "3 Nov", wf: "To read" },
-  { t: "Aunt Mei's dumplings, step by step", src: "Mei's Kitchen Notes", l: "MK", h: 330, when: "2 Nov", wf: "Finished", kept: true },
-];
+// ---------- The sidebar of the app, as pictured on the home page ----------
 
 const COLLECTIONS = [
-  { n: "Local", c: 9, s: [["MG", 210], ["MR", 8]] as [string, number][] },
-  { n: "Watch", c: 4, s: [["MB", 18], ["KC", 340]] as [string, number][] },
-  { n: "Listen", c: 2, s: [["NS", 280]] as [string, number][] },
-  { n: "Slow reads", c: 7, s: [["LR", 40], ["BG", 120]] as [string, number][] },
-  { n: "Recipes", c: 12, s: [["KT", 12], ["CC", 38]] as [string, number][] },
+  { n: "Local", c: 9 },
+  { n: "Watch", c: 4 },
+  { n: "Listen", c: 2 },
+  { n: "Slow reads", c: 7 },
+  { n: "Recipes", c: 12 },
 ] as const;
-
-// ---------- Mock screens (real app classes) ----------
 
 export const quilt = (id = "quilt", size = 96) => `<svg class="quilt" aria-hidden="true"><defs><pattern id="${id}" width="${size}" height="${size}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H${size}M0 0V${size}"/><circle r="${(size / 34).toFixed(1)}"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
 
-function row(i: Item, keepBtn = true): string {
-  return `<li class="row has-keep"><div class="row-main"><span class="gut">${i.fresh ? '<span class="dot"></span>' : ""}</span>${av(i.l, i.h, 26)}
-<span class="row-t"><span class="title">${i.t}</span><span class="row-s"><span class="sn">${i.src}</span><span class="shared">${i.when}</span>${i.wf ? `<span class="wf">${i.wf}</span>` : ""}</span></span><span></span></div>
-${keepBtn ? `<span class="racts"><span class="keep ${i.kept ? "on" : ""}" style="opacity:${i.kept ? 1 : 0}">${ic("bookmark")}</span></span>` : ""}</li>`;
-}
-
-function mod(title: string, items: Item[], fresh?: number, stack?: [string, number][]): string {
-  return `<section class="mod"><div class="mod-h"><div class="mod-t"><button type="button">${stack ? `<span class="stack">${stack.map(([l, h]) => av(l, h, 22)).join("")}</span>` : ""}<span class="t">${title}</span></button></div>${fresh ? `<span class="mod-fresh"><span class="dot"></span>${fresh} new</span>` : ""}</div>
-<ul class="mod-b">${items.map((i) => row(i)).join("")}</ul></section>`;
-}
-
-function sidebar(selected = "Home"): string {
+/** The app's sidebar, a picture only: the page hides it from assistive technology. */
+export function sidebar(selected = "Home"): string {
   return `<aside class="s-side">
 <div class="side-head">${brand()}<span class="btn primary">${ic("plus")}Add source</span>
 <span class="pill-search">${ic("search")}Search<kbd>/</kbd></span></div>
@@ -130,103 +92,6 @@ ${[["Local history", 6], ["Thesis sources", 38]].map(([n, c]) => `<span class="b
 </div>
 <div class="side-foot"><span class="stor"><span class="meter"><i class="feeds" style="width:37%"></i></span>37 of 100 sources</span></div>
 </aside>`;
-}
-
-function homeScreen(greeting = "Good morning, Robin"): string {
-  return `<div class="homewash">${quilt("quilt-mock")}<div class="col"><div class="s-mh home">${greeting}</div><p class="s-wash-sub">New items since your last visit (yesterday) in 2&nbsp;collections</p></div></div>
-<div class="col home-body"><div class="mods">
-<div class="mcol">${mod("Local", [...LOCAL, ITEMS[5]], 3, COLLECTIONS[0].s)}</div>
-<div class="mcol">${mod("Watch & listen", ITEMS.filter((_, k) => k === 1 || k === 2 || k === 6), 2, [["MB", 18], ["NS", 280]])}</div>
-</div></div>`;
-}
-
-/**
- * A browser-chrome window around a full PURSS screen. It is a picture: the label describes it, and everything
- * inside is hidden from assistive technology and unreachable (inert), so its buttons never appear as controls.
- */
-export function appWindow(content = homeScreen(), opts: { side?: boolean; url?: string; cls?: string; label?: string; crumbs?: string[]; sel?: string } = {}): string {
-  return `<div class="s-win ${opts.cls ?? ""}" role="img" aria-label="${opts.label ?? "The PURSS Home screen: new items from your collections"}">
-<div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span>${opts.url ?? "your.purss"}</span></div>
-<div class="s-app ${opts.side === false ? "noside" : ""}" inert aria-hidden="true">${opts.side === false ? "" : sidebar(opts.sel)}<div class="s-stage">
-<div class="bar"><div class="crumbs"><ol>${(opts.crumbs ?? ["Home"]).map((c) => `<li>${c}</li>`).join("")}</ol></div><div class="bar-tools"><span class="mbtn">${ic("list")}View</span></div></div>
-<div class="s-main">${content}</div></div></div></div>`;
-}
-
-export function basketScreen(): string {
-  const kept: Item[] = [
-    { t: "Interfaces that respect attention", src: "HCI Preprints", l: "HP", h: 160, when: "Kept yesterday", wf: "To read", kept: true },
-    { t: "Measuring reading depth", src: "HCI Preprints", l: "HP", h: 160, when: "Kept 4 Nov · readable text", wf: "Finished", kept: true },
-    { t: "A guide to dark-sky parks", src: "Slow Light Journal", l: "SL", h: 228, when: "Kept 1 Nov · readable text", kept: true },
-    { t: "Calm technology, twenty years on", src: "Calm Tech", l: "CT", h: 300, when: "Unfollowed · kept in March", kept: true },
-  ];
-  return `<div class="col"><div class="phead"><div class="s-mh">Thesis sources</div><div class="psub"><span>Basket · 38 kept</span><span>Readable text kept</span></div></div>
-<div class="list"><ul>${kept.map((i) => row(i)).join("")}</ul></div></div>`;
-}
-
-/** Small original illustrations used as video thumbnails in the Cards mock (no third-party imagery). */
-const THUMBS: Record<string, string> = {
-  plane: `<rect width="160" height="90" fill="#3b2a1e"/><rect y="58" width="160" height="32" fill="#8a5a33"/><rect y="58" width="160" height="4" fill="#a8743f"/><path d="M0 70h160M0 80h160" stroke="#7a4e2b" stroke-width="1"/><path d="M38 56l10-14h60l14 14z" fill="#9aa3ad"/><rect x="40" y="50" width="82" height="8" rx="2" fill="#6b7480"/><path d="M60 42c4-12 14-16 22-16s12 6 10 16z" fill="#c8833f"/><circle cx="104" cy="44" r="7" fill="#c8833f"/><path d="M118 52c10-2 20 0 26 6" stroke="#e8c79c" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="130" cy="20" r="18" fill="#f6b25a" opacity=".25"/>`,
-  joints: `<rect width="160" height="90" fill="#2c2420"/><rect x="18" y="26" width="58" height="40" fill="#c99a62"/><path d="M76 30h12l-4 8h-8zM76 46h12l-4 8h-8z" fill="#c99a62"/><rect x="88" y="26" width="54" height="40" fill="#e0b47a"/><path d="M88 30h-8l4 8h4zM88 46h-8l4 8h4zM88 62h-8l4-4h4z" fill="#2c2420"/><path d="M18 40h58M18 54h58M92 34h50M92 50h50" stroke="#a87b48" stroke-width="1"/><rect y="70" width="160" height="20" fill="#4a3a30"/>`,
-  arches: `<rect width="160" height="90" fill="#251a2e"/><path d="M0 90V40q20-30 40 0v50zM40 90V40q20-30 40 0v50zM80 90V40q20-30 40 0v50zM120 90V40q20-30 40 0v50z" fill="#4a3657"/><path d="M8 90V46q12-20 24 0v44zM48 90V46q12-20 24 0v44zM88 90V46q12-20 24 0v44zM128 90V46q12-20 24 0v44z" fill="#e8b84a" opacity=".55"/><circle cx="80" cy="16" r="9" fill="none" stroke="#f3d27a" stroke-width="2"/><path d="M58 16a22 22 0 0 1 44 0M48 16a32 32 0 0 1 64 0" fill="none" stroke="#f3d27a" stroke-width="1.5" opacity=".6"/>`,
-  weather: `<rect width="160" height="90" fill="#7cc3f0"/><circle cx="128" cy="22" r="12" fill="#ffd66b"/><path d="M30 34a10 10 0 0 1 18-6 8 8 0 0 1 12 8H26a5 5 0 0 1 4-2z" fill="#fff"/><rect y="70" width="160" height="20" fill="#5aa65a"/><rect x="78" y="30" width="4" height="42" fill="#5b6470"/><path d="M80 30l-14-6M80 30l14-6M80 30v-12" stroke="#5b6470" stroke-width="2.5" stroke-linecap="round"/><circle cx="66" cy="24" r="4" fill="#f05a4a"/><circle cx="94" cy="24" r="4" fill="#f05a4a"/><circle cx="80" cy="18" r="4" fill="#f05a4a"/><rect x="72" y="46" width="16" height="12" rx="2" fill="#eef2f6" stroke="#5b6470"/>`,
-  tomato: `<rect width="160" height="90" fill="#f3efe6"/><rect x="104" y="6" width="50" height="56" rx="3" fill="#bcd7ea"/><path d="M129 6v56M104 34h50" stroke="#fff" stroke-width="3"/><path d="M40 90V30M40 50l-16-8M40 40l18-10M40 62l16-6" stroke="#4f8a3c" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="26" cy="48" r="7" fill="#e24b36"/><circle cx="58" cy="34" r="8" fill="#e24b36"/><circle cx="56" cy="60" r="6" fill="#f08a3a"/><path d="M14 74h56l-6 16H20z" fill="#b8613a"/>`,
-  stars: `<rect width="160" height="90" fill="#0f1a33"/><path d="M0 72l30-14 24 8 30-16 28 12 48-10v38H0z" fill="#1c2a44"/><rect x="0" y="80" width="160" height="10" fill="#2a3a5a"/><g fill="#fff"><circle cx="20" cy="16" r="1.3"/><circle cx="44" cy="30" r="1"/><circle cx="70" cy="12" r="1.6"/><circle cx="96" cy="26" r="1"/><circle cx="118" cy="10" r="1.3"/><circle cx="140" cy="34" r="1"/><circle cx="60" cy="42" r="1"/></g><path d="M110 76h30v-6h-30z" fill="#f7c95a" opacity=".85"/><circle cx="126" cy="64" r="16" fill="#f7c95a" opacity=".12"/>`,
-};
-const thumb = (k: string) => `<svg class="s-thumb" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${THUMBS[k]}</svg>`;
-
-export function cardsScreen(): string {
-  const vids = [
-    { t: "Restoring a 1970s hand plane", src: "Maker Bench", l: "MB", h: 18, when: "1 h", len: "24:10", art: "plane", fresh: true },
-    { t: "Five joints to practice first", src: "Maker Bench", l: "MB", h: 18, when: "Wed", len: "18:02", art: "joints" },
-    { t: "How sound fills a cathedral", src: "Kite & Choir", l: "KC", h: 340, when: "Tue", len: "15:37", art: "arches", fresh: true },
-    { t: "A tiny weather station", src: "Maker Bench", l: "MB", h: 18, when: "Mon", len: "12:48", art: "weather" },
-    { t: "Balcony tomatoes, a whole summer in four minutes", src: "Balcony Garden", l: "BG", h: 120, when: "Sun", len: "4:02", art: "tomato" },
-    { t: "Finding dark skies an hour from the city", src: "Slow Light", l: "SL", h: 228, when: "Sat", len: "21:30", art: "stars" },
-  ];
-  return `<div class="col"><div class="phead"><div class="ptitle"><div class="s-mh">Watch</div></div><div class="psub"><span class="fr"><span class="dot"></span>2 new</span><span>4 channels</span></div></div>
-<div class="grid">${vids.map((i) => `<article class="card"><div class="card-main"><span class="art vid s-art">${thumb(i.art)}<span class="play">${ic("play")}</span><span class="badge">${i.len}</span></span>
-<div class="meta">${i.fresh ? '<span class="dot"></span>' : ""}${av(i.l, i.h, 20)}<span class="sn">${i.src}</span><time>${i.when}</time></div><div class="title">${i.t}</div></div></article>`).join("")}</div></div>`;
-}
-
-export function boardScreen(): string {
-  const col = (name: string, n: number, cards: Item[]) => `<section class="bcol"><div class="bcol-h"><b>${name}</b><span class="n">${n}</span></div><div class="bcards">${cards.map((i) => `<div class="bcard ${i.wf === "Finished" ? "dim" : ""}"><div class="bcard-main"><div class="m">${av(i.l, i.h, 18)}<span class="sn">${i.src}</span><time>${i.when}</time></div><div class="title">${i.t}</div></div>${i.kept ? `<span class="kept">${ic("bookmark")}</span>` : ""}</div>`).join("")}</div></section>`;
-  return `<div class="col wide"><div class="phead"><div class="s-mh">Slow reads</div></div><div class="board">
-${col("To read", 6, [ITEMS[3], { ...ITEMS[4], src: "Balcony", kept: true }])}${col("In progress", 2, [ITEMS[5]])}${col("Finished", 31, [ITEMS[6]])}</div></div>`;
-}
-
-export function tableScreen(): string {
-  return `<div class="col"><div class="phead"><div class="s-mh">Recipes</div><div class="psub"><span class="fr"><span class="dot"></span>2 new</span><span>3 sources · 3 kept</span></div></div>
-<div class="tblwrap"><table class="tbl"><thead><tr><th><span>Title</span></th><th><span>Source</span></th><th><span>Date</span></th><th><span>State</span></th><th><span>Kept</span></th></tr></thead><tbody>
-${RECIPES.map((i) => `<tr><td class="ttl"><span class="tb"><span class="title">${i.t}</span></span></td><td><span class="c-src">${av(i.l, i.h, 22)}${i.src}</span></td><td>${i.when}</td><td>${i.wf ? `<span class="wf">${i.wf}</span>` : "—"}</td><td><span class="kbtn ${i.kept ? "on" : ""}">${ic("bookmark")}</span></td></tr>`).join("")}
-</tbody></table></div></div>`;
-}
-
-export function timelineScreen(): string {
-  const day = (d: string, items: Item[]) => `<div class="day"><h3>${d}</h3><ul>${items.map((i) => row(i)).join("")}</ul></div>`;
-  return `<div class="col narrow"><div class="phead"><div class="s-mh">Listen</div></div><div class="list">${day("Today", [ITEMS[2]])}${day("Yesterday", [{ t: "Episode 111: Letters from a lighthouse keeper", src: "Night Shift Radio", l: "NS", h: 280, when: "Yesterday", len: "44 min" }])}${day("Monday", [{ t: "Short: why bread goes stale", src: "Kitchen Physics", l: "KP", h: 95, when: "Mon" }])}</div></div>`;
-}
-
-export function readingScreen(): string {
-  return `<div class="s-read">${readerPanel()}</div>`;
-}
-
-function readerPanel(): string {
-  return `<div class="s-panel"><div class="panel-bar"><span class="src">${av("LR", 40, 24)}<span class="nm">Long Read Weekly</span></span></div>
-<div class="panel-body"><span class="art" data-i="LR" style="--ah:40"></span><div class="p-title">The long read: how a town rebuilt its train line</div>
-<div class="p-meta"><span>Tue 3 Nov</span><span>31 min read</span></div>
-<div class="wfseg"><div class="seg"><button aria-pressed="false">To read</button><button aria-pressed="true">In progress</button><button aria-pressed="false">Finished</button></div></div>
-<div class="prog"><span>42% read</span><span class="track"><i style="width:42%"></i></span></div>
-<p class="p-ex">When the last train left in 1987, nobody expected it back. Thirty years later, a group of volunteers began walking the old route every Sunday…</p>
-<p class="fine">Kept in 2 baskets.</p></div></div>`;
-}
-
-export function addSourceDialog(): string {
-  return `<div class="s-dlg" role="img" aria-label="Add source: paste a YouTube link, see the channel, choose a collection, follow"><div class="s-dlg-in" inert aria-hidden="true"><div class="s-dlg-h"><b>Add source</b></div>
-<div class="s-dlg-b"><div class="s-input">${ic("search")}<span>youtube.com/@makerbench</span></div>
-<div class="s-found">${av("MB", 18, 40)}<div><b>Maker Bench</b><small>YouTube · about 2 videos a week</small></div><span class="tag"><span class="rss">${ic("play")}</span>Video</span></div>
-<p class="fine">New videos appear in your PURSS. Nothing is downloaded; videos play from YouTube.</p>
-<div class="s-pick"><span class="fine">Add to collection</span><div class="chips"><span class="chipf" aria-pressed="true">Watch</span><span class="chipf">Slow reads</span><span class="chipf">${ic("plus")} New</span></div></div></div>
-<div class="s-dlg-f"><span class="btn ghost">Cancel</span><span class="btn primary">Follow</span></div></div></div>`;
 }
 
 // ---------- Plans and comparison (one source of truth for every design) ----------

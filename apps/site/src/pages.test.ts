@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appWindow, tableScreen } from "./kit.ts";
 import { PAGES, render, sitemap, type PageKey } from "./pages.ts";
 import { siteFrom } from "./site.ts";
 
@@ -57,10 +56,7 @@ test("the sign-up and dashboard links go to the app, and the repository links fo
 
 test("pictures of PURSS keep their buttons away from assistive technology and the keyboard", () => {
   for (const key of keys) assert.deepEqual(exposedInsidePictures(html(key)), [], key);
-  assert.ok((html("index").match(/role="img"/g) ?? []).length >= 4, "the home page shows its mock screens as pictures");
-  for (const picture of [html("index"), appWindow(tableScreen())]) {
-    for (const [, attrs] of picture.matchAll(/<div class="(?:s-app|s-dlg-in)\b[^"]*"([^>]*)>/g) as Iterable<[string, string]>) assert.match(attrs, /inert aria-hidden="true"/);
-  }
+  assert.ok((html("index").match(/role="img"/g) ?? []).length >= 1, "the home page shows its Home screen as a picture");
   // The checker itself finds an exposed control.
   assert.equal(exposedInsidePictures('<div role="img" aria-label="x"><button>Go</button></div>').length, 1);
   assert.equal(exposedInsidePictures('<div role="img" aria-label="x"><div aria-hidden="true"><button>Go</button></div></div>').length, 0);
@@ -89,8 +85,7 @@ test("the app cards describe the apps as they are, the desktop app has one downl
 
 test("the mock screens use everyday examples next to the research one", () => {
   const t = text(html("index"));
-  for (const word of ["Millbrook Gazette", "Recipes", "Thesis sources"]) assert.ok(t.includes(word), word);
-  assert.ok(text(tableScreen()).includes("Kitchen Table"), "the Table view shows recipes");
+  for (const word of ["Millbrook Gazette", "Recipes", "Thesis sources", "Kitchen Table"]) assert.ok(t.includes(word), word);
   assert.doesNotMatch(t, /\d+ new since yesterday/);
 });
 
@@ -114,4 +109,14 @@ test("every page still has its heading, main region and sitemap entry", () => {
   }
   const map = sitemap(site);
   for (const p of Object.values(PAGES) as { path: string; index?: false }[]) assert.equal(map.includes(`${site.origin}${p.path}<`), p.index !== false, p.path);
+});
+
+test("the home page is rendered finished, with the switch on and every chosen post in its box, so it reads the same without scripts", () => {
+  const h = html("index");
+  assert.match(h, /<main class="pf" id="main" tabindex="-1" data-on="1">/);
+  assert.match(h, /role="switch" aria-checked="true"/);
+  assert.equal((h.match(/class="pf-m"/g) ?? []).length, 5, "five posts you chose");
+  assert.equal((h.match(/class="pf-c junk"/g) ?? []).length, 0, "no ads or suggestions in the finished state");
+  assert.equal((h.match(/class="fd"/g) ?? []).length, 2, "two of the five carry the new mark");
+  assert.match(text(h), /Create a free account/);
 });

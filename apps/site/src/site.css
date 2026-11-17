@@ -50,20 +50,8 @@ a{text-decoration:none}
 .s-main{flex:1;overflow:hidden;position:relative}
 .s-main .col{padding-left:22px;padding-right:22px}
 .s-wash-sub{margin-top:8px;font-weight:700;color:var(--ink-2)}
-.s-panel{background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
 
 /* Floating mini-screens */
-.s-dlg{width:400px;max-width:100%;border-radius:16px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow-pop);overflow:hidden;font-size:14px;text-align:left}
-.s-dlg-h{padding:14px 18px;border-bottom:1px solid var(--line);font-size:16px;font-weight:800}
-.s-dlg-b{padding:16px 18px;display:grid;gap:12px}
-.s-dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:var(--surface-2)}
-.s-input{display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--focus);box-shadow:0 0 0 3px var(--tint-2);font-weight:700}
-.s-input .ic{color:var(--ink-3)}
-.s-found{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--tint);border:1px solid var(--tint-bd)}
-.s-found b{display:block;font-weight:800}
-.s-found small{font-weight:600;color:var(--ink-2);font-size:12.5px}
-.s-found .tag{margin-left:auto}
-.s-pick .chips{padding-bottom:0;margin-top:6px}
 
 /* Terminal */
 .s-term{border-radius:14px;overflow:hidden;background:hsl(var(--h) 30% 9%);border:1px solid hsl(var(--h) 20% 20%);box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:left}
@@ -161,7 +149,6 @@ body:has(#bill-year:checked) .bill-m,body:has(#bill-month:checked) .bill-y{displ
 /* Mock screens: only the keep button shows, so rows need less reserved space; titles may wrap. */
 .s-win .row.has-keep .row-main{padding-right:44px}
 .s-art{background:#222}
-.s-thumb{position:absolute;inset:0;width:100%;height:100%}
 .s-art::before{display:none}
 .s-art .play,.s-art .badge{z-index:1}
 @media (max-width:600px){
@@ -170,8 +157,6 @@ body:has(#bill-year:checked) .bill-m,body:has(#bill-month:checked) .bill-y{displ
   .s-win .row-main{grid-template-columns:8px 22px minmax(0,1fr) auto;column-gap:8px;padding-left:8px}
   .s-win .row .av{--s:22px}
   .s-win .col{padding-left:14px!important;padding-right:14px!important}
-  .s-found .tag{display:none}
-  .s-found{padding:10px}
 }
 @media (max-width:340px){
   .s-nav .brand{font-size:14px;gap:7px}
@@ -211,8 +196,6 @@ main:focus{outline:none}
   .s-app{grid-template-columns:minmax(0,1fr)}
   .s-app .s-side{display:none}
 }
-.s-panel .art{aspect-ratio:21/9;max-height:170px}
-.s-main .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 
 @media (min-width:601px) and (max-width:900px){
   .s-feats{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -224,39 +207,18 @@ main:focus{outline:none}
 @media (max-width:1000px){.s-always{grid-template-columns:repeat(2,minmax(0,max-content))}}
 @media (max-width:600px){.s-always{grid-template-columns:minmax(0,max-content)}.s-always span{align-items:flex-start}.s-always .ic{margin-top:4px}}
 
-@media (max-width:400px){.s-win .row-main{grid-template-columns:8px minmax(0,1fr)}.s-win .row-main>.av{display:none}.s-win .row.has-keep .row-main{padding-right:36px}}
 
 /* Mock windows end in a soft fade instead of a hard cut. */
 .s-main::after,.s-side .side-scroll::after{content:"";position:absolute;left:0;right:0;bottom:0;height:36px;background:linear-gradient(transparent,var(--surface));pointer-events:none}
 .s-side .side-scroll{position:relative}
 .s-side .side-scroll::after{background:linear-gradient(transparent,var(--side))}
-/* Phone-sized previews: show the essentials of wide views. */
-@media (max-width:600px){
-  .s-win table.tbl{min-width:0}
-  .s-win .tbl th:nth-child(3),.s-win .tbl td:nth-child(3),.s-win .tbl th:nth-child(4),.s-win .tbl td:nth-child(4){display:none}
-  .s-win .tbl td.ttl{min-width:0}
-  .s-win .board{flex-direction:column;overflow:visible}
-  .s-win .bcol{flex:none;width:100%}
-}
 .s-win .bar{flex-wrap:nowrap}
-.s-read .row-t .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.s-read .row-s .wf{display:none}
-.s-read .panel-body .art{display:none}
-.s-read .row-main{grid-template-columns:10px minmax(0,1fr);padding-left:10px}
-.s-read .row-main>.av{display:none}
 
 /* Terminal wraps at spaces whenever its column is narrower than the commands. */
 @media (max-width:1180px){.s-term pre{white-space:pre-wrap;overflow-wrap:normal;word-break:normal}}
 @media (max-width:400px){.s-term pre{font-size:12.5px;padding:14px}}
 /* Wide views in mock windows always fit their frame. */
-.s-win table.tbl{min-width:0;table-layout:auto}
-.s-win .tbl td.ttl{min-width:0;max-width:none}
-.s-win .board{overflow:hidden}
-.s-win .bcol{flex:1 1 0;min-width:0}
-@media (max-width:1100px){.s-win .tbl th:nth-child(3),.s-win .tbl td:nth-child(3){display:none}}
-@media (max-width:600px){.s-win .bcol{flex:none}}
 @media (max-width:900px){.s-win .mcol{flex:1 1 100%;max-width:none;width:100%}}
-@media (max-width:400px){.s-win .tbl th:nth-child(2),.s-win .tbl td:nth-child(2){display:none}}
 .a-keep .s-main{padding-bottom:18px}
 .a-keep .s-main::after{display:none}
 
@@ -266,9 +228,6 @@ main:focus{outline:none}
 /* Cards demo: on tablets and up, one complete row of videos. */
 
 /* Add source mock on small phones. */
-.s-dlg-b>*{min-width:0}
-.s-input span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.s-pick .chips{flex-wrap:wrap;overflow:visible}
 @media (max-width:420px){
   .s-compare td{grid-template-columns:minmax(0,1fr);gap:2px;padding:6px 0}
 }
@@ -277,19 +236,13 @@ main:focus{outline:none}
 .s-term .cmd{display:block;padding-left:2ch;text-indent:-2ch}
 .s-term .c,.s-term .ok{display:block}
 /* Cards demo: whole rows only. */
-.a-view .grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-.a-view .grid>.card:nth-child(n+5){display:none}
-@media (max-width:1100px){.a-view .grid{grid-template-columns:repeat(3,minmax(0,1fr))}.a-view .grid>.card:nth-child(n+4){display:none}}
-@media (max-width:600px){.a-view .grid{grid-template-columns:minmax(0,1fr)}.a-view .grid>.card:nth-child(n+3){display:none}}
 .s-term .c{padding-left:2ch;text-indent:-2ch}
 @media (max-width:1180px){.s-term .cmd .ind{display:none}}
 .s-plan li,.s-plan .s-lede{text-wrap:pretty}
 .s-term .ok{padding-left:2ch;text-indent:-2ch}
-@media (max-width:400px){.s-win .crumbs li:first-child:not(:last-child){display:none}.s-win .crumbs li:first-child:not(:last-child)+li::before{display:none}}
 @media (min-width:2000px){.s-wrap{max-width:1500px}}
 @media (max-width:480px){.s-nav-cta .btn.primary{min-height:40px}.s-menu summary{height:40px}}
 .s-src{max-width:90ch;margin-left:auto;margin-right:auto}
-@media (max-width:1100px){.s-win .bcard .m time{display:none}}
 @media (min-width:601px) and (max-width:900px){.s-price{flex-wrap:wrap;row-gap:2px}.s-price span{flex-basis:100%}}
 /* Legal pages */
 .s-doc{padding:56px 0 80px}
@@ -306,13 +259,8 @@ main:focus{outline:none}
 .a-host :focus-visible{outline-color:hsl(var(--h) 100% 82%)}
 
 /* Smart filter preview (home.ts smartFilterMock). */
-.a-sf{padding:18px 20px 20px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0;text-align:left}
-.a-sf h3{font-size:16px;font-weight:800}
-.a-sf .k{display:grid;gap:4px;font-size:13px}.a-sf .k span{padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface)}
-.a-sf .sum{font-size:12.5px;color:var(--ink-3)}
-.a-sf ol{list-style:none;display:grid;grid-template-columns:minmax(0,1fr);gap:2px;padding:4px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface-2)}
-.a-sf li{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 10px;border-radius:9px;font-size:13.5px}
-.a-sf .v{flex:none;min-width:42px;text-align:center;font-size:11.5px;font-weight:800;border-radius:999px;padding:2px 8px;background:var(--tint);color:var(--accent-ink);border:1px solid var(--tint-bd)}
-.a-sf .x .v{background:var(--surface);color:var(--ink-3);border-color:var(--line)}
-.a-sf .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.a-sf .x .t{color:var(--ink-3)}
-.a-sf .p{flex:none;font-variant-numeric:tabular-nums;color:var(--ink-3);font-size:12.5px}
+
+/* Store and download buttons: the first at the card's left edge, the second at its right. */
+.s-feat .a-stores{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+.s-feat .a-desktop{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+.s-feat .a-desktop [hidden]{display:none}
