@@ -9,6 +9,7 @@ import { itemDetailQuery, keys } from "../api/queries.ts";
 import { LoadingBlocks } from "../components/Loading.tsx";
 import { Art, NewTab, Progress, useFace, videoLink } from "../components/item-bits.tsx";
 import { VideoEmbed } from "../components/VideoEmbed.tsx";
+import { PictureSlideshow } from "../components/PictureSlideshow.tsx";
 import { embedFor } from "../lib/embeds.ts";
 import { RenameTitle } from "./RenameTitle.tsx";
 import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
@@ -102,6 +103,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   // A video page plays here in its platform's own player; a publisher's file plays in PURSS's player instead (MediaSection).
   const embed = item.media ? null : embedFor(item.url);
   const postPicture = shownPicture(item.imageUrl);
+  const gallery = detail?.gallery ?? [];
   // The item's page; when its link is only the audio or video file, the show's website, or nothing (that file is Listen or Watch).
   const original = originalLink(item, source, detail?.enclosures);
   const href = original?.href ?? null;
@@ -258,10 +260,11 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
       {/* Under a page from another site the article keeps its place, hidden. */}
       <div className="panel-body" id="panel-body" ref={bodyRef} tabIndex={-1} onClick={openLink} onPointerOver={checkLink} onFocus={checkLink}
         style={web ? { visibility: "hidden" } : undefined}>
-        {video || embed ? <div>{embed ? <VideoEmbed key={item.id} item={item} face={face} embed={embed} /> : play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
-        {/* A post's picture comes from the post (Bluesky's feed carries none), so it is not in the text: shown above it, once. An
-            Instagram post's arrives only as its kept copy. */}
-        {item.kind === "post" && postPicture && !(html ?? "").includes(postPicture) ? <img className="p-pic" src={postPicture} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+        {/* A kept Instagram post shows its kept pictures, the platform's own post only on request (a reel's video plays there). */}
+        {gallery.length ? <PictureSlideshow key={item.id} pictures={gallery} label={`Pictures of the post: ${item.title}`} /> : null}
+        {video || embed ? <div>{embed ? <VideoEmbed key={item.id} item={item} face={face} embed={embed} autoload={!!embed.post && !gallery.length} /> : play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
+        {/* A post's picture comes from the post (Bluesky's feed carries none), so it is not in the text: shown above it, once. */}
+        {item.kind === "post" && !gallery.length && postPicture && !(html ?? "").includes(postPicture) ? <img className="p-pic" src={postPicture} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
         <div style={{ display: "grid", gap: 6 }}>
           {renaming ? <RenameTitle itemId={item.id} title={item.title} onDone={() => setRenaming(false)} /> : <h2 className="p-title" ref={titleRef} tabIndex={-1} dir="auto">{item.title}</h2>}
           {item.author ? <p className="p-by" dir="auto">{displayAuthors(item.author)}</p> : null}

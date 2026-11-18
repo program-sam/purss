@@ -94,7 +94,7 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   await pool(itemsToFetch(queue, before.items, present, started), PACK_CONCURRENCY, signal, async (it) => {
     try {
       const detail = await api<ItemDetail>(`/api/items/${encodeURIComponent(it.id)}`, { signal });
-      if (keptIds.has(it.id)) keptPictures.push(...picturesIn(it.id, [detail.contentHtml, detail.latestHtml, detail.partialCopy?.html, detail.keptPicture]));
+      if (keptIds.has(it.id)) keptPictures.push(...picturesIn(it.id, [detail.contentHtml, detail.latestHtml, detail.partialCopy?.html, detail.keptPicture, ...detail.gallery]));
       const textPending = detail.captures.some((c) => c.level === "pending");
       saved[it.id] = { stateVersion: detail.stateVersion, at: Date.now(), number: it.number, ...(textPending ? { textPending } : {}) };
       refetched.add(it.id);

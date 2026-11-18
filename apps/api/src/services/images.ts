@@ -19,7 +19,8 @@ import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
  *
  * Pictures that refuse to be shown on other sites (copyOnlyPicture: Instagram's) are shown from their stored copy or not at all.
  * An Instagram post names its pictures for this alone (bridges.ts, keptPictures): its first picture as the item's own and, after
- * it, the whole carousel as picture attachments, which the engine also writes into the post's text, where the reader shows them.
+ * it, the whole carousel as picture attachments (which the engine also writes into the post's text). The reader shows the stored
+ * ones in a slideshow (postGallery), never in the text.
  * They are stored small, as WebP at most 720 px wide, since a post can carry many.
  */
 
@@ -172,7 +173,7 @@ export const pictureUrl = (itemId: string, imageId: string) => `/api/items/${enc
 /**
  * HTML with the pictures that are stored pointing at their stored copies. Any other keeps its original address, except one that
  * can't be shown on another site (copyOnlyPicture), which is left out, with the figure the engine put it in (it writes an item's
- * picture attachments into its text).
+ * picture attachments into its text): the reader shows those in a slideshow of their stored copies (postGallery).
  */
 export function withStoredPictures(html: string | null, stored: Map<string, string>, itemId: string): string | null {
   if (!html) return html;
@@ -181,13 +182,25 @@ export function withStoredPictures(html: string | null, stored: Map<string, stri
     const raw = /\bsrc="([^"]+)"/i.exec(tag)?.[1];
     if (!raw) return tag;
     const address = raw.replace(/&amp;/g, "&");
+    if (copyOnlyPicture(address)) {
+      dropped = true;
+      return "";
+    }
     const id = stored.get(address);
-    if (id) return tag.replace(/\bsrc="[^"]+"/i, `src="${pictureUrl(itemId, id)}"`);
-    if (!copyOnlyPicture(address)) return tag;
-    dropped = true;
-    return "";
+    return id ? tag.replace(/\bsrc="[^"]+"/i, `src="${pictureUrl(itemId, id)}"`) : tag;
   });
   return dropped ? out.replace(/<figure\b[^>]*>\s*(?:<p>\s*<\/p>\s*)?<\/figure>/gi, "") : out;
+}
+
+/**
+ * The stored copies of an item's pictures that can only be shown from a copy (an Instagram post's), in the post's order: its own
+ * picture, then its picture attachments (the rest of a carousel), then any other. Empty for every other item.
+ */
+export function postGallery(app: App, itemId: string, stored: Map<string, string>): string[] {
+  if (!stored.size) return [];
+  const item = app.db.get<{ image_url: string | null; enclosures: string | null }>("SELECT image_url, enclosures FROM items WHERE id = ?", itemId);
+  const order = [...new Set([...(item?.image_url ? [item.image_url] : []), ...attachedPictures(item?.enclosures ?? null), ...stored.keys()])];
+  return order.filter((u) => copyOnlyPicture(u) && stored.has(u)).map((u) => pictureUrl(itemId, stored.get(u)!));
 }
 
 /** One stored picture, for the item's owner. */

@@ -373,7 +373,7 @@ test("an Instagram post's pictures are shown only once kept: the first and the r
   const shown = () => listItems(app, p, { scope: `source:${src}` }).items.find((i) => i.id === id)!.imageUrl;
   assert.equal(shown(), null, "Instagram's picture servers refuse other sites: nothing to show before it is kept");
   let d = getItemDetail(app, p, id);
-  assert.deepEqual([d.keptPicture, d.enclosures, d.contentHtml], [null, [], "Album caption"], "nor are its addresses sent to the reader");
+  assert.deepEqual([d.keptPicture, d.enclosures, d.contentHtml, d.gallery], [null, [], "Album caption", []], "nor are its addresses sent to the reader");
   assert.equal(d.summaryOnly, false, "a post is whole in its feed, however short");
 
   keepItem(app, p, id, text);
@@ -384,13 +384,13 @@ test("an Instagram post's pictures are shown only once kept: the first and the r
   const path = (u: string) => `/api/items/${id}/images/${app.db.get<{ id: string }>("SELECT id FROM item_images WHERE item_id = ? AND url = ?", id, u)!.id}`;
   assert.equal(shown(), path(cover), "the list and the cards show the stored copy");
   d = getItemDetail(app, p, id);
-  assert.deepEqual([d.imageUrl, d.keptPicture, d.enclosures], [path(cover), path(cover), []]);
-  assert.equal(d.contentHtml, `Album caption${figure(path(cover))}`, "the reader shows what is stored, and leaves out what isn't yet");
+  assert.deepEqual([d.imageUrl, d.keptPicture, d.enclosures, d.gallery], [path(cover), path(cover), [], [path(cover)]]);
+  assert.equal(d.contentHtml, "Album caption", "the pictures are in the slideshow, not the text");
 
   app.db.tx(() => completeImages(app, { itemId: id, urls: [second] }, delivered([second])));
   assert.deepEqual(app.db.all<{ url: string; role: string }>("SELECT url, role FROM item_images WHERE item_id = ? ORDER BY url", id).map((r) => [r.url, r.role]),
     [[second, "inline"], [cover, "cover"]]);
-  assert.equal(getItemDetail(app, p, id).contentHtml, `Album caption${figure(path(cover))}${figure(path(second))}`);
+  assert.deepEqual(getItemDetail(app, p, id).gallery, [path(cover), path(second)], "in the post's order");
 
   // Any other item's pictures are asked for as they are, and shown from where they are.
   const other = comic(app, p, src, img(1));
@@ -398,4 +398,5 @@ test("an Instagram post's pictures are shown only once kept: the first and the r
   assert.equal((jobs(app).at(-1) as { shrink?: boolean }).shrink, undefined);
   assert.equal(listItems(app, p, { scope: `source:${src}` }).items.find((i) => i.id === other)!.imageUrl, url("cover"));
   assert.match(getItemDetail(app, p, other).contentHtml!, new RegExp(url(1).replace(/\./g, "\\.")));
+  assert.deepEqual(getItemDetail(app, p, other).gallery, [], "no slideshow: its pictures stay in its text");
 });

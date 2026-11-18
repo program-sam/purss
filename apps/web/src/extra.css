@@ -385,3 +385,21 @@ mark.anno:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
 .web-view{flex:1;min-height:0;position:relative;background:#fff}
 .web-view iframe{display:block;width:100%;height:100%;border:0}
 .web-failed{padding:16px;color:var(--ink-2)}
+
+/* A post's pictures one at a time (PictureSlideshow). */
+.slideshow { position: relative; margin: 0 auto; display: grid; gap: 8px; }
+.slideshow:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 10px; }
+.slideshow-stage { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.slideshow-track { display: flex; height: 100%; margin: 0; padding: 0; list-style: none; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.slideshow-track::-webkit-scrollbar { display: none; }
+.slideshow-track > li { flex: 0 0 100%; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.slideshow-track img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; }
+.slideshow-prev, .slideshow-next { position: absolute; top: 50%; translate: 0 -50%; border-radius: 999px; background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: var(--shadow); }
+.slideshow-prev { left: 8px; }
+.slideshow-next { right: 8px; }
+.slideshow-prev:disabled, .slideshow-next:disabled { opacity: 0; pointer-events: none; }
+.slideshow-count { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-variant-numeric: tabular-nums; color: #fff; background: rgb(0 0 0 / 55%); }
+.slideshow-dots { display: flex; justify-content: center; gap: 6px; }
+.slideshow-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: var(--line-2); cursor: pointer; }
+.slideshow-dots button[aria-current="true"] { background: var(--accent); }
+@media (hover: hover) { .slideshow-stage:not(:hover) .slideshow-prev, .slideshow-stage:not(:hover) .slideshow-next { opacity: 0; } .slideshow:focus-visible .slideshow-prev:not(:disabled), .slideshow:focus-visible .slideshow-next:not(:disabled) { opacity: 1; } }

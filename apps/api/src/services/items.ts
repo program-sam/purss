@@ -18,7 +18,7 @@ import { onHomeItem } from "./home-sources.ts";
 import { NOT_MUTED_ROW, countMuted, workspaceMuted } from "./muted.ts";
 import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
 import type { PartialReason } from "@purss/connectors";
-import { pictureUrl, storedPictures, withStoredPictures } from "./images.ts";
+import { pictureUrl, postGallery, storedPictures, withStoredPictures } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { keptDisplays } from "./kept-display.ts";
 
@@ -646,6 +646,7 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     ...(changedSinceKept && keptVersion ? keptLink(keptVersion.title, keptVersion.url, extra.enclosures, dto.url, dto.linkIsMedia === true, extra.is_private === 1) : {}),
     contentHtml: pictures(fulltext?.html ?? (changedSinceKept ? keptHtml : current)),
     keptPicture: extra.image_url && stored.has(extra.image_url) ? pictureUrl(id, stored.get(extra.image_url)!) : null,
+    gallery: postGallery(app, id, stored),
     partialCopy: partial?.html ? { html: pictures(partial.html)!, reason: partial.partial_reason ?? "short", note: partialReasonText(partial.partial_reason ?? "short"), ref: { kind: "capture", id: partial.id } } : null,
     contentOmitted: !fulltext && (changedSinceKept && keptVersion ? keptVersion.content_omitted : extra.content_omitted) === 1,
     // A readable copy is the article. Without one, what the feed sent is only a summary when it is short or cut off.

@@ -328,6 +328,8 @@ export type ItemDetail = ItemDTO & {
   partialCopy: PartialCopy | null;
   /** the item's own picture (`imageUrl`) as stored with a kept copy: a same-origin address that needs the session; null when not stored. */
   keptPicture: string | null;
+  /** the kept copies of a post's pictures that are shown only from a copy (an Instagram post's: its first, then the rest of a carousel), in order, for the reader's slideshow; the text leaves them out. Empty for every other item. */
+  gallery: string[];
 };
 
 export const itemScopeSchema = z.string().regex(/^(home|all|fresh|toread|loose|collection:[a-z0-9_]+|source:[a-z0-9_]+|basket:[a-z0-9_]+)$/);

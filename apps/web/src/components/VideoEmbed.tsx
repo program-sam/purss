@@ -11,19 +11,21 @@ import { youtubeStartWorkflow } from "../player/embedded-workflow.ts";
  * nothing is asked of the platform; then the platform's player loads in its place and starts. It runs walled off
  * from PURSS (another origin, sandboxed, no navigating this page). Some videos refuse to be embedded: the
  * platform's player says so, and the "Open on …" link beside it still opens the video's own page. A post (Instagram)
- * has no picture of its own here, so a button shows it instead.
+ * has no picture of its own to press, so it loads at once (`autoload`), or behind a button when its kept pictures already show.
  */
-export function VideoEmbed({ item, face, embed }: { item: ItemDTO; face: Face; embed: Embed }) {
-  const [on, setOn] = useState(false);
+export function VideoEmbed({ item, face, embed, autoload = false }: { item: ItemDTO; face: Face; embed: Embed; autoload?: boolean }) {
+  const [on, setOn] = useState(autoload);
+  const pressed = useRef(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const actions = useItemActions();
   const start = () => {
     const automatic = youtubeStartWorkflow(embed.platform, item.workflow, item.workflowRevision, newPlaybackSessionId());
     if (automatic) void actions.setPlaybackWorkflow(item.id, automatic.from, automatic.to, automatic.playback);
+    pressed.current = true;
     setOn(true);
   };
-  // The button the person pressed is replaced by the player: focus goes to it, so it doesn't fall to the page.
-  useEffect(() => { if (on) frame.current?.focus(); }, [on]);
+  // The button the person pressed is replaced by the player: focus goes to it, so it doesn't fall to the page. One loaded by itself takes no focus.
+  useEffect(() => { if (on && pressed.current) frame.current?.focus(); }, [on]);
   if (!on && embed.post) {
     return <button type="button" className="mbtn embed-show" onClick={start} title={`Load the post from ${embed.platform}`}>Show the post here</button>;
   }
