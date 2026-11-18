@@ -1,4 +1,5 @@
 import { sniffImage } from "./icon-format.ts";
+import { shrinkPicture } from "./image.ts";
 import type { ImageFormat } from "./icon-format.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions } from "./safe-fetch.ts";
@@ -7,7 +8,8 @@ import type { SafeFetchOptions } from "./safe-fetch.ts";
  * Pictures for a kept copy: fetch the addresses an item names through safeFetch, the same address rules as
  * every other fetch, one after another, and keep those that really are pictures. The type is read from the
  * bytes, never from what the publisher says, and only formats a browser shows as an image are kept: no SVG
- * (it can carry script), no ICO. Each picture that fails is skipped; the rest are still kept.
+ * (it can carry script), no ICO. Each picture that fails is skipped; the rest are still kept. With `shrink`, each is made
+ * small (shrinkPicture) before it is handed back; one that doesn't decode is skipped.
  */
 
 /** What a browser shows as a picture, by the format its bytes have. */
@@ -29,7 +31,7 @@ const EACH_MS = 15_000;
  * Fetch pictures until `maxBytes` of them are held. A picture bigger than what is left is skipped, not cut. Never throws.
  * `fetch` carries the in-process test allowances of safeFetch.
  */
-export async function fetchPictures(urls: string[], opts: { maxBytes: number; signal?: AbortSignal; fetch?: SafeFetchOptions }): Promise<FetchedPicture[]> {
+export async function fetchPictures(urls: string[], opts: { maxBytes: number; shrink?: boolean; signal?: AbortSignal; fetch?: SafeFetchOptions }): Promise<FetchedPicture[]> {
   const out: FetchedPicture[] = [];
   const deadline = Date.now() + TOTAL_MS;
   let left = opts.maxBytes;
@@ -44,10 +46,15 @@ export async function fetchPictures(urls: string[], opts: { maxBytes: number; si
       accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1",
     }).catch(() => null);
     if (!res?.ok || res.response.status !== 200) continue;
-    const contentType = pictureType(res.response.body);
-    if (!contentType) continue;
-    out.push({ url, contentType, data: res.response.body });
-    left -= res.response.body.length;
+    let data = res.response.body;
+    if (!pictureType(data)) continue;
+    if (opts.shrink) {
+      const small = await shrinkPicture(data);
+      if (!small) continue;
+      data = small;
+    }
+    out.push({ url, contentType: pictureType(data)!, data });
+    left -= data.length;
   }
   return out;
 }

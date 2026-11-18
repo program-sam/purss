@@ -41,8 +41,12 @@ export type BridgeService = {
   cleanHtml?(html: string): string;
   /** Minutes to add to the backend's dates, when it labels local times as UTC. */
   dateCorrectionMinutes?: number;
-  /** The service's pictures and attachments can't be shown on another site, so entries carry none (the reader embeds the post instead). */
-  noMedia?: boolean;
+  /**
+   * The service's pictures can't be shown on another site, so an entry carries them for keeping only: none in its text and no
+   * attachments of the backend's, but the post's lasting picture address as its picture and, after it, its other pictures as
+   * picture attachments. A basket that keeps readable text stores them, and the app shows only stored copies of them (copyOnlyPicture).
+   */
+  keptPictures?(link: URL, html: string): { cover: string | null; more: string[] };
   /** The backend answers with no posts when it couldn't read the page, so an answer without posts is a failure, not an empty source. */
   emptyIsFailure?: boolean;
 };
@@ -288,6 +292,21 @@ const INSTAGRAM_RESERVED = new Set([
   "help", "download", "nametag", "invites", "your_activity", "ads", "login", "signup",
 ]);
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
+/** Instagram's picture servers. */
+const INSTAGRAM_PICTURE_HOST = /(?:^|\.)(?:cdninstagram\.com|fbcdn\.net)$/;
+
+/**
+ * Whether a picture address is one only a stored copy of can be shown: Instagram's pictures refuse to be shown on other sites
+ * (Cross-Origin-Resource-Policy: same-origin), so the app shows them from a kept copy or not at all.
+ */
+export function copyOnlyPicture(address: string | null | undefined): boolean {
+  if (!address) return false;
+  try {
+    const u = new URL(address);
+    const host = hostOf(u);
+    return INSTAGRAM_PICTURE_HOST.test(host) || (INSTAGRAM_HOSTS.has(host) && /^\/(?:p|reel)\/[^/]+\/media\/?$/.test(u.pathname));
+  } catch { return false; }
+}
 /** A post's short code, from `/p/<code>/` or `/reel/<code>/` (the same code space); case matters. */
 const instagramShortcode = (link: URL): string | null => {
   if (!INSTAGRAM_HOSTS.has(hostOf(link))) return null;
@@ -322,8 +341,8 @@ const instagram: BridgeService = {
     const code = instagramShortcode(link);
     return code ? `instagram:p/${code}` : null;
   },
-  // Instagram's picture servers refuse to be shown on other sites (Cross-Origin-Resource-Policy: same-origin) and the widget gives videos
-  // no address, so the post's media are left out: its caption stays, and the reader shows the post in Instagram's own embed.
+  // Instagram's pictures can't be shown here (copyOnlyPicture) and the widget gives videos no address, so the post's text keeps only its
+  // caption: the reader shows the post in Instagram's own embed, and the pictures go to keptPictures.
   cleanHtml: (html) => html
     .replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, "")
     // A picture's link wraps it, and its alt is the caption unescaped, so the link runs to its end.
@@ -333,7 +352,14 @@ const instagram: BridgeService = {
     // then links the "#039" as a hashtag.
     .replace(/&(?:amp;)?<a href="https:\/\/www\.instagram\.com\/explore\/tags\/(\d{1,7}|x[0-9a-f]{1,6})">#\1<\/a>;/gi, "&#$1;")
     .replace(/^(?:\s*<br\s*\/?>)+/i, ""),
-  noMedia: true,
+  keptPictures(link, html) {
+    const code = instagramShortcode(link);
+    // `/p/<code>/media/` sends the post's first picture (a video's still) from a freshly signed address, so it never expires. The
+    // other pictures of a carousel have only the signed addresses the widget gave, which expire after a few days.
+    const more = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((m) => m[1]!.replace(/&amp;/g, "&")).slice(1)
+      .filter((u) => { try { const h = new URL(u); return h.protocol === "https:" && INSTAGRAM_PICTURE_HOST.test(hostOf(h)); } catch { return false; } });
+    return { cover: code ? `https://www.instagram.com/p/${code}/media/?size=l` : null, more: [...new Set(more)].slice(0, 19) };
+  },
   // RSS-Bridge serves an empty feed when it can't decode the widget's data, which a token in a signed address can break at random
   // (its escape repair reads "uDe2d" in "…AsjuDe2d…" as half an emoji). That can't be told from an account without posts or with its
   // widget switched off, which therefore also read as failing rather than as a source that never posts.

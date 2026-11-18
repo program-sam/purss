@@ -208,3 +208,10 @@ test("a private episode whose file link the server withholds still falls back to
   assert.equal(originalLink(withheld, { siteUrl: null, feedUrl: null }), null, "no website, no button");
   assert.equal(originalLink({ url: null, media: null, linkIsMedia: false }, { siteUrl: "https://members.example/", feedUrl: null }), null, "an item with no link at all has no original");
 });
+
+test("an item's picture shows from https or as its kept copy on this server, nothing else", () => {
+  const kept = "/api/items/itm_1/images/img_2";
+  assert.equal(itemPicture({ kind: "post", imageUrl: kept }, null), kept, "an Instagram post's picture arrives as its kept copy");
+  for (const bad of ["/api/items/itm_1/images/img_2/../../x", "/api/sources/s/icon", "//evil.example/api/items/a/images/b", "javascript:alert(1)", "http://plain.example/a.jpg"])
+    assert.equal(itemPicture({ kind: "post", imageUrl: bad }, null), null, bad);
+});

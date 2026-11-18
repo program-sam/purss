@@ -156,10 +156,18 @@ export function playerArtwork(url: string | null | undefined): string | null {
   return safeImage(url) ?? (url && SOURCE_ICON.test(url) ? url : null);
 }
 
+/** A picture kept with an item, as the server serves it (same origin). */
+const KEPT_PICTURE = /^\/api\/items\/[\w%-]+\/images\/[\w%-]+$/;
+
+/** An item's own picture as it can be shown: an https picture, or its kept copy (how an Instagram post's picture arrives). */
+export function shownPicture(url: string | null | undefined): string | null {
+  return safeImage(url) ?? (url && KEPT_PICTURE.test(url) ? url : null);
+}
+
 /**
  * The picture an item shows in a row, a card and the player: its own, or for a podcast episode that has none the show's art (the
  * source's icon, which is the feed's own picture). Nothing else borrows its source's picture: a post without one has none.
  */
 export function itemPicture(item: { imageUrl: string | null; kind: string }, sourceIconUrl: string | null | undefined): string | null {
-  return safeImage(item.imageUrl) ?? (item.kind === "podcast" && sourceIconUrl && SOURCE_ICON.test(sourceIconUrl) ? sourceIconUrl : null);
+  return shownPicture(item.imageUrl) ?? (item.kind === "podcast" && sourceIconUrl && SOURCE_ICON.test(sourceIconUrl) ? sourceIconUrl : null);
 }

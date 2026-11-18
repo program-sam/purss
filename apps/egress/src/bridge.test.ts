@@ -311,6 +311,10 @@ test("a Mixcloud answer of site pages or malformed links is still a failure, not
   }
 });
 
+/** The attachments of a served feed, as "address type", in order. */
+const enclosuresIn = (body: string | Buffer) =>
+  [...String(body).matchAll(/<enclosure url="([^"]+)" length="\d+" type="([^"]+)"\/>/g)].map((m) => `${m[1]!.replace(/&amp;/g, "&")} ${m[2]}`);
+
 /** RSS-Bridge's Atom for an Instagram account's widget: a video whose player has nothing to play, with its picture as an attachment. */
 function instagramAtom(codes: string[]): string {
   const entries = codes.map((c) => `<entry><title>Post ${c}</title><id>https://www.instagram.com/p/${c}/</id><link rel="alternate" href="https://www.instagram.com/p/${c}/"/>`
@@ -319,7 +323,7 @@ function instagramAtom(codes: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>natgeo - Instagram</title><id>x</id><updated>2026-11-08T10:00:00+00:00</updated>${entries}</feed>`;
 }
 
-test("Instagram posts carry no picture or attachment, which can't be shown on another site", async () => {
+test("Instagram posts name their pictures only for keeping: the lasting first picture, the rest of a carousel as picture attachments", async () => {
   const { r } = router([new FakeBackend("rss-bridge", ok(instagramAtom(["DfxGoxTl16O"])))]);
   const a = await r.serve("instagram", "natgeo", sig("instagram", "natgeo"));
   assert.equal(a.status, 200);
@@ -327,9 +331,21 @@ test("Instagram posts carry no picture or attachment, which can't be shown on an
   assert.equal(feed.title, "natgeo");
   const [item] = feed.items;
   assert.equal(item!.guid, "instagram:p/DfxGoxTl16O");
-  assert.equal(item!.imageUrl, null);
-  assert.deepEqual(item!.enclosures, []);
-  assert.doesNotMatch(a.body, /cdninstagram|&lt;video/);
+  assert.equal(item!.imageUrl, "https://www.instagram.com/p/DfxGoxTl16O/media/?size=l");
+  assert.deepEqual(enclosuresIn(a.body), ["https://www.instagram.com/p/DfxGoxTl16O/media/?size=l image/jpeg"], "the backend's own attachment is left out");
+  assert.doesNotMatch(item!.contentHtml ?? "", /cdninstagram|<video|<img/);
+
+  const carousel = `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>natgeo - Instagram</title><id>x</id><updated>2026-11-08T10:00:00+00:00</updated>`
+    + `<entry><title>Album</title><id>https://www.instagram.com/p/Df147tCiAyB/</id><link rel="alternate" href="https://www.instagram.com/p/Df147tCiAyB/"/><updated>2026-11-08T10:00:00+00:00</updated>`
+    + `<content type="html">&lt;a href="https://scontent.cdninstagram.com/v/1.jpg?oe=6B0271F4&amp;amp;x=1"&gt;&lt;img src="https://scontent.cdninstagram.com/v/1.jpg?oe=6B0271F4&amp;amp;x=1" alt="Album" /&gt;&lt;/a&gt;&lt;br&gt;`
+    + `&lt;a href="https://scontent.cdninstagram.com/v/2.jpg?oe=6B0271F4&amp;amp;x=2"&gt;&lt;img src="https://scontent.cdninstagram.com/v/2.jpg?oe=6B0271F4&amp;amp;x=2" alt="Album" /&gt;&lt;/a&gt;&lt;br&gt;&lt;br&gt;Album caption</content></entry></feed>`;
+  const { r: r2 } = router([new FakeBackend("rss-bridge", ok(carousel))]);
+  const b = await r2.serve("instagram", "natgeo", sig("instagram", "natgeo"));
+  const [album] = parseFeed(b.body, b.headers["content-type"]).items;
+  assert.equal(album!.imageUrl, "https://www.instagram.com/p/Df147tCiAyB/media/?size=l");
+  // The engine takes the first picture attachment as the entry's picture: the lasting one.
+  assert.deepEqual(enclosuresIn(b.body), ["https://www.instagram.com/p/Df147tCiAyB/media/?size=l image/jpeg", "https://scontent.cdninstagram.com/v/2.jpg?oe=6B0271F4&x=2 image/jpeg"]);
+  assert.equal(album!.contentHtml, "Album caption");
 });
 
 test("an Instagram answer without posts is a misread page: asked again at once, then a failure that keeps the last good answer", async () => {

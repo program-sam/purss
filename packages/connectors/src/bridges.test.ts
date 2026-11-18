@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { BRIDGE_SERVICES, bridgeDescriptor, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
+import { BRIDGE_SERVICES, bridgeDescriptor, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
 import { discover } from "./discover.ts";
 import { parseFeed } from "./feed.ts";
 import type { BridgeClient } from "./discover.ts";
@@ -183,7 +183,7 @@ test("every service's example account is a valid key that its own page address n
   }
 });
 
-test("Instagram posts keep their caption and lose their media, which can't be shown here; an escape linked as a hashtag is undone", () => {
+test("Instagram posts keep only their caption in their text; an escape linked as a hashtag is undone", () => {
   const ig = bridgeService("instagram")!;
   const feed = parseFeed(readFileSync(new URL("./fixtures/bridges/instagram-natgeo.atom", import.meta.url)), "application/atom+xml");
   assert.equal(ig.cleanTitle!(feed.title!), "natgeo");
@@ -193,6 +193,25 @@ test("Instagram posts keep their caption and lose their media, which can't be sh
   assert.match(carousel!, /^National Geographic photographers/);
   assert.match(picture!, /^Drawn to the light filtering through its ice formations/);
   assert.match(picture!, /Alaska&#039;s Sheridan Glacier/);
-  assert.equal(ig.noMedia, true);
   assert.equal(ig.emptyIsFailure, true);
+});
+
+test("an Instagram post names its pictures for keeping: its lasting first picture, then the rest of a carousel", () => {
+  const ig = bridgeService("instagram")!;
+  const feed = parseFeed(readFileSync(new URL("./fixtures/bridges/instagram-natgeo.atom", import.meta.url)), "application/atom+xml");
+  const [video, carousel, picture] = feed.items.map((i) => ig.keptPictures!(new URL(i.url!), i.contentHtml!));
+  assert.deepEqual(video, { cover: "https://www.instagram.com/p/Df2QAetAuYB/media/?size=l", more: [] });
+  assert.deepEqual(carousel, { cover: "https://www.instagram.com/p/Df147tCiAyB/media/?size=l",
+    more: ["https://scontent.cdninstagram.com/v/t51.82787-15/914384603_18720223210019133_7491756309452445712_n.jpg?stp=dst-jpg&oe=00000000"] });
+  assert.deepEqual(picture, { cover: "https://www.instagram.com/p/DfxGoxTl16O/media/?size=l", more: [] });
+  // Only Instagram's own picture servers: anything else the HTML names is not a picture of the post.
+  assert.deepEqual(ig.keptPictures!(new URL("https://www.instagram.com/p/AbCdE1/"), '<img src="https://scontent.cdninstagram.com/a.jpg"><img src="https://evil.example/b.jpg"><img src="http://scontent.cdninstagram.com/c.jpg"><img src="https://x.fbcdn.net/d.jpg?a=1&amp;b=2">').more,
+    ["https://x.fbcdn.net/d.jpg?a=1&b=2"]);
+});
+
+test("Instagram's pictures are shown only from a stored copy; every other picture as it is", () => {
+  for (const u of ["https://scontent-fra5-1.cdninstagram.com/v/x.jpg", "https://www.instagram.com/p/AbCdE1/media/?size=l", "https://instagram.com/reel/AbCdE1/media", "https://x.fbcdn.net/y.jpg"])
+    assert.equal(copyOnlyPicture(u), true, u);
+  for (const u of [null, "", "not a url", "https://www.instagram.com/p/AbCdE1/", "https://cdninstagram.com.evil.example/x.jpg", "https://example.com/media/?size=l"])
+    assert.equal(copyOnlyPicture(u), false, String(u));
 });

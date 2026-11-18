@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { newId } from "@purss/domain";
-import { pictureType } from "@purss/connectors";
+import { copyOnlyPicture, pictureType } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { notFound, nowIso } from "../http.ts";
@@ -16,6 +16,11 @@ import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
  * so an item in two baskets has one set, counted once; unkeeping it from one basket changes nothing, and from the
  * last it joins the readable copies of items no basket keeps (storage categories). Nothing is evicted to make room:
  * a picture that does not fit is not stored, and the reader keeps showing the original address for it.
+ *
+ * Pictures that refuse to be shown on other sites (copyOnlyPicture: Instagram's) are shown from their stored copy or not at all.
+ * An Instagram post names its pictures for this alone (bridges.ts, keptPictures): its first picture as the item's own and, after
+ * it, the whole carousel as picture attachments, which the engine also writes into the post's text, where the reader shows them.
+ * They are stored small, as WebP at most 720 px wide, since a post can carry many.
  */
 
 /** The longest address a picture job carries (the job's own limit, and no address longer is fetched anyway). */
@@ -30,6 +35,15 @@ const NOT_A_PICTURE = /\/(?:emoji|smilies|gravatar|avatar)s?\/|s\.w\.org|(?:pixe
 
 /** A web address a picture job can carry. */
 const askable = (address: string) => address.length <= MAX_ADDRESS && /^https?:\/\//i.test(address);
+
+/** The addresses of an item's picture attachments, in order (an Instagram carousel's pictures after its first). */
+function attachedPictures(enclosuresJson: string | null): string[] {
+  let list: unknown = [];
+  try { list = JSON.parse(enclosuresJson ?? "[]"); } catch { /* stored by us; treat as none */ }
+  return (Array.isArray(list) ? list as { url?: unknown; type?: unknown }[] : [])
+    .filter((e) => typeof e.url === "string" && typeof e.type === "string" && e.type.startsWith("image/") && askable(e.url))
+    .map((e) => e.url as string);
+}
 
 /** The addresses of the pictures in sanitised HTML, in order, each once, as the HTML names them. */
 export function pictureAddresses(html: string | null | undefined): string[] {
@@ -52,7 +66,7 @@ const keepsText = (app: App, itemId: string) =>
 
 /**
  * Ask for the pictures an item kept with its readable text is still missing, in the caller's transaction: its own
- * picture, the ones in its readable copy and, while it has no complete one, in the text its feed gave. Nothing is queued
+ * picture, the ones in its readable copy and, while it has no complete one, in the text its feed gave, and its picture attachments. Nothing is queued
  * for an item no text basket keeps, for a private source, when it already has all it may keep, or when storage is full.
  * Returns whether a job was queued. Called when an item is kept, when its readable copy completes or fails, and when
  * the person's browser sends replacement text.
@@ -75,8 +89,8 @@ export function queueItemImages(app: App, itemId: string): boolean {
 }
 
 function queue(app: App, itemId: string): boolean {
-  const item = app.db.get<{ workspace_id: string; image_url: string | null; account_id: string; is_private: number | null }>(
-    `SELECT i.workspace_id, i.image_url, w.account_id, s.is_private FROM items i JOIN workspaces w ON w.id = i.workspace_id
+  const item = app.db.get<{ workspace_id: string; image_url: string | null; enclosures: string | null; account_id: string; is_private: number | null }>(
+    `SELECT i.workspace_id, i.image_url, i.enclosures, w.account_id, s.is_private FROM items i JOIN workspaces w ON w.id = i.workspace_id
      LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, itemId);
   if (!item || item.is_private || !isAccountUsable(app, item.account_id) || !keepsText(app, itemId)) return false;
   const held = app.db.get<{ n: number; bytes: number }>("SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS bytes FROM item_images WHERE item_id = ?", itemId)!;
@@ -89,7 +103,7 @@ function queue(app: App, itemId: string): boolean {
   const feed = copy ? null : app.db.get<{ content_html: string | null; summary_html: string | null }>(
     `SELECT v.content_html, v.summary_html FROM basket_items b JOIN item_versions v ON v.id = b.version_id WHERE b.item_id = ? ORDER BY b.kept_at LIMIT 1`, itemId);
   const wanted = [...new Set([...(item.image_url && askable(item.image_url) ? [item.image_url] : []),
-    ...pictureAddresses(copy?.html), ...pictureAddresses(feed?.content_html ?? feed?.summary_html)])];
+    ...pictureAddresses(copy?.html), ...pictureAddresses(feed?.content_html ?? feed?.summary_html), ...attachedPictures(item.enclosures)])];
   const have = new Set(app.db.all<{ url: string }>("SELECT url FROM item_images WHERE item_id = ?", itemId).map((r) => r.url));
   const urls = wanted.filter((u) => !have.has(u)).slice(0, IMAGES_PER_ITEM - held.n);
   if (!urls.length) return false;
@@ -100,7 +114,7 @@ function queue(app: App, itemId: string): boolean {
     throw err;
   }
   const key = createHash("sha256").update(urls.join("\n")).digest("hex").slice(0, 16);
-  enqueue(app, "capture.images", { itemId, urls, maxBytes: roomBytes },
+  enqueue(app, "capture.images", { itemId, urls, maxBytes: roomBytes, ...(urls.some(copyOnlyPicture) ? { shrink: true } : {}) },
     { accountId: item.account_id, workspaceId: item.workspace_id, idempotencyKey: `images:${itemId}:${key}`, maxAttempts: 3 });
   return true;
 }
@@ -155,13 +169,25 @@ export function storedPictures(app: App, itemId: string): Map<string, string> {
 
 export const pictureUrl = (itemId: string, imageId: string) => `/api/items/${encodeURIComponent(itemId)}/images/${encodeURIComponent(imageId)}`;
 
-/** HTML with the pictures that are stored pointing at their stored copies; any other keeps its original address. */
+/**
+ * HTML with the pictures that are stored pointing at their stored copies. Any other keeps its original address, except one that
+ * can't be shown on another site (copyOnlyPicture), which is left out, with the figure the engine put it in (it writes an item's
+ * picture attachments into its text).
+ */
 export function withStoredPictures(html: string | null, stored: Map<string, string>, itemId: string): string | null {
-  if (!html || !stored.size) return html;
-  return html.replace(/<img\b[^>]*>/gi, (tag) => tag.replace(/\bsrc="([^"]+)"/i, (whole, raw: string) => {
-    const id = stored.get(raw.replace(/&amp;/g, "&"));
-    return id ? `src="${pictureUrl(itemId, id)}"` : whole;
-  }));
+  if (!html) return html;
+  let dropped = false;
+  const out = html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const raw = /\bsrc="([^"]+)"/i.exec(tag)?.[1];
+    if (!raw) return tag;
+    const address = raw.replace(/&amp;/g, "&");
+    const id = stored.get(address);
+    if (id) return tag.replace(/\bsrc="[^"]+"/i, `src="${pictureUrl(itemId, id)}"`);
+    if (!copyOnlyPicture(address)) return tag;
+    dropped = true;
+    return "";
+  });
+  return dropped ? out.replace(/<figure\b[^>]*>\s*(?:<p>\s*<\/p>\s*)?<\/figure>/gi, "") : out;
 }
 
 /** One stored picture, for the item's owner. */

@@ -250,6 +250,7 @@ export class BridgeRouter {
     const guid = service.postId(key, link);
     if (!guid) return null;
     link.hash = "";
+    const kept = service.keptPictures?.(link, item.contentHtml ?? item.summaryHtml ?? "");
     return {
       guid,
       title: item.title ?? "",
@@ -260,8 +261,9 @@ export class BridgeRouter {
         : item.publishedAt,
       summaryHtml: item.summaryHtml && service.cleanHtml ? service.cleanHtml(item.summaryHtml) : item.summaryHtml,
       contentHtml: item.contentHtml && service.cleanHtml ? service.cleanHtml(item.contentHtml) : item.contentHtml,
-      imageUrl: service.noMedia ? null : item.imageUrl,
-      enclosures: service.noMedia ? [] : item.enclosures,
+      imageUrl: kept ? kept.cover : item.imageUrl,
+      // The engine takes an entry's picture from its first picture attachment, so the lasting one comes first.
+      enclosures: kept ? [...(kept.cover ? [kept.cover] : []), ...kept.more].map((url) => ({ url, type: "image/jpeg", length: null })) : item.enclosures,
     };
   }
 

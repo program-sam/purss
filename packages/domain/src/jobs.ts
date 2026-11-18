@@ -28,8 +28,8 @@ export const jobPayloadSchemas = {
   "engine.sync": z.object({ engineUserId: z.string() }),
   "engine.mark_read": z.object({ engineUserId: z.string(), externalIds: z.array(z.string()).max(200), read: z.boolean() }),
   "capture.fulltext": z.object({ captureId: z.string(), url: z.string() }),
-  // The pictures to fetch for one item; maxBytes is what is left of the item's room for pictures.
-  "capture.images": z.object({ itemId: z.string(), urls: z.array(z.string().max(2048)).min(1).max(20), maxBytes: z.number().int().positive() }),
+  // The pictures to fetch for one item; maxBytes is what is left of the item's room for pictures; shrink: store them small (an Instagram post's).
+  "capture.images": z.object({ itemId: z.string(), urls: z.array(z.string().max(2048)).min(1).max(20), maxBytes: z.number().int().positive(), shrink: z.boolean().optional() }),
   // feedUrl is null for private sources: their secret link is never fetched for an icon.
   "source.icon": z.object({ sourceId: z.string(), kind: z.string(), feedUrl: z.string().nullable(), siteUrl: z.string().nullable() }),
   "engine.delete_user": z.object({ engineUserId: z.string(), username: z.string() }),

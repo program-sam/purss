@@ -359,3 +359,43 @@ test("when SQLite ends the caller's whole transaction, asking for pictures does 
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", capture)!.status, "pending");
   assert.equal(app.db.raw.isTransaction, false);
 });
+
+test("an Instagram post's pictures are shown only once kept: the first and the rest of its carousel, asked for small", (t) => {
+  const { app, p, src, text, cleanup } = setup();
+  t.after(cleanup);
+  const cover = "https://www.instagram.com/p/Df147tCiAyB/media/?size=l";
+  const second = "https://scontent.cdninstagram.com/v/2.jpg?oe=6B0271F4&x=2";
+  // The engine writes the picture attachments into the text, each in a figure.
+  const figure = (u: string) => `<figure>\n\t<p>\n\t\t<img src="${u.replace(/&/g, "&amp;")}" alt="" />\n\t</p>\n</figure>`;
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { url: "https://www.instagram.com/p/Df147tCiAyB/", summaryHtml: null, contentHtml: `Album caption${figure(cover)}${figure(second)}`,
+    imageUrl: cover, enclosures: [{ url: cover, type: "image/jpeg", length: null }, { url: second, type: "image/jpeg", length: null }] })]));
+  const id = listItems(app, p, { scope: `source:${src}` }).items[0]!.id;
+  const shown = () => listItems(app, p, { scope: `source:${src}` }).items.find((i) => i.id === id)!.imageUrl;
+  assert.equal(shown(), null, "Instagram's picture servers refuse other sites: nothing to show before it is kept");
+  let d = getItemDetail(app, p, id);
+  assert.deepEqual([d.keptPicture, d.enclosures, d.contentHtml], [null, [], "Album caption"], "nor are its addresses sent to the reader");
+  assert.equal(d.summaryOnly, false, "a post is whole in its feed, however short");
+
+  keepItem(app, p, id, text);
+  const [job] = jobs(app) as { urls: string[]; shrink?: boolean }[];
+  assert.deepEqual(job!.urls, [cover, second], "the first picture once, then the rest of the carousel");
+  assert.equal(job!.shrink, true);
+  app.db.tx(() => completeImages(app, { itemId: id, urls: [cover] }, delivered([cover])));
+  const path = (u: string) => `/api/items/${id}/images/${app.db.get<{ id: string }>("SELECT id FROM item_images WHERE item_id = ? AND url = ?", id, u)!.id}`;
+  assert.equal(shown(), path(cover), "the list and the cards show the stored copy");
+  d = getItemDetail(app, p, id);
+  assert.deepEqual([d.imageUrl, d.keptPicture, d.enclosures], [path(cover), path(cover), []]);
+  assert.equal(d.contentHtml, `Album caption${figure(path(cover))}`, "the reader shows what is stored, and leaves out what isn't yet");
+
+  app.db.tx(() => completeImages(app, { itemId: id, urls: [second] }, delivered([second])));
+  assert.deepEqual(app.db.all<{ url: string; role: string }>("SELECT url, role FROM item_images WHERE item_id = ? ORDER BY url", id).map((r) => [r.url, r.role]),
+    [[second, "inline"], [cover, "cover"]]);
+  assert.equal(getItemDetail(app, p, id).contentHtml, `Album caption${figure(path(cover))}${figure(path(second))}`);
+
+  // Any other item's pictures are asked for as they are, and shown from where they are.
+  const other = comic(app, p, src, img(1));
+  keepItem(app, p, other, text);
+  assert.equal((jobs(app).at(-1) as { shrink?: boolean }).shrink, undefined);
+  assert.equal(listItems(app, p, { scope: `source:${src}` }).items.find((i) => i.id === other)!.imageUrl, url("cover"));
+  assert.match(getItemDetail(app, p, other).contentHtml!, new RegExp(url(1).replace(/\./g, "\\.")));
+});

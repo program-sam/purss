@@ -313,7 +313,8 @@ and the previous button skips back 15.
   videos open on the site. Other sites, PeerTube included, open in a new tab.
 - **Instagram posts** show their caption. *Show the post here* loads the post itself (its pictures or
   video) in Instagram's own embed, which only happens when you press it; Instagram doesn't let its
-  pictures be shown any other way. *Open on Instagram* opens the post on Instagram.
+  pictures be shown on another site, so lists and cards show a post's picture only once a basket set
+  to *Readable copy too* has kept it (see Baskets). *Open on Instagram* opens the post on Instagram.
 - **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player, and on the system's media controls in a browser; the phone apps' lock screen shows only a picture the publisher's own site serves).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
@@ -367,7 +368,12 @@ once. Each basket has a capture mode:
   and the pictures inside the readable text (up to 20 pictures and 10 MB for one item), so a
   webcomic or a visual reference stays whole. A page that loads its pictures with a script (a gallery of thumbnails, say) keeps them too: a thumbnail that links to its full-size picture keeps the full-size one. They are kept once, however many baskets keep the
   item, and are in your export. Items that only come from a feed, and baskets that keep the link
-  and summary, keep no pictures.
+  and summary, keep no pictures. An Instagram post keeps its pictures this way too, made small (WebP,
+  at most 720 pixels wide, a quarter or so of Instagram's own file), and then shows them in lists, on
+  cards and in the reader, which makes such a basket's *Cards* view a picture board. It keeps every
+  picture of a carousel when kept within a few days of arriving; after that Instagram's addresses for
+  the later pictures have expired and only the first picture (a video's still) is kept. A video
+  itself is never kept.
 
 Keeping a link PURSS already has (from a source you follow, or kept before) keeps that
 item rather than adding it twice. Addresses count as the same page when they differ only in

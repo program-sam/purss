@@ -68,3 +68,23 @@ test("fetchPictures stops when asked to", async () => {
     assert.deepEqual(await fetchPictures([s.base + "/a.png"], { maxBytes: 10_000, signal: ac.signal, fetch: allow }), []);
   } finally { await s.close(); }
 });
+
+test("with shrink, a large photo comes back as WebP at most 720 px wide, never larger than it was, and one that doesn't decode is skipped", async () => {
+  const sharp = (await import("sharp")).default;
+  // Noise, like a photo: it doesn't compress to nothing.
+  const pixels = Buffer.alloc(1080 * 1350 * 3);
+  for (let i = 0; i < pixels.length; i++) pixels[i] = (i * 2654435761) >>> 24;
+  const photo = await sharp(pixels, { raw: { width: 1080, height: 1350, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
+  const tiny = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#123456" } }).png().toBuffer();
+  const s = await serve({ "/photo.jpg": { type: "image/jpeg", body: photo }, "/tiny.png": { body: tiny }, "/broken.jpg": { type: "image/jpeg", body: JPEG } });
+  try {
+    const got = await fetchPictures(["/photo.jpg", "/tiny.png", "/broken.jpg"].map((p) => s.base + p), { maxBytes: 10_000_000, shrink: true, fetch: allow });
+    assert.deepEqual(got.map((g) => g.url.slice(s.base.length)), ["/photo.jpg", "/tiny.png"]);
+    assert.equal(got[0]!.contentType, "image/webp");
+    const meta = await sharp(got[0]!.data).metadata();
+    assert.deepEqual([meta.format, meta.width, meta.height], ["webp", 720, 900]);
+    assert.ok(got[0]!.data.length < photo.length / 2, `${got[0]!.data.length} vs ${photo.length}`);
+    assert.ok(got[1]!.data.length <= tiny.length, "a small picture is never made bigger");
+    assert.deepEqual((await sharp(got[1]!.data).metadata()).width, 8, "nor enlarged");
+  } finally { await s.close(); }
+});

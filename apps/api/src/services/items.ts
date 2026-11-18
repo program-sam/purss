@@ -16,7 +16,7 @@ import { firstImage } from "./first-image.ts";
 import { looksLikeSummary } from "./teaser.ts";
 import { onHomeItem } from "./home-sources.ts";
 import { NOT_MUTED_ROW, countMuted, workspaceMuted } from "./muted.ts";
-import { partialReasonText } from "@purss/connectors";
+import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
 import type { PartialReason } from "@purss/connectors";
 import { pictureUrl, storedPictures, withStoredPictures } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
@@ -112,21 +112,28 @@ export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Sav
   i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
-  (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at`;
+  (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at,
+  (SELECT g.id FROM item_images g WHERE g.item_id = i.id AND g.url = i.image_url) AS image_kept`;
 
 export type ItemRow = {
   id: string; number: number; source_id: string | null; source_title: string; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
   published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
+  /** the stored copy of the item's own picture (item_images), when there is one */
+  image_kept: string | null;
 };
+
+/** The item's own picture as it is shown: one that can't be shown on another site only from its stored copy (images.ts). */
+const shownImage = (r: Pick<ItemRow, "id" | "image_url" | "image_kept">) =>
+  !copyOnlyPicture(r.image_url) ? r.image_url : r.image_kept ? pictureUrl(r.id, r.image_kept) : null;
 
 export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   const linkIsMedia = itemLinkIsMedia(r.url, r.enclosures);
   return {
     // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
     id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
-    excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: r.image_url, durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
+    excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: shownImage(r), durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
@@ -592,8 +599,8 @@ export const BROWSER_CAPTURE_NOTE = "The text as your browser showed it. PURSS d
 
 export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   const dto = getItem(app, p, id);
-  const extra = app.db.get<{ version_id: string; content_html: string | null; summary_html: string | null; content_omitted: number; enclosures: string | null; version_created: string; is_private: number | null }>(
-    `SELECT v.id AS version_id, v.content_html, v.summary_html, v.content_omitted, i.enclosures, v.created_at AS version_created, s.is_private FROM items i
+  const extra = app.db.get<{ version_id: string; content_html: string | null; summary_html: string | null; content_omitted: number; enclosures: string | null; image_url: string | null; version_created: string; is_private: number | null }>(
+    `SELECT v.id AS version_id, v.content_html, v.summary_html, v.content_omitted, i.enclosures, i.image_url, v.created_at AS version_created, s.is_private FROM items i
      JOIN item_versions v ON v.id = i.current_version_id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, id)!;
   const keptVersion = app.db.get<{ kept_at: string; version_id: string; content_html: string | null; summary_html: string | null; content_omitted: number; title: string; url: string | null }>(
     `SELECT b.kept_at, b.version_id, v.content_html, v.summary_html, v.content_omitted, v.title, v.url FROM basket_items b JOIN item_versions v ON v.id = b.version_id
@@ -631,18 +638,19 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     `SELECT c.id, c.name FROM collections c WHERE c.workspace_id = ? AND c.mode = 'sources'
        AND EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.collection_id = c.id AND cs.source_id = ?) ORDER BY c.position`,
     p.workspaceId, dto.sourceId ?? "");
-  const enclosures = (JSON.parse(extra.enclosures ?? "[]") as { url: string; type: string | null }[]).map((e) => ({ url: e.url, type: e.type }));
+  // Pictures that can't be shown on another site are sent only as their stored copies.
+  const enclosures = (JSON.parse(extra.enclosures ?? "[]") as { url: string; type: string | null }[]).filter((e) => !copyOnlyPicture(e.url)).map((e) => ({ url: e.url, type: e.type }));
   return {
     ...dto,
     // A kept item reads as it was kept; the latest version is available alongside (plan/07).
     ...(changedSinceKept && keptVersion ? keptLink(keptVersion.title, keptVersion.url, extra.enclosures, dto.url, dto.linkIsMedia === true, extra.is_private === 1) : {}),
     contentHtml: pictures(fulltext?.html ?? (changedSinceKept ? keptHtml : current)),
-    keptPicture: dto.imageUrl && stored.has(dto.imageUrl) ? pictureUrl(id, stored.get(dto.imageUrl)!) : null,
+    keptPicture: extra.image_url && stored.has(extra.image_url) ? pictureUrl(id, stored.get(extra.image_url)!) : null,
     partialCopy: partial?.html ? { html: pictures(partial.html)!, reason: partial.partial_reason ?? "short", note: partialReasonText(partial.partial_reason ?? "short"), ref: { kind: "capture", id: partial.id } } : null,
     contentOmitted: !fulltext && (changedSinceKept && keptVersion ? keptVersion.content_omitted : extra.content_omitted) === 1,
     // A readable copy is the article. Without one, what the feed sent is only a summary when it is short or cut off.
-    // The installation's own news posts (services/news.ts) are whole, however short.
-    summaryOnly: !fulltext && looksLikeSummary(changedSinceKept ? keptHtml : current)
+    // A post (Bluesky's, Instagram's) and the installation's own news posts (services/news.ts) are whole, however short.
+    summaryOnly: !fulltext && dto.kind !== "post" && looksLikeSummary(changedSinceKept ? keptHtml : current)
       && !app.db.get("SELECT 1 FROM sources WHERE id = ? AND builtin IS NOT NULL", dto.sourceId ?? ""),
     changedSinceKept,
     latestHtml: changedSinceKept ? pictures(current) : null,

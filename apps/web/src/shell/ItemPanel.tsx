@@ -15,7 +15,7 @@ import { ACTIVE_STATES, KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { statusButton } from "../lib/status-label.ts";
 import { prepareArticleHtml, showStoredPictures } from "../lib/article-html.ts";
 import { dateTime, dayTime, shortDate } from "../lib/format.ts";
-import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, originalLink, publishedApart, safeHref, safeImage } from "../lib/items.ts";
+import { displayAuthors, isTimeBased, itemDate, itemExcerpt, lengthText, originalLink, publishedApart, safeHref, shownPicture } from "../lib/items.ts";
 import { splitLinks } from "../lib/links.ts";
 import { useNav } from "../nav.ts";
 import { usePending, usePendingMark } from "../outbox/hooks.ts";
@@ -101,6 +101,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const media = isTimeBased(item.kind);
   // A video page plays here in its platform's own player; a publisher's file plays in PURSS's player instead (MediaSection).
   const embed = item.media ? null : embedFor(item.url);
+  const postPicture = shownPicture(item.imageUrl);
   // The item's page; when its link is only the audio or video file, the show's website, or nothing (that file is Listen or Watch).
   const original = originalLink(item, source, detail?.enclosures);
   const href = original?.href ?? null;
@@ -258,8 +259,9 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
       <div className="panel-body" id="panel-body" ref={bodyRef} tabIndex={-1} onClick={openLink} onPointerOver={checkLink} onFocus={checkLink}
         style={web ? { visibility: "hidden" } : undefined}>
         {video || embed ? <div>{embed ? <VideoEmbed key={item.id} item={item} face={face} embed={embed} /> : play ? <a className="art-link" href={play.href} target="_blank" rel="noopener noreferrer" aria-label={`${play.label}: ${item.title} (opens in a new tab)`}><Art item={item} face={face} playable /></a> : <Art item={item} face={face} />}</div> : null}
-        {/* A post's picture comes from the post (Bluesky's feed carries none), so it is not in the text: shown above it, once. */}
-        {item.kind === "post" && safeImage(item.imageUrl) && !(html ?? "").includes(safeImage(item.imageUrl)!) ? <img className="p-pic" src={safeImage(item.imageUrl)!} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+        {/* A post's picture comes from the post (Bluesky's feed carries none), so it is not in the text: shown above it, once. An
+            Instagram post's arrives only as its kept copy. */}
+        {item.kind === "post" && postPicture && !(html ?? "").includes(postPicture) ? <img className="p-pic" src={postPicture} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
         <div style={{ display: "grid", gap: 6 }}>
           {renaming ? <RenameTitle itemId={item.id} title={item.title} onDone={() => setRenaming(false)} /> : <h2 className="p-title" ref={titleRef} tabIndex={-1} dir="auto">{item.title}</h2>}
           {item.author ? <p className="p-by" dir="auto">{displayAuthors(item.author)}</p> : null}

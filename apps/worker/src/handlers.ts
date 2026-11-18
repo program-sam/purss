@@ -20,7 +20,7 @@ export type CaptureResult =
 export type CaptureFn = (url: string, opts?: { signal?: AbortSignal }) => Promise<CaptureResult>;
 
 /** What `fetchPictures` from `@purss/connectors` returns. */
-export type PicturesFn = (urls: string[], opts: { maxBytes: number; signal?: AbortSignal }) => Promise<{ url: string; contentType: string; data: Buffer }[]>;
+export type PicturesFn = (urls: string[], opts: { maxBytes: number; shrink: boolean; signal?: AbortSignal }) => Promise<{ url: string; contentType: string; data: Buffer }[]>;
 
 /** What `resolveSourceIcon` from `@purss/connectors` returns. */
 export type IconResult =
@@ -323,7 +323,7 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       ? {
           // A picture that can't be fetched is left out; the job still answers with the ones that could.
           "capture.images": async ({ payload, signal }: HandlerArgs<"capture.images">) => {
-            const got = await deps.pictures!(payload.urls, { maxBytes: payload.maxBytes, signal });
+            const got = await deps.pictures!(payload.urls, { maxBytes: payload.maxBytes, shrink: payload.shrink === true, signal });
             return { images: got.map((p) => ({ url: p.url, contentType: p.contentType, data: p.data.toString("base64") })) };
           },
         }

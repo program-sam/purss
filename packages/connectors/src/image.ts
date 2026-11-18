@@ -59,6 +59,24 @@ export async function normalizeIcon(input: Uint8Array): Promise<NormalizeResult>
   }
 }
 
+/** How wide a shrunk picture is at most, and its WebP quality: plenty for a card or the reader, about a quarter of Instagram's own file. */
+export const SHRUNK_WIDTH = 720;
+const SHRUNK_QUALITY = 55;
+
+/**
+ * A kept picture made small (plan/34): turned upright, at most SHRUNK_WIDTH wide (never enlarged), re-encoded as WebP, and only the
+ * first frame of an animation. The original comes back when it is already the smaller file; null when the bytes don't decode.
+ */
+export async function shrinkPicture(input: Buffer): Promise<Buffer | null> {
+  try {
+    const out = await sharp(input, { limitInputPixels: MAX_PIXELS, animated: false, failOn: "error" })
+      .rotate().resize({ width: SHRUNK_WIDTH, withoutEnlargement: true }).webp({ quality: SHRUNK_QUALITY, effort: 5 }).toBuffer();
+    return out.length < input.length ? out : input;
+  } catch {
+    return null;
+  }
+}
+
 function checkShape(width: number, height: number): IconRejection | null {
   if (Math.min(width, height) < MIN_SIDE) return "small";
   if (Math.max(width, height) / Math.min(width, height) > MAX_ASPECT) return "shape";
