@@ -607,23 +607,27 @@ function elsewhereStub(front: SafeFetchResult) {
   return { fetch, calls, opts };
 }
 
+/** A request to the site itself, not the registry discovery asks last (plan/46). */
+const atSite = (url: string): boolean => !url.startsWith("https://www.wikidata.org/");
+
 test("probing a site's usual addresses stops each wave at its first batch when they all lead to another host", async () => {
   const { fetch, calls } = elsewhereStub(fakeResponse("https://wall.example/", "<html>no</html>", "text/html", 403));
   const d = await discover("https://wall.example/", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.match(d.message, /403/);
-  assert.equal(calls.length, 1 + 1 + 3 + 3, "the page, its www. form (which also leads elsewhere), then one batch of the usual addresses and one of the second wave, and no more");
+  assert.equal(calls.filter(atSite).length, 1 + 1 + 3 + 3, "the page, its www. form (which also leads elsewhere), then one batch of the usual addresses and one of the second wave, and no more");
+  assert.equal(calls.filter((c) => !atSite(c)).length, 1, "and, with nothing found, one question to Wikidata (plan/46)");
   // The same for a page that opened but has no feed.
   const open = elsewhereStub(fakeResponse("https://wall.example/", "<html><head><title>Plain</title></head></html>", "text/html"));
   const n = await discover("https://wall.example/", { fetch: open.fetch, now: NOW });
   assert.ok(!n.ok);
-  assert.equal(open.calls.length, 1 + 3 + 3);
+  assert.equal(open.calls.filter(atSite).length, 1 + 3 + 3);
 });
 
 test("the usual addresses are asked for with at most two redirects each, and one lookup has a cap on what it asks", async () => {
   const { fetch, opts } = elsewhereStub(fakeResponse("https://wall.example/", "<html>no</html>", "text/html", 500));
   await discover("https://wall.example/", { fetch, now: NOW });
-  assert.ok(opts.slice(2).every((o) => o.maxRedirects === 2), "probes of conventional paths do not follow long redirect chains");
+  assert.ok(opts.slice(2).filter((o) => atSite(o.url)).every((o) => o.maxRedirects === 2), "probes of conventional paths do not follow long redirect chains");
   // Every address answers 404: the cap ends the probing, and what was found so far (nothing) is the answer.
   const calls: string[] = [];
   const answer = (url: string) => url === "https://plain.example/" ? fakeResponse(url, BARE, "text/html") : fakeResponse(url, "nope", "text/html", 404);
@@ -725,7 +729,7 @@ test("what is no trouble of the host is not retried: a page that is not found, a
   for (const status of [404, 410, 429, 401]) {
     const s = stub({ "https://spab.example/": fakeResponse("https://spab.example/", "x", "text/html", status) });
     await discover("https://spab.example/", { fetch: s.fetch, now: NOW });
-    assert.deepEqual(s.calls, ["https://spab.example/"], String(status));
+    assert.deepEqual(s.calls.filter(atSite), ["https://spab.example/"], String(status));
   }
   const works = stub({ "https://spab.example/": page("https://spab.example/", WWW_HOME), "https://spab.example/news/rss.xml": feedRes("https://spab.example/news/rss.xml", rss("SPAB news")) });
   ok(await discover("https://spab.example/", { fetch: works.fetch, now: NOW }));
@@ -735,7 +739,7 @@ test("what is no trouble of the host is not retried: a page that is not found, a
   for (const typed of ["https://www.spab.example/", "https://203.0.113.9/", "https://spab.example:8443/", "http://[2001:db8::1]/", "https://spab.example:443/", "http://spab.example:80/", "spab.example:443", "feed://spab.example:80/rss"]) {
     const s = stub({});
     await discover(typed, { fetch: async (url) => { s.calls.push(url); return challenge(url); }, now: NOW, testAllowAddress: () => true });
-    assert.ok(!s.calls.some((c) => c.startsWith("https://www.www.") || (!typed.includes("www.") && c.includes("//www."))), typed);
+    assert.ok(!s.calls.filter(atSite).some((c) => c.startsWith("https://www.www.") || (!typed.includes("www.") && c.includes("//www."))), typed);
   }
 });
 

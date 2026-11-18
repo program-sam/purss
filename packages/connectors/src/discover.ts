@@ -17,6 +17,8 @@ import type { BridgeService, BridgeTarget } from "./bridges.ts";
 import { crossrefJournalSearchUrl, crossrefJournalUrl, findCrossrefJournal, issnFromInput, issnPortalUrl, readCrossrefJournal } from "./crossref.ts";
 import type { CrossrefJournalRecord } from "./crossref.ts";
 import { noFeedPlatform } from "./platforms.ts";
+import { addressVariants, readWikidataEntities, readWikidataSearch, wikidataEntitiesUrl, wikidataSearchUrl } from "./wikidata.ts";
+import type { WikidataItem } from "./wikidata.ts";
 import { PRIVATE_URL_WARNING, privateUrlReason, redactUrl } from "./privacy.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import { TRIM_FEED_BYTES, TRIM_FEED_ITEMS, countFeedItems } from "./trimmed.ts";
@@ -185,6 +187,8 @@ function failFromFetch(url: string, f: Extract<SafeFetchResult, { ok: false }>):
 
 export const YOUTUBE_REFUSED =
   "YouTube isn't handing out this channel's feed to this server right now. It often refuses feed requests from cloud servers; from a home connection it usually works. Try again later.";
+
+const NO_FEED_MESSAGE = "We couldn't find a feed on that page. Try the site's blog or news page, or paste the feed address itself if you have it.";
 
 function failFromStatus(url: string, status: number): Failure | null {
   if (status >= 200 && status < 300) return null;
@@ -792,7 +796,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     if (trouble.timeout || ctx.signal.aborted) return fail(inputUrl, "timeout", TIMEOUT_MESSAGE);
     if (trouble.busy) return fail(inputUrl, "unreachable", BUSY_MESSAGE);
     if (found.length) return fail(inputUrl, "nofeed", COMMENTS_ONLY_MESSAGE);
-    return fail(inputUrl, "nofeed", "We couldn't find a feed on that page. Try the site's blog or news page, or paste the feed address itself if you have it.");
+    return fail(inputUrl, "nofeed", NO_FEED_MESSAGE);
   }
 
   const matching = new Set(found.filter((f) => f.matches).map((f) => f.c));
@@ -890,6 +894,87 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
   }
   if (kind === "json") return fail(inputUrl, "unsupported", "That address returns data, not a feed. A JSON Feed has \"version\": \"https://jsonfeed.org/version/1.1\".");
   return fail(inputUrl, "unsupported", "That address isn't a web page or a feed (it looks like a file). Paste a website or feed address.");
+}
+
+// ---------- registries ----------
+
+export const WIKIDATA_NOTE = "The site doesn't point to this feed itself; Wikidata, the open knowledge base, lists it as the site's.";
+/**
+ * The answers after which the registries are asked: nothing found on the page, or a page that turns automated readers
+ * away (403, 429, "busy or limiting") or is broken (5xx). Asking a registry puts no load on the site, and whatever it names
+ * is checked like any feed. Not a more particular answer (a fediverse post, a page that isn't there, Duke's message),
+ * which says something the registries can't improve on.
+ */
+function registryMayHelp(draft: Failure): boolean {
+  if (draft.reason === "nofeed") return draft.message === NO_FEED_MESSAGE;
+  if (draft.reason !== "unreachable") return false;
+  return [403, 429].some((status) => draft.message === failFromStatus(draft.url, status)!.message) || draft.message === BUSY_MESSAGE || /\(error 5\d\d\)/.test(draft.message);
+}
+/** Feeds Wikidata lists that are tried. */
+const MAX_REGISTRY_FEEDS = 4;
+/** Each registry request gets this long, so a slow registry can't use up the lookup's budget. */
+const REGISTRY_TIMEOUT_MS = 8000;
+
+/**
+ * Discovery's last resort (plan/46): when a web address gave nothing, ask Wikidata which item has the page (or, for a
+ * section page, the site's front page) as its official website. Feeds it lists are tried like any other, and the page's
+ * own item's ISSNs are handed to the Crossref step. A private-looking address is never sent, nor any query string;
+ * Wikidata failing or slow leaves the answer as it was.
+ */
+async function withRegistry(ctx: Ctx, draft: DiscoveryDraft, pageUrl: string, max: number): Promise<DiscoveryDraft> {
+  if (draft.ok || !registryMayHelp(draft) || ctx.journal.issns.length || ctx.signal.aborted || privateUrlReason(pageUrl)) return draft;
+  let url: URL;
+  try {
+    url = new URL(pageUrl);
+  } catch {
+    return draft;
+  }
+  // An address by number has no official website to look up.
+  if (/^[\d.]+$|^\[/.test(url.hostname)) return draft;
+  const page = addressVariants(url);
+  const front = url.pathname.replace(/\/+$/, "") ? addressVariants(new URL("/", url)) : [];
+  // A search over a very long page address's spellings would be too long an address to send: the front page alone then.
+  const items = await wikidataItems(ctx, wikidataSearchUrl([...page, ...front]) ? [...page, ...front] : front);
+  const pageSet = new Set(page);
+  const frontSet = new Set(front);
+  // Only items whose website really is one of the spellings asked about: the search index can lag behind an edit.
+  const own = items.filter((i) => i.websites.some((w) => pageSet.has(w)));
+  const site = items.filter((i) => !own.includes(i) && i.websites.some((w) => frontSet.has(w)));
+  // A journal's ISSNs come from the page's own item only: a publisher's front page is not one journal.
+  ctx.journal.issns.push(...own.flatMap((i) => i.issns));
+  // The page's own feeds first; the front page's, for a section page, as the whole site's.
+  const ownFeeds = [...new Set(own.flatMap((i) => i.feeds))];
+  const siteFeeds = [...new Set(site.flatMap((i) => i.feeds))].filter((f) => !ownFeeds.includes(f));
+  const feeds = [...ownFeeds.map((f) => [f, false] as const), ...siteFeeds.map((f) => [f, true] as const)].slice(0, Math.min(MAX_REGISTRY_FEEDS, max));
+  const found: DraftCandidate[] = [];
+  const offered: ParsedFeed[] = [];
+  for (const [feedUrl, wholeSite] of feeds) {
+    if (ctx.signal.aborted) break;
+    const probe = await probeFeed(ctx, feedUrl, false);
+    if ("failed" in probe || offered.some((p) => sameEntries(p, probe.parsed))) continue;
+    offered.push(probe.parsed);
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, wholeSite ? { via: "Whole site feed", note: `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}` } : { note: WIKIDATA_NOTE });
+    found.push({ ...c, matchesPage: !wholeSite });
+  }
+  return found.length ? { ok: true, url: draft.url, candidates: found } : draft;
+}
+
+/** The items Wikidata has with one of `addresses` as their official website; nothing when it can't be asked just now. */
+async function wikidataItems(ctx: Ctx, addresses: string[]): Promise<WikidataItem[]> {
+  const search = wikidataSearchUrl(addresses);
+  if (!search) return [];
+  const ask = async (url: string): Promise<unknown> => {
+    const res = await ctx.get(url, { maxBytes: 512 * 1024, accept: "application/json", timeoutMs: REGISTRY_TIMEOUT_MS, maxRedirects: 0 });
+    if (!res.ok || res.response.status !== 200) return null;
+    try {
+      return JSON.parse(decodeBody(res.response.body, res.response.contentType));
+    } catch {
+      return null;
+    }
+  };
+  const ids = readWikidataSearch(await ask(search));
+  if (!ids.length || ctx.signal.aborted) return [];
+  return readWikidataEntities(await ask(wikidataEntitiesUrl(ids)));
 }
 
 // ---------- scholarly journals ----------
@@ -1272,7 +1357,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const ctx = makeCtx(opts);
   const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
   try {
-    return await withCrossref(ctx, opts, await discoverUrl(ctx, opts, norm, max), max);
+    return await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max);
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);

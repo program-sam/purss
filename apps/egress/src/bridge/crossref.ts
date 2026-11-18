@@ -32,8 +32,6 @@ export const DEFAULT_CROSSREF_LIMITS: CrossrefLimits = {
   maxBytes: 4 * 1024 * 1024,
 };
 
-const USER_AGENT = "PURSS feed bridge (+https://purss.app)";
-
 /** Retry-After as a delay in seconds or an HTTP date, in milliseconds from `now`; 0 when absent or unreadable. */
 function retryAfterMs(value: string | undefined, now: number): number {
   const v = value?.trim() ?? "";
@@ -61,7 +59,6 @@ export function crossrefBackend(opts: { fetch?: FetchFn; now?: () => number; sle
       timeoutMs: limits.timeoutMs,
       maxBytes: limits.maxBytes,
       accept: "application/json",
-      headers: { "user-agent": USER_AGENT },
       testAllowAddress: opts.testAllowAddress,
     });
     if (!r.ok) return { failed: r.reason === "timeout" ? "timeout" : r.reason === "toolarge" ? "too_large" : "unreachable" };

@@ -47,9 +47,9 @@ services (10-minute cache of good answers, one fetch per key at a time, 4 at onc
   updated does not come back to the top, as it would with `indexed` or `updated`.
 - Fetched in process with `safeFetch` (as egress's feed trimmer does): the origin is the
   constant `https://api.crossref.org`, the ISSN the only variable part and checked against
-  the key pattern, no redirects followed, 30 s deadline, 4 MiB decoded body. User-Agent
-  `PURSS feed bridge (+https://purss.app)`; no e-mail address (Crossref's polite pool asks
-  for one; an operator setting can be added later).
+  the key pattern, no redirects followed, 30 s deadline, 4 MiB decoded body, safeFetch's own
+  User-Agent; no e-mail address (Crossref's polite pool asks for one; an operator setting
+  can be added later).
 - Crossref's public pool allows one request at a time and 5 a second (`x-concurrency-limit:
   1`, `x-rate-limit-limit: 5`, interval 1 s). The backend therefore runs its requests one at
   a time across all journals, at least 250 ms apart, and after a `429` (or `503`) waits out

@@ -38,7 +38,6 @@ test("Crossref is asked for the journal's newest works at a fixed address, witho
   assert.equal(asked[0]!.opts?.maxRedirects, 0);
   assert.equal(asked[0]!.opts?.maxBytes, 4 * 1024 * 1024);
   assert.equal(asked[0]!.opts?.timeoutMs, 30_000);
-  assert.match(asked[0]!.opts?.headers?.["user-agent"] ?? "", /^PURSS feed bridge/);
 });
 
 test("journals are asked one at a time, at least 250 ms apart, in the order asked", async () => {
