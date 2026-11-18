@@ -55,7 +55,8 @@ export function journalFromUrl(url: URL): JournalRef | null {
   if (isHostOrSub(h, "onlinelibrary.wiley.com")) {
     // The code in a Wiley journal address is the journal's electronic ISSN, or for some journals (the former Hindawi
     // ones) a short name; both make its feed address.
-    const code = codeAfterPrefix(s, ["journal", "toc", "loi"]);
+    // /journal/<code>, its issues and issue list, its article index (/index/<code>), and its information pages (/page/journal/<code>/…).
+    const code = codeAfterPrefix(s, ["journal", "toc", "loi", "index"]) ?? ((s[0] === "page" || s[0] === "hub") && s[1] === "journal" ? (s[2] ?? null) : null);
     const issn = code ? normalIssn(code) : null;
     if (issn) return { platform: "wiley", id: issn };
     return code && WILEY_CODE.test(code) ? { platform: "wiley", id: code.toLowerCase() } : null;

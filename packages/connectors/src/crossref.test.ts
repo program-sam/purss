@@ -5,6 +5,7 @@ import { crossrefWorksToRss, crossrefWorksUrl, findCrossrefJournal, issnFromInpu
 import { CROSSREF_NOTE, CROSSREF_VIA, discover } from "./discover.ts";
 import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
 import { parseFeed } from "./feed.ts";
+import { periodicalIssnsIn } from "./html-links.ts";
 import { DUKE_MESSAGE } from "./journals.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeResponse } from "./testing.ts";
@@ -319,4 +320,22 @@ test("an Elsevier DOI: ScienceDirect's feed takes the print ISSN, Crossref the e
   const d = ok(await discover("10.1016/j.neuropsychologia.2026.1", { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [sdFeed, "bridge:crossref/18733514"]);
   assert.deepEqual(asked, ["crossref/18733514"]);
+});
+
+test("a journal's own site that states its ISSN only in schema.org data: Crossref by that ISSN", async () => {
+  const pageUrl = "https://openpsychologyjournal.com/";
+  const ld = JSON.stringify({ "@context": "https://schema.org", "@graph": [{ "@type": "Periodical", "@id": `${pageUrl}#journal`, name: "The Open Psychology Journal", issn: "1874-3501" }, { "@type": "WebSite", name: "x" }] });
+  const html = `<html><head><title>The Open Psychology Journal - Home Page</title><script type="application/ld+json">${ld}</script></head><body>ISSN (Online): 1874-3501</body></html>`;
+  const { fetch } = stub({ [pageUrl]: fakeResponse(pageUrl, html, "text/html; charset=utf-8") });
+  const { bridge, asked } = crossrefRouter({ "18743501": "The Open Psychology Journal" });
+  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["The Open Psychology Journal", "bridge:crossref/18743501", true]]);
+  assert.deepEqual(asked, ["crossref/18743501"]);
+});
+
+test("schema.org ISSNs: a Periodical's, or the one an article is part of; other types, broken JSON and huge blocks give none", () => {
+  assert.deepEqual(periodicalIssnsIn(JSON.stringify({ "@type": "ScholarlyArticle", isPartOf: { "@type": ["Periodical", "CreativeWork"], issn: ["1874-3501", "0000-000X"] } })), ["1874-3501", "0000-000X"]);
+  assert.deepEqual(periodicalIssnsIn(JSON.stringify({ "@type": "Book", issn: "1874-3501" })), []);
+  assert.deepEqual(periodicalIssnsIn("{not json"), []);
+  assert.deepEqual(periodicalIssnsIn(JSON.stringify({ "@type": "Periodical", issn: "1874-3501", pad: "x".repeat(300_000) })), []);
 });

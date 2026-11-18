@@ -60,7 +60,11 @@ test("journal pages on the publishing platforms become their journal's feed addr
     "https://onlinelibrary.wiley.com/journal/17576547",
     "https://onlinelibrary.wiley.com/toc/17576547/2026/37/3",
     "https://onlinelibrary.wiley.com/loi/17576547",
+    "https://onlinelibrary.wiley.com/index/17576547",
+    "https://onlinelibrary.wiley.com/page/journal/17576547/homepage/productinformation.html",
+    "https://onlinelibrary.wiley.com/hub/journal/17576547/about/author-guidelines",
   ]) assert.deepEqual(mainFeed(u), ["https://onlinelibrary.wiley.com/feed/17576547/most-recent"], u);
+  assert.deepEqual(mainFeed("https://onlinelibrary.wiley.com/index/cad"), ["https://onlinelibrary.wiley.com/feed/cad/most-recent"], "a journal named by its code");
   // A society's own address on Wiley: the feed lives on the platform's main host.
   assert.deepEqual(mainFeed("https://anthrosource.onlinelibrary.wiley.com/toc/15481433/current"), ["https://onlinelibrary.wiley.com/feed/15481433/most-recent"]);
   assert.deepEqual(mainFeed("https://www.tandfonline.com/journals/rhum20"), ["https://www.tandfonline.com/feed/rss/rhum20"]);

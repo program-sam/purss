@@ -23,7 +23,7 @@ export type PageFacts = {
   actorUrl: string | null;
   /** Links to a journal's page on a publishing platform (journals.ts), at most 20: a society's page for its journal links there. */
   platformLinks: { url: string; title: string | null }[];
-  /** What the page's scholarly metadata says about the journal it belongs to (`citation_issn`, `prism.issn`). */
+  /** What the page's scholarly metadata says about the journal it belongs to (`citation_issn`, `prism.issn`, else a schema.org `Periodical`'s `issn`). */
   journal: { issns: string[]; publisher: string | null };
 };
 
@@ -76,6 +76,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
   const anchors: FoundLink[] = [];
   const platformLinks: { url: string; title: string | null }[] = [];
   const issns: string[] = [];
+  const periodicalIssns: string[] = [];
   let publisher: string | null = null;
   const stack: XNode[] = [root];
   let visited = 0;
@@ -87,6 +88,8 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
       if (name === "base" && a.href) {
         const b = resolve(a.href, pageUrl);
         if (b) base = b;
+      } else if (name === "script" && /^application\/ld\+json\b/i.test((a.type ?? "").trim()) && periodicalIssns.length < 4) {
+        periodicalIssns.push(...periodicalIssnsIn((node.children ?? []).map((c) => c.data ?? "").join("")).slice(0, 4 - periodicalIssns.length));
       } else if (name === "title" && title === null) {
         title = cleanLine(textOf(node), 200);
       } else if (name === "meta") {
@@ -136,7 +139,39 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
     seen.add(key);
     links.push(l);
   }
-  return { title, siteName, baseUrl: base, links, canonicalUrl: canonical, actorUrl: actor, platformLinks, journal: { issns, publisher } };
+  // A journal's own site that states its ISSN only in schema.org data (a `Periodical`, or the one an article `isPartOf`).
+  return { title, siteName, baseUrl: base, links, canonicalUrl: canonical, actorUrl: actor, platformLinks, journal: { issns: issns.length ? issns : periodicalIssns, publisher } };
+}
+
+const MAX_LD_JSON = 256 * 1024;
+
+/** The ISSNs of the schema.org `Periodical`s in a JSON-LD block, at most 4; nothing for anything unreadable. */
+export function periodicalIssnsIn(json: string): string[] {
+  if (json.length > MAX_LD_JSON) return [];
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const found: string[] = [];
+  const stack: unknown[] = [data];
+  let visited = 0;
+  while (stack.length && visited++ < 2000 && found.length < 4) {
+    const v = stack.pop();
+    if (Array.isArray(v)) {
+      stack.push(...v);
+      continue;
+    }
+    if (!v || typeof v !== "object") continue;
+    const o = v as Record<string, unknown>;
+    const types = Array.isArray(o["@type"]) ? o["@type"] : [o["@type"]];
+    if (types.some((t) => typeof t === "string" && /^(?:https?:\/\/schema\.org\/)?Periodical$/.test(t))) {
+      for (const i of Array.isArray(o.issn) ? o.issn : [o.issn]) if (typeof i === "string" && found.length < 4) found.push(i.trim().slice(0, 20));
+    }
+    for (const child of Object.values(o)) if (child && typeof child === "object") stack.push(child);
+  }
+  return found;
 }
 
 /** Where a page's own address ends for a page that lists a site's feeds: `/rss-feeds`, `/feeds`, `/rss`. */

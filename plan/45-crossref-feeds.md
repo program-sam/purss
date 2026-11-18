@@ -110,9 +110,11 @@ links (both kept); a lone publisher feed that is only listed (choice unchanged).
 
 Where the ISSN comes from:
 
-1. Wiley journal addresses whose code is an ISSN (already parsed).
+1. Wiley journal addresses whose code is an ISSN: the journal, its issues, issue list, article
+   index (`/index/<code>`) and information pages (`/page/journal/<code>/…`).
 2. A DOI (pasted, in an article address): Crossref's work record, already read.
-3. A page's scholarly metadata (`citation_issn`, `prism.issn`), already read.
+3. A page's scholarly metadata (`citation_issn`, `prism.issn`), else the `issn` of a
+   schema.org `Periodical` in its JSON-LD (a journal's own site that states it only there).
 4. Journals named only by a code, a slug or their feed: Crossref's journal search for the
    name, accepted only when exactly one journal's title matches exactly (letters compared;
    "Social Anthropology/Anthropologie sociale" also as "Social Anthropology") and, on a
