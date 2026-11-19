@@ -33,7 +33,7 @@ jobs:
       changed: ${{ steps.update.outputs.changed }}
       bridge: ${{ steps.bridge.outcome }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           persist-credentials: false
@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           mkdir -p "$RUNNER_TEMP/out"
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
       - run: npm ci
@@ -71,7 +71,7 @@ jobs:
       - name: Hand on the update
         if: always() && steps.update.outcome == 'success'
         run: git diff > "$RUNNER_TEMP/out/update.patch"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: update
@@ -89,10 +89,10 @@ jobs:
     outputs:
       sha: ${{ steps.push.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: update
           path: ${{ runner.temp }}/update
@@ -106,7 +106,7 @@ jobs:
           fi
       # Node runs only the repository's own check (from the tested commit, before the update is applied
       # to anything but the index), never an updated dependency: there is no npm install here.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
       - name: Stage the update and check what it changes
@@ -151,7 +151,7 @@ jobs:
       DEPLOY: ${{ needs.deploy.result }}
       SHA: ${{ needs.publish.outputs.sha }}
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         continue-on-error: true
         with:
           name: update

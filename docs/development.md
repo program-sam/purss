@@ -234,7 +234,7 @@ On the first of every month [.github/workflows/monthly-updates.yml](../.github/w
 | The phone apps' native plugins (all of `apps/mobile`'s dependencies) | Nothing | Any newer version: it may need an app release ([native level](../apps/mobile/README.md#live-updates-and-the-native-level)) |
 | RSS-Bridge (`infra/compose.yaml`) | The newest image, if no bridged service that works on the current image fails on it (`node scripts/bridge-check.ts`, asking a failing service three times) | |
 | FreshRSS | Nothing: the engine tests need podman networking a CI runner lacks | A new version (check the allowlist and reference commit, above) or a rebuilt image of the pinned one |
-| GitHub Actions | Nothing | A new major version |
+| GitHub Actions | Nothing: workflow files are not something an update may change | A new major version, or a pinned tag that now points at another commit, with the commit to pin |
 
 New dependency code never runs with the right to change the repository. A read-only job finds the
 updates and runs the checks; a second job, which runs no updated code, checks that the change touches
@@ -302,6 +302,14 @@ A push to `main` runs [deploy.yml](../.github/workflows/deploy.yml): `npm run ch
 the build, then, if they pass, the same commit is sent to the official server ([infra](../infra/README.md#deploying-from-github)).
 Deploys run one at a time, in push order. `gh run list --branch main` shows the run; start one with
 `gh workflow run deploy.yml --ref main` if a push started none.
+
+The workflows hold the deploy, signing and store secrets, so every third-party action is pinned to a
+full commit SHA with its tag as a trailing comment (`uses: actions/checkout@<sha> # v7`), never to a
+tag that its owner can move. To bump one, resolve the tag to its commit (`gh api
+repos/<owner>/<repo>/git/ref/tags/<tag>`; for an annotated tag, `git/tags/<sha>` on the returned
+object gives the commit), put that SHA and tag in the `uses:` line of every workflow that uses the
+action, and let the checks run. The monthly dependency update reports the actions whose pin is behind
+([above](#dependency-updates)).
 
 The desktop and Android apps and the browser extension have their own workflows,
 [desktop.yml](../.github/workflows/desktop.yml) and

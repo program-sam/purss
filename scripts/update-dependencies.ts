@@ -14,7 +14,9 @@
  * - FreshRSS is only reported, both a new version and a rebuilt image of the pinned one: the engine
  *   tests that would check it need podman networking a CI runner lacks, and a new version needs the
  *   engine allowlist and reference commit checked (docs/development.md).
- * - GitHub Actions with a newer major version are reported.
+ * - GitHub Actions are pinned to a commit (`uses: owner/action@<sha> # v7`, as docs/development.md says):
+ *   a newer major version is reported, and so is a pin whose tag now points at another commit, each with
+ *   the commit to pin.
  *
  *   node scripts/update-dependencies.ts [--summary <file.md>] [--manual <file.md>] [--outputs <file>] [--message <file>]
  *
@@ -83,6 +85,28 @@ export function offered(versions: string[], latest: string | undefined): string[
   return top ? versions.filter((raw) => { const v = parseVersion(raw); return !v || compareVersions(v, top) <= 0; }) : versions;
 }
 
+/** An action pinned to a commit, with the major version its comment names: `uses: actions/checkout@<40 hex> # v7`. */
+export type ActionPin = { action: string; sha: string; major: number };
+
+/** The pinned actions a workflow file uses. Local workflows and actions pinned any other way are not listed. */
+export function parseActionPins(workflow: string): ActionPin[] {
+  return [...workflow.matchAll(/^\s*(?:-\s+)?uses:\s*([\w.-]+\/[\w.-]+)@([0-9a-f]{40})[ \t]+#[ \t]*v(\d+)\b/gm)]
+    .map((m) => ({ action: m[1]!, sha: m[2]!, major: Number(m[3]) }));
+}
+
+/** What a person should do about a pinned action, or null while the pin is current. */
+export function describeActionUpdate(pin: ActionPin, newestMajor: number, commits: { pinnedTag: string | null; newestTag: string | null }): string | null {
+  const { action, sha, major } = pin;
+  if (newestMajor > major) {
+    const to = commits.newestTag ? `pin \`${action}@${commits.newestTag} # v${newestMajor}\`` : `pin the commit of its v${newestMajor} tag`;
+    return `- GitHub Action \`${action}\` v${major} → v${newestMajor}: ${to}`;
+  }
+  if (commits.pinnedTag && commits.pinnedTag !== sha) {
+    return `- GitHub Action \`${action}\`: its v${major} tag moved on from the pinned commit ${sha.slice(0, 7)}; pin \`${action}@${commits.pinnedTag} # v${major}\``;
+  }
+  return null;
+}
+
 // ---------- registries
 
 /**
@@ -114,6 +138,17 @@ async function github(pathname: string): Promise<unknown> {
   const res = await fetch(`https://api.github.com${pathname}`, { headers });
   if (!res.ok) throw new Error(`GitHub ${pathname}: HTTP ${res.status}`);
   return res.json();
+}
+
+/** The commit a tag of a GitHub repository points at (through an annotated tag object when there is one), or null. */
+async function tagCommit(repository: string, tag: string): Promise<string | null> {
+  try {
+    let object = ((await github(`/repos/${repository}/git/ref/tags/${tag}`)) as { object: { type: string; sha: string } }).object;
+    if (object.type === "tag") object = ((await github(`/repos/${repository}/git/tags/${object.sha}`)) as { object: { type: string; sha: string } }).object;
+    return object.type === "commit" && /^[0-9a-f]{40}$/.test(object.sha) ? object.sha : null;
+  } catch {
+    return null;
+  }
 }
 
 function npmVersions(name: string): string[] {
@@ -220,16 +255,20 @@ async function main(): Promise<void> {
     }
   }
 
-  // GitHub Actions: majors only, reported.
+  // GitHub Actions: reported only (workflow files are not part of what an update may change).
   const workflows = path.join(repo, ".github/workflows");
-  const uses = new Map<string, number>();
+  const pins = new Map<string, ActionPin>();
   for (const f of readdirSync(workflows)) {
-    for (const m of readFileSync(path.join(workflows, f), "utf8").matchAll(/uses:\s*([\w.-]+\/[\w.-]+)@v(\d+)\b/g)) uses.set(m[1]!, Number(m[2]));
+    for (const pin of parseActionPins(readFileSync(path.join(workflows, f), "utf8"))) pins.set(`${pin.action}@${pin.sha}`, pin);
   }
-  for (const [action, major] of uses) {
-    const release = (await github(`/repos/${action}/releases/latest`).catch(() => null)) as { tag_name?: string } | null;
-    const latest = Number(/^v(\d+)/.exec(release?.tag_name ?? "")?.[1]);
-    if (latest > major) manual.push(`- GitHub Action \`${action}\` v${major} → v${latest}`);
+  for (const pin of pins.values()) {
+    const release = (await github(`/repos/${pin.action}/releases/latest`).catch(() => null)) as { tag_name?: string } | null;
+    const newestMajor = Number(/^v(\d+)/.exec(release?.tag_name ?? "")?.[1]) || pin.major;
+    const note = describeActionUpdate(pin, newestMajor, {
+      pinnedTag: await tagCommit(pin.action, `v${pin.major}`),
+      newestTag: newestMajor > pin.major ? await tagCommit(pin.action, `v${newestMajor}`) : null,
+    });
+    if (note) manual.push(note);
   }
 
   outputs.changed = String(updated.length > 0);
