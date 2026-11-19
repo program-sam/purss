@@ -23,7 +23,7 @@ import { capacity, storedPlan } from "./services/plans.ts";
  *   node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
  *   node apps/api/src/cli.ts set-email <account> <address>
  *   node apps/api/src/cli.ts set-allocation <account> <bytes|none>
- *   node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
+ *   node apps/api/src/cli.ts set-plan <account> <free|plus|pro|unlimited>
  *   node apps/api/src/cli.ts password-reset-link <account>
  *   node apps/api/src/cli.ts reconcile-usage
  *   node apps/api/src/cli.ts test-email <address>
@@ -210,7 +210,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       return 0;
     }
     default:
-      io.err("Usage: node apps/api/src/cli.ts <status | create-invite <address> | set-email <account> <address> | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
+      io.err("Usage: node apps/api/src/cli.ts <status | create-invite <address> | set-email <account> <address> | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|pro|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
       return 2;
   }
 }

@@ -122,7 +122,7 @@ export function BasketDeleteDialog({ id }: { id: string }) {
         <div style={{ display: "grid", gap: 10 }}>
           <p className="hint">Deleting removes the basket, not its {plural(p.items, "item")}: {p.items === 1 ? "it stays" : "they stay"} in your PURSS.</p>
           <p className="hint">{p.onlyHere > 0
-            ? <>But {plural(p.onlyHere, "item")} {p.onlyHere === 1 ? "is" : "are"} in no other basket, so {p.onlyHere === 1 ? "it stops" : "they stop"} being kept: a later clean-up of old items could remove {p.onlyHere === 1 ? "it" : "them"}.</>
+            ? <>But {plural(p.onlyHere, "item")} {p.onlyHere === 1 ? "is" : "are"} in no other basket, so {p.onlyHere === 1 ? "it stops" : "they stop"} being kept.</>
             : "Everything in it is also kept in another basket, so all of it stays kept."}</p>
         </div>
       ) : null}

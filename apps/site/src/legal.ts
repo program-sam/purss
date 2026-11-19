@@ -95,7 +95,7 @@ export const LEGAL = {
 
 <h2>How long we keep it</h2>
 <p>A report about a shared page is kept until you stop sharing it or delete its basket or collection, so that an administrator can review it and see what was decided.</p>
-<p>Your PURSS is kept until you delete it: items you clean up, sources you unfollow, or your whole account. Kept items never expire on a schedule. Disconnecting an app or assistant deletes its access key at once. When you delete your account in Settings, it is locked at once (connected apps and assistants are disconnected too) and its data, saved episodes included, is deleted from the service 7 days later, unless you sign in and keep it. Copies in backups made before then are deleted when those backups expire; how long backups are kept is stated here before the hosted plans open.</p>
+<p>Your PURSS is kept until you delete it: items you delete, sources you unfollow, or your whole account. Kept items never expire on a schedule. Disconnecting an app or assistant deletes its access key at once. When you delete your account in Settings, it is locked at once (connected apps and assistants are disconnected too) and its data, saved episodes included, is deleted from the service 7 days later, unless you sign in and keep it. Copies in backups made before then are deleted when those backups expire; how long backups are kept is stated here before the hosted plans open.</p>
 
 <h2>Your rights</h2>
 <p>You can see and export everything at any time, correct it in the app, and close your account to have it deleted. If you live in the EU you also have the right to object, to restrict processing and to complain to your data protection authority. We use your data only to provide the service you signed up for.</p>
