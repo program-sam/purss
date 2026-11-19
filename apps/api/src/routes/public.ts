@@ -10,6 +10,7 @@ import { appUrl } from "@purss/domain";
 import type { RegistrationResponseJSON, AuthenticationResponseJSON } from "@simplewebauthn/server";
 import type { App, Ctx, Principal } from "../app.ts";
 import { audit, requirePrincipal, requireRecentAuth } from "../app.ts";
+import { signOutAllElse } from "../auth/sign-out.ts";
 import { badRequest, consumeRateLimit, HttpError, Router, notFound, nowIso, parse, rateLimit, setCookie } from "../http.ts";
 import { randomToken } from "../secrets.ts";
 
@@ -348,8 +349,14 @@ export function publicRouter(): Router<Ctx> {
       throw new HttpError(401, "bad_current_password", "Your current password isn't right.");
     }
     await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: stored, requireRecent: false });
-    // As after a reset: a changed password ends the account's other sessions, so a cookie taken earlier stops working.
-    signOutOthers(ctx.app, p);
+    // As after a reset, but for the session or app making the change: a cookie, app token or assistant taken with the
+    // old password stops working.
+    const ended = sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
+      const out = signOutAllElse(ctx.app, p.accountId, p.sessionId, deviceIdOf(p));
+      audit(ctx.app, p.accountId, "signed_out_elsewhere", null, "success", "password change");
+      return out;
+    });
+    for (const id of ended) ctx.app.events.emit(`session:${id}`, "revoked");
     return { ok: true };
   });
   // Deleting the account: a recent sign-in plus typing the display name (or "delete").

@@ -43,7 +43,7 @@ export function AuthorizePage() {
     );
   }
 
-  const allowWrite = req.access === "write" && (write ?? true);
+  const allowWrite = req.access === "write" && (write ?? false);
   const ready = req.available && req.enabled;
   const request = req.request;
 

@@ -5,6 +5,7 @@ import { SESSION_COOKIE } from "./accounts.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
+import { createDeviceToken, resolveDeviceToken } from "../connect/devices.ts";
 import { checkPassword, hashPassword, preparePassword, storePassword, verifyPassword, writePassword } from "./passwords.ts";
 
 /** The password makeOwner gives every account (testing.ts TEST_PASSWORD). */
@@ -16,7 +17,7 @@ async function boot() {
   const server = await startTestServer(app, [publicRouter()]);
   const req = (method: string, path: string, s: TestSession | null, body?: unknown) => call(app, server.base, method, path, s, body);
   const emailOf = (accountId: string) => app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", accountId)!.email;
-  return { app, owner, email: emailOf(owner.accountId), emailOf, req, close: async () => { await server.close(); cleanup(); } };
+  return { app, owner, base: server.base, email: emailOf(owner.accountId), emailOf, req, close: async () => { await server.close(); cleanup(); } };
 }
 
 /** The session a successful sign-in response set, usable for further calls. */
@@ -205,4 +206,38 @@ test("changing the password ends the account's other sessions, as a reset does; 
   assert.equal((await b.req("PUT", "/api/account/password", here, { currentPassword: CURRENT, password: "a long enough secret" })).status, 200);
   assert.equal((await b.req("GET", "/api/session", elsewhere)).json.state, "signed_out");
   assert.equal((await b.req("GET", "/api/session", here)).json.state, "signed_in");
+});
+
+test("changing the password in the browser also disconnects the apps and assistants, as a reset does", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const here = signIn(b.app, b.owner.accountId);
+  const phone = createDeviceToken(b.app, b.owner.accountId, "mobile", "Phone").secret;
+  const extension = createDeviceToken(b.app, b.owner.accountId, "extension", "Browser extension").secret;
+  b.app.db.run("INSERT INTO assistant_tokens (id, account_id, name, access, token_hash, created_at) VALUES ('ast_1', ?, 'Assistant', 'read', 'h', ?)", b.owner.accountId, new Date().toISOString());
+  assert.equal((await b.req("PUT", "/api/account/password", here, { currentPassword: CURRENT, password: "a long enough secret" })).status, 200);
+  assert.equal(resolveDeviceToken(b.app, phone), null, "the phone app is disconnected");
+  assert.equal(resolveDeviceToken(b.app, extension), null, "the extension is disconnected");
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM assistant_tokens WHERE account_id = ?", b.owner.accountId)!.n, 0, "assistant tokens end");
+  assert.equal((await b.req("GET", "/api/session", here)).json.state, "signed_in", "the browser making the change stays");
+  assert.ok(b.app.db.get("SELECT 1 FROM audit_events WHERE action = 'signed_out_elsewhere' AND detail = 'password change'"));
+});
+
+test("changing the password in the phone app keeps that app connected and ends everything else", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const browser = signIn(b.app, b.owner.accountId);
+  const phone = createDeviceToken(b.app, b.owner.accountId, "mobile", "Phone").secret;
+  const tablet = createDeviceToken(b.app, b.owner.accountId, "mobile", "Tablet").secret;
+  const viaPhone = resolveDeviceToken(b.app, phone)!.principal;
+  const changed = await fetch(`${b.base}/api/account/password`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${phone}`, origin: "capacitor://localhost", "content-type": "application/json" },
+    body: JSON.stringify({ currentPassword: CURRENT, password: "a long enough secret" }),
+  });
+  assert.equal(changed.status, 200, await changed.text());
+  assert.ok(resolveDeviceToken(b.app, phone), "the phone that made the change stays connected");
+  assert.equal(resolveDeviceToken(b.app, phone)!.principal.sessionId, viaPhone.sessionId);
+  assert.equal(resolveDeviceToken(b.app, tablet), null, "another app is disconnected");
+  assert.equal((await b.req("GET", "/api/session", browser)).json.state, "signed_out", "the browser session ends");
 });

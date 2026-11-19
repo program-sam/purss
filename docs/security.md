@@ -208,7 +208,8 @@ account only when that account has no password and no passkey.
 Choosing a password through either link signs the account out everywhere (browser sessions, connected
 apps, assistant tokens and OAuth grants, pending codes and unused email links) and tells the confirmed
 address. An account made by a provider has no password to reset: its recovery is a password it added
-beforehand. Changing the password in Settings ends the account's other browser sessions only.
+beforehand. Changing the password in Settings ends the same, except the browser session or connected app
+the change is made from.
 
 **Deleting an account.** The owner confirms with a recent sign-in. The account is signed out
 everywhere, its public pages stop, and signing in during the following 7 days offers to keep it. After
@@ -629,8 +630,6 @@ leaves queued mail unreadable.
   sign-in.
 - **Export needs no recent sign-in** (6 an hour per account), so a stolen session or phone or desktop
   token can export the library.
-- **Changing a password in Settings** ends other browser sessions, not connected apps or assistants;
-  a reset ends everything.
 - **Interface updates aren't signed**, so connecting an app to a server means trusting that server's
   interface.
 - **`find_sources`** lets an assistant with organise access choose addresses the server fetches.

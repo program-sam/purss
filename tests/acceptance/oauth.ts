@@ -134,13 +134,13 @@ async function main(): Promise<void> {
     assert.ok(await page.getByRole("button", { name: "Allow", exact: true }).isDisabled(), "nothing can be allowed while the account's switch is off");
     await page.getByRole("button", { name: "Turn it on" }).click();
     await page.getByRole("button", { name: "Allow", exact: true }).and(page.locator(":enabled")).waitFor();
-    await page.getByRole("checkbox", { name: /Also let it organise/ }).uncheck();
+    assert.equal(await page.getByRole("checkbox", { name: /Also let it organise/ }).isChecked(), false, "organising stays off until the person ticks it");
     await page.getByRole("button", { name: "Allow", exact: true }).click();
     await waitUntil(() => arrived.length > 0);
     const back = new URL(arrived[0]!);
     assert.deepEqual([back.searchParams.get("state"), back.searchParams.get("iss")], [state, issuer]);
     const code = back.searchParams.get("code")!;
-    step("the person turns assistant access on from the page, allows reading only, and the browser returns to the assistant with the code, state and iss");
+    step("the person turns assistant access on from the page, allows reading only (organising is off unless ticked), and the browser returns to the assistant with the code, state and iss");
 
     const tokens = await form(meta.token_endpoint, { grant_type: "authorization_code", code, redirect_uri: callback, client_id: clientId, code_verifier: verifier, resource: prm.resource });
     assert.equal(tokens.status, 200, JSON.stringify(tokens.json));

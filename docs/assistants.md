@@ -188,7 +188,8 @@ The page shows the assistant's own name (control and direction-changing characte
 characters), the host that identifies it (the metadata address) and the host it sends the person back to,
 with an extra warning when that is a program on the person's own computer, and what the assistant will be
 able to do. The scope `write` asks for *read and organise*, anything else for *read only*, and other values
-are ignored. The person can allow less than asked with *Also let it organise*, never more. **Allow**
+are ignored. Organising stays off until the person ticks *Also let it organise*, which is offered only when
+the assistant asks for it, so the person can allow less than asked, never more. **Allow**
 needs both switches on (the page offers to turn the account switch on) and a sign-in within the last 10
 minutes (otherwise it asks to confirm it's them); it is limited to 30 approvals per account per 10
 minutes and 20 connected assistants per account. The page can't be shown in a frame.

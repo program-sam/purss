@@ -1,5 +1,5 @@
 import type { App } from "../app.ts";
-import { revokeAllDevices } from "../connect/devices.ts";
+import { revokeAllDevices, revokedEvent } from "../connect/devices.ts";
 import { revokeAllTokens } from "../services/assistant.ts";
 
 /**
@@ -17,6 +17,9 @@ import { revokeAllTokens } from "../services/assistant.ts";
  *
  * Turning the account's assistant switch off ends only the assistants' part (revokeAllTokens). Run
  * inside the caller's transaction.
+ *
+ * A password change ends the same as "everything" except the one browser session or connected app it was made
+ * from (signOutAllElse), so a session, app token or assistant taken with the old password stops working.
  */
 export function signOutEverywhere(app: App, accountId: string, why: "everything" | "suspension"): void {
   app.db.run("DELETE FROM sessions WHERE account_id = ?", accountId);
@@ -26,4 +29,21 @@ export function signOutEverywhere(app: App, accountId: string, why: "everything"
     revokeAllTokens(app, accountId);
     app.db.run("DELETE FROM email_tokens WHERE account_id = ? AND used_at IS NULL", accountId);
   }
+}
+
+/**
+ * Everything "everything" ends except the caller: the browser session `sessionId`, or the connected app whose device
+ * session it is. Returns the browser sessions it ended, whose open event streams the caller closes after the
+ * transaction. Run inside the caller's transaction.
+ */
+export function signOutAllElse(app: App, accountId: string, sessionId: string, deviceId: string | null): string[] {
+  const sessions = app.db.all<{ id: string }>("SELECT id FROM sessions WHERE account_id = ? AND id <> ?", accountId, sessionId).map((r) => r.id);
+  app.db.run("DELETE FROM sessions WHERE account_id = ? AND id <> ?", accountId, sessionId);
+  const devices = app.db.all<{ id: string }>("SELECT id FROM device_tokens WHERE account_id = ? AND id IS NOT ?", accountId, deviceId).map((r) => r.id);
+  app.db.run("DELETE FROM device_tokens WHERE account_id = ? AND id IS NOT ?", accountId, deviceId);
+  for (const id of devices) app.events.emit(revokedEvent(id));
+  app.db.run("DELETE FROM connect_codes WHERE account_id = ?", accountId);
+  revokeAllTokens(app, accountId);
+  app.db.run("DELETE FROM email_tokens WHERE account_id = ? AND used_at IS NULL", accountId);
+  return sessions;
 }
