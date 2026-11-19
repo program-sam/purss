@@ -1,4 +1,4 @@
-// The release workflow's helper (plan/42, .github/workflows/desktop.yml).
+// The release workflow's helper (.github/workflows/desktop.yml).
 //
 //   node apps/desktop/scripts/release-files.ts collect <bundle folder> <out folder> <windows|macos|linux> [--no-updater]
 //       copies what Tauri made for that system to the release's fixed names, with their .sig files; with

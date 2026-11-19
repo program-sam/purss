@@ -5,7 +5,7 @@ import { PASSWORD_MAX } from "../auth/passwords.ts";
 import { Router, clientAddress, parse, rateLimit } from "../http.ts";
 import { confirmEmail, getAccountEmail, requestPasswordReset, resendVerification, resetPassword, setAccountEmail } from "../services/account-email.ts";
 
-/** The account's email address, its confirmation link, and password reset by email (plan/27). */
+/** The account's email address, its confirmation link, and password reset by email. */
 export function accountEmailRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   const token = z.string().min(20).max(200);

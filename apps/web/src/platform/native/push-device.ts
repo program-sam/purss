@@ -15,7 +15,7 @@ async function pushNotifications(): Promise<PushNotificationsApi | null> {
 }
 
 /*
- * The device side of notifications on this phone (plan/37): @capacitor/push-notifications for the system's
+ * The device side of notifications on this phone: @capacitor/push-notifications for the system's
  * permission prompt, the push address and taps on iOS; the app's own PurssPush plugin for what the native
  * notification code needs (Android's messaging service and iOS's notification service extension fetch the
  * texts themselves, with the credential handed over here). See push.ts for the rules.

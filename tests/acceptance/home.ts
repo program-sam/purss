@@ -1,4 +1,4 @@
-// Acceptance journey for Home's lists, reading progress, muted words and list filters (plan/34), against the real API
+// Acceptance journey for Home's lists, reading progress, muted words and list filters, against the real API
 // serving the built web app (no FreshRSS, egress or worker: no podman and no network). Seeded like tests/acceptance/offline.ts:
 // sources and items posted through the sync path the worker uses, written to the throwaway database before the API starts.
 //

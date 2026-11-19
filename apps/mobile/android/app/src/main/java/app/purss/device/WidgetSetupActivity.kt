@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 import app.purss.R
 
 /**
- * Choosing what a collection or source panel shows (plan/38): the launcher opens this when such a panel is
+ * Choosing what a collection or source panel shows: the launcher opens this when such a panel is
  * placed, on Android 12 and later when it is reconfigured, and a panel whose choice is gone opens it when tapped.
  * It lists the PURSS's collections, or its sources without the private ones, from `/api/bootstrap` (read with
  * the device token, as the background job reads it); only the chosen key and name are kept.

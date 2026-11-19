@@ -64,7 +64,7 @@ export const SHRUNK_WIDTH = 720;
 const SHRUNK_QUALITY = 55;
 
 /**
- * A kept picture made small (plan/34): turned upright, at most SHRUNK_WIDTH wide (never enlarged), re-encoded as WebP, and only the
+ * A kept picture made small: turned upright, at most SHRUNK_WIDTH wide (never enlarged), re-encoded as WebP, and only the
  * first frame of an animation. The original comes back when it is already the smaller file; null when the bytes don't decode.
  */
 export async function shrinkPicture(input: Buffer): Promise<Buffer | null> {

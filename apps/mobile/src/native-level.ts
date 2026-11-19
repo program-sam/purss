@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /*
- * The native level (plan/39): a number for the app's native code. A live update carries the level it was
+ * The native level: a number for the app's native code. A live update carries the level it was
  * built with, and the app installs it only when that equals its own, so an interface that calls native code
  * the installed app doesn't have is never installed. Raise it in native-level.json when the native side
  * changes in a way the interface depends on (a plugin added, removed or upgraded, the app's own plugins'
@@ -30,7 +30,7 @@ export function nativeFingerprint(dir = MOBILE_DIR): string {
   return fingerprintOf(dir, ["android", "ios", "patches", "capacitor.config.ts"]);
 }
 
-/** A hash of the source files under `paths` (relative to `dir`) and the dependencies in `dir`'s package.json. The desktop app's level uses it too (plan/42). */
+/** A hash of the source files under `paths` (relative to `dir`) and the dependencies in `dir`'s package.json. The desktop app's level uses it too. */
 export function fingerprintOf(dir: string, paths: string[]): string {
   const files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...paths], { cwd: dir, encoding: "utf8" })
     .split("\0").filter(Boolean).filter((file) => existsSync(path.join(dir, file))).sort();

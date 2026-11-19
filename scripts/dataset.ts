@@ -28,7 +28,7 @@ import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
  * the sources settle, and the later 8% arrive as New; New markers older than the default 30 days then expire.
  * `--start-from now` follows the sources from now (the choice every new follow gets): the back catalogue is stored as
  * Ignored (hidden from lists, left out of Home and the counts), which is most of the account's items; `all`
- * (the default) is how sources followed before that choice behave. Defaults are the size gate in plan/13: one account with 300 sources and 100,000 items. `--accounts 20`
+ * (the default) is how sources followed before that choice behave. Defaults are the size gate: one account with 300 sources and 100,000 items. `--accounts 20`
  * builds the host gate (20 such accounts, about 2 million items: allow an hour and several GB of disk).
  * `--items` and `--sources` are per account. The directory defaults to a new one under the repository's
  * ignored data/ folder; it is never deleted by this script. A few percent of the items end up New. Point PURSS_DATA_DIR

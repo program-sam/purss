@@ -140,7 +140,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const cand = candidates[pick];
   /** Said before "New collection…" is chosen, when the plan has no room for one. */
   const collectionFull = collectionLimitNote(capacityOf(ws.data));
-  // A bridged source (plan/41) has no link of its own to keep private.
+  // A bridged source has no link of its own to keep private.
   const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate ?? !!cand?.privateWarning);
   const canFullText = !!cand && (cand.kind === "feed" || cand.kind === "publication") && !isPrivate;
   const fullText = canFullText && (fullTextChoice ?? false); // off unless the person ticks it

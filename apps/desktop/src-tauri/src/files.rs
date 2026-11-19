@@ -1,4 +1,4 @@
-//! Downloads as real files (plan/42). They live in `PURSS` inside a folder the person chose (by
+//! Downloads as real files. They live in `PURSS` inside a folder the person chose (by
 //! default the system's Downloads folder). The app creates that folder with a marker file and refuses an
 //! existing one without it, and it only ever lists, writes or removes entries of its own layout,
 //! `<account id>/<item id>/<file>`, so nothing a person keeps there is ever touched. Paths from the page are

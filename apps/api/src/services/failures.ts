@@ -103,7 +103,7 @@ export function settleFailedJob(app: App, job: { kind: string; payload: Record<s
 /**
  * A feed too big for the engine to read whole makes the engine fail the request itself, which a source showed as "The site isn't
  * answering right now" (and, after the retries, "The site didn't answer"). Such a source has no subscription, so it is subscribed
- * once more: the worker then asks whether the feed really is that big and, if so, follows it through the feed gateway (plan/44);
+ * once more: the worker then asks whether the feed really is that big and, if so, follows it through the feed gateway;
  * for any other cause the answer is the same as before. Once per source (the job's key remembers it), and only for a source that
  * has no subscription job waiting or running, so a retry already on its way is not doubled.
  */

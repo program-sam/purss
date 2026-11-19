@@ -6,7 +6,7 @@ import type { AppUpdates, AppUpdateState, InterfaceUpdateState } from "../platfo
 import { useToasts } from "../state/toasts.tsx";
 
 /*
- * New versions of the phone app itself (plan/39): the screens update from the server, the app around them from where
+ * New versions of the phone app itself: the screens update from the server, the app around them from where
  * it was installed. Announced once in a message, and kept in Settings → This device while it applies.
  */
 

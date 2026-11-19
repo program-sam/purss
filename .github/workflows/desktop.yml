@@ -1,4 +1,4 @@
-# The desktop app (plan/42), built for Windows, macOS and Linux, and the Android app as a signed APK, published
+# The desktop app, built for Windows, macOS and Linux, and the Android app as a signed APK, published
 # together as a GitHub release with fixed file names and the desktop updater's latest.json, monthly and on demand.
 # A push to main that changes either app only builds it (no release). Publishing needs the desktop updater key
 # (secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD): installed apps refuse updates without
@@ -56,7 +56,7 @@ jobs:
           exit 1
       - uses: actions/checkout@v7
         with:
-          # The version (plan/40) counts the commit among its day's commits on main.
+          # The version counts the commit among its day's commits on main.
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:

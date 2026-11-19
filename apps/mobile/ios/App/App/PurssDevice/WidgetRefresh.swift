@@ -3,7 +3,7 @@ import UIKit
 import BackgroundTasks
 import WidgetKit
 
-/// Who may write the widgets' data, and when (plan/38). Every write of the lists, the choices and the page's
+/// Who may write the widgets' data, and when. Every write of the lists, the choices and the page's
 /// snapshot happens under `lock`; a disconnect or a refused token bumps `generation` under it, so a refresh that
 /// started before can't write the old account's titles back afterwards, and a refusal that arrives late can't wipe a
 /// newer connection. The generation survives restarts: widgets set under an older one ask to be set again.
@@ -63,7 +63,7 @@ enum WidgetData {
     }
 }
 
-/// The widgets' lists, fetched by the app (plan/38): when the page asks (its items changed, it started), and from a
+/// The widgets' lists, fetched by the app: when the page asks (its items changed, it started), and from a
 /// BGAppRefreshTask that asks the system for every 15 minutes while any widget is placed (the system decides when).
 /// One refresh at a time; asking during one runs one more pass after it. The extension fetches nothing: it has no
 /// credentials.

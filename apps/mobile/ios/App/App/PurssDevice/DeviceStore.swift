@@ -3,7 +3,7 @@ import BackgroundTasks
 import WidgetKit
 
 /// What the background download state, the page's part of the widgets' data and the downloads folders look like on
-/// disk (plan/38). Everything here is safe to call from any thread. The widgets' lists and choices, and who may write
+/// disk. Everything here is safe to call from any thread. The widgets' lists and choices, and who may write
 /// them, are in WidgetRefresh.swift.
 
 /// The settings the page mirrors (DownloadSettings in packages/domain; fields the job doesn't use are ignored).
@@ -153,7 +153,7 @@ enum DeviceStore {
         try? FileManager.default.removeItem(at: downloadsDirectory)
         try? FileManager.default.removeItem(at: incomingDirectory)
         WidgetData.wipe()
-        // The notification extension's credential belongs to the same refused connection (plan/37).
+        // The notification extension's credential belongs to the same refused connection.
         PushTarget.delete()
         setLost()
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)

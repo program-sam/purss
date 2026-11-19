@@ -2,7 +2,7 @@ import { registerPlugin } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
 
 /**
- * The app's own native plugin (plan/38): Android `app.purss.device.PurssDevicePlugin`, iOS
+ * The app's own native plugin: Android `app.purss.device.PurssDevicePlugin`, iOS
  * `App/PurssDevice/PurssDevicePlugin.swift`. Downloads that can really be stopped, the state the background
  * job needs, and the home-screen panels' look, episode and refresh. Paths are relative to the downloads folder (the
  * same one `@capacitor/filesystem` reaches as `downloads/` in `Directory.LibraryNoCloud`).

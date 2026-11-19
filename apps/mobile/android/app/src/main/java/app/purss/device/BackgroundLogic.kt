@@ -8,7 +8,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The background job's reading and writing of the page's formats (plan/38), apart from Android, so it
+ * The background job's reading and writing of the page's formats, apart from Android, so it
  * is unit-tested on the JVM. The formats are defined by the page: BackgroundState and record.json in
  * apps/web/src/downloads/background.ts, and the plan in packages/domain/src/downloads.ts. Which items to download is the PURSS's answer to
  * the plan request; nothing here decides that.

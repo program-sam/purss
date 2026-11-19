@@ -109,7 +109,7 @@ test("self-hosted: admins manage accounts and invite family members, without sto
 });
 
 test("hosted with open signup: anyone can create an ordinary account, rate-limited and capped", async (t) => {
-  // Open sign-up needs working outgoing email (plan/27); a stand-in mail server keeps what it is sent.
+  // Open sign-up needs working outgoing email; a stand-in mail server keeps what it is sent.
   const b = await boot({ PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SIGNUP_DAILY_LIMIT: "1", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" });
   t.after(b.close);
   const sent: string[] = [];

@@ -1,5 +1,5 @@
 /*
- * Connecting the extension to a PURSS (plan/24): authorization code with PKCE (S256). Where the
+ * Connecting the extension to a PURSS: authorization code with PKCE (S256). Where the
  * browser has identity.launchWebAuthFlow (Chrome, Edge, Firefox), the PURSS's approval page
  * redirects to the extension's own address, which the browser intercepts; elsewhere (Safari) the page
  * shows a short code that the person types into the options page. Either way the code is exchanged

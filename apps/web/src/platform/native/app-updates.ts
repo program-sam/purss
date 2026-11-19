@@ -4,7 +4,7 @@ import type { AppSource, AppUpdates, AppUpdateState } from "../types.ts";
 import type { KeyValue } from "./live-update.ts";
 
 /*
- * New versions of the phone app itself, its native code (plan/39). The screens update from the server; the app around
+ * New versions of the phone app itself, its native code. The screens update from the server; the app around
  * them comes from where it was installed. Google Play, F-Droid and the App Store update it themselves. An APK from the
  * GitHub releases has nobody to do that, so the app checks the newest release once a day and says when it is newer.
  */

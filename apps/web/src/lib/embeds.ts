@@ -1,11 +1,11 @@
 /**
- * A video page's own embedded player (plan/25): YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch; and an Instagram
+ * A video page's own embedded player: YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch; and an Instagram
  * post's own embed, the only way its pictures and videos can be shown here (Instagram's picture servers refuse other sites).
  * The reader loads one only when the person presses play, so opening an item asks nothing of the platform. The
  * player is the platform's own, so the play counts as a view on that platform and its ads play as on its site.
  * Any other page, PeerTube included (every instance has its own address), still opens on its own site.
  * The apps' page policy allows frames from `EMBED_ORIGINS` only (platform/csp.ts); in a browser the reader also frames
- * originals (plan/43).
+ * originals.
  */
 export const EMBED_ORIGINS = [
   "https://www.youtube-nocookie.com",

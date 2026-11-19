@@ -4,7 +4,7 @@ import type { Passkeys } from "../types.ts";
 
 /**
  * The phone's own passkeys (Credential Manager on Android, AuthenticationServices on iOS), for a PURSS that
- * vouches for this app (plan/31). PURSS's WebAuthn options go to the system as they are; its answer is the
+ * vouches for this app. PURSS's WebAuthn options go to the system as they are; its answer is the
  * same JSON a browser gives. A refusal keeps the WebAuthn error name, so the messages are the browser's.
  */
 async function call<T>(run: () => Promise<unknown>): Promise<T> {

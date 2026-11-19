@@ -1,6 +1,6 @@
 /**
- * Interrupted first-run recovery against the real container (plan/06 gate: "idempotent installation and interrupted-setup
- * recovery"). Each scenario builds a half-finished engine on disk, then checks that `up` completes it without deleting
+ * Interrupted first-run recovery against the real container: idempotent installation and interrupted-setup
+ * recovery. Each scenario builds a half-finished engine on disk, then checks that `up` completes it without deleting
  * anything and without changing the credentials it already generated.
  */
 import assert from "node:assert/strict";

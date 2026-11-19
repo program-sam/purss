@@ -22,7 +22,7 @@ import app.purss.R
 import us.mediagrid.capacitorjs.plugins.nativeaudio.AudioPlayerService
 
 /**
- * The home-screen panels (plan/38). Each kind is its own provider, so the launcher offers them separately:
+ * The home-screen panels. Each kind is its own provider, so the launcher offers them separately:
  * To read (the class keeps its first name, so panels placed before stay), To listen (with the current or last
  * played episode and its play/pause), New, a chosen collection and a chosen source. They draw the lists
  * WidgetRefresh keeps and the page's look and episode; they hold titles and ids, never the token. Taps open

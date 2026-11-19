@@ -11,7 +11,7 @@ import { emailChangedMail, passwordChangedMail, resetMail, verifyMail } from "..
 import { randomToken, sha256 } from "../secrets.ts";
 
 /*
- * An account's email address (plan/21, plan/27): every account has one, it is what the account signs in with, and each
+ * An account's email address: every account has one, it is what the account signs in with, and each
  * address belongs to one account (compared without regard to case). Wherever outgoing email is set up an address is
  * proven by a link it received: sign-up and invitations make accounts with confirmed addresses, and a new address takes
  * effect only once confirmed, so a confirmed address receives password-reset links. Without outgoing email the

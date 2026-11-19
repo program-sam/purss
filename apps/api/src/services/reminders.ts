@@ -7,7 +7,7 @@ import { getPreferences } from "./preferences.ts";
 import { usableAccountSql } from "./deletion.ts";
 
 /*
- * Personal rediscovery (plan/09): "On this day" reminders over items the owner kept in a
+ * Personal rediscovery: "On this day" reminders over items the owner kept in a
  * basket on this month and day in an earlier year, using the recorded keep date only.
  * No remote fetch is made; an unavailable original still shows its retained snapshot.
  *

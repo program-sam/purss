@@ -1,4 +1,4 @@
-//! The interface the window shows (plan/39, plan/42): the one built into the app, or one downloaded from the
+//! The interface the window shows: the one built into the app, or one downloaded from the
 //! connected PURSS. Both are served from Tauri's own origin (`tauri://localhost`, `http://tauri.localhost` on
 //! Windows) by `Interfaces`, an asset provider that reads the active downloaded interface from disk and otherwise
 //! the built-in one, so the page's storage (offline copies, unsent notes) survives every switch.

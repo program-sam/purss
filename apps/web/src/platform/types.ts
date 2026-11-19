@@ -8,8 +8,8 @@ import type { NotifyPermission } from "../lib/browser-notify.ts";
 import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 
 /**
- * The platform layer (plan/31): everything that differs between the web app in a browser and the same
- * app inside the Android and iOS shells and the desktop app (plan/42). Screens never ask which one they run in; they use these parts,
+ * The platform layer: everything that differs between the web app in a browser and the same
+ * app inside the Android and iOS shells and the desktop app. Screens never ask which one they run in; they use these parts,
  * and the few capabilities below (`downloads`, `connection`) decide whether a control
  * exists at all.
  */
@@ -34,30 +34,30 @@ export interface Platform {
   publicOrigin(): string;
   /** Links and text shared into the app from other apps. Returns a function that stops listening. */
   onShare(listener: (shared: SharedContent) => void): () => void;
-  /** The home-screen panels (plan/38): their look and episode, and a refresh of their lists; null where there are none (the web app). */
+  /** The home-screen panels: their look and episode, and a refresh of their lists; null where there are none (the web app). */
   readonly widget: { update(snapshot: WidgetSnapshot): void; current(): Promise<WidgetSnapshot | null>; refresh(): void } | null;
-  /** Notifications on this phone (plan/37); null where there are none (the web app). */
+  /** Notifications on this phone; null where there are none (the web app). */
   readonly push: PhonePush | null;
   /** Where a tapped widget row or notification asks the app to go (`purss://open`). Returns a function that stops listening. */
   onOpen(listener: (target: OpenTarget) => void): () => void;
   /** Addresses `purss://connect?…` that reach the connected app: the code the system browser hands back after linking a provider sign-in or confirming it's you with one. Returns a function that stops listening. */
   onConnectReturn(listener: (url: string) => void): () => void;
-  /** The installed app's version (plan/40), as its store build says; null on the web, or for a build without one. */
+  /** The installed app's version, as its store build says; null on the web, or for a build without one. */
   appVersion(): Promise<string | null>;
-  /** Updates of the app's interface from the connected PURSS (plan/39); null where there are none (the web app, an app not connected). */
+  /** Updates of the app's interface from the connected PURSS; null where there are none (the web app, an app not connected). */
   readonly interfaceUpdates: InterfaceUpdates | null;
-  /** New versions of the phone app itself and where they come from (plan/39); null elsewhere (the desktop app's are `desktop`). */
+  /** New versions of the phone app itself and where they come from; null elsewhere (the desktop app's are `desktop`). */
   readonly appUpdates: AppUpdates | null;
   /** System notifications for the alerts the person chose (Settings → Notifications): the browser's, or the desktop app's. */
   readonly notifier: Notifier;
   /** Show how many new items there are on the app's icon (taskbar, dock, launcher, home screen; 0 clears it); null where there is no such icon. */
   readonly badge: ((count: number) => void) | null;
-  /** Feed links and OPML files opened with the desktop app (plan/42). Returns a function that stops listening. */
+  /** Feed links and OPML files opened with the desktop app. Returns a function that stops listening. */
   onIntake(listener: (intake: Intake) => void): () => void;
-  /** What only the desktop app has (plan/42): its own updates, starting at sign-in, the downloads folder; null elsewhere. */
+  /** What only the desktop app has: its own updates, starting at sign-in, the downloads folder; null elsewhere. */
   readonly desktop: DesktopApp | null;
   /**
-   * How the reader shows pages from other sites (plan/43): `webView` is the desktop app's own web view, which shows
+   * How the reader shows pages from other sites: `webView` is the desktop app's own web view, which shows
    * any page; `frames` says the reader may frame a page whose headers allow it (the web app, on PURSS's own origin).
    * With neither, pages open outside PURSS (`openExternal`; on the phones a browser tab over the app).
    */
@@ -140,7 +140,7 @@ export type AppUpdateState = {
   known: boolean;
   /** Null when the app can't tell (built before it could). */
   source: AppSource | null;
-  /** A newer version that is out (plain, plan/40). Known only for the APK from the GitHub releases: the stores update by themselves. */
+  /** A newer version that is out (plain). Known only for the APK from the GitHub releases: the stores update by themselves. */
   newer: string | null;
   /** The installed version (plain); null for a build without one. */
   installed: string | null;

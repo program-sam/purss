@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AI_FILTER_TEXT_MAX } from "./ai-limits.ts";
 
 /*
- * Smart filters (plan/36): a person describes which posts of a source or collection to keep, and Jev, TypeSafe AI's decision model,
+ * Smart filters: a person describes which posts of a source or collection to keep, and Jev, TypeSafe AI's decision model,
  * judges each new post against that description. A post the filter drops is marked Ignored, the workflow state a person uses for
  * the same thing; nothing is deleted, and changing it back is the person's last word on that post. Filters are off unless the
  * person adds one, and they run on the server's Jev key, which only an administrator sets (on the hosted service, within the Pro plan's

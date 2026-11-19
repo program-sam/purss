@@ -9,7 +9,7 @@ import { parseTrustProxy, type TrustProxy } from "./http.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
-/** This build's version (plan/40), read once: from the checkout's history, else the image's version.json. */
+/** This build's version, read once: from the checkout's history, else the image's version.json. */
 let buildVersion: BuildVersion | null | undefined;
 const thisVersion = () => (buildVersion === undefined ? (buildVersion = readVersion(REPO)) : buildVersion);
 
@@ -39,7 +39,7 @@ export function issuerKey(issuer: string): string {
 
 const GOOGLE_ISSUER = "https://accounts.google.com";
 
-/** Outgoing email (plan/27): optional; hosted open sign-up needs it. */
+/** Outgoing email: optional; hosted open sign-up needs it. */
 export type MailConfig = {
   host: string;
   port: number;
@@ -76,13 +76,13 @@ export type Config = {
   webDist: string;
   /** The public website, served at the root in hosted mode. */
   siteDist: string;
-  /** The phone apps' interface packed for live updates (plan/39); empty or missing: no update offered. */
+  /** The phone apps' interface packed for live updates; empty or missing: no update offered. */
   appBundleDir: string;
-  /** Which build this is (plan/40); null when it was built without its history or version.json. */
+  /** Which build this is; null when it was built without its history or version.json. */
   version: BuildVersion | null;
   engineBaseUrl: string;
   egressControlUrl: string;
-  /** The egress bridge router (plan/41), reached directly; null when this installation runs no bridge. */
+  /** The egress bridge router, reached directly; null when this installation runs no bridge. */
   bridgeUrl: string | null;
   /** True when the bridge router has RSS-Bridge behind it (PURSS_RSS_BRIDGE=1): only then are Telegram, Bandcamp and the rest offered. Crossref needs only the router. */
   rssBridge: boolean;
@@ -95,15 +95,15 @@ export type Config = {
   /** Null when PURSS_SMTP_HOST is unset: no email is sent and nothing depends on it. */
   mail: MailConfig | null;
   /**
-   * Assistants may connect to /mcp with OAuth (plan/33) besides personal access tokens. On by
+   * Assistants may connect to /mcp with OAuth besides personal access tokens. On by
    * default in hosted mode; self-hosters opt in with PURSS_ASSISTANT_OAUTH=on. Needs an https origin
    * (or localhost); nothing else to configure.
    */
   assistantOAuth: boolean;
-  /** Jev, for Smart filters (plan/36): the operator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
+  /** Jev, for Smart filters: the operator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
   jev: JevConfig;
   /**
-   * The push relay that wakes connected phones (plan/37), or null for no phone notifications. The
+   * The push relay that wakes connected phones, or null for no phone notifications. The
    * project's relay unless PURSS_PUSH_RELAY_URL names another or turns it off; nothing to set up.
    */
   pushRelay: string | null;

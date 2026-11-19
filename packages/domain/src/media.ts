@@ -1,7 +1,7 @@
 /**
  * Media files offered by publishers (RSS enclosures): the direct audio or video file an item
  * links, never a web page, a streaming playlist or a video platform's page. The server only
- * reports it; players and the apps' downloads fetch it from the publisher (plan/25).
+ * reports it; players and the apps' downloads fetch it from the publisher.
  */
 
 export type MediaKind = "audio" | "video";

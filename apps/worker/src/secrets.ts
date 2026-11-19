@@ -59,7 +59,7 @@ export const DEFAULT_BRIDGE_ENGINE_URL = "http://feed-bridge.internal:8945";
  * The address the engine follows for a source's stored feed address:
  * - Private (secret-link) addresses never travel in job payloads; the API stores them in
  *   <secrets>/source-urls/<sourceId> and the job carries `secret:source-urls/<sourceId>`.
- * - A bridged source (`bridge:<service>/<key>`, plan/41) becomes the router address signed with
+ * - A bridged source (`bridge:<service>/<key>`) becomes the router address signed with
  *   <secrets>/bridge-key, which only the worker and the API hold.
  * Returns null when the reference points nowhere.
  */
@@ -77,7 +77,7 @@ export function resolveFeedUrl(secretsDir: string, feedUrl: string, bridgeEngine
 }
 
 /**
- * The address the engine follows for a big feed (plan/44): the gateway's address for it, signed with <secrets>/feed-trim-key, which
+ * The address the engine follows for a big feed: the gateway's address for it, signed with <secrets>/feed-trim-key, which
  * only the worker and the gateway hold. The source's own address is not changed. Null when this installation has no key.
  */
 export function trimmedEngineUrl(secretsDir: string, feedUrl: string, gatewayEngineUrl: string = DEFAULT_GATEWAY_ENGINE_URL): string | null {

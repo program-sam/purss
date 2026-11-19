@@ -10,7 +10,7 @@ import { enqueue } from "./jobs.ts";
 import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
 
 /*
- * Pictures in kept copies (plan/34). A basket that keeps readable text also keeps the item's own picture and the
+ * Pictures in kept copies. A basket that keeps readable text also keeps the item's own picture and the
  * pictures in its text: the worker fetches them under the same address rules as every other fetch, and each is
  * stored whole in `item_images` and counted in the account's storage as an 'image' object. They belong to the item,
  * so an item in two baskets has one set, counted once; unkeeping it from one basket changes nothing, and from the

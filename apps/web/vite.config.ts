@@ -62,7 +62,7 @@ function serviceWorker(): Plugin {
 }
 
 /**
- * Which build this is, for the apps' live updates (plan/39, plan/42): the native levels it was built against
+ * Which build this is, for the apps' live updates: the native levels it was built against
  * (apps/mobile/native-level.json for the phones, apps/desktop/native-level.json for the desktop app) and when it
  * was made (in seconds). Written to app-build.json, which the apps (their own version) and the packing script read.
  */
@@ -71,7 +71,7 @@ function appBuild(): AppBuild {
   return { native: level("mobile"), desktop: level("desktop"), built: Math.floor(Date.now() / 1000) };
 }
 const thisBuild = appBuild();
-/** The product's version (plan/40), compiled into the page as `__PURSS_VERSION__` and written to app-build.json as `release`. */
+/** The product's version, compiled into the page as `__PURSS_VERSION__` and written to app-build.json as `release`. */
 const release = readVersion()?.version ?? null;
 
 function appBuildFile(): Plugin {

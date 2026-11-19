@@ -1,7 +1,7 @@
 import { foldForSearch } from "./search-text.ts";
 
 /*
- * Whether muted words match an item's text (plan/34): whole words, case ignored, Arabic folded as search folds it (search-text.ts)
+ * Whether muted words match an item's text: whole words, case ignored, Arabic folded as search folds it (search-text.ts)
  * and accents dropped from Latin letters, which is what the text index does and all it does: Cyrillic "й", Greek accents and
  * Indic vowel signs are part of a word there, so they are here. A phrase matches its words next to each other, in the title or in
  * the summary. This is plain text matching on the one row a query is looking at, so it costs in proportion to the rows looked at

@@ -12,7 +12,7 @@ import { describeDatabase, hashFile } from "./backup.ts";
 import type { BackupManifest } from "./backup.ts";
 
 /*
- * Restore a backup made by scripts/backup.ts into a fresh data directory (plan/11):
+ * Restore a backup made by scripts/backup.ts into a fresh data directory:
  * verify every file against the manifest, check the database (integrity and foreign keys),
  * apply any newer migrations, rebuild the full-text index, and report what came back.
  * A non-empty target is refused unless --force; with --force the existing database is

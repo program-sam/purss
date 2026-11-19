@@ -6,7 +6,7 @@ import { addressParts, coversOver, placeWebView } from "../lib/originals.ts";
 import type { Box } from "../lib/originals.ts";
 
 /**
- * A page from another site in the reader (plan/43): the article's original or a link in it, over the article, which
+ * A page from another site in the reader: the article's original or a link in it, over the article, which
  * keeps its place underneath. The bar names the site and address, and always offers the page outside PURSS. In the
  * desktop app the page is its own web view, drawn over this pane's place; in a browser it is a frame, offered only for
  * pages whose headers allow PURSS to frame them.

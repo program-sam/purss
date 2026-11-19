@@ -1,7 +1,7 @@
 import type { LateStore } from "../lib/late-writes.ts";
 
 /**
- * Reading progress read without a connection (plan/31): kept on the device (lib/late-writes.ts) and
+ * Reading progress read without a connection: kept on the device (lib/late-writes.ts) and
  * sent when the connection is back. Progress only grows, so the larger value wins: what is waiting is
  * sent only when it is ahead of the server's, against the item's current revision (the server's
  * guard against stale writers still applies), and dropped once the server has as much or more.

@@ -9,7 +9,7 @@ import com.google.firebase.FirebaseApp;
 import java.util.regex.Pattern;
 
 /**
- * What the page hands to the native notification code (plan/37): the PURSS and the fetch credential
+ * What the page hands to the native notification code: the PURSS and the fetch credential
  * PushFetcher uses when a push arrives. Also says whether this build can receive pushes: it needs its
  * Firebase setup (google-services.json), which a build made without it doesn't have.
  */

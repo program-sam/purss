@@ -2,7 +2,7 @@ import { normalIssn, resolverUrl } from "./journals.ts";
 import { escapeXml } from "./text.ts";
 
 /*
- * Journals followed through Crossref (plan/45), the open registry where publishers register every article's DOI. The
+ * Journals followed through Crossref, the open registry where publishers register every article's DOI. The
  * bridge router's Crossref backend asks for a journal's newest registered works and turns Crossref's JSON into RSS here,
  * so the router re-serves it like any backend's output; discovery uses the same addresses to preview a journal and to
  * find a journal by its ISSN or name. Pure functions: every rule is tested on recorded answers.

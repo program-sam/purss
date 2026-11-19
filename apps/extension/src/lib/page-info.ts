@@ -1,5 +1,5 @@
 /*
- * What a page offers to follow, read from the page the person has open (a content script, plan/32):
+ * What a page offers to follow, read from the page the person has open (a content script):
  * the feeds it advertises with <link rel="alternate">, or the YouTube channel it belongs to. Only
  * addresses leave the page, and only into the PURSS's own Add source, which looks them up through
  * its usual safe fetching when the person presses Find. The extension never reads a feed itself.

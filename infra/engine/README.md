@@ -108,8 +108,8 @@ The command line of `podman exec` is visible to other processes of the same user
 ## Tests
 
 `npm run test:engine` starts isolated engines (own container, port and `data/test-engine/<id>` directory) with a recording test
-proxy as their only way out, and removes them afterwards. On this host: `~/.t3/bin/hostlock work engine-tests -- npm run test:engine`
-(about six minutes on a loaded machine: it includes one scheduled-refresh wait and several container starts).
+proxy as their only way out, and removes them afterwards. A run takes about six minutes on a loaded machine: it
+includes one scheduled-refresh wait and several container starts.
 
 - `tests/engine/engine.test.ts`: provisioning, egress enforcement, subscription management, paging, incremental sync, edits, late
   arrivals, removal, read/star mirroring, scheduled refresh, GUID export, engine identity.

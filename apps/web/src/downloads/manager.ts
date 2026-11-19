@@ -8,10 +8,10 @@ import type { ReadableArticle } from "./readable-page.ts";
 import type { DeviceArticle, DeviceDownloads, DownloadOrigin, DownloadProgress, DownloadRecord } from "./types.ts";
 
 /**
- * Downloads on this device (plan/31): one item at a time, kept per account in the app's own storage.
+ * Downloads on this device: one item at a time, kept per account in the app's own storage.
  * The media file always comes from the publisher; the server keeps none. Everything that touches the
  * device or the network is passed in, so the rules and their order can be tested without a phone.
- * While the app is closed, the native background job (plan/38) downloads by the same plan and leaves
+ * While the app is closed, the native background job downloads by the same plan and leaves
  * records this manager adopts.
  *
  * Every download asked for stays in a queue kept with the records until it ends, so one the app's closing

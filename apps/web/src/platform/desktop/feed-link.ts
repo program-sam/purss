@@ -1,5 +1,5 @@
 /**
- * Feed links the desktop app is the handler for (plan/42): `feed:` (as in `feed:https://…` and the
+ * Feed links the desktop app is the handler for: `feed:` (as in `feed:https://…` and the
  * shorthand `feed://host/…`), `podcast:` and `pcast:`. They open Add source with the address filled in;
  * nothing is looked up until the person presses Find, and Add source checks the address as if it had been
  * pasted. An address that is already http(s) inside the link keeps its scheme; the shorthand becomes https.

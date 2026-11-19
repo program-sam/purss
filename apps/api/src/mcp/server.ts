@@ -9,7 +9,7 @@ import { assertStillUsable } from "../services/deletion.ts";
 import { SERVER_INSTRUCTIONS, callTool, describeTools } from "./tools.ts";
 
 /*
- * The MCP endpoint (Streamable HTTP, plan/23): one POST /mcp, JSON answers, no sessions.
+ * The MCP endpoint (Streamable HTTP): one POST /mcp, JSON answers, no sessions.
  *
  * It speaks both eras of the protocol on the same address:
  * - modern (2026-07-28): every request names its version in params._meta and the
@@ -19,7 +19,7 @@ import { SERVER_INSTRUCTIONS, callTool, describeTools } from "./tools.ts";
  *   tools/call. No session id is minted, so every request stands alone.
  *
  * Authentication is a personal access token, or where the installation offers OAuth an OAuth
- * access token (plan/33), in the Authorization header; both resolve to the same kind of caller.
+ * access token, in the Authorization header; both resolve to the same kind of caller.
  * Cookies are ignored, so a browser page can't act for the person. A request from a browser origin
  * other than the PURSS's own is refused (DNS rebinding). With OAuth on, a 401 points the
  * assistant at the protected resource metadata (RFC 9728) to start signing in.

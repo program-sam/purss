@@ -1,4 +1,4 @@
-//! The device token (plan/24) in the system's credential store: the macOS Keychain, Windows Credential Manager,
+//! The device token in the system's credential store: the macOS Keychain, Windows Credential Manager,
 //! the Secret Service on Linux. A Linux desktop without a Secret Service gets a file in the app's config folder that
 //! only this user can read, and Settings → This device says so. Never in the page's storage.
 //!

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A panel row as the app's list rows: the title in bold over its source and age (plan/38). -->
+<!-- A panel row as the app's list rows: the title in bold over its source and age. -->
 <resources>
     <style name="WidgetRowTitle">
         <item name="android:layout_width">match_parent</item>

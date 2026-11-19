@@ -1,4 +1,4 @@
-// Acceptance journey for connected apps (plan/24), against the real API serving the built web app (no
+// Acceptance journey for connected apps, against the real API serving the built web app (no
 // FreshRSS, egress or worker, so no podman and no network): a browser extension asks to connect while
 // the person is signed out, they sign in and come back, approve, and the extension exchanges the typed
 // code with PKCE; its token looks up a kept page, keeps links without duplicates and is refused

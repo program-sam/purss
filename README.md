@@ -4,7 +4,7 @@ PURSS is your purse for the internet: a private, user-curated dashboard to follo
 organize items, keep what matters, and choose how to see it.
 
 Self-ownership is the product principle: understandable storage, private-by-default
-organization, and portable data whether self-hosted or using the planned official
+organization, and portable data whether self-hosted or using the official
 hosted service.
 
 FreshRSS is the collection engine. The product owns its interface, durable item
@@ -13,23 +13,21 @@ should not need to understand FreshRSS, API passwords, XPath, or container netwo
 
 ## Status
 
-A working preliminary application, run locally on one host. It implements the
-approved A3 design and every planned gate in a preliminary state (see
-[plan/22](plan/22-implementation.md) for what each gate includes and defers):
+PURSS runs as the official hosted service at https://purss.app and on your own server. It has
 setup with a one-time code, email address and password sign-in with optional passkeys, guided Add source with
-YouTube and podcast discovery, FreshRSS collection through an egress proxy,
-collections, baskets with kept versions and readable-text capture, saved podcast and video
-files with an in-app player, five views,
+YouTube, podcast, social and journal discovery, FreshRSS collection through an egress proxy,
+collections, baskets with kept versions and readable-text capture, an in-app player, five views,
 workflow with undo, search, storage accounting, reminders, notifications, export
 and import, OPML, shareable collections, hosted Discovery suggestions, engine review, administration, interface
 sounds, backup and restore, and accounts with invitations on every installation.
 Docker Compose packaging runs it on a server (see [docs/self-hosting.md](docs/self-hosting.md)).
-Android and iOS apps reuse the web app through Capacitor ([plan/31](plan/31-mobile-apps.md); the
-Android app is checked on an emulator, the iOS project is not yet built), and a desktop app for Windows,
-macOS and Linux through Tauri ([plan/42](plan/42-desktop-app.md); checked on Linux). Open signup is on for the
+Android and iOS apps reuse the web app through Capacitor ([apps/mobile](apps/mobile/README.md); the
+Android app is checked on an emulator, the iOS project has not been built), and a desktop app for Windows,
+macOS and Linux runs through Tauri ([apps/desktop](apps/desktop/README.md); checked on Linux). Open signup is on for the
 official hosted service and off by default elsewhere (it needs outgoing email); paying for a plan goes through a
-separate billing service, still in testing. Phone notifications go through a push relay ([plan/37](plan/37-push-notifications.md)), so far proven only against
-fakes; Web Push and proprietary service connectors are not built.
+separate billing service. Phone notifications go through a push relay ([apps/push-relay](apps/push-relay/README.md)), tested
+against stand-ins for Firebase and Apple's push service. Browsers get no Web Push, and there are no connectors for
+services that need a sign-in.
 
 ## Download the desktop app
 
@@ -40,7 +38,7 @@ The desktop app for Windows, macOS and Linux is in this repository's
 [Linux AppImage](https://github.com/program-sam/purss/releases/latest/download/PURSS-linux-x86_64.AppImage),
 [.deb](https://github.com/program-sam/purss/releases/latest/download/PURSS-linux-amd64.deb) or
 [.rpm](https://github.com/program-sam/purss/releases/latest/download/PURSS-linux-x86_64.rpm).
-It updates itself. The Windows and macOS packages aren't signed by Microsoft or Apple yet, so both ask you to
+It updates itself. The Windows and macOS packages aren't signed by Microsoft or Apple, so both ask you to
 confirm the first time you open it ([apps/desktop](apps/desktop/README.md#download)).
 
 ## Run it
@@ -67,15 +65,10 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 - [Self-hosting](docs/self-hosting.md)
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)
-- [Plan index](plan/README.md)
-- [Product and scope](plan/01-product.md)
-- [Domain model, including baskets](plan/02-domain-model.md)
-- [Interaction design and T3 Code references](plan/03-experience-and-design.md)
-- [Implementation milestones](plan/12-roadmap.md)
-- [Decisions and open questions](plan/14-decisions-and-risks.md)
-- [Storage and ownership](plan/17-storage-and-ownership.md)
-- [Official hosted service](plan/18-hosted-service.md)
-- [Twenty exploratory user narratives](user-stories/README.md)
+- [Security and privacy](docs/security.md)
+- [Storage and retention](docs/storage-and-retention.md)
+- [How sources work](docs/sources.md)
+- [Assistants (MCP)](docs/assistants.md)
 
 ## Repository map
 
@@ -88,6 +81,8 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 | `apps/egress` | Egress proxy for the engine and the private feed gateway |
 | `apps/mobile` | Android and iOS apps: the web app's build in a Capacitor shell |
 | `apps/desktop` | Windows, macOS and Linux app: the web app's build in a Tauri shell |
+| `apps/extension` | Browser extension for Chrome, Edge, Firefox and Safari |
+| `apps/push-relay` | Content-free relay that wakes the phone apps |
 | `packages/domain` | Product identities, state transitions, query contracts |
 | `packages/freshrss` | FreshRSS protocol adapter and capability checks |
 | `packages/connectors` | Discovery and controlled non-feed source adapters |
@@ -95,9 +90,7 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 | `infra` | Docker Compose packaging, engine image and operation notes |
 | `tests/acceptance` | End-to-end product acceptance scenarios |
 | `scripts` | Dev runner, engine lifecycle, backup/restore, repository validation |
-| `plan` | Product, architecture, delivery, risk, and evidence documents |
-| `docs` | User guide, self-hosting, architecture and development documentation |
-| `user-stories` | Independent persona briefs, separate from the solution plan |
+| `docs` | User guide, self-hosting, architecture, security, storage, sources and development documentation |
 
 ## Checks
 
@@ -116,5 +109,5 @@ their source under the same license.
 
 ## Working rules
 
-See [AGENTS.md](AGENTS.md). Do not commit, push, publish or deploy without the owner's authorization.
+See [AGENTS.md](AGENTS.md) for the rules contributors and coding agents follow.
 No third-party application code has been copied; bundled dependency licences ship with the web build (`licenses.md`).

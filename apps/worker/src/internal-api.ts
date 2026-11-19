@@ -132,7 +132,7 @@ export class InternalApi {
     return { finalized: o.finalized };
   }
 
-  /** What a filter.judge job asks Jev (plan/36). Only the job's current lease may ask. */
+  /** What a filter.judge job asks Jev. Only the job's current lease may ask. */
   async filterInput(jobId: string, leaseId: string, signal?: AbortSignal): Promise<AiJudgeInput> {
     const o = (await this.#idempotent("POST", `/internal/filters/${enc(jobId)}/input`, { leaseId }, signal)) as Partial<AiJudgeInput> | null;
     if (!o || typeof o.model !== "string" || !Array.isArray(o.requests) || !(o.route === null || o.route === "server")) {

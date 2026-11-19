@@ -481,7 +481,7 @@ test("cookie requests keep every protection and CORS answers only token requests
   for (const origin of ["https://localhost:8443", "http://localhost.evil.example", "capacitor://evil", "chrome-extension://a/b", "tauri://evil", "http://tauri.localhost:8080", "https://tauri.localhost.evil.example"]) {
     assert.equal(isClientOrigin(origin), false, origin);
   }
-  // The desktop app's page (plan/42).
+  // The desktop app's page.
   for (const origin of ["tauri://localhost", "http://tauri.localhost"]) assert.equal(isClientOrigin(origin), true, origin);
 
   // A token sent from an ordinary web page is refused.

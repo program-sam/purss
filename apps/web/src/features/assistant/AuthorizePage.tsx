@@ -17,7 +17,7 @@ type Phase = { kind: "ask" } | { kind: "leaving"; title: string; text: string };
 export function AuthorizePage() {
   const session = useSession();
   const hosted = session.data?.installation.mode === "hosted";
-  // The query goes to the server exactly as the assistant wrote it (plan/33), repeats included: the
+  // The query goes to the server exactly as the assistant wrote it, repeats included: the
   // server reads it, and approving sends back the parameters it read, so both sides agree.
   const [search] = useState(() => window.location.search);
   const q = useQuery({ queryKey: ["oauth-request", search], queryFn: () => get<OAuthRequestSummary>(`/api/assistant/oauth/request${search}`), retry: false, staleTime: Infinity });

@@ -3,7 +3,7 @@ import type { FetchFn } from "@purss/connectors";
 import type { BridgeBackend } from "./router.ts";
 
 /*
- * Crossref as a bridge backend (plan/45): a journal's newest registered articles from Crossref's public API, turned into
+ * Crossref as a bridge backend: a journal's newest registered articles from Crossref's public API, turned into
  * RSS for the router. Crossref's public pool allows one request at a time and five a second, for everyone sharing this
  * server's address, so the backend asks one journal at a time, a little apart, and after Crossref says "too many" (429)
  * or "unavailable" (503) it asks nothing for any journal until the wait Crossref names is over. The router meanwhile

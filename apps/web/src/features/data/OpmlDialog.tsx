@@ -8,7 +8,7 @@ import { plural } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useWorkspace } from "../../state/workspace.tsx";
 
-/** An OPML file opened with the desktop app (plan/42): read on the server, then the same choice as an import from Your data. */
+/** An OPML file opened with the desktop app: read on the server, then the same choice as an import from Your data. */
 export function OpenedOpmlFile({ name, text, onClose }: { name: string; text: string; onClose: () => void }) {
   const [read, setRead] = useState<{ preview: OpmlPreview } | { error: string } | null>(null);
   useEffect(() => {

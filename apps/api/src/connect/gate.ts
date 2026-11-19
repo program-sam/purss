@@ -6,13 +6,13 @@ import { deviceMayUse, isClientOrigin } from "./clients.ts";
 import { DEVICE_TOKEN_PREFIX, resolveDeviceToken } from "./devices.ts";
 
 /*
- * How a request to /api/* is authenticated (plan/24). Decided before cookies are read:
+ * How a request to /api/* is authenticated. Decided before cookies are read:
  *
  * - "device": `Authorization: Bearer purss_dev_…`. Cookies are ignored and the Origin/CSRF check
  *   doesn't apply: a bearer token is never attached by the browser on its own, so a page can't
  *   make a request carry it (cross-site request forgery needs an ambient credential).
  * - "open": the endpoints an app calls before it has a token (server info, code exchange, signing in, creating an
- *   account, asking for a password reset email), the interface update it may install and its zip (plan/39), and the phone's
+ *   account, asking for a password reset email), the interface update it may install and its zip, and the phone's
  *   notification fetch. No cookie or device token is
  *   read and nothing there acts for a signed-in person; the fetch checks its own credential, which reaches only that
  *   phone's waiting notifications.
@@ -36,11 +36,11 @@ export type Gate =
 
 /**
  * Endpoints for apps that aren't connected yet, and the phone's notification fetch, which carries its own
- * narrow credential (purss_push_…, checked by the route; plan/37).
+ * narrow credential (purss_push_…, checked by the route).
  */
 const OPEN = new Set(["GET /api/connect/info", "GET /api/app/bundle", "POST /api/connect/token", "POST /api/connect/signin", "POST /api/connect/passkey/options", "POST /api/connect/signup", "POST /api/connect/keep-account",
   "POST /api/signup/start", "POST /api/password-reset", "POST /api/password-reset/confirm", "POST /api/email/verify", "POST /api/push/pending"]);
-/** The interface's zip (plan/39): the desktop app's page fetches it itself (plan/42), the phones' updater natively. */
+/** The interface's zip: the desktop app's page fetches it itself, the phones' updater natively. */
 const BUNDLE_FILE = /^\/api\/app\/bundle\/[\w.-]+\.zip$/;
 const isOpen = (method: string, path: string): boolean => OPEN.has(`${method} ${path}`) || (method === "GET" && BUNDLE_FILE.test(path));
 const ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE";

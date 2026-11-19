@@ -115,7 +115,7 @@ function logWorkflow(app: App, p: Owner, itemId: string, from: WorkflowState, to
 }
 
 /**
- * A workflow change a Smart filter makes for the person (plan/36): logged, counted and mirrored to the engine like their own change,
+ * A workflow change a Smart filter makes for the person: logged, counted and mirrored to the engine like their own change,
  * without an undo token (they change it back like any other). Becoming Ignored clears the New marker, as it does for them. Call in
  * a transaction, after checking the item is still as the filter expects. Returns the item's revision after the change.
  */
@@ -217,7 +217,7 @@ function unkeepOwned(app: App, p: Principal, itemId: string, basketId: string, o
 
 /**
  * Superseded versions exist only while a basket pins them. Once nothing pins one and it isn't
- * the item's current version, it's released (plan/17: release at the last reference).
+ * the item's current version, it's released.
  */
 export function pruneUnreferencedVersions(app: App, itemId: string): number {
   const stale = app.db.all<{ id: string }>(

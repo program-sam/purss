@@ -10,7 +10,7 @@ const EVERY_MS = 30 * 60_000;
 /**
  * Renders nothing. In the apps, keeps downloads in step with the signed-in account: shortly after start,
  * after new items arrive, when the connection returns, when the app comes back to the front, and every
- * half hour. While the app is closed, the native background job (plan/38) does the same about hourly.
+ * half hour. While the app is closed, the native background job does the same about hourly.
  */
 export function DownloadsRunner() {
   const session = useSession();

@@ -1,4 +1,4 @@
--- Phone notifications (plan/37). A connected phone app registers the handle the push relay gave it; the
+-- Phone notifications. A connected phone app registers the handle the push relay gave it; the
 -- workspace asks that relay to wake the phone when something new is in the bell, and the phone fetches the
 -- texts with its own narrow credential (only its SHA-256 is stored). A row goes with its device token.
 CREATE TABLE push_devices (

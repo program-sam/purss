@@ -1,4 +1,4 @@
--- Annotations: the person's own highlights and notes on items (plan/26). Separate from workflow,
+-- Annotations: the person's own highlights and notes on items. Separate from workflow,
 -- reading progress, collection and basket membership, and retention. IDs are made by the client so
 -- a highlight can be created offline; writes are last-write-wins on updated_at. A removed annotation
 -- becomes a tombstone (deleted_at set, its text cleared) so a late, older write can't bring it back.

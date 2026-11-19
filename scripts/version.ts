@@ -1,4 +1,4 @@
-// The version of this checkout (plan/40), from main's history: the commit's UTC day and its place among that
+// The version of this checkout, from main's history: the commit's UTC day and its place among that
 // day's commits on the first-parent line. Builds read it through readVersion(); where there is no history
 // (the deploy's archive, a downloaded copy) they read version.json, which this script writes:
 //

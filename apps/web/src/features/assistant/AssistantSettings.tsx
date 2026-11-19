@@ -66,7 +66,7 @@ function GrantRow({ g, onRevoke }: { g: AssistantGrantDTO; onRevoke: () => void 
   );
 }
 
-/** How to connect an assistant that signs in (OAuth, plan/33) rather than taking a token. */
+/** How to connect an assistant that signs in (OAuth) rather than taking a token. */
 function SignInInstructions({ endpoint }: { endpoint: string }) {
   return (
     <div className="fx-stack">

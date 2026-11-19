@@ -1,5 +1,5 @@
 /**
- * Logical storage accounting contract (plan/17). Account usage is the sum of the
+ * Logical storage accounting contract. Account usage is the sum of the
  * measured bytes of live stored objects; it is not physical disk usage.
  *
  * Measured representation: UTF-8 byte length of the canonical JSON of the object's

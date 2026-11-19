@@ -5,9 +5,8 @@ a spare machine, or a rented server. It takes about half an hour, most of it wai
 first build. For every option and the details behind each step, see
 [self-hosting](self-hosting.md).
 
-PURSS is a preliminary build. It works end to end, but it hasn't been reviewed for
-exposure to the public internet; read [step 2](#2-choose-who-will-reach-it) before opening it
-up.
+Read [step 2](#2-choose-who-will-reach-it) before opening it up beyond your own machine;
+[Security](security.md) says what PURSS protects and what stays with you.
 
 ## 1. What you need
 
@@ -22,7 +21,7 @@ You don't need Node.js or a database server: everything runs in containers.
 
 ## 2. Choose who will reach it
 
-Pick one. You can change it later by editing `.env` and starting again (step 5).
+Pick one. You can change it by editing `.env` and starting again (step 5).
 
 | Option | Who can open it | How people sign in |
 | --- | --- | --- |
@@ -127,8 +126,8 @@ Open your address (step 2); it takes you to the setup page (`/app/setup`). Then:
 1. Enter the setup code and, if you like, a display name.
 2. Enter your email address and choose a password, typed twice. You sign in with them on any
    computer, including borrowed ones.
-3. Add fingerprint, face or screen lock (a passkey) if you like, or skip it and add it later in
-   *Settings → Security*. Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a
+3. Add fingerprint, face or screen lock (a passkey) if you like, or skip it and add it in
+   *Settings → Security* whenever you like. Use Touch ID, Face ID, Windows Hello, your phone's screen lock or a
    password manager. On option B the app goes straight into PURSS after step 2.
 
 The setup code stops working once it has been used.

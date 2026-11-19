@@ -9,7 +9,7 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 
 /**
- * The app's own plugin (plan/38; the page's side is apps/web/src/platform/native/device-plugin.ts):
+ * The app's own plugin (the page's side is apps/web/src/platform/native/device-plugin.ts):
  * downloads that stop on the wire when cancelled, the background job's state, the home-screen panels'
  * look and episode and their refresh, the count on the app's icon, and where the app was installed from.
  */

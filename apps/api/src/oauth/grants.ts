@@ -11,7 +11,7 @@ import { MAX_GRANTS, endpointFor, grantCount, hostOf, installationEnabled, revok
 import { isAccountUsable } from "../services/deletion.ts";
 
 /*
- * OAuth grants and tokens for assistants (plan/33). A grant is one assistant a person approved on
+ * OAuth grants and tokens for assistants. A grant is one assistant a person approved on
  * the consent page; it holds the access level (read, or read and organise: the same levels as
  * personal access tokens) and the resource (/mcp) its tokens are for.
  *
@@ -66,7 +66,7 @@ const fail = (error_description: string): TokenError => ({ error: "invalid_grant
 /** An OAuth principal's sessionId is this prefix plus its grant id. */
 export const OAUTH_SESSION_PREFIX = "oauth:";
 
-/** Both switches of plan/23 are on and the account is active and not being deleted. */
+/** Both assistant-access switches are on and the account is active and not being deleted. */
 function accountAllows(app: App, accountId: string): boolean {
   const a = app.db.get<{ assistant_access: number }>("SELECT assistant_access FROM accounts WHERE id = ?", accountId);
   return !!a && a.assistant_access === 1 && installationEnabled(app) && isAccountUsable(app, accountId);
@@ -217,7 +217,7 @@ export function revokeByToken(app: App, token: string): void {
 /**
  * The caller behind an access token at /mcp, or why not. Same outcomes as a personal access token:
  * "invalid" (401) for unknown, expired, revoked, another resource's or a suspended or deleting account's token,
- * or when OAuth is off on this installation; "off" (403) while a plan/23 switch is off.
+ * or when OAuth is off on this installation; "off" (403) while an assistant-access switch is off.
  */
 export function resolveAccessToken(app: App, secret: string): AssistantCaller | { error: "invalid" | "off" } {
   if (!app.config.assistantOAuth || !secret.startsWith(ACCESS_TOKEN_PREFIX)) return { error: "invalid" };

@@ -6,7 +6,7 @@
   (parseWorkspaceAddress in packages/domain): it connects over plain HTTP only to an address on this
   device or the local network, and says so; its transport sends nothing to any other origin; its page
   policy loads images and media only over HTTPS or from the PURSS; downloads and the player take a
-  publisher's file only over HTTPS. See plan/31 (an open question for the owner).
+  publisher's file only over HTTPS.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">

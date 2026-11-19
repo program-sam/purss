@@ -2,7 +2,7 @@ import { cleanPasted } from "@purss/connectors";
 import type { App } from "../app.ts";
 
 /*
- * Sites people tried to follow without success (plan/41): the administrator's view of which services and sites are worth a bridge
+ * Sites people tried to follow without success: the administrator's view of which services and sites are worth a bridge
  * or a better lookup. One counter per UTC day, site and reason. It records the registrable domain of what was pasted and nothing
  * else: no path, no subdomain (a creator's page on bandcamp.com counts as bandcamp.com), no account, no PURSS.
  */

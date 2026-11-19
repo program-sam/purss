@@ -6,8 +6,8 @@ import { adminAccess, createToken, getAccess, revokeGrant, revokeToken, setEnabl
 import { approveRequest, describeRequest } from "../oauth/authorize.ts";
 
 /**
- * Settings → Assistants, the administrator's installation switch (plan/23), and the OAuth consent
- * page's two calls (plan/33). All of /api/assistant is for browser sessions only (connect/clients.ts).
+ * Settings → Assistants, the administrator's installation switch, and the OAuth consent
+ * page's two calls. All of /api/assistant is for browser sessions only (connect/clients.ts).
  */
 export function assistantRouter(): Router<Ctx> {
   const r = new Router<Ctx>();

@@ -22,7 +22,7 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>PurssKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)app.purss.shared</string>
-	<!-- The same plain-HTTP allowances as the app: a PURSS on the local network (plan/31). -->
+	<!-- The same plain-HTTP allowances as the app: a PURSS on the local network. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

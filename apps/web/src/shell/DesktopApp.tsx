@@ -8,7 +8,7 @@ const noSubscribe = () => () => {};
 const none: DesktopUpdate = { state: "none" };
 
 /**
- * Settings → This device, in the desktop app (plan/42): its own updates, starting when you sign in to the computer,
+ * Settings → This device, in the desktop app: its own updates, starting when you sign in to the computer,
  * the downloads folder, and where the connection is kept. Null elsewhere.
  */
 export function DesktopAppSection() {

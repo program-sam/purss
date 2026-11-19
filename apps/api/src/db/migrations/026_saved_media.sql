@@ -1,4 +1,4 @@
--- Saved media (plan/25): a server copy of a publisher's audio or video file (an RSS enclosure),
+-- Saved media: a server copy of a publisher's audio or video file (an RSS enclosure),
 -- stored as a file under <data>/media/<account_id>/<id> and counted once against the account's
 -- storage as a 'media' stored object. One copy per item. Playback positions are kept per item,
 -- separate from reading progress, workflow and basket membership.

@@ -1,5 +1,5 @@
 /*
- * Addresses: the pages the extension looks at and the deep links it opens in the PURSS (plan/32).
+ * Addresses: the pages the extension looks at and the deep links it opens in the PURSS.
  * The PURSS's own address follows the rule shared with the apps (parseWorkspaceAddress in
  * @purss/domain). Pure functions, tested in address.test.ts.
  */

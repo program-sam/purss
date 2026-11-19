@@ -343,7 +343,7 @@ html[data-ts] .app[data-bp="xs"] .row.has-keep:has(.keep.on) .row-main { padding
 .dl-state.failed .ic{color:var(--danger);flex:none}
 .dl-state.dl-page{flex-basis:100%}
 
-/* Highlights and notes (plan/26) */
+/* Highlights and notes */
 mark.anno{background:var(--amber-bg);color:inherit;border-bottom:2px solid var(--amber-bd);border-radius:2px;cursor:pointer;padding:0}
 mark.anno[data-anno*=" "]{border-bottom-width:3px;box-shadow:inset 0 -.55em 0 var(--amber-bd)}
 mark.anno:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
@@ -373,7 +373,7 @@ mark.anno:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
 /* The mark on items downloaded to this device. */
 .dl-tag{display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:700;color:var(--accent-ink)}
 .dl-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
-/* A page from another site over the article (plan/43): its bar names the site; the page (a frame, or the desktop app's web view drawn over .web-view) fills the rest. */
+/* A page from another site over the article: its bar names the site; the page (a frame, or the desktop app's web view drawn over .web-view) fills the rest. */
 .web-pane{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;background:var(--surface)}
 .web-bar{display:flex;align-items:center;gap:2px;min-height:40px;padding:4px 8px 4px 6px;border-bottom:1px solid var(--line);background:var(--surface-2);flex:none}
 .web-bar .web-close{width:auto;padding:0 10px 0 6px;gap:4px;display:inline-flex;align-items:center;font-weight:700;font-size:0.875rem;color:var(--ink-2)}

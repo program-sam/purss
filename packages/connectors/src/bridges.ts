@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 
 /*
- * Services followed through the installation's bridge (plan/41): pages that publish no feed of
+ * Services followed through the installation's bridge: pages that publish no feed of
  * their own, turned into one by a bundled RSS-Bridge behind the egress bridge router. This file is
  * the one catalogue both sides read: discovery maps a pasted page address to a source descriptor
  * (`bridge:<service>/<key>`), the worker and the API sign the engine address for it, and the router
@@ -11,7 +11,7 @@ import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
  *
  * Only services that worked without credentials from both a home and a datacenter address are
  * listed. Each key pattern is the service's own handle syntax; a renamed handle is a new source.
- * Most services are collected by RSS-Bridge; Crossref (plan/45) by the router's own backend, so it
+ * Most services are collected by RSS-Bridge; Crossref by the router's own backend, so it
  * runs on every installation, with or without RSS-Bridge.
  */
 
@@ -366,7 +366,7 @@ const instagram: BridgeService = {
   emptyIsFailure: true,
 };
 
-/** A journal's articles as registered with Crossref (plan/45). The key is the journal's ISSN without its hyphen. */
+/** A journal's articles as registered with Crossref. The key is the journal's ISSN without its hyphen. */
 const crossref: BridgeService = {
   id: "crossref",
   example: "15481433",

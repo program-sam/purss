@@ -1,13 +1,13 @@
 /*
- * Live updates of the apps' interface (the phones, plan/39; the desktop app, plan/42). Every PURSS offers the build of the interface it
+ * Live updates of the apps' interface (the phones; the desktop app). Every PURSS offers the build of the interface it
  * runs to the apps connected to it; an app installs it when it fits the app's native code (and, for a server
  * other than the official one, once the person has agreed). No dependencies, so the web build, the server
  * and the packing script can all import it.
  */
 
 /**
- * Which build of the interface: the phone apps' native code it needs (`native`), the desktop app's (`desktop`,
- * plan/42; absent in builds from before the desktop app), and when it was made (seconds).
+ * Which build of the interface: the phone apps' native code it needs (`native`), the desktop app's (`desktop`;
+ * absent in builds from before the desktop app), and when it was made (seconds).
  */
 export type AppBuild = { native: number; built: number; desktop?: number };
 

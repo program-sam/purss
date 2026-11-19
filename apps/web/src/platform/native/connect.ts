@@ -3,7 +3,7 @@ import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
 
 /**
- * Connecting the app to a PURSS (plan/24, plan/31): the pure parts, tested on their own. The app signs
+ * Connecting the app to a PURSS: the pure parts, tested on their own. The app signs
  * in or creates an account itself; for a passkey or a linked account it opens PURSS's /connect page
  * in the system browser with a PKCE challenge, the person approves there, and the browser hands a
  * one-time code to purss://connect.

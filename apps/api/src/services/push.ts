@@ -13,7 +13,7 @@ import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
 
 /*
- * Phone notifications (plan/37). A connected phone app registers the handle the push relay gave it
+ * Phone notifications. A connected phone app registers the handle the push relay gave it
  * (POST /api/push/device) and gets a narrow fetch credential back. When something new reaches the bell,
  * the API asks the relay, by handle only, to wake the phone; the phone then fetches the texts with that
  * credential (POST /api/push/pending). The relay, Google and Apple never see any text.

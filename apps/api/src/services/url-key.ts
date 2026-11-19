@@ -1,5 +1,5 @@
 /*
- * The comparison key for an item's web address (plan/24): two addresses with the same key are
+ * The comparison key for an item's web address: two addresses with the same key are
  * treated as the same page when keeping a link or looking one up. The rules undo only differences
  * that never change which page a server returns; anything that might is kept as it is.
  *

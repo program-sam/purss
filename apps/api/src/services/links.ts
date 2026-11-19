@@ -13,7 +13,7 @@ import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
 
 /*
- * Keeping a single link, with or without the text the person's browser captured (plan/24, plan/32),
+ * Keeping a single link, with or without the text the person's browser captured,
  * and asking what the PURSS has for a page. All compare addresses by their key (url-key.ts),
  * within the principal's PURSS only. A link the PURSS doesn't have yet is asked what it calls
  * itself (Open Graph or oEmbed, through safeFetch) so it gets a real title, a picture and a site or
@@ -106,7 +106,7 @@ export async function keepLink(app: App, p: Principal, input: { url: string; bas
 }
 
 /**
- * Keep a page with the readable text the person's browser extracted from it (plan/32). The HTML is
+ * Keep a page with the readable text the person's browser extracted from it. The HTML is
  * sanitized again here and the server fetches nothing. The text is stored before keeping, so a
  * "Save readable text" basket doesn't also queue a server fetch of the same page; when the text
  * doesn't fit in storage the link is still kept and the result says why the text wasn't.

@@ -13,7 +13,7 @@ import { settledCopy } from "./capture-state.ts";
 import type { BoxLink } from "./home.ts";
 
 /*
- * Notifications (plan/29 §2). One place decides who is told what, when:
+ * Notifications. One place decides who is told what, when:
  *  - frequency "daily" / "weekly": arrivals wait, and one digest at the chosen time counts what is still New;
  *  - "off": no digest;
  *  - a source set to "Notify me" tells you as its items arrive, whatever the frequency: its new items within an hour
@@ -49,7 +49,7 @@ function boxesFor(prefs: Preferences, boxes: BoxLink[] | undefined, homeOther: b
  * passed in). Only sources set to "Notify me" tell at once; the rest wait for a digest, made later from what is still
  * New. Delivery timing depends on engine polling.
  */
-/** `fromItems`: take each source's preview title from these posts only (a Smart filter's kept posts; plan/36). */
+/** `fromItems`: take each source's preview title from these posts only (a Smart filter's kept posts). */
 export function notifyArrivals(app: App, workspaceId: string, perSource: [string, number][], _dedupBase?: string, fromItems?: readonly string[]): void {
   const prefs = getPreferences(app, workspaceId);
   const account = app.db.get<{ account_id: string }>("SELECT account_id FROM workspaces WHERE id = ?", workspaceId)!;

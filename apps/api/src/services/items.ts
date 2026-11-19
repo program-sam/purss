@@ -197,7 +197,7 @@ export function compileQuery(node: QueryNode, params: SqlParam[], workspaceId: s
 
 /**
  * Items whose own text matches, or whose annotations do: the person's comments and notes and the
- * passages they highlighted (plan/26). The caller's WHERE scopes it to the PURSS.
+ * passages they highlighted. The caller's WHERE scopes it to the PURSS.
  */
 /** Items whose own text matches. */
 function itemTextMatch(text: string, params: SqlParam[]): string {
@@ -594,7 +594,7 @@ const CAPTURE_LABELS = {
   failed: "Couldn't save the text",
 } as const;
 
-/** Shown with a browser capture (plan/32): where its text came from and what that means. */
+/** Shown with a browser capture: where its text came from and what that means. */
 export const BROWSER_CAPTURE_NOTE = "The text as your browser showed it. PURSS didn't fetch the page, so it can't confirm that this matches the original.";
 
 export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
@@ -627,10 +627,10 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   const stored = storedPictures(app, id);
   const pictures = (html: string | null) => withStoredPictures(html, stored, id);
   const current = extra.content_html ?? extra.summary_html;
-  // A kept item shows the copy that was kept; an upstream edit never silently replaces it (plan/07).
+  // A kept item shows the copy that was kept; an upstream edit never silently replaces it.
   const changedSinceKept = !!keptVersion && keptVersion.version_id !== extra.version_id;
   const keptHtml = keptVersion ? keptVersion.content_html ?? keptVersion.summary_html : null;
-  // Which stored text the reader shows, so a highlight can record what it was made on (plan/26).
+  // Which stored text the reader shows, so a highlight can record what it was made on.
   const contentRef: TextRef | null = fulltext && fulltext.html !== null ? { kind: "capture", id: fulltext.id }
     : changedSinceKept && keptVersion ? (keptHtml ? { kind: "version", id: keptVersion.version_id } : null)
     : current ? { kind: "version", id: extra.version_id } : null;
@@ -642,7 +642,7 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   const enclosures = (JSON.parse(extra.enclosures ?? "[]") as { url: string; type: string | null }[]).filter((e) => !copyOnlyPicture(e.url)).map((e) => ({ url: e.url, type: e.type }));
   return {
     ...dto,
-    // A kept item reads as it was kept; the latest version is available alongside (plan/07).
+    // A kept item reads as it was kept; the latest version is available alongside.
     ...(changedSinceKept && keptVersion ? keptLink(keptVersion.title, keptVersion.url, extra.enclosures, dto.url, dto.linkIsMedia === true, extra.is_private === 1) : {}),
     contentHtml: pictures(fulltext?.html ?? (changedSinceKept ? keptHtml : current)),
     keptPicture: extra.image_url && stored.has(extra.image_url) ? pictureUrl(id, stored.get(extra.image_url)!) : null,

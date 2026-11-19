@@ -1,4 +1,4 @@
-// What changed between two versions (plan/40), as Markdown to edit into an update post or a report: the
+// What changed between two versions, as Markdown to edit into an update post or a report: the
 // commit subjects on main (written as plain sentences about what people get), grouped by day, newest first,
 // each with its version. A merged branch lists its own commits under the merge's version.
 //

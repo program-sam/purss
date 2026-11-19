@@ -1,7 +1,7 @@
 import type { DownloadSettings, ItemKind } from "@purss/domain";
 
 /**
- * "Downloaded": copies on this device only (plan/31). The server keeps no audio or video files, so the
+ * "Downloaded": copies on this device only. The server keeps no audio or video files, so the
  * media file always comes straight from the publisher. An item downloaded here keeps its readable
  * text, its highlights and notes, and its audio or video file when it has one.
  */

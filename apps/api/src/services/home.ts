@@ -11,7 +11,7 @@ import { itemCounts } from "./counts.ts";
 import { countMuted, mutedAmong, mutedScan, workspaceMuted } from "./muted.ts";
 
 /*
- * Home for someone coming back (plan/29 §2): when the last visit was, what is New since and what to pick up again.
+ * Home for someone coming back: when the last visit was, what is New since and what to pick up again.
  * Home's own lists are ordinary item lists (`mix=home` in `listItems`).
  */
 

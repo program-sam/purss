@@ -1,4 +1,4 @@
-// Acceptance journey for assistants that connect with OAuth (plan/33), against the real API serving
+// Acceptance journey for assistants that connect with OAuth, against the real API serving
 // the built web app (no FreshRSS, egress or worker, so no podman and no network). The script plays
 // the assistant the way Claude or ChatGPT does: /mcp answers 401 with the protected resource
 // metadata, which names the authorization server; the assistant identifies itself with a client

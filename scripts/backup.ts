@@ -5,7 +5,7 @@ import path from "node:path";
 import { loadConfig } from "../apps/api/src/config.ts";
 
 /*
- * Consistent backup of the product database (plan/11): SQLite's online backup API copies a
+ * Consistent backup of the product database: SQLite's online backup API copies a
  * transaction-consistent snapshot while the app keeps running. Never copy product.db by hand;
  * a live file without its write-ahead log can be missing committed data.
  *

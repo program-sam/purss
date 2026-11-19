@@ -1,7 +1,7 @@
 import type { ListSearch, Place } from "../nav.ts";
 
 /**
- * The home-screen panels (plan/38). Their lists (To read, To listen, New, a chosen collection or source) are
+ * The home-screen panels. Their lists (To read, To listen, New, a chosen collection or source) are
  * fetched by the native side, which knows which panels are placed; the page hands it only what it alone knows:
  * the look and the episode the player has. Titles and ids only: never the device token or the PURSS's address.
  */

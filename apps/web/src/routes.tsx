@@ -105,7 +105,7 @@ const signinRoute = createRoute({
     if (s.state !== "signed_out") throw redirect({ to: whereTo(s) });
   },
 });
-/** A connected app's approval page (plan/24): outside the PURSS shell, after sign-in. */
+/** A connected app's approval page: outside the PURSS shell, after sign-in. */
 const connectRoute = createRoute({
   getParentRoute: () => rootRoute, path: "/connect", component: ConnectPage,
   beforeLoad: async ({ context, location }) => {
@@ -116,7 +116,7 @@ const connectRoute = createRoute({
     if (s.state !== "signed_in") throw redirect({ to: whereTo(s) });
   },
 });
-/** An assistant's OAuth consent page (plan/33): outside the PURSS shell, after sign-in. */
+/** An assistant's OAuth consent page: outside the PURSS shell, after sign-in. */
 const authorizeRoute = createRoute({
   getParentRoute: () => rootRoute, path: "/oauth/authorize", component: AuthorizePage,
   beforeLoad: async ({ context }) => {

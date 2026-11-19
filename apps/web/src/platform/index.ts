@@ -4,7 +4,7 @@ import { webPlatform } from "./web.ts";
 
 /**
  * The platform the app runs on (see types.ts). The web until initPlatform() finds the phone apps' native shell
- * or the desktop app's (plan/42); their code is loaded only there, so the web app never downloads it on start.
+ * or the desktop app's; their code is loaded only there, so the web app never downloads it on start.
  */
 export let platform: Platform = webPlatform;
 

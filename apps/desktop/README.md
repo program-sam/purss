@@ -3,13 +3,14 @@
 The app for Windows, macOS and Linux: the web app's build for the app's own root (`apps/web/app-dist`) in a
 [Tauri](https://tauri.app) 2 shell. As with the phone apps there is no second interface: screens come from
 `apps/web`, and what differs on a computer sits behind the platform layer in `apps/web/src/platform/desktop/`.
-It connects to a PURSS with a device token ([plan/24](../../plan/24-connected-apps.md)), installs the
-build of the interface that PURSS offers when it fits the app's Rust side (live updates,
-[plan/39](../../plan/39-live-updates.md)), and updates itself from this repository's GitHub releases.
-The design and what isn't built are in [plan/42](../../plan/42-desktop-app.md).
+It connects to a PURSS with a device token, installs the build of the interface that PURSS offers when it fits the
+app's Rust side ([live updates](#live-updates-and-the-desktop-level)), and updates itself from this repository's GitHub
+releases. How people use it is in the [user guide](../../docs/user-guide.md#the-desktop-app); the trust model of device
+tokens is in [security](../../docs/security.md#connected-apps).
 
 | Path | What lives there |
 | --- | --- |
+| `src-tauri/src/web.rs` | The web view for other sites' pages inside the reader, and what it may do (see below) |
 | `src-tauri/src/lib.rs` | The app: its commands (every power the page has), the tray, closing to the tray, notifications, the badge, its own updates, starting at sign-in |
 | `src-tauri/src/taskbar.rs` | Windows: puts the new items' overlay back on the taskbar button whenever Windows makes it again |
 | `src-tauri/src/interfaces.rs` | The interface shown: built in, or downloaded from the PURSS; served from the app's own origin; rollback |
@@ -22,6 +23,83 @@ The design and what isn't built are in [plan/42](../../plan/42-desktop-app.md).
 | `scripts/build.ts` | Builds the interface and the app with the product's version |
 | `scripts/release-files.ts`, `src/release.ts` | Names the release files and writes the updater's `latest.json` |
 
+## How it works
+
+- **Page and origin.** The page is served by Tauri's own protocol (`tauri://localhost`; on Windows
+  `http://tauri.localhost`) from an `Assets` provider that reads the active downloaded interface from disk and falls
+  back to the one embedded in the binary. The origin never changes when the interface does, so IndexedDB copies, local
+  storage and the outbox survive updates. `platform/index.ts` loads `platform/desktop/` when `window.__TAURI_INTERNALS__`
+  exists; it reuses the phone app's connect flow, transport, live-update rules and connect screen, and the web's own
+  offline worker, download manager, media-element player and browser alerts.
+- **Connecting.** As a device of kind `mobile` (Settings → Connected apps calls it *App on a phone, tablet or computer*),
+  with PKCE and the redirect `purss://connect` registered by the app (`tauri-plugin-deep-link`); the device name says
+  which computer. The page calls the PURSS cross-origin with its token, so the API answers CORS for `tauri://localhost`
+  and `http://tauri.localhost` and offers the interface zip to them without a token. The page policy allows Tauri's IPC
+  in `connect-src` and, once connected, the loopback media server's exact origin in `media-src`.
+- **The token** lives in the system credential store through the `keyring` crate (macOS Keychain, Windows Credential
+  Manager, Secret Service on Linux); where Linux has none it is a file readable only by the user in the app's config
+  folder, and Settings → This device says so. Every call to the store has 30 seconds, then counts as no store, so a
+  wallet waiting to be created or unlocked never hangs signing in. When a disconnection can't confirm removing the
+  entry, or the newest connection had to go to the file, the entry is never used again and its removal is tried at every
+  start.
+- **Commands are narrow.** An interface downloaded from a server the person allowed runs as the app's own code, and on
+  the desktop it reaches the app's Rust commands, so those have no generic file system, shell or HTTP access: the
+  downloads folder is chosen in a dialog Rust opens and kept by Rust, and every path is resolved and checked to stay
+  inside it (no `..`, no symlinks or junctions followed out). The only other powers are start at login, notifications,
+  the badge, opening https addresses in the browser and showing http(s) pages in the web view. The capability file
+  (`capabilities/main.json`) lets the page listen to events and nothing else; no plugin is reachable from it.
+- **Other sites' pages** (the reader's *Open original* and links in an article) open in a second web view in the main
+  window (Tauri's `unstable` multi-webview) drawn over the reader's pane, so every page works, unlike a frame. The page
+  moves it with the pane, hides it while a menu, popover or dialog lies over it, and closes it (to `about:blank`) with
+  the pane. It reaches no app command: Tauri refuses remote pages unless a capability names their address, the
+  capability names only the main web view, and the command handler refuses every web view but `main`. It navigates only
+  to http(s) on hosts other than `localhost` and `*.localhost` (plus `about:blank`, `about:srcdoc`, `data:` and `blob:`
+  for frames inside the page), never to `file:`, `tauri:` or other schemes. Its storage is in memory only: sites start
+  signed out, nothing they store outlives the app, and nothing is shared with the browser or PURSS. A new window it asks
+  for opens in it instead, and a download goes to the default browser. `web_open` takes http(s) addresses without a login
+  part, not on `localhost`, at most 8 KB, with finite bounds. On Linux Tauri packs every web view into the window's GTK
+  box one under the other, so there the web view is moved into a GTK overlay over the page. The interface depends on
+  these commands, which is why the desktop level is 3. Every other link to another site opens in the default browser,
+  never in the app's own page.
+- **Background.** Closing the window hides it; the tray icon (*Open PURSS*, *Quit*) and a second launch
+  (`tauri-plugin-single-instance`) bring it back, and the page keeps the event stream, downloads and alerts going.
+  *Start when you sign in* is off by default and starts hidden (on Linux a `.desktop` file in `~/.config/autostart`
+  naming the AppImage when the app runs from one, elsewhere `tauri-plugin-autostart`). The count of New items goes on
+  the dock or launcher icon (macOS, and Linux launchers that support it, matched to the installed `PURSS.desktop`, so not
+  the AppImage), as an overlay the page draws on the taskbar button (Windows, which has no count for desktop apps), and
+  in the tray tooltip.
+- **Notifications** need no relay: the page keeps running while the window is hidden, so the web's alerts (the bell's
+  rules: quiet hours, previews) go through `platform.notifier`, which here sends system notifications through Rust
+  (`notify-rust` on Linux, `tauri-plugin-notification` on Windows and macOS). On Linux a click shows the window and
+  opens the item; on Windows and macOS it brings the app to the front.
+- **Downloads** are real files. `DownloadManager` uses desktop `DeviceFiles`: Rust streams the publisher's https file
+  (https redirects only, 4 GB cap, `.part` then rename, cancel on the wire, progress events, a User-Agent naming the app,
+  since some publishers refuse requests without one). The folder is `PURSS` inside a folder the person chooses in a
+  system dialog (default: the system Downloads folder); Rust creates it with a marker file and refuses an existing one
+  without the marker, and lists and removes only entries of its own layout (`<account id>/<item id>/`), so a person's
+  own files there are never deleted. Changing the folder stops downloads, copies them to the new folder and only then
+  deletes the old copies. Files are played from a server on `127.0.0.1` (random port, a random secret in every address)
+  that serves only those files, with range requests, because WebKitGTK doesn't play media from custom protocols. Settings
+  → This device says downloads are removed when the app is disconnected. Exports go through a save dialog.
+- **Links in.** `feed:`, `podcast:` and `pcast:` links open *Add source* with the address filled in (nothing is looked up
+  until Find); `feed:http://…` and `feed:https://…` are unwrapped, and the shorthand `feed://host/…` (and `podcast://`,
+  `pcast://`) becomes `https://host/…`. `.opml` files (a file association; at most 5 MB) open the OPML import. `purss://open`
+  works as on the phones.
+- **Sign-in.** There are no passkeys in the app, because the page's origin is not the PURSS's: sign in with email address
+  and password, *Sign in in your browser (passkey or linked account)* (the browser's passkeys on the PURSS's Connect
+  page), or an external provider such as *Continue with Google* (always in the system browser, since Google refuses an
+  embedded web view).
+- **Player.** The web's media-element backend; the system media controls are the web view's. There is no native audio.
+
+What the desktop app does not do: it has no share target, widgets, push through the relay or native passkeys; there are
+no builds for Arm Linux or Windows, and no Microsoft Store, Mac App Store or Flathub packages; notification clicks on
+Windows and macOS bring the app to the front rather than opening the item; the web view's site data can't be cleared on
+demand (it is gone when the app quits). The Windows and macOS builds are made by the release workflow but have not been run:
+their notifications, badge, tray, autostart, credential stores, link handling, file association and updates are
+unchecked, as is self-update of the deb and rpm packages (their installer asks for a password) and long background
+playback with the window closed (WebView2 and WKWebView may slow hidden pages). On Linux the player's second seek in
+an Ogg file loaded again can fail in WebKitGTK; the server's range answers are correct.
+
 ## Download
 
 The newest release is at
@@ -29,7 +107,7 @@ The newest release is at
 and the website's download button picks the visitor's system. The file names are the same in every release
 (`packages/domain/src/distribution.ts`).
 
-Windows and macOS packages are not signed by Microsoft or Apple yet (an owner to-do, below): Windows SmartScreen
+Windows and macOS packages are not signed by Microsoft or Apple (see [Releases](#releases)): Windows SmartScreen
 says *Windows protected your PC* (choose *More info*, then *Run anyway*), and macOS says the app can't be checked
 (open it from *System Settings → Privacy & Security → Open Anyway*). Installed apps update themselves either way:
 the updater checks its own signature.
@@ -46,7 +124,7 @@ node apps/desktop/scripts/build.ts --no-updater --bundles appimage   # or deb, r
 ```
 
 The script builds the interface for the app's root (`PURSS_WEB_BASE=/`, into `apps/web/app-dist`), then the app with
-the product's version ([plan/40](../../plan/40-versions.md)) spelled `26.312.14`. A checkout without history builds
+the product's version, a number made from the commit's UTC day and its place among that day's commits on `main`, spelled `26.312.14`. A checkout without history builds
 as `0.0.0`, and such a build, like any development build, never updates itself. Without `--no-updater` the build
 signs the update files and needs the updater key (below). For a development run: `npm run interface -w @purss/desktop`,
 then `cargo run` in `src-tauri`. Rust tests: `cargo test` in `src-tauri`.
@@ -68,7 +146,7 @@ secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, an
 Keep a backup of the private key: without it, installed apps can never update again. A new key pair
 (`npx tauri signer generate -w updater.key`) means changing the public key and a release that everyone installs by hand.
 
-**Owner to-do: signing the packages.** For macOS, an Apple Developer account (the same one iOS needs): a Developer ID
+**Signing the packages.** The packages are unsigned. To sign them: for macOS, an Apple Developer account (the same one iOS needs): a Developer ID
 Application certificate and notarization, given to the workflow as secrets (`APPLE_CERTIFICATE`,
 `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, which Tauri
 reads), replacing the ad-hoc signature (`bundle.macOS.signingIdentity: "-"`). For Windows, a code-signing certificate
@@ -79,14 +157,21 @@ reads), replacing the ad-hoc signature (`bundle.macOS.signingIdentity: "-"`). Fo
 The app takes new builds of its interface from the PURSS it is connected to, as the phones do, and installs a
 build only when the build's desktop level equals its own. `native-level.json` holds that level and a fingerprint of
 the Rust side; when you change anything under `src-tauri/` or this package's dependencies, `npm test` fails and
-names the new fingerprint. Put it in the file, and raise `level` if the interface now depends on the change (a
+names the new fingerprint. Put it in the file, and raise `level` if the interface depends on the change (a
 command added, removed or changed, a plugin). A new version of the app removes the interfaces it downloaded, so it
 starts on its own until the PURSS's build fits it.
+
+The rules are the phones' (the question for servers other than the official one, switching only at start or after an hour
+away with nothing playing), with a desktop updater: the page fetches the zip from the PURSS and checks its SHA-256, Rust
+unpacks it into `interfaces/<version>/` (paths checked, at most 200 MB unpacked) and switches what the page is served
+from. A switched-to interface must call `interface_ready` within 15 seconds of loading; otherwise Rust goes back to the
+previous one, records the version as failed and reloads. Before serving a downloaded interface Rust checks the desktop
+level in its `app-build.json` against its own. The built-in interface is the one embedded in the binary.
 
 ## Trying it
 
 `apps/mobile/scripts/emulator-workspace.ts` gives a throwaway PURSS with a small library: start it, run the app,
-choose *Use another server*, type `http://localhost:19990` and sign in with the username and password it printed. The app keeps
+choose *Use another server*, type `http://localhost:19990` and sign in with the email address and password it printed. The app keeps
 its state in the system's usual places (on Linux `~/.local/share/app.purss` and
 `~/.config/app.purss`) and its downloads in `~/Downloads/PURSS`.
 

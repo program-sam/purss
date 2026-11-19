@@ -33,8 +33,8 @@ origin and passkey checks match (defaults: dev server `http://localhost:5173`, A
 | `src/sw/` | The service worker: request policy, the offline worker class and its tests; built to `/sw.js` |
 | `src/offline/` | The page's side of offline reading: setting, worker link, the offline pack, install prompt, Settings field |
 | `src/player/` | The in-app audio/video player: platform backend interface and the web backend, controller, Media Session, mini-player, the item panel's media box |
-| `src/platform/` | What differs between the browser and the phone apps: transport, offline copies, player backend, downloads, share intake (below) |
-| `src/downloads/` | "Downloaded" in the phone apps: the download manager, automatic rules, the reader section, the Downloaded page, Settings → This device, and the article read from a publisher's page for a summary-only item (`readable-page.ts`: Readability on an inert document, then a strict allowlist) |
+| `src/platform/` | What differs between the browser, the phone apps (`native/`) and the desktop app (`desktop/`): transport, offline copies, player backend, downloads, share intake (below) |
+| `src/downloads/` | "Downloaded" in the phone and desktop apps: the download manager, automatic rules, the reader section, the Downloaded page, Settings → This device, and the article read from a publisher's page for a summary-only item (`readable-page.ts`: Readability on an inert document, then a strict allowlist) |
 | `src/share/` | Links shared into the phone apps: finding the link, Keep link or Add as source |
 | `src/annotations/` | Highlights and notes: anchoring (`anchor.ts`, pure), drawing and selection (`highlight-dom.ts`), the offline outbox (`outbox.ts`, `outbox-store.ts`), hooks and the reader UI |
 | `public/` | Copied to the site root: web manifest and icons |
@@ -70,18 +70,80 @@ Shared tokens and primitives are in `packages/ui`.
 ## Player
 
 An item whose feed offers an audio or video file shows a media box in its panel: play it. The server stores
-no media files, so it plays from the publisher's own address. One `Player` (`src/player/player.ts`) lives above
-the pages in `PlayerProvider`, so the mini-player (`PlayerBar.tsx`) keeps playing while you move around. It
-plays the download on this device when there is one (the apps) and otherwise the publisher's file, and says which; skips back 15 s and
-forward 30 s; offers 0.8× to 2× (remembered per device); and saves the position on the server
-(`PUT /api/items/:id/playback`) on pause, every 15 s while playing, on close and when the page is hidden
-(with `keepalive`). `media-session.ts` keeps the operating system's media controls in step.
+no media files, so it plays from the publisher's own address, over https only (the page's `media-src` is `https:`; the
+reader says the publisher sees the listener's address). Only the item's first audio or video enclosure counts (by
+declared type, or by file extension when untyped), never a streaming playlist, a web page or a platform's page; a private
+source's item has no player and no file address, since a private feed's enclosure addresses can carry the subscriber's
+secret. One `Player` (`src/player/player.ts`) lives above the pages in `PlayerProvider`, so the mini-player
+(`PlayerBar.tsx`) keeps playing while you move around. It plays the download on this device when there is one (the apps)
+and otherwise the publisher's file, and says which; skips back 15 s and forward 30 s (also from the system's "next" and
+"previous"); offers 0.8× to 2× (remembered per device) and a sleep timer of 5 to 60 minutes (on this device's clock, ended
+when the player closes); and saves the position on the server (`PUT /api/items/:id/playback`) on pause, every 15 s while
+playing, on close and when the page is hidden (with `keepalive`). A position recorded while offline is sent late with
+`recordedAt`; the server keeps the position recorded last, so an older one never replaces a newer one from another
+device. `media-session.ts` keeps the operating system's media controls in step. Media requests are never touched by the
+service worker. Rows and cards offer a quick download of the file only in the apps (`player/quick-download.ts`); a browser
+has none.
 
-Everything platform-specific is behind `PlayerBackend` (`src/player/backend.ts`): loading a URL, play,
-pause, seek, speed, the element that shows video, and state changes. `HtmlMediaBackend` is the browser's
-media element. A native shell passes its own backend to `<PlayerProvider backend={…}>`. The contract is
-in [plan/25](../../plan/25-media-playback.md). Media requests are never touched by the service worker.
-Rows and cards offer a quick download of the file only in the apps (`player/quick-download.ts`); a browser has none.
+Everything platform-specific is behind `PlayerBackend` (`src/player/backend.ts`): `supportsVideo`, `load(source,
+{ startAt, rate, autoplay })`, `play`, `pause`, `seek`, `setRate`, `view()` (the element that shows video, or null),
+`state()` (position, duration, playing, buffering, ended, failed), `subscribe` and `unload`. `HtmlMediaBackend` is the
+browser's media element; a native shell passes its own backend to `<PlayerProvider backend={…}>`. The controller
+(`player.ts`) chooses the source (the device download first, then the publisher), resumes, saves positions and owns the
+speed; the UI (`PlayerBar.tsx`, `MediaSection.tsx`) and the Media Session wiring talk only to the controller.
+
+**Workflow from playing.** An item that is New or To read/listen/watch becomes In progress after 30 seconds of real
+playing (the clock counts only while the playhead moves forward at about the playing speed: seeks, pauses and stalls
+add nothing), and Finished once it has played for three seconds at or after the finish point (95% of its length or its
+last two minutes, whichever comes first, never before halfway); a seek into or past the finish point is not playing
+there. With an unknown length only In progress happens. It only moves forward, never changes Ignored or Finished, and is
+quiet: no message and no Undo, and the change goes through the same outbox as any workflow change, carrying the playback
+session and the workflow revision so that a state the person set by hand (on any device, in bulk, by Undo or by a Smart
+filter) is never overridden by playback.
+
+**Video platforms.** A YouTube (no-cookie player), Vimeo, Dailymotion, Odysee or Twitch video page, or an Instagram post
+(`/p/<code>/`, `/reel/<code>/`), plays or shows in the reader in the platform's own embedded player
+(`src/lib/embeds.ts`, `components/VideoEmbed.tsx`, sandboxed, referrer policy `strict-origin-when-cross-origin`). A
+video loads only when the person presses play, so opening an item asks nothing of the platform; an item with a publisher
+file plays that file instead, and *Open on …* always stays. An Instagram post loads as soon as the item opens, since
+there is nothing else to show; one a basket kept with its pictures shows those in a slideshow of the stored copies
+instead (`PictureSlideshow`), the embed behind *Show the post here*. Embedded videos have no position, mini-player or
+media controls and are never marked Finished by themselves (the end can't be known without the platform's own script,
+which the page's policy doesn't allow); pressing Play on a YouTube video marks it In progress. Twitch is embedded only
+on an https page or `http://localhost`. In an app whose page isn't a web address (the desktop app on macOS and Linux at
+`tauri://`, the iPhone app at `capacitor://`) the players get no referrer and their framing rules refuse the page, so
+only Odysee is embedded there and the rest open on the platform's site. PeerTube stays a link, since every instance has
+its own origin. In the apps the page policy's `frame-src` lists exactly these players' origins; in a browser it allows
+web pages for originals that allow PURSS to frame them (see below).
+
+**An episode's original.** Listen or Watch leads the item's panel, above State and Keep. *Open original* is the item's own
+page and never the audio or video file: a link that is the same address as one of the item's enclosures, or ends in a
+media file name, is not a page (the server decides, `ItemDTO.linkIsMedia`, from the enclosures as the feed sent them, so
+a private source never offers its file address). Such an episode offers *Open the show's website* (the source's
+`siteUrl`, unless it is the feed's own address) and nothing when there is none.
+
+The server keeps no copy of a media file: if the publisher removes one, only a device download may remain. Playback
+positions are not part of the JSON export.
+
+## Originals in the reader
+
+*Open original* and links in an article or its excerpt (`data-inapp`) open inside the reader instead of leaving PURSS
+(`src/lib/originals.ts`, `shell/WebPane.tsx`): in a browser, a frame over the reader when the page allows framing and
+otherwise a new tab; in the desktop app, the app's own web view over the reader (see the [desktop README](../desktop/README.md));
+in the phone apps, a browser tab over the app. Lists' *Open original*, video and audio links, and links elsewhere in
+PURSS open outside PURSS. A bar above the page names the site and the rest of its address, says *Not secure* for plain
+http, and offers reload and the page outside PURSS; *Article* or Esc goes back.
+
+A browser refuses a frame when the page's headers say so, and the page around it can't tell, so the server reads the
+page's headers (`GET /api/frame-check?url=`, `checkFraming` in `packages/connectors/src/frame-policy.ts`, through the
+safe fetcher) and judges them against `PURSS_PUBLIC_ORIGIN` the way browsers do. It is asked when an item opens, for its
+original, and for a link in the article when the pointer rests on it or it gets focus; a press decides on what is known
+then, and no answer yet means a new tab (a new tab is the link's own behaviour, so no popup blocker interferes). Answers
+are kept six hours per PURSS and checks are limited per account. The frame is
+`sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"` with
+`allow="fullscreen"` and never `allow-top-navigation`. Because a site sees PURSS as another site in a frame, its cookies
+are kept apart: a subscription or login usually doesn't show there, and *Open in a new tab* does. The real page loads
+(its own address, ads and analytics), so the publisher is credited and gets the visit.
 
 ## Install and offline reading
 
@@ -129,45 +191,74 @@ them, edit the artwork and render the PNGs again with Playwright's Chromium.
 
 ## Highlights and notes
 
-`src/annotations/` holds the reader's annotations (plan/26). The article's text is read as its text
+`src/annotations/` holds the reader's annotations. A *highlight* is a passage with an optional comment, a *note* is text
+about the whole item; both are stored apart from workflow, reading progress, collection and basket membership, and
+retention. The article's text is read as its text
 nodes with white space collapsed and block boundaries as one space (`anchor.ts`); a highlight stores
-its passage, 32 characters on each side and its position there, and is found again by its words,
-then context, then nearness. `renderHighlights` draws `<mark class="anno">` pieces into the prepared
+its passage (at most 5,000 characters), 32 characters on each side and its position there, and is found again by its
+words, then context, then nearness, on exact words only (a guessed anchor could mark the wrong passage). A passage that
+isn't in the text shown is listed as *Not found in the text shown* with its quote; it is never deleted or moved.
+`renderHighlights` draws `<mark class="anno">` pieces into the prepared
 article HTML (overlaps share pieces); the first piece of each is focusable and opens it with `Enter`.
-The selection bar follows `selectionchange`, so mouse, touch handles and keyboard selection all work.
-Every change goes through the outbox (`outbox.ts`, IndexedDB in `outbox-store.ts`): recorded, laid over
-the server's list for display (`mergeView`), then sent; offline it waits and shows *Waiting to sync*.
-`AnnotationSync` (mounted in `main.tsx`) sends what waits at start, on reconnect and when the page is
-shown, and deletes another account's entries; sign-out clears it. The offline pack saves
-`/api/items/:id/annotations` for queued items that have annotations (`ItemDTO.annotatedAt`).
+The selection bar follows `selectionchange`, so mouse, touch handles and keyboard selection all work; it offers
+**Highlight** and **Add comment** (`h` and `c` do the same). A comment or note is at most 10,000 characters and an item
+holds at most 500 live annotations (`limits.ts` repeats the server's limits; a test keeps them equal).
+Every change goes through the outbox (`outbox.ts`, IndexedDB in `outbox-store.ts`): recorded,
+laid over the server's list for display (`mergeView`), then sent. A write carries the whole annotation and the time it
+was made, the server keeps the later one per annotation, and a new change replaces any unsent change of the same
+annotation. Offline, a busy server or an ended session leave it waiting and shown as *Waiting to sync* (also counted in
+the item panel); a refusal (item deleted, too many, storage full beyond the headroom) marks it failed with the reason,
+*Try again* and *Discard this change*, and a refused removal is dropped.
+`AnnotationSync` (mounted in `main.tsx`) sends what waits at start, on reconnect, when the page is shown and every ten
+seconds while something waits. The offline pack saves `/api/items/:id/annotations` for queued items that have
+annotations (`ItemDTO.annotatedAt`). The outbox works whether or not *Offline reading on this device* is on.
+
+Entries belong to an account. In a browser, signing out deletes them after a warning in *Settings → Security* when any
+wait, and another account signing in deletes the previous account's; an expired session keeps them. In the apps,
+*Disconnect this app* deletes them after the same warning, but a lost connection keeps them, and so does connecting with
+another account: they are sent when their account connects again, and *Settings → This device* offers to copy them as
+text or discard them. Nothing unsent is deleted without the person's say in the apps.
+
+Annotations pin no version and make no copy. Unfollowing with *Also delete the items you haven't kept* skips any item with a live
+annotation; an explicit permanent delete names the items that carry annotations and needs the same
+tick as kept items. Annotated items stay in lists and search after their source is unfollowed. Annotation text is
+searchable, is in the JSON export, appears to assistants as the person's own writing (they can't write annotations) and
+is never in a publication.
 
 ## Adding a page (data, sharing, admin)
 
-Push an entry onto `workspacePages` in `src/plugins.ts` before the router is created:
+Add an entry to `featurePages` in `src/features/pages.tsx` (discovery, sharing, your data, review and administration are
+there), or push one onto `workspacePages` in `src/plugins.ts` before the router is created:
 
 ```ts
 workspacePages.push({ path: "/sharing", title: "Sharing", component: SharingPage, nav: { label: "Sharing", icon: "link" } });
 ```
 
 The route is mounted under the signed-in shell automatically; `nav` adds a sidebar entry,
-`adminOnly` hides it from non-administrators, and `parent` supplies a breadcrumb parent. While the
-array is empty nothing is rendered and no link points at those routes.
+`adminOnly` hides it from non-administrators, `hostedOnly` hides the entry on a self-hosted installation, and `parent`
+supplies a breadcrumb parent. A page appears only when it is registered, so no link points at a route that renders
+nothing.
 
-## Platform layer and the phone apps
+## Platform layer and the apps
 
-The same build runs in a browser and inside the Android and iOS apps (`apps/mobile`,
-[plan/31](../../plan/31-mobile-apps.md)). Screens never ask which; they use `platform` from
+The same build runs in a browser, inside the Android and iOS apps (`apps/mobile`, see its
+[README](../mobile/README.md)) and inside the desktop app (`apps/desktop`, `src/platform/desktop/`, see its
+[README](../desktop/README.md)). Screens never ask which; they use `platform` from
 `src/platform/index.ts`, which `main.tsx` sets up before anything renders (`initPlatform()`):
 
-| Part | Web (`platform/web.ts`) | Apps (`platform/native/`) |
+| Part | Web (`platform/web.ts`) | Phone apps (`platform/native/`) and desktop app (`platform/desktop/`) |
 | --- | --- | --- |
 | `transport` | `fetch` same-origin with the cookie; `EventSource` | The connected origin with `Authorization: Bearer`; `/api/events` read with fetch (`sse.ts`); copyable reads through the `OfflineWorker`; downloaded items when nothing else answers (`native/transport.ts`) |
 | `offline` | The service worker (`web-offline.ts`) | The same `OfflineWorker` in the page, copies in IndexedDB (`copies.ts`) |
-| `createPlayerBackend()` | `HtmlMediaBackend` | `AppPlayerBackend`: native audio with lock-screen controls, video in the page |
+| `createPlayerBackend()` | `HtmlMediaBackend` | Phones: `AppPlayerBackend`, native audio with lock-screen controls and video in the page. Desktop: `HtmlMediaBackend` |
 | `downloads` | none | `DownloadManager` (`src/downloads`) over the device's files |
 | `connection` | none | The connected PURSS: disconnect, signed-out handling, opening pages in the browser |
-| `fileExports` | yes | no: exports open in the browser |
-| `onShare` | never fires | Links shared from other apps |
+| `passkeys` | The browser's | Phones: the phone's own, where the PURSS vouches for the app. Desktop: none |
+| `saveFile` | A download | Phones: the share sheet. Desktop: a save dialog |
+| `onShare`, `widget`, `push` | none | Phones: links shared in, the home-screen panels, notifications |
+| `notifier`, `badge`, `onIntake`, `desktop` | The browser's alerts; no badge | Desktop: system notifications, the icon's count, feed links and OPML files, updates, the downloads folder |
+| `interfaceUpdates`, `appUpdates` | none | Interface updates from the connected PURSS; phone apps also learn of new versions of the app |
+| `webView`, `frames` | `frames`: the reader may frame a page whose headers allow it | Desktop: its own web view shows any page. Phones: pages open in a browser tab over the app |
 
 The apps' code is a separate chunk, loaded only inside the shell. An app that isn't connected shows
 `native/ConnectScreen.tsx` instead of the router. `src/offline/worker-link.ts` and `store.ts` reach
@@ -177,4 +268,4 @@ system on both.
 ## Tests
 
 `src/lib/*.test.ts`, `src/sw/*.test.ts`, `src/offline/*.test.ts`, `src/outbox/*.test.ts`, `src/platform/**/*.test.ts`, `src/downloads/*.test.ts` and `src/share/*.test.ts` are pure Node tests run by the root `npm test`. Browser behaviour is checked
-against the real stack (see the repository's `tests/` and `plan/13-validation.md`).
+against the real stack (see the [acceptance journeys](../../tests/acceptance/README.md) and [testing](../../docs/development.md#testing-and-acceptance)).

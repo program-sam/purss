@@ -45,7 +45,7 @@ import {
 
 /**
  * A found feed before it is held behind a token. `large`: the feed is bigger than the engine can read whole (`TRIM_FEED_BYTES` or `TRIM_FEED_ITEMS`), so
- * it is followed through the feed gateway; the person is not shown it (plan/44).
+ * it is followed through the feed gateway; the person is not shown it.
  */
 export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { large?: boolean };
 export type DiscoveryDraft = { ok: true; url: string; candidates: DraftCandidate[]; keep?: KeepOffer } | Extract<DiscoveryResult, { ok: false }>;
@@ -71,7 +71,7 @@ export type DiscoverOptions = {
   retryDelayMs?: number;
   /** Most requests one discovery may make (a page, its probes, a directory…). Default 40. */
   maxRequests?: number;
-  /** The installation's bridge router (plan/41); without it, bridged services get the "no feeds" answer. */
+  /** The installation's bridge router; without it, bridged services get the "no feeds" answer. */
   bridge?: BridgeClient;
   /** Which services the router serves here (RSS-Bridge's only where RSS-Bridge runs). Default: all of them. */
   bridgeServes?: (service: BridgeService) => boolean;
@@ -103,7 +103,7 @@ type Ctx = {
   spent: () => boolean;
   now: () => Date;
   get: (url: string, opts?: { maxBytes?: number; accept?: string; timeoutMs?: number; phaseTimeoutsMs?: PhaseTimeouts; maxRedirects?: number }) => Promise<SafeFetchResult>;
-  /** What was learned on the way about the journal the address belongs to, for its Crossref choice (plan/45). */
+  /** What was learned on the way about the journal the address belongs to, for its Crossref choice. */
   journal: JournalClue;
 };
 
@@ -147,7 +147,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
 }
 
 /**
- * Whether a feed as far as it was read is too big for the engine to read whole (plan/44): the read stopped at FEED_MAX_BYTES (a body cut there
+ * Whether a feed as far as it was read is too big for the engine to read whole: the read stopped at FEED_MAX_BYTES (a body cut there
  * is a feed larger than that), or what was read has more than TRIM_FEED_ITEMS items.
  */
 function tooBigForEngine(r: { truncated: boolean; body: Uint8Array }): boolean {
@@ -916,7 +916,7 @@ const MAX_REGISTRY_FEEDS = 4;
 const REGISTRY_TIMEOUT_MS = 8000;
 
 /**
- * Discovery's last resort (plan/46): when a web address gave nothing, ask Wikidata which item has the page (or, for a
+ * Discovery's last resort: when a web address gave nothing, ask Wikidata which item has the page (or, for a
  * section page, the site's front page) as its official website. Feeds it lists are tried like any other, and the page's
  * own item's ISSNs are handed to the Crossref step. A private-looking address is never sent, nor any query string;
  * Wikidata failing or slow leaves the answer as it was.
@@ -985,7 +985,7 @@ export const CROSSREF_NOTE = "Every article the publisher registers with Crossre
 const OJS_GENERATOR = /<meta[^>]+name=["']generator["'][^>]+content=["']Open Journal Systems/i;
 
 /**
- * What discovery learned about the journal an address belongs to (plan/45): ISSNs it was told (a page's metadata, a DOI's
+ * What discovery learned about the journal an address belongs to: ISSNs it was told (a page's metadata, a DOI's
  * Crossref record), names to look up in Crossref with the publisher that must match, the platform a journal page is on
  * (its feeds' journal name is then looked up), and a Wiley journal code that isn't an ISSN.
  */
@@ -1076,7 +1076,7 @@ function isJournalArticlesFeed(c: DraftCandidate): boolean {
 }
 
 /**
- * The journal's Crossref choice (plan/45), added after everything else was found and ordered. Next to the journal's own
+ * The journal's Crossref choice, added after everything else was found and ordered. Next to the journal's own
  * articles feed it is an alternative, never chosen first; without one it is the journal's feed. A journal Crossref
  * doesn't know, or a router that can't reach Crossref just now, leaves the result as it was.
  */

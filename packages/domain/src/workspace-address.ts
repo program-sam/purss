@@ -1,10 +1,10 @@
 /*
- * The PURSS address the apps and the browser extension connect to (plan/31, plan/32): one rule
+ * The PURSS address the apps and the browser extension connect to: one rule
  * for both. HTTPS everywhere, except on this device and the local network, where self-hosted
  * PURSSes often run without TLS; there plain HTTP is allowed and the person is told it isn't
  * encrypted. Plain HTTP to anything else is refused: the app's or extension's token would cross
  * the internet readable by anyone on the way. Whether to allow the local network at all is an open
- * question for the owner (plan/31); this is the conservative default.
+ * question for the owner; this is the conservative default.
  */
 
 export type WorkspaceAddress = { ok: true; origin: string; unencrypted: boolean } | { ok: false; message: string };

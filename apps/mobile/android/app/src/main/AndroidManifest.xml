@@ -30,7 +30,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- The connect page hands its one-time code back to purss://connect (plan/24). -->
+            <!-- The connect page hands its one-time code back to purss://connect. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -38,7 +38,7 @@
                 <data android:scheme="purss" android:host="connect" />
             </intent-filter>
 
-            <!-- A tapped notification opens purss://open with its item and source; the app only navigates (plan/37). -->
+            <!-- A tapped notification opens purss://open with its item and source; the app only navigates. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -71,7 +71,7 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
-        <!-- The home-screen panels, their setup and the To listen panel's play/pause (plan/38). -->
+        <!-- The home-screen panels, their setup and the To listen panel's play/pause. -->
         <receiver
             android:name=".device.WorkspaceWidget"
             android:label="@string/widget_to_read"

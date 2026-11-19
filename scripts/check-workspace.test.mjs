@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWorkspace, planFiles, workspacePaths } from './check-workspace.mjs';
+import { checkWorkspace, docFiles, workspacePaths } from './check-workspace.mjs';
 
 async function fixture(context) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'purss-scaffold-'));
@@ -20,7 +20,7 @@ async function fixture(context) {
   const documents = [
     'README.md', 'AGENTS.md', 'infra/README.md', 'tests/acceptance/README.md',
     ...workspacePaths.map((directory) => `${directory}/README.md`),
-    ...planFiles.map((filename) => `plan/${filename}`),
+    ...docFiles.map((filename) => `docs/${filename}`),
   ];
   for (const document of documents) {
     await mkdir(path.dirname(path.join(root, document)), { recursive: true });
@@ -31,16 +31,16 @@ async function fixture(context) {
 
 test('accepts the private scaffold and ignores external and anchor-only links', async (context) => {
   const root = await fixture(context);
-  await writeFile(path.join(root, 'README.md'), '[plan](plan/README.md) [web](https://example.com/) [section](#section)');
+  await writeFile(path.join(root, 'README.md'), '[docs](docs/README.md) [web](https://example.com/) [section](#section)');
   const result = await checkWorkspace(root);
   assert.deepEqual(result.errors, []);
   assert.equal(result.packageCount, workspacePaths.length + 1);
 });
 
-test('reports broken local links and missing plan documents', async (context) => {
+test('reports broken local links and missing docs', async (context) => {
   const root = await fixture(context);
   await writeFile(path.join(root, 'README.md'), '[missing](missing.md)');
-  await rm(path.join(root, 'plan', planFiles[1]));
+  await rm(path.join(root, 'docs', docFiles[1]));
   const result = await checkWorkspace(root);
   assert.ok(result.errors.some((error) => error.includes('broken local link')));
   assert.ok(result.errors.some((error) => error.includes('Missing required document')));

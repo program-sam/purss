@@ -17,7 +17,7 @@ import java.util.Date
 import java.util.concurrent.TimeUnit
 
 /**
- * Automatic downloads while the app is closed (plan/38): a periodic WorkManager job. It asks the
+ * Automatic downloads while the app is closed: a periodic WorkManager job. It asks the
  * PURSS which items to fetch (the same plan the open app asks for), fetches each item's details,
  * notes and file into `downloads-incoming/`, writes record.json last and moves the folder into the
  * downloads folder, where the page adopts it as its own download. It keeps out of the way while the app

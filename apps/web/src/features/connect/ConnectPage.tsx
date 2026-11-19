@@ -8,7 +8,7 @@ import { useStepUp } from "../shared/step-up.tsx";
 import { CopyButton, Note } from "../shared/bits.tsx";
 import { KIND_LABEL } from "./ConnectedApps.tsx";
 
-/** The query an app opens /connect with (plan/24); passed to the server as it came. */
+/** The query an app opens /connect with; passed to the server as it came. */
 export const CONNECT_PARAMS = ["client", "redirect_uri", "state", "code_challenge", "code_challenge_method", "device_name"] as const;
 export type ConnectSearch = Partial<Record<(typeof CONNECT_PARAMS)[number], string>>;
 

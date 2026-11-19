@@ -19,7 +19,7 @@ const DIALOGS: Record<string, Overlay> = {
 };
 
 /**
- * The popup a deep link asks for, with what it carries (plan/32). The browser extension and the
+ * The popup a deep link asks for, with what it carries. The browser extension and the
  * bookmarklets hand a page over this way:
  * - `?dialog=add&url=…` opens Add source with the link filled in; nothing is looked up until Find.
  * - `?dialog=keep&url=…&title=…` asks to keep the page, in a basket the person picks.
@@ -35,7 +35,7 @@ export function deepLinkOverlay(s: ListSearch): Overlay | null {
 export type BookmarkletKind = "add" | "keep";
 
 /**
- * A bookmarklet that hands the open page to this PURSS (plan/32). It runs on the page being read,
+ * A bookmarklet that hands the open page to this PURSS. It runs on the page being read,
  * so it only reads that page's address (and title, to keep it) and opens PURSS in a new tab
  * with a deep link; it never calls PURSS's API, so the page's own security policy can't block
  * a request and the page never sees anything of PURSS. `noopener` keeps the two tabs apart.

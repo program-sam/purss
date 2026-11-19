@@ -3,7 +3,7 @@ import { requirePrincipal } from "../app.ts";
 import { Router, badRequest } from "../http.ts";
 import { frameCheck } from "../services/frame-check.ts";
 
-/** Whether the reader can show a page from another site in a frame (plan/43). */
+/** Whether the reader can show a page from another site in a frame. */
 export function frameCheckRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   r.get("/api/frame-check", (req, ctx) => {

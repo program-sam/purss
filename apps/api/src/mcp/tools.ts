@@ -15,7 +15,7 @@ import { hasCredentialShape } from "../services/text-safety.ts";
 import type { AssistantAccessLevel } from "@purss/domain";
 
 /*
- * The tools an assistant can call (plan/23). Every tool runs as the token's account through the same
+ * The tools an assistant can call. Every tool runs as the token's account through the same
  * services the web app uses, so PURSS scoping, storage limits and validation are the same.
  * Not offered: permanent deletion, sharing or publishing, export, account security, administration.
  * Item text comes from third-party publishers and is returned as data, labelled as such.

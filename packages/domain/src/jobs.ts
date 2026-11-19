@@ -15,13 +15,13 @@ export const JOB_KINDS = [
   "capture.images", // fetch the pictures of an item kept with its readable text
   "source.icon", // find and normalize a source's icon
   "engine.delete_user", // remove a deleted account's engine user, then finalize the deletion
-  "filter.judge", // ask Jev whether new posts pass the Smart filters that apply to them (plan/36)
+  "filter.judge", // ask Jev whether new posts pass the Smart filters that apply to them
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export const jobPayloadSchemas = {
   "engine.provision": z.object({ engineUserId: z.string(), username: z.string() }),
-  // trim: the feed is big (larger than the engine can read whole), so the engine is given the feed gateway's trimmed copy of it (plan/44).
+  // trim: the feed is big (larger than the engine can read whole), so the engine is given the feed gateway's trimmed copy of it.
   "engine.subscribe": z.object({ engineUserId: z.string(), sourceId: z.string(), feedUrl: z.string(), title: z.string(), trim: z.boolean().optional() }),
   "engine.unsubscribe": z.object({ engineUserId: z.string(), streamId: z.string() }),
   "engine.rename": z.object({ engineUserId: z.string(), streamId: z.string(), title: z.string() }),

@@ -7,7 +7,7 @@ import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "../services/deletion.ts";
 
 /*
- * Device tokens for connected apps (plan/24). A token is a bearer credential like a session cookie:
+ * Device tokens for connected apps. A token is a bearer credential like a session cookie:
  * 32 random bytes with a recognisable prefix, shown to the app once, only its SHA-256 stored. It
  * acts as its account's principal scoped to the account's PURSS. The phone app's token is a full
  * sign-in: an administrator's is an administrator, and "confirm it's you" (step-up) refreshes its

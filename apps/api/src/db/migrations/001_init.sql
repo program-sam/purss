@@ -296,7 +296,7 @@ CREATE TABLE captures (
 ) STRICT;
 CREATE INDEX captures_item ON captures(item_id);
 
--- Logical storage ledger (plan/17).
+-- Logical storage ledger.
 CREATE TABLE storage_accounts (
   account_id TEXT PRIMARY KEY REFERENCES accounts(id),
   allocation_bytes INTEGER,        -- NULL = unallocated self-host account

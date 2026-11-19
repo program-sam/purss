@@ -24,7 +24,7 @@ import { listSources } from "./sources.ts";
 import { collectionStats, sourceStats } from "./statistics.ts";
 
 /*
- * Smart filters (plan/36) end to end: a sync queues judging, a worker step asks a stand-in Jev over HTTP through the internal routes
+ * Smart filters end to end: a sync queues judging, a worker step asks a stand-in Jev over HTTP through the internal routes
  * (the same calls the worker makes), and the answers change the posts' workflow and what is announced.
  */
 

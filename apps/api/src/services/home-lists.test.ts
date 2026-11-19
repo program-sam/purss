@@ -18,7 +18,7 @@ import { activeMutedWords, mutedScan } from "./muted.ts";
 import { matchesMuted, mutedPatterns } from "./muted-match.ts";
 
 /*
- * What Home's sections and lists show (plan/34): items of collections hidden on Home stay out of Home's feed and
+ * What Home's sections and lists show: items of collections hidden on Home stay out of Home's feed and
  * filter collections; the one feed is in strict date order;
  * muted words; type and length filters; hiding one source from a list.
  */

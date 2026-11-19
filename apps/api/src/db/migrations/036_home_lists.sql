@@ -1,4 +1,4 @@
--- Home's lists (plan/34).
+-- Home's lists.
 --
 -- "More" joins Normal, Fewer and "Only in its own page" as a source's share of Home. The column's CHECK names the allowed
 -- values and SQLite cannot change a CHECK in place, so the column is replaced: the new one is filled from the old, the old

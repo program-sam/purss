@@ -1,4 +1,4 @@
--- OAuth for assistants (plan/33): cloud assistants that only accept OAuth connect to /mcp. Only
+-- OAuth for assistants: cloud assistants that only accept OAuth connect to /mcp. Only
 -- SHA-256 hashes of codes and tokens are stored.
 
 -- One-time codes now also carry OAuth approvals: kind 'oauth', the client's id (its metadata

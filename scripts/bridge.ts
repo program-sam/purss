@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The development RSS-Bridge (podman), the backend of the egress bridge router (plan/41).
+ * The development RSS-Bridge (podman), the backend of the egress bridge router.
  *
  *   node scripts/bridge.ts up      start it (replacing a container with other settings); idempotent
  *   node scripts/bridge.ts down    stop and remove it

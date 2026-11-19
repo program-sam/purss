@@ -153,7 +153,7 @@ test("a walled publisher page whose journal feed doesn't answer: no guessing at 
   assert.ok(!d.ok);
   const site = calls.map((c) => c.url).filter((u) => !u.startsWith("https://www.wikidata.org/"));
   assert.deepEqual(site, ["https://www.tandfonline.com/feed/rss/zzzz20", "https://www.tandfonline.com/action/showFeed?type=axatoc&feed=rss&jc=zzzz20", pageUrl]);
-  assert.equal(calls.length - site.length, 1, "then Wikidata is asked what the walled page is (plan/46)");
+  assert.equal(calls.length - site.length, 1, "then Wikidata is asked what the walled page is");
 });
 
 test("a society's page for its journal: the journal's feed on the publisher's platform first, the society's own feed after it, labelled", async () => {

@@ -1,5 +1,5 @@
-// Builds the desktop app (plan/42): the interface for the app's root (apps/web/app-dist), then the Tauri app with
-// the product's version (plan/40) in its dotted spelling, which Tauri and the updater read as semver (26.312.14).
+// Builds the desktop app: the interface for the app's root (apps/web/app-dist), then the Tauri app with
+// the product's version in its dotted spelling, which Tauri and the updater read as semver (26.312.14).
 // A checkout without history builds as 0.0.0, which never updates itself. Extra arguments go to `tauri build`
 // (for example `--bundles appimage` or `--target universal-apple-darwin`).
 //

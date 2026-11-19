@@ -1,4 +1,4 @@
--- Captured text honesty and pictures in kept copies (plan/34).
+-- Captured text honesty and pictures in kept copies.
 --
 -- A readable-text capture is checked before it is called the full text. `quality` says what the check found:
 -- 'full' passed, 'partial' is only part of the page (a sign-in or subscription wall, a list of references, less

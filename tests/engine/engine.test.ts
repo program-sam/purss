@@ -1,6 +1,6 @@
 /**
  * Contract tests of the FreshRSS boundary against the real pinned container (see packages/freshrss/CAPABILITIES.md).
- * Run with `npm run test:engine`; on this shared host wrap it: `~/.t3/bin/hostlock work engine-tests -- npm run test:engine`.
+ * Run with `npm run test:engine`.
  *
  * One engine is started for the file. Every test makes its own engine user and feed so tests do not depend on each other.
  * All feed fetches go through a recording test proxy (the engine has no other way out); the real egress proxy is

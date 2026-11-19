@@ -33,7 +33,7 @@ import { feedAddress } from "./feed-link.ts";
 import { desktopConnection, desktopFiles } from "./files.ts";
 
 /**
- * The desktop app's platform (plan/42): the phone apps' model in a Tauri shell. The interface is the web app's
+ * The desktop app's platform: the phone apps' model in a Tauri shell. The interface is the web app's
  * build, embedded in the app or downloaded from the connected PURSS; it talks to that PURSS with the
  * device token from the system's credential store. The page keeps running while the window is hidden, so the
  * event stream, automatic downloads and notifications go on until the person quits from the tray.
@@ -56,7 +56,7 @@ async function forgetConnection(): Promise<void> {
 }
 
 /**
- * Everything handed to the app from outside (plan/42): purss://connect answers, purss://open links, feed links and
+ * Everything handed to the app from outside: purss://connect answers, purss://open links, feed links and
  * OPML files. Kept until someone listens for its kind, so what started the app reaches the screen that wants it.
  */
 const incoming = (() => {
@@ -101,7 +101,7 @@ const desktopConnectShell: ConnectShell = {
   browserSignin: { withPasskeys: "Sign in in your browser (passkey or linked account)", withoutPasskeys: "Sign in in your browser (passkey or linked account)" },
 };
 
-/** The interfaces Rust keeps (plan/39, plan/42). The page fetches PURSS's zip and checks it; Rust unpacks and serves it. */
+/** The interfaces Rust keeps. The page fetches PURSS's zip and checks it; Rust unpacks and serves it. */
 function desktopUpdater(): Updater {
   return {
     builtinVersion: () => desktop.interfaceBuiltin(),
@@ -137,7 +137,7 @@ function desktopNotifier(): Notifier {
   };
 }
 
-/** The app's web view for other sites' pages (plan/43); Rust checks every address and place. */
+/** The app's web view for other sites' pages; Rust checks every address and place. */
 function desktopWebView(): WebView {
   const listeners = new Set<(s: { url: string; loading: boolean }) => void>();
   void desktop.onWebState((s) => { for (const l of listeners) l(s); });
@@ -324,7 +324,7 @@ function limitPageTo(origin: string, mediaBase: string): void {
 }
 
 export async function startDesktop(): Promise<{ platform: Platform; screen: ReactNode | null }> {
-  // This interface started: Rust keeps it instead of going back to the previous one (plan/39).
+  // This interface started: Rust keeps it instead of going back to the previous one.
   void desktop.interfaceReady().catch(() => undefined);
   const updater = desktopUpdater();
   if (await startQueued(updater, localKv)) return new Promise(() => {});

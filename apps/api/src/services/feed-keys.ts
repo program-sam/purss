@@ -12,7 +12,7 @@ export function canonicalFeedKey(href: string): string {
   return `${u.protocol}//${u.host}${path}${u.search}`;
 }
 
-/** A bridged source's descriptor (`bridge:telegram/durov`, plan/41) when it names a catalogued service and key, else null. */
+/** A bridged source's descriptor (`bridge:telegram/durov`) when it names a catalogued service and key, else null. */
 export function bridgeAddress(value: string | null | undefined): string | null {
   return value && parseBridgeDescriptor(value) ? value.trim() : null;
 }

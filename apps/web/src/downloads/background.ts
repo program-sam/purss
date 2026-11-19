@@ -3,7 +3,7 @@ import { ITEM_KINDS, MAX_DOWNLOAD_BYTES } from "@purss/domain";
 import type { DownloadRecord } from "./types.ts";
 
 /**
- * The contract with the apps' native background job (plan/38). The job runs while the app is closed,
+ * The contract with the apps' native background job. The job runs while the app is closed,
  * so it can't use the page's storage: the page mirrors what the job needs into native storage, and the
  * job leaves what it downloaded in the downloads folder with a `record.json` beside the files, which
  * the page adopts as its own download record the next time it runs.

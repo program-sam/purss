@@ -1,7 +1,7 @@
 import type { AnnotationDTO, AnnotationPut, AnnotationWriteResult } from "@purss/domain";
 
 /**
- * The annotation outbox (plan/26): every highlight and note change is written here first and then
+ * The annotation outbox: every highlight and note change is written here first and then
  * sent, so a change made offline (or while the connection drops) survives reloads and is sent, in
  * order, when the connection is back. Annotation-specific on purpose; nothing else is queued.
  *

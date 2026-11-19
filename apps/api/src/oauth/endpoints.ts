@@ -7,7 +7,7 @@ import { isOurResource } from "./authorize.ts";
 import { exchangeCode, refreshTokens, revokeByToken } from "./grants.ts";
 
 /*
- * The OAuth endpoints on the public listener (plan/33), served only when the installation offers
+ * The OAuth endpoints on the public listener, served only when the installation offers
  * OAuth for assistants (config.assistantOAuth); otherwise these paths don't exist.
  *
  * - GET /.well-known/oauth-protected-resource/mcp (and at the root): RFC 9728 metadata for /mcp.

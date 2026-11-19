@@ -9,7 +9,7 @@ import { getPreferences } from "./preferences.ts";
 import { bridgeAddress } from "./feed-keys.ts";
 import { urlKey } from "./url-key.ts";
 
-/** The co-follow key of a feed address: a web address without its noise, or a bridged source's descriptor (plan/41). */
+/** The co-follow key of a feed address: a web address without its noise, or a bridged source's descriptor. */
 const feedKey = (feedUrl: string): string | null => bridgeAddress(feedUrl) ?? urlKey(feedUrl);
 
 /*

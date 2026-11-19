@@ -46,7 +46,7 @@ test("the packed interface is offered to the apps, cross-origin and without sign
 
   const zip = await fetch(`${s.base}/api/app/bundle/${b.file}`, { headers: { origin: "tauri://localhost" } });
   assert.equal(zip.status, 200);
-  assert.equal(zip.headers.get("access-control-allow-origin"), "tauri://localhost", "the desktop app's page fetches the zip itself (plan/42)");
+  assert.equal(zip.headers.get("access-control-allow-origin"), "tauri://localhost", "the desktop app's page fetches the zip itself");
   assert.equal(zip.headers.get("content-type"), "application/zip");
   assert.deepEqual(Buffer.from(await zip.arrayBuffer()), b.zip);
   assert.equal((await fetch(`${s.base}/api/app/bundle/other.zip`)).status, 404);

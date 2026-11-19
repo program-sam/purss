@@ -8,7 +8,7 @@ import { messageOf, post } from "../api/client.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 
 /*
- * Pages opened from links in account emails (plan/27): confirming an address, and
+ * Pages opened from links in account emails: confirming an address, and
  * asking for and using a password-reset link.
  */
 

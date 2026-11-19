@@ -4,7 +4,7 @@ import { classifyAddress } from "@purss/connectors";
 import type { Logger } from "./proxy.ts";
 
 /*
- * A minimal DNS resolver for the bridge container's network (plan/41). RSS-Bridge looks up every
+ * A minimal DNS resolver for the bridge container's network. RSS-Bridge looks up every
  * host itself before it fetches (to pin the address), even when it sends the request through the
  * egress proxy, and its network has no other way out. This answers only IPv4 address questions,
  * and only with public addresses: a name with any private, loopback, link-local or otherwise

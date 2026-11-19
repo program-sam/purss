@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { get } from "../api/client.ts";
 
 /*
- * Pages from other sites in the reader (plan/43). In a browser the reader frames a page only when its own headers allow
+ * Pages from other sites in the reader. In a browser the reader frames a page only when its own headers allow
  * PURSS to (the server reads them: /api/frame-check); otherwise it opens in a new tab as before. The desktop app shows
  * any page in its own web view, which is drawn over the page: `placeWebView` keeps it clear of PURSS's menus, dialogs
  * and messages.

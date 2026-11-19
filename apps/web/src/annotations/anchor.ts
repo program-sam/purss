@@ -1,7 +1,7 @@
 import type { TextPosition, TextQuote } from "@purss/domain";
 
 /**
- * Anchoring highlights in the reader's text (plan/26). Pure, so it is testable without a DOM.
+ * Anchoring highlights in the reader's text. Pure, so it is testable without a DOM.
  *
  * The reader's text is the article's text nodes in order, with every run of white space (and every
  * block boundary, such as between paragraphs) collapsed to one space and the ends trimmed. A

@@ -1,7 +1,7 @@
 import type { ConnectClientKind } from "@purss/domain";
 
 /*
- * The first-party clients that may connect (plan/24), fixed in code: no registration, nothing for an
+ * The first-party clients that may connect, fixed in code: no registration, nothing for an
  * operator to set up. What each kind may send as a redirect target, which browser origins may call
  * the API with its token, and which routes its token reaches.
  */
@@ -55,9 +55,9 @@ export function cleanDeviceName(kind: ConnectClientKind, raw: string | undefined
  * Browser origins the apps run in, which may call the API cross-origin with a device token:
  * the Capacitor WebView (iOS `capacitor://localhost`; Android `https://localhost`, or
  * `http://localhost` when the app is built with that scheme), the desktop app's Tauri page
- * (`tauri://localhost`; Windows `http://tauri.localhost`, plan/42) and extension pages. Extension ids
+ * (`tauri://localhost`; Windows `http://tauri.localhost`) and extension pages. Extension ids
  * aren't pinned: self-built and Firefox per-install origins differ. This list only decides who gets
- * CORS answers for token requests; it grants nothing by itself (see plan/24).
+ * CORS answers for token requests; it grants nothing by itself.
  */
 export function isClientOrigin(origin: string): boolean {
   return origin === "capacitor://localhost" || origin === "https://localhost" || origin === "http://localhost"

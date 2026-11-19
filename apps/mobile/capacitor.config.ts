@@ -3,9 +3,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
  * The Android and iOS apps: the web app's production build (apps/web/dist) bundled into a Capacitor
- * shell. It talks to the PURSS the person connects to through the API with a device token (plan/31).
+ * shell. It talks to the PURSS the person connects to through the API with a device token.
  * The PURSS also offers the build of the interface it runs; the app installs it when it fits this app's
- * native code (live updates, plan/39).
+ * native code (live updates).
  *
  * appId and appName are plain choices the owner can change before the first store release (an app id
  * can't change after that). The iOS share extension's app group follows the app id.
@@ -30,16 +30,16 @@ const config: CapacitorConfig = {
   },
   plugins: {
     CapacitorShareTarget: { appGroupId: "group.app.purss" },
-    // iOS: a notification that arrives while the app is open still shows (plan/37).
+    // iOS: a notification that arrives while the app is open still shows.
     PushNotifications: { presentationOptions: ["alert", "sound"] },
     // The phone's own passkeys. Android needs nothing here: the PURSS vouches for the app with
     // /.well-known/assetlinks.json (PURSS_APP_ANDROID_CERT_SHA256). iOS only lets the app use the passkeys of
     // domains built into it: list them in PURSS_APP_PASSKEY_DOMAINS (comma-separated) when syncing.
     // autoShim stays off: the app calls the plugin itself (apps/web/src/platform/native/passkeys.ts).
     CapacitorPasskey: { autoShim: false, domains: passkeyDomains },
-    // Live updates (plan/39), driven by the app itself (apps/web/src/platform/native/live-update.ts) from the
+    // Live updates, driven by the app itself (apps/web/src/platform/native/live-update.ts) from the
     // connected PURSS. Never Capgo's service: no automatic checks, no statistics, no channels. Plain http is
-    // allowed because a PURSS on the home network may use it (the address rule, plan/31). A store update of
+    // allowed because a PURSS on the home network may use it (the address rule). A store update of
     // the app removes downloaded bundles, so the bundled interface takes over until the PURSS offers one again.
     CapacitorUpdater: {
       autoUpdate: false,

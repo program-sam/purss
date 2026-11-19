@@ -3,7 +3,7 @@ import type { SafeFetchOptions } from "@purss/connectors";
 import { rateLimit } from "../http.ts";
 
 /*
- * Who is asking (plan/33): OAuth clients identify themselves with a Client ID Metadata Document
+ * Who is asking: OAuth clients identify themselves with a Client ID Metadata Document
  * (draft-ietf-oauth-client-id-metadata-document-03). The client_id is an https URL; the document
  * there must name the client and list its redirect URIs. Nothing is registered and nothing is stored
  * about a client beyond the grants people approve, so an operator sets nothing up.

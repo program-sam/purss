@@ -54,7 +54,7 @@ export function adminRouter(): Router<Ctx> {
     const patch = parse(z.object({ allocationBytes: z.number().int().min(0).nullable().optional(), plan: z.enum(PLAN_NAMES).optional(), status: z.enum(["active", "suspended"]).optional(), isAdmin: z.boolean().optional() }), req.body);
     return updateAccount(ctx.app, admin, req.params.id!, patch);
   });
-  // Smart filters (plan/36): the server's Jev key. Hosted, accounts on Pro use it; self-hosted, every account may.
+  // Smart filters: the server's Jev key. Hosted, accounts on Pro use it; self-hosted, every account may.
   r.get("/api/admin/ai", (_req, ctx) => { requireAdmin(ctx); return serverKeyInfo(ctx.app); });
   r.put("/api/admin/ai/key", (req, ctx) => setServerKey(ctx.app, requireAdmin(ctx, { stepUp: true }), parse(aiKeySchema, req.body).key));
   r.delete("/api/admin/ai/key", (_req, ctx) => removeServerKey(ctx.app, requireAdmin(ctx, { stepUp: true })));

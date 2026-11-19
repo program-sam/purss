@@ -11,9 +11,9 @@ export type WorkerConfig = {
   internalUrl: string;
   dataDir: string;
   secretsDir: string;
-  /** Where the engine reaches the bridge router (plan/41). */
+  /** Where the engine reaches the bridge router. */
   bridgeEngineUrl: string;
-  /** Where the engine reaches the feed gateway, which trims big feeds (plan/44). */
+  /** Where the engine reaches the feed gateway, which trims big feeds. */
   gatewayEngineUrl: string;
   serviceTokenFile: string;
   /** The engine admin helper's own token (Compose only); the engine never holds the service token. */

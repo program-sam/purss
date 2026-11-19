@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Does an RSS-Bridge image still serve every bridged service (plan/41)? Runs the image with the
+ * Does an RSS-Bridge image still serve every bridged service? Runs the image with the
  * settings Compose uses, asks it for each service's example account through the real bridge router,
  * and, given a baseline image, compares: a service that works on the baseline and fails on the
  * candidate (also when asked again) is a regression. A service failing on both is the service's
@@ -100,7 +100,7 @@ const shown = (r: Result | undefined) => (!r ? "–" : r.status === 200 ? `${r.e
 const lines = ["| Service | Account | " + (before ? "Current image | " : "") + "New image |", "| --- | --- | " + (before ? "--- | " : "") + "--- |"];
 const regressions: string[] = [];
 const failingBoth: string[] = [];
-// Only RSS-Bridge's services depend on its image; Crossref (plan/45) has a backend of its own.
+// Only RSS-Bridge's services depend on its image; Crossref has a backend of its own.
 for (const s of BRIDGE_SERVICES.filter(needsRssBridge)) {
   const a = after.get(s.id);
   const b = before?.get(s.id);

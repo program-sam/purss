@@ -13,7 +13,7 @@ import type { WidgetSnapshot } from "./widget.ts";
 const SETTLE_MS = 2_000;
 
 /**
- * Renders nothing. In the apps (plan/38): keeps the home-screen panels' look and episode in step with the app
+ * Renders nothing. In the apps: keeps the home-screen panels' look and episode in step with the app
  * and the player, and asks the native side to fetch their lists again when the app starts and whenever the app's
  * item lists go stale (the person's own changes and the server's alike). Their taps are opened by OpenLinks.
  */

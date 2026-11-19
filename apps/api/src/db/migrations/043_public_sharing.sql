@@ -1,4 +1,4 @@
--- Sharing moves onto baskets and collections (plan/19): a basket or collection is shared as a public page
+-- Sharing moves onto baskets and collections: a basket or collection is shared as a public page
 -- and feed of its own items, live, instead of a separately curated list. The separate "shared collections"
 -- are removed (owner decision), with any pending confirmations to publish them.
 DELETE FROM confirm_tokens WHERE purpose = 'publication-publish';

@@ -1,5 +1,5 @@
 /**
- * The platform boundary of the in-app player (plan/25). Everything that actually plays a URL and
+ * The platform boundary of the in-app player. Everything that actually plays a URL and
  * reports where it is lives behind this interface; the controller (player.ts), the Media Session
  * wiring and the UI never touch a media element directly. The web app uses HtmlMediaBackend; a
  * native app can supply its own backend (background audio, lock-screen controls, files downloaded

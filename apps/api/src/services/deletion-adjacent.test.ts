@@ -15,7 +15,7 @@ import { claimDeletion, runDeletions } from "./deletion.ts";
 
 /*
  * Account deletion and what the connected apps, playback positions, highlights and notes, browser capture,
- * outgoing email and assistants connected with OAuth keep for an account (plan/24-28, 31-33).
+ * outgoing email and assistants connected with OAuth keep for an account.
  */
 
 const OAUTH = { PURSS_ASSISTANT_OAUTH: "on" };

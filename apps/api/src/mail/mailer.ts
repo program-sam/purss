@@ -6,7 +6,7 @@ import { addSeconds, nowIso } from "../http.ts";
 import { ensureSecret, readSecret, seal, unseal } from "../secrets.ts";
 
 /*
- * Outgoing email (plan/27). Optional: with no PURSS_SMTP_HOST nothing here runs and nothing else
+ * Outgoing email. Optional: with no PURSS_SMTP_HOST nothing here runs and nothing else
  * depends on it, except hosted open sign-up, which stays closed until a check of the mail
  * server succeeds. Every message is recorded in mail_log by kind and masked recipient, never
  * with its body (links in it are credentials).

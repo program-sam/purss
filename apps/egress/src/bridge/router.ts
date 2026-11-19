@@ -6,9 +6,9 @@ import type { StagedEntry } from "../gateway/types.ts";
 import type { BridgeLog, FetchOutcome, FetchPhase } from "./log.ts";
 
 /*
- * The bridge router (plan/41). It answers the engine's signed source addresses
+ * The bridge router. It answers the engine's signed source addresses
  * (`/b/<service>/<key>/<signature>`) by asking the backends of the service's kind in order (RSS-Bridge
- * for most services, Crossref's API for journals; plan/45), and re-serves the result as RSS in which every entry's id comes from its post address, so
+ * for most services, Crossref's API for journals), and re-serves the result as RSS in which every entry's id comes from its post address, so
  * a source keeps its items whichever backend answered. Upstream work is bounded: one fetch per
  * source at a time (concurrent requests share it), a few fetches at once overall, a short cache of
  * good answers (public content only), and a back-off after a failure during which the last good

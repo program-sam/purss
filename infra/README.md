@@ -22,13 +22,17 @@ How Compose differs from the dev setup:
   (`/purss/admin.php`) that runs only the worker's fixed operations, listed in
   [allowlist.json](engine/image/allowlist.json) (a test keeps it equal to the worker's code), and
   requires the service token. It is reachable only on the internal network.
+- RSS-Bridge (`bridge`, the pinned upstream image) turns the public pages of a few services that offer no feed into feeds,
+  with only the catalogued bridges enabled. It sits alone on its own internal network (`bridge-net`), and its requests
+  and name lookups go through the egress proxy and its resolver, which refuse private addresses.
 - `init` creates the secrets and the engine's install-time settings before the engine starts;
   `engine-setup` checks the proxy setting and operator sign-in once the engine is healthy.
 - Volumes: `data` (product database), `secrets` (tokens and passwords; the engine can read only
   its admin helper's token and its operator secret), `engine-data` (FreshRSS).
 
 Backups: `docker compose -f infra/compose.yaml exec api node scripts/backup.ts`. See
-[packaging and operations](../plan/11-packaging-and-operations.md).
+[backups and restore](../docs/self-hosting.md#backups-and-restore), and
+[self-hosting](../docs/self-hosting.md) for the settings the stack reads.
 
 ## Deploying from GitHub
 

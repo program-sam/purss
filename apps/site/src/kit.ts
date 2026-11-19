@@ -167,7 +167,7 @@ function getIt(what: Distributed): string {
 const developerLinks = () => `<p class="fine a-dev">Developers: <a class="link" href="${DISTRIBUTION.mobile.install}">build the phone app</a> or <a class="link" href="${DISTRIBUTION.extension.install}">load the browser extension</a> from the source.</p>`;
 
 /**
- * The desktop app's download (plan/42): one button, which a few lines of script (main.ts, pickDesktopDownload) point
+ * The desktop app's download: one button, which a few lines of script (main.ts, pickDesktopDownload) point
  * at the visitor's system's file, and one link to the release page with every system's files. Without the script, or
  * on a system it doesn't know, the button opens the release page.
  */

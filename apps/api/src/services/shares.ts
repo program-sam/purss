@@ -13,7 +13,7 @@ import { escapeHtml, escapeXml, plainText, uuidFrom } from "./text-safety.ts";
 import type { SqlParam } from "../db/database.ts";
 
 /*
- * Sharing (plan/19): a basket or a collection can be shared as a public page and an Atom feed of its own
+ * Sharing: a basket or a collection can be shared as a public page and an Atom feed of its own
  * items, live. Visitors see, per item, its title, original link, a short plain-text summary, source name
  * and date, plus the person's public note on it when they wrote one; never reading state, private notes
  * and highlights, saved text or anything else from the PURSS. Items from private sources and links

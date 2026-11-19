@@ -47,7 +47,7 @@ import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
 
 /**
- * The Android and iOS apps' platform (plan/31). The interface is the web app's own build, bundled in
+ * The Android and iOS apps' platform. The interface is the web app's own build, bundled in
  * the app; it talks to the connected PURSS with the device token from secure storage. Offline
  * copies are kept by the same OfflineWorker the web's service worker runs, here in the page, in
  * IndexedDB; downloads add the device copies ("Downloaded") on top.
@@ -78,7 +78,7 @@ const phoneConnectShell: ConnectShell = {
 const ref = (b: BundleInfo | null | undefined): BundleRef | null => (b && typeof b.id === "string" && b.id ? { id: b.id, version: b.version } : null);
 
 /**
- * The updater plugin (plan/39). Its own "next bundle" isn't used: the plugin installs that whenever the app goes to
+ * The updater plugin. Its own "next bundle" isn't used: the plugin installs that whenever the app goes to
  * the background, which would stop the player. The page switches itself (live-update.ts).
  */
 const updater: Updater = {
@@ -91,7 +91,7 @@ const updater: Updater = {
   failed: async () => ref((await CapacitorUpdater.getFailedUpdate())?.bundle)?.version ?? null,
 };
 
-/** The installed app's version (plan/40), as its store build says; null for a build without one. */
+/** The installed app's version, as its store build says; null for a build without one. */
 async function installedVersion(): Promise<string | null> {
   try { return plainVersion((await App.getInfo()).version); } catch { return null; }
 }
@@ -135,7 +135,7 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     connection: deviceConnection,
     readPage: (page, url) => readablePage(decodePage(page), url),
     store: localKv,
-    // The background job (plan/38) needs the same server the token belongs to; it reads the token itself.
+    // The background job needs the same server the token belongs to; it reads the token itself.
     mirror: (state) => { void PurssDevice.setBackground({ state: state ? JSON.stringify({ ...state, origin }) : null }).catch(() => undefined); },
   }) : null;
 
@@ -182,7 +182,7 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
       unsent: async () => { await outbox.load(); return outbox.snapshot().length; },
     }, reason);
     leaveNotice(notice, stuck);
-    // The next PURSS decides on its own interface (plan/39).
+    // The next PURSS decides on its own interface.
     restartInstalled();
   }
 
@@ -246,7 +246,7 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
     push: phone?.push ?? null,
     interfaceUpdates: updates,
     appUpdates: conn ? appUpdates : null,
-    // The phones show notifications through the relay (plan/37); Settings doesn't offer alerts there.
+    // The phones show notifications through the relay; Settings doesn't offer alerts there.
     notifier: browserNotifier,
     // On Android the count goes on PURSS's notifications, the only badge launchers draw; on iOS on the icon itself.
     badge: conn ? (count) => { void PurssDevice.setBadge({ count }).catch(() => undefined); } : null,
@@ -296,7 +296,7 @@ function limitPageTo(origin: string, relay: string): void {
 }
 
 export async function startNative(): Promise<{ platform: Platform; screen: ReactNode | null }> {
-  // This interface started: the updater plugin keeps it instead of rolling back to the previous one (plan/39).
+  // This interface started: the updater plugin keeps it instead of rolling back to the previous one.
   void CapacitorUpdater.notifyAppReady().catch(() => undefined);
   // A downloaded interface waiting for this start takes over before anything is shown; the page reloads into it.
   if (await startQueued(updater, localKv)) return new Promise(() => {});

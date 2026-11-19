@@ -8,7 +8,7 @@ export type Overlay =
   | { kind: "add-source"; collectionId?: string; url?: string }
   /** A link shared into the apps from another app. */
   | { kind: "shared"; url: string; title: string }
-  /** An OPML file opened with the desktop app (plan/42): its feeds, to choose which to follow. */
+  /** An OPML file opened with the desktop app: its feeds, to choose which to follow. */
   | { kind: "opml-file"; name: string; text: string }
   | { kind: "new-collection" }
   | { kind: "collection-settings"; id: string }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /*
- * Annotations (plan/26): the person's own highlights and notes on an item. They are separate from
+ * Annotations: the person's own highlights and notes on an item. They are separate from
  * workflow, reading progress, collections, baskets and retention. IDs are chosen by the client
  * (`ann_` + 26 characters, the same shape as every product id) so they can be made offline; a write
  * carries the time it was made and the later write wins. The web app mirrors the limits below in

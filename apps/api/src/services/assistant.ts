@@ -9,14 +9,14 @@ import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "./deletion.ts";
 
 /*
- * Assistant access (MCP, plan/23): an AI assistant reaches a PURSS through /mcp with a personal
+ * Assistant access (MCP): an AI assistant reaches a PURSS through /mcp with a personal
  * access token. Three things must all be true for a token to work: the administrator turned it on
  * for the installation, the account turned it on for itself, and the token exists and hasn't expired.
  * Only a token's SHA-256 is stored; the secret is shown once. A token is never an administrator and
  * never counts as a recent sign-in, so it can't reach administration or account security.
  *
  * Where the installation offers it (hosted mode, or PURSS_ASSISTANT_OAUTH=on), assistants that only
- * accept OAuth connect through a consent page instead (oauth/, plan/33). Each approval is a grant,
+ * accept OAuth connect through a consent page instead (oauth/). Each approval is a grant,
  * listed and revoked here next to the tokens and gated by the same two switches.
  */
 
@@ -98,7 +98,7 @@ export function revokeAllTokens(app: App, accountId: string): number {
     + app.db.run("DELETE FROM oauth_grants WHERE account_id = ?", accountId).changes;
 }
 
-// ---------- assistants connected with OAuth (plan/33) ----------
+// ---------- assistants connected with OAuth ----------
 
 type GrantRow = { id: string; client_id: string; client_name: string; redirect_uri: string; access: AssistantAccessLevel; created_at: string; last_used_at: string };
 export const hostOf = (u: string): string => { try { return new URL(u).host; } catch { return u; } };

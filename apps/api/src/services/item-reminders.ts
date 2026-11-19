@@ -9,7 +9,7 @@ import { getPreferences } from "./preferences.ts";
 import { addDays, localDate, validTimezone, ymdString } from "./reminders.ts";
 
 /*
- * "Remind me" on a kept item (plan/34): one day, and an optional note, per item. The day is the person's
+ * "Remind me" on a kept item: one day, and an optional note, per item. The day is the person's
  * own calendar day in their time zone. On that day the bell says so (and an email, when the person
  * allowed reminders by email and the account has a confirmed address), and Home's "Coming up" lists the
  * next seven days. A reminder belongs to the keeping of the item: while it is in no basket the reminder

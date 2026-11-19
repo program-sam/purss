@@ -5,7 +5,7 @@ import Network
 import Security
 import WidgetKit
 
-/// The automatic downloads that run while the app is closed (plan/38): a BGProcessingTask that reads the device
+/// The automatic downloads that run while the app is closed: a BGProcessingTask that reads the device
 /// token from the keychain, asks the PURSS what to fetch, and leaves the results in the downloads folder for the
 /// page to adopt. The home-screen panels have their own refresh (WidgetRefresh).
 enum BackgroundJob {

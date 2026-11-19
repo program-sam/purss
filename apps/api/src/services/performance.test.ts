@@ -22,7 +22,7 @@ import { unreadCount } from "./notifications.ts";
 /*
  * Size defects only show above a few thousand items: a lookup without an index costs nothing on a test
  * database and a minute on a real one. These tests look at how queries are executed, and at timings with a
- * wide margin, on data shaped like a real account (scripts/dataset.ts). The acceptance size gate is in plan/13.
+ * wide margin, on data shaped like a real account (scripts/dataset.ts).
  */
 
 type Seen = { sql: string; params: unknown[] };

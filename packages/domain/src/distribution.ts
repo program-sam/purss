@@ -1,5 +1,5 @@
 /*
- * Where people get the browser extension, the phone apps and the desktop app (plan/31, plan/32, plan/42): the one
+ * Where people get the browser extension, the phone apps and the desktop app: the one
  * place that knows. A store listing is null until the owner publishes there; until then Settings → Connected apps
  * names the stores it isn't in yet and links to the install instructions, and the website shows no store button.
  * Setting a listing's address is all it takes for its store button to appear in both. No dependencies, so the website can
@@ -46,7 +46,7 @@ export const DISTRIBUTION: Readonly<Record<Distributed, { stores: readonly Store
 };
 
 /**
- * The desktop app (plan/42): GitHub releases of this repository, built by .github/workflows/desktop.yml. Every release
+ * The desktop app: GitHub releases of this repository, built by .github/workflows/desktop.yml. Every release
  * carries the same file names, so `releases/latest/download/<name>` always reaches the newest. The repository must be
  * public for these to download.
  */
@@ -83,8 +83,8 @@ export const DESKTOP_RELEASES_URL = `${SOURCE_URL}/releases/latest`;
 export const desktopDownloadUrl = (file: string): string => `${SOURCE_URL}/releases/latest/download/${file}`;
 
 /**
- * What the newest release holds: the desktop updater's manifest, whose `version` (dotted, plan/40) is also the
- * version of the APK published with it. The Android app installed from the releases checks it (plan/39).
+ * What the newest release holds: the desktop updater's manifest, whose `version` (dotted) is also the
+ * version of the APK published with it. The Android app installed from the releases checks it.
  */
 export const APPS_RELEASE_MANIFEST = desktopDownloadUrl("latest.json");
 
@@ -100,7 +100,7 @@ export function publishedStores(what: Distributed, listings: Readonly<Record<Sto
 }
 
 /**
- * The project's push relay (plan/37, apps/push-relay). It holds the phone apps' Firebase and Apple push
+ * The project's push relay (apps/push-relay). It holds the phone apps' Firebase and Apple push
  * credentials and wakes a phone when its PURSS has something new, never with any content. The apps
  * register with it; every PURSS sends through it unless its operator sets PURSS_PUSH_RELAY_URL. The value
  * to change once the owner has deployed the relay at its final address.

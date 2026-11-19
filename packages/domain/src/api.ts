@@ -11,7 +11,7 @@ import type { TextRef } from "./annotations.ts";
  * Public product API contract (browser and connected apps <-> api). All routes are under /api,
  * JSON. The browser uses the session cookie, and its mutations require the same origin and the
  * `x-purss-csrf` header from GET /api/session. Connected apps send `Authorization: Bearer purss_dev_…`
- * instead (plan/24).
+ * instead.
  * Errors: { error: { code, message } } with a plain-language message.
  */
 
@@ -49,7 +49,7 @@ export type SessionInfo = {
     signup: "invite" | "open";
     /** Outgoing email is set up: invitations can be emailed. */
     mail: boolean;
-    /** This server's version (plan/40), e.g. "2631214"; null when it was built without one. */
+    /** This server's version, e.g. "2631214"; null when it was built without one. */
     version: string | null;
     /** Addresses are confirmed by a link and can receive a password-reset link (wherever outgoing email is set up). */
     accountEmail: boolean;
@@ -57,7 +57,7 @@ export type SessionInfo = {
     billing: boolean;
   };
 };
-/** The signed-in account's email address (plan/27). */
+/** The signed-in account's email address. */
 /**
  * The account's sign-in address. `available`: the server sends email (confirmation and reset links). `pending`: a new
  * address waiting for its confirmation link; until then `address` stays the account's.
@@ -89,13 +89,13 @@ export type SourceDTO = {
   iconUrl: string | null;
   curator: string | null; // someone's shared page
   notify: "default" | "on" | "muted";
-  /** Each new item's page is fetched and a readable copy saved (plan/07 capture). */
+  /** Each new item's page is fetched and a readable copy saved. */
   fullText: boolean;
   /** Whether full articles can be turned on: ordinary feeds, never private ones. */
   fullTextAvailable: boolean;
   /** Its link can be kept private or shown again (POST /api/sources/:id/privacy): feeds with a link of their own. */
   privacyChangeable: boolean;
-  /** The source's own Smart filter is on; a collection's filter is marked on the collection (plan/36). */
+  /** The source's own Smart filter is on; a collection's filter is marked on the collection. */
   aiFiltered: boolean;
 };
 export type CollectionDTO = {
@@ -110,7 +110,7 @@ export type CollectionDTO = {
   query: QueryNode | null;
   freshCount: number;
   itemCount: number;
-  /** The collection's Smart filter is on, judging the posts of all its sources (plan/36). */
+  /** The collection's Smart filter is on, judging the posts of all its sources. */
   aiFiltered: boolean;
 };
 export type BasketDTO = {
@@ -219,7 +219,7 @@ export type Bootstrap = {
 // ---------- items ----------
 /**
  * "fulltext": readable text the server fetched that passed the checks; "partial": a server capture that is only part of the page
- * (see PartialCopy); "browser": readable text the person's browser sent (plan/32).
+ * (see PartialCopy); "browser": readable text the person's browser sent.
  */
 export type CaptureLevel = "metadata" | "feed" | "fulltext" | "partial" | "browser" | "pending" | "failed";
 export type ItemDTO = {
@@ -268,7 +268,7 @@ export type ItemDTO = {
 
 /**
  * A media file the publisher offers with an item (an RSS enclosure). The server never stores it: the
- * player and the apps' downloads fetch it from the publisher (plan/25).
+ * player and the apps' downloads fetch it from the publisher.
  */
 export type ItemMedia = {
   /** The publisher's address for the file; playing it streams from the publisher. */
@@ -313,7 +313,7 @@ export type ItemDetail = ItemDTO & {
   /** The original changed after it was kept: contentHtml shows the kept copy, latestHtml the current one. */
   changedSinceKept: boolean;
   latestHtml: string | null;
-  /** Which stored text contentHtml is, so a highlight records the text it was made on (plan/26). */
+  /** Which stored text contentHtml is, so a highlight records the text it was made on. */
   contentRef: TextRef | null;
   /** Which stored text latestHtml is. */
   latestRef: TextRef | null;
@@ -506,7 +506,7 @@ export const manualKeepSchema = z.object({
 /** POST /api/items/manual. `existing`: PURSS already had this page, so that item was kept instead of a new one. */
 export type ManualKeepResult = { itemId: string; existing: boolean; alreadyInBasket: boolean; captureQueued: boolean; captureNote: string | null };
 
-/** Readable HTML of a page as the person's browser showed it, at most this many characters (plan/32). */
+/** Readable HTML of a page as the person's browser showed it, at most this many characters. */
 export const BROWSER_CAPTURE_MAX_CHARS = 2_000_000;
 /**
  * POST /api/items/browser-capture: keep a page (like /api/items/manual) together with the readable
@@ -516,11 +516,11 @@ export const browserCaptureSchema = manualKeepSchema.extend({ html: z.string().m
 /** `textSaved`: the text was stored (replacing an earlier browser capture of the page when `textReplaced`). */
 export type BrowserCaptureResult = ManualKeepResult & { textSaved: boolean; textReplaced: boolean; textNote: string | null };
 
-/** GET /api/items/lookup?url= : what PURSS has for a page (plan/24). */
+/** GET /api/items/lookup?url= : what PURSS has for a page. */
 export type UrlLookup = {
   /**
    * The best match by the comparison key (a kept copy first), or null. `browserCapturedAt`: when its
-   * text was last captured in the person's browser (plan/32), or null.
+   * text was last captured in the person's browser, or null.
    */
   item: { id: string; title: string; url: string | null; workflow: WorkflowState; baskets: { id: string; name: string }[]; browserCapturedAt: string | null } | null;
   /** Followed sources whose site address contains this page. Following a site never means every page of it was collected. */
@@ -635,7 +635,7 @@ export type AdminHealth = {
   sources: { total: number; failing: number; paused: number };
   accounts: { total: number };
   egress: { status: "ok" | "unavailable"; blockedLastHour: number | null };
-  /** Null when this server runs no bridge for services that publish no feed (plan/41). */
+  /** Null when this server runs no bridge for services that publish no feed. */
   bridge: AdminBridgeHealth | null;
   /** The sites most often tried without success over the last 30 days, per reason, at most 20, most first. */
   discoveryMisses: DiscoveryMissDTO[];
@@ -741,7 +741,7 @@ export type AssistantTokenDTO = {
   expiresAt: string | null;
   lastUsedAt: string | null;
 };
-/** An assistant connected with OAuth (plan/33): what the person approved on the consent page. */
+/** An assistant connected with OAuth: what the person approved on the consent page. */
 export type AssistantGrantDTO = {
   id: string;
   /** As the assistant names itself; `clientHost` is who vouches for that name. */
@@ -788,7 +788,7 @@ export type OAuthRequestSummary =
     access: AssistantAccessLevel;
     /** Sends the assistant "access_denied". */
     declineUrl: string;
-    /** The plan/23 switches: approving needs both on. */
+    /** The assistant-access switches: approving needs both on. */
     available: boolean;
     enabled: boolean;
   }
@@ -807,7 +807,7 @@ export const assistantTokenCreateSchema = z.object({
   expiresInDays: z.union([z.literal(30), z.literal(90), z.literal(365), z.null()]).default(90),
 });
 
-// ---------- connected apps (plan/24) ----------
+// ---------- connected apps ----------
 export const CONNECT_CLIENT_KINDS = ["mobile", "extension"] as const;
 export type ConnectClientKind = (typeof CONNECT_CLIENT_KINDS)[number];
 
@@ -817,7 +817,7 @@ export type ConnectInfo = {
   name: string;
   origin: string;
   hosted: boolean;
-  /** This server's version (plan/40); null when it was built without one. */
+  /** This server's version; null when it was built without one. */
   version: string | null;
   connect: {
     /** Open in the system browser with client, redirect_uri, state, code_challenge, code_challenge_method=S256, device_name. */
@@ -897,7 +897,7 @@ export const connectTokenSchema = z.object({
   redirectUri: z.string().max(300).optional(),
 });
 
-// ---------- phone notifications (plan/37) ----------
+// ---------- phone notifications ----------
 /** A handle from the push relay (apps/push-relay): all a PURSS knows of a phone's push address. */
 export const PUSH_HANDLE_PATTERN = /^rh_[A-Za-z0-9_-]{43}$/;
 /** GET /api/push, for the phone app: the relay this PURSS sends through (null: phone notifications are off here) and whether this app is registered. */

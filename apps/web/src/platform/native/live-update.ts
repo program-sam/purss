@@ -3,7 +3,7 @@ import type { AppBundleOffer } from "@purss/domain/app-bundle";
 import type { InterfaceUpdates, InterfaceUpdateState } from "../types.ts";
 
 /*
- * Live updates of the app's interface (plan/39). The connected PURSS offers the build of the interface it
+ * Live updates of the app's interface. The connected PURSS offers the build of the interface it
  * runs (GET /api/app/bundle); the app installs it through the updater plugin when it was built for this app's
  * native code (the native level), and, for a server other than the official one, once the person has agreed.
  * Without an offer, or when the person said no, the app goes back to the interface it was installed with.
@@ -123,7 +123,7 @@ export type Deps = {
   playing: () => boolean;
   store: KeyValue;
   now: () => number;
-  /** How this shell reads PURSS's offer: the desktop app at its own level (plan/42); null means none fits. */
+  /** How this shell reads PURSS's offer: the desktop app at its own level; null means none fits. */
   readOffer?: (offer: AppBundleOffer) => AppBundleOffer | null;
 };
 

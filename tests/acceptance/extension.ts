@@ -1,4 +1,4 @@
-// Acceptance journey for the browser extension and the bookmarklets (plan/32), against the real API
+// Acceptance journey for the browser extension and the bookmarklets, against the real API
 // serving the built web app (no FreshRSS, egress or worker: no podman, no network). The built Chromium
 // extension is loaded unpacked into Chromium's new headless mode. A local "publisher" site serves a
 // blog post that advertises a feed. Covered: a Keep deep link survives signing in; the extension

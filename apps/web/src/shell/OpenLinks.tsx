@@ -7,7 +7,7 @@ import { widgetListPlace } from "../device/widget.ts";
 import { notificationPlace } from "./notification-target.ts";
 
 /**
- * Renders nothing. In the apps, a tapped home-screen panel (plan/38) or notification (plan/37) opens
+ * Renders nothing. In the apps, a tapped home-screen panel or notification opens
  * what it is about: its item (in its source when the link names one), the source, the panel's list, or Home.
  * The link only navigates; it never changes anything in PURSS.
  */

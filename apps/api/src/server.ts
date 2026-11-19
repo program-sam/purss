@@ -23,7 +23,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
 };
 // Feed images and publishers' audio and video files may load from anywhere over https; frames are the reader's video players and
-// originals whose own headers allow PURSS to frame them (plan/43, checked by /api/frame-check); everything else is same-origin.
+// originals whose own headers allow PURSS to frame them (checked by /api/frame-check); everything else is same-origin.
 export const CSP = "default-src 'self'; img-src 'self' https: data:; media-src https:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self'; frame-src https: http:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 const MIME: Record<string, string> = {
@@ -74,11 +74,11 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
       if (url.pathname === "/mcp") { await handleMcp(app, raw, res); return; }
       // The phone apps this PURSS vouches for (passkeys and links): two public files, no cookies.
       if (serveAppAssociation(app, url.pathname, res)) return;
-      // OAuth metadata, token and revocation endpoints for assistants (plan/33): no cookies either.
+      // OAuth metadata, token and revocation endpoints for assistants: no cookies either.
       if (isOAuthPath(url.pathname)) { await handleOAuth(app, raw, res, url.pathname); return; }
       // The billing service setting an account's plan (billing.ts): signed, no cookies.
       if (url.pathname === "/api/billing/plan") { await handleBillingPlan(app, raw, res); return; }
-      // Connected apps use a device token instead of cookies on /api (connect/gate.ts, plan/24).
+      // Connected apps use a device token instead of cookies on /api (connect/gate.ts).
       const gate: Gate = url.pathname.startsWith("/api/") ? clientGate(app, raw, res, url.pathname, method) : { kind: "browser" };
       if (gate.kind === "done") return;
       let principal: Principal | null = null;

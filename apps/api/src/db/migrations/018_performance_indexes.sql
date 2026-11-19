@@ -1,5 +1,5 @@
 -- Indexes for lookups that scanned a whole table (they only matter once an account holds
--- thousands of items; see the size gate in plan/13), and two columns the sync fixes need.
+-- thousands of items), and two columns the sync fixes need.
 
 -- Which item currently shows a version.
 CREATE INDEX items_current_version ON items(current_version_id);

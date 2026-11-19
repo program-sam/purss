@@ -19,7 +19,7 @@ import { appPasskeys } from "../connect/app-association.ts";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 
 /*
- * Connected apps (plan/24). The app opens /connect in the system browser with
+ * Connected apps. The app opens /connect in the system browser with
  *   client, redirect_uri, state, code_challenge, code_challenge_method=S256, device_name
  * (redirect_uri and state left out when the person will type the code instead). The web page shows
  * the request from GET /api/connect/request, and the signed-in person approves with

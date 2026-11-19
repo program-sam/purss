@@ -1,7 +1,7 @@
 import { DESKTOP_PACKAGES } from "../../../packages/domain/src/distribution.ts";
 
 /*
- * The updater's latest.json for a desktop release (plan/42, .github/workflows/desktop.yml). The files and their
+ * The updater's latest.json for a desktop release (.github/workflows/desktop.yml). The files and their
  * fixed names are in packages/domain/src/distribution.ts, shared with the website and Settings.
  */
 

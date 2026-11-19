@@ -4,7 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { badRequest, rateLimit } from "../http.ts";
 
 /*
- * Whether the reader can show a page from another site in a frame (plan/43): the page's own headers decide,
+ * Whether the reader can show a page from another site in a frame: the page's own headers decide,
  * so the server reads them (through safeFetch) and remembers the answer for a while. The memory is per PURSS:
  * how fast an answer comes must not tell one account which pages another opened.
  */

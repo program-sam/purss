@@ -12,7 +12,7 @@ import { followColorScheme, h, show } from "../lib/dom.ts";
 import { forgetConnection, getConnection, getServer, getSettings, setBaskets, setConnection, setServer, setSettings } from "../lib/store.ts";
 
 /*
- * Options: connect to a PURSS (plan/24: code + PKCE through the PURSS's approval page, or a
+ * Options: connect to a PURSS (code + PKCE through the PURSS's approval page, or a
  * typed code where the browser can't take a redirect) on the official server unless the person
  * chooses another (remembered), disconnect, and the automatic mark setting.
  */

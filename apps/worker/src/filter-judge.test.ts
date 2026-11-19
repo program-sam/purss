@@ -10,7 +10,7 @@ import type { HandlerDeps } from "./handlers.ts";
 import type { InternalApi } from "./internal-api.ts";
 import { JobFailure } from "./runner.ts";
 
-/** The worker's filter.judge job (plan/36): the key it asks with, and what it reports when Jev fails. */
+/** The worker's filter.judge job: the key it asks with, and what it reports when Jev fails. */
 
 const request = (itemId: string) => ({ itemId, state: { source: "S", title: itemId, author: null, summary: null }, questions: { f1_aif: { type: "noul" as const, instructions: "Keep?", criteria: { true: "a", false: "b" } } } });
 

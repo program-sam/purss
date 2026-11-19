@@ -99,7 +99,7 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
     bridgeLog?.close();
     if (dnsBound) dns?.close();
   };
-  // Big feeds (plan/44) are fetched with the same address rules as the proxy's: safeFetch, with the same in-process test allowances.
+  // Big feeds are fetched with the same address rules as the proxy's: safeFetch, with the same in-process test allowances.
   const trim = config.trimKey
     ? new TrimService({ secret: config.trimKey, log: deps.log, now: deps.now, limits: deps.trimLimits, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver })
     : null;

@@ -45,7 +45,7 @@ test("the policy built into the web page never narrows what the server's header 
   }
 });
 
-test("the server's header frames web pages only: the reader's video players and originals that allow it (plan/43)", async () => {
+test("the server's header frames web pages only: the reader's video players and originals that allow it", async () => {
   const { CSP } = await import("./server.ts");
   assert.deepEqual(/frame-src ([^;]+);/.exec(CSP)![1]!.split(" "), ["https:", "http:"]);
   assert.match(CSP, /frame-ancestors 'none'/, "PURSS itself is never framed");

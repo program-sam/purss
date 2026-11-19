@@ -307,7 +307,7 @@ function shortDevice(ua: string | null): string {
   return os ? `${browser} on ${os}` : browser;
 }
 
-/** Which version runs here (plan/40): for reporting a problem, and for reading update posts. */
+/** Which version runs here: for reporting a problem, and for reading update posts. */
 function VersionNote() {
   const session = useSession();
   const [app, setApp] = useState<string | null>(null);

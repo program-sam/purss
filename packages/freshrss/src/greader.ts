@@ -281,7 +281,7 @@ export function quickAddFailure(message: string, url = ""): EngineError {
   // The engine words an HTTP refusal in three ways: its own "HTTP 429 Too Many Requests!", and the library's
   // 'unsupported status code "429"' and "returned error: 429".
   const status = /unsupported status code "(\d{3})"/i.exec(message)?.[1] ?? /returned error: (\d{3})/i.exec(message)?.[1] ?? /\bHTTP (\d{3})\b/i.exec(message)?.[1];
-  // cURL 63: the feed is larger than the engine will download. The product follows such a feed through the feed gateway (plan/44).
+  // cURL 63: the feed is larger than the engine will download. The product follows such a feed through the feed gateway.
   if (curl === "63" || /maximum file size|too large|too big/i.test(message)) {
     return new EngineError("rejected", "The feed is larger than the engine will read.", { retryable: false, reason: "too_large" });
   }

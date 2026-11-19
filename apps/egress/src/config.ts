@@ -24,8 +24,8 @@ export type EgressConfig = {
   gateway: { host: string; port: number };
   control: { host: string; port: number };
   /**
-   * The bridge router (plan/41). It runs whenever the bridge key exists (every installation's setup makes one): Crossref
-   * (plan/45) needs nothing else, and RSS-Bridge's services are served only when `backendUrl` names RSS-Bridge. Null
+   * The bridge router. It runs whenever the bridge key exists (every installation's setup makes one): Crossref
+   * needs nothing else, and RSS-Bridge's services are served only when `backendUrl` names RSS-Bridge. Null
    * without a key, so nothing listens.
    */
   bridge: {
@@ -40,7 +40,7 @@ export type EgressConfig = {
   dataDir: string;
   serviceToken: string;
   /**
-   * The key that signs the addresses of big feeds the gateway trims (plan/44), or null when this installation has none: the
+   * The key that signs the addresses of big feeds the gateway trims, or null when this installation has none: the
    * gateway then answers no such address and the product follows a big feed no differently from before.
    */
   trimKey: string | null;

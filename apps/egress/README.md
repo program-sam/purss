@@ -1,13 +1,16 @@
 # Egress
 
-One process, three loopback listeners, plus the bridge router when a bridge backend is
-configured. It is the only way the feed engine and RSS-Bridge reach the internet and the only
-way private service feeds and bridged sources reach the engine.
+One process, three listeners (loopback by default), plus the bridge router when the installation has a
+bridge key (every installation does). It is the only way the feed engine and RSS-Bridge reach the
+internet and the only way big feeds' smaller copies, bridged sources and private service feeds
+reach the engine. [Sources](../../docs/sources.md) says how a pasted link becomes a source and
+when each of these is used; this page is the service's own reference.
 
 ```text
 FreshRSS container ──► proxy listener   127.0.0.1:8946   forward proxy, SSRF rules on every request
                   └──► gateway listener 127.0.0.1:8947   GET /feeds/<id> (Basic auth per feed) and GET /t/<signature>/<address> (big feeds, trimmed)
                   └──► bridge router    127.0.0.1:8945   GET /b/<service>/<key>/<signature> only (through the proxy alias)
+API ────────────────► bridge router                      previews of bridged sources (the same signed address)
 API / worker ───────► control listener  127.0.0.1:8949   service token: status, gateway management, acknowledgement, bridge log
 RSS-Bridge ─────────► proxy + DNS on the bridge network  the same address rules; its only way out
 ```
@@ -29,7 +32,7 @@ own SQLite file; the product database is never touched).
   name, and the outgoing connection is bound to the validated address, so DNS rebinding
   cannot swap it. The connected address is checked again after connect.
 - Redirects are never followed by the proxy. The engine's HTTP client follows them, each hop
-  arriving as a new proxy request that is checked on its own.
+  arriving as its own proxy request that is checked on its own.
 - A refusal is `403` (`Blocked by egress policy`) and increments the blocked counter.
 - Limits: connect/response-start timeout, idle timeout, overall timeout, response size cap
   (declared length and streaming), tunnel byte and lifetime caps, connection cap.
@@ -43,9 +46,9 @@ own SQLite file; the product database is never touched).
   entries use `EGRESS_INTERNAL_DESTINATIONS="name:port=ip:port;…"`. No environment variable
   or file can switch the rules off. Test code passes an in-process function instead.
 
-### How the FreshRSS container reaches the proxy (verified on this host)
+### How the FreshRSS container reaches the proxy
 
-Rootless Podman 5.8 with pasta (this host, 2026-11): `host.containers.internal` resolves to
+Verified with rootless Podman 5.8 and pasta: `host.containers.internal` resolves to
 `169.254.1.2` inside the container.
 
 | Proxy bound to | Container → `host.containers.internal:PORT` |
@@ -81,10 +84,9 @@ in the proxy, not in the container.
 
 A source adapter turns a documented API into entries; the gateway stages them, serves them
 as RSS to FreshRSS, and keeps them until the product acknowledges its durable commit.
-**No real adapter is approved**, so the running service registers none (`PRODUCTION_ADAPTERS`
-is empty): feeds cannot be created for any connector, and the control API says so. The
-fixture adapter in `src/gateway/fixture-adapter.ts` exists only for tests and proves the
-contract.
+The running service registers no adapter (`PRODUCTION_ADAPTERS` is empty): feeds cannot be
+created for any connector, and the control API says so. The fixture adapter in
+`src/gateway/fixture-adapter.ts` exists only for tests and proves the contract.
 
 - Engine-facing route: `GET /feeds/<feedId>` only; everything else on that listener is
   `404`/`405`. No product, worker, admin or control route exists there.
@@ -93,13 +95,13 @@ contract.
   Comparison is constant time and unknown feeds cost the same as wrong secrets; all
   failures return the same `401`. After 20 failures within a minute from one client for one feed
   it answers `429` with `Retry-After`.
-- Rotation: `POST /gateway/feeds/<id>/credential` issues a new secret; `graceSeconds`
+- Rotation: `POST /gateway/feeds/<id>/credential` issues a replacement secret; `graceSeconds`
   keeps the previous one valid for a bounded time so FreshRSS can be reconfigured.
   Revocation (`DELETE …/credential`) takes effect immediately.
 - GUIDs are the adapter's stable entry ids (`<guid isPermaLink="false">`), independent of
   tokens and display names. Output is bounded (items and bytes per response; oversized
   entry bodies are dropped whole and marked `content-limited`).
-- Staging model (plan/20): entries stay staged until `POST /gateway/feeds/<id>/ack`
+- Staging model: entries stay staged until `POST /gateway/feeds/<id>/ack`
   (service token, control listener) names their GUIDs, replay-safe. Serving a response
   never releases anything. The provider is asked only for as many entries as fit (the
   cursor advances in the same transaction as the staged entries). A time bound
@@ -115,29 +117,32 @@ contract.
 
 cURL sends Basic credentials from the URL userinfo:
 `http://<feedId>:<secret>@feed-gateway.internal:8947/feeds/<feedId>` (FreshRSS stores
-feed HTTP authentication with the feed). This must be proven against the pinned FreshRSS
-build (plan/20) before any private connector ships; if the GReader subscription route
-cannot carry it, a narrow reviewed engine integration is needed, not an unauthenticated
-gateway. Consequences: the secret lives in FreshRSS's configuration for that feed, so it
-is a **secret-link credential** — never show it in the UI, logs, diagnostics, exports or
-OPML, and mark the source private. It is scoped to one feed, distinct from provider
+feed HTTP authentication with the feed). No adapter is registered, so no engine test
+carries these credentials end to end, and the route is never served unauthenticated.
+Consequences: the secret lives in FreshRSS's configuration for that feed, so it
+is a **secret-link credential**: it is never shown in the UI, logs, diagnostics, exports or
+OPML, and its source is private. It is scoped to one feed, distinct from provider
 tokens, rotatable and revocable. A redirect from a public site to the alias carries no
 credential (cURL does not forward it across hosts).
 
 ## Feed trimming (big feeds)
 
 A feed too big for the engine to read whole (tens of megabytes of repeated show notes; the engine parses it in PHP's 128 MB)
-is read here as a stream, and the engine is given a copy with only the newest items ([plan/44](../../plan/44-big-feeds.md)).
+is read here as a stream, and the engine is given a copy with only the newest items.
 FreshRSS stays the only ingestion engine: this serves it a smaller copy of the same public feed and never inserts anything.
+Which feeds are sent here, and how a follow decides it, is in [Sources](../../docs/sources.md#big-feeds): the worker gives the
+engine this address for a feed that discovery found larger than 4 MiB or with more than 1,000 items, or that the engine itself failed on.
 
 - Route: `GET /t/<signature>/<address>` on the gateway listener, where `<address>` is the feed's address in base64url and the
-  signature is an HMAC-SHA-256 of it under `<data>/secrets/feed-trim-key` (`EGRESS_TRIM_KEY_FILE`), made by the worker and
+  signature is an HMAC-SHA-256 of `trim\n` and the address under `<data>/secrets/feed-trim-key` (`EGRESS_TRIM_KEY_FILE`), made by the worker and
   checked here. No stored state, no credentials per feed; anything unsigned or malformed is the same `404`. Without the key file
   the route answers nothing.
 - Fetching is `safeFetch`'s (address, redirect, time and size rules; the same in-process test allowances), reading the body through
   a `sink`, never buffered whole. `trim.ts` (`FeedTrimmer`) works on the bytes as Latin-1 text so every byte comes back as it
   arrived, finds items by element structure (comments, CDATA and processing instructions are skipped) and keeps the channel's metadata
-  (everything before the first item) and the newest 50 items by their dates (`pubDate`, `dc:date`, `published`, `updated`).
+  (everything before the first item) and the newest 50 items by their dates (the first of `pubDate`, `date`, `published`, `issued`, `updated`,
+  `modified` and `created` an item has, whatever its namespace prefix; an item with none has the date of the one before it, and a feed with no
+  dates at all keeps its first 50 items).
   The whole document is read, at most 64 MiB, whatever the order of its items: nothing in a feed says that the rest is older than
   its first items, so the newest are kept in a bounded list as the items go past. A feed longer than that is served from its first 64 MiB:
   the newest of what was read, an item cut by the ceiling left out (when it is the first, the feed is served as its channel, closed), and the log's `capped` set. Items over 1 MiB are left out whole (a feed
@@ -148,7 +153,7 @@ FreshRSS stays the only ingestion engine: this serves it a smaller copy of the s
 - Bounded work: one fetch per feed at a time (concurrent requests share it), two fetches at once and sixteen waiting, then
   `503` busy; after a failure the feed is left alone for a back-off (1 minute, doubling to 30), and a feed that answered before keeps its last
   good answer while its host fails.
-- Reads are shared and conditional, since every refresh reads a feed to its end (The Daily is 20.7 MB). The trimmed answer is kept in memory per
+- Reads are shared and conditional, since every refresh reads a feed to its end. The trimmed answer is kept in memory per
   upstream address, the whole address (a private feed's key included), so every account that follows a feed shares it and no address's answer is ever
   given for another's: a request is checked against its signature before any answer is looked up. It is reused for ten minutes after it was made or
   confirmed; then the publisher is asked with `If-None-Match` / `If-Modified-Since` from the ETag / Last-Modified of what is kept, and a `304` renews the
@@ -161,7 +166,9 @@ FreshRSS stays the only ingestion engine: this serves it a smaller copy of the s
 - Memory: the process holds about 125 MiB idle in its 192 MiB container, and Node lets the garbage of a read (a buffer and a string for every
   piece) pile up to tens of megabytes. A fetch is therefore collected explicitly: after each megabyte it reads past the first, and when it ends if it read
   half a megabyte (`collectGarbage` in `trim-service.ts`, a few milliseconds each; every feed is read in full, so a big one is collected many times).
-  The measured peaks over idle, and what the answers kept cost, are in plan/44.
+  Nothing is held but the text not yet classified, the channel's head, the item being read and the items kept, so the footprint does not grow with the
+  feed; two fetches at once and the answers kept (8 MiB) are what the container's margin is sized for. The levers, if it ever proves too tight, are the
+  number of fetches at once (`concurrency`) and the cache's budget (`maxCachedBytes`).
 - FreshRSS waits for the answer through the proxy, which gives an internal destination the whole request time
   (`EGRESS_REQUEST_TIMEOUT_MS`) to begin answering instead of the connect timeout, because the gateway reads before it answers; FreshRSS's own
   timeout is what a slow feed meets first. The engine's retry then finds the work done (answers are kept ten minutes, failures for the back-off).
@@ -170,31 +177,70 @@ FreshRSS stays the only ingestion engine: this serves it a smaller copy of the s
 
 ## Bridge router
 
-Turns the public pages of a few services without feeds into feeds through RSS-Bridge
-([plan/41](../../plan/41-source-bridges.md)); the catalogue of services, their key patterns and
-post-id rules is `packages/connectors/src/bridges.ts`.
+Turns the public pages of a few services without feeds into feeds through RSS-Bridge, and a journal's
+registered articles into a feed through Crossref's API. The catalogue of services, their key patterns and
+post-id rules is `packages/connectors/src/bridges.ts`; [Sources](../../docs/sources.md#source-bridges) describes
+what a bridged source is and how one is followed.
 
 - Route: `GET /b/<service>/<key>/<signature>` only. The signature is an HMAC-SHA-256 of
   `<service>/<key>` under `<data>/secrets/bridge-key`, made by the worker for the engine and by the
-  API for previews. Anything else, including a valid source with a wrong signature, is the same
-  `404`, so a public feed that redirects FreshRSS to the alias gets nothing. Logs carry the
+  API for previews. Anything else, including a valid source with a wrong signature, an unknown service, a
+  key that does not match the service's pattern and a service whose backend this installation does not run,
+  is the same `404`, so a public feed that redirects FreshRSS to the alias gets nothing. Logs carry the
   service and status; the proxy masks the signature in paths.
+- The router listens whenever the bridge key exists, which the installer and `npm run dev` create on every
+  installation. With `EGRESS_BRIDGE_BACKEND` set (RSS-Bridge's `http://ip:port`) the key is required, and a
+  missing file stops egress from starting. Without it the router still runs and serves only the services whose
+  backend it has (Crossref).
 - FreshRSS reaches it as `feed-bridge.internal:8945` (`EGRESS_BRIDGE_ALIAS`), an internal
   destination of the proxy registered automatically; the API calls it directly.
-- Backends are asked in order (RSS-Bridge, `EGRESS_BRIDGE_BACKEND`): at most four fetches at once
-  (64 more may wait, then `503`), one per source at a time with concurrent requests sharing it,
-  good answers reused for ten minutes (24 MiB of them at most, least recently used dropped first), and after a failure a back-off (5 minutes, doubling to an
-  hour) during which the last good answer, or the failure, is repeated. A failure with nothing
-  good to repeat is `503` with `Retry-After`, never an empty feed; a real empty feed is `200`,
-  except for a service whose backend answers empty when it misread the page (Instagram): no posts
+- Each catalogue entry names the kind of backend that collects it (`rss-bridge` or `crossref`), and the
+  router asks the backends of that kind in order. Fetching is bounded: at most four fetches at once
+  (64 more may wait, then `503`), one per source at a time with concurrent requests sharing it, good answers
+  reused for ten minutes (24 MiB of them at most, least recently used dropped first), and after a failure a
+  back-off (5 minutes, doubling to an hour) during which the last good answer, or the failure, is repeated.
+  A failure with nothing good to repeat is `503` with `Retry-After`, never an empty feed; a real empty feed
+  is `200`, except for a service whose backend answers empty when it misread the page (Instagram): no posts
   is asked again once at once and is otherwise a failure (`no_posts`).
-- Output is RSS whose GUIDs are post ids from the post address (`telegram:durov/552`); entries
-  without one are dropped, and output with entries none of which is this source's post or one its
-  catalogue entry leaves out on purpose (Mixcloud's listened-to shows) is a failure (`no_ids`). Each answer is recorded in `<data>/egress/bridge.db` (30 days, at most
-  200,000 rows), read through `GET /bridge/summary` on the control listener.
-- On RSS-Bridge's own network (`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS
-  resolver answers A questions with public addresses only (a name with any forbidden answer is
-  refused), because RSS-Bridge looks every host up itself before fetching through the proxy.
+- Output is RSS whose GUIDs are post ids from the post address (`telegram:durov/552`, `doi:10.1111/…`), so a
+  source keeps its items whichever backend answered; entries without one are dropped, and output with entries
+  none of which is this source's post or one its catalogue entry leaves out on purpose (Mixcloud's
+  listened-to shows) is a failure (`no_ids`). An answer holds at most 50 entries of 256 KiB each. An entry's
+  picture is the backend's, except where the catalogue entry names pictures for keeping only (Instagram's,
+  `keptPictures`: the post's lasting picture address first, then the rest of a carousel).
+- Each answer is recorded in `<data>/egress/bridge.db` (30 days, at most 200,000 rows) with its service, key,
+  backend, stage, outcome, entry count, time and whether it came from the cache or back-off, and read through
+  `GET /bridge/summary` on the control listener.
+
+### RSS-Bridge backend
+
+The services RSS-Bridge collects (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music,
+Instagram) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
+parameters, 45 seconds and 8 MiB at most, errors as HTTP statuses. On RSS-Bridge's own network
+(`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS resolver answers A questions with public addresses
+only (a name with any forbidden answer is refused), because RSS-Bridge looks every host up itself before
+fetching through the proxy. RSS-Bridge has no other route out.
+
+### Crossref backend
+
+A journal's newest registered articles from Crossref's public API (`src/bridge/crossref.ts`). The
+service's key is the journal's ISSN without its hyphen.
+
+- Request: `GET https://api.crossref.org/journals/<ISSN>/works?sort=created&order=desc&rows=40&select=…`, made in
+  process with `safeFetch` (the address rules apply): the origin is a constant, the ISSN the only variable part and
+  already checked against the key pattern, no redirect is followed, 30 seconds and 4 MiB at most, `safeFetch`'s
+  generic User-Agent and no contact address. Sorting by `created` (when the DOI was registered) keeps an old
+  article whose record is corrected from returning to the top.
+- Crossref's public pool allows one request at a time and five a second for everyone behind one address. The
+  backend runs its requests one at a time across all journals, at least 250 ms apart. After a `429` or `503` it asks
+  nothing for any journal until the `Retry-After` Crossref named has passed (at least a minute, at most a day),
+  answering `429` meanwhile; the router then serves each journal's last good answer or its usual failure. A
+  preview of a Crossref source goes through the same queue.
+- The JSON becomes RSS in `packages/connectors/src/crossref.ts` (a pure function with recorded fixtures); the
+  router then parses and re-serves it like any backend's output. The GUID is `doi:<doi lower-cased>` and the link the
+  doi.org address with each part escaped. Only `journal-article` records are kept, front matter (Issue Information,
+  Cover Image, Masthead, Editorial Board, Table of Contents) is dropped, and a `404` from Crossref (an ISSN it does not
+  know) is `http_404`, a failure, never an empty feed.
 
 ## Control listener
 
@@ -206,7 +252,7 @@ address it is bound to, each with its port (browser DNS-rebinding guard), JSON b
 | --- | --- |
 | `GET /status` | `{status, blockedLastHour, allowedLastHour}` |
 | `GET /gateway/status` | feeds, staged entries, registered adapter ids |
-| `GET /bridge/summary?days=7` | per bridged service: backend attempts, ok, empty, failed and cached answers; the sources failing now (404 without the bridge) |
+| `GET /bridge/summary?days=7` | per bridged service: backend attempts, ok, empty, failed and cached answers; the sources currently failing (404 when the router does not run) |
 | `PUT/GET/DELETE /gateway/feeds/<id>` | create/update, read state, remove a feed |
 | `POST/DELETE /gateway/feeds/<id>/credential` | issue or rotate (`graceSeconds`), revoke |
 | `POST /gateway/feeds/<id>/ack` | release acknowledged GUIDs (≤ 500) |
@@ -223,8 +269,8 @@ address it is bound to, each with its port (browser DNS-rebinding guard), JSON b
 | `EGRESS_CONTROL_HOST` / `_PORT` | `127.0.0.1` / `8949` |
 | `EGRESS_GATEWAY_ALIAS` | `feed-gateway.internal` |
 | `EGRESS_TRIM_KEY_FILE` | `<data>/secrets/feed-trim-key` (none: no trimming) |
-| `EGRESS_BRIDGE_BACKEND` | none (no bridge router) |
-| `EGRESS_BRIDGE_HOST` / `_PORT` | `127.0.0.1` / `8945` |
+| `EGRESS_BRIDGE_BACKEND` | none (the router serves Crossref only; RSS-Bridge's address, `http://ip:port`, adds its services) |
+| `EGRESS_BRIDGE_HOST` / `_PORT` | `127.0.0.1` / `8945` (the router listens when the bridge key file exists) |
 | `EGRESS_BRIDGE_ALIAS` | `feed-bridge.internal` |
 | `EGRESS_BRIDGE_KEY_FILE`, `EGRESS_BRIDGE_DB` | under `PURSS_DATA_DIR` |
 | `EGRESS_BRIDGE_NET_HOST` / `EGRESS_BRIDGE_DNS_PORT` | none / `53` |

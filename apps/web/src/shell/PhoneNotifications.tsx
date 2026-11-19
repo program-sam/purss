@@ -4,7 +4,7 @@ import { messageOf } from "../api/client.ts";
 import { platform } from "../platform/index.ts";
 import type { PushStatus } from "../platform/types.ts";
 
-/** Notifications on this phone (plan/37): its status, and turning them on or off. Only in the apps. */
+/** Notifications on this phone: its status, and turning them on or off. Only in the apps. */
 export function usePhonePush() {
   const push = platform.push;
   const [status, setStatus] = useState<PushStatus | null>(null);

@@ -1,4 +1,4 @@
--- Browser-assisted capture (plan/32): readable text that the person's own browser extracted from
+-- Browser-assisted capture: readable text that the person's own browser extracted from
 -- the page as they saw it, sent by the browser extension. Stored as a capture of kind 'browser',
 -- next to the server-fetched 'fulltext' captures, and counted against storage like them.
 -- SQLite can't alter a CHECK constraint, so the table is rebuilt with every column it has by now

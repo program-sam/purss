@@ -5,7 +5,7 @@ import WidgetKit
 import UIKit
 import UserNotifications
 
-/// The app's own native plugin (plan/38, apps/web/src/platform/native/device-plugin.ts): the page's downloads,
+/// The app's own native plugin (apps/web/src/platform/native/device-plugin.ts): the page's downloads,
 /// which go on when the app is closed and can be cancelled on the wire, the state the background job needs, and the home-screen widgets' look and
 /// episode and their refresh.
 @objc(PurssDevicePlugin)

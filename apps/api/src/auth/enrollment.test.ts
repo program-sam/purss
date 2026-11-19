@@ -31,7 +31,7 @@ function insertSession(app: ReturnType<typeof makeTestApp>["app"], accountId: st
 }
 
 
-/** Hosted open sign-up needs working outgoing email (plan/27): a mail server that answers and sends nowhere. */
+/** Hosted open sign-up needs working outgoing email: a mail server that answers and sends nowhere. */
 async function hostedSignup(env: Record<string, string>) {
   const made = makeTestApp({ PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>", ...env });
   makeOperator(made.app); // claimed by its operator first (mail/mailer.ts signupOpen)

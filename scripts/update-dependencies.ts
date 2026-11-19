@@ -8,7 +8,7 @@
  *   (exact or ^); then the lockfile's indirect dependencies are refreshed within their ranges. A newer
  *   major is reported.
  * - The phone apps' native plugins (everything apps/mobile depends on) are only reported: a new
- *   version can need a store release (plan/39).
+ *   version can need a store release.
  * - RSS-Bridge (infra/compose.yaml) moves to the newest image; the workflow then compares the two
  *   images on every bridged service before keeping it.
  * - FreshRSS is only reported, both a new version and a rebuilt image of the pinned one: the engine
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
           const newer = breaking ?? compatible;
           if (newer && !reported.has(name)) {
             reported.add(name);
-            manual.push(`- \`${name}\` ${showVersion(parsed.version)} → ${showVersion(newer)}: a phone app native plugin, so it needs an app release (plan/39)`);
+            manual.push(`- \`${name}\` ${showVersion(parsed.version)} → ${showVersion(newer)}: a phone app native plugin, so it needs an app release`);
           }
           continue;
         }

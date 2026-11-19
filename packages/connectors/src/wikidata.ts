@@ -1,5 +1,5 @@
 /*
- * Wikidata as discovery's last resort (plan/46): which item has a page as its official website (P856), and what Wikidata
+ * Wikidata as discovery's last resort: which item has a page as its official website (P856), and what Wikidata
  * says about it: its feeds (P1019) and, for a journal or newspaper, its ISSNs (P236). Asked through the Action API with an
  * exact statement search over the page address's spellings, then the matching items' claims. Pure functions: the
  * requests are made by discovery's own fetcher.

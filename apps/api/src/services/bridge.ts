@@ -5,7 +5,7 @@ import type { App } from "../app.ts";
 import { readSecret } from "../secrets.ts";
 
 /*
- * The API's way to the bridge router (plan/41), used to preview a bridged source before it is
+ * The API's way to the bridge router, used to preview a bridged source before it is
  * followed. It asks the router's internal listener directly with a signed address, the same one the
  * worker gives the engine; ordinary discovery fetching (safeFetch) never reaches internal addresses.
  */

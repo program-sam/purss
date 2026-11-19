@@ -2,7 +2,7 @@ import type { BasketDTO, BrowserCaptureResult, ConnectInfo, ConnectTokenResult, 
 
 /*
  * Talking to the PURSS. Every request goes only to the PURSS the person connected, with the
- * device token as a bearer header (plan/24); the extension sends no cookies and talks to nobody else.
+ * device token as a bearer header; the extension sends no cookies and talks to nobody else.
  */
 
 export type Connection = {

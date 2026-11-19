@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The home-screen panels' lists (plan/38), apart from Android so they are unit-tested on the JVM. A list key
+ * The home-screen panels' lists, apart from Android so they are unit-tested on the JVM. A list key
  * is `toread`, `tolisten`, `new`, `collection:<id>` or `source:<id>`; each has one request (the table in
  * apps/mobile/widget-lists.json, which the tests read). Lists hold titles, ids and dates: never the token or
  * the PURSS's address, and never items of private sources (`exceptPrivate=1`).

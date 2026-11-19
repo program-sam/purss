@@ -1,4 +1,4 @@
--- Annotations (plan/26): when the server last accepted a write to each one, in server time. Device
+-- Annotations: when the server last accepted a write to each one, in server time. Device
 -- clocks decide which write wins (updated_at); this one decides how long a tombstone is remembered and
 -- tells offline copies that an item's annotations changed (items' annotatedAt). Existing rows take the
 -- best time known.

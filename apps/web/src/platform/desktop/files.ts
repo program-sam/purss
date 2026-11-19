@@ -4,7 +4,7 @@ import type { DeviceFiles } from "../../downloads/manager.ts";
 import { desktop } from "./bridge.ts";
 
 /*
- * The desktop app's downloads (plan/42): real files in `PURSS` inside the folder the person chose,
+ * The desktop app's downloads: real files in `PURSS` inside the folder the person chose,
  * written and read by Rust, which keeps every path inside that folder and only ever lists or removes entries of
  * the app's own layout (`<account>/<item>/…`). Files are played from the app's server on 127.0.0.1.
  */

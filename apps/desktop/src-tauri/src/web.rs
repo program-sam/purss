@@ -1,4 +1,4 @@
-//! The web view for pages from other sites (plan/43): an article's original, or a link in it, shown inside the
+//! The web view for pages from other sites: an article's original, or a link in it, shown inside the
 //! reader instead of the default browser. It is a second web view in the main window, drawn over the part of the page
 //! the reader gives it; the page says where (CSS pixels, which are the window's logical pixels) and hides it while
 //! something of PURSS's covers that part.

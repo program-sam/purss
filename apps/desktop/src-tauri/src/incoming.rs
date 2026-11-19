@@ -1,4 +1,4 @@
-//! What is handed to the app from outside (plan/42): addresses (`purss://connect` answers, `purss://open` links,
+//! What is handed to the app from outside: addresses (`purss://connect` answers, `purss://open` links,
 //! `feed:`, `podcast:` and `pcast:` links) and opened OPML files. Kept until the page asks (what started the app)
 //! and sent to it as an event while it runs; the page decides what each one means.
 

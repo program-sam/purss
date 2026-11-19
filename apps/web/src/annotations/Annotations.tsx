@@ -14,7 +14,7 @@ import type { ViewAnnotation } from "./outbox.ts";
 import type { useAnnotations } from "./use-annotations.ts";
 
 /*
- * Highlights and notes in the reader (plan/26). Select text in the article to highlight it or comment
+ * Highlights and notes in the reader. Select text in the article to highlight it or comment
  * on it; press a highlight (or Enter on it) to change its comment or remove it; the item panel lists
  * every highlight and note, including ones whose passage is no longer in the text. Works with touch
  * selection, the keyboard (h and c act on the selected text) and screen readers; the mobile app

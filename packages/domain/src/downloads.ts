@@ -4,7 +4,7 @@ import type { ItemKind } from "./query.ts";
 import type { WorkflowState } from "./workflow.ts";
 
 /**
- * Automatic downloads to a phone or tablet (plan/31, plan/38): which items the device's settings ask
+ * Automatic downloads to a phone or tablet: which items the device's settings ask
  * for, and what each takes. One set of rules for the app while it is open and for the native
  * background job, which asks PURSS (`POST /api/downloads/plan`) instead of deciding itself.
  */

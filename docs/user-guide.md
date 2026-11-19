@@ -1,8 +1,7 @@
 # User guide
 
 PURSS collects what your sources publish, lets you organise it, and keeps what you
-choose. This guide covers what the app does today. Anything marked *not built* does not exist
-yet.
+choose. This guide covers what the app does.
 
 ## First-time setup
 
@@ -142,7 +141,7 @@ What doesn't work:
   followed. You're told so at once, and
   pointed at a YouTube channel, blog or newsletter the same person may have. You can still keep
   the link.
-- An email address (a newsletter that only arrives by email can't be followed yet; many have a
+- An email address (a newsletter that only arrives by email can't be followed; many have a
   web page with a feed) and the name of anything but a podcast.
 - A site that is slow or busy. If looking takes too long you're told that and can try again; it
   is never reported as "nothing to follow". An address that doesn't exist says so. YouTube is
@@ -588,7 +587,7 @@ sync**, survives closing the app, and is sent when the connection is back. If th
 changed on two devices, the later change wins. Signing out deletes changes that haven't synced yet,
 and *Settings → Security* warns before you do.
 
-Items with your highlights or notes are never removed by *Clean up old items* or by unfollowing a
+Items with your highlights or notes are never removed by unfollowing a
 source with *Also delete the items you haven't kept*, and they stay in your lists and search after you
 unfollow their source. **Delete permanently** says which items carry your writing and deletes it with
 them only after you confirm.
@@ -680,6 +679,9 @@ select it to see collections too.
   unavailable with the same words under it. Moving to a smaller
   plan never removes anything: what you have stays, and only new follows and collections wait
   until you are under the limits.
+- *Settings → Plan* shows what your plan allows and uses and, where the service takes payments,
+  lets you choose Plus or Pro and manage or cancel it. A cancelled plan lasts to the end of the
+  period you paid for, then moves to Free; nothing you follow or keep is removed.
 - A self-hosted PURSS has no plans or limits.
 - To protect the server, each account also has a limit on the space it takes (set by an
   administrator; a self-hosted install has none unless its operator sets one). If an account
@@ -789,7 +791,10 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
 
 *Never* stops digests, but not sources set to *Notify me*, reminders or problem notices: their unread items
 still count in the bell. Notifications are deleted after 90 days (and only the newest 500 are kept),
-and a source's notifications go when you unfollow it. Alerts to a closed browser (push) are *not built*.
+and a source's notifications go when you unfollow it. Browser alerts show only while PURSS is open in
+a tab. In the phone apps, *Settings → This device → Notifications on this phone* (where the build has
+it) shows these as system notifications even with the app closed: they follow your notification
+settings and quiet hours, and the phone asks your PURSS for the text before showing it.
 Email carries the digest (unless you turn it off), your [reminders](#reminders) when you ask for that,
 and your account's own messages; source alerts, failing sources and failed text saves stay in the bell.
 
@@ -887,9 +892,9 @@ under **Apps and extensions**; Add source, an empty basket and the command palet
 **Where to get them.** The browser extension is in the
 [Chrome Web Store](https://chromewebstore.google.com/detail/purss/hbchpheipggpppbilgepkalcnnemnldl)
 and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/purss/), and updates itself from there.
-It isn't in Edge Add-ons yet; Edge can install it from the Chrome Web Store. The phone app isn't in
-any app store yet (the desktop app and the Android APK are downloaded from this project's releases);
-Settings shows a store button for each store it's in. Until then the phone app is built from the
+It isn't in Edge Add-ons; Edge can install it from the Chrome Web Store. The phone app isn't in
+any app store (the desktop app and the Android APK are downloaded from this project's releases);
+Settings shows a store button for each store an app is in. Otherwise the phone app is built from the
 source code as described in [the mobile README](../apps/mobile/README.md#build). Bookmarklets,
 assistants, the e-ink display and installing the web app need nothing extra.
 
@@ -969,7 +974,7 @@ Only connect what you started yourself, just now. **Don't connect** sends nothin
 ## The desktop app
 
 The app for Windows, Mac and Linux is the same PURSS in a window of its own. Download it from the website or
-from *Settings → Connected apps*; it updates itself. It isn't signed by Microsoft or Apple yet, so the first time you
+from *Settings → Connected apps*; it updates itself. It isn't signed by Microsoft or Apple, so the first time you
 open it Windows asks you to confirm (*More info*, then *Run anyway*) and a Mac asks you to allow it in
 *System Settings → Privacy & Security*.
 
@@ -1025,7 +1030,7 @@ next time. *Settings → This device* shows which server the app is connected to
 **Updates.** The app's screens update from the server you're connected to, without an update from
 the app store, so they match the PURSS that server runs. The update takes over the next time
 you open the app, or when you come back to it after an hour away (never while something is playing).
-A server other than the official one asks first: *Let this server update the app?* That code runs in
+A server other than the official one asks first: *Let PURSS update the app?* That code runs in
 the app with your sign-in, so allow it only for a server you trust. You can change your answer in
 *Settings → This device → Updates of the app*. Changes to the app itself (new permissions and the
 like) come as a new version of the app: Google Play, F-Droid and the App Store install it as they do for
@@ -1095,7 +1100,7 @@ discard them.
 
 Keep the page you are reading, or follow its site, without leaving it.
 
-**The extension** (Chrome, Edge, Firefox and Safari; not in their stores yet, see
+**The extension** (Chrome, Edge, Firefox and Safari; where to get it is in
 [Apps and extensions](#apps-and-extensions)) connects in its options: the official server is
 already chosen, so press **Connect** and approve it in PURSS (see
 [Connected apps](#connected-apps)). For your own or another server, press **Change server** and
@@ -1210,6 +1215,9 @@ their own reader. The button is one link with no script or image, so nobody is t
 
 If the collection engine is replaced by a different installation, its entries wait on a
 **Review** page, announced on Home, where you match each to an item you already have, add it as new, or dismiss it.
+
+How storage is counted, and what PURSS keeps and removes, is in
+[Storage and retention](storage-and-retention.md).
 
 ## Deleting your account
 

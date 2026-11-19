@@ -14,7 +14,7 @@ import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
 /**
- * Who may write the panels' data, and when (plan/38). Every write of the lists, the choices and the page's
+ * Who may write the panels' data, and when. Every write of the lists, the choices and the page's
  * snapshot happens under `lock`; a disconnect or a refused token bumps `generation` under it, so a refresh
  * or setup that started before can't write the old account's titles back afterwards, and a refusal that
  * arrives late can't wipe a newer connection.
@@ -49,7 +49,7 @@ object WidgetData {
         synchronized(lock) {
             if (generation != since) return
             BackgroundDownloads.forget(ctx, downloadsToo = true)
-            // The notification fetcher's credential belongs to the same refused connection (plan/37).
+            // The notification fetcher's credential belongs to the same refused connection.
             app.purss.PushTarget.clear(ctx)
             DeviceStore.markLost(ctx)
         }
@@ -57,7 +57,7 @@ object WidgetData {
 }
 
 /**
- * The panels' lists, fetched by the native side (plan/38): every 15 minutes while any panel is placed (the
+ * The panels' lists, fetched by the native side: every 15 minutes while any panel is placed (the
  * system decides when, within its battery rules), and soon after the app asks (its items changed, a panel was
  * placed or set up). One refresh at a time; asking during one runs one more pass after it.
  */

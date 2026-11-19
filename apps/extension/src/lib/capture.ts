@@ -1,7 +1,7 @@
 import { Readability } from "@mozilla/readability";
 
 /*
- * Browser-assisted capture (plan/32): the readable part of the page as the person's browser shows it,
+ * Browser-assisted capture: the readable part of the page as the person's browser shows it,
  * extracted in the page with Mozilla Readability (the same library the PURSS uses for its own
  * captures). Only on request. The PURSS sanitizes the HTML again before storing it.
  */

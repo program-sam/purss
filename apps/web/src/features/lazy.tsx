@@ -22,5 +22,5 @@ export const DiscoverPageRoute = () => wrap(<Discover />);
 export const AdminPageRoute = () => wrap(<Admin />);
 /** The Share popup of a basket or collection, opened from its page or from Sharing. */
 export const ShareRoute = (p: { kind: "basket" | "collection"; id: string; name: string; onClose: () => void }) => <Suspense fallback={null}><Share {...p} /></Suspense>;
-/** An OPML file opened with the desktop app (plan/42). */
+/** An OPML file opened with the desktop app. */
 export const OpmlFileRoute = (p: { name: string; text: string; onClose: () => void }) => <Suspense fallback={null}><OpmlFile {...p} /></Suspense>;

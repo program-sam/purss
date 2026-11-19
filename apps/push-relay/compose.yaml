@@ -1,4 +1,4 @@
-# The project's push relay (plan/37), deployed on its own; see README.md. Settings in an .env file next to this
+# The project's push relay, deployed on its own; see README.md. Settings in an .env file next to this
 # one or in the environment:
 #   PURSS_RELAY_SECRETS_DIR=/srv/push-relay/secrets docker compose -f apps/push-relay/compose.yaml up -d --build
 # Put an HTTPS reverse proxy in front of the bound port; the relay itself speaks plain HTTP.

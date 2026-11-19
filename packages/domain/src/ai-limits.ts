@@ -1,4 +1,4 @@
-/* Smart filters (plan/36): the numbers the browser shows, apart from the schemas so the web app ships no validation library. */
+/* Smart filters: the numbers the browser shows, apart from the schemas so the web app ships no validation library. */
 
 /** The longest description of what to keep or drop, in characters. */
 export const AI_FILTER_TEXT_MAX = 600;

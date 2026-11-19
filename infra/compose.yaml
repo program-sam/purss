@@ -25,7 +25,7 @@ networks:
   services:
     internal: true
     ipam: { config: [{ subnet: 172.31.90.0/24 }] }
-  # The bridge container's only network: egress (proxy and DNS) is its one peer and way out (plan/41).
+  # The bridge container's only network: egress (proxy and DNS) is its one peer and way out.
   bridge-net:
     internal: true
     ipam: { config: [{ subnet: 172.31.89.0/24 }] }
@@ -64,7 +64,7 @@ services:
     depends_on: { init: { condition: service_completed_successfully } }
     mem_limit: 192m
 
-  # RSS-Bridge (plan/41), pinned by digest, only the catalogued bridges enabled. It reaches the
+  # RSS-Bridge, pinned by digest, only the catalogued bridges enabled. It reaches the
   # internet only through egress: its requests go to the proxy and its name lookups to egress's
   # resolver, both of which refuse private addresses.
   bridge:
@@ -150,12 +150,12 @@ services:
       PURSS_SMTP_USER: ${PURSS_SMTP_USER:-}
       PURSS_SMTP_PASSWORD: ${PURSS_SMTP_PASSWORD:-}
       PURSS_MAIL_FROM: ${PURSS_MAIL_FROM:-}
-      # Assistants signing in with OAuth (plan/33): on in hosted mode; "on" to opt in when self-hosted (needs https).
+      # Assistants signing in with OAuth: on in hosted mode; "on" to opt in when self-hosted (needs https).
       PURSS_ASSISTANT_OAUTH: ${PURSS_ASSISTANT_OAUTH:-}
-      # AI filters (plan/36): Jev's address and model; empty means TypeSafe's. Keys are set in the app (Settings, Admin).
+      # AI filters: Jev's address and model; empty means TypeSafe's. Keys are set in the app (Settings, Admin).
       PURSS_JEV_URL: ${PURSS_JEV_URL:-}
       PURSS_JEV_MODEL: ${PURSS_JEV_MODEL:-}
-      # Phone notifications through the project's push relay (plan/37): set it empty or "off" to turn them off.
+      # Phone notifications through the project's push relay: set it empty or "off" to turn them off.
       PURSS_PUSH_RELAY_URL: ${PURSS_PUSH_RELAY_URL-official}
       # The phone apps this PURSS vouches for, so they can use its passkeys (docs/self-hosting.md#configuration).
       PURSS_APP_ANDROID_PACKAGE: ${PURSS_APP_ANDROID_PACKAGE:-}

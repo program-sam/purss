@@ -6,7 +6,7 @@ import type { TrimService } from "./trim-service.ts";
 
 /*
  * The engine-facing listener of the private feed gateway. It serves GET /feeds/<id>
- * and GET /t/<signature>/<address> (a big feed, trimmed; plan/44) and nothing else: no
+ * and GET /t/<signature>/<address> (a big feed, trimmed) and nothing else: no
  * product, worker, admin or control routes exist here, and the acknowledgement route lives
  * only on the service-authenticated control listener.
  * Authentication of /feeds is HTTP Basic (user name = feed id, password = revocable

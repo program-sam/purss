@@ -11,7 +11,7 @@ if (keystorePropertiesFile.exists()) {
 }
 def purssFossBuild = project.findProperty('purssFoss')?.toString()?.toBoolean() ?: false
 
-// The version (plan/40), from the bundled interface's build (apps/web/dist/app-build.json, written by
+// The version, from the bundled interface's build (apps/web/dist/app-build.json, written by
 // `npm run sync`): versionName and versionCode are the same number, so every build on main counts up.
 // F-Droid supplies the same values from its metadata for a tagged source build. A build without one
 // (no history) is version 1 / "dev".
@@ -58,7 +58,7 @@ android {
         buildConfig = true
     }
     buildTypes {
-        // Trying notifications without Firebase (plan/37, apps/mobile/README.md): a debug build can be pointed at a
+        // Trying notifications without Firebase (apps/mobile/README.md): a debug build can be pointed at a
         // local relay and given a stand-in push address with -PpurssPushRelay=… -PpurssPushDebugToken=…. Release builds never.
         debug {
             buildConfigField "String", "PURSS_PUSH_RELAY", "\"${project.findProperty('purssPushRelay') ?: ''}\""
@@ -93,7 +93,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
-    // Background downloads and the widget's play/pause (plan/38). media3-session matches the audio plugin's version.
+    // Background downloads and the widget's play/pause. media3-session matches the audio plugin's version.
     implementation "androidx.work:work-runtime:2.10.5"
     implementation "androidx.media3:media3-session:1.9.0"
     testImplementation "junit:junit:$junitVersion"

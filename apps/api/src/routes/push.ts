@@ -6,7 +6,7 @@ import { HttpError, Router, clientAddress, parse, rateLimit } from "../http.ts";
 import { pushInfo, registerPushDevice, takePending, unregisterPushDevice } from "../services/push.ts";
 
 /*
- * Phone notifications (plan/37). The phone app, with its device token: GET /api/push (is this PURSS
+ * Phone notifications. The phone app, with its device token: GET /api/push (is this PURSS
  * sending, through which relay, is this phone registered), POST /api/push/device (register its relay
  * handle; returns the fetch credential) and DELETE /api/push/device. The phone's notification code, with
  * that fetch credential only (no device token, no cookies; connect/gate.ts lets it through as an open

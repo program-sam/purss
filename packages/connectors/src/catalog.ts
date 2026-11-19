@@ -1,5 +1,5 @@
 /*
- * Declarative connector catalog (plan/08 contract proposal). Pure data: no code is
+ * Declarative connector catalog. Pure data: no code is
  * loaded from it and nothing here is user-extensible. Discovery, feed generation,
  * content extraction and media playback are declared separately on purpose. Only
  * connectors that need no authentication and no provider adapter are listed;

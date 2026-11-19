@@ -6,7 +6,7 @@ import type { App, Ctx } from "../app.ts";
 import { HttpError, Router } from "../http.ts";
 
 /*
- * Live updates of the phone apps' interface (plan/39): the build of the interface this PURSS runs,
+ * Live updates of the phone apps' interface: the build of the interface this PURSS runs,
  * packed for the apps by the server image (apps/mobile/scripts/app-bundle.ts) into Config.appBundleDir.
  * GET /api/app/bundle describes it (an open endpoint: apps ask before they are connected too, see
  * connect/gate.ts) and GET /api/app/bundle/<file> is the zip, which the phone's updater downloads itself.

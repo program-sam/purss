@@ -5,7 +5,7 @@ import { humanCode, normalizeCode, randomToken, safeEqual, sha256 } from "../sec
 
 /*
  * One-time authorization codes with PKCE (RFC 7636, S256 only): the shared core of "Connected apps"
- * (plan/24) and of the OAuth server for assistants (plan/33), kept free of HTTP and of what the
+ * and of the OAuth server for assistants, kept free of HTTP and of what the
  * code is finally exchanged for.
  *
  * The flow it supports:
@@ -81,7 +81,7 @@ export type Redemption =
 /**
  * Exchange a code. `kind` and `clientId` must be what the code was issued to; `redirectUri` must be
  * exactly the target the code was issued for, and absent for typed codes. Without `form`, the
- * redirect target's presence is how the form is told apart. OAuth (plan/33) passes form "redirect"
+ * redirect target's presence is how the form is told apart. OAuth passes form "redirect"
  * and may leave the target out (OAuth 2.1 dropped it from the token request; PKCE does its job):
  * the code is then still bound to the target it was issued for, which the grant records. The row is
  * gone afterwards whatever the outcome.

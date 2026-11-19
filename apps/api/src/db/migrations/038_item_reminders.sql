@@ -1,4 +1,4 @@
--- "Remind me" on a kept item (plan/34): a day and an optional note, one per item. The day is the
+-- "Remind me" on a kept item: a day and an optional note, one per item. The day is the
 -- person's own calendar day in their time zone ("2026-12-12"), not an instant. notified_at is when
 -- the bell (and email, if chosen) was told, so a day is announced once however often the check runs.
 CREATE TABLE item_reminders (

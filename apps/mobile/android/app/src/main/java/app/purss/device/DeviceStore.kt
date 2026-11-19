@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import java.io.File
 
 /**
- * What the native side keeps for the page (plan/38), in the app's private preferences: the background
+ * What the native side keeps for the page, in the app's private preferences: the background
  * job's state as the page mirrored it, the page's part of the home-screen panels (look and episode), the
  * panels' lists and which collection or source each configurable panel shows, and whether the token was
  * found refused. Never the token: that stays in the secure storage the page uses (StoredConnection).

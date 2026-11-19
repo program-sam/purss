@@ -4,7 +4,7 @@ import { emit, type App } from "../app.ts";
 import { usableAccountSql } from "./deletion.ts";
 
 /*
- * The pictures of Bluesky posts (plan/22). The feed FreshRSS collects for an account carries a post's text and none of what is attached, so a
+ * The pictures of Bluesky posts. The feed FreshRSS collects for an account carries a post's text and none of what is attached, so a
  * post of a cartoon would arrive as a caption. Once a post is here its picture is asked of Bluesky's public API, a batch at a time, and set as the
  * item's picture. It is optional and never in the way: it runs after the sync that brought the posts, looks only at recent ones, tries a post
  * three times at most, and a failure, a slow answer or a deleted post leaves the item as it was. No post is added or changed here besides its picture.

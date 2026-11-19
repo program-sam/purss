@@ -1,6 +1,6 @@
 declare const __PURSS_VERSION__: string | null | undefined;
 
-/** This page's version (plan/40), compiled in by the build; null where it was built without one, and in tests. */
+/** This page's version, compiled in by the build; null where it was built without one, and in tests. */
 export const PAGE_VERSION: string | null = typeof __PURSS_VERSION__ === "undefined" ? null : __PURSS_VERSION__;
 
 /**

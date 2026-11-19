@@ -1,4 +1,4 @@
--- AI filters (plan/36, packages/domain/src/ai-filters.ts). A filter belongs to one source or one collection and says, in the
+-- AI filters (packages/domain/src/ai-filters.ts). A filter belongs to one source or one collection and says, in the
 -- person's words, which posts to keep. `version` goes up when the words change, so an answer to an older version is not used.
 CREATE TABLE ai_filters (
   id TEXT PRIMARY KEY,

@@ -1,5 +1,5 @@
 /**
- * The download button (plan/42): the visitor's system, read from the browser's user agent, points the button at that
+ * The download button: the visitor's system, read from the browser's user agent, points the button at that
  * system's file (kit.ts, getDesktop) and shows the link to the other systems. Android phones and tablets get the
  * Android app; iPhones, iPads (an iPad says "Macintosh" but has a touch screen), Chromebooks and anything unrecognised
  * keep the button on the release page. Linux gets the AppImage, which runs on any distribution and updates itself.

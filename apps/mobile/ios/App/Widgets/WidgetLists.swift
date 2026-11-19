@@ -1,6 +1,6 @@
 import Foundation
 
-/// The home-screen panels' lists (plan/38), the same rules as Android's WidgetLists.kt. Compiled into the app,
+/// The home-screen panels' lists, the same rules as Android's WidgetLists.kt. Compiled into the app,
 /// which fetches the lists, and into the widget extension, which draws them. A list key is `toread`, `tolisten`,
 /// `new`, `collection:<id>` or `source:<id>`; each has one request (the table in apps/mobile/widget-lists.json).
 /// Lists hold titles, ids and dates: never the token or the PURSS's address, and never items of private sources

@@ -168,7 +168,7 @@ export function seedAdjacent(app: App, p: Principal & { engineUserId: string }, 
   const phone = createDeviceToken(app, p.accountId, "mobile", "Phone");
   const deviceToken = phone.secret;
   createDeviceToken(app, p.accountId, "extension", "Browser");
-  // The phone registered for notifications (plan/37).
+  // The phone registered for notifications.
   app.db.run("INSERT INTO push_devices (device_id, account_id, relay, handle, fetch_hash, shown_until, created_at) VALUES (?, ?, 'https://push.example.org', ?, ?, ?, ?)",
     phone.device.id, p.accountId, `rh_${"P".repeat(43)}`, sha256(`push-${p.accountId}`), nowIso(), nowIso());
   issueCode(app, { accountId: p.accountId, kind: "extension", clientId: null, redirectUri: "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/", label: "Browser", scope: null }, CHALLENGE, "redirect");

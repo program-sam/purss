@@ -1,5 +1,5 @@
 /*
- * Private feed gateway contracts (plan/20). A source adapter turns a documented API
+ * Private feed gateway contracts. A source adapter turns a documented API
  * into entries; the gateway stages them, serves them to the engine as RSS, and keeps
  * them until the product acknowledges the durable commit. No adapter is approved in
  * this build: the production registry is empty and the fixture adapter is test-only.

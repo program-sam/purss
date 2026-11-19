@@ -1,7 +1,7 @@
 import { parseFeedDate, TRIM_ITEMS } from "@purss/connectors";
 
 /*
- * The streaming feed trimmer (plan/44). Some feeds are tens of megabytes (a podcast that repeats every episode's show notes three
+ * The streaming feed trimmer. Some feeds are tens of megabytes (a podcast that repeats every episode's show notes three
  * times over 3,000 episodes), more than the engine can parse in its memory limit, yet what it keeps of a feed is its newest items
  * (90 days of them, at least 50). The trimmer reads such a feed as a stream to its end, keeps its channel metadata and its newest items exactly as they were written,
  * and hands back a much smaller copy of the same feed. It never holds the document or a parse of it: only the text that has

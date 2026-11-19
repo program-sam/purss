@@ -21,7 +21,7 @@ import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
 
 /*
- * Administrator operations (plan/21). Everything here is operational: aggregates, job and
+ * Administrator operations. Everything here is operational: aggregates, job and
  * account metadata, and fixed audited actions. There is no content access, no impersonation
  * and no raw token or payload view; job errors are redacted before they leave this module.
  */

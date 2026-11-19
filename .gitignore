@@ -1,9 +1,9 @@
 node_modules/
 dist/
-# The phone apps' interface packed by the server image (plan/39)
+# The phone apps' interface packed by the server image
 apps/web/app-dist/
 apps/web/app-bundle/
-# Which version a build is, written where there is no history (plan/40)
+# Which version a build is, written where there is no history
 /version.json
 build/
 coverage/

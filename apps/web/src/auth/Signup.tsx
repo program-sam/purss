@@ -12,7 +12,7 @@ import { ProviderButton } from "./ProviderButton.tsx";
 import { tryAgainAfter } from "./retry.ts";
 
 /**
- * Open sign-up starts with the email address (plan/21): /signup asks for it and sends a link, and /signup?token=… (the link) finishes the
+ * Open sign-up starts with the email address: /signup asks for it and sends a link, and /signup?token=… (the link) finishes the
  * account with a password. The first step answers the same whether or not the address already has an account.
  */
 export function SignupPage() {

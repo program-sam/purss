@@ -41,7 +41,7 @@ export type HandlerDeps = {
   secretsDir: string;
   /** Where the engine reaches the bridge router; see resolveFeedUrl. */
   bridgeEngineUrl?: string;
-  /** Where the engine reaches the feed gateway, which trims big feeds (plan/44); see trimmedEngineUrl. */
+  /** Where the engine reaches the feed gateway, which trims big feeds; see trimmedEngineUrl. */
   gatewayEngineUrl?: string;
   admin: Pick<EngineAdmin, "ensureUser" | "engineIdentity" | "userExists" | "deleteUser">;
   log: Logger;
@@ -64,7 +64,7 @@ export type HandlerDeps = {
   isLargeFeed?: (url: string, opts: { signal: AbortSignal }) => Promise<boolean | null>;
   /** Absent when the connectors package does not provide icon lookup; such jobs are then not leased at all. */
   icon?: IconFn;
-  /** Jev for Smart filters (plan/36): the operator's address (keys are read from the secrets folder). Absent: not leased. */
+  /** Jev for Smart filters: the operator's address (keys are read from the secrets folder). Absent: not leased. */
   jev?: { config: JevConfig; fetch?: (url: string, init: RequestInit) => Promise<Response> };
   syncPageSize: number;
   syncOverlapSeconds: number;
@@ -165,9 +165,9 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         if (!resolved) {
           throw new JobFailure(payload.feedUrl.startsWith("bridge:") ? "This installation has no bridge key, so the source can't be followed." : "The private feed address for this source is missing.", false);
         }
-        // A bridged source is already served by the router; any other address can be a big feed (plan/44).
+        // A bridged source is already served by the router; any other address can be a big feed.
         const trimmable = !payload.feedUrl.startsWith("bridge:") && /^https?:\/\//i.test(resolved);
-        // The gateway's address for a feed; null on an installation that has no feed gateway key (plan/44).
+        // The gateway's address for a feed; null on an installation that has no feed gateway key.
         const viaGateway = (address: string): string | null => trimmedEngineUrl(deps.secretsDir, address, deps.gatewayEngineUrl);
         const { client } = await engineSession(payload.engineUserId, signal);
         // A private (secret-link) address belongs to one account and is never fetched for another, so it needs no ordering.

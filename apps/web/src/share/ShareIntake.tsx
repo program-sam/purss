@@ -8,7 +8,7 @@ import { linkFromShare } from "./link.ts";
 /**
  * Renders nothing. In the apps, a link shared from another app (Android's share sheet, the iOS share
  * extension) opens the choice below. Nothing is kept or looked up until the person chooses. In the desktop
- * app (plan/42), a feed link opens Add source with it filled in, and an OPML file the choice of its feeds.
+ * app, a feed link opens Add source with it filled in, and an OPML file the choice of its feeds.
  */
 export function ShareIntake() {
   const overlays = useOverlays();

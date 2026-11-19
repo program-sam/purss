@@ -1,5 +1,5 @@
 {
-  "about": "The home-screen panels' lists (plan/38): each key's request and where its header leads. Read by the Kotlin unit test (WidgetListsTest) and the page's (device/widget.test.ts); the Swift copy (Widgets/WidgetLists.swift) follows the same table.",
+  "about": "The home-screen panels' lists: each key's request and where its header leads. Read by the Kotlin unit test (WidgetListsTest) and the page's (device/widget.test.ts); the Swift copy (Widgets/WidgetLists.swift) follows the same table.",
   "lists": [
     {
       "key": "toread",

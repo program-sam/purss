@@ -1,4 +1,4 @@
--- Indexes for the counts behind the source list, the collection list and the totals of item lists (plan/13, size gate).
+-- Indexes for the counts behind the source list, the collection list and the totals of item lists.
 
 -- The items of a workspace that are not in the default state (workflow "new" and not New), by state, with the item. The
 -- counts read the few items a person has acted on, and the New ones, straight from here and join only those to their

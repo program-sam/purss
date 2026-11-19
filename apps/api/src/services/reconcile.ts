@@ -9,7 +9,7 @@ import { detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.t
 import { insertItem } from "./items.ts";
 
 /*
- * Reconciliation review (plan/02). When the collection engine is replaced or restored, the
+ * Reconciliation review. When the collection engine is replaced or restored, the
  * entries it sends cannot be trusted to continue the old engine's identifiers. The sync keeps
  * them in a durable queue instead of creating a duplicate library; this is where the owner
  * (or a bulk accept) decides: it is the same item (attach the new engine's identity to the

@@ -6,7 +6,7 @@ import { Router, parse, rateLimit } from "../http.ts";
 import { aiSettings } from "../services/ai-access.ts";
 import { deleteFilter, getFilter, listFilters, previewFilter, saveFilter } from "../services/ai-filters.ts";
 
-/** Smart filters (plan/36): whether they can run, and the filter of each source and collection. */
+/** Smart filters: whether they can run, and the filter of each source and collection. */
 export function aiFiltersRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   r.get("/api/ai", (_req, ctx) => aiSettings(ctx.app, requirePrincipal(ctx)));

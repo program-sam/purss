@@ -1,4 +1,4 @@
--- A list of feeds (OPML) being followed on the server (plan/34), so closing the tab doesn't stop it and the
+-- A list of feeds (OPML) being followed on the server, so closing the tab doesn't stop it and the
 -- progress is there when the person comes back. One row per import, one per feed in it. A feed whose link
 -- carries a secret has no address here: it waits in the secrets folder until it has been followed.
 CREATE TABLE opml_imports (

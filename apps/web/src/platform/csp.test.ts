@@ -24,7 +24,7 @@ test("the desktop app adds its IPC to requests and its own server on 127.0.0.1 t
 test("the page's policy loads scripts only from the app itself; once connected, the apps frame only the video players the reader embeds", () => {
   assert.match(PAGE_POLICY, /script-src 'self';/);
   assert.match(PAGE_POLICY, /object-src 'none'/);
-  // In a browser the reader frames originals that allow it (plan/43); the apps never do.
+  // In a browser the reader frames originals that allow it; the apps never do.
   assert.match(PAGE_POLICY, /frame-src https: http:;/);
   for (const o of EMBED_ORIGINS) assert.match(o, /^https:\/\/[a-z0-9.-]+$/, "a frame source is one https origin, never a scheme or a wildcard");
   assert.doesNotMatch(PAGE_POLICY, /unsafe-eval|script-src[^;]*unsafe-inline/);

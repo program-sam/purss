@@ -47,7 +47,7 @@ export function generateOpml(subscriptions: readonly OpmlSubscription[], opts: {
       omitted.push({ title: label, reason: "invalid" });
       continue;
     }
-    // Native capability/secret-link URLs count as credentials (plan/20): never exported.
+    // Native capability/secret-link URLs count as credentials: never exported.
     if (sub.private || looksPrivateUrl(feedUrl)) {
       omitted.push({ title: label, reason: "private" });
       continue;

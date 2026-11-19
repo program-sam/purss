@@ -1,5 +1,5 @@
 /*
- * The product's version number (plan/40): one number per commit on main, from the date it was made, for
+ * The product's version number: one number per commit on main, from the date it was made, for
  * telling builds apart in reports, compatibility notes and update posts. Seven digits:
  *
  *   2631214 = 26 (the year) + 312 (the day of the year, UTC) + 14 (that day's 14th commit on main)

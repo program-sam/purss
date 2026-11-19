@@ -1,7 +1,7 @@
 # Product image: API, worker, egress and the Compose setup steps (same image, different commands).
 FROM docker.io/library/node:26-bookworm-slim AS build
 WORKDIR /app
-# Which version this is (plan/40): from the checkout's history when the build has it (a git clone), else the
+# Which version this is: from the checkout's history when the build has it (a git clone), else the
 # version.json a deploy adds, else none. Both are optional (the patterns may match nothing; package.json
 # always does); .git's contents land in /ctx, which git reads as the repository. Copying them makes a new
 # commit rerun this step. git is only needed here.
@@ -17,7 +17,7 @@ COPY packages ./packages
 # elsewhere. The website's canonical links and link previews name the address it is served at.
 ARG PURSS_PUBLIC_ORIGIN=http://localhost:8940
 RUN npm ci --no-audit --no-fund -w @purss/web -w @purss/site && npm run build -w @purss/web && SITE_ORIGIN="$PURSS_PUBLIC_ORIGIN" npm run build -w @purss/site
-# The same interface built for the phone apps' own root and packed for their live updates (plan/39).
+# The same interface built for the phone apps' own root and packed for their live updates.
 RUN cd apps/web && PURSS_WEB_BASE=/ npx vite build --outDir app-dist && cd ../.. && node apps/mobile/scripts/app-bundle.ts apps/web/app-dist apps/web/app-bundle
 
 FROM docker.io/library/node:26-bookworm-slim

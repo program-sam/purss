@@ -10,7 +10,7 @@ import { notifyArrivals } from "./notifications.ts";
 import { setWorkflowByFilter } from "./state.ts";
 
 /*
- * Smart filters (plan/36). A filter holds the person's words for which posts of a source, or of every source in a collection, to
+ * Smart filters. A filter holds the person's words for which posts of a source, or of every source in a collection, to
  * keep. New posts of those sources are judged in the background (job filter.judge): the worker asks Jev, and a post a filter
  * drops is marked Ignored if it is still Undecided and nobody has opened or kept it. A changed or newly added filter re-checks
  * the recent Undecided posts, and gives back the posts it dropped earlier that it would now keep, unless they were touched since.

@@ -1,11 +1,11 @@
 /**
- * Contract test of the feed gateway's trimming of big feeds (plan/44) against the real pinned FreshRSS container: a feed far too big for
+ * Contract test of the feed gateway's trimming of big feeds against the real pinned FreshRSS container: a feed far too big for
  * the engine's PHP memory limit (a podcast feed of 3,000 episodes that repeats its show notes three times, about 20 MB, like The Daily's)
  * makes the engine fail the request itself (HTTP 500) when it is added directly, and is followed without trouble through the gateway,
  * which gives the engine a copy of the newest 50 episodes (what it keeps of a feed). The path is the real one except the product's database: FreshRSS fetches
  * through the real egress proxy, whose internal alias leads to the real gateway, which streams the fixture feed through safeFetch;
  * the subscriptions are made by the worker's own `engine.subscribe` handler.
- * Run with `npm run test:engine`; on this shared host wrap it: `~/.t3/bin/hostlock work engine-tests -- npm run test:engine`.
+ * Run with `npm run test:engine`.
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";

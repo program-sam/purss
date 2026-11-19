@@ -5,7 +5,7 @@ import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 
 /**
- * Logical storage ledger (plan/17). Account usage = sum of live stored objects, kept as
+ * Logical storage ledger. Account usage = sum of live stored objects, kept as
  * a total (`storage_accounts.used_bytes`) that `admitObject`, `releaseObject` and the
  * import's ledger insert update in the same transaction as the object.
  * All admission happens inside the caller's write transaction, so the single

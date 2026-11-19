@@ -5,7 +5,7 @@ import { mutedPatterns } from "./muted-match.ts";
 import { getPreferences } from "./preferences.ts";
 
 /*
- * Muted words (plan/34): words or phrases whose items are left out of Home and lists for a while or until removed. The items stay
+ * Muted words: words or phrases whose items are left out of Home and lists for a while or until removed. The items stay
  * stored; only what is listed changes. A word matches whole words of an item's title or summary, the way search reads them (see
  * muted-match.ts). The match is made on the row a query looks at, by the SQL function `purss_muted`, so what a list costs does not
  * depend on how many items a word matches, or on what other PURSSes hold.

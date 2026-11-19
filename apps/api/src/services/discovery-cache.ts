@@ -5,7 +5,7 @@ import type { DiscoveryCandidate } from "@purss/domain";
  * carry a secret (a private link), so it never enters the database, backups or logs before
  * the owner decides how to follow it. A restart forgets previews; the person looks up again.
  * `large`: the feed is bigger than the engine can read whole, so following it goes through the
- * feed gateway (plan/44); it is held with the preview and never sent to the browser.
+ * feed gateway; it is held with the preview and never sent to the browser.
  */
 type Held = { workspaceId: string; candidate: Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> & { large?: boolean }; expires: number };
 

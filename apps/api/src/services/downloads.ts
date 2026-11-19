@@ -4,7 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { listItems } from "./items.ts";
 
 /**
- * What a phone should download automatically now (plan/38), by the rules in @purss/domain: the app asks
+ * What a phone should download automatically now, by the rules in @purss/domain: the app asks
  * while it is open and its native background job while it is closed, so both decide the same way
  * without the rules being written again in Kotlin and Swift. The device says what it already has;
  * nothing about the device is stored.

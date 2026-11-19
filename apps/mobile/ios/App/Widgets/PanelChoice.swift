@@ -2,7 +2,7 @@ import Foundation
 import AppIntents
 import WidgetKit
 
-/// What a Collection or Source widget is set to (plan/38). Compiled into the widget extension, which offers the
+/// What a Collection or Source widget is set to. Compiled into the widget extension, which offers the
 /// choice, and into the app, which reads each placed widget's choice (`WidgetCenter.getCurrentConfigurations`) to know
 /// which lists to fetch. The choices come from `widget-choices.json`, written by the app from the PURSS's own answer
 /// (private sources left out); the extension never asks the PURSS for anything.

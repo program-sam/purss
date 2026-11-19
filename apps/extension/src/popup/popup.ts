@@ -15,7 +15,7 @@ import { pageInfoOf, readableIn } from "../lib/tab-scripts.ts";
 import { forgetConnection, getConnection, getLastBasket, getSettings, setBaskets, setLastBasket, setSettings } from "../lib/store.ts";
 
 /*
- * The toolbar popup for the page that is open (plan/32): whether it is already kept and where, Keep
+ * The toolbar popup for the page that is open: whether it is already kept and where, Keep
  * with a basket picker (and, on request, the page's text as the browser shows it), and "Add as a
  * source" when the page advertises a feed or is a YouTube channel or video, which hands over to the
  * PURSS's guided Add source. Opening the popup is what lets the extension read this one page.

@@ -12,7 +12,7 @@ import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
 /*
- * Smart filters (plan/36): describe which posts of a source or collection to keep, try the words on the latest posts, then turn the
+ * Smart filters: describe which posts of a source or collection to keep, try the words on the latest posts, then turn the
  * filter on. Posts it drops are marked Ignored; the questions go to the AI provider configured for Smart filters.
  */
 

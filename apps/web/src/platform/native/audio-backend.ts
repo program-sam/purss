@@ -6,7 +6,7 @@ import { HtmlMediaBackend } from "../../player/html-backend.ts";
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from "../../player/logic.ts";
 
 /**
- * The apps' player (plan/31). Audio plays in the system's own player through
+ * The apps' player. Audio plays in the system's own player through
  * @mediagrid/capacitor-native-audio: Media3 in a foreground media service on Android, AVPlayer with the
  * Now Playing centre on iOS, so it keeps playing with the screen off or the app in the background and
  * shows lock-screen and notification controls. Video plays in the page, like on the web.

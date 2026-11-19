@@ -2,7 +2,7 @@ import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
 
 /*
- * Whether a page lets another site show it in a frame (plan/43): the browser refuses to when the page's
+ * Whether a page lets another site show it in a frame: the browser refuses to when the page's
  * response says so, in Content-Security-Policy `frame-ancestors` or, without that, X-Frame-Options. A refused
  * frame looks loaded to the page around it, so the reader asks the server first and frames only pages whose
  * headers allow its own origin. The rules below follow the browsers' (CSP Level 3 and the HTML standard).

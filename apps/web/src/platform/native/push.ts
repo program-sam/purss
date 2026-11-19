@@ -2,7 +2,7 @@ import type { PushInfo, PushRegisterResult } from "@purss/domain";
 import type { PushStatus } from "../types.ts";
 
 /*
- * Notifications on this phone (plan/37), apart from the device APIs, so the rules can be tested without
+ * Notifications on this phone, apart from the device APIs, so the rules can be tested without
  * a phone. The phone's push address (an FCM token on Android, an APNs token on iOS) goes to the push relay
  * only, which answers with a handle; PURSS gets that handle and answers with a fetch credential,
  * which goes to the native notification code (Android's messaging service, iOS's notification service

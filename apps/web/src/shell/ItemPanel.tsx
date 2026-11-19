@@ -115,7 +115,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const [showPartial, setShowPartial] = useState(false);
   const [renaming, setRenaming] = useState(false);
   useEffect(() => { setShowLatest(false); setShowPartial(false); setRenaming(false); }, [itemId]);
-  // A page from another site shown over the article (plan/43): the original, or a link in the article.
+  // A page from another site shown over the article: the original, or a link in the article.
   const [web, setWeb] = useState<string | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const [barBottom, setBarBottom] = useState(48);

@@ -1,4 +1,4 @@
-// Packs the apps' interface for live updates (the phones, plan/39; the desktop app, plan/42): the web app built for the apps' own root,
+// Packs the apps' interface for live updates (the phones; the desktop app): the web app built for the apps' own root,
 // zipped, plus the manifest the PURSS serves at /api/app/bundle. The server image runs it
 // (infra/Containerfile); a PURSS without its output offers no update.
 //

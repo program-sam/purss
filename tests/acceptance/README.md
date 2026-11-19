@@ -1,6 +1,6 @@
 # Acceptance journey
 
-`npm run test:e2e` runs the plan's core journey against the real stack, not mocks:
+`npm run test:e2e` runs the core journey against the real stack, not mocks:
 a separate FreshRSS container (`purss-freshrss-acceptance`), the egress proxy, API and
 worker on their own ports (189xx) and a throwaway data directory, driven in Chromium.
 
@@ -19,10 +19,12 @@ minutes; run it under the host's work lock. On failure it prints the job and cap
 state and saves a screenshot to the system temp directory; the containers and data
 are always removed.
 
-Not yet covered here (tested elsewhere or still manual): engine outage recovery,
-quota/disk pause, multi-basket and deletion paths (API integration tests), sharing,
-export/import and admin (API route tests and the web executor's browser passes),
-mobile layouts and screen readers. See [the acceptance matrix](../../plan/13-validation.md).
+What these journeys leave to other checks: engine outage recovery, the storage pause when the quota or the disk is full,
+multi-basket and deletion paths (API integration tests and `npm run test:engine`), sharing, export and import and
+administration (API route tests), and the interface inside the phone and desktop apps. Screen readers, themes and
+layouts at other sizes than the journeys' phone and desktop windows, and the apps on a device, are checked by hand;
+[testing and acceptance](../../docs/development.md#testing-and-acceptance) lists which check covers which area and
+what to verify by hand.
 
 ## Install and offline reading
 
@@ -47,6 +49,19 @@ server can't take yet, sees the sign-out warning and that sign-out deletes it; s
 checks that no saved copy or record stays while the app shell does; and, in a context that reports
 itself as an installed app, that offline reading starts on by itself.
 
+## Home, reading progress and focus
+
+`tests/acceptance/home.ts` is a hermetic journey (Node 26 and Chromium only, a seeded library; `npm run test:e2e` runs it
+after the offline journey, or `node tests/acceptance/home.ts` after `npm run build`). It checks in the real page that
+reading progress counts only a person's own scrolling and reopening goes back to where an item was left; that Home's
+rows above the boxes start closed and stay open once opened, To read lists what was put aside and the boxes below don't
+repeat what is above them, and a video put aside is in To watch, not To read; that a muted word is saved in Settings and
+lists say how many items it leaves out and can show them, and the filter menu narrows a list; that a source followed
+from now has its back catalogue Ignored, off Home, said so on its own page and found by search; that an article In
+progress is in Home's To read row, first and marked; that a row action's tip shows on mouse hover and keyboard focus but
+not after a tap on a phone; and that keyboard focus never falls to the page when a row leaves its list, a dialog or
+the phone drawer opens or closes, and that the account button, Sign out and the bell never sit on another control.
+
 ## Right-to-left text
 
 `tests/acceptance/rtl.ts` is a hermetic journey like Home's (Node 26 and Chromium only; `npm run test:e2e` runs it after Home's, or
@@ -67,7 +82,7 @@ source's *New collection…* choice is unavailable with the same words under it.
 ## Connected apps
 
 `tests/acceptance/connect.ts` is a hermetic journey for connecting the phone app and the browser
-extension (plan/24); `npm run test:e2e` runs it after the offline journey, and `node tests/acceptance/connect.ts` (after
+extension (see [connected apps](../../docs/architecture.md)); `npm run test:e2e` runs it after the offline journey, and `node tests/acceptance/connect.ts` (after
 `npm run build`) runs it alone. Like the offline journey it needs only Node 26 and Playwright's
 Chromium, and starts the API on free ports with a throwaway data directory. A browser
 extension's request sends a signed-out person through sign-in and back to the approval page; the
@@ -81,7 +96,7 @@ one opens the password form.
 
 ## Assistants signing in with OAuth
 
-`tests/acceptance/oauth.ts` is a hermetic journey for assistants that connect with OAuth (plan/33);
+`tests/acceptance/oauth.ts` is a hermetic journey for assistants that connect with OAuth ([assistants](../../docs/assistants.md));
 `npm run test:e2e` runs it after the connected-apps journey, and `node tests/acceptance/oauth.ts`
 (after `npm run build`) runs it alone. It needs Node 26, Playwright's Chromium and `openssl`, and
 runs the API in its own process on free ports with OAuth turned on, so the client metadata document
@@ -133,7 +148,7 @@ link, checks the notice, that the first browser was signed out, and that only th
 
 `tests/acceptance/extension.ts` runs last in `npm run test:e2e` (alone: `node tests/acceptance/extension.ts`
 after `npm run build` and `npm run build:extension`). Like the other hermetic journeys it needs only Node
-24 and Playwright's Chromium; it starts the API on free ports and a small local "publisher" site. It loads
+26 and Playwright's Chromium; it starts the API on free ports and a small local "publisher" site. It loads
 the built Chromium extension unpacked into Chromium's new headless mode (the headless shell can't run
 extensions), with access to the publisher's site added to its manifest in place of the `activeTab` grant
 a real click on the toolbar button gives. The toolbar popup is opened with `action.openPopup()` and
@@ -151,7 +166,7 @@ keyword can't be driven from Playwright; their logic has unit tests.
 ## Signing in with Google
 
 `tests/acceptance/google.ts` is a hermetic journey for signing in with an external OpenID Connect provider
-([plan/21](../../plan/21-identity-and-administration.md)); `npm run test:e2e` runs it after the email journey, and
+([self-hosting](../../docs/self-hosting.md#signing-in-with-google-or-another-provider)); `npm run test:e2e` runs it after the email journey, and
 `node tests/acceptance/google.ts` (after `npm run build`) runs it alone. It needs only Node 26 and Playwright's
 Chromium: a hosted API with open sign-up, a local SMTP server (open sign-up needs working email) and a local fake issuer
 (`oauth2-mock-server`) configured as Google. A stranger makes an account with *Continue with Google* (no password) and

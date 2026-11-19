@@ -9,7 +9,7 @@ import { isLoopbackRedirect, matchRedirect, resolveClient } from "./clients.ts";
 import type { Client } from "./clients.ts";
 
 /*
- * The authorization endpoint (plan/33). GET /app/oauth/authorize is the web app's consent page; it
+ * The authorization endpoint. GET /app/oauth/authorize is the web app's consent page; it
  * passes the query on as it came to GET /api/assistant/oauth/request, which reads and checks it and
  * answers with the parameters it read, and the signed-in person approves those with
  * POST /api/assistant/oauth/approve (same origin, CSRF header, recent sign-in), which checks them

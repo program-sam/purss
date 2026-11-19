@@ -2,8 +2,10 @@
 
 A small service that wakes phone apps. A phone app registers its FCM (Android) or APNs
 (iOS) device token and gets back an unguessable **handle**. A PURSS, self-hosted or
-official, later asks the relay to wake the device by handle only. The relay holds the
-project's FCM and APNs credentials so a self-hosted PURSS never needs its own.
+official, asks the relay to wake the device by handle only. The relay holds the
+project's FCM and APNs credentials so a self-hosted PURSS never needs its own, and nobody who
+self-hosts needs an account with Google or Apple. How the apps and the PURSS use it, and what each party
+sees, is in [the mobile README](../mobile/README.md#phone-notifications).
 
 Pushes carry **no content**: FCM gets `{"purss":"1"}`, APNs gets a neutral alert ("You have
 something new in your PURSS.") that the app's notification extension replaces with the
@@ -70,6 +72,22 @@ relay still starts. A credential file that is set but unreadable stops it with a
 When APNs rejects a production token as bad, the relay tries the sandbox once and
 remembers the environment if that works; otherwise the entry is deleted.
 
+## Credentials
+
+A platform is on when its credentials are named. Whoever publishes the app owns them:
+
+1. **FCM (Android).** In a Firebase project that has the Android app (package `app.purss`) and the Cloud Messaging
+   API (V1) enabled, *Project settings → Service accounts → Generate new private key*. The downloaded JSON is
+   `PURSS_RELAY_FCM_CREDENTIALS`; keep it outside Git, on the relay host.
+2. **APNs (iOS).** In the Apple developer account, *Keys → +*, enable Apple Push Notifications service, and download
+   the `.p8` once. It is `PURSS_RELAY_APNS_KEY`, with its Key ID and your Team ID as `PURSS_RELAY_APNS_KEY_ID` and
+   `PURSS_RELAY_APNS_TEAM_ID`. Push Notifications and the keychain group must be enabled on the App ID (see the
+   iOS steps in [the mobile README](../mobile/README.md#ios-what-to-do-on-a-mac)).
+3. **Address.** The relay's https address is `OFFICIAL_PUSH_RELAY` in `packages/domain/src/distribution.ts`; set it
+   before building the apps and the PURSS image. A PURSS sends through it unless its operator sets
+   `PURSS_PUSH_RELAY_URL` (empty or `off` turns phone notifications off; another https address is for a fork with its
+   own app build). The apps register only with `OFFICIAL_PUSH_RELAY`.
+
 ## Deploy
 
 `compose.yaml` builds `Containerfile` (build context: the repository root) and binds
@@ -93,7 +111,7 @@ docker compose -f apps/push-relay/compose.yaml up -d --build
 
 The project's own relay runs beside the official PURSS and is updated by every deploy of it (see
 [infra/README.md](../../infra/README.md#deploying-from-github)). The secrets directory is mounted read-only at `/run/relay-secrets`. A platform whose variables are
-left empty stays off (Android first and iOS later works); a path that points at a missing file
+left empty stays off (a relay with only Android, or only iOS, credentials works); a path that points at a missing file
 stops the relay. The data volume holds `relay.db` and `handle-secret`; back up
 `handle-secret` or accept that apps re-register after a loss.
 
@@ -106,5 +124,10 @@ stops the relay. The data volume holds `relay.db` and `handle-secret`; back up
 - Seen: the sending address of each request and the handle in a notify call, in memory only
   for rate limiting. Logs hold start and stop, push-service failures by status code and an
   hourly count of outcomes; never tokens, handles, scopes or addresses.
-- Never seen: PURSS addresses, accounts, item titles or any content. The push services
-  themselves see the device token and the neutral wake-up payload.
+- Never seen: PURSS addresses (apart from the sending server's IP address on a wake), accounts, item titles or any
+  content. The push services themselves see the device token and the neutral wake-up payload: that the app on that phone
+  received a push, and when, and on iOS the fixed alert text.
+
+A phone's push address goes only to the relay, never to a PURSS: the PURSS holds the handle and nothing else about the
+phone. The relay knows nothing of what a handle's PURSS sends; the text of a notification is fetched by the phone from
+its own PURSS after the wake.

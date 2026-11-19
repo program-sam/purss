@@ -220,7 +220,7 @@ export function cleanBrowserHtml(raw: string): { html: string; text: string } | 
 }
 
 /**
- * Store the readable text the person's browser extracted from an item's page (plan/32), inside the
+ * Store the readable text the person's browser extracted from an item's page, inside the
  * caller's transaction. One browser capture per item: a new one replaces the earlier one's text in
  * place (keeping its id, so highlights made on it still name it). It is measured and admitted
  * against storage like a server capture, in its own savepoint: when it doesn't fit, nothing changes

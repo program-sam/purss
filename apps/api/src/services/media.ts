@@ -5,7 +5,7 @@ import { notFound, nowIso } from "../http.ts";
 import { STATE_RECORD_BYTES, admitObject } from "./storage.ts";
 
 /*
- * Item media and playback (plan/25). The server only reports the audio or video file an item's feed
+ * Item media and playback. The server only reports the audio or video file an item's feed
  * offers and remembers where playback stopped; it never downloads or stores the file. Players and
  * the apps' device downloads fetch it from the publisher.
  */

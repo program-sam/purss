@@ -38,10 +38,11 @@ their root opens the app.
 
 The site sets no cookies and loads no third-party scripts. Plans, prices and comparison
 figures live in `src/kit.ts`. Store buttons for the browser extension and the phone app come from
-`packages/domain/src/distribution.ts`, shared with the app's Settings; until a store listing exists
-the apps section says they are coming to the stores and what works meanwhile (installing the
-PURSS from the browser, bookmarklets), and the build and load-unpacked instructions are
-developer links under the install commands in the pricing section's "You run it" box. The picture of Home is a picture: its contents
+`packages/domain/src/distribution.ts`, shared with the app's Settings: a store gets a button once its listing
+address is set there, and a card with no listing shows none. The phone card also links the Android APK from the
+latest release; the desktop card has one download button, which a few lines of script point at the visitor's system,
+and a link to the release page with every system's files. The build and load-unpacked instructions are developer
+links under the install commands in the pricing section's "You run it" box. The picture of Home is a picture: its contents
 are `aria-hidden`, so no button inside it is exposed. Competitor prices must be
 checked against the pricing pages linked in the comparison footnote before publishing.
 

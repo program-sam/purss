@@ -10,7 +10,7 @@ import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-
 export { canonicalFeedKey };
 
 /*
- * OPML carries subscriptions only (plan/07). Export lists public, followed sources built from
+ * OPML carries subscriptions only. Export lists public, followed sources built from
  * validated database fields; private sources and anything credential-shaped are left out.
  * The parsed list goes back to the browser as a preview; the feeds the person chooses are followed on the server
  * (opml-import.ts) through the normal discovery and follow, so no OPML is ever sent to the engine.

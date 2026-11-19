@@ -8,7 +8,7 @@ import path from "node:path";
 import { setClientFetchForTests } from "./clients.ts";
 
 /*
- * Test support for the OAuth server (plan/33): a local HTTPS server that plays the assistant's
+ * Test support for the OAuth server: a local HTTPS server that plays the assistant's
  * side (its client metadata documents), reached through safeFetch's in-process test hooks, so the
  * real fetch path with its address, size, time and redirect rules is what runs. Host names in
  * CLIENT_HOSTS resolve to 127.0.0.1 only through the resolver given here. Needs openssl to make a

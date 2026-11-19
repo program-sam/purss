@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
 /*
- * The bridge fetch log (plan/41): one row per answer the router gave, so the administrator can see
+ * The bridge fetch log: one row per answer the router gave, so the administrator can see
  * which bridged services and sources keep failing and decide whether another backend is needed.
  * No account is recorded, only the public service and key. Rows older than 30 days are dropped,
  * and the table never holds more than MAX_ROWS.

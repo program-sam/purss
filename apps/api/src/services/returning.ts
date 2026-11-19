@@ -6,7 +6,7 @@ import { pruneNotifications, runDigest, runProblemCheck } from "./notifications.
 import { getPreferences } from "./preferences.ts";
 
 /*
- * The work that keeps a PURSS tidy for someone who comes back (plan/29 §2), run from the API's maintenance
+ * The work that keeps a PURSS tidy for someone who comes back, run from the API's maintenance
  * tick but throttled here, so the tick can call it every time: every five minutes digests that have come due,
  * problems worth telling about, reminders whose day has come and pauses that have run out; every hour New markers that have expired, old
  * notifications and each source's recent rate. Every step works one PURSS at a time and in small batches.

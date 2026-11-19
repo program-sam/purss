@@ -11,14 +11,14 @@ import type { Connection, Pending } from "./connect.ts";
 import type { Passkeys } from "../types.ts";
 
 /**
- * The apps' first screen (plan/31): straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
+ * The apps' first screen: straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
  * on the server chosen before; an address is asked only after *Use another server*, or when there is no official
  * server. After a check that the server is a PURSS: signing in right
  * here (an email address and password; a forgotten password is reset by email) or creating an
  * account (an invitation code; where sign-up is open, a link emailed to the address, which finishes in the browser). A passkey or a linked account
  * needs the system browser: PURSS's Connect page, with the code back at purss://connect.
  *
- * The phone apps and the desktop app (plan/42) share this screen; what differs is their `ConnectShell`.
+ * The phone apps and the desktop app share this screen; what differs is their `ConnectShell`.
  */
 
 /** What the screen needs from the app it runs in. */

@@ -16,7 +16,7 @@ type EngineUser = { id: string; account_id: string; workspace_id: string; engine
 export type BatchResult = { accepted: number; updated: number; duplicates: number; unknownStreams: number; queuedForReview: number; skippedPaused: number };
 
 /**
- * Apply one engine sync batch atomically with its checkpoint (plan/06). Replays of
+ * Apply one engine sync batch atomically with its checkpoint. Replays of
  * the same idempotency key return the original result. Absence of an entry never
  * deletes anything. A changed engine identity routes entries to reconciliation.
  */
@@ -30,7 +30,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
   const touchedSources = new Map<string, number>();
   // New items per source, for notifications: a source's back catalogue is Ignored, not New, and tells no one.
   const freshArrivals = new Map<string, number>();
-  // New posts, for Smart filters (plan/36).
+  // New posts, for Smart filters.
   const freshPosts: { itemId: string; sourceId: string }[] = [];
   const now = nowIso();
 

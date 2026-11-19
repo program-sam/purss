@@ -24,7 +24,7 @@ import app.purss.device.Badge;
 import app.purss.device.BackgroundLogic;
 
 /**
- * Notifications on this phone (plan/37). A push from the relay carries nothing but "something new"; this
+ * Notifications on this phone. A push from the relay carries nothing but "something new"; this
  * fetches the texts from the connected PURSS with the phone's fetch credential (which reaches only this
  * phone's waiting notifications and the number of new items, never the account) and shows each as a system
  * notification, carrying that number for the app's icon. Tapping one

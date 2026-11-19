@@ -3,7 +3,7 @@ import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions } from "./safe-fetch.ts";
 
 /*
- * Big feeds reach the engine through the feed gateway (plan/44). A feed that is larger than the engine can parse in its memory
+ * Big feeds reach the engine through the feed gateway. A feed that is larger than the engine can parse in its memory
  * limit (tens of megabytes of repeated show notes) is read by the gateway as a stream, and the engine is handed a copy of
  * the same feed with only its newest items. The source keeps its own address; only the engine's subscription points at the
  * gateway's signed address for it, made here and checked there, so the gateway fetches only addresses this installation made.
@@ -12,14 +12,14 @@ import type { SafeFetchOptions } from "./safe-fetch.ts";
 /**
  * The size from which a feed goes through the gateway: the part of a feed a preview reads (and so what it can tell about its
  * size). FreshRSS parsed a 20.7 MB podcast feed at 115 MB and serialized its cache at 277 MB, against a limit of 128 MB per
- * request, so 4 MB (about a fifth of that feed; plan/44 has the measurements) leaves the engine room to spare while
+ * request, so 4 MB (about a fifth of that feed) leaves the engine room to spare while
  * it holds the 256 MB container's other requests.
  */
 export const TRIM_FEED_BYTES = 4 * 1024 * 1024;
 
 /**
  * The number of items from which a feed goes through the gateway however small it is. The engine stores every item of a feed as it adds
- * it, so its time and memory follow the item count as well as the bytes: measured in the engine (plan/44), a feed of one-line items took
+ * it, so its time and memory follow the item count as well as the bytes: measured in the engine, a feed of one-line items took
  * about 16 ms an item (2,000 items 32 s, 8,000 items 111 s, with the worker waiting 30 s for the engine's answer), and 24,000 of them
  * failed the request. It is also what the engine's retention (90 days of a feed's items) leaves of a feed.
  */

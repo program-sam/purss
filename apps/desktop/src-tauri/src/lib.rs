@@ -1,7 +1,7 @@
-//! The desktop app (plan/42): the web app's interface in a Tauri window, with the few things only a desktop app
+//! The desktop app: the web app's interface in a Tauri window, with the few things only a desktop app
 //! can do. Every power the page has is one of the commands below, and each checks its own arguments; no plugin is
 //! reachable from the page (capabilities/main.json allows only listening to events). Only the main web view reaches
-//! them: the web view for other sites' pages (web.rs, plan/43) is refused every command.
+//! them: the web view for other sites' pages (web.rs) is refused every command.
 //!
 //! Closing the window hides it: the page keeps running in the tray, so the event stream, notifications and
 //! automatic downloads go on until the person quits from the tray icon.
@@ -357,7 +357,7 @@ async fn files_show_folder(app: AppHandle, files: State<'_, Arc<Files>>) -> Resu
     app.opener().open_path(root.display().to_string(), None::<&str>).map_err(|e| e.to_string())
 }
 
-// ---- The interface (plan/39) ----------------------------------------------------------------------------------
+// ---- The interface ----------------------------------------------------------------------------------
 
 #[tauri::command]
 fn interface_builtin(i: State<'_, Interfaces>) -> String {
@@ -457,7 +457,7 @@ fn keep_pending(dir: &std::path::Path, file: &std::path::Path, bytes: &[u8]) -> 
 /// Look for a new version now and then; download it in the background, to be installed at the next restart. A version
 /// downloaded by an earlier run and never installed is installed as soon as this run finds it is still the newest.
 fn watch_updates(app: AppHandle) {
-    // A development build or one without a version (plan/40) never updates itself.
+    // A development build or one without a version never updates itself.
     if cfg!(debug_assertions) || app.package_info().version.major == 0 {
         return;
     }
@@ -690,7 +690,7 @@ pub fn run() {
         .manage(Queue::default())
         .manage(Badge::default())
         .manage(AppUpdate::default())
-        // The app's commands are for its own page only, never for the web view showing other sites (plan/43).
+        // The app's commands are for its own page only, never for the web view showing other sites.
         .invoke_handler(move |invoke| {
             if invoke.message.webview_ref().label() != MAIN {
                 invoke.resolver.reject("not available here");
@@ -698,7 +698,7 @@ pub fn run() {
             }
             commands(invoke)
         })
-        // An interface switched to must report that it started; otherwise the previous one comes back (plan/39).
+        // An interface switched to must report that it started; otherwise the previous one comes back.
         .on_page_load(move |webview, payload| {
             if webview.label() != MAIN || payload.event() != PageLoadEvent::Finished || !rollback.on_trial() {
                 return;

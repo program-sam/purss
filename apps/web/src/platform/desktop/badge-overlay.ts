@@ -1,5 +1,5 @@
 /*
- * Windows has no badge count for desktop apps, only an overlay icon on the taskbar button (plan/42). It is drawn
+ * Windows has no badge count for desktop apps, only an overlay icon on the taskbar button. It is drawn
  * here, with the system's font at the screen's pixel density, and handed to the app as pixels: a disc in the app
  * icon's blue with the number, "99+" above 99.
  */

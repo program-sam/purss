@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { AiJudgeRequest } from "@purss/domain";
 
 /*
- * Jev, TypeSafe AI's decision model (plan/36): one POST /v1/systemone per post, with the post as the state and one yes/no ("noul")
+ * Jev, TypeSafe AI's decision model: one POST /v1/systemone per post, with the post as the state and one yes/no ("noul")
  * question per filter. Jev answers each question with the chance that it is true and bills the input tokens only. The address is
  * the operator's (PURSS_JEV_URL), never a person's: a key someone adds is only ever sent to it.
  */

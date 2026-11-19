@@ -13,7 +13,7 @@ import { applyImport, stageImport, streamExport } from "./portability.ts";
 import { createBasket } from "./collections.ts";
 import { keepItem } from "./state.ts";
 
-// Captures shaped like the pages in the persona round: a journal article that came out as its reference list, a news paywall notice and a members-only notice (invented text).
+// Captures shaped like real pages: a journal article that came out as its reference list, a news paywall notice and a members-only notice (invented text).
 const fixture = (name: string) => readFileSync(new URL(`../../../../packages/connectors/src/fixtures/captures/${name}`, import.meta.url), "utf8");
 const esurf = fixture("esurf-references.txt");
 const marsactu = fixture("marsactu-paywall.txt");

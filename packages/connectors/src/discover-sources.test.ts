@@ -607,7 +607,7 @@ function elsewhereStub(front: SafeFetchResult) {
   return { fetch, calls, opts };
 }
 
-/** A request to the site itself, not the registry discovery asks last (plan/46). */
+/** A request to the site itself, not the registry discovery asks last. */
 const atSite = (url: string): boolean => !url.startsWith("https://www.wikidata.org/");
 
 test("probing a site's usual addresses stops each wave at its first batch when they all lead to another host", async () => {
@@ -616,7 +616,7 @@ test("probing a site's usual addresses stops each wave at its first batch when t
   assert.ok(!d.ok);
   assert.match(d.message, /403/);
   assert.equal(calls.filter(atSite).length, 1 + 1 + 3 + 3, "the page, its www. form (which also leads elsewhere), then one batch of the usual addresses and one of the second wave, and no more");
-  assert.equal(calls.filter((c) => !atSite(c)).length, 1, "and, with nothing found, one question to Wikidata (plan/46)");
+  assert.equal(calls.filter((c) => !atSite(c)).length, 1, "and, with nothing found, one question to Wikidata");
   // The same for a page that opened but has no feed.
   const open = elsewhereStub(fakeResponse("https://wall.example/", "<html><head><title>Plain</title></head></html>", "text/html"));
   const n = await discover("https://wall.example/", { fetch: open.fetch, now: NOW });

@@ -96,7 +96,7 @@ export function internalRouter(app: App): Router<{ app: App }> {
     return { ok: true };
   });
 
-  /** What a filter.judge job asks Jev, as the filters are when it runs (plan/36). Only the job's current lease may ask. */
+  /** What a filter.judge job asks Jev, as the filters are when it runs. Only the job's current lease may ask. */
   r.post("/internal/filters/:jobId/input", (req) => {
     const { leaseId } = parse(z.object({ leaseId: z.string() }), req.body);
     const job = currentLease(app, req.params.jobId!, leaseId);

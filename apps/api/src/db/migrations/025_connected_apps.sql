@@ -1,4 +1,4 @@
--- Connected apps (plan/24): the mobile app and the browser extension connect with an
+-- Connected apps: the mobile app and the browser extension connect with an
 -- authorization code + PKCE and then use a device token. Only SHA-256 hashes are stored.
 CREATE TABLE device_tokens (
   id TEXT PRIMARY KEY,

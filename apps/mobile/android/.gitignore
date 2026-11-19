@@ -61,7 +61,7 @@ keystore.properties
 .externalNativeBuild
 .cxx/
 
-# Firebase configuration of the owner's project (notifications, plan/37): placed by the owner, never committed
+# Firebase configuration of the owner's project (notifications): placed by the owner, never committed
 google-services.json
 
 # Freeline

@@ -9,7 +9,7 @@ export const TARGETS = ["chromium", "firefox", "safari"] as const;
 export type Target = (typeof TARGETS)[number];
 
 /**
- * The extension's version: the product's (plan/40) in the dotted spelling the stores accept (2631214 is
+ * The extension's version: the product's in the dotted spelling the stores accept (2631214 is
  * 26.312.14), so each build from main is higher than the last, as the stores require. A build without a
  * version (no history) is 0.0.1.
  */
@@ -47,8 +47,7 @@ export function manifestFor(target: Target, version: string | null): Record<stri
     permissions,
     // Only for the opt-in toolbar mark, asked for when the person turns it on.
     optional_permissions: ["tabs"],
-    // No host permissions: the PURSS answers the extension's requests (CORS for extension origins,
-    // plan/24), and pages are read only through activeTab.
+    // No host permissions: the PURSS answers the extension's requests (CORS for extension origins), and pages are read only through activeTab.
     omnibox: { keyword: "purss" },
     ...(target === "chromium" ? { minimum_chrome_version: "120" } : {}),
     ...(target === "firefox" ? {

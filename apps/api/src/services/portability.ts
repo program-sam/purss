@@ -38,7 +38,7 @@ import { isNewsFeed } from "./news-address.ts";
 import { pictureType } from "@purss/connectors";
 
 /*
- * PURSS export and import (plan/07, plan/17, plan/20). The archive format is documented
+ * PURSS export and import. The archive format is documented
  * in archive-format.ts. Export is a streamed, snapshot-consistent read that never touches the
  * storage ledger, so it works while an account is over quota. Import runs in one transaction
  * with a single admission check: it either lands completely or not at all.
@@ -218,7 +218,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
       }
     })());
 
-    // The pictures kept with items (plan/34). Items of private sources keep none, and none of their addresses leave the server.
+    // The pictures kept with items. Items of private sources keep none, and none of their addresses leave the server.
     if (all("SELECT 1 FROM item_images WHERE workspace_id = ? LIMIT 1", ws).length) {
       await array("images", (function* () {
         for (const im of iterate<{ item_id: string; source_id: string | null; url: string; role: string; content_type: string; sha256: string; data: Uint8Array }>(

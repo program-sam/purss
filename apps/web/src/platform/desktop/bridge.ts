@@ -4,7 +4,7 @@ import type { DesktopUpdate, WebBounds } from "../types.ts";
 import type { BadgeOverlay } from "./badge-overlay.ts";
 
 /*
- * The desktop app's commands (apps/desktop/src-tauri, plan/42), typed. Every power the page has over the
+ * The desktop app's commands (apps/desktop/src-tauri), typed. Every power the page has over the
  * computer is one of these, and Rust checks each argument itself: paths stay inside the downloads folder,
  * links out are http(s), interfaces are unpacked only into the app's own folder.
  */
@@ -65,7 +65,7 @@ export const desktop = {
   setStartAtLogin: (on: boolean) => invoke<void>("autostart_set", { on }),
   appVersion: () => invoke<string>("app_version"),
 
-  /** The web view for other sites' pages (plan/43): opened at a place in the window, moved, hidden (null) or closed. */
+  /** The web view for other sites' pages: opened at a place in the window, moved, hidden (null) or closed. */
   webOpen: (url: string, bounds: WebBounds) => invoke<void>("web_open", { url, bounds }),
   webPlace: (bounds: WebBounds | null) => invoke<void>("web_place", { bounds }),
   webClose: () => invoke<void>("web_close"),

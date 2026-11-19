@@ -4,7 +4,7 @@ import { platform } from "../platform/index.ts";
 import type { InterfaceUpdates, InterfaceUpdateState } from "../platform/types.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 
-/** Updates of the app's interface from the connected server (plan/39). Only in the apps; null elsewhere. */
+/** Updates of the app's interface from the connected server. Only in the apps; null elsewhere. */
 function useInterfaceUpdates(): { updates: InterfaceUpdates; state: InterfaceUpdateState } | null {
   const updates = platform.interfaceUpdates;
   const state = useSyncExternalStore(updates?.subscribe ?? noSubscribe, updates?.state ?? noState);

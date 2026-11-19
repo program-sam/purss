@@ -7,7 +7,7 @@ import { FeedTrimmer, TRIM_LIMITS } from "./trim.ts";
 import type { TrimFailure, TrimLimits } from "./trim.ts";
 
 /*
- * The gateway's answer for a big feed (plan/44): `GET /t/<signature>/<address>` reads the feed at that address as a stream through
+ * The gateway's answer for a big feed: `GET /t/<signature>/<address>` reads the feed at that address as a stream through
  * safeFetch (the same address, redirect, time and size rules as every other fetch of a feed a person supplied) to its end, keeps its
  * newest items, and answers with a much smaller copy of the same feed. Only addresses signed with this installation's key are answered.
  * Nothing is stored for good, but the work is shared: the trimmed answer is kept in memory per upstream address (the whole address,

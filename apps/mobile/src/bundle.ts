@@ -3,7 +3,7 @@ import path from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 
 /*
- * Packs a build of the interface into the zip the phone apps' updater plugin installs (plan/39): the files
+ * Packs a build of the interface into the zip the phone apps' updater plugin installs: the files
  * at the zip's root, index.html among them. Node's own modules only.
  */
 

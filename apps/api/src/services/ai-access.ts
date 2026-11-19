@@ -7,7 +7,7 @@ import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
 import { planOf } from "./plans.ts";
 
 /*
- * Smart filters (plan/36), the parts other services need without the filters themselves: the server's Jev key that an
+ * Smart filters, the parts other services need without the filters themselves: the server's Jev key that an
  * administrator set (in the secrets folder; people never hand the server a key of their own), usage per week, and removing filter
  * rows with what they belong to.
  */

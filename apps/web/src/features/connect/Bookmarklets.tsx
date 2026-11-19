@@ -27,7 +27,7 @@ function DragLink({ code, name }: { code: string; name: string }) {
 }
 
 /**
- * Settings → Connected apps: bookmarklets for browsers without the extension (plan/32). They only open
+ * Settings → Connected apps: bookmarklets for browsers without the extension. They only open
  * this PURSS with the page's address; they never send anything from the page by themselves.
  */
 export function Bookmarklets() {

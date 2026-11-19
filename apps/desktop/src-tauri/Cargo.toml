@@ -14,7 +14,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-# `unstable`: a second web view inside the main window, for other sites' pages (src/web.rs, plan/43).
+# `unstable`: a second web view inside the main window, for other sites' pages (src/web.rs).
 tauri = { version = "2.12", features = ["tray-icon", "image-png", "unstable"] }
 tauri-plugin-deep-link = "2.6"
 tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }

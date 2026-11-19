@@ -45,7 +45,7 @@ export function httpUrlOrNull(raw: string | null | undefined, max = 2000): strin
  * True when an address carries an obvious credential: embedded user/password, or a query
  * value under a secret-looking name. This is a warning signal, not proof of safety: the
  * per-source private flag (set when the source was followed) is the primary guard, and
- * an address that matches nothing here is not thereby "known public" (plan/20).
+ * an address that matches nothing here is not thereby "known public".
  */
 export function hasCredentialShape(raw: string): boolean {
   let url: URL;

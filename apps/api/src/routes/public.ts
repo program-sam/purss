@@ -14,7 +14,7 @@ import { badRequest, consumeRateLimit, HttpError, Router, notFound, nowIso, pars
 import { randomToken } from "../secrets.ts";
 
 const OIDC_COOKIE = "purss_oidc";
-/** Where to return after a linked sign-in, e.g. an app's connection request (plan/24). */
+/** Where to return after a linked sign-in, e.g. an app's connection request. */
 const OIDC_NEXT_COOKIE = "purss_oidc_next";
 import {
   acceptInvite, assertSignupCapacity, claim, endSession, openSignupAttempt,
@@ -493,7 +493,7 @@ export function publicRouter(): Router<Ctx> {
     limit(`keep-link:${p.accountId}`, 120); // each new link asks the page about itself, like a lookup does
     return keepLink(ctx.app, p, parse(manualKeepSchema, req.body));
   });
-  /** Keep a page with the readable text the person's browser extracted (plan/32). Larger body: the page's readable HTML. */
+  /** Keep a page with the readable text the person's browser extracted. Larger body: the page's readable HTML. */
   r.post("/api/items/browser-capture", (req, ctx) => {
     const p = requirePrincipal(ctx);
     rateLimit(`browser-capture:${p.accountId}`, 60);

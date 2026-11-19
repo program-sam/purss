@@ -41,7 +41,7 @@ async function boot(env: Record<string, string> = { PURSS_ASSISTANT_OAUTH: "on" 
 }
 type Boot = Awaited<ReturnType<typeof boot>>;
 
-/** Both plan/23 switches on for the session's account. */
+/** Both assistant-access switches on for the session's account. */
 async function switchesOn(b: Boot, s: TestSession = b.session) {
   assert.equal((await b.api("PUT", "/api/admin/assistant", { enabled: true })).status, 200);
   assert.equal((await b.api("PUT", "/api/assistant", { enabled: true }, s)).status, 200);
@@ -604,7 +604,7 @@ test("the refresh limits hold across processes and restarts: they are counted in
   t.mock.timers.reset();
 });
 
-test("the plan/23 switches gate OAuth exactly like tokens; revoking in Settings and account events end grants", async (t) => {
+test("the assistant-access switches gate OAuth exactly like tokens; revoking in Settings and account events end grants", async (t) => {
   const b = await boot();
   t.after(b.close);
   // Neither switch on: the page shows it, and nothing can be approved.

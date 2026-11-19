@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The home-screen panels' lists (plan/38), against the table the page's test reads too (apps/mobile/widget-lists.json). */
+/** The home-screen panels' lists, against the table the page's test reads too (apps/mobile/widget-lists.json). */
 class WidgetListsTest {
     private val fixture = JSONObject(File("../../widget-lists.json").readText())
 

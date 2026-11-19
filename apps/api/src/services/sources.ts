@@ -181,7 +181,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
   // What the feed already has is back catalogue: it arrives Ignored, or with its last week as New (see sync.ts arrivalOf).
   const startFrom = input.startFrom ?? "now";
   // A feed the preview found bigger than the engine can read whole is followed through the feed gateway, which gives the engine a copy
-  // of its newest items (plan/44). The source keeps its own address; only what the engine is subscribed to differs.
+  // of its newest items. The source keeps its own address; only what the engine is subscribed to differs.
   const viaGateway = !isNews && c.large === true;
   try {
     app.db.tx(() => {

@@ -9,7 +9,7 @@ import { useWorkspace } from "../state/workspace.tsx";
 /**
  * Shows operating-system notifications for new arrivals while the page is open, when the person
  * chose "Browser alerts" and the browser has granted permission (in the desktop app: its own system
- * notifications, also while its window is closed, plan/42). Quiet hours hold alerts back (they
+ * notifications, also while its window is closed). Quiet hours hold alerts back (they
  * still appear in the bell); titles come from the server, which leaves item titles out unless
  * previews are on. Permission is never requested here.
  */

@@ -1,4 +1,4 @@
--- Outgoing email (plan/27). An account may have one contact address for account messages
+-- Outgoing email. An account may have one contact address for account messages
 -- (confirming it, resetting a password). It is never an identifier: sign-in, linking and the
 -- administrator role never look at it, and several accounts may share one.
 ALTER TABLE accounts ADD COLUMN email TEXT;

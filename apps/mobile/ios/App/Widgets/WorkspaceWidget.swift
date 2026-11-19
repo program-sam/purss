@@ -1,7 +1,7 @@
 import WidgetKit
 import SwiftUI
 
-/// The home-screen panels (plan/38): To read, To listen, New, a chosen collection and a chosen source. They draw
+/// The home-screen panels: To read, To listen, New, a chosen collection and a chosen source. They draw
 /// what the app keeps in the app group (`widget.json`: the page's look and episode; `widget-lists.json`: the lists
 /// the app fetches; `widget-choices.json`: what the Collection and Source widgets can be set to). They hold no
 /// credentials and ask the PURSS for nothing. Tapping a row opens `purss://open?item=<id>`, a heading

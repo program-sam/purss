@@ -11,7 +11,7 @@ import { onManualWorkflowChange } from "../state/workflow-intent.ts";
 /**
  * The player controller: what is playing, from where, at what speed, and keeping its position on
  * the server. It talks to a PlayerBackend only, so the same controller drives the web element
- * and the apps' native player (plan/25, plan/31).
+ * and the apps' native player.
  *
  * Positions played without a connection: every position is first kept on the device (`pending`,
  * with the time it was recorded) and removed once the server has it. What is still there is sent

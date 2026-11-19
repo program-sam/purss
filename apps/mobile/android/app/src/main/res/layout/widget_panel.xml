@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A home-screen panel (plan/38), in the app's look: a card header with the logo, heading and count; the episode
+<!-- A home-screen panel, in the app's look: a card header with the logo, heading and count; the episode
      (To listen only); and up to eight rows, each with its source's tile, as the app's lists. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"

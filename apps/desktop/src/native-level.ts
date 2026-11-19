@@ -5,7 +5,7 @@ import { fingerprintOf } from "../../mobile/src/native-level.ts";
 import type { NativeLevel } from "../../mobile/src/native-level.ts";
 
 /*
- * The desktop app's native level (plan/39, plan/42): the number a live update of the interface must carry to be
+ * The desktop app's native level: the number a live update of the interface must carry to be
  * installed in this app. Raise it in native-level.json when the Rust side changes in a way the interface depends
  * on (a command added, removed or changed, a plugin); the fingerprint makes the tests notice any change, so it is
  * a decision each time. The phones have their own level (apps/mobile/native-level.json).

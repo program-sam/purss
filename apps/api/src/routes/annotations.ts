@@ -13,7 +13,7 @@ function annotationId(raw: string): string {
 }
 
 /**
- * The person's highlights and notes on an item (plan/26). Create and change are one idempotent PUT
+ * The person's highlights and notes on an item. Create and change are one idempotent PUT
  * with an id the client chose; removal is an idempotent DELETE. Both carry when the change was made.
  */
 export function annotationsRouter(): Router<Ctx> {

@@ -1,7 +1,7 @@
 import type { KeyValue } from "../../downloads/manager.ts";
 
 /*
- * What the phone apps (native/index.tsx) and the desktop app (desktop/index.tsx, plan/42) do the same way at start:
+ * What the phone apps (native/index.tsx) and the desktop app (desktop/index.tsx) do the same way at start:
  * local storage as a key-value store, the notice and the stuck flag a disconnection leaves for the next start, and
  * sending links to other sites out of the app's page.
  */
@@ -38,7 +38,7 @@ export function takeStuck(): boolean {
 /**
  * Links to other sites go to `open` (the system browser), never inside the app's own page. The reader's own links
  * (`data-inapp`: the original, the article, its excerpt) are left to the reader, which shows them in the desktop app's
- * web view or hands them to `openExternal` (plan/43).
+ * web view or hands them to `openExternal`.
  */
 export function sendLinksOut(open: (url: string) => void): void {
   const out = (url: string) => { if (/^https?:\/\//i.test(url)) open(url); };

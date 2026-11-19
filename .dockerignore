@@ -12,7 +12,7 @@ prototypes
 # Built elsewhere: only their package.json files go in, so npm sees the same workspaces as the lockfile.
 apps/mobile/*
 !apps/mobile/package.json
-# The interface the image packs for the apps' live updates (plan/39) needs these.
+# The interface the image packs for the apps' live updates needs these.
 !apps/mobile/native-level.json
 !apps/mobile/scripts
 apps/mobile/scripts/*

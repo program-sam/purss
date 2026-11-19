@@ -9,7 +9,7 @@ import { useStepUp } from "../shared/step-up.tsx";
 
 const key = ["admin", "ai"] as const;
 
-/** The server's Jev key for Smart filters (plan/36), the only key they use. Self-hosted, every account may use it; hosted, the accounts on Pro. */
+/** The server's Jev key for Smart filters, the only key they use. Self-hosted, every account may use it; hosted, the accounts on Pro. */
 export function AdminAiPanel() {
   const qc = useQueryClient();
   const stepUp = useStepUp();

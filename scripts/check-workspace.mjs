@@ -18,26 +18,17 @@ export const workspacePaths = [
   'packages/ui',
 ];
 
-export const planFiles = [
+export const docFiles = [
   'README.md',
-  '01-product.md',
-  '02-domain-model.md',
-  '03-experience-and-design.md',
-  '04-source-onboarding.md',
-  '05-architecture.md',
-  '06-freshrss-integration.md',
-  '07-baskets-and-retention.md',
-  '08-connectors-and-discovery.md',
-  '09-views-and-queries.md',
-  '10-security-and-privacy.md',
-  '11-packaging-and-operations.md',
-  '12-roadmap.md',
-  '13-validation.md',
-  '14-decisions-and-risks.md',
-  '15-references.md',
-  '16-review.md',
-  '17-storage-and-ownership.md',
-  '18-hosted-service.md',
+  'user-guide.md',
+  'install.md',
+  'self-hosting.md',
+  'architecture.md',
+  'development.md',
+  'security.md',
+  'storage-and-retention.md',
+  'sources.md',
+  'assistants.md',
 ];
 
 const ignoredDirectories = new Set([
@@ -76,7 +67,7 @@ export async function checkWorkspace(root) {
         errors.push(`${directory || '.'}: package must remain private`);
       }
       if (!directory && JSON.stringify(manifest.workspaces) !== JSON.stringify(['apps/*', 'packages/*'])) {
-        errors.push('Root package must declare the planned apps and packages workspaces');
+        errors.push('Root package must declare the apps and packages workspaces');
       }
     } catch (error) {
       errors.push(`${directory || '.'}: cannot read valid package.json (${error.message})`);
@@ -86,7 +77,7 @@ export async function checkWorkspace(root) {
   const requiredDocuments = [
     'README.md', 'AGENTS.md', 'infra/README.md', 'tests/acceptance/README.md',
     ...workspacePaths.map((directory) => `${directory}/README.md`),
-    ...planFiles.map((filename) => `plan/${filename}`),
+    ...docFiles.map((filename) => `docs/${filename}`),
   ];
   for (const filename of requiredDocuments) {
     try {

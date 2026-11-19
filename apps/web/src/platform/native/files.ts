@@ -11,7 +11,7 @@ import type { DownloadFailure } from "./device-plugin.ts";
  * The apps' downloads folder: `downloads/` in the app's private storage that the system doesn't back up
  * (Library/NoCloud on iOS, the app's files folder on Android, where backups are turned off in the
  * manifest). Removed with the app, and by Disconnect. The app's own plugin (device-plugin.ts) fetches
- * files into it and can stop a transfer on the wire; the background job (plan/38) writes there too.
+ * files into it and can stop a transfer on the wire; the background job writes there too.
  * A transfer is known by its file's name, so the page, started again, joins one that went on while the
  * app was closed.
  */

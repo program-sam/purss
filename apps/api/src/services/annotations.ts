@@ -8,7 +8,7 @@ import { admitObject, releaseObject } from "./storage.ts";
 import { foldForSearch } from "./search-text.ts";
 
 /*
- * The person's own highlights and notes on items (plan/26). An annotation is not workflow, not
+ * The person's own highlights and notes on items. An annotation is not workflow, not
  * collection or basket membership and not a retention pin: it pins no version and makes no copy.
  * Its quote is stored on it, so it outlives the text it was made on. Each live annotation is one
  * small "Other" record in the storage ledger (`annotation:<id>`, with the item, so permanent
@@ -146,7 +146,7 @@ export function deleteAnnotation(app: App, p: Principal, itemId: string, id: str
   return { annotation: out.annotation, applied: out.applied };
 }
 
-/** Measured size of an annotation's stored fields (plan/17's canonical JSON rule). */
+/** Measured size of an annotation's stored fields (as canonical JSON). */
 export function annotationBytes(a: Omit<AnnotationDTO, "id" | "itemId">): number {
   return measureBytes({ kind: a.kind, quote: a.quote, position: a.position, target: a.target, body: a.body, createdAt: a.createdAt, updatedAt: a.updatedAt });
 }

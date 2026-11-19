@@ -52,7 +52,7 @@ function populate(app: App, m: Member, owner: Member): string[] {
   const lib = seedLibrary(app, p);
   const files = withFiles(app, m);
   const reading = createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", sourceIds: [lib.publicSource], query: null, view: "list" });
-  // Smart filters (plan/36): a filter on a source and one on a collection, an answer and a week's usage.
+  // Smart filters: a filter on a source and one on a collection, an answer and a week's usage.
   const sourceFilter = newId("aif");
   app.db.run("INSERT INTO ai_filters (id, workspace_id, source_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep posts about sediment', ?, ?)", sourceFilter, m.workspaceId, lib.publicSource, nowIso(), nowIso());
   app.db.run("INSERT INTO ai_filters (id, workspace_id, collection_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep long reads', ?, ?)", newId("aif"), m.workspaceId, reading.id, nowIso(), nowIso());

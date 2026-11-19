@@ -1,9 +1,10 @@
 # Self-hosting
 
-How to run and operate PURSS. It is a preliminary build: implemented end to end and
-tested on one host, but **not hardened or security-reviewed for exposure to the public
-internet** (see [Security notes](#security-notes)). [Architecture](architecture.md) explains the
-parts named here.
+How to run and operate PURSS. [Host it yourself](install.md) is the step-by-step version for
+a first installation; this page is the reference. [Architecture](architecture.md) explains the
+parts named here, [Security](security.md) the threat model and the controls behind the
+[Security notes](#security-notes) below, and [Storage and retention](storage-and-retention.md) what the
+server keeps and how allocations work.
 
 ## Requirements
 
@@ -37,7 +38,7 @@ npm run dev
 or resumes FreshRSS in podman (`node scripts/engine.ts up`), then the API and the worker. If
 RSS-Bridge doesn't start, the stack runs without it and the services it collects (Telegram,
 Bandcamp and the rest) say they have no feeds; journals through Crossref
-([plan/45](../plan/45-crossref-feeds.md)) need only the bridge router and still work. Their logs share the terminal, each line prefixed with the process name.
+need only the bridge router and still work (see [Sources](sources.md)). Their logs share the terminal, each line prefixed with the process name.
 Ctrl+C stops everything and removes the FreshRSS and RSS-Bridge containers (FreshRSS's data stays in `data/engine`).
 
 - `npm run dev -- --keep-engine` leaves FreshRSS and RSS-Bridge running on exit.
@@ -48,8 +49,7 @@ from the exact origin in `PURSS_PUBLIC_ORIGIN` (default `http://localhost:8940`)
 are tied to that host name.
 
 All state lives in `data/` (ignored by Git): `product.db`, `secrets/`, `engine/` (FreshRSS),
-`egress/` (gateway state and the bridge fetch log) and `backups/`. The server stores no audio or video files; a `media/` folder
-that an earlier version filled is deleted when the API starts.
+`egress/` (gateway state and the bridge fetch log) and `backups/`. The server stores no audio or video files.
 
 Local listeners, all on 127.0.0.1:
 
@@ -60,7 +60,7 @@ Local listeners, all on 127.0.0.1:
 | 8944 | RSS-Bridge (development only; reached by the bridge router) |
 | 8945 | Bridge router (signed source addresses for FreshRSS and the API's previews) |
 | 8946 | Egress proxy (FreshRSS's only way out) |
-| 8947 | Feed gateway (big feeds trimmed for FreshRSS; private service feeds, none registered) |
+| 8947 | Feed gateway (big feeds trimmed for FreshRSS) |
 | 8948 | API internal listener (worker jobs; service token) |
 | 8949 | Egress control (service token) |
 
@@ -290,7 +290,7 @@ loses the provider account loses the way in, so tell people to add a password if
    PURSS_OIDC='[{"id":"google","label":"Google","issuer":"https://accounts.google.com","clientId":"1234-abc.apps.googleusercontent.com","clientSecret":"GOCSPX-…"}]'
    ```
 
-4. Restart the API (`docker compose -f infra/compose.yaml up -d api`). The sign-in page now shows **Continue
+4. Restart the API (`docker compose -f infra/compose.yaml up -d api`). The sign-in page then shows **Continue
    with Google**; the apps show it the next time they open the sign-in screen.
 
 Use the id `google` for Google: it is what gives the button Google's own look. Any other OpenID Connect
@@ -317,10 +317,12 @@ and each account has its own PURSS and FreshRSS user, isolated from the others.
 | | `self` (default) | `hosted` |
 | --- | --- | --- |
 | Accounts | The owner plus people an administrator invites | The same, plus optional open sign-up |
-| Plans | None: no source or collection limits | Free (100 sources, 5 collections) for new accounts, Plus (1,000 sources) or Unlimited, set per account by an administrator; administrators are Unlimited |
+| Plans | None: no source or collection limits | Free (100 sources, 5 collections) for new accounts, Plus (1,000 sources), Pro (5,000 sources) or Unlimited; see [Plans](#plans-in-hosted-mode). Administrators are Unlimited |
 | Space allocation | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOCATION_BYTES`, per invitation or per account; a safeguard users don't see |
-| Sharing baskets and collections | Available, with a report link and takedowns | Plus only, with a report link and takedowns |
-| Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together ([plan/35](../plan/35-discover.md)); the graph is rebuilt every 6 hours in the API process |
+| Sharing baskets and collections | Available, with a report link and takedowns | Plus and above, with a report link and takedowns |
+| Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together; see [Discover](#discover-hosted-only) |
+| Smart filters | Every account, on the server's Jev key | Pro and above, within a weekly allowance; see [Smart filters](#smart-filters) |
+| Assistants signing in with OAuth | Off unless `PURSS_ASSISTANT_OAUTH=on` | On when `PURSS_PUBLIC_ORIGIN` is https; see [Assistants](assistants.md) |
 | Administration | Health, jobs, audit log, usage check, accounts (suspend, admin role), invitations, assistant access, reports about shared pages and news | Also plans and allocations |
 
 **Administration → News** is where administrators write posts for everyone on the installation.
@@ -336,7 +338,7 @@ ignored or deleted it, as counts only.
 set up, outgoing email. Two more sections show how well following works:
 
 - **Bridged sources** appears when this server runs the bridge for services that publish no feed
-  ([plan/41](../plan/41-source-bridges.md)). For each service it shows the last 7 days: attempts, how
+  (see [Sources](sources.md)). For each service it shows the last 7 days: attempts, how
   many worked, came back empty or failed, answers repeated from the bridge's cache, and the success
   rate (an empty feed counts as a success). Below that it lists the sources failing now: what failed,
   since when and when each last worked. The numbers come from the egress service's log of bridge
@@ -374,8 +376,89 @@ account creations to 10 per address an hour, and the installation-wide daily cap
 refusals include the latest release time. It also needs
 [outgoing email](#outgoing-email): every new account gives an address, confirmed by a link, that
 can receive a password-reset link. Without a mail server, or while the mail server check fails,
-sign-up stays closed and the API says so in its log at start. Payments, abuse and verification
-tooling and a public launch are *not built*.
+sign-up stays closed and the API says so in its log at start. There is no bot check beyond these limits
+and the confirmed address; administrators can suspend an account. The limits and the answers that don't
+reveal whether an address has an account are described in [Security](security.md).
+
+### Plans in hosted mode
+
+| Plan | Followed sources | Collections | Sharing | Smart filters |
+| --- | --- | --- | --- | --- |
+| Free | 100 | 5 | no | no |
+| Plus | 1,000 | unlimited | yes | no |
+| Pro | 5,000 | unlimited | yes | yes |
+| Unlimited | unlimited | unlimited | yes | yes |
+
+A new account starts on Free. Administrators are Unlimited while they hold the role; the plan stored for
+them applies again if they stop being administrators. An administrator sets another account's plan under
+**Administration → Accounts → Plan…** (it asks to confirm it's you) or with `set-plan`, and where a
+[billing service](#billing-service) is connected it sets the plan after a payment. Saved links don't count
+as followed sources. The people themselves see their sources used of their plan under *Settings → Plan*;
+the storage allocation stays an administrator's safeguard that they don't see.
+
+The limits are checked inside the write transaction of every path that adds a followed source or a
+collection: following (including following a source again), OPML import, data import and the assistant
+tools. Two requests can't both take the last place.
+
+Going over a limit never removes anything. After a move to a smaller plan, or a lower limit, the account
+keeps all its sources, collections, baskets and items, and can still read, organise and export them;
+following sources and creating collections are refused until the account is under the limits. Shared
+pages of an account whose plan no longer includes sharing stop answering (visitors see what they see for
+an address that doesn't exist) and answer again when sharing returns; nothing is deleted. An account that
+drops below Pro stops using the server's key for Smart filters, and no post is changed back. Export never
+depends on the plan.
+
+### Billing service
+
+Payment is handled outside PURSS. PURSS stores no payment details and talks to no payment provider; it
+trusts an external **billing service** for one thing, which of Free, Plus and Pro an account is on. That
+service is a separate program that this repository doesn't include. A hosted installation without one
+offers no payment: *Settings → Plan* shows the plan and its limits, and an administrator sets plans.
+
+Two settings, hosted mode only (set both or neither; they are read by the API and aren't passed on by
+`infra/compose.yaml`, so add them as described under [Docker Compose](#docker-compose)):
+
+| Variable | Meaning |
+| --- | --- |
+| `PURSS_BILLING_URL` | The billing service's plain https address (no credentials, query or fragment) |
+| `PURSS_BILLING_SECRET` | A secret of at least 32 characters, the same one the service holds |
+
+The two sides meet in two places, both signed with HMAC-SHA256 under the shared secret:
+
+- **Hand-off.** When someone picks a plan or chooses to manage the one they pay for in *Settings → Plan*,
+  PURSS answers with the service's address and a ticket valid for 10 minutes. The ticket names the account,
+  the plan it is on, the chosen offer, its confirmed email address (to fill in the payment page), and where
+  to send the person back. The payment pages belong to the service.
+- **Plan.** The service sets Free, Plus or Pro with `POST /api/billing/plan` (`{accountId, plan, at}`,
+  signature in the `X-PURSS-Billing-Signature` header, no cookies). A request more than 5 minutes
+  off the server's clock, or one already used, is refused. The service can't change an administrator or an
+  account an operator made Unlimited (answered `200` with no change), and an account that no longer exists
+  answers `404`, so the service can stop charging for it. A cancelled subscription lasts to the end of the
+  period paid for, after which the service sets Free; nothing is removed (see above).
+
+The proxy must pass `/api/billing/plan` to the API unchanged. The route reads no cookies and needs no CSRF
+token; the signature is its only credential.
+
+### Discover (hosted only)
+
+Hosted installations can suggest sources a person doesn't follow yet: if many accounts that follow A also
+follow B, someone who follows A is shown B, with A named as the reason. A self-hosted installation builds,
+keeps and serves none of it and has no Discover page.
+
+- **Who counts.** Only accounts that share (*Settings → General → Share my sources*, on by default and
+  also offered on the Discover page) count, and only they get suggestions. Followed public feeds, YouTube
+  channels and podcasts count; private sources, saved links, followed shared collections and addresses
+  with a name or password in them never do.
+- **Thresholds.** A source enters the graph only when at least 10 accounts follow it, and a pair of
+  sources only when at least 10 accounts follow both. Thinner data is dropped, never shown. The title and
+  site shown for a suggestion must themselves be used by at least 10 of its followers, otherwise the
+  feed's host shows, so a name someone gave their own copy never reaches anyone else.
+- **What is kept.** Two tables of counts, with no account or workspace in them. Counts are never shown: a
+  suggestion names the reader's own sources that led to it, or says *Popular with readers here*. *Not
+  interested* is stored per account and deleted with it.
+- **When.** The graph is rebuilt every 6 hours, and within a minute after someone changes the sharing
+  setting, in the API process. Until at least one source reaches the threshold the page says *Coming soon*.
+  Scoring is described in [Architecture](architecture.md).
 
 ## Outgoing email
 
@@ -413,6 +496,15 @@ server you name:
 | `PURSS_SMTP_USER`, `PURSS_SMTP_PASSWORD` | empty | Login, if the server needs one |
 | `PURSS_MAIL_FROM` | (required with a host) | Sender, for example `PURSS <purss@example.com>`; the server must allow it |
 
+Invitations and the test message are sent while the person waits. Every other message is first written
+to a queue in the database, sealed with a key in `secrets/mail-queue-key` (made at start-up; the API stops
+with the reason if it can't be), and sent at once. One the mail server can't take yet (it is down, or the
+API stopped) is retried from 30 seconds, doubling to 15 minutes, for up to a day, also after a restart; one
+the server refuses is dropped. If email is turned off while messages are queued, the API drops them at
+start-up, records each as failed (`unconfigured`) and logs how many. Shutdown gives sends in progress ten
+seconds and leaves the rest queued. How the reset and sign-up answers avoid revealing whether an address has
+an account, and their rate limits, are described in [Security](security.md).
+
 The API checks the server (connect and log in) when it starts and every 10 minutes while that
 fails; *Administration → Health* shows the result and how many messages were sent or refused in
 the last day. Check it by hand with `node apps/api/src/cli.ts test-email you@example.com`. Each
@@ -422,12 +514,13 @@ Links in messages are single-use: a confirmation works for 48 hours, a reset lin
 
 ## Smart filters
 
-A source or collection can have a Smart filter (plan/36) that marks the posts its owner doesn't want
+A source or collection can have a Smart filter that marks the posts its owner doesn't want
 as Ignored. Filters are off until someone adds one, and they ask
 [Jev](https://docs.typesafe.ai), TypeSafe AI's decision model, about each new post: its title,
-summary, author and source name are sent to Jev's address (TypeSafe's by default, or
-OpenRouter's; see below). Jev is not open source and
-can't run on your own server.
+summary excerpt, author and source name, with the person's words about what to keep or drop, are sent to
+Jev's address (TypeSafe's by default, or OpenRouter's; see below). Pages are never fetched for filtering,
+and private sources are not excluded: a filter is switched on per source or collection. Jev is not open
+source and can't run on your own server.
 
 - **Key.** Filters use one Jev key for the whole server, which only an administrator adds, in
   *Admin → Smart filters*. People never enter a key of their own. It is stored in
@@ -435,10 +528,13 @@ can't run on your own server.
   (to run it), and shown again only by its last four characters.
 - **Self-hosted:** once an administrator has added the server key, every account on the server
   can use it. Nothing else to set up.
-- **Hosted:** the server key is used by accounts on the **Pro** plan (25 million Jev input tokens
-  a week each, Monday to Sunday UTC; people never see this number); administrators set plans in
-  *Admin → Accounts*, and administrators always have it. When the week's allowance is used up,
-  that account's filters wait until the next week and new posts arrive unfiltered. There is no payment handling yet.
+- **Hosted:** the server key is used by accounts on the **Pro** plan, and by Unlimited ones (administrators
+  always are), with an allowance of 25 million Jev input tokens a week each (Monday to Sunday UTC; people
+  never see this number, only that the week's allowance is used up). Plans are set in *Admin → Accounts* or
+  by the [billing service](#billing-service). When the allowance is used up, that account's filters wait
+  until the next week and new posts arrive unfiltered. Administrators see each account's tokens used this
+  week in *Admin → Accounts*. On a move to a smaller plan the filters stop using the server key; no post is
+  changed back.
 
 Each judged post costs about 200 to 500 input tokens (output is free), so a week's allowance is
 roughly 50,000 posts. Jev is reached at TypeSafe (`https://api.typesafe.ai`) by default; to use
@@ -454,8 +550,8 @@ key, the Admin page says so, and filters stop using it until it is replaced.
 FreshRSS reads a whole feed into memory before it keeps anything, inside PHP's 128 MB limit per request. A
 podcast feed that lists every episode since it began, with the show notes repeated three times for each, is
 tens of megabytes (The Daily's is 20.7 MB for 3,039 episodes) and would take several times the limit, so the
-engine fails the request itself. PURSS follows such feeds through its own feed gateway instead
-([plan/44](../plan/44-big-feeds.md)): the gateway reads the feed as a stream, keeps its channel details and
+engine fails the request itself. PURSS follows such feeds through its own feed gateway instead:
+the gateway reads the feed as a stream, keeps its channel details and
 its newest 50 items exactly as written, and gives FreshRSS that smaller copy of the same public feed. FreshRSS
 stays the only thing that collects items. (It keeps a feed's items for 90 days, at least its newest 50 and at most 1,000,
 so 50 is what the engine would keep of any feed at the least; a feed that publishes more than fifty items between
@@ -464,14 +560,13 @@ its size: the source is an ordinary one, and its page starts at the newest items
 
 - **When.** A feed larger than 4 MiB when it is looked up (the part a lookup reads), or with more than 1,000 items,
   is followed through the gateway from the start. A subscription the engine itself fails on (an HTTP 500 or a dropped connection, not an
-  answer about the feed's site; an import, a retry, or a feed followed before this existed) is checked once, and moved there if the feed really is that big.
+  answer about the feed's site; an import or a retry) is checked once, and moved there if the feed really is that big.
   The source keeps its own address: it is what the person sees, what an export names and what is compared.
 - **What the engine is given.** `http://feed-gateway.internal:8947/t/<signature>/<address>`, reached through the
   egress proxy's internal alias like the bridge router. The signature is an HMAC under
   `<data>/secrets/feed-trim-key`, which `npm run dev` and Compose's `init` make. The worker signs, the gateway checks,
   and anything unsigned is a 404, so a public feed that redirects FreshRSS to the alias gets nothing. Without the
-  key (an installation set up before it existed and not yet restarted under Compose, or `EGRESS_TRIM_KEY_FILE`
-  pointing nowhere) a feed goes to the engine as it is, as before: one the engine can't read fails there, the source says
+  key (`EGRESS_TRIM_KEY_FILE` pointing nowhere, or the file missing) a feed goes to the engine as it is: one the engine can't read fails there, the source says
   *The collection engine couldn't follow this feed*, and the worker's log for the job says that the installation has no feed gateway key.
 - **What the gateway does.** Every fetch goes through the same address, redirect, time and size rules as any other
   feed fetch. It reads the whole feed, nothing in a feed saying that its later items are older than its first (at most
@@ -555,10 +650,11 @@ The backup uses SQLite's online backup API, so the app can keep running. It writ
 file), checks integrity, and refuses to start without room for a full copy. `--out` defaults
 to `<data>/backups`. Never copy `product.db` by hand while the app runs.
 
-- `--include-secrets` adds the secrets directory (service token, bridge key, feed-trim key, private source links, and the
+- `--include-secrets` adds the secrets directory (service token, bridge key, feed-trim key, the keys that sign
+  assistant refresh tokens and seal queued email, private source links, and the
   server's Jev key for Smart filters). Such a backup must be protected like a
-  password, and a restore puts the keys back. Without it, private sources need reconnecting and
-  the Jev key adding again after a restore. Data exports from the app never contain keys.
+  password, and a restore puts the keys back. Without it, private sources need reconnecting, the Jev
+  key adding again and connected assistants connecting again after a restore. Data exports from the app never contain keys.
 - FreshRSS's data is **not** included. Back it up separately (`data/engine` locally, the
   `engine-data` volume under Compose) while the engine is stopped.
 - For a full recovery keep all three together: the product database, the secrets directory
@@ -583,8 +679,7 @@ node scripts/restore.ts <backup-dir> --data-dir <target> [--force] [--skip-secre
 ```
 
 The restore accepts only the file names a backup holds (the database and `secrets/…`, each inside the
-backup and the target folder; the saved media files that a backup made by an earlier version lists are
-not restored), verifies every checksum, refuses backups
+backup and the target folder), verifies every checksum, refuses backups
 that contain migrations this version
 doesn't know, checks integrity and foreign keys, applies newer migrations, rebuilds the search
 index, and reports any storage-ledger differences
@@ -605,18 +700,19 @@ Update the repository, take a backup, and rebuild:
 docker compose --env-file .env -f infra/compose.yaml up -d --build   # add -f infra/compose.proxy.yaml in proxy mode
 ```
 
-The image takes its version ([plan/40](../plan/40-versions.md)) from your clone's history, so it changes with
-every update you pull; Settings shows it at the bottom. A copy downloaded without history has none.
+The image takes its version from your clone's history (the commit's UTC day and its place among that
+day's commits), so it changes with every update you pull; Settings shows it at the bottom. A copy
+downloaded without history has none.
 
 Locally, restart `npm run dev`. Database migrations apply automatically when the API opens
-the database; there are no down migrations, so go back to an older version only by restoring a
-backup made with it. FreshRSS is pinned by digest and changes only when the repository changes
+the database; there are no down migrations, so rolling back an image does not roll back its
+migrations: go back to an older version only by restoring a backup made with it. FreshRSS is pinned by digest and changes only when the repository changes
 the pin. `init` never overwrites existing secrets. Browsers that have the app open pick up the new
 build in the background and show **A new version is ready**; people press *Reload* to switch.
 The phone apps connected to your server take its new interface too: the image packs it for them, they
 download it and switch the next time they're opened (after asking once whether your server may update
 them). A build made for a newer version of the app's native code waits until the app itself is updated
-from the store. See [plan/39](../plan/39-live-updates.md).
+from the store. See the [mobile app](../apps/mobile/README.md).
 
 ## Configuration
 
@@ -635,8 +731,8 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_SIGNUP` | `invite` | `open` (hosted mode only, with working outgoing email): anyone can create an account; attempts are limited to 30/hour/address and successful creations to 10/hour/address |
 | `PURSS_SIGNUP_DAILY_LIMIT` | `50` | Most open sign-ups accepted per day installation-wide |
 | `PURSS_SMTP_HOST`, `PURSS_SMTP_PORT`, `PURSS_SMTP_SECURITY`, `PURSS_SMTP_USER`, `PURSS_SMTP_PASSWORD`, `PURSS_MAIL_FROM` | off | Optional outgoing email; see [Outgoing email](#outgoing-email) |
-| `PURSS_ASSISTANT_OAUTH` | on in hosted mode, otherwise off | `on`: assistants that only connect by signing in (Claude and ChatGPT custom connectors) can use `/mcp` with OAuth as well as with tokens. Needs an https `PURSS_PUBLIC_ORIGIN` (or localhost) reachable from the internet; nothing else to set up. `off` turns it off in hosted mode |
-| `PURSS_PUSH_RELAY_URL` | the project's relay | Where the API asks for connected phones to be woken (plan/37). Unset or `official`: the project's relay; empty or `off`: no phone notifications; or the https address of another relay that holds your own app build's push credentials. Nothing to set up for the official apps |
+| `PURSS_ASSISTANT_OAUTH` | on in hosted mode, otherwise off | `on`: assistants that only connect by signing in (Claude and ChatGPT custom connectors) can use `/mcp` with OAuth as well as with tokens. Needs an https `PURSS_PUBLIC_ORIGIN` (or localhost) reachable from the internet, and `on` over plain http elsewhere stops the API from starting; nothing else to set up. `off` turns it off in hosted mode. See [Assistants](assistants.md) |
+| `PURSS_PUSH_RELAY_URL` | the project's relay | Where the API asks for connected phones to be woken (see the [push relay](../apps/push-relay/README.md)). Unset or `official`: the project's relay; empty or `off`: no phone notifications; or the https address of another relay that holds your own app build's push credentials. Nothing to set up for the official apps |
 | `PURSS_APP_ANDROID_CERT_SHA256` | empty | SHA-256 fingerprints (`AB:CD:…`, comma-separated) of the keys that sign the Android app you hand out. PURSS then serves `/.well-known/assetlinks.json` for it, and the app can sign in and confirm it's you with the phone's passkeys (the same passkeys as in a browser on this address). Get one with `keytool -list -v -keystore release.jks` (or from Play Console → App signing). Needs https |
 | `PURSS_APP_ANDROID_PACKAGE` | `app.purss` | The Android app's package name, if you build it under another one |
 | `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this PURSS's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
@@ -646,7 +742,7 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
 | `PURSS_ENGINE_URL` | `http://127.0.0.1:8941` | FreshRSS address handed to the worker |
 | `PURSS_EGRESS_CONTROL_URL` | `http://127.0.0.1:8949/status` | Egress status for admin health |
-| `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest of [plan/41](../plan/41-source-bridges.md), and journals through Crossref, [plan/45](../plan/45-crossref-feeds.md)) get the "no feeds" answer |
+| `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest, and journals through Crossref; see [Sources](sources.md)) get the "no feeds" answer |
 | `PURSS_RSS_BRIDGE` | off | `1` when the bridge router has RSS-Bridge behind it (Compose sets it): only then are the services RSS-Bridge collects offered. Crossref needs only the router |
 | `PURSS_SYNC_INTERVAL` | `120` | Seconds between scheduled syncs per account |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | `https://api.typesafe.ai`, the newest Jev | Jev's address (`https://openrouter.ai/api` for OpenRouter keys) and the model Smart filters use (API and worker) |
@@ -672,8 +768,9 @@ for big feeds; change it only with `EGRESS_GATEWAY_ALIAS` or the gateway port).
 (`<data>/secrets/feed-trim-key`; without that file big feeds are not trimmed), `EGRESS_MAX_CONNECTIONS` (256),
 `EGRESS_CONNECT_TIMEOUT_MS` (10 s), `EGRESS_IDLE_TIMEOUT_MS` (30 s), `EGRESS_REQUEST_TIMEOUT_MS`
 (60 s), `EGRESS_MAX_RESPONSE_BYTES` (32 MiB), `EGRESS_MAX_REQUEST_BODY_BYTES` (1 MiB),
-`EGRESS_MAX_TUNNEL_BYTES` (64 MiB), `EGRESS_MAX_TUNNEL_MS` (120 s); the bridge router runs only
-when `EGRESS_BRIDGE_BACKEND` (RSS-Bridge's `http://ip:port`) is set, with `EGRESS_BRIDGE_HOST`/`_PORT`
+`EGRESS_MAX_TUNNEL_BYTES` (64 MiB), `EGRESS_MAX_TUNNEL_MS` (120 s). The bridge router runs whenever
+the bridge key exists (setup makes one); `EGRESS_BRIDGE_BACKEND` (RSS-Bridge's `http://ip:port`) adds the
+RSS-Bridge services. Its settings: `EGRESS_BRIDGE_HOST`/`_PORT`
 (`127.0.0.1`/8945), `EGRESS_BRIDGE_ALIAS` (`feed-bridge.internal`), `EGRESS_BRIDGE_KEY_FILE`
 (`<data>/secrets/bridge-key`), `EGRESS_BRIDGE_DB` (`<data>/egress/bridge.db`), and
 `EGRESS_BRIDGE_NET_HOST`/`EGRESS_BRIDGE_DNS_PORT` (egress's address on RSS-Bridge's network, where
@@ -698,8 +795,9 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
 
 ## Security notes
 
-- **Not reviewed for public exposure.** Run it on localhost, over an SSH tunnel, or behind an
-  HTTPS proxy you control, and treat internet exposure as untested.
+- **Exposure:** run PURSS on localhost, over an SSH tunnel, or behind an HTTPS proxy you control (see
+  [Docker Compose](#docker-compose)). The threat model, what each control defends against and what it
+  doesn't are in [Security](security.md); the notes below are what an operator needs to know.
 - **HTTPS:** use it for anything but localhost or a trusted home network. Passkeys need it, and
   session cookies get the `Secure` flag only when `PURSS_PUBLIC_ORIGIN` is https.
 - **Offline copies:** with "Offline reading on this device" on, a browser keeps the person's reading
@@ -707,20 +805,20 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   installed app, and it is deleted at sign-out, when the session ends, or when the setting is turned off.
   The server stores nothing for it. A shared computer's browser profile should keep the setting off.
 - **Assistant access (MCP):** off until an administrator turns it on under *Administration →
-  Assistants* and a person turns it on for themselves. `/mcp` accepts only personal access tokens
-  (stored as SHA-256 hashes; cookies are ignored there), acts as that one account, never as an
-  administrator, and offers no permanent deletion, sharing, export or account-security actions.
-  Calls are limited to 120 a minute per token; write calls are in the audit log. What an
-  assistant reads leaves the server for the assistant's provider. See
-  [plan/23](../plan/23-assistant-access.md).
+  Assistants* and a person turns it on for themselves. `/mcp` accepts only bearer tokens (personal
+  access tokens, and OAuth access tokens where Assistant OAuth is on; stored as SHA-256 hashes, and
+  cookies are ignored there), acts as that one account, never as an administrator, and offers no permanent
+  deletion, sharing, export or account-security actions. Calls are limited to 120 a minute per token; write
+  calls are in the audit log. What an assistant reads leaves the server for the assistant's provider. See
+  [Assistants](assistants.md).
 - **Phone notifications:** when a connected phone app turns on *Notifications on this phone*, it
   registers a handle from the project's push relay with this server. When a notice reaches the
   bell (outside quiet hours), the API asks the relay, by that handle only, to wake the phone: a POST
   through the same safe fetcher (https, public addresses only, no
   redirects, 10 seconds). The relay, Google and Apple learn that this server has something new for that
   phone, never what; the phone then fetches the texts from this server. Nothing is sent while no phone
-  has registered. `PURSS_PUSH_RELAY_URL=` (empty) or `off` turns it off. See
-  [plan/37](../plan/37-push-notifications.md).
+  has registered. `PURSS_PUSH_RELAY_URL=` (empty) or `off` turns it off. See the
+  [push relay](../apps/push-relay/README.md).
 - **Assistant OAuth:** off when self-hosted unless `PURSS_ASSISTANT_OAUTH=on`; personal access tokens
   work either way. When on, the same two switches apply, a person allows each assistant on a
   consent page (recent sign-in, can't be framed), and *Settings → Assistants* lists and disconnects
@@ -730,17 +828,19 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   presented again ends that assistant's access (it is recognised with `secrets/oauth-refresh-key`;
   restored without that key, assistants connected before must connect again). Refreshes are limited to 30 an hour per assistant and 120 per
   account. Changing `PURSS_PUBLIC_ORIGIN` ends every OAuth connection. See
-  [plan/33](../plan/33-assistant-oauth.md).
+  [Assistants](assistants.md#signing-in-with-oauth).
 - **Connected apps:** the phone app and browser extension connect with a one-time code and PKCE
   approved in the browser, then use a device token (stored as a SHA-256 hash) instead of cookies.
-  Return addresses are fixed in code, so no client registration or OAuth setup is needed. A token
-  is never an administrator, can't change sign-in or security settings, stops after 90 days unused,
+  Return addresses are fixed in code, so no client registration or OAuth setup is needed. The phone
+  and desktop app's token is a full sign-in (an administrator's included) with its own *confirm it's
+  you* clock, except that it can't approve another app's connection or an assistant's sign-in; the
+  extension's token reaches only the few routes the extension uses. A token stops after 90 days unused,
   and is revoked from *Settings → Connected apps*, by suspension, by a password reset (by email, or with a link
   from `password-reset-link`).
   The browser extension's text captures are what the person's browser showed; the server sanitizes
-  them and fetches nothing for them ([plan/32](../plan/32-browser-extension.md)).
+  them and fetches nothing for them (see the [browser extension](../apps/extension/README.md)).
   CORS is answered only for the apps' own origins and only for token requests, never with
-  credentials. See [plan/24](../plan/24-connected-apps.md).
+  credentials. See [Security](security.md).
 - **Passwords:** stored only as salted scrypt hashes. Sign-in attempts are limited per network address
   and per email address, and an unknown address takes as long to refuse as a wrong password.
 - **Egress:** FreshRSS fetches every feed through the egress proxy, which refuses loopback,
@@ -781,8 +881,8 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
 - **Secrets on disk:** the database holds only hashes of the setup code and
   invitations (the setup code's plain text is the operator's file). Private source links and
   engine passwords are files under `secrets/` (0600), never in the database or job payloads.
-- **Not built:** Web Push, real private-service connectors (the private feed gateway registers
-  none), a guided installer, payments, and abuse tooling for open sign-up.
+- **Notifications in browsers:** a browser shows notices only while PURSS is open in it; there is no Web
+  Push. Connected phones are woken through the push relay (see above).
 
-Rationale and threat model: [plan/10](../plan/10-security-and-privacy.md),
-[plan/11](../plan/11-packaging-and-operations.md), [plan/21](../plan/21-identity-and-administration.md).
+More on the threat model, the controls and their limits: [Security](security.md). What the server keeps
+and for how long: [Storage and retention](storage-and-retention.md).

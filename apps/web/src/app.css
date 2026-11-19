@@ -695,7 +695,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .pagewash svg.quilt{position:absolute;inset:0;width:100%;height:100%;opacity:calc(var(--quilt-o)*.6);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
 /* Picture-less cards with a longer excerpt use more of the card instead of leaving it blank. */
 .art-text .ax{-webkit-line-clamp:8}
-/* Round 9 */
 /* Cards take their own height, so a short card has no blank band. */
 .grid{align-items:start}
 /* List pages: one comfortable column on large screens; excerpts at a readable measure. */
@@ -713,7 +712,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .dlg-b.more{-webkit-mask-image:linear-gradient(#000 calc(100% - 36px),transparent);mask-image:linear-gradient(#000 calc(100% - 36px),transparent)}
 /* The reader's header carries the same soft sky as the page heads. */
 .panel-bar{background:linear-gradient(180deg,var(--sky-mid),var(--surface))}
-/* Round 10 */
 /* Card rows share a height; a picture-less card's tint grows to fill it, its text held to 5 lines. */
 .grid{align-items:stretch}
 .card-main .art-text{flex:1 1 auto}
@@ -737,14 +735,12 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .art-text>span{display:flex;flex-direction:column;gap:8px;height:100%;-webkit-mask-image:linear-gradient(#000 calc(100% - 32px),transparent);mask-image:linear-gradient(#000 calc(100% - 32px),transparent)}
 .art-text{align-items:stretch}
 .card-main:not(:has(.art)) .art-text,.card-main .art-text{max-height:none}
-/* Round 11 */
 .mod .row-t .ex{max-width:90ch}
 /* Overflow menus in headers and toolbars say what they are at every size. */
 .mod-h .ibtn .ml,.bar-tools .ibtn .ml{display:inline!important}
 .mod-h .ibtn:has(.ml),.bar-tools .ibtn:has(.ml){width:auto;padding:0 10px;gap:5px;display:inline-flex;align-items:center;font-size:0.8125rem;font-weight:700;color:var(--ink-2)}
 /* Phone reader: the basket name alone, so the three actions share one row. */
 @media (max-width:420px){.p-acts{gap:6px}.p-acts .mbtn{padding:0 9px;gap:4px}}
-/* Round 12 */
 /* Very wide screens: the sidebar grows with its larger text, so source names fit. */
 @media (min-width:2200px){.app[data-bp="xl"][data-sb="full"]{--sbw:336px}}
 /* List column: text plus picture, nothing more. */
@@ -765,7 +761,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 .card .len{display:inline-flex;align-items:center;gap:4px}
 .card .len .ic{width:12px;height:12px;color:var(--ink-3)}
 .pal-list{padding-bottom:56px}
-/* Round 13 */
 /* The sidebar toggle and the bell stay at the window's edges; the breadcrumbs and toolbar line up with the page's content column (measured by the header). */
 .bar.al .crumbs{margin-left:var(--crumb-l,0px)}
 /* Rows without a picture let their text run the full row. */
@@ -778,7 +773,6 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 /* Document pages at the width of their contents. */
 .app .col.page,.app[data-bp="xl"] .col.page{max-width:780px}
 .fx-facts,.fx-legend,.fx-bar{max-width:none}
-/* Round 14 */
 /* Tablets: the full-screen reader gets the same Back control as phones. */
 .app[data-bp="sm"] .back{display:inline-grid}
 /* Open original leads the action row whenever it is the primary step, at every size. */
@@ -790,14 +784,12 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
 @container reader (max-width:560px){.p-acts .mbtn.go{flex:1 1 100%;justify-content:center}}
 /* A one-source Home box names its source in the header. */
 .mod-t .one{font-size:0.8125rem;font-weight:700;color:var(--ink-3);margin-left:6px}
-/* Round 15 */
 /* Search: tall enough for every result it shows. */
 .pal{max-height:min(760px,calc(100dvh - 12vh - 48px))}
 /* Picture-less cards: five lines of excerpt, the source line pinned to the bottom. */
 .art-text .ax{-webkit-line-clamp:5}
 /* Tablet reader: Back is the one way out. */
 .app[data-bp="sm"] .panel-bar [data-fk="close"]{display:none}
-/* Round 16 */
 /* Cards: rows share a top edge (so "Newest" reads left to right) and each card keeps its own height; excerpts stay short so rows stay even. */
 .grid{align-items:start}
 .card-main{height:auto}

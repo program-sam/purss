@@ -22,9 +22,9 @@ ensureSecret(secrets, "service-token");
 // The worker's key to the engine's admin helper, the one product secret the engine reads. The engine never
 // gets the service token: whoever runs code in FreshRSS must not reach the API's or egress's service routes.
 ensureSecret(secrets, "engine-helper-token");
-// Signs the engine's bridge addresses (plan/41); egress, the API and the worker read it.
+// Signs the engine's bridge addresses; egress, the API and the worker read it.
 ensureSecret(secrets, "bridge-key");
-// Signs the gateway's addresses for big feeds (plan/44); egress and the worker read it, never the engine.
+// Signs the gateway's addresses for big feeds; egress and the worker read it, never the engine.
 ensureSecret(secrets, "feed-trim-key");
 const adminFile = path.join(secrets, "engine-admin");
 if (!existsSync(adminFile)) {
