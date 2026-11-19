@@ -9,7 +9,8 @@ import { useStepUp } from "../shared/step-up.tsx";
 import { Note } from "../shared/bits.tsx";
 
 const READ = "Search and read your items, sources, collections and baskets, with your highlights and notes.";
-const WRITE = "Also change states, keep and remove items, create baskets and collections, and find, follow, change and unfollow sources.";
+const CHANGES = "change states, keep and remove items, create baskets and collections, and find, follow, change and unfollow sources.";
+const WRITE = `Also ${CHANGES}`;
 
 type Phase = { kind: "ask" } | { kind: "leaving"; title: string; text: string };
 
@@ -76,7 +77,7 @@ export function AuthorizePage() {
         {req.loopbackRedirect ? <Note tone="warn" icon="alert">This assistant is a program on your computer. Another program could pose as it, so allow it only if you just started it.</Note> : null}
         <div className="fine"><b>It will be able to:</b> {READ}{allowWrite ? ` ${WRITE}` : ""}</div>
         {req.access === "write" ? (
-          <Check checked={allowWrite} onChange={(on) => setWrite(on)} hint={WRITE}>Also let it organise</Check>
+          <Check checked={allowWrite} onChange={(on) => setWrite(on)} hint={`It can ${CHANGES}`}>Allow the assistant to make changes in your PURSS</Check>
         ) : null}
         <p className="fine">It can't delete anything for good, share, publish, export or change your sign-in. What it reads goes to the assistant and its provider. Disconnect it any time in Settings → Assistants.</p>
         {!req.available && session.data ? <Note>{hosted ? "Assistant access isn't available yet." : "Your administrator hasn't turned on assistant access for this PURSS, so nothing can be connected yet."}</Note> : null}

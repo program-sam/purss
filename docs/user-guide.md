@@ -918,7 +918,7 @@ connector. The assistant then opens a page of your PURSS that asks whether to al
 
 - It names the assistant, the site that identifies it, and where you'll be sent back. Allow only
   an assistant you just asked to connect yourself.
-- If the assistant asked to organise, you can untick **Also let it organise** to let it only read.
+- If the assistant asked to organise, it can only read unless you tick **Allow the assistant to make changes in your PURSS**.
 - If assistant access is off for your account, the page lets you turn it on.
 - Press **Allow** (you confirm it's you if you signed in a while ago), and you go back to the
   assistant. **Don't allow** sends it away with nothing.
