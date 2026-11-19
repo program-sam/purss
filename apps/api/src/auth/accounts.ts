@@ -160,13 +160,14 @@ function validSessionForWrite(app: App, accountId: string, sessionId: string): W
 /**
  * Set the account's password from a session that is still valid. `expectedHash` is the stored password the change was allowed
  * against (null: none yet); hashing takes a while, so the write re-checks it and refuses if another change came first.
- * `requireRecent`: the session must have signed in recently.
+ * `requireRecent`: the session must have signed in recently. `alsoInTransaction` runs after the write and commits with it.
  */
-export async function setPassword(app: App, accountId: string, sessionId: string, password: string, opts: { expectedHash: string | null; requireRecent: boolean }): Promise<void> {
+export async function setPassword(app: App, accountId: string, sessionId: string, password: string, opts: { expectedHash: string | null; requireRecent: boolean; alsoInTransaction?: () => void }): Promise<void> {
   await writePassword(app, accountId, password, (write) => sessionWrite(app, accountId, sessionId, () => {
     const now = app.db.get<{ secret_hash: string }>("SELECT secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", accountId)?.secret_hash ?? null;
     if (now !== opts.expectedHash) throw new HttpError(409, "password_changed", "Your password was just changed somewhere else. Please try again.");
     write();
+    opts.alsoInTransaction?.();
   }, opts.requireRecent));
 }
 

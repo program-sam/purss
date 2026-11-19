@@ -223,6 +223,19 @@ test("changing the password in the browser also disconnects the apps and assista
   assert.ok(b.app.db.get("SELECT 1 FROM audit_events WHERE action = 'signed_out_elsewhere' AND detail = 'password change'"));
 });
 
+test("the new password and the sign-outs commit together: if ending the other sign-ins fails, the old password stays", async (t) => {
+  const b = await boot();
+  t.after(b.close);
+  const here = signIn(b.app, b.owner.accountId);
+  const elsewhere = signIn(b.app, b.owner.accountId);
+  const phone = createDeviceToken(b.app, b.owner.accountId, "mobile", "Phone").secret;
+  b.app.db.exec("CREATE TEMP TRIGGER refuse_device_delete BEFORE DELETE ON device_tokens BEGIN SELECT RAISE(ABORT, 'refused'); END");
+  assert.equal((await b.req("PUT", "/api/account/password", here, { currentPassword: CURRENT, password: "a long enough secret" })).status, 500);
+  assert.equal(await verifyPassword(CURRENT, b.app.db.get<{ secret_hash: string }>("SELECT secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", b.owner.accountId)!.secret_hash), true, "the old password still works");
+  assert.equal((await b.req("GET", "/api/session", elsewhere)).json.state, "signed_in", "nothing was half done");
+  assert.ok(resolveDeviceToken(b.app, phone));
+});
+
 test("changing the password in the phone app keeps that app connected and ends everything else", async (t) => {
   const b = await boot();
   t.after(b.close);

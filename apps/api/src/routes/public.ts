@@ -23,7 +23,7 @@ import {
 } from "../auth/accounts.ts";
 import { authenticationOptions, listMethods, registrationOptions, removeMethod, verifyAuthentication, verifyRegistration } from "../auth/passkeys.ts";
 import { OidcFlowError, finishOidc, issueAppTicket, redeemConfirmCode, redeemLinkCode, startFromTicket, startOidc } from "../auth/oidc.ts";
-import { deviceIdOf } from "../connect/devices.ts";
+import { deviceIdOf, revokedEvent } from "../connect/devices.ts";
 import { PASSWORD_MAX, checkPassword, preparePassword, verifyPassword } from "../auth/passwords.ts";
 import { finishSignup, signupRequestEmail, startSignup } from "../auth/signup.ts";
 import { KNOWN_COOKIE, signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
@@ -348,15 +348,18 @@ export function publicRouter(): Router<Ctx> {
     if (!body.currentPassword || !(await verifyPassword(body.currentPassword, stored))) {
       throw new HttpError(401, "bad_current_password", "Your current password isn't right.");
     }
-    await setPassword(ctx.app, p.accountId, p.sessionId, body.password, { expectedHash: stored, requireRecent: false });
     // As after a reset, but for the session or app making the change: a cookie, app token or assistant taken with the
-    // old password stops working.
-    const ended = sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
-      const out = signOutAllElse(ctx.app, p.accountId, p.sessionId, deviceIdOf(p));
-      audit(ctx.app, p.accountId, "signed_out_elsewhere", null, "success", "password change");
-      return out;
+    // old password stops working. The new password and the sign-outs commit together; open streams close after.
+    let ended: { sessions: string[]; devices: string[] } = { sessions: [], devices: [] };
+    await setPassword(ctx.app, p.accountId, p.sessionId, body.password, {
+      expectedHash: stored, requireRecent: false,
+      alsoInTransaction: () => {
+        ended = signOutAllElse(ctx.app, p.accountId, p.sessionId, deviceIdOf(p));
+        audit(ctx.app, p.accountId, "signed_out_elsewhere", null, "success", "password change");
+      },
     });
-    for (const id of ended) ctx.app.events.emit(`session:${id}`, "revoked");
+    for (const id of ended.sessions) ctx.app.events.emit(`session:${id}`, "revoked");
+    for (const id of ended.devices) ctx.app.events.emit(revokedEvent(id));
     return { ok: true };
   });
   // Deleting the account: a recent sign-in plus typing the display name (or "delete").
