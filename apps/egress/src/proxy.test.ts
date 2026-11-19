@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import { test } from "node:test";
-import { FixtureAdapter, fixtureEntry } from "./gateway/fixture-adapter.ts";
 import type { LogEvent } from "./proxy.ts";
 import { startEgress } from "./server.ts";
 import { allowLoopback, connectVia, control, makeConfig, startEcho, startUpstream, viaProxy } from "./testing.ts";
@@ -414,27 +413,22 @@ test("hourly counters roll off after an hour", async () => {
 });
 
 test("the gateway listener is an operator-fixed exception matched by exact name and port, and only for plain GET", async () => {
-  const config = makeConfig();
-  const adapter = new FixtureAdapter("fixture", [fixtureEntry(1), fixtureEntry(2)]);
-  const egress = await startEgress(config, { adapters: [adapter] });
+  const config = makeConfig({ trimKey: "gateway-key-".repeat(4) });
+  const egress = await startEgress(config);
   try {
     const gw = egress.ports.gateway;
     config.internalDestinations.push({ host: "feed-gateway.internal", port: gw, connectHost: "127.0.0.1", connectPort: gw });
-    egress.gateway.upsertFeed({ feedId: "feed-abcdefgh", adapter: "fixture", title: "Private" });
-    const cred = egress.gateway.issueCredential("feed-abcdefgh");
+    // A well-formed address with a signature this installation did not make: the listener answers it, and only the listener says this.
+    const path = `/t/${"A".repeat(43)}/${Buffer.from("https://feed.example/feed.xml").toString("base64url")}`;
 
-    const unauth = await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw}/feeds/feed-abcdefgh`);
-    assert.equal(unauth.status, 401, "reached the gateway listener (unauthenticated)");
-    assert.match(String(unauth.headers["www-authenticate"]), /Basic/);
-    const basic = `Basic ${Buffer.from(`${cred.username}:${cred.secret}`).toString("base64")}`;
-    const feed = await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw}/feeds/feed-abcdefgh`, { headers: { authorization: basic } });
-    assert.equal(feed.status, 200, "FreshRSS-style request: absolute-form GET through the proxy with Basic auth");
-    assert.match(feed.body.toString(), /<guid isPermaLink="false">fixture-1<\/guid>/);
+    const reached = await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw}${path}`);
+    assert.equal(reached.status, 404, "FreshRSS-style request: absolute-form GET through the proxy reached the gateway listener");
+    assert.equal(reached.body.toString(), "Not found.\n");
 
-    assert.equal((await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw + 1}/feeds/feed-abcdefgh`)).status, 403, "same name on another port is not an exception");
-    assert.equal((await viaProxy(egress.ports.proxy, `http://other.internal:${gw}/feeds/feed-abcdefgh`)).status, 403);
-    assert.equal((await viaProxy(egress.ports.proxy, `http://127.0.0.1:${gw}/feeds/feed-abcdefgh`, { headers: { authorization: basic } })).status, 403, "the loopback address itself stays forbidden");
-    assert.equal((await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw}/feeds/feed-abcdefgh`, { method: "POST" })).status, 405);
+    assert.equal((await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw + 1}${path}`)).status, 403, "same name on another port is not an exception");
+    assert.equal((await viaProxy(egress.ports.proxy, `http://other.internal:${gw}${path}`)).status, 403);
+    assert.equal((await viaProxy(egress.ports.proxy, `http://127.0.0.1:${gw}${path}`)).status, 403, "the loopback address itself stays forbidden");
+    assert.equal((await viaProxy(egress.ports.proxy, `http://feed-gateway.internal:${gw}${path}`, { method: "POST" })).status, 405);
     const tunnel = await connectVia(egress.ports.proxy, `feed-gateway.internal:${gw}`);
     assert.equal(tunnel.status, 403, "no CONNECT tunnels to internal destinations");
     tunnel.socket.destroy();

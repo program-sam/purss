@@ -78,14 +78,14 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 | `apps/site` | Public website: home page, terms, privacy and legal notice |
 | `apps/api` | Sessions, authorization, product database, search, commands |
 | `apps/worker` | FreshRSS synchronization and bounded background jobs |
-| `apps/egress` | Egress proxy for the engine and the private feed gateway |
+| `apps/egress` | Egress proxy for the engine, the feed gateway for big feeds and the bridge router |
 | `apps/mobile` | Android and iOS apps: the web app's build in a Capacitor shell |
 | `apps/desktop` | Windows, macOS and Linux app: the web app's build in a Tauri shell |
 | `apps/extension` | Browser extension for Chrome, Edge, Firefox and Safari |
 | `apps/push-relay` | Content-free relay that wakes the phone apps |
 | `packages/domain` | Product identities, state transitions, query contracts |
 | `packages/freshrss` | FreshRSS protocol adapter and capability checks |
-| `packages/connectors` | Discovery and controlled non-feed source adapters |
+| `packages/connectors` | Discovery and non-feed source connectors |
 | `packages/ui` | Original design tokens and reusable UI primitives |
 | `infra` | Docker Compose packaging, engine image and operation notes |
 | `tests/acceptance` | End-to-end product acceptance scenarios |

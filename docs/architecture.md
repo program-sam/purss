@@ -8,9 +8,10 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 ## Principles
 
 - **FreshRSS is the only ingestion engine.** It polls feeds; PURSS reads its entries through the GReader
-  API. A service that has no feed is turned into one (the bridge router, the feed gateway) and followed
-  like any other, so no adapter writes product items itself. Only what has nothing to poll is written
-  directly: pages the person keeps by hand and the installation's own news posts.
+  API. A service that has no feed is turned into one (the bridge router) and followed like any other, and a
+  feed too big for the engine reaches it as a smaller copy (the feed gateway), so no connector writes
+  product items itself. Only what has nothing to poll is written directly: pages the person keeps by hand
+  and the installation's own news posts.
 - **The product owns what a reader keeps.** Item IDs, workflow, baskets, annotations and search live in
   PURSS's own database. FreshRSS holds a bounded buffer of recent entries, not a library.
 - **Separate facts stay separate.** Reading progress, workflow state, collection membership, basket
@@ -33,7 +34,7 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
                           GReader API + fixed admin ops│
                                                       ▼
  internet ◄── egress proxy :8946 ◄── all fetches ── FreshRSS (no other route out)
-              feed gateway :8947 ──► FreshRSS (big feeds, trimmed to their newest items; private feeds: no adapters registered)
+              feed gateway :8947 ──► FreshRSS (big feeds, trimmed to their newest items)
               bridge router :8945 ──► FreshRSS (via the proxy alias) and api previews; asks RSS-Bridge
               control :8949 ◄── api (status, bridge fetch log)
  internet ◄── egress proxy + DNS (bridge network) ◄── RSS-Bridge (no other route out)
@@ -46,7 +47,7 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 | Website | `apps/site` | Static public website, served by the API at `/` in hosted mode; self-hosted, `/` opens the app |
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
 | Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
-| Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds; private service feeds, none registered); bridge router and its fetch log; control listener |
+| Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds); bridge router and its fetch log; control listener |
 | RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram) into feeds; pinned upstream image, only the catalogued bridges enabled |
 | FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
 | Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
@@ -371,7 +372,7 @@ cached privately and sent with a sandboxing CSP. Icons are re-derivable, so they
 exported or counted against storage quota.
 
 **Storage ledger.** Usage is the sum of measured, live stored objects (item versions, readable copies,
-kept pictures, small records), classified once as kept, feed-only or other. Admission happens inside the
+kept pictures, small records). Admission happens inside the
 writing transaction against the allocation plus reservations; small state writes get a bounded
 headroom. A full quota or low disk pauses growth (a sync batch that needs the room is tried again by the next
 pass) and never evicts kept content. Deleting an item releases its objects and is never blocked by quota.
@@ -593,7 +594,6 @@ minutes while failing; hosted open sign-up is open only while that check passes.
 | Installation news | `product.db`: `news_posts` (posts; the author link is cleared when that account is deleted), `news_deliveries` (which workspace got which post, for its copy and the counts) |
 | Sites people couldn't follow | `product.db`, `discovery_misses`: per UTC day, the site (registrable domain) and the failure reason, with a count; 180 days. No account, workspace or address is stored, so it is no part of any account's data or export |
 | Secrets | `secrets/`: service token, setup code, engine operator and engine-user passwords, private source URLs, `oauth-refresh-key` (signs OAuth refresh tokens) |
-| Gateway state | `egress/gateway.db` (egress's own SQLite file) |
 | FreshRSS data | `engine/` locally, the `engine-data` volume under Compose |
 | Offline copies | The browser's own Cache Storage on each device (`purss-api:<account>`), plus a small record in its local storage; never on the server, deleted at sign-out |
 | Browser extension | The browser's extension storage on each device: the PURSS address, its device token, basket names for the menu, settings; never synced |

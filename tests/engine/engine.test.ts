@@ -537,7 +537,7 @@ describe("removed subscriptions leave product data alone", () => {
   });
 });
 
-describe("read and star mirroring", () => {
+describe("read mirroring", () => {
   test("marking read and unread is reflected by the engine's unread count and stream filter", async () => {
     const u = await engine.newUser("read");
     const feed = newFeed("Readable", items(5, "rd"));
@@ -554,20 +554,6 @@ describe("read and star mirroring", () => {
     // marking an id that does not exist is accepted silently
     await u.client.markRead(["9999999999999999"], true);
     assert.equal(await u.client.unreadCount(), 3);
-  });
-
-  test("starring is mirrored by the engine and does not change read state", async () => {
-    const u = await engine.newUser("star");
-    const feed = newFeed("Starry", items(2, "st"));
-    await subscribeAndFetch(u, feed.url);
-    const page = await u.client.streamContents({ count: 50, order: "asc" });
-    const id = normalizeItem(page.items[0]!).entry.externalId;
-    await u.client.setStarred([id], true);
-    const after = await u.client.streamContents({ count: 50, order: "asc" });
-    const raw = after.items.find((i) => normalizeItem(i).entry.externalId === id)!;
-    assert.ok(raw.categories?.includes("user/-/state/com.google/starred"));
-    assert.ok(!raw.categories?.includes("user/-/state/com.google/read"));
-    await u.client.setStarred([id], false);
   });
 
   test("read state does not influence what sync offers (the product owns reading state)", async () => {

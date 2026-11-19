@@ -4,7 +4,7 @@ import { loadConfig } from "./config.ts";
 import type { App } from "./app.ts";
 import { audit } from "./app.ts";
 import { openDatabase } from "./db/database.ts";
-import { StorageFull, allocation, checkGrowth, databaseBytes, markPaused, recountCurrentFlags, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
+import { StorageFull, allocation, checkGrowth, databaseBytes, markPaused, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
 import { checkMail, mailHealth, sendMail } from "./mail/mailer.ts";
 import { testMail } from "./mail/templates.ts";
 import { emailSchema, hostResetLink, resendVerification, setAccountEmail } from "./services/account-email.ts";
@@ -185,10 +185,8 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
         const r = app.db.tx(() => reconcile(app, a.id, { repair: true }));
         if (r.difference !== 0) differ++;
         io.out(`${a.display_name ?? a.id}: ledger ${r.ledger} bytes, owned objects ${r.objects} bytes, difference ${r.difference}`);
-        // Derived numbers the product reads instead of adding things up each time: put right wherever they have drifted.
+        // The total the product reads instead of adding things up each time: put right wherever it has drifted.
         if (r.trackedDifference !== 0) io.out(`  used-bytes total was ${r.tracked}, recounted ${r.objects}: corrected (${r.objects > r.tracked ? "+" : ""}${r.objects - r.tracked} bytes)`);
-        const flags = recountCurrentFlags(app, a.id);
-        if (flags) io.out(`  corrected ${flags} stored version(s) wrongly marked current or superseded`);
       }
       audit(app, null, "cli_reconcile_usage", null, differ ? "failure" : "success", `${differ} differ`);
       io.out(differ ? `${differ} account(s) differ from the usage ledger. The ledger was not changed.` : "All accounts agree.");

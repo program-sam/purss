@@ -4,7 +4,7 @@ import { TEST_PASSWORD, batch, entry, makeOwner, makeSource, makeTestApp, testPa
 import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
 import { listItems, getItemDetail, insertItem, searchSnippets } from "./items.ts";
 import { applyUndo, bulk, changeState, keepItem, keepWithUndo, unkeepItem } from "./state.ts";
-import { admitObject, categories, reconcile, summary, usedBytes, diskOverride } from "./storage.ts";
+import { admitObject, pausedReason, reconcile, reservedBytes, usedBytes, diskOverride } from "./storage.ts";
 import { createBasket, createCollection, deleteItems, deletePreview, listBaskets, patchBasket } from "./collections.ts";
 import { completeCapture, failCapture } from "./captures.ts";
 import { HttpError } from "../http.ts";
@@ -75,24 +75,24 @@ test("upstream edit creates a new version and never alters a kept snapshot", (t)
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM item_versions v JOIN items i ON i.id = v.item_id WHERE i.url = ?", e2.url!)!.n, 1);
 });
 
-test("multi-basket keeps never double count, and categories sum to the total", (t) => {
+test("multi-basket keeps never double count", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
   const [a, b] = listItems(app, p, { scope: "all" }).items;
   const b1 = createBasket(app, p, { name: "One", captureMode: "metadata" });
   const b2 = createBasket(app, p, { name: "Two", captureMode: "metadata" });
-  const feedOnly = categories(app, p.accountId).feed;
+  // The item's own content: its versions, readable copies and pictures. A basket pin is a small record on top of them.
+  const content = () => app.db.get<{ n: number }>("SELECT COALESCE(SUM(bytes), 0) AS n FROM stored_objects WHERE account_id = ? AND kind <> 'record' AND released_at IS NULL", p.accountId)!.n;
+  const before = content();
   keepItem(app, p, a!.id, b1.id);
-  const afterFirst = categories(app, p.accountId);
+  const afterFirst = usedBytes(app, p.accountId);
+  assert.equal(content(), before, "keeping adds a pin, not a second copy of the item");
   keepItem(app, p, a!.id, b2.id);
-  const afterSecond = categories(app, p.accountId);
-  assert.equal(afterSecond.kept, afterFirst.kept, "second basket adds no content bytes");
-  assert.ok(afterFirst.feed < feedOnly, "bytes moved from feed to kept");
-  const s = summary(app, p.accountId);
-  assert.equal(s.usedBytes, s.categories.kept + s.categories.feed + s.categories.other);
+  assert.ok(usedBytes(app, p.accountId) - afterFirst < 500, "second basket adds only its own small pin record");
+  assert.equal(content(), before, "second basket adds no content bytes");
   unkeepItem(app, p, a!.id, b1.id);
-  assert.equal(categories(app, p.accountId).kept, afterSecond.kept, "still pinned by the other basket");
+  assert.equal(content(), before, "still pinned by the other basket");
   unkeepItem(app, p, a!.id, b2.id);
   assert.ok(getItemDetail(app, p, a!.id), "unkeep never deletes the item");
   assert.ok(b);
@@ -109,7 +109,7 @@ test("full quota pauses imports without advancing the checkpoint; reading, keepi
     (err: unknown) => err instanceof HttpError && err.status === 507);
   const cp = app.db.get<{ continuation: string | null }>("SELECT continuation FROM sync_checkpoints WHERE engine_user_id = ?", p.engineUserId)!;
   assert.equal(cp.continuation, null, "checkpoint not advanced");
-  assert.equal(summary(app, p.accountId).growthPaused, true);
+  assert.notEqual(pausedReason(app, p.accountId), null);
   const item = listItems(app, p, { scope: "all" }).items[0]!;
   // Control writes still succeed within the bounded headroom.
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
@@ -223,9 +223,9 @@ test("text baskets reserve and settle a readable capture; failure releases it", 
   const r = keepItem(app, p, a!.id, basket.id);
   assert.equal(r.captureQueued, true);
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", a!.id)!;
-  assert.ok(summary(app, p.accountId).reservedBytes > 0);
+  assert.ok(reservedBytes(app, p.accountId) > 0);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "Readable text with unique zygomorphic word", html: "<p>Readable <script>x</script>text</p>", finalUrl: "https://example.org/a", bytes: 10 }));
-  assert.equal(summary(app, p.accountId).reservedBytes, 0);
+  assert.equal(reservedBytes(app, p.accountId), 0);
   const detail = getItemDetail(app, p, a!.id);
   assert.ok(detail.captures.some((c) => c.level === "fulltext"));
   assert.ok(!detail.contentHtml!.includes("<script"), "captured HTML sanitized");
@@ -236,7 +236,7 @@ test("text baskets reserve and settle a readable capture; failure releases it", 
   keepItem(app, p, b!.id, basket.id);
   const cap2 = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", b!.id)!;
   app.db.tx(() => failCapture(app, cap2.id, "nope"));
-  assert.equal(summary(app, p.accountId).reservedBytes, 0);
+  assert.equal(reservedBytes(app, p.accountId), 0);
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 

@@ -9,7 +9,7 @@ import { applySyncBatch } from "./sync.ts";
 import { getItem, getItemDetail, listItems } from "./items.ts";
 import { createBasket, createCollection, deleteItems, deletePreview } from "./collections.ts";
 import { keepItem } from "./state.ts";
-import { categories, reconcile, usedBytes } from "./storage.ts";
+import { reconcile, usedBytes } from "./storage.ts";
 import { unfollowSource } from "./sources.ts";
 import { previewShare, saveShare } from "./shares.ts";
 import { deleteAnnotation, listAnnotations, putAnnotation } from "./annotations.ts";
@@ -191,18 +191,16 @@ test("search finds items by comment, note and highlighted passage, in lists, sea
   assert.deepEqual(listItems(app, p, { scope: `collection:${col.id}`, filter: "all" }).items.map((i) => i.id), [otherItemId]);
 });
 
-test("each live annotation is one small Other record; edits re-measure it and the ledger stays exact, even over quota", (t) => {
+test("each live annotation is one small record; edits re-measure it and the ledger stays exact, even over quota", (t) => {
   const { app, p, itemId, cleanup } = setup();
   t.after(cleanup);
-  const cats0 = categories(app, p.accountId);
+  const used0 = usedBytes(app, p.accountId);
   const id = newId("ann");
   putAnnotation(app, p, itemId, id, note("short", 0));
-  const cats1 = categories(app, p.accountId);
-  assert.ok(cats1.other > cats0.other);
-  assert.equal(cats1.kept, cats0.kept, "an annotation is not kept content");
-  assert.equal(cats1.feed, cats0.feed);
+  const used1 = usedBytes(app, p.accountId);
+  assert.ok(used1 > used0);
   putAnnotation(app, p, itemId, id, note("a much longer note than before, with more words in it", 1));
-  assert.ok(categories(app, p.accountId).other > cats1.other);
+  assert.ok(usedBytes(app, p.accountId) > used1);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM stored_objects WHERE ref_id = ? AND released_at IS NULL", `annotation:${id}`)!.n, 1);
   assert.equal(reconcile(app, p.accountId).difference, 0);
   // A full quota still lets the person write a note (bounded headroom, like workflow changes).

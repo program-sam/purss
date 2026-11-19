@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connectorById, connectorCatalog } from "./catalog.ts";
 import { decodeBody, isFeedKind, parseContentType, sniffContent } from "./content-type.ts";
 import { generateOpml, parseOpml, OPML_MAX_OUTLINES } from "./opml.ts";
 import { looksPrivateUrl, privateUrlReason, redactUrl } from "./privacy.ts";
@@ -146,29 +145,6 @@ test("redactUrl strips query, credentials and token-looking path pieces", () => 
   assert.equal(redactUrl("not a url"), "[invalid address]");
   assert.equal(redactUrl("https://feeds.pinboard.in/rss/secret:6493a84f72d86e7de130/u:someone/private/"), "https://feeds.pinboard.in/rss/secret:…/u:someone/private/");
   assert.equal(redactUrl("https://blog.example.com/tag/news/0123456789abcdef0123456789abcd/rss/"), "https://blog.example.com/tag/news/…/rss/");
-});
-
-test("connector catalog is declarative, complete and honest", () => {
-  assert.deepEqual(connectorCatalog.map((c) => c.id), ["native-feed", "youtube-channel", "fediverse-account", "bluesky-account"]);
-  for (const c of connectorCatalog) {
-    assert.equal(c.auth.needs, "none");
-    assert.equal(c.version, 1);
-    assert.ok(c.sourceTypes.length > 0);
-    assert.ok(c.coverageLimits.length > 60);
-    assert.ok(c.healthCodes.some((h) => h.code === "ok"));
-    assert.ok(c.permittedDomains === "public-web" || c.permittedDomains.length > 0);
-    assert.equal(c.capabilities.feedGeneration, false, "no adapter generates feeds in this build");
-    assert.equal(c.capabilities.mediaPlayback, false);
-    assert.ok(Object.isFrozen(c) && Object.isFrozen(c.capabilities), "descriptors are immutable");
-  }
-  const yt = connectorById("youtube-channel")!;
-  assert.match(yt.coverageLimits, /most recent videos/);
-  assert.match(yt.coverageLimits, /does not include full channel history/);
-  assert.ok(yt.permittedDomains !== "public-web" && yt.permittedDomains.includes("youtube.com"));
-  assert.equal(connectorById("nope"), undefined);
-  assert.throws(() => {
-    (connectorCatalog as unknown as unknown[]).push({});
-  });
 });
 
 test("content sniffing and decoding helpers", () => {

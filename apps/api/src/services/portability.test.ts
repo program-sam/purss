@@ -45,14 +45,6 @@ function twoWorkspaces(allocationB: number | null = null) {
 
 const count = (app: App, table: string) => app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`)!.n;
 
-/** Every live version's current-version flag agrees with the items (the storage summary reads it). */
-function assertFlags(app: App): void {
-  const wrong = app.db.get<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM stored_objects o WHERE o.kind = 'item_version' AND o.released_at IS NULL
-       AND o.is_current <> EXISTS (SELECT 1 FROM items i WHERE i.current_version_id = o.ref_id)`)!.n;
-  assert.equal(wrong, 0, "current-version flags agree with the items");
-}
-
 test("export holds no secrets, no private addresses and no engine identifiers", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
@@ -203,7 +195,6 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(result.reconnectRequired, 1);
   assert.equal(usedBytes(b, pb.accountId) - before, preview.requiredBytes, "the preview's size estimate is exactly what was admitted");
   assert.equal(reconcile(b, pb.accountId).difference, 0, "usage ledger agrees with the owned objects");
-  assertFlags(b);
 
 
   // Counts match the original.
@@ -305,7 +296,6 @@ test("an older export with hand-picked collections imports without them, says so
   assert.equal(result.created.items, 4, "the items themselves still come across");
   assert.deepEqual(b.db.all<{ name: string; mode: string }>("SELECT name, mode FROM collections").map((c) => `${c.name}:${c.mode}`), ["Letters:sources"]);
   assert.equal(reconcile(b, pb.accountId).difference, 0);
-  assertFlags(b);
 });
 
 test("an older export with saved searches imports without them, says so, and keeps everything else", async (t) => {
@@ -332,7 +322,6 @@ test("an older export with saved searches imports without them, says so, and kee
   assert.ok(!("savedQueries" in result.created));
   assert.equal(result.created.items, 4, "the items themselves still come across");
   assert.equal(reconcile(b, pb.accountId).difference, 0);
-  assertFlags(b);
 
   const one = stageImport(b, pb, withSavedSearches(two.slice(0, 1)));
   assert.ok(one.conflicts.some((c) => /1 saved search wasn't restored/.test(c)), one.conflicts.join(" | "));
@@ -505,7 +494,6 @@ test("import into an occupied PURSS reconciles by source and link, merges basket
   assert.equal(getItem(b, pb, existing.id).revision, 1);
   assert.equal(b.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items WHERE basket_id = ?", mine)!.n, 1);
   assert.equal(reconcile(b, pb.accountId).difference, 0);
-  assertFlags(b);
   void lib;
 });
 

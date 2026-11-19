@@ -1,6 +1,6 @@
 /*
- * @purss/connectors: safe fetching, discovery, feed parsing, readable capture, OPML and
- * the connector catalog. Everything that touches a user-supplied URL goes through
+ * @purss/connectors: safe fetching, discovery, feed parsing, readable capture and OPML.
+ * Everything that touches a user-supplied URL goes through
  * safeFetch; nothing here executes uploaded code.
  */
 export * from "./addresses.ts";
@@ -9,7 +9,6 @@ export * from "./bridges.ts";
 export * from "./cadence.ts";
 export * from "./crossref.ts";
 export * from "./capture-quality.ts";
-export * from "./catalog.ts";
 export * from "./content-type.ts";
 export * from "./discover.ts";
 export { coreName } from "./feed-choice.ts";

@@ -4,7 +4,7 @@ Everything the product knows about FreshRSS lives here. The engine stays a black
 
 | Module | Purpose |
 | --- | --- |
-| `greader.ts` | typed client of the GReader API: ClientLogin, token, user-info, subscription list, quick-add, unsubscribe, rename, reading-list pages (continuation, lower bound), read/unread and star through edit-tag, unread count |
+| `greader.ts` | typed client of the GReader API: ClientLogin, token, user-info, subscription list, quick-add, unsubscribe, rename, reading-list pages (continuation, lower bound), read/unread through edit-tag, unread count |
 | `normalize.ts` | stream item → `SyncEntry` (`@purss/domain`); restores `& < >`, clamps fields to the contract, never invents a GUID |
 | `sync.ts` | forward, resumable, replay-safe walk with deterministic batch idempotency keys; engine-identity check |
 | `admin.ts` | fixed engine administration through `PURSS_ENGINE_EXEC` with structured arguments only (create user, set API password, list users, delete user, refresh, identity hash, archiving read, proxy and fetch-cache config) |

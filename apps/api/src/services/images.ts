@@ -14,7 +14,7 @@ import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
  * pictures in its text: the worker fetches them under the same address rules as every other fetch, and each is
  * stored whole in `item_images` and counted in the account's storage as an 'image' object. They belong to the item,
  * so an item in two baskets has one set, counted once; unkeeping it from one basket changes nothing, and from the
- * last it joins the readable copies of items no basket keeps (storage categories). Nothing is evicted to make room:
+ * last it stays, as the readable copy does. Nothing is evicted to make room:
  * a picture that does not fit is not stored, and the reader keeps showing the original address for it.
  *
  * Pictures that refuse to be shown on other sites (copyOnlyPicture: Instagram's) are shown from their stored copy or not at all.

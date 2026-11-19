@@ -7,7 +7,6 @@ import { EngineError } from "./errors.ts";
  */
 
 export const STATE_READ = "user/-/state/com.google/read";
-export const STATE_STARRED = "user/-/state/com.google/starred";
 export const READING_LIST = "user/-/state/com.google/reading-list";
 
 export type GReaderOptions = {
@@ -171,10 +170,6 @@ export class GReaderClient {
     await this.#editTag(externalIds, read ? { add: [STATE_READ] } : { remove: [STATE_READ] });
   }
 
-  async setStarred(externalIds: readonly string[], starred: boolean): Promise<void> {
-    await this.#editTag(externalIds, starred ? { add: [STATE_STARRED] } : { remove: [STATE_STARRED] });
-  }
-
   async unreadCount(): Promise<number> {
     const json = asRecord(await this.#json("GET", "/reader/api/0/unread-count", { query: { output: "json" } }), "unread-count");
     return typeof json.max === "number" ? json.max : 0;
@@ -192,7 +187,7 @@ export class GReaderClient {
     for (const a of change.add ?? []) form.append("a", a);
     for (const r of change.remove ?? []) form.append("r", r);
     const text = await this.#send("POST", "/reader/api/0/edit-tag", { form });
-    if (text.trim() !== "OK") throw new EngineError("protocol", "The engine did not confirm the read/star change.");
+    if (text.trim() !== "OK") throw new EngineError("protocol", "The engine did not confirm the read change.");
   }
 
   async #edit(fields: Record<string, string>): Promise<void> {

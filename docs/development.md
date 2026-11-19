@@ -78,7 +78,7 @@ works on realistic data, not when its own fixtures pass.
 | --- | --- | --- |
 | `npm run check` | Package manifests (named, private), the required README files and the pages in `docs`, every local Markdown link, then `tsc --noEmit` over the apps, packages, scripts and tests | Node 26 |
 | `npm test` | The tests next to the code, four files at a time: domain transitions and parsing, fetching and its address rules, API services and routes on a real SQLite database, worker handlers, the web app's logic, the extension, the packaging scripts. Hermetic: no network, containers or browser | Node 26 |
-| `npm run test:engine` | Contract tests of the FreshRSS boundary against the pinned engine container, one file at a time: provisioning, restart and replacement, every feed fetch going through the egress proxy and never directly, subscribing, entry paging, resume, upstream edits and late arrivals, read and star mirroring, one upstream fetch for many accounts, scheduled refresh, an interrupted first run, feeds too big for the engine through the feed gateway | podman, a few minutes |
+| `npm run test:engine` | Contract tests of the FreshRSS boundary against the pinned engine container, one file at a time: provisioning, restart and replacement, every feed fetch going through the egress proxy and never directly, subscribing, entry paging, resume, upstream edits and late arrivals, read mirroring, one upstream fetch for many accounts, scheduled refresh, an interrupted first run, feeds too big for the engine through the feed gateway | podman, a few minutes |
 | `npm run test:e2e` | Builds the web app and the extension, then drives Chromium: the core journey against the real stack (sign-up, passkey, two real public sources, every view, keeping with a readable-text capture, search, restart, sign-in again, an invited account that asks to be deleted), then hermetic journeys for offline reading, Home, right-to-left text, plan limits, connected apps, assistants signing in with OAuth, the player, the e-ink display, account email, sign-in with Google and the extension. Each journey is described in the [acceptance README](../tests/acceptance/README.md) | The core journey needs podman and network; all need Playwright's Chromium |
 
 The workflow that deploys `main` runs `check`, `test` and the build. `test:engine` and `test:e2e`
@@ -117,13 +117,12 @@ the back-catalogue and settling rules, Keep, bulk state changes, captures and no
 ([performance.test.ts](../apps/api/src/services/performance.test.ts)):
 
 - No query behind `GET /api/bootstrap` or the sync path reads a whole table to find rows.
-- The counts, the storage split, Home's queries and the default, title, kept-time and source orders
+- The counts, Home's queries and the default, title, kept-time and source orders
   plan as designed: a partial or covering index, or an ordered index read with no sort.
-- On a generated 20,000-item account the median storage split takes under 1 s and the bootstrap queries
-  under 1.5 s.
+- On a generated 20,000-item account the median bootstrap queries take under 1.5 s.
 
-`counts.test.ts`, `storage-split.test.ts` and `list-sort-keys.test.ts` in the same folder compare
-counts, totals, the storage split and the kept-time and source orders with the queries they replaced,
+`counts.test.ts` and `list-sort-keys.test.ts` in the same folder compare
+counts, totals and the kept-time and source orders with the queries they replaced,
 after random operations through every writer.
 
 No test asserts the response times the app is held to on the large account, so they are measured by
@@ -146,7 +145,7 @@ For a change to a journey, show that these still hold, with the tests that cover
 | Sync | Paging, resume after a crash between pages, replaying a committed page, upstream edits and late publications; batches sized in UTF-8 bytes, so Arabic and CJK pages stay under the body limit; accounts that follow one public feed cost one upstream request while each keeps only its own items | `packages/freshrss` sync tests, `apps/api` sync tests, `tests/engine` |
 | Identity | Entries of one account never import into another's sources; an upstream edit keeps the item and adds a version; a replacement engine is adopted only after its queue is reviewed, without duplicate items | `core.test.ts`, `reconcile.test.ts`, `item-numbers.test.ts`, `tests/engine` |
 | Workflow | A change made against a revision the item has moved past is refused or dropped with a plain message, never applied over the newer one; a bulk action or a keep gives one undo, and undo restores | `core.test.ts`, `state-change.test.ts`, `apps/web` outbox tests |
-| Baskets and storage | An item kept in several baskets is stored and counted once; a failed capture releases its reservation; a full quota pauses new items and captures while reading, keeping and deleting still work; an import that does not fit writes nothing | `core.test.ts`, `kept-pictures.test.ts`, `storage-split.test.ts`, `used-bytes.test.ts`, `portability.test.ts` |
+| Baskets and storage | An item kept in several baskets is stored and counted once; a failed capture releases its reservation; a full quota pauses new items and captures while reading, keeping and deleting still work; an import that does not fit writes nothing | `core.test.ts`, `kept-pictures.test.ts`, `used-bytes.test.ts`, `portability.test.ts` |
 | Lists and search | Full-dataset text and state combinations, stable pagination, workspace isolation | `search.test.ts`, `core.test.ts`, the size-guard tests above |
 | Accounts | One account never reads or changes another's items, sources or baskets; sign-in methods, recovery and account deletion | `core.test.ts` ("PURSSes are isolated"), `apps/api/src/auth` tests, deletion tests, the core journey |
 | Operations | Backup and restore on a real database (restore refuses a damaged or newer backup and leaves the target as it was), migrations on populated data, graceful shutdown with a job running, an interrupted first run | `backup.test.ts`, `migrations.test.ts`, `transactions.test.ts`, `apps/worker` runner tests, `tests/engine/resume.test.ts` |

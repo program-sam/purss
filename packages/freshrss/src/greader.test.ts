@@ -149,7 +149,7 @@ test("unsubscribe and rename; unknown streams are bad requests", async () => {
   });
 });
 
-test("mark read/unread and star use edit-tag with the action token and repeat the item parameter", async () => {
+test("mark read/unread uses edit-tag with the action token and repeat the item parameter", async () => {
   await withEngine(async (engine, client) => {
     engine.addFeed("https://example.org/a.xml", "A");
     const e1 = engine.addEntry({ id: 1_700_000_000_000_001n, feedId: 1, title: "a", content: "", link: "https://example.org/1" });
@@ -162,8 +162,6 @@ test("mark read/unread and star use edit-tag with the action token and repeat th
     assert.equal(e1.read && e2.read, true);
     await client.markRead([e1.id.toString()], false);
     assert.equal(e1.read, false);
-    await client.setStarred([e2.id.toString()], true);
-    assert.equal(e2.starred, true);
     await assert.rejects(client.markRead(["abc"], true), (e: unknown) => e instanceof EngineError && e.kind === "bad_request");
     await client.markRead([], true); // no request
   });

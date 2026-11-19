@@ -49,7 +49,7 @@ from the exact origin in `PURSS_PUBLIC_ORIGIN` (default `http://localhost:8940`)
 are tied to that host name.
 
 All state lives in `data/` (ignored by Git): `product.db`, `secrets/`, `engine/` (FreshRSS),
-`egress/` (gateway state and the bridge fetch log) and `backups/`. The server stores no audio or video files.
+`egress/` (the bridge fetch log) and `backups/`. The server stores no audio or video files.
 
 Local listeners, all on 127.0.0.1:
 
@@ -83,7 +83,7 @@ and runs:
 | `api` | Web app and API | internal, outside (plus the proxy network in proxy mode) |
 | `worker` | Background jobs | internal, outside |
 
-Volumes: `data` (product database, gateway state, bridge fetch log, backups), `secrets` (service
+Volumes: `data` (product database, bridge fetch log, backups), `secrets` (service
 token, engine helper token, bridge key, engine operator credentials, engine-user passwords, private source links, the setup code) and
 `engine-data` (FreshRSS). FreshRSS can read only its admin helper's token and its operator secret.
 
@@ -627,8 +627,7 @@ node apps/api/src/cli.ts test-email <address>
   its owner sign in and keep the account; once removal has started it is refused.
 - `reconcile-usage`: compares each account's storage ledger with its stored objects and reports
   differences without changing them; exits 1 if any differ. It also recounts the used-bytes
-  total the quota check reads (and the flags the storage summary reads) and corrects them if
-  they have drifted.
+  total the quota check reads and corrects it if it has drifted.
 - `test-email`: checks the mail server and sends a test message to the address, with the
   server's error code if it fails. Needs the same `PURSS_SMTP_*` and `PURSS_MAIL_FROM` settings as
   the API (under Compose, `exec api` has them).
@@ -764,7 +763,7 @@ for big feeds; change it only with `EGRESS_GATEWAY_ALIAS` or the gateway port).
 **Egress** (`apps/egress/src/config.ts`; table in the [egress README](../apps/egress/README.md)):
 `EGRESS_PROXY_HOST`/`_PORT` (`127.0.0.1`/8946), `EGRESS_GATEWAY_HOST`/`_PORT` (8947),
 `EGRESS_CONTROL_HOST`/`_PORT` (8949), `EGRESS_GATEWAY_ALIAS`, `EGRESS_INTERNAL_DESTINATIONS`,
-`EGRESS_GATEWAY_DB`, `EGRESS_SERVICE_TOKEN_FILE`, `EGRESS_TRIM_KEY_FILE`
+`EGRESS_SERVICE_TOKEN_FILE`, `EGRESS_TRIM_KEY_FILE`
 (`<data>/secrets/feed-trim-key`; without that file big feeds are not trimmed), `EGRESS_MAX_CONNECTIONS` (256),
 `EGRESS_CONNECT_TIMEOUT_MS` (10 s), `EGRESS_IDLE_TIMEOUT_MS` (30 s), `EGRESS_REQUEST_TIMEOUT_MS`
 (60 s), `EGRESS_MAX_RESPONSE_BYTES` (32 MiB), `EGRESS_MAX_REQUEST_BODY_BYTES` (1 MiB),

@@ -21,7 +21,7 @@ statements about real-world feeds (what a given publisher puts in `<guid>`) are 
 | Late-arriving entries | Get a new id at crawl time, so they appear after the walk position. |
 | Original GUID | **Not in the GReader stream.** Available only through the engine's own export CLI. |
 | Deletion / purge visibility | **None.** Entries just stop appearing; no tombstones, no enumeration. |
-| Read / star mirroring | Works, per entry id, both directions of the flag. Read state does not affect what the stream offers. |
+| Read mirroring | Works, per entry id, both directions of the flag. Read state does not affect what the stream offers. |
 | Scheduled refresh | Works through the container's cron. |
 | All fetches through an egress proxy | Works through global `curl_options`; fails closed when the proxy is down. |
 | Stable engine identity through the API | **Not available.** Derived through the administration channel from the instance salt. |
@@ -81,12 +81,11 @@ Nothing the plan needs is missing from the pinned version; the two real limits a
 | Retention policy | `config-user.custom.php` before user creation sets `archiving` (`keep_period P90D`, `keep_max 1000`, `keep_min 50`, no favourite/label/unread exemption) and `ttl_default 900`; new users inherit it. The purge rule (source): an entry is removed only if it is not among the newest `keep_min` by last-seen, was last seen before the feed's latest refresh, and is older than `keep_period` **or** beyond `keep_max`. Last-seen is updated while the feed still lists the entry, so the period applies to entries the feed has dropped. | Observed: effective values read back from the user's `config.php`. Purge itself not demonstrated. |
 | Coverage after an outage | Resuming sync only proves nothing newer is missing. Entries purged by the engine during an outage longer than `keep_period`, or by `keep_max` between syncs, are unrecoverable and invisible. | Source; surfaced as a documented limit |
 
-## Read, star
+## Read
 
 | Item | Result | Evidence |
 | --- | --- | --- |
 | Mark read / unread | `POST /reader/api/0/edit-tag` with `T`, repeated `i` (decimal ids), `a=` / `r=user/-/state/com.google/read`. Unknown ids are accepted silently (`OK`). Reflected in `unread-count` and in the stream filter `xt=user/-/state/com.google/read`. | Observed: "marking read and unread is reflected…" |
-| Star | Same call with `…/starred`; shows in the item's `categories`; independent of read. | Observed |
 | Effect on sync | None: read items are still offered by `stream/contents` (the product owns reading state). The product's mirroring is one-way (product → engine) via the `engine.mark_read` job. | Observed: "read state does not influence what sync offers" |
 | Labels | Basket membership is never mirrored to labels or stars. | Design |
 

@@ -6,13 +6,12 @@ import type { SyncEntry } from "@purss/domain";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { buildDataset } from "../../../../scripts/dataset.ts";
-import { categories, summary } from "./storage.ts";
+import { pausedReason } from "./storage.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket, createCollection, listBaskets, listCollections } from "./collections.ts";
 import { listSources } from "./sources.ts";
 import { insertItem, listItems, listTuning } from "./items.ts";
 import { keepItem } from "./state.ts";
-import { completeCapture } from "./captures.ts";
 import { getPreferences, setPreferences } from "./preferences.ts";
 import { homeOverview } from "./home.ts";
 import { mutedScan } from "./muted.ts";
@@ -77,7 +76,7 @@ function keptEntries(app: App, entries: SyncEntry[]): SyncEntry[] {
   return entries.filter((e) => e.url && urls.has(e.url));
 }
 
-test("the storage split, the bootstrap queries and the sync path never read a whole table to find rows", (t) => {
+test("the bootstrap queries and the sync path never read a whole table to find rows", (t) => {
   const { app, p, entries, cleanup } = populated();
   t.after(cleanup);
   const { seen: bootstrap } = recordQueries(app, () => {
@@ -85,10 +84,10 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
     listSources(app, p);
     listBaskets(app, p);
     getPreferences(app, p.workspaceId);
-    summary(app, p.accountId);
+    pausedReason(app, p.accountId);
     unreadCount(app, p.workspaceId);
   });
-  assert.ok(bootstrap.some((q) => q.sql.includes("stored_objects")) && bootstrap.some((q) => q.sql.includes("FROM items WHERE workspace_id")), "the recording saw the queries that matter");
+  assert.ok(bootstrap.some((q) => q.sql.includes("FROM items WHERE workspace_id")), "the recording saw the queries that matter");
 
   // The sync path's lookups: an upstream edit of a kept item, a new entry, and an entry for an item that is already there
   // without a mapping from this engine (as after an import) and is found by its link.
@@ -108,9 +107,8 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
   assert.deepEqual([result.accepted, result.updated, result.duplicates], [1, 1, 1], "an edit, a new item, and one matched by its link");
   assert.ok(sync.some((q) => /source_id = \? AND i\.url = \?/.test(q.sql)), "the lookup by source and link ran");
 
-  // The counting and storage queries must run the way they were designed, which "no scan" alone does not say: the
-  // counts read the rare rows from their partial index, the storage split reads one covering index and finds the pinned
-  // versions and kept copies by id (a planner left to itself walks every copy against every pinned one).
+  // The counting queries must run the way they were designed, which "no scan" alone does not say: the
+  // counts read the rare rows from their partial index.
   const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
   const designed = (pattern: RegExp, expected: RegExp, what: string) => {
     const hits = bootstrap.filter((q) => pattern.test(q.sql));
@@ -118,9 +116,6 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
     for (const q of hits) assert.ok(planOf(q).some((l) => expected.test(l)), `${what} should plan as ${expected}:\n${planOf(q).join("\n")}`);
   };
   designed(/FROM item_state\s+WHERE workspace_id = \? AND NOT \(workflow = 'new' AND fresh = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
-  designed(/GROUP BY kind, is_current/, /COVERING INDEX stored_objects_account/, "the storage split's totals");
-  designed(/CROSS JOIN stored_objects o ON o\.kind = 'item_version'/, /SEARCH o USING INDEX stored_objects_live/, "the pinned versions' lookup");
-  designed(/CROSS JOIN stored_objects o ON o\.kind IN \('capture', 'image'\)/, /SEARCH o USING INDEX stored_objects_item/, "the kept copies' and pictures' lookup");
 
   // A page in the default order or in title order is read from its index in order, with no sorting of the rest.
   for (const [sort, index] of [["newest", "items_ws_sortkey"], ["title", "items_ws_title"]] as const) {
@@ -142,41 +137,9 @@ test("the storage split, the bootstrap queries and the sync path never read a wh
   assert.deepEqual(found, []);
 });
 
-/** The same split worked out in plain code from the tables, one object at a time. */
-function splitInCode(app: App, accountId: string): { kept: number; feed: number; other: number } {
-  const keptVersions = new Set(app.db.all<{ v: string }>("SELECT version_id AS v FROM basket_items").map((r) => r.v));
-  const keptItems = new Set(app.db.all<{ i: string }>("SELECT item_id AS i FROM basket_items").map((r) => r.i));
-  const current = new Set(app.db.all<{ v: string }>("SELECT current_version_id AS v FROM items").map((r) => r.v));
-  const out = { kept: 0, feed: 0, other: 0 };
-  for (const o of app.db.all<{ kind: string; ref_id: string; item_id: string | null; bytes: number }>("SELECT kind, ref_id, item_id, bytes FROM stored_objects WHERE account_id = ? AND released_at IS NULL", accountId)) {
-    if ((o.kind === "item_version" && keptVersions.has(o.ref_id)) || (o.kind === "capture" && o.item_id !== null && keptItems.has(o.item_id))) out.kept += o.bytes;
-    else if ((o.kind === "item_version" && current.has(o.ref_id)) || (o.kind === "capture" && o.item_id !== null)) out.feed += o.bytes;
-    else out.other += o.bytes;
-  }
-  return out;
-}
-
-test("the storage split matches the objects, worked out independently, with kept, superseded and captured versions", (t) => {
-  const { app, p, entries, cleanup } = populated();
-  t.after(cleanup);
-  // Kept items whose original then changed upstream (a pinned old version and a new current one), a finished capture,
-  // an item with no basket, and the small state records.
-  const edited = keptEntries(app, entries).slice(0, 4).map((e) => ({ ...e, title: `${e.title} (edited)`, contentHtml: "<p>New text.</p>" }));
-  assert.equal(applySyncBatch(app, p.engineUserId, batch(edited)).updated, 4);
-  assert.ok(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_versions v WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.current_version_id = v.id)")!.n >= 4, "old versions stay pinned");
-  const capture = app.db.get<{ id: string }>("SELECT id FROM captures WHERE status = 'pending' LIMIT 1")!;
-  completeCapture(app, capture.id, { ok: true, title: "t", text: "readable text", html: "<p>readable text</p>", finalUrl: "https://example.org/x", bytes: 13 });
-  const now = categories(app, p.accountId);
-  assert.ok(now.kept > 0 && now.feed > 0 && now.other > 0, "all three groups are in play");
-  assert.deepEqual({ ...now }, splitInCode(app, p.accountId));
-  // Another account's objects never count.
-  const other = makeOwner(app, { admin: false });
-  assert.deepEqual({ ...categories(app, other.accountId) }, { kept: 0, feed: 0, other: 0 });
-});
-
 const DATA_ROOT = path.resolve(import.meta.dirname, "../../../../data");
 
-test("a generated 20,000-item account: the storage split and the bootstrap queries stay fast", { timeout: 600_000 }, (t) => {
+test("a generated 20,000-item account: the bootstrap queries stay fast", { timeout: 600_000 }, (t) => {
   mkdirSync(DATA_ROOT, { recursive: true });
   const dir = mkdtempSync(path.join(DATA_ROOT, "test-dataset-"));
   const data = buildDataset({ dir, accounts: 1, sources: 100, items: 20_000 });
@@ -194,17 +157,12 @@ test("a generated 20,000-item account: the storage split and the bootstrap queri
   };
 
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 20_000);
-  const split = categories(app, p.accountId);
-  assert.ok(split.kept > 0 && split.feed > 0 && split.other > 0);
-  // Without the index this scans every item for each of the 20 000 stored objects: tens of seconds.
-  const splitMs = median(() => categories(app, p.accountId));
-  assert.ok(splitMs < 1000, `the storage split took ${Math.round(splitMs)} ms`);
   const bootstrapMs = median(() => {
     listCollections(app, p);
     listSources(app, p);
     listBaskets(app, p);
     getPreferences(app, p.workspaceId);
-    summary(app, p.accountId);
+    pausedReason(app, p.accountId);
     unreadCount(app, p.workspaceId);
   });
   assert.ok(bootstrapMs < 1500, `the bootstrap queries took ${Math.round(bootstrapMs)} ms`);

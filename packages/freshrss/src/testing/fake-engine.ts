@@ -18,7 +18,6 @@ export type FakeEntry = {
   published?: number;
   lastModified: number; // seconds
   read?: boolean;
-  starred?: boolean;
   enclosures?: Array<{ href: string; type?: string; length?: number }>;
 };
 
@@ -181,11 +180,9 @@ export class FakeEngine {
         if (!ids.includes(e.id.toString())) continue;
         for (const a of form?.getAll("a") ?? []) {
           if (a.endsWith("/read")) e.read = true;
-          if (a.endsWith("/starred")) e.starred = true;
         }
         for (const r of form?.getAll("r") ?? []) {
           if (r.endsWith("/read")) e.read = false;
-          if (r.endsWith("/starred")) e.starred = false;
         }
       }
       return send(200, "OK", "text/plain");

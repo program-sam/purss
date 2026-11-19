@@ -143,6 +143,24 @@ test("only addresses signed with this installation's key are answered, and every
   }
 });
 
+test("the gateway listener serves /t/<signature>/<address> and nothing else", async () => {
+  const h = await harness(feedHandler(podcast(5)));
+  try {
+    for (const path of ["/", "/status", "/t", "/t/", "/feeds/feed-aaaaaaaa", "/gateway/feeds/feed-aaaaaaaa/ack", "/internal/jobs", "/api/session", "/admin", "/%2e%2e/etc/passwd", "/t/../status"]) {
+      const r = await h.get(path);
+      assert.equal(r.status, 404, path);
+      assert.equal(r.body, "Not found.\n");
+    }
+    for (const method of ["PUT", "DELETE", "PATCH", "OPTIONS"]) {
+      const r = await gatewayGet(h.egress.ports.gateway, trimRoutePath(KEY, h.url("/f")), { method });
+      assert.equal(r.status, 405, method);
+    }
+    assert.equal(h.upstream.requests.length, 0, "nothing was fetched");
+  } finally {
+    await h.stop();
+  }
+});
+
 test("an installation without the key answers no such address at all", async () => {
   const h = await harness(feedHandler(podcast(5)), { trimKey: null });
   try {

@@ -1,6 +1,6 @@
 import { statfsSync, statSync } from "node:fs";
 import { newId, CONTROL_HEADROOM_BYTES } from "@purss/domain";
-import type { StorageSummary, StoredObjectKind } from "@purss/domain";
+import type { StoredObjectKind } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 
@@ -160,10 +160,8 @@ export function admitObject(app: App, spec: ObjectSpec): string {
   const id = newId("obj");
   const now = nowIso();
   app.db.run(
-    // The item row is written before its version's object, so whether the version is current is known here.
-    `INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, is_current, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'item_version' AND EXISTS (SELECT 1 FROM items i WHERE i.current_version_id = ?) THEN 1 ELSE 0 END, ?)`,
-    id, spec.accountId, spec.workspaceId, spec.kind, spec.refId, spec.itemId ?? null, spec.sourceId ?? null, spec.bytes, spec.kind, spec.refId, now,
+    "INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, spec.accountId, spec.workspaceId, spec.kind, spec.refId, spec.itemId ?? null, spec.sourceId ?? null, spec.bytes, now,
   );
   app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     newId("use"), spec.accountId, `admit:${id}`, id, spec.bytes, spec.reason, now);
@@ -209,71 +207,14 @@ export function expireReservations(app: App): number {
   return app.db.run("UPDATE reservations SET released_at = ? WHERE settled_at IS NULL AND released_at IS NULL AND expires_at <= ?", now, now).changes;
 }
 
-/**
- * Put `stored_objects.is_current` right from the items, for one account or all, and say how many were wrong. The flag is
- * derived (a version is current when an item points at it) and the database keeps it up to date; this is the recount for
- * anything that ever slipped past.
- */
-export function recountCurrentFlags(app: App, accountId?: string): number {
-  const right = "CASE WHEN EXISTS (SELECT 1 FROM items i WHERE i.current_version_id = stored_objects.ref_id) THEN 1 ELSE 0 END";
-  return app.db.run(
-    `UPDATE stored_objects SET is_current = ${right} WHERE kind = 'item_version' AND released_at IS NULL${accountId ? " AND account_id = ?" : ""} AND is_current <> ${right}`,
-    ...(accountId ? [accountId] : [])).changes;
-}
-
-/**
- * Split an account's live objects into kept, feed and other, without looking at objects one by one:
- *  - kept: a version that a basket pins, and the readable copies and kept pictures of items a basket keeps;
- *  - feed: a version that is still its item's current version (`is_current`, which the database keeps up to date), and the
- *    readable copies of items no basket keeps;
- *  - other: everything else (the small state records, superseded versions nothing pins).
- * The account's objects are added up by kind and flag from one index; only the few pinned versions and kept copies are
- * looked up, and subtracted from the group they would otherwise be counted in. (CROSS JOIN fixes the order: start from
- * the pinned ones, then find their objects by id; left to itself the planner walks every readable copy against them.)
- */
-export function categories(app: App, accountId: string): { kept: number; feed: number; other: number } {
-  let versions = 0, currentVersions = 0, records = 0, captures = 0;
-  for (const g of app.db.all<{ kind: string; is_current: number; b: number }>(
-    "SELECT kind, is_current, SUM(bytes) AS b FROM stored_objects WHERE account_id = ? AND released_at IS NULL GROUP BY kind, is_current", accountId)) {
-    if (g.kind === "item_version") { versions += g.b; if (g.is_current) currentVersions += g.b; }
-    else if (g.kind === "capture" || g.kind === "image") captures += g.b; // readable copies and kept pictures go with their item
-    else records += g.b;
-  }
-  const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)?.id ?? null;
-  const pinned = workspaceId === null ? { b: 0, current: 0 } : app.db.get<{ b: number; current: number }>(
-    `SELECT COALESCE(SUM(o.bytes), 0) AS b, COALESCE(SUM(CASE WHEN o.is_current = 1 THEN o.bytes END), 0) AS current
-     FROM (SELECT DISTINCT version_id AS id FROM basket_items WHERE workspace_id = ?) k
-     CROSS JOIN stored_objects o ON o.kind = 'item_version' AND o.ref_id = k.id AND o.released_at IS NULL AND o.account_id = ?`, workspaceId, accountId)!;
-  const keptCopies = workspaceId === null ? 0 : app.db.get<{ b: number }>(
-    `SELECT COALESCE(SUM(o.bytes), 0) AS b
-     FROM (SELECT DISTINCT item_id AS id FROM basket_items WHERE workspace_id = ?) k
-     CROSS JOIN stored_objects o ON o.kind IN ('capture', 'image') AND o.item_id = k.id AND o.released_at IS NULL AND o.account_id = ?`, workspaceId, accountId)!.b;
-  // A readable copy or kept picture that belongs to no item is "other", whatever else holds.
-  const strayCopies = captures === 0 ? 0 : app.db.get<{ b: number }>(
-    "SELECT COALESCE(SUM(bytes), 0) AS b FROM stored_objects WHERE account_id = ? AND released_at IS NULL AND kind IN ('capture', 'image') AND item_id IS NULL", accountId)!.b;
-  return {
-    kept: pinned.b + keptCopies,
-    feed: currentVersions - pinned.current + (captures - strayCopies - keptCopies),
-    other: records + strayCopies + (versions - currentVersions) - (pinned.b - pinned.current),
-  };
-}
-
-export function summary(app: App, accountId: string): StorageSummary {
-  const cats = categories(app, accountId);
+/** What a person is told when their account's growth is paused (full allowance or full disk); null when it is not. */
+export function pausedReason(app: App, accountId: string): string | null {
   const paused = app.db.get<{ paused_reason: string | null }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", accountId)?.paused_reason ?? null;
-  return {
-    usedBytes: cats.kept + cats.feed + cats.other,
-    allocationBytes: allocation(app, accountId),
-    reservedBytes: reservedBytes(app, accountId),
-    categories: cats,
-    growthPaused: paused !== null,
-    pausedReason: paused === "quota"
-      ? app.config.mode === "hosted"
-        ? "Your storage allowance is full, so new items and copies are paused. Reading, organising and deleting still work."
-        : "This PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work."
-      : paused === "disk" ? "PURSS can't save new items and copies right now because there isn't enough free space." : null,
-    measuredAt: nowIso(),
-  };
+  return paused === "quota"
+    ? app.config.mode === "hosted"
+      ? "Your storage allowance is full, so new items and copies are paused. Reading, organising and deleting still work."
+      : "This PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work."
+    : paused === "disk" ? "PURSS can't save new items and copies right now because there isn't enough free space." : null;
 }
 
 /**

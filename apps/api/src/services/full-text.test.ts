@@ -8,7 +8,7 @@ import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
 import { changeState } from "./state.ts";
 import { deleteItemNow } from "./collections.ts";
-import { categories, reconcile, summary } from "./storage.ts";
+import { reconcile, reservedBytes, usedBytes } from "./storage.ts";
 import { AUTO_CAPTURE_SPACING_SECONDS, completeCapture } from "./captures.ts";
 import { followSource, getSource, patchSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
@@ -58,21 +58,20 @@ test("new items from a full-article source each get one readable-text capture, s
   }
 });
 
-test("the readable copy of a full-article item replaces the summary in the reader and counts as feed storage until kept", (t) => {
+test("the readable copy of a full-article item replaces the summary in the reader and counts toward the account's storage", (t) => {
   const { app, p, src, cleanup } = setup();
   t.after(cleanup);
   patchSource(app, p, src, { fullText: true });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const [item] = listItems(app, p, { scope: "all" }).items;
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", item!.id)!;
-  assert.equal(summary(app, p.accountId).reservedBytes, 0, "an optional copy holds no reservation");
-  const before = categories(app, p.accountId);
+  assert.equal(reservedBytes(app, p.accountId), 0, "an optional copy holds no reservation");
+  const before = usedBytes(app, p.accountId);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "The whole article about estuarine mudflats", html: "<p>The whole article about estuarine mudflats</p>", finalUrl: item!.url!, bytes: 40 }));
   assert.match(getItemDetail(app, p, item!.id).contentHtml ?? "", /whole article/);
   assert.equal(listItems(app, p, { scope: "all", q: "estuarine" }).total, 1, "the full text is searchable");
   const copyBytes = app.db.get<{ bytes: number }>("SELECT bytes FROM stored_objects WHERE kind = 'capture' AND ref_id = ? AND released_at IS NULL", cap.id)!.bytes;
-  const after = categories(app, p.accountId);
-  assert.deepEqual([after.feed - before.feed, after.kept - before.kept, after.other - before.other], [copyBytes, 0, 0], "an unkept item's copy counts as feed storage");
+  assert.equal(usedBytes(app, p.accountId) - before, copyBytes, "the copy counts toward the account's storage");
 
   assert.ok(deleteItemNow(app, p, item!.id)! > 0);
   assert.equal(app.db.get("SELECT 1 FROM captures WHERE item_id = ?", item!.id), undefined, "deleting the item deletes its copy");
@@ -128,7 +127,7 @@ test("optional copies never hold room the source's own items need", (t) => {
   assert.equal(applySyncBatch(app, p.engineUserId, batch([bulky(), bulky()])).accepted, 2);
   assert.equal(applySyncBatch(app, p.engineUserId, batch([bulky()])).accepted, 1, "copies waiting from an earlier batch don't block the next one");
   assert.equal(captureJobs(app).length, 3);
-  assert.equal(summary(app, p.accountId).reservedBytes, 0);
+  assert.equal(reservedBytes(app, p.accountId), 0);
   assert.equal(pausedReason(app, p), null);
 });
 
@@ -138,7 +137,7 @@ test("when the account is out of room no copy is queued, and a copy that no long
   patchSource(app, p, src, { fullText: true });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures")!;
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = ? WHERE account_id = ?", summary(app, p.accountId).usedBytes, p.accountId);
+  app.db.run("UPDATE storage_accounts SET allocation_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: null, text: "y".repeat(400), html: `<p>${"y".repeat(400)}</p>`, finalUrl: "https://example.org/y", bytes: 800 }));
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", cap.id)!.status, "failed");
   assert.equal(pausedReason(app, p), null, "an optional copy doesn't pause growth");

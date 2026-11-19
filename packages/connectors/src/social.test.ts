@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { connectorById } from "./catalog.ts";
 import { discover } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { normalizeInput } from "./input.ts";
@@ -295,14 +294,3 @@ test("Bluesky feed titles become the account's display name", () => {
   assert.equal(blueskyTitle(null, BSKY_DID), "Bluesky account");
 });
 
-test("the catalog lists both social connectors with their limits and no credentials", () => {
-  for (const id of ["fediverse-account", "bluesky-account"]) {
-    const c = connectorById(id);
-    assert.ok(c, id);
-    assert.equal(c.auth.needs, "none");
-    assert.equal(c.capabilities.feedGeneration, false);
-    assert.match(c.coverageLimits, /Public posts only/);
-    assert.match(c.coverageLimits, /stays in your PURSS/);
-  }
-  assert.deepEqual(connectorById("bluesky-account")!.permittedDomains, ["bsky.app"]);
-});

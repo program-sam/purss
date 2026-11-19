@@ -1,7 +1,21 @@
 import { escapeXml } from "@purss/connectors";
-import type { GatewayLimits, StagedEntry } from "./types.ts";
 
-/** RSS 2.0 serialisation of staged entries with stable GUIDs and bounded size. */
+/** RSS 2.0 serialisation of a bridged source's entries with stable GUIDs and bounded size. */
+
+export type FeedEntry = {
+  /** Stable identity within the feed, independent of tokens and display names. */
+  guid: string;
+  title: string;
+  url: string | null;
+  author?: string | null;
+  /** ISO 8601. */
+  publishedAt: string | null;
+  summaryHtml?: string | null;
+  contentHtml?: string | null;
+  imageUrl?: string | null;
+  enclosures?: { url: string; type: string | null; length: number | null }[];
+  categories?: string[];
+};
 
 export type FeedMeta = { title: string; siteUrl: string | null; description: string | null };
 
@@ -23,8 +37,8 @@ function rfc822(iso: string | null): string | null {
  * Bound one entry to the per-entry limit. Oversized content is dropped as a whole
  * rather than cut mid-markup, and the entry says so with a category.
  */
-export function boundEntry(entry: StagedEntry, limits: Pick<GatewayLimits, "maxEntryBytes">): { entry: StagedEntry; limited: boolean } {
-  const bounded: StagedEntry = {
+export function boundEntry(entry: FeedEntry, limits: { maxEntryBytes: number }): { entry: FeedEntry; limited: boolean } {
+  const bounded: FeedEntry = {
     guid: clipText(entry.guid, 500),
     title: clipText(entry.title, MAX_TITLE),
     url: entry.url ? clipText(entry.url, 4000) : null,
@@ -54,7 +68,7 @@ export function boundEntry(entry: StagedEntry, limits: Pick<GatewayLimits, "maxE
   return { entry: bounded, limited };
 }
 
-export function serializeItem(entry: StagedEntry, limited = false): string {
+export function serializeItem(entry: FeedEntry, limited = false): string {
   const parts: string[] = ["<item>"];
   parts.push(`<title>${escapeXml(entry.title || "Untitled")}</title>`);
   if (entry.url) parts.push(`<link>${escapeXml(entry.url)}</link>`);
@@ -79,9 +93,9 @@ export function serializeFeed(meta: FeedMeta, items: string[], now: Date): strin
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">',
     "<channel>",
-    `<title>${escapeXml(clipText(meta.title, MAX_TITLE) || "Private source")}</title>`,
+    `<title>${escapeXml(clipText(meta.title, MAX_TITLE))}</title>`,
     meta.siteUrl ? `<link>${escapeXml(meta.siteUrl)}</link>` : "",
-    `<description>${escapeXml(clipText(meta.description, 1000) || "Private feed")}</description>`,
+    `<description>${escapeXml(clipText(meta.description, 1000))}</description>`,
     `<lastBuildDate>${now.toUTCString()}</lastBuildDate>`,
   ];
   return `${head.filter(Boolean).join("\n")}\n${items.join("\n")}\n</channel>\n</rss>\n`;

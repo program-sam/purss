@@ -44,7 +44,6 @@ export type EgressConfig = {
    * gateway then answers no such address and the product follows a big feed no differently from before.
    */
   trimKey: string | null;
-  gatewayDbPath: string;
   internalDestinations: InternalDestination[];
   limits: {
     maxConnections: number;
@@ -195,7 +194,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
     dataDir,
     serviceToken: readSecret(tokenPath, "service token"),
     trimKey: readOptionalSecret(env.EGRESS_TRIM_KEY_FILE || join(dataDir, "secrets", "feed-trim-key"), "feed-trim key"),
-    gatewayDbPath: env.EGRESS_GATEWAY_DB || join(dataDir, "egress", "gateway.db"),
     internalDestinations,
     limits: {
       maxConnections: intEnv(env, "EGRESS_MAX_CONNECTIONS", 256, 1, 10_000),

@@ -25,7 +25,6 @@ test("defaults bind loopback ports 8946/8947/8949 and register the gateway as th
     assert.deepEqual(c.gateway, { host: "127.0.0.1", port: 8947 });
     assert.deepEqual(c.control, { host: "127.0.0.1", port: 8949 });
     assert.equal(c.serviceToken, TOKEN);
-    assert.equal(c.gatewayDbPath, join(dir, "egress", "gateway.db"));
     assert.deepEqual(c.internalDestinations, [{ host: "feed-gateway.internal", port: 8947, connectHost: "127.0.0.1", connectPort: 8947 }]);
     assert.equal(c.limits.maxResponseBytes, 32 * 1024 * 1024);
   });
@@ -79,7 +78,7 @@ test("internal destinations are exact name:port mappings to fixed IP addresses",
 test("no environment variable turns the address rules off", () => {
   withDataDir((dir) => {
     const c = loadConfig({ PURSS_DATA_DIR: dir, EGRESS_ALLOW_PRIVATE: "1", EGRESS_DISABLE_SSRF: "true", PURSS_ALLOW_PRIVATE_ADDRESSES: "1", EGRESS_ALLOW_ALL: "yes" }, "/");
-    assert.deepEqual(Object.keys(c).sort(), ["bridge", "control", "dataDir", "gateway", "gatewayDbPath", "internalDestinations", "limits", "proxy", "serviceToken", "trimKey"]);
+    assert.deepEqual(Object.keys(c).sort(), ["bridge", "control", "dataDir", "gateway", "internalDestinations", "limits", "proxy", "serviceToken", "trimKey"]);
     assert.equal(c.internalDestinations.length, 1);
   });
 });

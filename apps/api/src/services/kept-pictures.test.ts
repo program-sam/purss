@@ -10,7 +10,7 @@ import { completeCapture, failCapture, saveBrowserCapture } from "./captures.ts"
 import { expireLeases } from "./jobs.ts";
 import { settleFailedJob } from "./failures.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM, completeImages, pictureAddresses, queueItemImages } from "./images.ts";
-import { categories, reconcile, recountUsedBytes, summary, usedBytes } from "./storage.ts";
+import { pausedReason, reconcile, recountUsedBytes, usedBytes } from "./storage.ts";
 
 const PNG = (extra: number) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(extra, 7)]);
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
@@ -111,21 +111,17 @@ test("what the worker brings is stored once per picture and counted once: item i
   const bytes = 3 * PNG(1000).length;
   assert.deepEqual({ ...imageObjects(app) }, { n: 3, b: bytes });
   assert.equal(usedBytes(app, p.accountId) - before, bytes);
-  assert.equal(categories(app, p.accountId).kept >= bytes, true, "kept pictures are in Kept in baskets");
 
   // The same item in a second basket: nothing more is asked for or counted.
   keepItem(app, p, id, second);
   assert.equal(jobs(app).length, 1);
   assert.equal(imageObjects(app).b, bytes);
 
-  // Unkept from one basket: still kept. From the last: they stay, as the readable copy does, but are no longer "kept".
+  // Unkept from one basket: still kept. From the last: they stay, as the readable copy does.
   unkeepItem(app, p, id, text);
-  assert.ok(categories(app, p.accountId).kept >= bytes, "still in a basket: still kept");
   assert.equal(imageObjects(app).b, bytes, "nothing is released by unkeeping");
   unkeepItem(app, p, id, second);
   assert.equal(imageObjects(app).b, bytes, "nor from the last basket: nothing is silently dropped");
-  assert.ok(categories(app, p.accountId).feed >= bytes, "they join the feed's copies");
-  assert.equal(categories(app, p.accountId).kept, 0);
 
   // A repeated answer from the worker adds nothing; the ledger agrees with the pictures.
   app.db.tx(() => completeImages(app, { itemId: id, urls }, delivered(urls, PNG(1000))));
@@ -190,7 +186,7 @@ test("a picture that does not fit the storage left is not stored and does not pa
   const { urls } = jobs(app)[0]!;
   app.db.tx(() => completeImages(app, { itemId: id, urls }, delivered(urls, PNG(size))));
   assert.equal(stored(app, id).length, 2, "two fit, the third does not");
-  assert.equal(summary(app, p.accountId).growthPaused, false, "pictures are optional: no pause");
+  assert.equal(pausedReason(app, p.accountId), null, "pictures are optional: no pause");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items")!.n, 1, "the keep itself stands");
   assert.ok(usedBytes(app, p.accountId) <= 60_000);
 

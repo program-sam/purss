@@ -106,21 +106,14 @@ same transaction as the object.
 
 Each object is counted once. An item in three baskets has one version and one set of copies and pictures; each
 extra basket adds one pin record of about 120 bytes. Taking an item out of a basket releases its pin record and
-changes the other objects' category, not their size.
+leaves the other objects as they are.
 
 Not counted: the search indexes, source icons, the definitions of sources, collections and baskets,
 preferences, reminders, notifications, shared-page settings and public notes, sessions, jobs, logs, discovery
 data, FreshRSS's own copy of the feeds, and backups. The server's copy of a media file is not counted because
 there is none.
 
-### Kept, feed and other
-
-The server classifies each object once, in this order: *kept* if a basket pins it (a pinned version, and the
-readable copies and pictures of an item a basket holds); otherwise *feed* (a current version, and the copies and
-pictures of an unkept item); otherwise *other* (small records). The three add up to the total, and a change of
-category moves bytes between them without changing the total. The server computes this
-classification, but no page or endpoint shows it. The sidebar meter shows followed sources against the plan, and, where an allocation is
-set, the bytes used against it.
+The sidebar meter shows followed sources against the plan, and, where an allocation is set, the bytes used against it.
 
 ### Logical bytes and disk
 

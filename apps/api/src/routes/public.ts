@@ -37,7 +37,7 @@ import {
   listBaskets, listCollections, patchBasket, patchCollection,
 } from "../services/collections.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "../services/preferences.ts";
-import { summary } from "../services/storage.ts";
+import { pausedReason } from "../services/storage.ts";
 import { capacity } from "../services/plans.ts";
 import { listNotifications, markNotificationsRead, unreadCount } from "../services/notifications.ts";
 import { readIcon } from "../services/icons.ts";
@@ -423,7 +423,7 @@ export function publicRouter(): Router<Ctx> {
       baskets: listBaskets(ctx.app, p),
       preferences: getPreferences(ctx.app, p.workspaceId),
       capacity: capacity(ctx.app, p.accountId),
-      paused: summary(ctx.app, p.accountId).pausedReason,
+      paused: pausedReason(ctx.app, p.accountId),
       unreadNotifications: unreadCount(ctx.app, p.workspaceId),
       engine: {
         status: eu?.status === "ready" ? (cp?.last_error ? "unavailable" : "ok") : eu?.status === "error" ? "unavailable" : "starting",

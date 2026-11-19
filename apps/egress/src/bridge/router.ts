@@ -2,7 +2,7 @@ import http from "node:http";
 import { bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
 import type { BridgeService, FeedItem } from "@purss/connectors";
 import { boundEntry, serializeFeed, serializeItem } from "../gateway/rss.ts";
-import type { StagedEntry } from "../gateway/types.ts";
+import type { FeedEntry } from "../gateway/rss.ts";
 import type { BridgeLog, FetchOutcome, FetchPhase } from "./log.ts";
 
 /*
@@ -58,7 +58,7 @@ export const DEFAULT_ROUTER_LIMITS: RouterLimits = {
 export type RouterAnswer = { status: number; headers: Record<string, string>; body: string };
 
 type Good = { at: number; body: string; entries: number };
-type Asked = { phase: FetchPhase; outcome: FetchOutcome; entries?: StagedEntry[]; title?: string | null };
+type Asked = { phase: FetchPhase; outcome: FetchOutcome; entries?: FeedEntry[]; title?: string | null };
 type State = { good: Good | null; failure: { at: number; until: number; streak: number; outcome: FetchOutcome } | null };
 
 const XML = "application/rss+xml; charset=utf-8";
@@ -227,7 +227,7 @@ export class BridgeRouter {
     } catch {
       return { phase: "parse", outcome: "parse_error" };
     }
-    const entries: StagedEntry[] = [];
+    const entries: FeedEntry[] = [];
     let recognised = 0;
     for (const item of parsed.items) {
       const entry = this.#entry(service, key, item);
@@ -244,7 +244,7 @@ export class BridgeRouter {
     try { return service.excluded?.(key, new URL(item.url ?? "")) ?? false; } catch { return false; }
   }
 
-  #entry(service: BridgeService, key: string, item: FeedItem): StagedEntry | null {
+  #entry(service: BridgeService, key: string, item: FeedItem): FeedEntry | null {
     let link: URL;
     try { link = new URL(item.url ?? ""); } catch { return null; }
     const guid = service.postId(key, link);
@@ -267,7 +267,7 @@ export class BridgeRouter {
     };
   }
 
-  #render(service: BridgeService, key: string, title: string | null | undefined, entries: StagedEntry[]): string {
+  #render(service: BridgeService, key: string, title: string | null | undefined, entries: FeedEntry[]): string {
     const items = entries.map((e) => {
       const b = boundEntry(e, { maxEntryBytes: this.#limits.maxEntryBytes });
       return serializeItem(b.entry, b.limited);

@@ -30,7 +30,6 @@ This page lists the modules.
 | `lookUpPostPictures` (`bluesky.ts`) | The pictures of Bluesky posts, asked of Bluesky's public API through `safeFetch` for posts the feed already brought; never finds or adds a post. |
 | `searchPodcasts` (`podcast-search.ts`) | Apple's podcast directory by name; a hit is a feed address that discovery then previews like any other. |
 | `fetchPictures` (`pictures.ts`) | Pictures for a kept copy, through `safeFetch`, typed from their bytes (no SVG, no ICO), optionally shrunk to WebP at most 720 px wide. |
-| `connectorCatalog` | Declarative descriptors: native feed, YouTube channel resolver, fediverse account, Bluesky account. |
 
 The package also holds the pure helpers the others share: privacy redaction and credential-like URL
 heuristics (`privacy.ts`), frame policy of a page (`frame-policy.ts`), capture quality and consent-banner
@@ -58,6 +57,6 @@ feed lists only the most recent videos and never the full history. A social acco
 carries public posts only, and posts deleted upstream stay where they were collected; the
 preview says so. Discovery says "about 2 posts a week" from sample dates and never claims
 completeness; an empty feed is not proof that nothing was published. No connector needs
-credentials, and no proprietary service adapter exists.
+credentials.
 
 See also the [egress service](../../apps/egress/README.md) and [security](../../docs/security.md).

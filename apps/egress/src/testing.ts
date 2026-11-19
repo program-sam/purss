@@ -19,7 +19,6 @@ export function makeConfig(over: ConfigOverrides = {}): EgressConfig {
     dataDir: "/nonexistent",
     serviceToken: TOKEN,
     trimKey: null,
-    gatewayDbPath: ":memory:",
     internalDestinations: [],
     ...over,
     limits: {
@@ -120,15 +119,10 @@ export async function startEcho(): Promise<{ port: number; connections: number; 
 export type ControlReply = { status: number; json: any };
 
 /** `connect`: the address to connect to (default loopback); `host`: the Host header to send (default loopback on `port`). */
-export function control(port: number, method: string, path: string, opts: { body?: unknown; token?: string | null; host?: string; connect?: string } = {}): Promise<ControlReply> {
+export function control(port: number, method: string, path: string, opts: { token?: string | null; host?: string; connect?: string } = {}): Promise<ControlReply> {
   return new Promise((resolve, reject) => {
-    const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body);
     const headers: Record<string, string> = { host: opts.host ?? `127.0.0.1:${port}` };
     if (opts.token !== null) headers.authorization = `Bearer ${opts.token ?? TOKEN}`;
-    if (payload !== undefined) {
-      headers["content-type"] = "application/json";
-      headers["content-length"] = String(Buffer.byteLength(payload));
-    }
     const req = http.request({ host: opts.connect ?? "127.0.0.1", port, method, path, headers, agent: false }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
@@ -138,17 +132,15 @@ export function control(port: number, method: string, path: string, opts: { body
       });
     });
     req.on("error", reject);
-    req.end(payload);
+    req.end();
   });
 }
 
 export type GatewayReply = { status: number; headers: http.IncomingHttpHeaders; body: string };
 
-export function gatewayGet(port: number, path: string, opts: { user?: string; pass?: string; headers?: Record<string, string>; method?: string } = {}): Promise<GatewayReply> {
+export function gatewayGet(port: number, path: string, opts: { method?: string } = {}): Promise<GatewayReply> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = { ...opts.headers };
-    if (opts.user !== undefined) headers.authorization = `Basic ${Buffer.from(`${opts.user}:${opts.pass ?? ""}`).toString("base64")}`;
-    const req = http.request({ host: "127.0.0.1", port, method: opts.method ?? "GET", path, headers, agent: false }, (res) => {
+    const req = http.request({ host: "127.0.0.1", port, method: opts.method ?? "GET", path, agent: false }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));

@@ -3,7 +3,6 @@ import type { WorkflowState } from "./workflow.ts";
 import type { ItemKind, QueryNode, Sort } from "./query.ts";
 import { WORKFLOW_STATES } from "./workflow.ts";
 import { SORTS, queryNodeSchema } from "./query.ts";
-import type { StorageSummary } from "./storage.ts";
 import type { Capacity } from "./plans.ts";
 import type { TextRef } from "./annotations.ts";
 

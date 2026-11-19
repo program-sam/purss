@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { Database, migrate } from "./database.ts";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
+/** The storage ledger's columns that later migrations keep (072 drops is_current). */
+const LEDGER = "id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at, released_at";
 /** Triggers later migrations add (058 keeps the stored source titles current, 062 numbers items): the tests below about rebuilt tables leave them aside. */
 const SORT_KEY_TRIGGERS = new Set(["items_source_title_moved", "sources_title_changed", "items_number_given", "items_number_kept"]);
 
@@ -231,7 +233,13 @@ test("026 keeps every storage ledger row, its is_current flags and 022's trigger
       .filter((o) => !SORT_KEY_TRIGGERS.has(o.name));
     const before = db.all("SELECT * FROM stored_objects ORDER BY id");
     const schemaBefore = schema();
-    assert.equal(migrate(db), files.filter((f) => f >= "026").length);
+    // Up to 072, which drops the flag and its triggers.
+    for (const file of files.filter((f) => f >= "026" && f < "072")) {
+      db.tx(() => {
+        db.exec(readFileSync(path.join(DIR, file), "utf8"));
+        db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+      });
+    }
     assert.deepEqual(db.all(`SELECT ${Object.keys(before[0]!).join(", ")} FROM stored_objects ORDER BY id`), before, "rows survive the rebuild unchanged, is_current included");
     assert.deepEqual(schema(), schemaBefore, "022's indexes and triggers come back exactly");
     db.run("UPDATE items SET current_version_id = 'ver_2' WHERE id = 'itm_1'");
@@ -368,7 +376,8 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     const removed = new Set(["publications", "publication_items", "account_enrollment"]);
     // The posting rate behind the "busy" hint went with the Fewer share of Home (050), and the share of Home itself (052): owner decisions.
     // The setup permission and the single-use mark of recovery codes went with them (054).
-    const droppedColumns = new Set(["sources.posts_per_day", "sources.home_share", "sessions.setup_permission_expires_at", "sessions.setup_permission_used_at", "sign_in_methods.used_at"]);
+    // The flag of a stored version being current went with the storage breakdown nothing showed (072).
+    const droppedColumns = new Set(["sources.posts_per_day", "sources.home_share", "sessions.setup_permission_expires_at", "sessions.setup_permission_used_at", "sign_in_methods.used_at", "stored_objects.is_current"]);
     for (const t of removed) assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = ?", t), undefined, `${t} is gone`);
     for (const [t, b] of before) {
       if (removed.has(t)) continue;
@@ -380,7 +389,8 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
     }
     const after = new Map(objects().map((o) => [(o as { name: string }).name, o]));
     // Usernames went when the address became the sign-in (055), and with them the index that kept them unique.
-    const droppedIndexes = new Set(["sign_in_methods_username"]);
+    // The triggers that kept stored_objects.is_current went with it (072).
+    const droppedIndexes = new Set(["sign_in_methods_username", "items_current_version_changed", "items_current_version_removed"]);
     // 059 adds the expiry and size to the open reservations' index, so their sum is read from it alone.
     // 070 adds the item's source to the index of the states that are not the default, so the counts read it alone. 071 orders the date
     // indexes of items by the item's time in lists.
@@ -389,6 +399,8 @@ test("a populated database built from main's migrations (001-024) takes ours: ev
       item_state_rare: "CREATE INDEX item_state_rare ON item_state(workspace_id, workflow, fresh, source_id) WHERE NOT (workflow = 'new' AND fresh = 0)",
       items_ws_sortkey: "CREATE INDEX items_ws_sortkey ON items(workspace_id, listed_at DESC, id DESC)",
       items_source_sortkey: "CREATE INDEX items_source_sortkey ON items(workspace_id, source_id, listed_at DESC, id DESC)",
+      // 072 drops is_current from the account index.
+      stored_objects_account: "CREATE INDEX stored_objects_account ON stored_objects(account_id, released_at, kind, bytes)",
     };
     for (const o of objectsBefore) {
       const name = (o as { name: string }).name;
@@ -480,7 +492,7 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
               (SELECT used_bytes FROM storage_accounts WHERE account_id = ?1) AS used`, acc)! });
     assert.deepEqual([ledger("acc_1"), ledger("acc_2"), ledger("acc_3")], [
       { events: 6664, objects: 6664, used: 6664 }, { events: 1064, objects: 1064, used: 1064 }, { events: 10, objects: 10, used: 10 }], "before: the ledger, the objects and the total agree");
-    const others = { objects: db.all("SELECT * FROM stored_objects WHERE kind <> 'media' ORDER BY id"), released: db.get("SELECT * FROM stored_objects WHERE id = 'obj_m0'"),
+    const others = { objects: db.all(`SELECT ${LEDGER} FROM stored_objects WHERE kind <> 'media' ORDER BY id`), released: db.get(`SELECT ${LEDGER} FROM stored_objects WHERE id = 'obj_m0'`),
       jobs: db.all("SELECT * FROM jobs WHERE kind <> 'media.save' ORDER BY id"), playback: db.all("SELECT * FROM playback_positions"),
       reservations: db.all("SELECT * FROM reservations WHERE id <> 'rsv_open' ORDER BY id"), events: db.all("SELECT * FROM usage_events ORDER BY id"),
       sources: db.all("SELECT id, account_id, workspace_id, kind, title, origin, created_at FROM sources ORDER BY id"), items: db.all("SELECT * FROM items ORDER BY id") };
@@ -495,8 +507,8 @@ test("033 releases what was saved on the server: ledger, used bytes, open reserv
     assert.deepEqual(db.all<{ id: string }>("SELECT id FROM stored_objects WHERE kind = 'media' AND released_at IS NOT NULL ORDER BY id").map((r) => r.id), ["obj_m0", "obj_m1", "obj_m2", "obj_m3"], "released, not deleted: the history stays");
     assert.deepEqual(db.all<{ object_id: string; delta_bytes: number }>("SELECT object_id, delta_bytes FROM usage_events WHERE reason = 'saved media removed' ORDER BY object_id").map((r) => ({ ...r })),
       [{ object_id: "obj_m1", delta_bytes: -5000 }, { object_id: "obj_m2", delta_bytes: -700 }, { object_id: "obj_m3", delta_bytes: -1000 }], "one release event per file that was live; the one released earlier gets none");
-    assert.deepEqual(db.all("SELECT * FROM stored_objects WHERE kind <> 'media' ORDER BY id"), others.objects, "no other stored object changed");
-    assert.deepEqual(db.get("SELECT * FROM stored_objects WHERE id = 'obj_m0'"), others.released, "a file released earlier keeps its own release time");
+    assert.deepEqual(db.all(`SELECT ${LEDGER} FROM stored_objects WHERE kind <> 'media' ORDER BY id`), others.objects, "no other stored object changed");
+    assert.deepEqual(db.get(`SELECT ${LEDGER} FROM stored_objects WHERE id = 'obj_m0'`), others.released, "a file released earlier keeps its own release time");
     assert.deepEqual(db.all("SELECT * FROM usage_events WHERE reason <> 'saved media removed' ORDER BY id"), others.events, "the usage history is only added to");
     assert.equal(db.get<{ released_at: string | null }>("SELECT released_at FROM reservations WHERE id = 'rsv_open'")!.released_at !== null, true, "room reserved for a download is given back");
     assert.deepEqual(db.all("SELECT * FROM reservations WHERE id <> 'rsv_open' ORDER BY id"), others.reservations, "other reservations, settled ones included, stay");
@@ -529,12 +541,18 @@ test("035 keeps every stored object, its indexes and triggers while teaching the
     db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, text, html, created_at, completed_at) VALUES ('cap_1', 'wsp_1', 'itm_1', 'fulltext', 'done', 'Text', '<p>Text</p>', '2026-01-01T00:00:00.000Z', '2026-01-01T00:01:00.000Z')");
     db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at) VALUES ('obj_1', 'acc_1', 'wsp_1', 'capture', 'cap_1', 'itm_1', 40, 'x')");
     db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at, released_at) VALUES ('obj_2', 'acc_1', 'wsp_1', 'media', 'med_1', 'itm_1', 9, 'x', 'y')");
-    const objects = () => db.all("SELECT * FROM stored_objects ORDER BY id");
+    const objects = () => db.all(`SELECT ${LEDGER} FROM stored_objects ORDER BY id`);
     const before = objects();
     const schema = () => db.all<{ type: string; name: string; sql: string }>("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND (tbl_name = 'stored_objects' OR (type = 'trigger' AND tbl_name = 'items')) ORDER BY name")
       .filter((o) => !SORT_KEY_TRIGGERS.has(o.name));
     const schemaBefore = schema();
-    assert.equal(migrate(db), files.filter((f) => f >= "035").length);
+    // Up to 072, which drops is_current and its triggers.
+    for (const file of files.filter((f) => f >= "035" && f < "072")) {
+      db.tx(() => {
+        db.exec(readFileSync(path.join(DIR, file), "utf8"));
+        db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+      });
+    }
 
     assert.deepEqual(objects(), before, "every object survives the rebuild unchanged");
     assert.deepEqual(db.all("SELECT * FROM captures").map((c) => [(c as { quality: unknown }).quality, (c as { partial_reason: unknown }).partial_reason]), [[null, null]], "an earlier capture is not checked until the app checks it");
@@ -553,7 +571,7 @@ test("035 keeps every stored object, its indexes and triggers while teaching the
     assert.throws(() => db.run("INSERT INTO item_images (id, item_id, workspace_id, url, role, content_type, bytes, sha256, data, created_at) VALUES ('img_3', 'itm_1', 'wsp_1', 'https://p.example/3.png', 'banner', 'image/png', 3, 'x', x'010203', 'x')"), /CHECK/);
     assert.deepEqual(db.all("PRAGMA foreign_key_check"), []);
     assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
-    assert.equal(migrate(db), 0);
+    assert.equal(migrate(db), files.filter((f) => f >= "072").length, "the rest apply on top");
   } finally {
     db.close();
   }
@@ -1039,6 +1057,41 @@ test("071 lists a feed post that came after its source was followed at its arriv
     assert.match(home, /items_ws_sortkey/);
     assert.doesNotMatch(home, /TEMP B-TREE/, "a page is read in order from the index");
     assert.doesNotMatch(plan("SELECT id FROM items i WHERE workspace_id = 'ws_1' AND source_id = 'src_feed' ORDER BY i.listed_at DESC, i.id DESC LIMIT 5"), /TEMP B-TREE/);
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
+
+test("072 drops stored_objects.is_current and its triggers, keeps every ledger row, and the storage sums still read the account index", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "072")) {
+      db.tx(() => db.exec(readFileSync(path.join(DIR, file), "utf8")));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    const at = "2026-01-01T00:00:00.000Z";
+    db.run("INSERT INTO accounts (id, created_at) VALUES ('acc_1', ?)", at);
+    db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('wsp_1', 'acc_1', ?)", at);
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.run("INSERT INTO items (id, account_id, workspace_id, kind, title, discovered_at, current_version_id, created_at, updated_at) VALUES ('itm_1', 'acc_1', 'wsp_1', 'article', 't', ?, 'ver_1', ?, ?)", at, at, at);
+    db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at, is_current) VALUES ('obj_v1', 'acc_1', 'wsp_1', 'item_version', 'ver_1', 'itm_1', 30, ?, 1), ('obj_c1', 'acc_1', 'wsp_1', 'capture', 'cap_1', 'itm_1', 900, ?, 0)", at, at);
+    db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, bytes, created_at, released_at) VALUES ('obj_old', 'acc_1', 'wsp_1', 'record', 'state:x', NULL, 64, ?, ?)", at, at);
+    db.exec("PRAGMA foreign_keys = ON");
+    const cols = "id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at, released_at";
+    const before = db.all(`SELECT ${cols} FROM stored_objects ORDER BY id`);
+
+    assert.equal(migrate(db), files.filter((f) => f >= "072").length);
+    assert.deepEqual(db.all(`SELECT ${cols} FROM stored_objects ORDER BY id`), before, "every ledger row as it was");
+    assert.ok(!db.all<{ name: string }>("SELECT name FROM pragma_table_info('stored_objects')").some((c) => c.name === "is_current"));
+    assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name IN ('items_current_version_changed', 'items_current_version_removed')"), undefined);
+    db.run("UPDATE items SET current_version_id = 'ver_2' WHERE id = 'itm_1'"); // no trigger touches the ledger any more
+    db.run("DELETE FROM items WHERE id = 'itm_1'");
+    const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT COALESCE(SUM(bytes), 0) FROM stored_objects WHERE account_id = 'acc_1' AND released_at IS NULL AND kind = 'capture'").map((r) => r.detail).join(" ");
+    assert.match(plan, /COVERING INDEX stored_objects_account/, "a storage sum reads the index alone");
+    assert.equal(db.get<{ integrity_check: string }>("PRAGMA integrity_check")?.integrity_check, "ok");
     assert.equal(migrate(db), 0, "it doesn't run twice");
   } finally {
     db.close();

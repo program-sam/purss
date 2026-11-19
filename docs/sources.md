@@ -146,15 +146,6 @@ Crossref](#journals-and-crossref)). Failed lookups are counted per site and reas
 administrator, with the site's registrable domain only and kept 180 days
 (`discovery_misses`).
 
-## Connector catalogue
-
-`connectorCatalog` (`packages/connectors/src/catalog.ts`) describes the source kinds as
-frozen data: a stable id, source types, capabilities, permitted domains, authentication (always
-none), coverage limits, rate limits and health codes. Discovery, feed generation, content
-extraction and media playback are separate capabilities, so a YouTube channel resolver is not
-an account importer. Four kinds exist: a website or feed, a YouTube channel or playlist, a
-fediverse account and a Bluesky account. Nothing is loaded from the catalogue as code.
-
 ## Social accounts
 
 Inbound only, and FreshRSS stays the fetcher: discovery turns what was pasted into the

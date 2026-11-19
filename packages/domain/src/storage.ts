@@ -10,16 +10,6 @@
 export const STORED_OBJECT_KINDS = ["item_version", "capture", "record", "image"] as const;
 export type StoredObjectKind = (typeof STORED_OBJECT_KINDS)[number];
 
-/** Each object is classified once: Basket-kept beats Feed-only beats Other. */
-export const STORAGE_CATEGORIES = ["kept", "feed", "other"] as const;
-export type StorageCategory = (typeof STORAGE_CATEGORIES)[number];
-
-export const STORAGE_CATEGORY_LABELS: Record<StorageCategory, string> = {
-  kept: "Kept in baskets",
-  feed: "Feed items you haven't kept",
-  other: "Other account data",
-};
-
 export function measureBytes(fields: Record<string, unknown>): number {
   const keys = Object.keys(fields).sort();
   const canonical: Record<string, unknown> = {};
@@ -29,13 +19,3 @@ export function measureBytes(fields: Record<string, unknown>): number {
 
 /** Small writes (workflow, progress, a basket pin of an existing item) may exceed a full quota by at most this much. */
 export const CONTROL_HEADROOM_BYTES = 2 * 1024 * 1024;
-
-export type StorageSummary = {
-  usedBytes: number;
-  allocationBytes: number | null;
-  reservedBytes: number;
-  categories: Record<StorageCategory, number>;
-  growthPaused: boolean;
-  pausedReason: string | null;
-  measuredAt: string;
-};

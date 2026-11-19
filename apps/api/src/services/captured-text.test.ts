@@ -5,7 +5,7 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
-import { categories, reconcile } from "./storage.ts";
+import { reconcile, usedBytes } from "./storage.ts";
 import { completeCapture, failCapture, queueCapture, retryCapture, startCaptureCheck, stepCaptureCheck } from "./captures.ts";
 import { runProblemCheck } from "./notifications.ts";
 import { compileQuery } from "./items.ts";
@@ -123,7 +123,7 @@ test("a partial capture does not set the reading time or pollute search, and doe
   const where = compileQuery({ field: "capture", value: ["fulltext"] }, params, p.workspaceId);
   assert.equal(app.db.get(`SELECT 1 FROM items i WHERE i.id = ? AND ${where}`, itemId), undefined, "not the full text");
   // It is still stored, and counted: nothing is dropped silently.
-  assert.ok(categories(app, p.accountId).feed > esurf.length / 2);
+  assert.ok(usedBytes(app, p.accountId) > esurf.length / 2);
 });
 
 test("copies saved before the check are checked at start-up, and a fresh database has nothing to check", async (t) => {

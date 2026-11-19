@@ -112,7 +112,7 @@ proxy as their only way out, and removes them afterwards. A run takes about six 
 includes one scheduled-refresh wait and several container starts.
 
 - `tests/engine/engine.test.ts`: provisioning, egress enforcement, subscription management, paging, incremental sync, edits, late
-  arrivals, removal, read/star mirroring, scheduled refresh, GUID export, engine identity.
+  arrivals, removal, read mirroring, scheduled refresh, GUID export, engine identity.
 - `tests/engine/resume.test.ts`: interrupted first runs and repeated `up`.
 
 It does not exercise the real `apps/egress` proxy, so HTTPS (`CONNECT`) through the proxy is untested here.

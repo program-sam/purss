@@ -951,11 +951,9 @@ function ledgerInsert(app: App, p: Principal, spec: { kind: "item_version" | "ca
   // transaction), so each object is recorded without repeating the usage check.
   const id = newId("obj");
   const at = nowIso();
-  // The item rows are written before their versions' objects, so whether a version is current is known here.
   app.db.run(
-    `INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, is_current, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'item_version' AND EXISTS (SELECT 1 FROM items i WHERE i.current_version_id = ?) THEN 1 ELSE 0 END, ?)`,
-    id, p.accountId, p.workspaceId, spec.kind, spec.refId, spec.itemId, spec.sourceId, spec.bytes, spec.kind, spec.refId, at);
+    "INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, p.accountId, p.workspaceId, spec.kind, spec.refId, spec.itemId, spec.sourceId, spec.bytes, at);
   app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     newId("use"), p.accountId, `admit:${id}`, id, spec.bytes, "import", at);
   addUsedBytes(app, p.accountId, spec.bytes);

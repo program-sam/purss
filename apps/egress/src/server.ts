@@ -12,24 +12,14 @@ import type { EgressConfig } from "./config.ts";
 import { createControlServer, loopbackHosts } from "./control.ts";
 import { createDnsServer } from "./dns.ts";
 import { createGatewayServer } from "./gateway/http.ts";
-import { GatewayService } from "./gateway/service.ts";
 import { TrimService } from "./gateway/trim-service.ts";
 import type { TrimServeOptions } from "./gateway/trim-service.ts";
-import type { GatewayAdapter } from "./gateway/types.ts";
 import { createProxyServer } from "./proxy.ts";
 import type { Logger } from "./proxy.ts";
 import { EgressStats } from "./stats.ts";
 
-/**
- * Source adapters registered in the running service. None is approved in this build,
- * so the gateway can store credentials and serve staged feeds but cannot create feeds
- * for any connector. Tests pass their own registry explicitly.
- */
-export const PRODUCTION_ADAPTERS: readonly GatewayAdapter[] = Object.freeze([]);
-
 export type StartDeps = {
   log?: Logger;
-  adapters?: readonly GatewayAdapter[];
   /** TEST ONLY, in-process: let the proxy reach local upstream servers. */
   testAllowAddress?: (ip: string) => boolean;
   /** TEST ONLY, in-process DNS stand-in. */
@@ -44,7 +34,6 @@ export type StartDeps = {
 export type RunningEgress = {
   ports: { proxy: number; gateway: number; control: number; bridge: number | null };
   stats: EgressStats;
-  gateway: GatewayService;
   /** The trimming of big feeds; null when this installation has no feed-trim key. */
   trim: TrimService | null;
   bridgeLog: BridgeLog | null;
@@ -70,11 +59,6 @@ function close(server: http.Server): Promise<void> {
 
 export async function startEgress(config: EgressConfig, deps: StartDeps = {}): Promise<RunningEgress> {
   const stats = new EgressStats(deps.now);
-  if (config.gatewayDbPath !== ":memory:") {
-    mkdirSync(dirname(config.gatewayDbPath), { recursive: true, mode: 0o700 });
-  }
-  const gateway = new GatewayService({ path: config.gatewayDbPath, adapters: deps.adapters ?? PRODUCTION_ADAPTERS, now: deps.now });
-  if (config.gatewayDbPath !== ":memory:") chmodSync(config.gatewayDbPath, 0o600);
 
   let bridgeLog: BridgeLog | null = null;
   let bridgeServer: http.Server | null = null;
@@ -95,7 +79,6 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
   const dns = bridgeNet ? createDnsServer({ log: deps.log }) : null;
   let dnsBound = false;
   const closeAll = () => {
-    gateway.close();
     bridgeLog?.close();
     if (dnsBound) dns?.close();
   };
@@ -103,12 +86,12 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
   const trim = config.trimKey
     ? new TrimService({ secret: config.trimKey, log: deps.log, now: deps.now, limits: deps.trimLimits, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver })
     : null;
-  const gatewayServer = createGatewayServer(gateway, { log: deps.log, now: deps.now, trim });
+  const gatewayServer = createGatewayServer({ log: deps.log, trim });
   // The API reaches the listener at the address it is bound to (a private one in Compose), so a request addressed there is the
   // listener's own; any other name is refused.
   const controlHost = config.control.host.includes(":") ? `[${config.control.host.toLowerCase()}]` : config.control.host.toLowerCase();
   const control = createControlServer({
-    token: config.serviceToken, stats, gateway, bridgeLog, log: deps.log,
+    token: config.serviceToken, stats, bridgeLog, log: deps.log,
     allowedHosts: (port) => [...loopbackHosts(port), `${controlHost}:${port}`],
   });
   const started: http.Server[] = [];
@@ -141,7 +124,6 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
     return {
       ports: { proxy: proxyPort, gateway: gatewayPort, control: controlPort, bridge: bridgePort },
       stats,
-      gateway,
       trim,
       bridgeLog,
       stop: async () => {
