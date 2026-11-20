@@ -223,7 +223,7 @@ test("a Springer journal's search feed is named after the journal its first arti
     [work]: json(work, { message: { publisher: "Springer Science and Business Media LLC", "container-title": ["Journal of Materials Science"], ISSN: ["0022-2461", "1573-4803"] } }),
   });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Materials Science", feedUrl, "Springer Nature journal"]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Materials Science", feedUrl, copy.journals.origin("Springer Nature")]]);
   // Linked from a society's page, the journal is named the same way.
   const society = "https://society.example.org/journal";
   const linked = stub({
@@ -234,7 +234,7 @@ test("a Springer journal's search feed is named after the journal its first arti
   assert.equal(ok(await discover(society, { fetch: linked.fetch, now: NOW })).candidates[0]!.title, "Journal of Materials Science");
   // Crossref not answering: named for what it is, never "Latest Results".
   const down = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"), [work]: fakeResponse(work, "busy", "text/plain", 503) });
-  assert.equal(ok(await discover(pageUrl, { fetch: down.fetch, now: NOW })).candidates[0]!.title, "Springer Nature journal");
+  assert.equal(ok(await discover(pageUrl, { fetch: down.fetch, now: NOW })).candidates[0]!.title, copy.journals.origin("Springer Nature"));
   assert.equal(doiFromArticleUrl(new URL("https://www.journals.sagepub.com/doi/10.1177/09567976261490829")), "10.1177/09567976261490829");
 });
 
@@ -557,8 +557,8 @@ test("an MDPI journal page: the journal's own feed, chosen, and MDPI's feed of a
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [journalFeedUrl]: feed(journalFeedUrl, "Sensors"), [all]: feed(all, "MDPI Publishing") });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.note ?? null]), [
-    ["Sensors", journalFeedUrl, "Articles feed", null],
-    ["MDPI Publishing", all, "Whole site feed", WHOLE_SITE_NOTE],
+    ["Sensors", journalFeedUrl, copy.labels.articlesFeed, null],
+    ["MDPI Publishing", all, copy.labels.wholeSiteFeed, WHOLE_SITE_NOTE],
   ]);
   assert.ok(d.candidates.every((c) => c.matchesPage === undefined), "nothing claims the page, so the first (the journal's own feed) starts out chosen");
 });
