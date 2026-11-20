@@ -546,3 +546,16 @@ test("Project MUSE: a journal's articles and its issues, two feeds with nothing 
   const d = ok(await discover("https://muse.jhu.edu/journal/10", { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["Anthropological Quarterly", "Articles feed", null], ["Anthropological Quarterly", "Issues feed", ISSUES_NOTE]]);
 });
+
+test("an MDPI journal page: the journal's own feed, chosen, and MDPI's feed of all its journals after it, labelled as the whole site's", async () => {
+  const pageUrl = "https://www.mdpi.com/journal/sensors";
+  const journalFeedUrl = "https://www.mdpi.com/rss/journal/sensors";
+  const all = "https://www.mdpi.com/rss";
+  const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [journalFeedUrl]: feed(journalFeedUrl, "Sensors"), [all]: feed(all, "MDPI Publishing") });
+  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.note ?? null]), [
+    ["Sensors", journalFeedUrl, "Articles feed", null],
+    ["MDPI Publishing", all, "Whole site feed", WHOLE_SITE_NOTE],
+  ]);
+  assert.ok(d.candidates.every((c) => c.matchesPage === undefined), "nothing claims the page, so the first (the journal's own feed) starts out chosen");
+});

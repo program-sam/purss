@@ -201,8 +201,11 @@ export function journalFeedsFor(ref: Exclude<JournalRef, { platform: "sciencedir
     case "springer":
       // The feed of a search within the journal; it names itself "Latest Results", so the journal's name comes from Crossref.
       return [{ ...journalFeed("springer", `https://link.springer.com/search.rss?facet-journal-id=${ref.id}&search-within=Journal&query=`), nameFromDoi: true }];
-    case "mdpi":
-      return [journalFeed("mdpi", `https://www.mdpi.com/rss/journal/${ref.id}`)];
+    case "mdpi": {
+      // MDPI's own feed of every journal's new articles comes after the journal's, as the whole site's (not chosen first).
+      const main = journalFeed("mdpi", `https://www.mdpi.com/rss/journal/${ref.id}`);
+      return [main, { feedUrl: "https://www.mdpi.com/rss", origin: main.origin, needsItems: true }];
+    }
     case "plos":
       return [journalFeed("plos", `https://journals.plos.org/${ref.id}/feed/atom`)];
     case "frontiers":
