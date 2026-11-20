@@ -7,6 +7,8 @@
  * question for the owner; this is the conservative default.
  */
 
+import { common } from "@purss/copy/common";
+
 export type WorkspaceAddress = { ok: true; origin: string; unencrypted: boolean } | { ok: false; message: string };
 
 /** Names that only resolve on a local network (RFC 6762 .local, RFC 8375 .home.arpa, and common private ones). */
@@ -57,26 +59,26 @@ export function isLocalNetworkHost(hostname: string): boolean {
  */
 export function parseWorkspaceAddress(input: string): WorkspaceAddress {
   const raw = input.trim();
-  if (!raw) return { ok: false, message: "Enter your PURSS's address." };
+  if (!raw) return { ok: false, message: common.workspaceAddress.empty };
   let url: URL;
   try {
     const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
     url = new URL(hasScheme ? raw : `https://${raw}`);
     if (!hasScheme && isLocalNetworkHost(url.hostname)) url = new URL(`http://${raw}`);
   } catch {
-    return { ok: false, message: "That doesn't look like a web address." };
+    return { ok: false, message: common.workspaceAddress.notWebAddress };
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return { ok: false, message: "Use the address you open the PURSS at, starting with https://." };
-  if (!url.hostname) return { ok: false, message: "That doesn't look like a web address." };
-  if (url.username || url.password) return { ok: false, message: "Leave the user name and password out of the address." };
+  if (url.protocol !== "https:" && url.protocol !== "http:") return { ok: false, message: common.workspaceAddress.notHttps };
+  if (!url.hostname) return { ok: false, message: common.workspaceAddress.notWebAddress };
+  if (url.username || url.password) return { ok: false, message: common.workspaceAddress.hasLogin };
   if (url.protocol === "http:" && !isLocalNetworkHost(url.hostname)) {
-    return { ok: false, message: "This address isn't encrypted (http). Use https://, or an address on this device or your local network." };
+    return { ok: false, message: common.workspaceAddress.unencryptedRefused };
   }
   return { ok: true, origin: url.origin, unencrypted: url.protocol === "http:" && !isLoopbackHost(url.hostname) };
 }
 
 /** What the apps and the extension say about an unencrypted PURSS address. */
-export const UNENCRYPTED_NOTE = "This address isn't encrypted (http), so anyone on your network can read what is sent. Use it only on a network you trust.";
+export const UNENCRYPTED_NOTE = common.workspaceAddress.unencryptedNote;
 
 export type ServerChoice = { kind: "official"; origin: string } | { kind: "other"; address: string };
 

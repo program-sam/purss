@@ -11,6 +11,7 @@ import { addDays, localDate, validTimezone } from "./reminders.ts";
 import { boxesBySource } from "./home.ts";
 import { settledCopy } from "./capture-state.ts";
 import type { BoxLink } from "./home.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Notifications. One place decides who is told what, when:
@@ -39,7 +40,7 @@ type Sourcey = { id: string; title: string; is_private: number; notify: string }
  */
 function boxesFor(prefs: Preferences, boxes: BoxLink[] | undefined, homeOther: boolean): { id: string; name: string }[] {
   const chosen = prefs.notifications.include.newItems;
-  if (!boxes?.length) return (chosen === "all" ? homeOther : chosen.includes(OTHER_BOX_ID)) ? [{ id: OTHER_BOX_ID, name: "Other sources" }] : [];
+  if (!boxes?.length) return (chosen === "all" ? homeOther : chosen.includes(OTHER_BOX_ID)) ? [{ id: OTHER_BOX_ID, name: server.api.shared.otherSources }] : [];
   if (chosen === "all") return boxes.filter((b) => b.home);
   return boxes.filter((b) => chosen.includes(b.id));
 }
@@ -69,7 +70,7 @@ export function notifyArrivals(app: App, workspaceId: string, perSource: [string
   if (changed) emit(app, account.account_id, { type: "notification" });
 }
 
-const arrivalTitle = (title: string, count: number) => (count === 1 ? `New from ${title}` : `${count} new from ${title}`);
+const arrivalTitle = (title: string, count: number) => (count === 1 ? server.api.notifications.newFrom(title) : server.api.notifications.newCountFrom(count, title));
 
 /** One new item opens that item; several open their source. */
 function upsertArrival(app: App, workspaceId: string, s: Sourcey, count: number, latest: string | null, newestId: string | null): number {
@@ -140,27 +141,25 @@ export function digestFor(app: App, workspaceId: string, window: DigestWindow): 
   return { window, total, boxes: list };
 }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 /** How many boxes a digest lists; the rest are "and N more". */
 const DIGEST_BOXES = 8;
 
 /** The one notification a digest becomes: "Your daily digest: 54 new in 4 collections", with a line per collection. */
 export function digestText(d: Digest, kind: "daily" | "weekly"): { title: string; body: string } {
-  const where = d.boxes.length === 1 && d.boxes[0]!.id === OTHER_BOX_ID ? "your other sources" : plural(d.boxes.length, "collection");
-  const lines = d.boxes.slice(0, DIGEST_BOXES).map((b) => `${b.name}: ${b.count} new${b.titles.length ? ` · ${b.titles.map((t) => `“${t}”`).join(", ")}` : ""}`);
-  if (d.boxes.length > DIGEST_BOXES) lines.push(`and ${d.boxes.length - DIGEST_BOXES} more`);
-  return { title: `Your ${kind} digest: ${d.total} new in ${where}`, body: lines.join("\n") };
+  const where = d.boxes.length === 1 && d.boxes[0]!.id === OTHER_BOX_ID ? server.api.notifications.yourOtherSources : server.api.notifications.collections(d.boxes.length);
+  const lines = d.boxes.slice(0, DIGEST_BOXES).map((b) => server.api.notifications.digestLine(b.name, b.count, b.titles.length ? ` · ${b.titles.map((t) => `“${t}”`).join(", ")}` : ""));
+  if (d.boxes.length > DIGEST_BOXES) lines.push(server.api.notifications.digestAndMore(d.boxes.length - DIGEST_BOXES));
+  return { title: server.api.notifications.digestTitle(kind, d.total, where), body: lines.join("\n") };
 }
 
 /** How long ago, in words, for a teaser: "2 hours ago", "yesterday", "3 days ago". */
 function ago(at: string, now: Date): string {
   const minutes = Math.max(0, Math.round((now.getTime() - Date.parse(at)) / 60_000));
-  if (minutes < 60) return minutes <= 1 ? "just now" : `${minutes} minutes ago`;
+  if (minutes < 60) return minutes <= 1 ? server.api.notifications.justNow : server.api.notifications.minutesAgo(minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return plural(hours, "hour") + " ago";
+  if (hours < 24) return server.api.notifications.hoursAgo(hours);
   const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
+  return days === 1 ? server.api.notifications.yesterday : server.api.notifications.daysAgo(days);
 }
 
 /** What the digest email shows: the counts, and per box its newest items with links into the app. */
@@ -170,7 +169,7 @@ export function digestEmail(app: App, d: Digest, kind: "daily" | "weekly", now: 
   const shown = d.boxes.slice(0, DIGEST_BOXES);
   return {
     subject: text.title,
-    intro: `${plural(d.total, "new item")} ${kind === "weekly" ? "this week" : "today"}, still waiting for you.`,
+    intro: server.api.notifications.digestIntro(d.total, kind),
     boxes: shown.map((b) => ({
       name: b.name, count: b.count,
       link: b.id === OTHER_BOX_ID ? home : `${home}c/${encodeURIComponent(b.id)}`,
@@ -293,7 +292,7 @@ export function runProblemCheck(app: App, workspaceId: string, accountId: string
            AND (problem_notified_at IS NULL OR problem_notified_at < ?)`, workspaceId, rested)) {
         n += app.db.run(
           "INSERT INTO notifications (id, workspace_id, kind, title, body, source_id, dedup_key, created_at) VALUES (?, ?, 'source', ?, ?, ?, ?, ?)",
-          newId("ntf"), workspaceId, `${s.title} isn't working`, s.health_text, s.id, `source:${s.id}:${iso}`, iso).changes;
+          newId("ntf"), workspaceId, server.api.notifications.sourceNotWorking(s.title), s.health_text, s.id, `source:${s.id}:${iso}`, iso).changes;
         app.db.run("UPDATE sources SET problem_notified_for = ?, problem_notified_at = ? WHERE id = ?", s.episode, iso, s.id);
       }
     }
@@ -351,9 +350,9 @@ function notifyCaptureFailures(app: App, workspaceId: string, timezone: string |
     const before = earlier?.data ? (JSON.parse(earlier.data) as { items: string[]; links?: boolean }) : null;
     const items = new Set<string>([...(before?.items ?? []), ...g.items]);
     const links = g.links && (before?.links ?? true);
-    const title = g.sourceId ? `Couldn't save the text of ${plural(items.size, "item")} from ${g.name}`
-      : `Couldn't save the text of ${plural(items.size, links ? "kept link" : "kept item")} in ${g.name}`;
-    const body = "The details and feed content are still kept. Open the list to see which, and try again from an item.";
+    const title = g.sourceId ? server.api.notifications.captureFailedFromSource(items.size, g.name)
+      : server.api.notifications.captureFailedInBasket(items.size, links, g.name);
+    const body = server.api.notifications.captureFailedBody;
     const data = JSON.stringify({ items: [...items], filter: "capture-failed", ...(g.basketId ? { basketId: g.basketId, links } : {}) });
     changed += earlier
       ? app.db.run("UPDATE notifications SET title = ?, body = ?, data = ?, read_at = NULL WHERE id = ?", title, body, data, earlier.id).changes

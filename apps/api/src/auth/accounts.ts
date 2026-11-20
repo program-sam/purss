@@ -16,6 +16,7 @@ import { isAccountUsable, refuseDeletingSignIn } from "../services/deletion.ts";
 import { initialPlan } from "../services/plans.ts";
 import { runAccountCreated } from "../services/account-hooks.ts";
 import { DEVICE_SESSION_PREFIX, IDLE_DAYS, idleCutoff } from "../connect/devices.ts";
+import { server } from "@purss/copy/server";
 
 export const SESSION_COOKIE = "purss_session";
 const SESSION_DAYS = 30;
@@ -72,7 +73,7 @@ export function createAccount(app: App, opts: { email: string; emailConfirmed: b
   const accountId = newId("acc");
   const workspaceId = newId("wsp");
   const now = nowIso();
-  if (emailInUse(app, opts.email)) throw new HttpError(409, "email_in_use", "An account with this email address already exists. Sign in instead, or reset its password.");
+  if (emailInUse(app, opts.email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseSignInOrReset);
   app.db.run("INSERT INTO accounts (id, display_name, email, email_verified_at, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     accountId, opts.displayName, opts.email.trim(), opts.emailConfirmed ? now : null, initialPlan(app), now);
   if (opts.password) storePassword(app, accountId, opts.password);
@@ -97,7 +98,7 @@ export function startSession(app: App, res: ServerResponse, req: IncomingMessage
   const sharedComputer = opts.sharedComputer === true;
   const expiresAt = addSeconds(sharedComputer ? SHARED_SESSION_SECONDS : SESSION_DAYS * 86400);
   const status = app.db.get<{ status: string }>("SELECT status FROM accounts WHERE id = ?", accountId)?.status;
-  if (status !== "active") throw new HttpError(403, "suspended", app.config.mode === "hosted" ? "This account is suspended and can't be used right now." : "This account is suspended. Contact the PURSS administrator.");
+  if (status !== "active") throw new HttpError(403, "suspended", app.config.mode === "hosted" ? server.api.shared.suspendedHosted : server.api.shared.suspendedContactAdministrator);
   refuseDeletingSignIn(app, res, accountId, method);
   app.db.run("INSERT INTO sessions (id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method, user_agent, session_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     sha256(token), accountId, randomToken(18), now, expiresAt, now, now, method, String(req.headers["user-agent"] ?? "").slice(0, 200), sharedComputer ? "shared" : "persistent");
@@ -124,7 +125,7 @@ export function sessionWrite<T>(app: App, accountId: string, sessionId: string, 
   return app.db.tx(() => {
     const row = validSessionForWrite(app, accountId, sessionId);
     if (requireRecent && !recentlyAuthenticated(row)) {
-      throw new HttpError(403, "step_up", "Please confirm it's you again before doing this.");
+      throw new HttpError(403, "step_up", server.api.shared.confirmItsYouAgain);
     }
     return write();
   });
@@ -148,12 +149,12 @@ function deviceSession(app: App, accountId: string, sessionId: string): (Writabl
 function validSessionForWrite(app: App, accountId: string, sessionId: string): WritableSession {
   if (sessionId.startsWith(DEVICE_SESSION_PREFIX)) {
     const device = deviceSession(app, accountId, sessionId);
-    if (!device || !isAccountUsable(app, accountId)) throw new HttpError(401, "device_signed_out", "This app isn't connected to the PURSS any more. Connect it again.");
+    if (!device || !isAccountUsable(app, accountId)) throw new HttpError(401, "device_signed_out", server.api.shared.appNotConnected);
     return device;
   }
   const row = app.db.get<WritableSession & { expires_at: string; status: string }>(
     `SELECT s.auth_at, s.expires_at, a.status FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.id = ? AND s.account_id = ?`, sessionId, accountId);
-  if (!row || row.expires_at <= nowIso() || !isAccountUsable(app, accountId)) throw new HttpError(401, "signed_out", "Please sign in again.");
+  if (!row || row.expires_at <= nowIso() || !isAccountUsable(app, accountId)) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
   return row;
 }
 
@@ -165,7 +166,7 @@ function validSessionForWrite(app: App, accountId: string, sessionId: string): W
 export async function setPassword(app: App, accountId: string, sessionId: string, password: string, opts: { expectedHash: string | null; requireRecent: boolean; alsoInTransaction?: () => void }): Promise<void> {
   await writePassword(app, accountId, password, (write) => sessionWrite(app, accountId, sessionId, () => {
     const now = app.db.get<{ secret_hash: string }>("SELECT secret_hash FROM sign_in_methods WHERE account_id = ? AND kind = 'password'", accountId)?.secret_hash ?? null;
-    if (now !== opts.expectedHash) throw new HttpError(409, "password_changed", "Your password was just changed somewhere else. Please try again.");
+    if (now !== opts.expectedHash) throw new HttpError(409, "password_changed", server.api.accounts.passwordChangedElsewhere);
     write();
     opts.alsoInTransaction?.();
   }, opts.requireRecent));
@@ -230,11 +231,11 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
  */
 export function claim(app: App, code: string, email: string, displayName: string | null, password: PreparedPassword): { accountId: string } {
   const out = app.db.tx(() => {
-    if (hasAccounts(app)) throw new HttpError(409, "claimed", "This installation is already set up. Please sign in.");
+    if (hasAccounts(app)) throw new HttpError(409, "claimed", server.api.accounts.alreadySetUp);
     const hash = getInstallation(app, "claim_hash");
     if (!hash || !verifySecret(normalizeCode(code), hash)) {
       audit(app, null, "claim", null, "failure");
-      throw new HttpError(403, "bad_code", "That setup code isn't right. It's in the data/secrets/setup-code file on the server.");
+      throw new HttpError(403, "bad_code", server.api.accounts.badSetupCode);
     }
     const { accountId } = createAccount(app, { email, emailConfirmed: false, displayName, admin: true, allocationBytes: app.config.mode === "hosted" ? app.config.defaultAllocationBytes : null, grantedBy: null, password });
     app.db.run("DELETE FROM installation WHERE key = 'claim_hash'");
@@ -248,7 +249,7 @@ export function claim(app: App, code: string, email: string, displayName: string
 
 /** An invitation for one address, typed by the administrator; invites never grant administration. */
 export function createInvite(app: App, adminId: string, email: string, note: string | null, allocationBytes: number | null, days = 14): string {
-  if (emailInUse(app, email)) throw new HttpError(409, "email_in_use", "An account with this email address already exists.");
+  if (emailInUse(app, email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUse);
   const code = humanCode(5);
   app.db.run("INSERT INTO invites (id, created_by, email, note, allocation_bytes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     sha256(normalizeCode(code)), adminId, email.trim(), note, allocationBytes, nowIso(), addSeconds(days * 86400));
@@ -273,8 +274,8 @@ export function acceptInvite(app: App, code: string, email: string, displayName:
     const id = sha256(normalizeCode(code));
     const inv = app.db.get<{ id: string; email: string; emailed_at: string | null; allocation_bytes: number | null }>(
       "SELECT id, email, emailed_at, allocation_bytes FROM invites WHERE id = ? AND used_at IS NULL AND expires_at > ? AND email IS NOT NULL", id, nowIso());
-    if (!inv) throw new HttpError(403, "bad_invite", "That invitation isn't valid or has expired.");
-    if (normalizeEmail(inv.email) !== normalizeEmail(email)) throw new HttpError(403, "invite_email", "This invitation is for a different email address. Use the address it was sent to.");
+    if (!inv) throw new HttpError(403, "bad_invite", server.api.accounts.invitationInvalid);
+    if (normalizeEmail(inv.email) !== normalizeEmail(email)) throw new HttpError(403, "invite_email", server.api.accounts.invitationOtherEmail);
     // Storage allowances are a hosted-service feature; self-hosted accounts have no limit.
     const allocationBytes = app.config.mode === "hosted" ? inv.allocation_bytes ?? app.config.defaultAllocationBytes : null;
     const { accountId } = createAccount(app, { email: inv.email, emailConfirmed: inv.emailed_at !== null, displayName, admin: false, allocationBytes, grantedBy: null, password });
@@ -330,7 +331,7 @@ export function assertSignupCapacity(app: App, address: string, attemptRetryAt: 
   const capacity = signupCapacityStatus(app, address);
   if (!capacity.blocked) return;
   const retryAt = capacity.retryAt === null ? null : Math.max(capacity.retryAt, attemptRetryAt ?? 0);
-  throw new HttpError(429, "signup_full", "New accounts are full for now.", undefined, retryAt);
+  throw new HttpError(429, "signup_full", server.api.accounts.signupsFull, undefined, retryAt);
 }
 
 /**
@@ -344,10 +345,10 @@ export function openSignupAttempt(app: App, address: string): number | null {
     const openSignup = app.config.mode === "hosted" && app.config.signup === "open";
     const capacity = openSignup ? signupCapacityStatus(app, address) : null;
     const retryAt = capacity?.blocked && capacity.retryAt === null ? null : Math.max(attempt.resetAt, capacity?.retryAt ?? 0);
-    throw new HttpError(429, "signup_rate_limited", "Too many account attempts.", undefined, retryAt);
+    throw new HttpError(429, "signup_rate_limited", server.api.accounts.tooManyAccountAttempts, undefined, retryAt);
   }
   const attemptRetryAt = attempt.remaining === 0 ? attempt.resetAt : null;
-  if (!signupOpen(app)) throw new HttpError(403, "closed", "New accounts are by invitation only here.");
+  if (!signupOpen(app)) throw new HttpError(403, "closed", server.api.shared.invitationOnly);
   return attemptRetryAt;
 }
 
@@ -356,7 +357,7 @@ export function openSignupAttempt(app: App, address: string): number | null {
  * account, in one transaction with its signup_creations row and the audit event the day's count reads.
  */
 export function openSignup(app: App, address: string, attemptRetryAt: number | null, create: () => string): { accountId: string } {
-  if (!signupOpen(app)) throw new HttpError(403, "closed", "New accounts are by invitation only here.");
+  if (!signupOpen(app)) throw new HttpError(403, "closed", server.api.shared.invitationOnly);
   return app.db.tx(() => {
     assertSignupCapacity(app, address, attemptRetryAt);
     const addressHash = signupAddressHash(app, address);
@@ -378,7 +379,7 @@ export function signupWithProvider(
 ): { accountId: string } {
   return openSignup(app, address, attemptRetryAt, () => {
     if (emailInUse(app, who.email)) {
-      throw new HttpError(409, "email_in_use", `An account with this email address already exists. Sign in with your email address and password, then connect ${who.label} in Settings → Security.`);
+      throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseConnectProvider(who.label));
     }
     const { accountId } = createAccount(app, { email: who.email, emailConfirmed: true, displayName: who.displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password: null });
     const now = nowIso();

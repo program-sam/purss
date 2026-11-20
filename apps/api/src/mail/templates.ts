@@ -1,4 +1,5 @@
 import type { Message } from "./mailer.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The messages, in the product's plain language: plain text plus a simple HTML version with the
@@ -53,7 +54,7 @@ function compose(to: string, subject: string, parts: Part[]): Message {
 ${body}
 </td></tr>
 </table>
-<p style="margin:20px 0 0;font-size:12px;line-height:1.5;color:${MUTED};font-family:${FONT}">${NAME}: follow your sources, keep what matters.</p>
+<p style="margin:20px 0 0;font-size:12px;line-height:1.5;color:${MUTED};font-family:${FONT}">${server.api.mailTemplates.tagline(NAME)}</p>
 </td></tr></table>
 </body></html>
 `;
@@ -65,65 +66,65 @@ function host(origin: string): string {
 }
 
 export function invitationMail(to: string, opts: { link: string; days: number; origin: string }): Message {
-  return compose(to, `You're invited to ${NAME}`, [
-    `You've been invited to create an account on ${NAME} at ${host(opts.origin)}: a private place to follow websites, feeds and channels and keep what matters to you.`,
-    "To accept, open this link and choose how you'll sign in:",
-    { href: opts.link, label: "Accept your invitation" },
-    `The invitation works once and ends in ${opts.days} ${opts.days === 1 ? "day" : "days"}. If you weren't expecting it, you can ignore this email.`,
+  return compose(to, server.api.mailTemplates.invitationSubject(NAME), [
+    server.api.mailTemplates.invitationIntro(NAME, host(opts.origin)),
+    server.api.mailTemplates.invitationLead,
+    { href: opts.link, label: server.api.mailTemplates.invitationButton },
+    server.api.mailTemplates.invitationFooter(opts.days),
   ]);
 }
 
 export function signupMail(to: string, opts: { link: string; hours: number; origin: string }): Message {
-  return compose(to, `Finish creating your ${NAME} account`, [
-    `Someone asked to create a ${NAME} account at ${host(opts.origin)} with this email address. To finish and choose your password, open this link:`,
-    { href: opts.link, label: "Create your account" },
-    `The link works once, for ${opts.hours} hours. If it wasn't you, ignore this email: no account is made.`,
+  return compose(to, server.api.mailTemplates.signupSubject(NAME), [
+    server.api.mailTemplates.signupIntro(NAME, host(opts.origin)),
+    { href: opts.link, label: server.api.mailTemplates.signupButton },
+    server.api.mailTemplates.signupFooter(opts.hours),
   ]);
 }
 
 export function accountExistsMail(to: string, opts: { signIn: string; reset: string; origin: string }): Message {
-  return compose(to, `You already have a ${NAME} account`, [
-    `Someone asked to create a ${NAME} account at ${host(opts.origin)} with this email address, but it already has one. Sign in with this address and your password:`,
-    { href: opts.signIn, label: "Sign in" },
-    "Forgot your password? Choose a new one here:",
-    { href: opts.reset, label: "Reset your password" },
-    "If it wasn't you, ignore this email: nothing has changed.",
+  return compose(to, server.api.mailTemplates.existsSubject(NAME), [
+    server.api.mailTemplates.existsIntro(NAME, host(opts.origin)),
+    { href: opts.signIn, label: server.api.mailTemplates.existsSignIn },
+    server.api.mailTemplates.existsForgot,
+    { href: opts.reset, label: server.api.mailTemplates.existsReset },
+    server.api.mailTemplates.existsIgnore,
   ]);
 }
 
 export function verifyMail(to: string, opts: { link: string; hours: number }): Message {
-  return compose(to, "Confirm your email address", [
-    `Please confirm that this is the email address for your ${NAME} account. Open this link:`,
-    { href: opts.link, label: "Confirm this address" },
-    `The link works for ${opts.hours} hours. We email this address only about your account, such as resetting your password, and with your digest of what's new, which you can turn off in Settings. No newsletters or marketing.`,
-    "If you didn't make an account, you can ignore this email.",
+  return compose(to, server.api.mailTemplates.confirmSubject, [
+    server.api.mailTemplates.confirmIntro(NAME),
+    { href: opts.link, label: server.api.mailTemplates.confirmButton },
+    server.api.mailTemplates.confirmFooter(opts.hours),
+    server.api.mailTemplates.confirmIgnore,
   ]);
 }
 
 export function resetMail(to: string, opts: { link: string; minutes: number }): Message {
-  return compose(to, "Reset your password", [
-    `Someone asked to reset the password for the ${NAME} account with this email address. To choose a new password, open this link:`,
-    { href: opts.link, label: "Choose a new password" },
-    `The link works once, for ${opts.minutes} minutes. Choosing a new password signs the account out everywhere.`,
-    "If it wasn't you, ignore this email: your password stays as it is.",
+  return compose(to, server.api.mailTemplates.resetSubject, [
+    server.api.mailTemplates.resetIntro(NAME),
+    { href: opts.link, label: server.api.mailTemplates.resetButton },
+    server.api.mailTemplates.resetFooter(opts.minutes),
+    server.api.mailTemplates.resetIgnore,
   ]);
 }
 
 export function passwordChangedMail(to: string, mode: "self" | "hosted" = "self"): Message {
-  return compose(to, "Your password was changed", [
-    `The password for your ${NAME} account was just changed with a reset link. The account was signed out everywhere and its assistant tokens were revoked.`,
+  return compose(to, server.api.mailTemplates.changedSubject, [
+    server.api.mailTemplates.changedIntro(NAME),
     mode === "hosted"
-      ? "If you didn't do this, reset your password again from the sign-in page, or contact Program Sam through the legal notice in PURSS."
-      : "If you didn't do this, reset your password again from the sign-in page, or contact the PURSS administrator.",
+      ? server.api.mailTemplates.changedContactOwner
+      : server.api.mailTemplates.changedContactAdministrator,
   ]);
 }
 
 export function emailChangedMail(to: string, opts: { masked: string; mode?: "self" | "hosted" }): Message {
-  return compose(to, "Your email address was changed", [
-    `The email address for your ${NAME} account was changed to ${opts.masked}. Messages about your account now go there.`,
+  return compose(to, server.api.mailTemplates.emailChangedSubject, [
+    server.api.mailTemplates.emailChangedIntro(NAME, opts.masked),
     opts.mode === "hosted"
-      ? "If you didn't do this, sign in and check your account's security settings, or contact Program Sam through the legal notice in PURSS."
-      : "If you didn't do this, sign in and check your account's security settings, or contact the PURSS administrator.",
+      ? server.api.mailTemplates.emailChangedContactOwner
+      : server.api.mailTemplates.emailChangedContactAdministrator,
   ]);
 }
 
@@ -133,13 +134,13 @@ export function emailChangedMail(to: string, opts: { masked: string; mode?: "sel
  */
 export function reminderMail(to: string, opts: { items: { title: string | null; note: string | null; link: string }[] }): Message {
   const one = opts.items.length === 1;
-  const parts: Part[] = [one ? "A reminder you set on something you kept is due today." : `${opts.items.length} reminders you set on things you kept are due today.`];
+  const parts: Part[] = [one ? server.api.mailTemplates.reminderIntroOne : server.api.mailTemplates.reminderIntroMany(opts.items.length)];
   for (const item of opts.items) {
-    parts.push(item.title ? `${item.title}${item.note ? `: ${item.note}` : ""}` : "An item you kept:");
-    parts.push({ href: item.link, label: item.title ? "Open it in your PURSS" : "Open the item" });
+    parts.push(item.title ? `${item.title}${item.note ? `: ${item.note}` : ""}` : server.api.mailTemplates.reminderItemFallback);
+    parts.push({ href: item.link, label: item.title ? server.api.mailTemplates.reminderOpenWithTitle : server.api.mailTemplates.reminderOpenWithoutTitle });
   }
-  parts.push("You asked for reminders by email in Settings, under Notifications. You can turn them off there.");
-  return compose(to, one ? "A reminder you set is due" : `${opts.items.length} reminders you set are due`, parts);
+  parts.push(server.api.mailTemplates.reminderSettingsNote);
+  return compose(to, one ? server.api.shared.reminderSubjectOne : server.api.shared.reminderSubjectMany(opts.items.length), parts);
 }
 
 /** A digest email: counts per collection and the newest items of each, with links into the app. */
@@ -174,21 +175,21 @@ function digestBox(b: DigestMail["boxes"][number]): string {
     + `<tr><td style="padding:12px 16px;background:${SKY.modBot};background-image:linear-gradient(${SKY.modTop},${SKY.modBot});border-bottom:1px solid ${SKY.modBd};border-radius:11px 11px 0 0">`
     + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>`
     + `<td><a href="${escape(b.link)}" style="font-size:16px;font-weight:800;color:${SKY.ink};text-decoration:none">${escape(b.name)}</a></td>`
-    + `<td align="right" style="font-size:13px;font-weight:800;color:${SKY.accentInk};white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${SKY.accent};margin-right:6px;vertical-align:1px"></span>${b.count} new</td>`
+    + `<td align="right" style="font-size:13px;font-weight:800;color:${SKY.accentInk};white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${SKY.accent};margin-right:6px;vertical-align:1px"></span>${server.api.mailTemplates.digestCount(b.count)}</td>`
     + `</tr></table></td></tr>`
     + rows
-    + `<tr><td style="padding:10px 16px;border-top:1px solid ${SKY.line}"><a href="${escape(b.link)}" style="font-size:13px;font-weight:700;color:${SKY.accentInk};text-decoration:none">${rest > 0 ? `${rest} more in ${escape(b.name)}` : `Open ${escape(b.name)}`} &rsaquo;</a></td></tr>`
+    + `<tr><td style="padding:10px 16px;border-top:1px solid ${SKY.line}"><a href="${escape(b.link)}" style="font-size:13px;font-weight:700;color:${SKY.accentInk};text-decoration:none">${rest > 0 ? server.api.mailTemplates.digestMoreIn(rest, escape(b.name)) : server.api.mailTemplates.digestOpenBox(escape(b.name))} &rsaquo;</a></td></tr>`
     + `</table>`;
 }
 
 /** The daily or weekly digest, built by `digestEmail` in services/notifications.ts. */
 export function digestMail(to: string, m: DigestMail): Message {
-  const stop = `You get this email because digest emails are on for your ${NAME} account. To stop them, or to change how often they come, untick "Email me the digest" in Settings, under Notifications and New.`;
+  const stop = server.api.mailTemplates.digestStop(NAME);
   const text = [
     m.intro,
     ...m.boxes.map((b) => [`${b.name}: ${b.count} new`, ...b.teasers.map((t) => `- ${t.title} (${t.meta})\n  ${t.link}`)].join("\n")),
-    ...(m.more > 0 ? [`and ${m.more} more ${m.more === 1 ? "collection" : "collections"}`] : []),
-    `Open your ${NAME}:\n${m.home}`,
+    ...(m.more > 0 ? [server.api.mailTemplates.digestMoreCollections(m.more)] : []),
+    server.api.mailTemplates.digestOpen(NAME, m.home),
     `${stop}\n${m.settings}`,
   ].join("\n\n") + `\n\n-- \n${NAME}\n`;
   const html = `<!doctype html>
@@ -201,9 +202,9 @@ export function digestMail(to: string, m: DigestMail): Message {
 <tr><td style="padding:0 4px 20px"><h1 style="margin:0 0 6px;font-size:24px;line-height:1.25;font-weight:800;color:${SKY.ink}">${escape(m.subject.replace(/:.*$/, ""))}</h1>
 <p style="margin:0;font-size:15px;line-height:1.5;color:${SKY.ink3}">${escape(m.intro)}</p></td></tr>
 <tr><td>${m.boxes.map(digestBox).join("\n")}</td></tr>
-${m.more > 0 ? `<tr><td style="padding:0 4px 16px;font-size:14px;color:${SKY.ink3}">And ${m.more} more ${m.more === 1 ? "collection" : "collections"} with new items.</td></tr>` : ""}
-<tr><td align="center" style="padding:8px 0 24px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background:${SKY.accent}"><a href="${escape(m.home)}" style="display:inline-block;padding:12px 26px;border-radius:8px;font-size:16px;font-weight:700;line-height:1.2;color:#ffffff;text-decoration:none">Open your ${NAME}</a></td></tr></table></td></tr>
-<tr><td style="padding:0 4px;font-size:12px;line-height:1.55;color:${SKY.ink3}">${escape(stop)} <a href="${escape(m.settings)}" style="color:${SKY.accentInk};font-weight:700">Change digest emails</a></td></tr>
+${m.more > 0 ? `<tr><td style="padding:0 4px 16px;font-size:14px;color:${SKY.ink3}">${server.api.mailTemplates.digestAndMoreHtml(m.more)}</td></tr>` : ""}
+<tr><td align="center" style="padding:8px 0 24px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background:${SKY.accent}"><a href="${escape(m.home)}" style="display:inline-block;padding:12px 26px;border-radius:8px;font-size:16px;font-weight:700;line-height:1.2;color:#ffffff;text-decoration:none">${server.api.mailTemplates.digestOpenButton(NAME)}</a></td></tr></table></td></tr>
+<tr><td style="padding:0 4px;font-size:12px;line-height:1.55;color:${SKY.ink3}">${escape(stop)} <a href="${escape(m.settings)}" style="color:${SKY.accentInk};font-weight:700">${server.api.mailTemplates.digestChange}</a></td></tr>
 </table>
 </td></tr></table>
 </body></html>
@@ -212,7 +213,7 @@ ${m.more > 0 ? `<tr><td style="padding:0 4px 16px;font-size:14px;color:${SKY.ink
 }
 
 export function testMail(to: string, opts: { origin: string }): Message {
-  return compose(to, `Test message from your ${NAME}`, [
-    `This is a test from the ${NAME} at ${host(opts.origin)}. Outgoing email works.`,
+  return compose(to, server.api.mailTemplates.testSubject(NAME), [
+    server.api.mailTemplates.testBody(NAME, host(opts.origin)),
   ]);
 }

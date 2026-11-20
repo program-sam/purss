@@ -8,6 +8,7 @@ import { notFound, nowIso } from "../http.ts";
 import { isAccountUsable } from "./deletion.ts";
 import { enqueue } from "./jobs.ts";
 import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Pictures in kept copies. A basket that keeps readable text also keeps the item's own picture and the
@@ -207,6 +208,6 @@ export function postGallery(app: App, itemId: string, stored: Map<string, string
 export function readPicture(app: App, p: Principal, itemId: string, imageId: string): { data: Uint8Array; contentType: string; sha256: string } {
   const row = app.db.get<{ data: Uint8Array; content_type: string; sha256: string }>(
     "SELECT data, content_type, sha256 FROM item_images WHERE id = ? AND item_id = ? AND workspace_id = ?", imageId, itemId, p.workspaceId);
-  if (!row) throw notFound("That picture");
+  if (!row) throw notFound(server.api.images.thatPicture);
   return { data: row.data, contentType: row.content_type, sha256: row.sha256 };
 }

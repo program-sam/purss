@@ -1,3 +1,4 @@
+import { common } from "@purss/copy/common";
 import { z } from "zod";
 import { WORKFLOW_STATES } from "./workflow.ts";
 
@@ -64,16 +65,16 @@ export type QueryCheck = { ok: true; query: QueryNode } | { ok: false; message: 
 /** Parse and bound a query tree by depth and number of leaves (its cost). */
 export function checkQuery(input: unknown): QueryCheck {
   const parsed = queryNodeSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, message: "That filter isn't valid." };
+  if (!parsed.success) return { ok: false, message: common.query.invalid };
   let leaves = 0;
   const walk = (node: QueryNode, depth: number): string | null => {
-    if (depth > MAX_QUERY_DEPTH) return "That filter is nested too deeply.";
+    if (depth > MAX_QUERY_DEPTH) return common.query.tooDeep;
     if ("all" in node) return firstError(node.all, depth);
     if ("any" in node) return firstError(node.any, depth);
     if ("not" in node) return walk(node.not, depth + 1);
     leaves++;
-    if (leaves > MAX_QUERY_LEAVES) return "That filter has too many conditions.";
-    if (node.field === "date" && !node.from && !node.to) return "A date condition needs a start or an end.";
+    if (leaves > MAX_QUERY_LEAVES) return common.query.tooManyConditions;
+    if (node.field === "date" && !node.from && !node.to) return common.query.dateNeedsBound;
     return null;
   };
   const firstError = (nodes: QueryNode[], depth: number): string | null => {

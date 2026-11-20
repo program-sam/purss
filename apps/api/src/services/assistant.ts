@@ -7,6 +7,7 @@ import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { getInstallation, setInstallation } from "../auth/accounts.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "./deletion.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Assistant access (MCP): an AI assistant reaches a PURSS through /mcp with a personal
@@ -33,8 +34,8 @@ export function installationEnabled(app: App): boolean {
 
 export function assistantUnavailableMessage(app: App): string {
   return app.config.mode === "hosted"
-    ? "Assistant access isn't available yet."
-    : "Your administrator hasn't turned on assistant access for this PURSS.";
+    ? server.api.assistant.notAvailableYet
+    : server.api.assistant.administratorNotEnabled;
 }
 
 export function endpointFor(app: App): string {
@@ -65,9 +66,9 @@ export function setEnabled(app: App, p: Principal, enabled: boolean): AssistantA
 export function createToken(app: App, p: Principal, input: z.infer<typeof assistantTokenCreateSchema>): AssistantTokenCreated {
   const access = getAccess(app, p);
   if (!access.available) throw new HttpError(403, "assistant_unavailable", assistantUnavailableMessage(app));
-  if (!access.enabled) throw new HttpError(403, "assistant_off", "Turn on assistant access first.");
+  if (!access.enabled) throw new HttpError(403, "assistant_off", server.api.shared.turnOnAssistantAccess);
   requireRecentAuth(p);
-  if (access.tokens.length >= MAX_TOKENS) throw new HttpError(409, "too_many_tokens", `You can have up to ${MAX_TOKENS} tokens. Revoke one you no longer use first.`);
+  if (access.tokens.length >= MAX_TOKENS) throw new HttpError(409, "too_many_tokens", server.api.assistant.tooManyTokens(MAX_TOKENS));
   const secret = `${TOKEN_PREFIX}${randomToken(32)}`;
   const row: TokenRow = {
     id: newId("tok"), name: input.name, access: input.access, created_at: nowIso(),
@@ -83,7 +84,7 @@ export function createToken(app: App, p: Principal, input: z.infer<typeof assist
 
 export function revokeToken(app: App, p: Principal, id: string): { ok: true } {
   const r = app.db.run("DELETE FROM assistant_tokens WHERE id = ? AND account_id = ?", id, p.accountId);
-  if (!r.changes) throw notFound("That token");
+  if (!r.changes) throw notFound(server.api.assistant.thatToken);
   audit(app, p.accountId, "assistant_token_revoked", id, "success");
   return { ok: true };
 }
@@ -120,7 +121,7 @@ export function revokeGrantRow(app: App, g: { id: string; account_id: string }, 
 
 export function revokeGrant(app: App, p: Principal, id: string): { ok: true } {
   const g = app.db.get<{ id: string; account_id: string }>("SELECT id, account_id FROM oauth_grants WHERE id = ? AND account_id = ?", id, p.accountId);
-  if (!g) throw notFound("That assistant");
+  if (!g) throw notFound(server.api.assistant.thatAssistant);
   app.db.tx(() => revokeGrantRow(app, g, "revoked in Settings"));
   return { ok: true };
 }

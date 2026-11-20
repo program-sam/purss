@@ -2,6 +2,7 @@ import { checkFraming } from "@purss/connectors";
 import type { FrameCheck } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { badRequest, rateLimit } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Whether the reader can show a page from another site in a frame: the page's own headers decide,
@@ -18,8 +19,8 @@ const known = new Map<string, { check: Promise<FrameCheck>; expires: number }>()
 /** The answer for `url`, from memory or by reading the page's headers. Only http(s) addresses are read. */
 export function frameCheck(app: App, p: Principal, raw: string, checker: FrameChecker = checkFraming): Promise<FrameCheck> {
   let url: URL;
-  try { url = new URL(raw); } catch { throw badRequest("That isn't a web address."); }
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest("Only web addresses can be shown.");
+  try { url = new URL(raw); } catch { throw badRequest(server.api.frameCheck.notWebAddress); }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest(server.api.frameCheck.onlyWebAddresses);
   url.hash = "";
   const key = `${p.workspaceId} ${url.href}`;
   const now = Date.now();

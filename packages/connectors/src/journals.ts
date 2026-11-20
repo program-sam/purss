@@ -1,5 +1,8 @@
+import { server } from "@purss/copy/server";
 import type { KnownFeed, KnownPlan } from "./known-feeds.ts";
 import { hostOf, isHostOrSub, segmentsOf } from "./services.ts";
+
+const feedLabels = server.sources.connectors.labels;
 
 /*
  * Scholarly journals on the large publishing platforms. Their pages refuse automated readers (Wiley, Taylor & Francis,
@@ -114,11 +117,11 @@ export function journalTitle(feedTitle: string | null | undefined): string | nul
 
 const PLATFORM_ONLY = /^(?:Wiley-Online-Library|Taylor and Francis|University of Chicago Press|Sage Journals)$/i;
 
-export const EARLY_NOTE = "Only articles published online that aren't in an issue yet.";
-export const ISSUES_NOTE = "One entry for each new issue, not for each article.";
+export const EARLY_NOTE = server.sources.connectors.journals.earlyNote;
+export const ISSUES_NOTE = server.sources.connectors.journals.issuesNote;
 
 function journalFeed(platform: Platform, feedUrl: string, title?: string): KnownFeed {
-  return { feedUrl, via: "Articles feed", origin: `${PUBLISHER[platform]} journal`, retitle: journalTitle, ...(title ? { title } : {}) };
+  return { feedUrl, via: feedLabels.articlesFeed, origin: server.sources.connectors.journals.origin(PUBLISHER[platform]), retitle: journalTitle, ...(title ? { title } : {}) };
 }
 
 /** A journal's second feed: offered only with entries, and named like its main feed. */
@@ -135,23 +138,23 @@ export function journalFeedsFor(ref: Exclude<JournalRef, { platform: "sciencedir
   switch (ref.platform) {
     case "wiley": {
       const main = journalFeed("wiley", `https://onlinelibrary.wiley.com/feed/${ref.id}/most-recent`);
-      return [main, alsoFeed(main, `https://onlinelibrary.wiley.com/action/showFeed?jc=${ref.id}&type=axatoc&feed=rss`, "Early articles feed", EARLY_NOTE)];
+      return [main, alsoFeed(main, `https://onlinelibrary.wiley.com/action/showFeed?jc=${ref.id}&type=axatoc&feed=rss`, feedLabels.earlyArticlesFeed, EARLY_NOTE)];
     }
     case "tandf": {
       const main = journalFeed("tandf", `https://www.tandfonline.com/feed/rss/${ref.id}`);
-      return [main, alsoFeed(main, `https://www.tandfonline.com/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, "Early articles feed", EARLY_NOTE)];
+      return [main, alsoFeed(main, `https://www.tandfonline.com/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, feedLabels.earlyArticlesFeed, EARLY_NOTE)];
     }
     case "sage":
       return [journalFeed("sage", `https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`)];
     case "uchicago": {
       const main = journalFeed("uchicago", `https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`);
-      return [main, alsoFeed(main, `https://www.journals.uchicago.edu/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, "Early articles feed", EARLY_NOTE)];
+      return [main, alsoFeed(main, `https://www.journals.uchicago.edu/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, feedLabels.earlyArticlesFeed, EARLY_NOTE)];
     }
     case "berghahn":
       return [journalFeed("berghahn", `https://www.berghahnjournals.com/journalissuetocrss/journals/${ref.id}/${ref.id}-overview.xml`)];
     case "muse": {
       const main = journalFeed("muse", `https://muse.jhu.edu/feeds/latest_articles?jid=${ref.id}`);
-      return [main, alsoFeed(main, `https://muse.jhu.edu/feeds/latest_issues?jid=${ref.id}`, "Issues feed", ISSUES_NOTE)];
+      return [main, alsoFeed(main, `https://muse.jhu.edu/feeds/latest_issues?jid=${ref.id}`, feedLabels.issuesFeed, ISSUES_NOTE)];
     }
   }
 }
@@ -181,7 +184,7 @@ export function isPublisherHost(h: string): boolean {
 }
 
 export const DUKE_MESSAGE =
-  "Duke University Press doesn't let automated readers open its journal pages, and its feed addresses can't be worked out from the page address. Each journal's issue page has an RSS link: open it in a browser and paste that link here.";
+  server.sources.connectors.journals.dukeMessage;
 
 // ---------- ISSNs and DOIs ----------
 

@@ -8,6 +8,7 @@ import { privateFeedKey } from "./feed-keys.ts";
 import { getPreferences } from "./preferences.ts";
 import { bridgeAddress } from "./feed-keys.ts";
 import { urlKey } from "./url-key.ts";
+import { server } from "@purss/copy/server";
 
 /** The co-follow key of a feed address: a web address without its noise, or a bridged source's descriptor. */
 const feedKey = (feedUrl: string): string | null => bridgeAddress(feedUrl) ?? urlKey(feedUrl);
@@ -198,7 +199,7 @@ const CHUNK = 400;
 
 /** Suggestions for the signed-in account. Not found on a self-hosted installation. */
 export function suggestionsFor(app: App, p: Principal, now = new Date()): DiscoverResponse {
-  if (app.config.mode !== "hosted") throw notFound("Discover");
+  if (app.config.mode !== "hosted") throw notFound(server.api.discover.discoverName);
   // Suggestions are for readers who share their own sources: that is the exchange. Until the graph holds
   // a source, there is nothing to suggest to anyone and the page says it is coming.
   const sharing = getPreferences(app, p.workspaceId).discoveryShare;
@@ -260,7 +261,7 @@ export function suggestionsFor(app: App, p: Principal, now = new Date()): Discov
 
 /** "Not interested": the suggestion stops coming back for this account. */
 export function dismissSuggestion(app: App, p: Principal, key: string): { ok: true } {
-  if (app.config.mode !== "hosted") throw notFound("Discover");
+  if (app.config.mode !== "hosted") throw notFound(server.api.discover.discoverName);
   // Only a source that can be suggested is remembered, so the list can't grow with made-up keys.
   app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) SELECT ?, key, ? FROM discovery_sources WHERE key = ? ON CONFLICT DO NOTHING", p.workspaceId, nowIso(), key);
   return { ok: true };

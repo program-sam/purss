@@ -7,6 +7,7 @@ import { CHALLENGE_PATTERN, issueCode } from "../connect/codes.ts";
 import { MAX_GRANTS, assistantUnavailableMessage, endpointFor, getAccess, grantCount } from "../services/assistant.ts";
 import { isLoopbackRedirect, matchRedirect, resolveClient } from "./clients.ts";
 import type { Client } from "./clients.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The authorization endpoint. GET /app/oauth/authorize is the web app's consent page; it
@@ -64,24 +65,24 @@ export const levelOf = (scope: string | undefined): AssistantAccessLevel => ((sc
 
 export async function checkRequest(app: App, accountId: string, q: Record<string, string | undefined>): Promise<Check> {
   const stop = (message: string): Check => ({ ok: false, message, redirectTo: null });
-  if (!app.config.assistantOAuth) return stop("This PURSS doesn't let assistants connect with a sign-in page. Use a personal access token from Settings → Assistants instead.");
-  if (!q.client_id) return stop("This sign-in link doesn't say which assistant is asking (no client_id).");
+  if (!app.config.assistantOAuth) return stop(server.api.oauthAuthorize.oauthOff);
+  if (!q.client_id) return stop(server.api.oauthAuthorize.noClientId);
   const client = await resolveClient(q.client_id, accountId);
   if (!client.ok) return stop(client.message);
   const redirectUri = q.redirect_uri;
   if (!redirectUri || !matchRedirect(client.client.redirectUris, redirectUri)) {
-    return stop(`This sign-in link would send you to an address that ${client.client.host} doesn't list as its own, so it was stopped.`);
+    return stop(server.api.oauthAuthorize.redirectNotListed(client.client.host));
   }
   const state = q.state ?? null;
   const fail = (error: string, description: string, message: string): Check =>
     ({ ok: false, message, redirectTo: back(app, redirectUri, state, { error, error_description: description }) });
-  if (state !== null && (state.length > 2000 || !/^[\x20-\x7e]+$/.test(state))) return fail("invalid_request", "state is too long or not printable ASCII", "The assistant's request isn't valid.");
-  if (q.response_type !== "code") return fail("unsupported_response_type", "only response_type=code is supported", "The assistant asked for a kind of sign-in this PURSS doesn't offer.");
+  if (state !== null && (state.length > 2000 || !/^[\x20-\x7e]+$/.test(state))) return fail("invalid_request", "state is too long or not printable ASCII", server.api.oauthAuthorize.requestInvalid);
+  if (q.response_type !== "code") return fail("unsupported_response_type", "only response_type=code is supported", server.api.oauthAuthorize.signInKindNotOffered);
   if (q.code_challenge_method !== "S256" || !q.code_challenge || !CHALLENGE_PATTERN.test(q.code_challenge)) {
-    return fail("invalid_request", "PKCE with code_challenge_method=S256 is required", "The assistant's request isn't secure enough (it needs PKCE with S256).");
+    return fail("invalid_request", "PKCE with code_challenge_method=S256 is required", server.api.oauthAuthorize.notSecureEnough);
   }
   if (q.resource !== undefined && !isOurResource(app, q.resource)) {
-    return fail("invalid_target", `tokens are only issued for ${endpointFor(app)}`, "The assistant asked for access to something other than this PURSS.");
+    return fail("invalid_target", `tokens are only issued for ${endpointFor(app)}`, server.api.oauthAuthorize.otherResource);
   }
   return { ok: true, req: { client: client.client, redirectUri, state, codeChallenge: q.code_challenge, access: levelOf(q.scope) } };
 }
@@ -93,7 +94,7 @@ export async function checkRequest(app: App, accountId: string, q: Record<string
  */
 export async function describeRequest(app: App, p: Principal, query: URLSearchParams): Promise<OAuthRequestSummary> {
   const read = requestParams(query);
-  if (!read.ok) return { kind: "error", message: `This sign-in link gives “${read.repeated}” more than once, so it can't be trusted. Start connecting again from the assistant.`, redirectTo: null };
+  if (!read.ok) return { kind: "error", message: server.api.oauthAuthorize.repeatedParameter(read.repeated), redirectTo: null };
   const c = await checkRequest(app, p.accountId, read.params);
   if (!c.ok) return { kind: "error", message: c.message, redirectTo: c.redirectTo };
   const { client, redirectUri, state, access } = c.req;
@@ -111,12 +112,12 @@ export async function approveRequest(app: App, p: Principal, body: z.infer<typeo
   const { client, redirectUri, state, codeChallenge, access } = c.req;
   const status = getAccess(app, p);
   if (!status.available) throw new HttpError(403, "assistant_unavailable", assistantUnavailableMessage(app));
-  if (!status.enabled) throw new HttpError(403, "assistant_off", "Turn on assistant access first.");
+  if (!status.enabled) throw new HttpError(403, "assistant_off", server.api.shared.turnOnAssistantAccess);
   // A connected assistant holds a long-lived credential: like a new token, approving one needs a recent sign-in.
   requireRecentAuth(p);
   rateLimit(`oauth-approve:${p.accountId}`, 30);
-  if (body.access === "write" && access !== "write") throw badRequest("The assistant only asked to read. It can't be allowed more than it asked for.", "oauth_scope");
-  if (grantCount(app, p.accountId) >= MAX_GRANTS) throw new HttpError(409, "too_many_grants", `You can connect up to ${MAX_GRANTS} assistants. Disconnect one you no longer use in Settings → Assistants first.`);
+  if (body.access === "write" && access !== "write") throw badRequest(server.api.oauthAuthorize.readOnlyRequest, "oauth_scope");
+  if (grantCount(app, p.accountId) >= MAX_GRANTS) throw new HttpError(409, "too_many_grants", server.api.oauthAuthorize.tooManyAssistants(MAX_GRANTS));
   const code = issueCode(app, { accountId: p.accountId, kind: "oauth", clientId: client.id, redirectUri, label: client.name, scope: body.access }, codeChallenge, "redirect");
   audit(app, p.accountId, "assistant_oauth_approve", null, "success", `${body.access} ${client.host}`);
   return { redirectTo: back(app, redirectUri, state, { code }) };

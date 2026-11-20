@@ -9,6 +9,7 @@ import { assertStillUsable } from "../services/deletion.ts";
 import { assertDiskRoom } from "../services/storage.ts";
 import { generateOpml, previewOpml } from "../services/opml.ts";
 import { dismissOpmlImport, getOpmlImport, listOpmlImports, runOpmlImports, startOpmlImport, stopOpmlImport } from "../services/opml-import.ts";
+import { server } from "@purss/copy/server";
 
 /** The feeds chosen from an OPML preview. The server decides what is private from the address, not from what the browser says. */
 const opmlImportSchema = z.object({
@@ -90,10 +91,10 @@ export function portabilityRouter(): Router<Ctx> {
     const p = requirePrincipal(ctx);
     const gone = new AbortController();
     res.once("close", () => { if (!res.writableFinished) gone.abort(); });
-    if (uploading.has(p.accountId)) throw new HttpError(429, "busy", "An export is already being uploaded for your account.");
+    if (uploading.has(p.accountId)) throw new HttpError(429, "busy", server.api.portabilityRoute.exportBusy);
     // Checking a large export takes the import turn for a while: plenty for real use, not for keeping others waiting.
     rateLimit(`import-check:${p.accountId}`, 20, 86_400_000);
-    if (uploading.size >= MAX_UPLOADS) throw new HttpError(429, "busy", "Several exports are being uploaded right now. Please try again in a minute.");
+    if (uploading.size >= MAX_UPLOADS) throw new HttpError(429, "busy", server.api.portabilityRoute.exportsBusy);
     // Room for the whole file, as announced (or as large as allowed), on top of the uploads already arriving, before
     // any of it is written; it stays set aside until this upload is done.
     const room = Number(req.raw.headers["content-length"]) || IMPORT_LIMIT;
@@ -110,7 +111,7 @@ export function portabilityRouter(): Router<Ctx> {
         checkedAt = size;
         assertDiskRoom(ctx.app, Math.max(0, room - size));
       });
-      if (!bytes) throw badRequest("Choose an export file to upload.");
+      if (!bytes) throw badRequest(server.api.shared.chooseExportFile);
       assertDiskRoom(ctx.app, 0); // all of it written: the disk must still be above its reserve before it's kept
       return await oneImportAtATime(async () => {
         assertStillUsable(ctx.app, p); // it may have waited its turn
@@ -151,7 +152,7 @@ export function portabilityRouter(): Router<Ctx> {
   r.post("/api/opml/preview", (req, ctx) => {
     const body = req.body;
     const text = typeof body === "string" ? body : body && typeof body === "object" && typeof (body as { opml?: unknown }).opml === "string" ? (body as { opml: string }).opml : null;
-    if (text === null) throw badRequest("Choose an OPML file to upload.");
+    if (text === null) throw badRequest(server.api.portabilityRoute.chooseOpmlFile);
     return previewOpml(ctx.app, requirePrincipal(ctx), text);
   });
 

@@ -7,6 +7,7 @@ import { sendLater } from "../mail/mailer.ts";
 import { reminderMail } from "../mail/templates.ts";
 import { getPreferences } from "./preferences.ts";
 import { addDays, localDate, validTimezone, ymdString } from "./reminders.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * "Remind me" on a kept item: one day, and an optional note, per item. The day is the person's
@@ -31,7 +32,7 @@ const SELECT = `SELECT r.id, r.item_id, i.number AS item_number, r.remind_on, r.
   FROM item_reminders r JOIN items i ON i.id = r.item_id LEFT JOIN sources s ON s.id = i.source_id`;
 const KEPT = "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = r.item_id)";
 
-const dto = (r: Row): ItemReminderDTO => ({ id: r.id, itemId: r.item_id, remindOn: r.remind_on, note: r.note, title: r.title, sourceTitle: r.source_title ?? "Saved link", kind: r.kind });
+const dto = (r: Row): ItemReminderDTO => ({ id: r.id, itemId: r.item_id, remindOn: r.remind_on, note: r.note, title: r.title, sourceTitle: r.source_title ?? server.api.shared.savedLink, kind: r.kind });
 
 /** The person's calendar day for an instant, "YYYY-MM-DD", in the time zone they chose. */
 export function todayFor(app: App, workspaceId: string, now: Date): string {
@@ -46,7 +47,7 @@ function isCalendarDay(v: string): boolean {
 }
 
 function ownItem(app: App, p: Principal, itemId: string): void {
-  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound("That item");
+  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound(server.api.shared.thatItem);
 }
 
 export function getItemReminder(app: App, p: Principal, itemId: string): ItemReminderDTO | null {
@@ -59,13 +60,13 @@ export function getItemReminder(app: App, p: Principal, itemId: string): ItemRem
 export function setItemReminder(app: App, p: Principal, itemId: string, input: { remindOn: string; note: string | null }, now: Date = new Date()): ItemReminderDTO {
   ownItem(app, p, itemId);
   if (!app.db.get("SELECT 1 FROM basket_items WHERE item_id = ? AND workspace_id = ?", itemId, p.workspaceId)) {
-    throw badRequest("Keep this item in a basket first. A reminder is for something you kept.", "not_kept");
+    throw badRequest(server.api.itemReminders.keepFirst, "not_kept");
   }
-  if (!isCalendarDay(input.remindOn)) throw badRequest("That isn't a date.", "bad_date");
+  if (!isCalendarDay(input.remindOn)) throw badRequest(server.api.itemReminders.notADate, "bad_date");
   const today = todayFor(app, p.workspaceId, now);
-  if (input.remindOn < today) throw badRequest("Pick today or a day to come.", "past_date");
+  if (input.remindOn < today) throw badRequest(server.api.itemReminders.pickToday, "past_date");
   const [y, m, d] = today.split("-").map(Number) as [number, number, number];
-  if (input.remindOn > ymdString({ y: y + MAX_YEARS_AHEAD, m, d })) throw badRequest(`Pick a day within ${MAX_YEARS_AHEAD} years.`, "far_date");
+  if (input.remindOn > ymdString({ y: y + MAX_YEARS_AHEAD, m, d })) throw badRequest(server.api.itemReminders.pickWithin(MAX_YEARS_AHEAD), "far_date");
   const note = input.note?.trim() ? input.note.trim() : null;
   app.db.run(
     `INSERT INTO item_reminders (id, account_id, workspace_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -114,7 +115,7 @@ export function runItemReminders(app: App, workspaceId: string, accountId: strin
     const single = current.length === 1 ? current[0]! : null;
     // Titles and notes only when the person turned titles on, and never for a private source.
     const showText = prefs.notifications.previews && !!single && !single.is_private;
-    const title = single ? (showText ? `Reminder: ${single.title}` : "A reminder you set is due") : `${current.length} reminders you set are due`;
+    const title = single ? (showText ? server.api.itemReminders.reminderTitle(single.title) : server.api.shared.reminderSubjectOne) : server.api.shared.reminderSubjectMany(current.length);
     const made = app.db.run(
       "INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, item_id, dedup_key, created_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?, ?)",
       newId("ntf"), workspaceId, title, showText ? single!.note : null, single?.item_id ?? null, `remind:${current[0]!.id}:${today}`, iso).changes;

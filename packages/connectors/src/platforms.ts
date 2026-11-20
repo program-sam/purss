@@ -5,6 +5,8 @@
  * next to it (a channel, blog or newsletter) and may still keep the link itself.
  */
 
+import { server } from "@purss/copy/server";
+
 type Platform = {
   name: string;
   /** Host names; a subdomain of one of them counts too. */
@@ -34,7 +36,7 @@ const PLATFORMS: readonly Platform[] = [
 const FEED_LIKE_PATH = /(?:^|\/)(?:feed|feeds|rss|atom)(?:\/|\.|$)|\.(?:rss|atom|xml)$/i;
 
 export function noFeedMessage(platform: string): string {
-  return `${platform} doesn't publish feeds, so it can't be followed here. If this creator also posts on YouTube, a blog or a newsletter, follow that instead.`;
+  return server.sources.connectors.platforms.noFeed(platform);
 }
 
 /** The platform an address belongs to when that platform offers no feeds, or null. */

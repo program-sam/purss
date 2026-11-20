@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import http from "node:http";
 import { bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
 import type { BridgeService, FeedItem } from "@purss/connectors";
@@ -273,7 +274,7 @@ export class BridgeRouter {
       return serializeItem(b.entry, b.limited);
     });
     const raw = title?.trim() ?? "";
-    const name = (raw && service.cleanTitle ? service.cleanTitle(raw) : raw) || `${key} on ${service.name}`;
+    const name = (raw && service.cleanTitle ? service.cleanTitle(raw) : raw) || server.sources.egress.bridge.feedTitle(key, service.name);
     return serializeFeed({ title: name, siteUrl: service.pageUrl(key), description: `${service.origin} ${key}` }, items, new Date(this.#now()));
   }
 }

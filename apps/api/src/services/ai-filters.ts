@@ -8,6 +8,7 @@ import { aiSettings, keyFor, markKeyRejected, recordUsage, serverKeyReady } from
 import { enqueue } from "./jobs.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { setWorkflowByFilter } from "./state.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Smart filters. A filter holds the person's words for which posts of a source, or of every source in a collection, to
@@ -32,12 +33,12 @@ const PREVIEW_CONCURRENCY = 5;
 
 function scopeOf(app: App, p: Owner, scope: AiFilterScope): { column: "source_id" | "collection_id"; id: string } {
   if ("sourceId" in scope) {
-    if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND workspace_id = ? AND kind <> 'manual'", scope.sourceId, p.workspaceId)) throw notFound("That source");
+    if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND workspace_id = ? AND kind <> 'manual'", scope.sourceId, p.workspaceId)) throw notFound(server.api.shared.thatSource);
     return { column: "source_id", id: scope.sourceId };
   }
   const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND workspace_id = ?", scope.collectionId, p.workspaceId);
-  if (!c) throw notFound("That collection");
-  if (c.mode !== "sources") throw badRequest("Only a collection of sources can have a Smart filter.", "not_sources");
+  if (!c) throw notFound(server.api.shared.thatCollection);
+  if (c.mode !== "sources") throw badRequest(server.api.aiFilters.onlySourcesCollection, "not_sources");
   return { column: "collection_id", id: scope.collectionId };
 }
 
@@ -105,7 +106,7 @@ export function saveFilter(app: App, p: Principal, scope: AiFilterScope, rule: A
 export function deleteFilter(app: App, p: Principal, scope: AiFilterScope): void {
   app.db.tx(() => {
     const r = filterRow(app, p, scope);
-    if (!r) throw notFound("That filter");
+    if (!r) throw notFound(server.api.aiFilters.thatFilter);
     removeFilterRows(app, r.id);
   });
 }
@@ -345,10 +346,10 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
   if (!key) {
     const hosted = app.config.mode === "hosted";
     throw new HttpError(409, "ai_unavailable", !serverKeyReady(app)
-      ? hosted ? "Smart filters aren't available yet." : "This PURSS hasn't set up Smart filters yet. Ask its administrator."
+      ? hosted ? server.api.aiFilters.unavailableHosted : server.api.aiFilters.notSetUp
       : aiSettings(app, p).allowanceUsedUp
-        ? hosted ? "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday." : "You've used this week's Smart filter allowance. Contact the administrator to change your limits."
-        : "Smart filters are included in the Pro plan. Move to Pro to try a filter.");
+        ? hosted ? server.api.aiFilters.allowanceUsedHosted : server.api.aiFilters.allowanceUsedSelfHosted
+        : server.api.aiFilters.includedInPro);
   }
   const sources = s.column === "source_id" ? "SELECT ? AS id" : "SELECT source_id AS id FROM collection_sources WHERE collection_id = ?";
   const posts = app.db.all<PostRow & { published_at: string | null }>(
@@ -356,7 +357,7 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
      LEFT JOIN sources src ON src.id = i.source_id
      WHERE i.workspace_id = ? AND i.source_id IN (${sources}) ORDER BY i.discovered_at DESC, i.id DESC LIMIT ${AI_FILTER_PREVIEW_POSTS}`,
     p.workspaceId, s.id);
-  if (!posts.length) throw badRequest("There are no posts here yet to try the filter on.", "no_posts");
+  if (!posts.length) throw badRequest(server.api.aiFilters.noPostsToTry, "no_posts");
   const question = questionFor(rule);
   const results = await askJevEach(app.config.jev, key, posts.map((post) => ({ state: postState(post), questions: { keep: question } })), { concurrency: PREVIEW_CONCURRENCY });
   // What Jev answered is billed even when another request failed, so it is counted first.
@@ -367,8 +368,8 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
   if (err) {
     if (err.failure === "key_rejected") markKeyRejected(app, jevKeyFingerprint(key));
     throw new HttpError(err.failure === "key_rejected" ? 409 : 502, `ai_${err.failure}`, err.failure === "key_rejected"
-      ? app.config.mode === "hosted" ? "Smart filters aren't available yet." : "The AI provider didn't accept this PURSS's key. Ask its administrator to replace it."
-      : err.failure === "busy" ? "The AI provider is busy. Try again in a moment." : "The AI provider couldn't be reached. Try again in a moment.");
+      ? app.config.mode === "hosted" ? server.api.aiFilters.unavailableHosted : server.api.aiFilters.providerRejectedKey
+      : err.failure === "busy" ? server.api.aiFilters.providerBusy : server.api.aiFilters.providerUnreachable);
   }
   const answers = answered;
   return {

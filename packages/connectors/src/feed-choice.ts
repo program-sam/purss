@@ -1,4 +1,7 @@
+import { server } from "@purss/copy/server";
 import type { ParsedFeed } from "./feed.ts";
+
+const feedLabels = server.sources.connectors.labels;
 
 /*
  * Choosing and naming the feeds found on a page. Pure functions, so every rule can be tested
@@ -51,7 +54,7 @@ const FROM_REPO = /^(release notes|releases|tags|commits)\s+from\s+(.+)$/i;
 export function tidyFeedName(title: string): string {
   let t = title.replace(/\s+/g, " ").trim();
   const repo = FROM_REPO.exec(t);
-  if (repo) return `${repo[2]!.trim()} ${/^tags$/i.test(repo[1]!) ? "tags" : /^commits$/i.test(repo[1]!) ? "commits" : "releases"}`;
+  if (repo) return server.sources.connectors.feedChoice.repoFeed(repo[2]!.trim(), /^tags$/i.test(repo[1]!) ? server.sources.connectors.feedChoice.tags : /^commits$/i.test(repo[1]!) ? server.sources.connectors.feedChoice.commits : server.sources.connectors.feedChoice.releases);
   for (let i = 0; i < 3; i++) {
     const before = t;
     t = t.replace(MACHINE_HEAD, "").replace(MACHINE_TAIL, "").trim();
@@ -216,8 +219,8 @@ const SITE_WIDE = new Set([...SITE_FEED_PATHS, ...MORE_FEED_PATHS, "/feed/atom",
 
 const bareHost = (h: string) => h.toLowerCase().replace(/^www\./, "");
 
-export const WHOLE_SITE_NOTE = "This is the feed for the whole site, not just this page or section.";
-export const WHOLE_SITE_FALLBACK_NOTE = "The feed for just this page or section didn't answer, so this is the whole site's feed.";
+export const WHOLE_SITE_NOTE = server.sources.connectors.feedChoice.wholeSiteNote;
+export const WHOLE_SITE_FALLBACK_NOTE = server.sources.connectors.feedChoice.wholeSiteFallbackNote;
 
 /** True when a feed covers the whole site although the page it was found from is a section or article. */
 export function isSiteWideFeed(feedUrl: string, pageUrl: string): boolean {
@@ -266,7 +269,7 @@ export function probeLandedOnName(asked: string, landed: string): boolean {
 
 // ---------- order ----------
 
-const ORDER = ["Latest topics", "Articles feed", "Early articles feed", "Issues feed", "Posts feed", "Releases feed", "Podcast feed", "Channel feed", "Playlist feed", "Section feed", "Tags feed", "Announcements feed", "Whole site feed", "All replies", "Comments feed"];
+const ORDER = [feedLabels.latestTopics, feedLabels.articlesFeed, feedLabels.earlyArticlesFeed, feedLabels.issuesFeed, feedLabels.postsFeed, feedLabels.releasesFeed, feedLabels.podcastFeed, feedLabels.channelFeed, feedLabels.playlistFeed, feedLabels.sectionFeed, feedLabels.tagsFeed, feedLabels.announcementsFeed, feedLabels.wholeSiteFeed, feedLabels.allReplies, feedLabels.commentsFeed];
 
 export function viaRank(via: string): number {
   const i = ORDER.indexOf(via);
@@ -303,7 +306,7 @@ export function orderByVia<T extends { via: string }>(list: T[]): T[] {
 
 /** Comment feeds are not offered when any other feed exists; alone they are shown, labelled. */
 export function withoutCommentFeeds<T extends { via: string }>(list: T[]): T[] {
-  const rest = list.filter((c) => c.via !== "Comments feed");
+  const rest = list.filter((c) => c.via !== feedLabels.commentsFeed);
   return rest.length ? rest : list;
 }
 

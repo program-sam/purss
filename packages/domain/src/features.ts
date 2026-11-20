@@ -1,3 +1,4 @@
+import { common } from "@purss/copy/common";
 import type { ShareDTO } from "./api.ts";
 import type { WorkflowState } from "./workflow.ts";
 import type { Capacity, Plan } from "./plans.ts";
@@ -10,12 +11,12 @@ export type PageItem = { publicId: string; title: string; url: string; summary: 
 export const REPORT_REASONS = ["copyright", "illegal", "spam", "harassment", "privacy", "other"] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORT_REASON_LABELS: Readonly<Record<ReportReason, string>> = {
-  copyright: "It copies someone's work without permission",
-  illegal: "It links to something illegal",
-  spam: "It's spam or a scam",
-  harassment: "It harasses or threatens someone",
-  privacy: "It shares someone's private information",
-  other: "Something else",
+  copyright: common.reportReasons.copyright,
+  illegal: common.reportReasons.illegal,
+  spam: common.reportReasons.spam,
+  harassment: common.reportReasons.harassment,
+  privacy: common.reportReasons.privacy,
+  other: common.reportReasons.other,
 };
 
 /** A visitor's report about a shared page, for administrators. */

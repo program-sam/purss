@@ -1,4 +1,5 @@
 import { BlockList, isIP } from "node:net";
+import { server } from "@purss/copy/server";
 
 /*
  * Destination address rules shared by product discovery, readable capture and the
@@ -196,17 +197,17 @@ const BLOCKED_SUFFIXES = [".localhost", ".local", ".internal", ".localdomain", "
  */
 export function hostnameVerdict(hostname: string): { ok: true } | { ok: false; message: string } {
   const host = hostname.toLowerCase().replace(/\.$/, "");
-  if (!host) return { ok: false, message: "That address has no host name." };
+  if (!host) return { ok: false, message: server.sources.connectors.address.noHostName };
   if (isIP(host) || host.startsWith("[")) return { ok: true };
   if (host === "localhost" || BLOCKED_SUFFIXES.some((s) => host.endsWith(s))) {
-    return { ok: false, message: "That address points to this computer or a private network, so it can't be followed." };
+    return { ok: false, message: server.sources.connectors.address.thisComputer };
   }
   if (!host.includes(".")) {
-    return { ok: false, message: "That address has no domain name (it looks like an internal host), so it can't be followed." };
+    return { ok: false, message: server.sources.connectors.address.noDomain };
   }
   // WHATWG URL parsing has already converted internationalised names to ASCII (punycode).
   if (!/^[a-z0-9._-]+$/.test(host)) {
-    return { ok: false, message: "That doesn't look like a valid web address." };
+    return { ok: false, message: server.sources.connectors.address.invalid };
   }
   return { ok: true };
 }

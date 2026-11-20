@@ -4,6 +4,8 @@
  * address that matches nothing is never "known public".
  */
 
+import { server } from "@purss/copy/server";
+
 /** Query parameter names that are secrets whatever their value looks like (a word under `pass` or `auth` is a password): the whole name. */
 const SECRET_NAME = /^(?:auth|authkey|sig|sign|pass|passwd|pwd|session|sessionid|sid|bearer|jwt|private|passkey|pk)$/;
 /** ...or the name ends in one of these once its separators and capitals are ignored: `token`, `access_token`, `X-Plex-Token`, `feed_token`, `clientSecret`, `api-key`. */
@@ -168,4 +170,4 @@ export function looksPrivateUrl(raw: string): boolean {
 }
 
 export const PRIVATE_URL_WARNING =
-  "This address may contain a private access key. If it does, treat it like a password: anyone with the link may be able to read your feed. It's kept private below; untick that if this is an ordinary public feed.";
+  server.sources.connectors.privacy.warning;

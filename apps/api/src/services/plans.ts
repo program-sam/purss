@@ -3,6 +3,7 @@ import type { Capacity, Plan } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { allocation, usedBytes } from "./storage.ts";
+import { server } from "@purss/copy/server";
 
 /**
  * Hosted plans (packages/domain/src/plans.ts): the number of followed sources and of collections an
@@ -54,10 +55,10 @@ const number = (n: number) => n.toLocaleString("en");
 
 export class PlanLimit extends HttpError {
   constructor(what: "sources" | "collections", limit: number, plan: Plan) {
-    const more = plan === "free" ? " Plus allows more." : plan === "plus" && what === "sources" ? " Pro allows more." : "";
+    const more = plan === "free" ? server.api.plans.plusAllowsMore : plan === "plus" && what === "sources" ? server.api.plans.proAllowsMore : "";
     super(403, "plan_limit", what === "sources"
-      ? `Your plan allows ${number(limit)} sources. Unfollow one to follow another.${more}`
-      : `Your plan allows ${number(limit)} collections. Remove one to add another.${more}`, { limit: String(limit), what });
+      ? server.api.plans.sourcesLimit(number(limit), more)
+      : server.api.plans.collectionsLimit(number(limit), more), { limit: String(limit), what });
   }
 }
 

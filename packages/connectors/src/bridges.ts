@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 
@@ -63,7 +64,7 @@ const telegram: BridgeService = {
   id: "telegram",
   example: "durov",
   name: "Telegram",
-  origin: "Telegram channel",
+  origin: server.sources.connectors.bridges.telegram,
   keyPattern: TELEGRAM_NAME,
   keyFromPage(url) {
     if (!TELEGRAM_HOSTS.has(hostOf(url))) return null;
@@ -100,7 +101,7 @@ const bandcamp: BridgeService = {
   id: "bandcamp",
   example: "nilsfrahm",
   name: "Bandcamp",
-  origin: "Bandcamp artist",
+  origin: server.sources.connectors.bridges.bandcamp,
   keyPattern: BANDCAMP_NAME,
   keyFromPage(url) {
     const m = /^([a-z0-9-]+)\.bandcamp\.com$/.exec(hostOf(url));
@@ -130,7 +131,7 @@ const soundcloud: BridgeService = {
   id: "soundcloud",
   example: "flume",
   name: "SoundCloud",
-  origin: "SoundCloud account",
+  origin: server.sources.connectors.bridges.soundcloud,
   keyPattern: SOUNDCLOUD_NAME,
   keyFromPage(url) {
     if (!SOUNDCLOUD_HOSTS.has(hostOf(url))) return null;
@@ -165,7 +166,7 @@ const twitch: BridgeService = {
   id: "twitch",
   example: "shroud",
   name: "Twitch",
-  origin: "Twitch videos",
+  origin: server.sources.connectors.bridges.twitch,
   keyPattern: TWITCH_NAME,
   keyFromPage(url) {
     if (!TWITCH_HOSTS.has(hostOf(url))) return null;
@@ -206,7 +207,7 @@ const mixcloud: BridgeService = {
   id: "mixcloud",
   example: "ntsradio",
   name: "Mixcloud",
-  origin: "Mixcloud shows",
+  origin: server.sources.connectors.bridges.mixcloud,
   keyPattern: MIXCLOUD_NAME,
   keyFromPage(url) {
     if (!MIXCLOUD_HOSTS.has(hostOf(url))) return null;
@@ -235,7 +236,7 @@ const rutube: BridgeService = {
   id: "rutube",
   example: "23460655",
   name: "Rutube",
-  origin: "Rutube channel",
+  origin: server.sources.connectors.bridges.rutube,
   keyPattern: /^\d{1,12}$/,
   keyFromPage(url) {
     if (!RUTUBE_HOSTS.has(hostOf(url))) return null;
@@ -260,7 +261,7 @@ const appleMusic: BridgeService = {
   id: "applemusic",
   example: "909253",
   name: "Apple Music",
-  origin: "Apple Music releases",
+  origin: server.sources.connectors.bridges.appleMusic,
   keyPattern: /^\d{1,15}$/,
   keyFromPage(url) {
     if (hostOf(url) !== "music.apple.com") return null;
@@ -323,7 +324,7 @@ const instagram: BridgeService = {
   id: "instagram",
   example: "natgeo",
   name: "Instagram",
-  origin: "Instagram account",
+  origin: server.sources.connectors.bridges.instagram,
   keyPattern: INSTAGRAM_NAME,
   keyFromPage(url) {
     if (!INSTAGRAM_HOSTS.has(hostOf(url))) return null;

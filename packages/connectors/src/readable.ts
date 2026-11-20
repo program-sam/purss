@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { isNoticeOnly } from "./capture-quality.ts";
@@ -36,7 +37,7 @@ function fail(reason: string, message: string): ReadableCapture {
  */
 export async function captureReadableWith(url: string, opts: { signal?: AbortSignal; fetch?: SafeFetchOptions } = {}): Promise<ReadableCapture> {
   const signal = opts.signal;
-  if (signal?.aborted) return fail("aborted", "The capture was cancelled.");
+  if (signal?.aborted) return fail("aborted", server.sources.connectors.readable.cancelled);
   const res = await safeFetch(url, {
     timeoutMs: 25_000,
     phaseTimeoutsMs: { firstByteMs: 12_000, idleMs: 8000 },
@@ -47,22 +48,22 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
   });
   if (!res.ok) return fail(res.reason, res.message);
   const r = res.response;
-  if (r.status === 404 || r.status === 410) return fail("unreachable", "That page no longer exists at its address, so no readable copy could be saved.");
-  if (r.status === 401 || r.status === 403) return fail("unreachable", "That page needs a login or blocks automated readers, so no readable copy could be saved.");
-  if (r.status === 429) return fail("unreachable", "That website asked us to slow down. The readable copy can be retried later.");
-  if (r.status < 200 || r.status >= 300) return fail("unreachable", `That website answered with an error (${r.status}), so no readable copy could be saved.`);
+  if (r.status === 404 || r.status === 410) return fail("unreachable", server.sources.connectors.readable.gone);
+  if (r.status === 401 || r.status === 403) return fail("unreachable", server.sources.connectors.readable.needsLogin);
+  if (r.status === 429) return fail("unreachable", server.sources.connectors.readable.slowDown);
+  if (r.status < 200 || r.status >= 300) return fail("unreachable", server.sources.connectors.readable.httpError(r.status));
   const kind = sniffContent(r.body, r.contentType);
   const media = parseContentType(r.contentType).mediaType;
   if (kind !== "html" && !(kind === "xml" && media === "application/xhtml+xml")) {
-    return fail("unsupported", "That link isn't an ordinary web page (it may be a file, video or feed), so a readable copy can't be made.");
+    return fail("unsupported", server.sources.connectors.readable.notWebPage);
   }
-  if (signal?.aborted) return fail("aborted", "The capture was cancelled.");
+  if (signal?.aborted) return fail("aborted", server.sources.connectors.readable.cancelled);
 
   const html = decodeBody(r.body, r.contentType);
   try {
     assertShallowMarkup(html, "html");
   } catch (error) {
-    if (error instanceof TooComplexError) return fail("invalid", "That page's structure is too complex to read safely.");
+    if (error instanceof TooComplexError) return fail("invalid", server.sources.connectors.readable.tooComplexStructure);
     throw error;
   }
 
@@ -78,19 +79,19 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
     const reader = new Readability(document as unknown as Document, { charThreshold: 150, maxElemsToParse: MAX_ELEMENTS, keepClasses: false });
     article = reader.parse();
   } catch {
-    return fail("noarticle", "We couldn't find readable article text on that page. It may be built so that it only works with JavaScript.");
+    return fail("noarticle", server.sources.connectors.readable.onlyWithScript);
   }
-  if (!article?.content) return fail("noarticle", "We couldn't find readable article text on that page. It may need JavaScript or a login.");
-  if (signal?.aborted) return fail("aborted", "The capture was cancelled.");
+  if (!article?.content) return fail("noarticle", server.sources.connectors.readable.noArticleText);
+  if (signal?.aborted) return fail("aborted", server.sources.connectors.readable.cancelled);
 
   const clean = sanitizeArticleHtml(article.content, r.url);
-  if (!clean.ok) return fail(clean.reason === "toolarge" ? "toolarge" : "invalid", "That page is too large or complex to save a readable copy.");
+  if (!clean.ok) return fail(clean.reason === "toolarge" ? "toolarge" : "invalid", server.sources.connectors.readable.tooLargeOrComplex);
   const text = htmlToPlainText(clean.html);
-  if (text.length < MIN_TEXT) return fail("noarticle", "We couldn't find enough readable text on that page. It may need JavaScript or a login.");
+  if (text.length < MIN_TEXT) return fail("noarticle", server.sources.connectors.readable.notEnoughText);
   // What is left is a cookie notice or the page's own menus, nothing of the page: no copy is made of it.
-  if (isNoticeOnly(text)) return fail("noarticle", "That page gave only a cookie notice or its menus, not its text, so no readable copy could be saved. It may need JavaScript or a login.");
+  if (isNoticeOnly(text)) return fail("noarticle", server.sources.connectors.readable.noticeOnly);
   const bytes = Buffer.byteLength(clean.html) + Buffer.byteLength(text);
-  if (bytes > OUTPUT_MAX_BYTES) return fail("toolarge", "That article is longer than we keep as a readable copy.");
+  if (bytes > OUTPUT_MAX_BYTES) return fail("toolarge", server.sources.connectors.readable.articleTooLong);
   return { ok: true, title: cleanLine(article.title ?? null, 300), text, html: clean.html, finalUrl: r.url, bytes };
 }
 
@@ -98,5 +99,5 @@ export async function captureReadableWith(url: string, opts: { signal?: AbortSig
 export function captureReadable(url: string, opts?: { signal?: AbortSignal }): Promise<
   { ok: true; title: string | null; text: string; html: string; finalUrl: string; bytes: number } | { ok: false; reason: string; message: string }
 > {
-  return captureReadableWith(url, { signal: opts?.signal }).catch(() => fail("error", "Something went wrong while saving a readable copy. It can be retried later."));
+  return captureReadableWith(url, { signal: opts?.signal }).catch(() => fail("error", server.sources.connectors.readable.failed));
 }

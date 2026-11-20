@@ -3,6 +3,7 @@ import type { Enclosure, ItemMedia, PlaybackPosition } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { notFound, nowIso } from "../http.ts";
 import { STATE_RECORD_BYTES, admitObject } from "./storage.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Item media and playback. The server only reports the audio or video file an item's feed
@@ -46,7 +47,7 @@ export function savePlayback(app: App, p: Principal, itemId: string, input: { po
   const recorded = input.recordedAt ? new Date(input.recordedAt) : now;
   const at = (Number.isNaN(recorded.getTime()) || recorded > now ? now : recorded).toISOString();
   app.db.tx(() => {
-    if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound("That item");
+    if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound(server.api.shared.thatItem);
     app.db.run(
       `INSERT INTO playback_positions (item_id, account_id, workspace_id, position_seconds, duration_seconds, updated_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(item_id) DO UPDATE SET position_seconds = excluded.position_seconds, duration_seconds = COALESCE(excluded.duration_seconds, duration_seconds), updated_at = excluded.updated_at

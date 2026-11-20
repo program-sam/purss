@@ -36,6 +36,7 @@ import { PlanLimit, assertRoom } from "./plans.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM } from "./images.ts";
 import { isNewsFeed } from "./news-address.ts";
 import { pictureType } from "@purss/connectors";
+import { server } from "@purss/copy/server";
 
 /*
  * PURSS export and import. The archive format is documented
@@ -78,7 +79,7 @@ function stripAddresses(html: string | null): string | null {
  * single read transaction, so the file is a consistent snapshot even while the app keeps writing.
  */
 export async function streamExport(app: App, p: Principal, write: ExportSink): Promise<ExportSummary> {
-  if (activeExports.has(p.accountId)) throw new HttpError(429, "busy", "An export is already running for your account. Please wait for it to finish.");
+  if (activeExports.has(p.accountId)) throw new HttpError(429, "busy", server.api.portability.exportRunning);
   activeExports.add(p.accountId);
   const snap = new DatabaseSync(app.config.dbFile, { readOnly: true });
   try {
@@ -94,8 +95,8 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     const privateIds = new Set(sources.filter(isPrivateSource).map((s) => s.id));
     const pendingCaptures = all<{ n: number }>("SELECT COUNT(*) AS n FROM captures WHERE workspace_id = ? AND status = 'pending'", ws)[0]!.n;
     const omitted = [...ARCHIVE_OMITTED];
-    if (privateIds.size) omitted.push(`${privateIds.size} private ${privateIds.size === 1 ? "source was" : "sources were"} exported as ${privateIds.size === 1 ? "a reference" : "references"} without ${privateIds.size === 1 ? "its" : "their"} link; reconnect ${privateIds.size === 1 ? "it" : "them"} after importing.`);
-    if (pendingCaptures) omitted.push(`${pendingCaptures} readable-text ${pendingCaptures === 1 ? "capture was" : "captures were"} still in progress and ${pendingCaptures === 1 ? "is" : "are"} not included.`);
+    if (privateIds.size) omitted.push(server.api.portability.privateSourcesExported(privateIds.size));
+    if (pendingCaptures) omitted.push(server.api.portability.capturesNotIncluded(pendingCaptures));
 
     let buffer = "";
     let bytes = 0;
@@ -364,7 +365,7 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
 }
 
 const lower = (s: string) => s.trim().toLowerCase();
-const PRIVATE_NOTE = "Reconnect required. The private link wasn't included in the export; paste it again to resume.";
+const PRIVATE_NOTE = server.api.portability.reconnectNote;
 
 function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   const now = nowIso();
@@ -388,7 +389,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   /** The PURSS's "Saved links" source: reused when present, created once when an import needs it. */
   const manualDecision = (src?: ArchiveSource): SourceDecision => {
     if (manual) return manual;
-    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: "Saved links", origin: "Kept by hand", siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
+    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand, siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
     manual = existingManual
       ? { action: "reuse", id: existingManual, refollow: false, src: shown, feedUrl: null }
       : { action: "create", id: newId("src"), mode: "manual", src: shown, feedUrl: null };
@@ -430,7 +431,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     if (d.action === "reuse" && d.refollow) toFollow++;
     if (d.action === "create" && d.mode === "reconnect") toReconnect++;
   }
-  if (reusedSources) conflicts.push(`${reusedSources} ${reusedSources === 1 ? "source is" : "sources are"} already in your PURSS and won't be added again.`);
+  if (reusedSources) conflicts.push(server.api.portability.sourcesAlreadyHere(reusedSources));
 
   // ---- baskets
   const baskets = new Map<string, { id: string; create: Archive["baskets"][number] | null }>();
@@ -447,7 +448,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
       basketByName.set(lower(b.name), id);
     }
   }
-  for (const name of mergedBaskets) conflicts.push(`A basket named “${name}” already exists. Imported items will be added to it.`);
+  for (const name of mergedBaskets) conflicts.push(server.api.portability.basketExists(name));
 
   // ---- collections
   const collections = new Map<string, { id: string; create: ArchiveCollection | null; skip: boolean; src: ArchiveCollection }>();
@@ -467,14 +468,14 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
       collectionByKey.set(key, id);
     }
   }
-  for (const name of mergedCollections) conflicts.push(`A collection named “${name}” already exists. Imported sources will be added to it.`);
-  if (doc.savedQueries.length) conflicts.push(`${doc.savedQueries.length} saved ${doc.savedQueries.length === 1 ? "search wasn't" : "searches weren't"} restored: saved searches no longer exist.`);
-  if (handPicked) conflicts.push(`${handPicked} hand-picked ${handPicked === 1 ? "collection wasn't" : "collections weren't"} restored: hand-picked collections no longer exist. Their items are still imported; use a basket to gather items by hand.`);
+  for (const name of mergedCollections) conflicts.push(server.api.portability.collectionExists(name));
+  if (doc.savedQueries.length) conflicts.push(server.api.portability.savedSearchesNotRestored(doc.savedQueries.length));
+  if (handPicked) conflicts.push(server.api.portability.handPickedNotRestored(handPicked));
   const maps = { sources: new Map([...sources].map(([k, v]) => [k, v.id])), baskets: new Map([...baskets].map(([k, v]) => [k, v.id])), collections: new Map([...collections].map(([k, v]) => [k, v.id])) };
   for (const entry of collections.values()) {
     if (entry.create?.mode !== "query") continue;
     const q = checkQuery(remapQuery(entry.create.query, maps));
-    if (!q.ok) { entry.skip = true; conflicts.push(`The filter collection “${entry.create.name}” wasn't restored because its filter isn't valid.`); }
+    if (!q.ok) { entry.skip = true; conflicts.push(server.api.portability.filterNotRestored(entry.create.name)); }
   }
 
   // ---- items
@@ -526,10 +527,10 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     newItems++;
   }
   if (manual && !existingManual) sources.set("(manual)", manual); // make sure the executor creates it
-  if (matchedItems) conflicts.push(`${matchedItems} ${matchedItems === 1 ? "item is" : "items are"} already in your PURSS (same source and link) and won't be duplicated. Their current workflow state is kept.`);
-  if (repeated) conflicts.push(`${repeated} ${repeated === 1 ? "item in the file repeats" : "items in the file repeat"} another one (same source and link) and ${repeated === 1 ? "was" : "were"} merged into it.`);
-  if (ambiguous) conflicts.push(`${ambiguous} ${ambiguous === 1 ? "item matches" : "items match"} more than one existing item, so ${ambiguous === 1 ? "it was" : "they were"} added as new rather than merged.`);
-  if (orphaned) conflicts.push(`${orphaned} ${orphaned === 1 ? "item refers" : "items refer"} to a source that isn't in the file and will be filed under “Saved links”.`);
+  if (matchedItems) conflicts.push(server.api.portability.itemsAlreadyHere(matchedItems));
+  if (repeated) conflicts.push(server.api.portability.itemsRepeat(repeated));
+  if (ambiguous) conflicts.push(server.api.portability.itemsAmbiguous(ambiguous));
+  if (orphaned) conflicts.push(server.api.portability.itemsOrphaned(orphaned));
 
   // ---- memberships (kept items)
   const memberships: MembershipPlan[] = [];
@@ -554,7 +555,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
       if (v.insert) extraVersionBytes += v.insert.bytes;
     }
   }
-  if (existingPins) conflicts.push(`${existingPins} ${existingPins === 1 ? "basket pin is" : "basket pins are"} already in your PURSS and won't be repeated.`);
+  if (existingPins) conflicts.push(server.api.portability.pinsAlreadyHere(existingPins));
 
   // ---- workflow history: rows land on the item this import settles on; rows already there are not repeated
   const stateLog: ImportPlan["stateLog"] = [];
@@ -636,7 +637,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     annotations.push({ id: newId("ann"), itemId: base.id, ...fields, bytes });
     annotationBytesTotal += bytes;
   }
-  if (overLimit) conflicts.push(`${overLimit} ${overLimit === 1 ? "highlight or note wasn't" : "highlights or notes weren't"} added because ${overLimit === 1 ? "its item already has" : "their items already have"} the most an item can hold (${ANNOTATIONS_PER_ITEM}).`);
+  if (overLimit) conflicts.push(server.api.portability.annotationsOverLimit(overLimit, ANNOTATIONS_PER_ITEM));
 
   // ---- pictures kept with items: they land on the item this import settles on; one already there (same address) is not
   // repeated, an item keeps no more than it may, and each must really be the picture the file says it is.
@@ -678,10 +679,10 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   }
 
   // ---- sharing, preferences
-  if (doc.shares.length) conflicts.push("Sharing settings come in switched off. Nothing is shared until you review it and share again.");
-  if (doc.publications.length) conflicts.push("Shared collections from older exports aren't imported: sharing is now set on a basket or collection.");
+  if (doc.shares.length) conflicts.push(server.api.portability.sharingSwitchedOff);
+  if (doc.publications.length) conflicts.push(server.api.portability.sharedCollectionsOld);
   const hasPrefs = !!app.db.get("SELECT 1 FROM preferences WHERE workspace_id = ?", ws);
-  if (hasPrefs) conflicts.push("Your current settings were kept; the settings in the file were not applied.");
+  if (hasPrefs) conflicts.push(server.api.portability.settingsKept);
 
   bump("sources", doc.sources.length); bump("collections", doc.collections.length - handPicked); bump("baskets", doc.baskets.length);
   bump("items", doc.items.length); bump("keptItems", doc.memberships.length); bump("shares", doc.shares.length);
@@ -817,14 +818,14 @@ export const MAX_IMPORT_DEPTH = 64;
 
 function parseExport(text: string): unknown {
   if (countJsonValues(text, MAX_IMPORT_VALUES + 1, MAX_IMPORT_DEPTH) > MAX_IMPORT_VALUES) {
-    throw new HttpError(413, "import_too_large", "That export has more in it than PURSS can import at once.");
+    throw new HttpError(413, "import_too_large", server.api.portability.importTooLarge);
   }
-  try { return JSON.parse(text); } catch { throw badRequest("That file isn't a PURSS export (it isn't valid JSON).", "not_archive"); }
+  try { return JSON.parse(text); } catch { throw badRequest(server.api.portability.notJsonExport, "not_archive"); }
 }
 
 /** Parse and verify an export (its text, or the parsed document) and work out what importing it would do. Reads only. */
 export function checkUpload(app: App, p: Principal, upload: unknown): UploadCheck {
-  if (upload === undefined || upload === null) throw badRequest("Choose an export file to upload.");
+  if (upload === undefined || upload === null) throw badRequest(server.api.shared.chooseExportFile);
   const raw = typeof upload === "string" ? parseExport(upload) : upload;
   let doc: Archive;
   try { doc = parseArchive(raw); } catch (err) { fail(err); }
@@ -869,7 +870,7 @@ export const IMPORT_CHECK_SECONDS = 120;
  */
 export function checkUploadApart(app: App, p: Principal, file: string, heapMb = app.config.importCheckHeapMb, signal?: AbortSignal): Promise<{ check: UploadCheck; sha256: string }> {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) { reject(new HttpError(400, "upload_aborted", "The upload was cut off.")); return; }
+    if (signal?.aborted) { reject(new HttpError(400, "upload_aborted", server.api.shared.uploadCutOff)); return; }
     const child = fork(fileURLToPath(new URL("./import-check-worker.ts", import.meta.url)), [], {
       execArgv: [`--max-old-space-size=${heapMb}`, "--no-warnings"],
       env: { ...process.env, NODE_OPTIONS: "" },
@@ -885,11 +886,11 @@ export function checkUploadApart(app: App, p: Principal, file: string, heapMb = 
     const stop = (err: HttpError) => { if (!answer) { stopped ??= err; if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL"); } };
     child.once("message", (m: Answer) => { answer = m; });
     // Couldn't start (or the pipe broke): no "exit" may follow, but "close" always does.
-    child.on("error", (err) => { stopped ??= new HttpError(500, "internal", "Something went wrong checking that file."); console.error("[api] import check could not run:", err.message); });
-    const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", "That export took too long to check.")), IMPORT_CHECK_SECONDS * 1000);
+    child.on("error", (err) => { stopped ??= new HttpError(500, "internal", server.api.shared.wentWrongChecking); console.error("[api] import check could not run:", err.message); });
+    const timer = setTimeout(() => stop(new HttpError(413, "import_too_large", server.api.portability.tookTooLong)), IMPORT_CHECK_SECONDS * 1000);
     timer.unref();
     // The person went away: stop checking, so their next upload and everyone else's turn needn't wait for it.
-    const onAbort = () => stop(new HttpError(400, "upload_aborted", "The upload was cut off."));
+    const onAbort = () => stop(new HttpError(400, "upload_aborted", server.api.shared.uploadCutOff));
     signal?.addEventListener("abort", onAbort, { once: true });
     // "close" comes once the process has ended and its pipes are shut, also when it never started: only then is the turn free.
     child.once("close", (code, sig) => {
@@ -902,12 +903,12 @@ export function checkUploadApart(app: App, p: Principal, file: string, heapMb = 
       if (stopped) return reject(stopped);
       if (/heap out of memory|Reached heap limit/i.test(errText)) {
         console.error(`[api] an import check ran out of its ${heapMb} MB; the file was refused as too large`);
-        return reject(new HttpError(413, "import_too_large", "That export is too large to check at once."));
+        return reject(new HttpError(413, "import_too_large", server.api.portability.tooLargeToCheck));
       }
       console.error(`[api] an import check ended without an answer (${sig ?? code}):`, errText.trim().split("\n").slice(-12).join("\n") || "no output");
-      reject(new HttpError(500, "internal", "Something went wrong checking that file."));
+      reject(new HttpError(500, "internal", server.api.shared.wentWrongChecking));
     });
-    if (child.connected) child.send({ config: app.config, principal: p, file }, (err) => { if (err) stop(new HttpError(500, "internal", "Something went wrong checking that file.")); });
+    if (child.connected) child.send({ config: app.config, principal: p, file }, (err) => { if (err) stop(new HttpError(500, "internal", server.api.shared.wentWrongChecking)); });
   });
 }
 
@@ -923,9 +924,9 @@ export function oneImportAtATime<T>(fn: () => T | Promise<T>): Promise<T> {
 export function applyImport(app: App, p: Principal, token: string): ImportResult {
   const stage = app.db.get<{ token: string; sha256: string }>("SELECT token, sha256 FROM import_stages WHERE token = ? AND workspace_id = ? AND expires_at > ?", token, p.workspaceId, nowIso());
   const file = stage ? stageFile(app, stage.token) : null;
-  if (!stage || !file || !existsSync(file)) throw badRequest("That import preview has expired. Please upload the file again.", "expired");
+  if (!stage || !file || !existsSync(file)) throw badRequest(server.api.portability.previewExpired, "expired");
   const json = readFileSync(file, "utf8");
-  if (sha256Hex(json) !== stage.sha256) throw badRequest("The uploaded file changed while it was being checked. Please upload it again.", "expired");
+  if (sha256Hex(json) !== stage.sha256) throw badRequest(server.api.portability.fileChanged, "expired");
   let doc: Archive;
   try { doc = parseArchive(parseExport(json)); } catch (err) { fail(err); }
 
@@ -967,7 +968,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   assertPlanRoom(app, p, plan); // and a 403 when it would follow more sources or add more collections than the plan allows
 
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
-  if (plan.needsEngine && !engineUser) throw badRequest("Your PURSS isn't connected to the collection engine yet. Try again in a minute.", "engine_pending");
+  if (plan.needsEngine && !engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
 
   const result: ImportResult = {
     created: { sources: 0, collections: 0, baskets: 0, items: 0, keptPins: 0, captures: 0, shares: 0, annotations: 0, reminders: 0 },
@@ -1013,7 +1014,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         d.id, p.accountId, ws, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
         s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }) ? 1 : 0,
-        follow ? "pending" : "ok", follow ? "Getting the first items…" : null, lastItemAt, createdAt);
+        follow ? "pending" : "ok", follow ? server.api.shared.gettingFirstItems : null, lastItemAt, createdAt);
       if (follow) subscribe(d.id, d.feedUrl!, s.title);
     }
     result.created.sources++;
@@ -1167,7 +1168,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     result.created.shares++;
   }
 
-  const summaryLine = `${result.created.items} new items, ${result.created.keptPins} kept` + (result.reconnectRequired ? `; ${result.reconnectRequired} private ${result.reconnectRequired === 1 ? "source needs" : "sources need"} reconnecting` : "");
+  const summaryLine = server.api.portability.importSummary(result.created.items, result.created.keptPins) + (result.reconnectRequired ? server.api.portability.reconnectSuffix(result.reconnectRequired) : "");
   app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', 'Import finished', ?, ?, ?)",
     newId("ntf"), ws, summaryLine, `import:${token}`, now);
   return result;
@@ -1178,12 +1179,12 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
 /** Restore a private source that came back from an export with "Reconnect required": the owner supplies the link again. */
 export function reconnectSource(app: App, p: Principal, sourceId: string, discoveryToken: string): { ok: true; sourceId: string } {
   const s = app.db.get<{ id: string; title: string; is_private: number; health: string; followed: number }>("SELECT id, title, is_private, health, followed FROM sources WHERE id = ? AND workspace_id = ?", sourceId, p.workspaceId);
-  if (!s) throw notFound("That source");
-  if (!s.is_private || s.health !== "reconnect" || !s.followed) throw conflict("This source doesn't need to be reconnected.");
+  if (!s) throw notFound(server.api.shared.thatSource);
+  if (!s.is_private || s.health !== "reconnect" || !s.followed) throw conflict(server.api.portability.noReconnectNeeded);
   const candidate = peekCandidate(discoveryToken, p.workspaceId);
-  if (!candidate) throw badRequest("That preview has expired. Please look up the link again.", "expired");
+  if (!candidate) throw badRequest(server.api.shared.lookupExpired, "expired");
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
-  if (!engineUser) throw badRequest("Your PURSS isn't connected to the collection engine yet. Try again in a minute.", "engine_pending");
+  if (!engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
   writeSecret(app.config.secretsDir, `source-urls/${s.id}`, candidate.feedUrl);
   try {
     app.db.tx(() => {

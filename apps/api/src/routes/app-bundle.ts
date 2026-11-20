@@ -4,6 +4,7 @@ import { parseOffer } from "@purss/domain/app-bundle";
 import type { AppBundleOffer } from "@purss/domain/app-bundle";
 import type { App, Ctx } from "../app.ts";
 import { HttpError, Router } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Live updates of the phone apps' interface: the build of the interface this PURSS runs,
@@ -13,7 +14,7 @@ import { HttpError, Router } from "../http.ts";
  * Without a packed build both answer 404 and the apps keep the interface they have.
  */
 
-const NONE = () => new HttpError(404, "no_app_bundle", "This PURSS offers no update of the app's interface.");
+const NONE = () => new HttpError(404, "no_app_bundle", server.api.appBundle.noAppBundle);
 
 /** The packed build's manifest, or null when there is none (or it is unreadable). */
 export function readAppBundle(app: App): (AppBundleOffer & { file: string }) | null {

@@ -1,3 +1,5 @@
+import { common } from "@purss/copy/common";
+
 /**
  * Hosted plans: how many sources an account may follow and how many collections it may have.
  * Plans apply on hosted installs only; self-hosted installs have no such limits. Going over a
@@ -18,7 +20,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   unlimited: { sources: null, collections: null },
 };
 
-export const PLAN_LABELS: Record<Plan, string> = { free: "Free", plus: "Plus", pro: "Pro", unlimited: "Unlimited" };
+export const PLAN_LABELS: Record<Plan, string> = { free: common.plans.free, plus: common.plans.plus, pro: common.plans.pro, unlimited: common.plans.unlimited };
 
 /** What the paid plans cost on the hosted service, in euros including VAT. */
 export const PLAN_PRICES_EUR = { plus: { month: 5, year: 48 }, pro: { month: 10, year: 96 } } as const;

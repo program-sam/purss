@@ -6,6 +6,7 @@ import { emit } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import { admitObject, releaseObject } from "./storage.ts";
 import { foldForSearch } from "./search-text.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The person's own highlights and notes on items. An annotation is not workflow, not
@@ -50,14 +51,14 @@ export function toAnnotationDTO(r: Row): AnnotationDTO {
 }
 
 function ownItem(app: App, p: Principal, itemId: string): void {
-  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound("That item");
+  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound(server.api.shared.thatItem);
 }
 
 /** The row with this id, only when it belongs to this PURSS and item; another's is "not found", never overwritten. */
 function ownRow(app: App, p: Principal, itemId: string, id: string): Row | null {
   const row = app.db.get<Row>(`SELECT ${COLUMNS} FROM annotations WHERE id = ?`, id);
   if (!row) return null;
-  if (row.workspace_id !== p.workspaceId || row.item_id !== itemId) throw notFound("That note");
+  if (row.workspace_id !== p.workspaceId || row.item_id !== itemId) throw notFound(server.api.annotations.thatNote);
   return row;
 }
 
@@ -85,10 +86,10 @@ export function putAnnotation(app: App, p: Principal, itemId: string, id: string
     if (existing && existing.updated_at >= at) {
       return { annotation: existing.deleted_at ? null : toAnnotationDTO(existing), applied: false, changed: false };
     }
-    if (existing && existing.kind !== input.kind) throw badRequest("A highlight can't be turned into a note, or a note into a highlight.");
+    if (existing && existing.kind !== input.kind) throw badRequest(server.api.annotations.kindChange);
     if (!existing || existing.deleted_at) {
       const live = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM annotations WHERE item_id = ? AND deleted_at IS NULL", itemId)!.n;
-      if (live >= ANNOTATIONS_PER_ITEM) throw badRequest(`An item can have up to ${ANNOTATIONS_PER_ITEM} highlights and notes. Remove some before adding more.`, "too_many");
+      if (live >= ANNOTATIONS_PER_ITEM) throw badRequest(server.api.annotations.tooManyAnnotations(ANNOTATIONS_PER_ITEM), "too_many");
     }
 
     const body = input.body !== null && input.body.trim() ? input.body : null;

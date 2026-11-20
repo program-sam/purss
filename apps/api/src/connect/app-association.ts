@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import type { App } from "../app.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The PURSS vouches for its phone apps (configured in Config.apps), so the phones let them use the
@@ -37,7 +38,7 @@ export function serveAppAssociation(app: App, path: string, res: ServerResponse)
   } else if (path === AASA_PATH && iosAppIds.length) {
     body = { webcredentials: { apps: iosAppIds }, applinks: { details: [{ appIDs: iosAppIds, components: [{ "/": "/app/*" }] }] } };
   } else if (path === ASSETLINKS_PATH || path === AASA_PATH) {
-    res.writeHead(404, { "content-type": "application/json", "cache-control": "no-store" }).end(JSON.stringify({ error: { code: "not_found", message: "This PURSS vouches for no app." } }));
+    res.writeHead(404, { "content-type": "application/json", "cache-control": "no-store" }).end(JSON.stringify({ error: { code: "not_found", message: server.api.appAssociation.vouchesForNoApp } }));
     return true;
   } else {
     return false;

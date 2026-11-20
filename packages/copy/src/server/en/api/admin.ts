@@ -1,0 +1,21 @@
+// Server copy: apps/api/src/services/admin.ts
+export default {
+  syncFailing: (failing: number, total: number) => `${failing} of ${total} ${total === 1 ? "PURSS isn't" : "PURSSes aren't"} syncing. Check the engine and the worker.`,
+  syncStalled: "Nothing has synced for much longer than the sync interval. Check that the engine and the worker are running.",
+  engineStarting: "The engine is still being set up.",
+  thatJob: "That job",
+  jobAccountUnavailable: "This job's account is suspended or being deleted, so its jobs wait until it is usable again.",
+  onlyRetry: "Only failed or cancelled jobs can be retried.",
+  onlyCancel: "Only queued or failed jobs can be cancelled.",
+  hostedOnly: (what: string) => `${what} are a hosted-service feature; self-hosted accounts have no storage limit.`,
+  invitationNotSent: "The invitation couldn't be emailed, so it wasn't made. Check the address, or the mail server under Health, and try again.",
+  storageAllowances: "Storage allowances",
+  plans: "Plans",
+  thatAccount: "That account",
+  accountBeingDeleted: "This account is being deleted, so it can't be changed.",
+  cannotSuspendSelf: "You can't suspend your own account.",
+  lastAdministratorFirst: "This is the last active administrator. Another administrator has to be active first.",
+  cannotRemoveOwnRole: "You can't remove your own administrator role. Ask another administrator.",
+  lastAdministrator: "This is the last active administrator.",
+  thatInvitation: "That invitation",
+};

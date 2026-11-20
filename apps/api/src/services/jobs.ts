@@ -3,6 +3,7 @@ import type { JobKind, LeasedJob } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 import { isAccountUsable, usableAccountSql } from "./deletion.ts";
+import { server } from "@purss/copy/server";
 
 export const LEASE_SECONDS = 120;
 
@@ -19,7 +20,7 @@ export type EnqueueOpts = { accountId?: string | null; workspaceId?: string | nu
 export function enqueue<K extends JobKind>(app: App, kind: K, payload: unknown, opts: EnqueueOpts = {}): string {
   const parsed = jobPayloadSchemas[kind].parse(payload);
   if (opts.accountId && kind !== "engine.delete_user" && !isAccountUsable(app, opts.accountId)) {
-    throw new HttpError(409, "account_unavailable", "This account is suspended or being deleted, so nothing new can start for it.");
+    throw new HttpError(409, "account_unavailable", server.api.jobs.accountUnavailable);
   }
   const now = nowIso();
   if (opts.idempotencyKey) {

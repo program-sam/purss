@@ -1,4 +1,7 @@
+import { server } from "@purss/copy/server";
 import type { KnownPlan } from "./known-feeds.ts";
+
+const feedLabels = server.sources.connectors.labels;
 
 /*
  * Profile and page addresses of services that publish a native feed at a predictable address: a Steam game's news,
@@ -33,7 +36,7 @@ function steam(url: URL): KnownPlan | null {
   const id = s[1] ?? "";
   if (s[0] !== "app" || !/^\d{1,9}$/.test(id)) return null;
   const name = /^[\w.%'-]{1,100}$/.test(s[2] ?? "") ? s[2]!.replace(/_+/g, " ").trim() : "";
-  return { service: "Steam", feeds: [{ feedUrl: `https://store.steampowered.com/feeds/news/app/${id}/`, title: `${name || `Steam app ${id}`} news`, via: "Posts feed", origin: "Steam news" }] };
+  return { service: "Steam", feeds: [{ feedUrl: `https://store.steampowered.com/feeds/news/app/${id}/`, title: server.sources.connectors.services.steamNews(name || server.sources.connectors.services.steamApp(id)), via: feedLabels.postsFeed, origin: server.sources.connectors.services.steamOrigin }] };
 }
 
 /** A listing (`/list/cs.LG/recent`): the category's daily announcements. The feed is empty on days arXiv announces nothing. */
@@ -45,9 +48,9 @@ function arxiv(url: URL): KnownPlan | null {
     service: "arXiv",
     feeds: [{
       feedUrl: `https://rss.arxiv.org/rss/${category}`,
-      via: "Posts feed",
-      origin: "arXiv listing",
-      emptyNote: "arXiv announces new papers on weekdays, so this feed is empty at weekends and fills again on Monday.",
+      via: feedLabels.postsFeed,
+      origin: server.sources.connectors.services.arxivOrigin,
+      emptyNote: server.sources.connectors.services.arxivEmptyNote,
     }],
   };
 }
@@ -56,7 +59,7 @@ function dailymotion(url: URL): KnownPlan | null {
   const s = segmentsOf(url);
   const name = s[0] ?? "";
   if (s.length !== 1 || !/^[A-Za-z0-9_.-]{3,60}$/.test(name) || RESERVED_DAILYMOTION.has(name.toLowerCase())) return null;
-  return { service: "Dailymotion", feeds: [{ feedUrl: `https://www.dailymotion.com/rss/user/${encodeURIComponent(name)}`, title: `${name} on Dailymotion`, via: "Channel feed", origin: "Dailymotion channel" }] };
+  return { service: "Dailymotion", feeds: [{ feedUrl: `https://www.dailymotion.com/rss/user/${encodeURIComponent(name)}`, title: server.sources.connectors.services.dailymotionTitle(name), via: feedLabels.channelFeed, origin: server.sources.connectors.services.dailymotionOrigin }] };
 }
 
 /**
@@ -66,7 +69,7 @@ function dailymotion(url: URL): KnownPlan | null {
 function odysee(url: URL): KnownPlan | null {
   const channel = /^@([^\s/\\?#:@]{1,80}):([0-9a-f]{1,40})$/i.exec(segmentsOf(url)[0] ?? "");
   if (!channel) return null;
-  return { service: "Odysee", feeds: [{ feedUrl: `https://odysee.com/$/rss/@${encodeURIComponent(channel[1]!)}:${channel[2]}`, via: "Channel feed", origin: "Odysee channel" }] };
+  return { service: "Odysee", feeds: [{ feedUrl: `https://odysee.com/$/rss/@${encodeURIComponent(channel[1]!)}:${channel[2]}`, via: feedLabels.channelFeed, origin: server.sources.connectors.services.odyseeOrigin }] };
 }
 
 /** A profile (`/name`) or its gallery (`/name/gallery`). The backend answers an empty feed for a name it doesn't know, so only a gallery with entries counts. */
@@ -76,7 +79,7 @@ function deviantart(url: URL): KnownPlan | null {
   if (!/^[A-Za-z0-9_-]{2,30}$/.test(name) || RESERVED_DEVIANTART.has(name.toLowerCase())) return null;
   const gallery = s.length === 1 || (s[1] === "gallery" && (s.length === 2 || (s.length === 3 && s[2] === "all")));
   if (!gallery) return null;
-  return { service: "DeviantArt", feeds: [{ feedUrl: `https://backend.deviantart.com/rss.xml?q=gallery:${name}`, via: "Gallery feed", origin: "DeviantArt gallery", needsItems: true }] };
+  return { service: "DeviantArt", feeds: [{ feedUrl: `https://backend.deviantart.com/rss.xml?q=gallery:${name}`, via: feedLabels.galleryFeed, origin: server.sources.connectors.services.deviantartOrigin, needsItems: true }] };
 }
 
 const PEERTUBE_TABS = new Set(["videos", "video-channels", "video-playlists", "about", "channels", "playlists"]);
@@ -95,8 +98,8 @@ function peertube(url: URL): KnownPlan | null {
     service: "PeerTube",
     feeds: [{
       feedUrl: `${url.origin}/feeds/videos.xml?${param}=${encodeURIComponent(s[1]!)}`,
-      via: "Channel feed",
-      origin: kind === "a" ? "PeerTube account feed" : "PeerTube channel feed",
+      via: feedLabels.channelFeed,
+      origin: kind === "a" ? server.sources.connectors.services.peertubeAccountOrigin : server.sources.connectors.services.peertubeChannelOrigin,
       generator: /^PeerTube\b/i,
     }],
   };
@@ -106,7 +109,7 @@ function behance(url: URL): KnownPlan | null {
   const s = segmentsOf(url);
   const name = s[0] ?? "";
   if (s.length !== 1 || !/^[A-Za-z0-9_-]{2,40}$/.test(name) || RESERVED_BEHANCE.has(name.toLowerCase())) return null;
-  return { service: "Behance", feeds: [{ feedUrl: `https://www.behance.net/feeds/user?username=${encodeURIComponent(name)}`, via: "Projects feed", origin: "Behance projects" }] };
+  return { service: "Behance", feeds: [{ feedUrl: `https://www.behance.net/feeds/user?username=${encodeURIComponent(name)}`, via: feedLabels.projectsFeed, origin: server.sources.connectors.services.behanceOrigin }] };
 }
 
 /**
@@ -129,7 +132,7 @@ const NOS_SECTIONS: Record<string, { feed: string; title: string }> = {
 function nos(url: URL): KnownPlan | null {
   const section = NOS_SECTIONS[segmentsOf(url).join("/").toLowerCase()];
   if (!section) return null;
-  return { service: "NOS", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: "Posts feed", origin: "NOS" }] };
+  return { service: "NOS", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: feedLabels.postsFeed, origin: "NOS" }] };
 }
 
 /** The feed addresses to try for a page address of one of these services, or null. */

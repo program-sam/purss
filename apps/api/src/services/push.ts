@@ -11,6 +11,7 @@ import { usableAccountSql } from "./deletion.ts";
 import { newItemCount } from "./sources.ts";
 import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Phone notifications. A connected phone app registers the handle the push relay gave it
@@ -43,7 +44,7 @@ type DeviceRow = { device_id: string; handle: string; shown_until: string; pushe
 function mobileDevice(app: App, p: Principal): string {
   const id = deviceIdOf(p);
   const kind = id ? app.db.get<{ kind: string }>("SELECT kind FROM device_tokens WHERE id = ? AND account_id = ?", id, p.accountId)?.kind : undefined;
-  if (!id || kind !== "mobile") throw new HttpError(400, "not_phone", "Phone notifications are for the phone app.");
+  if (!id || kind !== "mobile") throw new HttpError(400, "not_phone", server.api.push.notPhone);
   return id;
 }
 
@@ -60,8 +61,8 @@ export function pushInfo(app: App, p: Principal): PushInfo {
  */
 export function registerPushDevice(app: App, p: Principal, relay: string, handle: string): PushRegisterResult {
   const deviceId = mobileDevice(app, p);
-  if (!app.config.pushRelay) throw new HttpError(409, "push_off", "This PURSS doesn't send phone notifications.");
-  if (relay !== app.config.pushRelay) throw new HttpError(409, "push_relay", "This PURSS sends phone notifications through a different relay than this app uses.");
+  if (!app.config.pushRelay) throw new HttpError(409, "push_off", server.api.push.pushOff);
+  if (relay !== app.config.pushRelay) throw new HttpError(409, "push_relay", server.api.push.pushRelayDifferent);
   const fetchToken = `${FETCH_TOKEN_PREFIX}${randomToken(32)}`;
   const now = nowIso();
   app.db.run(

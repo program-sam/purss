@@ -1,0 +1,23 @@
+// Server copy: apps/api/src/routes/public.ts
+export default {
+  appErrorTitle: "That didn't work",
+  appErrorBack: "Go back to the PURSS app and try again. You can close this page.",
+  confirmingItsYou: "confirming it's you",
+  connecting: "connecting",
+  almostDone: "Almost done",
+  goingBack: (what: string) => `Going back to the PURSS app to finish ${what}.`,
+  goBackLink: (href: string) => `<a href="${href}">Go back to the PURSS app</a>`,
+  useTicket: "A connected app opens this in the system browser with a ticket.",
+  browsersStartThemselves: "Browsers start this themselves.",
+  browsersLinkInBrowser: "Browsers link in the browser.",
+  browsersConfirmInBrowser: "Browsers confirm in the browser.",
+  passkeyOtherAccount: "That passkey belongs to a different account.",
+  passwordWrong: "That password isn't right.",
+  currentPasswordWrong: "Your current password isn't right.",
+  thatSession: "That session",
+  setupFailedHosted: "Your PURSS couldn't finish setting up. Try again later.",
+  setupFailedSelfHosted: "The collection engine couldn't be set up for your PURSS. An administrator can retry it.",
+  homeListsOrder: "Home's lists have their own order and can't be searched or sorted.",
+  homeListsSelect: "Home's lists can't be selected as a whole.",
+  staleNote: (days: number, retention: number) => `New items last arrived ${days} day${days === 1 ? "" : "s"} ago. Everything you have is still here, but the engine drops entries it hasn't passed on after ${retention} days, so a longer gap can't be filled in later.`,
+};

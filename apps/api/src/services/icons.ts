@@ -6,6 +6,7 @@ import { emit } from "../app.ts";
 import { addSeconds, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
 import { usableAccountSql } from "./deletion.ts";
+import { server } from "@purss/copy/server";
 
 /**
  * Source icons. The worker looks for an icon (feed image, YouTube avatar, the site's own icons)
@@ -73,6 +74,6 @@ export function iconUrl(sourceId: string, digest: string | null): string | null 
 
 export function readIcon(app: App, p: Principal, sourceId: string): { bytes: Uint8Array; digest: string } {
   const row = app.db.get<{ bytes: Uint8Array; digest: string }>("SELECT bytes, digest FROM source_icons WHERE source_id = ? AND workspace_id = ?", sourceId, p.workspaceId);
-  if (!row) throw notFound("That icon");
+  if (!row) throw notFound(server.api.icons.thatIcon);
   return row;
 }

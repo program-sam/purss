@@ -2,6 +2,7 @@ import { looksPrivateUrl } from "@purss/connectors";
 import { appUrl } from "@purss/domain";
 import type { App } from "../app.ts";
 import { escapeHtml, hasCredentialShape, httpUrlOrNull } from "./text-safety.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The pages anyone can open without signing in: shared baskets and collections, their report form, and the
@@ -78,33 +79,19 @@ export function renderFollowPage(app: App, feed: string, known: { name: string; 
   const name = known?.name ?? host;
   const home = productHome(app);
   return pageShell({
-    title: `Follow ${name}`,
+    title: server.api.publicPages.followTitle(name),
     indexable: false,
     // Feed readers given this page's address find the feed from here, as they would on the site itself.
     // Its format is known only for this installation's own (Atom) feeds; others are announced as RSS, which readers treat as "a feed".
     head: `<link rel="alternate" type="${known?.atom ? "application/atom+xml" : "application/rss+xml"}" title="${escapeHtml(name)}" href="${escapeHtml(feed)}">\n`,
-    body: `<header>
-<h1>Follow ${escapeHtml(name)}</h1>
-${known ? `<p class="by">Shared by ${escapeHtml(known.by)}</p>\n` : ""}<p class="about">Get its new posts in your ${PRODUCT_NAME}, next to everything else you follow. You see a preview before anything is followed.</p>
-</header>
-<main id="main">
-<div class="card">
-<p style="margin:0"><b>The feed:</b> <code>${escapeHtml(feed)}</code></p>
-<div class="acts"><a class="btn primary" href="${escapeHtml(add)}">Follow in my PURSS</a></div>
-<p class="hint">You sign in first if you aren't already.</p>
-</div>
-<div class="card">
-<p style="margin:0"><b>Use another feed reader, or a PURSS somewhere else?</b> Copy the feed address above and paste it into that reader's “add” or “subscribe” box.</p>
-${home ? `<p style="margin:.6rem 0 0">New to this? ${PRODUCT_NAME} is a calm place to follow blogs, news, YouTube channels and podcasts, without an algorithm. <a href="${escapeHtml(home)}">See how it works</a>.</p>` : ""}
-</div>
-</main>`,
+    body: server.api.publicPages.followBody(escapeHtml(name), known ? server.api.publicPages.sharedBy(escapeHtml(known.by)) : "", PRODUCT_NAME, escapeHtml(feed), escapeHtml(add), home ? server.api.publicPages.newToProduct(PRODUCT_NAME, escapeHtml(home)) : ""),
   });
 }
 
 export function renderFollowError(): string {
   return pageShell({
-    title: "This follow link doesn't work",
+    title: server.api.publicPages.followErrorTitle,
     indexable: false,
-    body: `<header><h1>This follow link doesn't work</h1></header><main id="main"><p>It should carry a web address starting with http:// or https://. Ask whoever made the link to check it.</p></main>`,
+    body: server.api.publicPages.followErrorBody,
   });
 }

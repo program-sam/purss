@@ -3,6 +3,7 @@ import { newId, CONTROL_HEADROOM_BYTES } from "@purss/domain";
 import type { StoredObjectKind } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 /**
  * Logical storage ledger. Account usage = sum of live stored objects, kept as
@@ -23,9 +24,9 @@ export class StorageFull extends HttpError {
     super(507, reason === "quota" ? "quota_full" : "disk_reserve",
       reason === "quota"
         ? mode === "hosted"
-          ? "Your storage allowance is full. Reading and organising still work, but new items and copies are paused."
-          : "This PURSS has used all the space it is allowed. Reading and organising still work; new items and copies are paused until its administrator gives it more."
-        : "PURSS can't save new items and copies right now because there isn't enough free space. Nothing you kept was removed.");
+          ? server.api.storage.allowanceFull
+          : server.api.storage.allSpaceUsed
+        : server.api.storage.notEnoughSpace);
     this.reason = reason;
     this.accountId = accountId;
   }
@@ -105,7 +106,7 @@ function diskBlocks(app: App, bytes: number): boolean {
 
 /** Refuses to store a file (an upload, a staged import) that would eat into the disk's reserve; it isn't account content, so nothing is paused. */
 export function assertDiskRoom(app: App, bytes: number): void {
-  if (diskBlocks(app, bytes)) throw new HttpError(507, "disk_reserve", "There isn't enough free space to store this file right now. Nothing you kept was removed.");
+  if (diskBlocks(app, bytes)) throw new HttpError(507, "disk_reserve", server.api.shared.diskReserve);
 }
 
 /**
@@ -212,9 +213,9 @@ export function pausedReason(app: App, accountId: string): string | null {
   const paused = app.db.get<{ paused_reason: string | null }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", accountId)?.paused_reason ?? null;
   return paused === "quota"
     ? app.config.mode === "hosted"
-      ? "Your storage allowance is full, so new items and copies are paused. Reading, organising and deleting still work."
-      : "This PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work."
-    : paused === "disk" ? "PURSS can't save new items and copies right now because there isn't enough free space." : null;
+      ? server.api.storage.allowanceFullPaused
+      : server.api.storage.allSpaceUsedPaused
+    : paused === "disk" ? server.api.storage.notEnoughSpacePaused : null;
 }
 
 /**

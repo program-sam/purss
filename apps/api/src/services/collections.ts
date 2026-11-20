@@ -15,6 +15,7 @@ import { annotationCounts, deleteItemAnnotations } from "./annotations.ts";
 import type { SqlParam } from "../db/database.ts";
 import { assertRoom } from "./plans.ts";
 import { forgetCollectionFilter, forgetItemVerdicts } from "./ai-access.ts";
+import { server } from "@purss/copy/server";
 
 // ---------- collections ----------
 
@@ -51,7 +52,7 @@ function countQueryCollection(app: App, p: Principal, r: CollectionRow): { fresh
 /** Names are how people find their collections and baskets; two with the same name are confusing. */
 function assertUniqueName(app: App, table: "collections" | "baskets", workspaceId: string, name: string, exceptId?: string): void {
   const clash = app.db.get("SELECT 1 FROM " + table + " WHERE workspace_id = ? AND lower(trim(name)) = lower(trim(?)) AND id <> ?", workspaceId, name, exceptId ?? "");
-  if (clash) throw badRequest(`You already have a ${table === "baskets" ? "basket" : "collection"} called “${name.trim()}”. Pick another name.`, "duplicate_name");
+  if (clash) throw badRequest(server.api.collections.nameInUse(table, name.trim()), "duplicate_name");
 }
 
 function nextPosition(app: App, table: "collections" | "baskets", workspaceId: string): number {
@@ -59,7 +60,7 @@ function nextPosition(app: App, table: "collections" | "baskets", workspaceId: s
 }
 
 function validateSources(app: App, p: Principal, ids: string[]): void {
-  for (const id of ids) if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND workspace_id = ?", id, p.workspaceId)) throw notFound("That source");
+  for (const id of ids) if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND workspace_id = ?", id, p.workspaceId)) throw notFound(server.api.shared.thatSource);
 }
 
 export function createCollection(app: App, p: Principal, input: z.infer<typeof collectionCreateSchema>): CollectionDTO {
@@ -83,20 +84,20 @@ export function createCollection(app: App, p: Principal, input: z.infer<typeof c
 
 export function patchCollection(app: App, p: Principal, id: string, patch: z.infer<typeof collectionPatchSchema>): CollectionDTO {
   const c = app.db.get<{ mode: string; position: number }>("SELECT mode, position FROM collections WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-  if (!c) throw notFound("That collection");
+  if (!c) throw notFound(server.api.shared.thatCollection);
   app.db.tx(() => {
     if (patch.name !== undefined) { assertUniqueName(app, "collections", p.workspaceId, patch.name, id); app.db.run("UPDATE collections SET name = ? WHERE id = ?", patch.name, id); }
     if (patch.emoji !== undefined) app.db.run("UPDATE collections SET emoji = ? WHERE id = ?", patch.emoji, id);
     if (patch.view !== undefined) app.db.run("UPDATE collections SET view = ? WHERE id = ?", patch.view, id);
     if (patch.showOnHome !== undefined) app.db.run("UPDATE collections SET show_on_home = ? WHERE id = ?", patch.showOnHome ? 1 : 0, id);
     if (patch.query !== undefined) {
-      if (c.mode !== "query") throw badRequest("Only filter collections have a filter.");
+      if (c.mode !== "query") throw badRequest(server.api.collections.onlyFilterCollections);
       const q = checkQuery(patch.query);
       if (!q.ok) throw badRequest(q.message);
       app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify(q.query), id);
     }
     if (patch.sourceIds !== undefined) {
-      if (c.mode !== "sources") throw badRequest("This collection doesn't group sources.");
+      if (c.mode !== "sources") throw badRequest(server.api.collections.notGroupingSources);
       validateSources(app, p, patch.sourceIds);
       app.db.run("DELETE FROM collection_sources WHERE collection_id = ?", id);
       for (const s of new Set(patch.sourceIds)) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", id, s);
@@ -115,8 +116,8 @@ function reorder(app: App, table: "collections" | "baskets", workspaceId: string
 
 /** A page an administrator took down stays, with its reports, until they restore it; so does what it shares. */
 const takenDownTarget = (app: App) => app.config.mode === "hosted"
-  ? "PURSS took this shared page down after a report, so it can't be deleted until the report is reviewed."
-  : "An administrator took this shared page down after a report, so it can't be deleted until they restore the page.";
+  ? server.api.collections.takenDownHosted
+  : server.api.collections.takenDownAdministrator;
 
 /** Deleting a collection removes the grouping only; sources, items and baskets stay. Its shared page goes with it. */
 export function deleteCollection(app: App, p: Principal, id: string): void {
@@ -127,7 +128,7 @@ export function deleteCollection(app: App, p: Principal, id: string): void {
     if (out.changes) app.db.run("DELETE FROM shares WHERE target_kind = 'collection' AND target_id = ?", id);
     return out;
   });
-  if (!r.changes) throw notFound("That collection");
+  if (!r.changes) throw notFound(server.api.shared.thatCollection);
   emit(app, p.accountId, { type: "source", sourceId: "" });
 }
 
@@ -150,7 +151,7 @@ export function createBasket(app: App, p: Principal, input: z.infer<typeof baske
 
 export function patchBasket(app: App, p: Principal, id: string, patch: z.infer<typeof basketPatchSchema>): BasketDTO {
   const b = app.db.get<{ position: number }>("SELECT position FROM baskets WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-  if (!b) throw notFound("That basket");
+  if (!b) throw notFound(server.api.shared.thatBasket);
   app.db.tx(() => {
     if (patch.name !== undefined) { assertUniqueName(app, "baskets", p.workspaceId, patch.name, id); app.db.run("UPDATE baskets SET name = ? WHERE id = ?", patch.name, id); }
     if (patch.captureMode !== undefined) app.db.run("UPDATE baskets SET capture_mode = ? WHERE id = ?", patch.captureMode, id);
@@ -161,7 +162,7 @@ export function patchBasket(app: App, p: Principal, id: string, patch: z.infer<t
 }
 
 export function basketDeletePreview(app: App, p: Principal, id: string): { items: number; onlyHere: number; confirmToken: string } {
-  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", id, p.workspaceId)) throw notFound("That basket");
+  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", id, p.workspaceId)) throw notFound(server.api.shared.thatBasket);
   const items = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items WHERE basket_id = ?", id)!.n;
   const onlyHere = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items b WHERE b.basket_id = ? AND NOT EXISTS (SELECT 1 FROM basket_items o WHERE o.item_id = b.item_id AND o.basket_id <> b.basket_id)", id)!.n;
   const confirmToken = randomToken(18);
@@ -173,7 +174,7 @@ export function basketDeletePreview(app: App, p: Principal, id: string): { items
 export function deleteBasket(app: App, p: Principal, id: string, confirmToken: string): void {
   app.db.tx(() => {
     const t = app.db.get("SELECT 1 FROM confirm_tokens WHERE token = ? AND workspace_id = ? AND purpose = 'basket-delete' AND data = ? AND expires_at > ?", confirmToken, p.workspaceId, id, nowIso());
-    if (!t) throw badRequest("Please review what will happen and confirm again.", "confirm");
+    if (!t) throw badRequest(server.api.collections.reviewConfirm, "confirm");
     if (app.db.get("SELECT 1 FROM shares WHERE target_kind = 'basket' AND target_id = ? AND taken_down_at IS NOT NULL", id)) throw badRequest(takenDownTarget(app), "taken_down");
     const members = app.db.all<{ item_id: string }>("SELECT item_id FROM basket_items WHERE basket_id = ?", id);
     for (const m of members) releaseObject(app, "record", `basket:${id}:${m.item_id}`, "basket deleted");
@@ -196,7 +197,7 @@ export function deletePreview(app: App, p: Principal, itemIds: string[]): Delete
   let bytes = 0;
   for (const id of itemIds) {
     const item = app.db.get<{ title: string }>("SELECT title FROM items WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-    if (!item) throw notFound("That item");
+    if (!item) throw notFound(server.api.shared.thatItem);
     const baskets = app.db.all<{ name: string }>("SELECT b.name FROM basket_items m JOIN baskets b ON b.id = m.basket_id WHERE m.item_id = ?", id).map((b) => b.name);
     if (baskets.length) kept.push({ id, title: item.title, baskets });
     if (counts.get(id)) annotated.push({ id, title: item.title, annotations: counts.get(id)! });
@@ -251,7 +252,7 @@ export function deleteItems(app: App, p: Principal, confirmToken: string): { del
   let deleted = 0;
   app.db.tx(() => {
     const t = app.db.get<{ data: string }>("SELECT data FROM confirm_tokens WHERE token = ? AND workspace_id = ? AND purpose = 'item-delete' AND expires_at > ?", confirmToken, p.workspaceId, nowIso());
-    if (!t) throw badRequest("Please review what will be deleted and confirm again.", "confirm");
+    if (!t) throw badRequest(server.api.collections.reviewDeleteConfirm, "confirm");
     for (const id of JSON.parse(t.data) as string[]) {
       const r = deleteItemNow(app, p, id);
       if (r === null) continue;

@@ -5,6 +5,7 @@ import { notFound, nowIso } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import { FILTERED_OUT } from "./ai-filters.ts";
 import { VISIBLE_SOURCE, scopeClause } from "./items.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Private statistics for one source or one collection: plain counts and dates over the items the
@@ -122,14 +123,14 @@ function totalsOf(app: App, p: Principal, scope: string, now: string, rows: Stat
 
 export function sourceStats(app: App, p: Principal, sourceId: string, now = nowIso()): SourceStatsResponse {
   const source = app.db.get<{ title: string }>("SELECT title FROM sources WHERE id = ? AND workspace_id = ?", sourceId, p.workspaceId);
-  if (!source) throw notFound("That source");
+  if (!source) throw notFound(server.api.shared.thatSource);
   const stats = numbersBySource(app, p, `source:${sourceId}`, now).get(sourceId) ?? emptyNumbers();
   return { sourceId, title: source.title, asOf: now, stats };
 }
 
 export function collectionStats(app: App, p: Principal, collectionId: string, now = nowIso()): CollectionStatsResponse {
   const c = app.db.get<{ name: string; mode: string }>("SELECT name, mode FROM collections WHERE id = ? AND workspace_id = ?", collectionId, p.workspaceId);
-  if (!c) throw notFound("That collection");
+  if (!c) throw notFound(server.api.shared.thatCollection);
   const scope = `collection:${collectionId}`;
   const bySource = numbersBySource(app, p, scope, now);
   const titles = new Map(app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE workspace_id = ?", p.workspaceId).map((s) => [s.id, s.title]));
@@ -140,7 +141,7 @@ export function collectionStats(app: App, p: Principal, collectionId: string, no
     ? app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", collectionId).map((r) => r.source_id)
     : [...bySource.keys()];
   const sources: CollectionStatsRow[] = sids
-    .map((sid) => ({ sourceId: sid, title: sid === null ? "Saved links" : titles.get(sid) ?? "Unknown source", stats: bySource.get(sid) ?? emptyNumbers() }))
+    .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.savedLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
     .sort((a, b) => a.title.localeCompare(b.title));
   return {
     collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "query", asOf: now, sources,

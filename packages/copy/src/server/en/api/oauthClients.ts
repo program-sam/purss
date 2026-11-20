@@ -1,0 +1,22 @@
+// Server copy: apps/api/src/oauth/clients.ts
+export default {
+  onlyPublicClients: "only clients without a secret or key (token endpoint authentication method \"none\") are supported",
+  authMethodsNotList: "the authentication methods aren't a list of names",
+  clientSecretMethod: "they name a client secret method, which a metadata document must not",
+  authMethodsDisagree: "their token endpoint authentication methods don't agree",
+  detailsNotUsable: (host: string, why: string) => `The assistant's details at ${host} aren't usable: ${why}.`,
+  notJson: "they aren't valid JSON",
+  notJsonObject: "they aren't a JSON object",
+  clientIdMismatch: "the client_id inside doesn't match their address",
+  containsSecret: "they contain a client secret",
+  notAuthorizationCode: "they don't use the authorization code flow",
+  noReturnAddresses: "they list no usable return addresses",
+  noReturnAddressesHttps: "they list no usable return addresses (https, or this computer)",
+  noAssistantName: "they don't name the assistant (client_name)",
+  noUsableClientId: "The assistant didn't identify itself with a usable address (client_id).",
+  tooLarge: "they are larger than 5 kB",
+  tookTooLong: "the site took too long to answer",
+  notPublic: "that address isn't on the public internet",
+  couldNotRead: (host: string, why: string) => `We couldn't read the assistant's details at ${host}: ${why}.`,
+  answeredWithStatus: (host: string, status: number) => `We couldn't read the assistant's details at ${host}: it answered with status ${status}.`,
+};

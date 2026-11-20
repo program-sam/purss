@@ -4,6 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { deviceMayUse, isClientOrigin } from "./clients.ts";
 import { DEVICE_TOKEN_PREFIX, resolveDeviceToken } from "./devices.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * How a request to /api/* is authenticated. Decided before cookies are read:
@@ -87,12 +88,12 @@ export function clientGate(app: App, raw: IncomingMessage, res: ServerResponse, 
   const secret = bearerOf(raw);
   if (!secret) return { kind: "browser" };
   // A token used from some other web page: refuse, as /mcp does (a page has no business holding one).
-  if (crossOrigin && !clientOrigin) throw new HttpError(403, "origin", "Requests from other web pages aren't accepted.");
+  if (crossOrigin && !clientOrigin) throw new HttpError(403, "origin", server.api.shared.otherWebPages);
   if (clientOrigin) allowOrigin(res, clientOrigin);
   const caller = resolveDeviceToken(app, secret);
   if (!caller) {
     res.setHeader("www-authenticate", 'Bearer realm="PURSS", error="invalid_token"');
-    throw new HttpError(401, "device_signed_out", "This app isn't connected to the PURSS any more. Connect it again.");
+    throw new HttpError(401, "device_signed_out", server.api.shared.appNotConnected);
   }
   return { kind: "device", principal: caller.principal, client: caller.kind, deviceId: caller.deviceId };
 }
@@ -105,6 +106,6 @@ export function clientGate(app: App, raw: IncomingMessage, res: ServerResponse, 
 export function checkDeviceRoute(gate: Gate, method: string, route: string): void {
   if (gate.kind !== "device" || deviceMayUse(gate.client, method, route)) return;
   throw new HttpError(403, "not_for_apps", gate.client === "extension"
-    ? "The extension can't do that. Open PURSS in your browser for it."
-    : "That can only be done in PURSS in a web browser.");
+    ? server.api.gate.extensionCannot
+    : server.api.shared.webBrowserOnly);
 }

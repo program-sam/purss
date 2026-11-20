@@ -12,6 +12,7 @@ import { openSignupAttempt, refreshAuth, sessionWrite, signupWithProvider } from
 import { canConfirm, linkedProviders } from "./providers.ts";
 import { signupOpen } from "../mail/mailer.ts";
 import { DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
+import { server } from "@purss/copy/server";
 
 /**
  * External sign-in via OpenID Connect (authorization code + PKCE + state + nonce). Identities bind by validated
@@ -32,7 +33,7 @@ const configs = new Map<string, Promise<client.Configuration>>();
 
 function provider(app: App, id: string): OidcProviderConfig {
   const p = app.config.oidc.find((x) => x.id === id);
-  if (!p) throw new HttpError(404, "not_found", "That sign-in option isn't set up here.");
+  if (!p) throw new HttpError(404, "not_found", server.api.oidc.optionNotSetUp);
   return p;
 }
 
@@ -79,9 +80,9 @@ function linkedTo(app: App, accountId: string, p: OidcProviderConfig): boolean {
 
 /** Confirming it's you with this provider: it must be linked, and able to confirm this account (see canConfirm). */
 function assertMayConfirm(app: App, accountId: string | null, p: OidcProviderConfig): void {
-  if (!accountId || !linkedTo(app, accountId, p)) throw new HttpError(409, "not_linked", `${p.label} isn't connected to this account, so it can't confirm it's you.`);
+  if (!accountId || !linkedTo(app, accountId, p)) throw new HttpError(409, "not_linked", server.api.oidc.providerNotConnected(p.label));
   if (!canConfirm(app, accountId, p)) {
-    throw new HttpError(409, "confirm_another_way", `Confirm it's you with your password or a passkey instead: ${p.label} can only confirm an account that has neither.`);
+    throw new HttpError(409, "confirm_another_way", server.api.oidc.confirmAnotherWay(p.label));
   }
 }
 
@@ -131,10 +132,10 @@ const B64URL = /^[A-Za-z0-9_-]+$/;
  */
 export function issueAppTicket(app: App, providerId: string, purpose: "link" | "stepup", accountId: string, appSessionId: string, proof?: AppProof): string {
   const p = provider(app, providerId);
-  if (!appSessionId.startsWith(DEVICE_SESSION_PREFIX)) throw new HttpError(400, "not_device", "This is for connected apps.");
+  if (!appSessionId.startsWith(DEVICE_SESSION_PREFIX)) throw new HttpError(400, "not_device", server.api.oidc.forConnectedApps);
   if (purpose === "stepup") assertMayConfirm(app, accountId, p);
   if (!proof || proof.challenge.length !== 43 || !B64URL.test(proof.challenge) || proof.state.length < 16 || proof.state.length > 128 || !B64URL.test(proof.state)) {
-    throw new HttpError(400, "bad_request", "An app needs to send its code challenge and state.");
+    throw new HttpError(400, "bad_request", server.api.oidc.appNeedsChallenge);
   }
   const ticket = randomToken(24);
   app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, data, expires_at) VALUES (?, 'oidc-ticket', ?, '', ?, ?)",
@@ -149,7 +150,7 @@ export async function startFromTicket(app: App, providerId: string, ticket: stri
   app.db.run("DELETE FROM auth_challenges WHERE id = ?", id);
   const data = row ? JSON.parse(row.data) as { providerId: string; purpose: "link" | "stepup"; sessionId: string; appProof: AppProof } : null;
   if (!row || !data || row.expires_at < nowIso() || data.providerId !== providerId) {
-    throw new HttpError(400, "expired", "That link has expired or was already used. Start again from the app.");
+    throw new HttpError(400, "expired", server.api.oidc.linkExpiredStartFromApp);
   }
   return startOidc(app, providerId, data.purpose, row.account_id, binder, { sessionId: data.sessionId, viaApp: true, appProof: data.appProof });
 }
@@ -177,7 +178,7 @@ function takeAppCode(app: App, kind: keyof typeof APP_CODE, providerId: string, 
   const id = `${APP_CODE[kind].prefix}:${sha256(code)}`;
   const row = app.db.get<{ account_id: string | null; challenge: string; data: string; expires_at: string }>("SELECT account_id, challenge, data, expires_at FROM auth_challenges WHERE id = ? AND purpose = ?", id, APP_CODE[kind].purpose);
   app.db.run("DELETE FROM auth_challenges WHERE id = ?", id);
-  const invalid = () => new HttpError(400, "invalid_grant", "That code isn't valid any more. Start again from the app.");
+  const invalid = () => new HttpError(400, "invalid_grant", server.api.oidc.codeInvalidStartFromApp);
   if (!row || row.expires_at < nowIso()) throw invalid();
   const data = JSON.parse(row.data) as AppCode;
   if (data.providerId !== providerId || row.account_id !== caller.accountId || data.sessionId !== caller.sessionId) {
@@ -200,7 +201,7 @@ export function redeemLinkCode(app: App, providerId: string, caller: { accountId
   const data = takeAppCode(app, "link", providerId, caller, code, verifier);
   sessionWrite(app, caller.accountId, caller.sessionId, () => {
     const existing = app.db.get<{ account_id: string }>("SELECT account_id FROM sign_in_methods WHERE kind = 'oidc' AND issuer = ? AND subject = ?", data.issuer, data.subject);
-    if (existing && existing.account_id !== caller.accountId) throw new HttpError(409, "linked_elsewhere", "That external account is already used by another PURSS.");
+    if (existing && existing.account_id !== caller.accountId) throw new HttpError(409, "linked_elsewhere", server.api.oidc.externalAccountUsed);
     if (!existing) {
       app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?)",
         newId("sim"), caller.accountId, p.label, data.issuer, data.subject, nowIso());
@@ -219,7 +220,7 @@ export function redeemConfirmCode(app: App, providerId: string, caller: { accoun
   sessionWrite(app, caller.accountId, caller.sessionId, () => {
     // Still the identity that signed in, linked to this account, and still something that may confirm it.
     const stillLinked = app.db.get("SELECT 1 FROM sign_in_methods WHERE account_id = ? AND kind = 'oidc' AND issuer = ? AND subject = ?", caller.accountId, data.issuer, data.subject);
-    if (!stillLinked) throw new HttpError(400, "invalid_grant", "That code isn't valid any more. Start again from the app.");
+    if (!stillLinked) throw new HttpError(400, "invalid_grant", server.api.oidc.codeInvalidStartFromApp);
     assertMayConfirm(app, caller.accountId, p);
     refreshAuth(app, caller.sessionId);
     app.db.run("UPDATE sign_in_methods SET last_used_at = ? WHERE kind = 'oidc' AND issuer = ? AND subject = ?", nowIso(), data.issuer, data.subject);
@@ -247,7 +248,7 @@ export class OidcFlowError extends HttpError {
 /** Who is finishing the flow: its binder cookie, the browser's session, and where the request came from. */
 export type OidcCaller = { binder: string; accountId: string | null; sessionId: string | null; address: string };
 
-const failed = () => new HttpError(401, "oidc_failed", "Signing in with that provider didn't work. Please try again.");
+const failed = () => new HttpError(401, "oidc_failed", server.api.oidc.providerSignInFailed);
 
 /** The provider's verified email address for an account it creates, or null when it gave none or doesn't vouch for it. */
 function verifiedEmail(claims: client.IDToken): string | null {
@@ -281,19 +282,19 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
   const row = app.db.get<{ purpose: string; account_id: string | null; challenge: string; data: string; expires_at: string }>(
     "SELECT purpose, account_id, challenge, data, expires_at FROM auth_challenges WHERE id = ?", `oidc:${state}`);
   app.db.run("DELETE FROM auth_challenges WHERE id = ?", `oidc:${state}`);
-  if (!row || row.expires_at < nowIso()) throw new HttpError(400, "expired", "That sign-in took too long or was already used. Please try again.");
+  if (!row || row.expires_at < nowIso()) throw new HttpError(400, "expired", server.api.oidc.signInExpired);
   const data = JSON.parse(row.data) as ChallengeData;
   const viaApp = data.viaApp === true;
   flow.fromApp = viaApp || data.appReturn === true;
   if (data.providerId !== providerId || !caller.binder || !safeEqual(sha256(caller.binder), data.binder)) {
-    throw new HttpError(400, "mismatch", "That sign-in didn't start in this browser. Please try again.");
+    throw new HttpError(400, "mismatch", server.api.oidc.signInOtherBrowser);
   }
   const purpose = row.purpose.slice("oidc-".length) as OidcPurpose;
   // Linking and confirming finish in the browser where they started and where the account is signed in: the same session. A
   // flow an app started has no session in this browser; its ticket named the app's connection, and the identity checked below
   // must belong to that account.
   if (purpose !== "signin" && !viaApp && (!caller.accountId || caller.accountId !== row.account_id)) {
-    throw new HttpError(400, "mismatch", "Please finish in the browser where you're signed in.");
+    throw new HttpError(400, "mismatch", server.api.oidc.finishInSignedInBrowser);
   }
   const config = await discovery(p);
   let claims;
@@ -314,19 +315,19 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
   const result = (r: Pick<OidcResult, "accountId" | "sharedComputer" | "created"> & Partial<Pick<OidcResult, "viaApp" | "appCode">>): OidcResult => ({ purpose, viaApp, appFlow: flow.fromApp, appCode: null, ...r });
 
   if (purpose === "link") {
-    if (!row.account_id || !data.sessionId) throw new HttpError(400, "expired", "Please sign in first.");
+    if (!row.account_id || !data.sessionId) throw new HttpError(400, "expired", server.api.oidc.signInFirst);
     const accountId = row.account_id;
     if (viaApp) {
       // An app's link never completes here: whoever signs in at the provider in this browser may not be the person whose app asked
       // (an app's ticket can be handed to anyone). The identity waits behind a code that only goes back to the app.
-      if (!data.appProof) throw new HttpError(400, "expired", "Start linking again from the app.");
-      if (existing && existing.account_id !== accountId) throw new HttpError(409, "linked_elsewhere", "That external account is already used by another PURSS.");
+      if (!data.appProof) throw new HttpError(400, "expired", server.api.oidc.startLinkingAgain);
+      if (existing && existing.account_id !== accountId) throw new HttpError(409, "linked_elsewhere", server.api.oidc.externalAccountUsed);
       const code = storeAppCode(app, "link", accountId, data.appProof, { providerId, issuer: claims.iss, subject: claims.sub, sessionId: data.sessionId });
       return result({ accountId, sharedComputer: false, created: false, appCode: { code, state: data.appProof.state } });
     }
-    if (caller.sessionId !== data.sessionId) throw new HttpError(401, "signed_out", "Please sign in again.");
+    if (caller.sessionId !== data.sessionId) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
     sessionWrite(app, accountId, data.sessionId, () => {
-      if (existing && existing.account_id !== accountId) throw new HttpError(409, "linked_elsewhere", "That external account is already used by another PURSS.");
+      if (existing && existing.account_id !== accountId) throw new HttpError(409, "linked_elsewhere", server.api.oidc.externalAccountUsed);
       if (!existing) {
         app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?)",
           newId("sim"), accountId, p.label, claims.iss, claims.sub, nowIso());
@@ -337,13 +338,13 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
   }
 
   if (purpose === "stepup") {
-    if (!row.account_id || !data.sessionId) throw new HttpError(400, "expired", "Please sign in first.");
+    if (!row.account_id || !data.sessionId) throw new HttpError(400, "expired", server.api.oidc.signInFirst);
     const accountId = row.account_id;
-    if (!viaApp && caller.sessionId !== data.sessionId) throw new HttpError(401, "signed_out", "Please sign in again.");
+    if (!viaApp && caller.sessionId !== data.sessionId) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
     // The identity that signed in must be one this account has linked: another Google account can't confirm it.
     if (existing?.account_id !== accountId) {
       audit(app, accountId, "oidc_step_up", providerId, "failure", "another identity");
-      throw new HttpError(403, "wrong_account", `That ${p.label} account isn't the one connected to this PURSS account.`);
+      throw new HttpError(403, "wrong_account", server.api.oidc.wrongProviderAccount(p.label));
     }
     // The account may have gained a password or a passkey since the flow started.
     assertMayConfirm(app, accountId, p);
@@ -354,13 +355,13 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
       const stale = typeof authTime !== "number" ? "no auth_time" : authTime * 1000 < (data.startedAt ?? 0) - AUTH_TIME_SKEW_MS ? "stale auth_time" : null;
       if (stale) {
         audit(app, accountId, "oidc_step_up", providerId, "failure", stale);
-        throw new HttpError(401, "stale_auth", `${p.label} didn't confirm that you just signed in again, so it can't confirm it's you. Try again.`);
+        throw new HttpError(401, "stale_auth", server.api.oidc.providerNotReauthenticated(p.label));
       }
     }
     if (viaApp) {
       // Likewise an app's confirmation: the browser refreshes nothing. The proof that the right person signed in waits behind a code
       // that only goes back to the app, which redeems it for its own connection.
-      if (!data.appProof) throw new HttpError(400, "expired", "Start confirming again from the app.");
+      if (!data.appProof) throw new HttpError(400, "expired", server.api.oidc.startConfirmingAgain);
       const code = storeAppCode(app, "confirm", accountId, data.appProof, { providerId, issuer: claims.iss, subject: claims.sub, sessionId: data.sessionId });
       return result({ accountId, sharedComputer: false, created: false, appCode: { code, state: data.appProof.state } });
     }
@@ -379,13 +380,13 @@ async function finish(app: App, providerId: string, currentUrl: URL, caller: Oid
   // An identity nobody linked: with open sign-up it makes an account, under the same limits as signing up with a password.
   if (!signupOpen(app)) {
     audit(app, null, "oidc", providerId, "failure", "identity not linked");
-    throw new HttpError(403, "not_linked", `That ${p.label} account isn't connected to a PURSS here. Sign in another way and connect it in Settings first.`);
+    throw new HttpError(403, "not_linked", server.api.oidc.providerAccountNotConnected(p.label));
   }
   const attemptRetryAt = openSignupAttempt(app, caller.address);
   const email = verifiedEmail(claims);
   if (!email) {
     audit(app, null, "oidc", providerId, "failure", "no verified email");
-    throw new HttpError(403, "email_unverified", `${p.label} didn't give PURSS a verified email address, so it can't make an account from it.`);
+    throw new HttpError(403, "email_unverified", server.api.oidc.providerNoVerifiedEmail(p.label));
   }
   // The day's capacity and an address another account has confirmed are checked in the account's own transaction (never linked or
   // duplicated by email: someone who already has an account links the provider in Settings → Security).

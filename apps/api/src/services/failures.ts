@@ -7,6 +7,7 @@ import { failCapture } from "./captures.ts";
 import { failIconCheck } from "./icons.ts";
 import { onSubscribeFailed } from "./sources.ts";
 import { failJudging } from "./ai-filters.ts";
+import { server } from "@purss/copy/server";
 
 /**
  * What a failed job means for a person, and how long to wait before trying again. The worker reports
@@ -36,20 +37,20 @@ export function syncDelaySeconds(intervalSeconds: number, consecutiveFailures: n
 export function syncFailureText(reason: FailureReason | undefined): string {
   switch (reason) {
     case "rate_limited":
-      return "New items are delayed: the collection engine is being asked for too much at once. Everything you have is still here, and we'll keep trying.";
+      return server.api.failures.delayedTooMuch;
     case "unavailable":
-      return "New items are delayed: the collection engine isn't responding. Everything you have is still here, and we'll keep trying.";
+      return server.api.failures.delayedNotResponding;
     case "too_large":
-      return "New items are held back: an update from one of your sources couldn't be saved. Everything you have is still here, and we'll keep trying.";
+      return server.api.failures.heldBackNotSaved;
     default:
-      return "New items are held back by a problem we couldn't work out. Everything you have is still here. We'll keep trying, a little less often each time; if it lasts, the person running this PURSS can check the worker log.";
+      return server.api.failures.heldBackUnknown;
   }
 }
 
 /** The state of a source whose subscription is still being retried (the person doesn't need to do anything). */
 export function subscribeRetryText(reason: FailureReason | undefined): string | null {
-  if (reason === "rate_limited") return "The site is limiting requests; we'll keep trying.";
-  if (reason === "unavailable") return "The site isn't answering right now; we'll keep trying.";
+  if (reason === "rate_limited") return server.api.failures.siteLimiting;
+  if (reason === "unavailable") return server.api.failures.siteNotAnswering;
   return null;
 }
 
@@ -57,17 +58,17 @@ export function subscribeRetryText(reason: FailureReason | undefined): string | 
 export function subscribeGaveUpText(reason: FailureReason | undefined): string {
   switch (reason) {
     case "rate_limited":
-      return "The site kept limiting requests, so we stopped trying for now. Try again later.";
+      return server.api.failures.siteKeptLimiting;
     case "unavailable":
-      return "The site didn't answer, so this source couldn't be set up. Try again later.";
+      return server.api.failures.siteDidNotAnswer;
     case "not_found":
-      return "There's no feed at that address any more. Check the link and add it again.";
+      return server.api.failures.noFeedAnyMore;
     case "refused":
-      return "The site refused the request. Check that the link is public and still works.";
+      return server.api.failures.siteRefused;
     case "not_a_feed":
-      return "The address answers, but not with a feed we can read. It may be in a format we don't support.";
+      return server.api.failures.notAFeed;
     default:
-      return "The collection engine couldn't follow this feed. Try again later or check the link.";
+      return server.api.failures.couldNotFollow;
   }
 }
 
@@ -83,7 +84,7 @@ export function settleFailedJob(app: App, job: { kind: string; payload: Record<s
     if (job.kind === "engine.provision") app.db.run("UPDATE engine_users SET status = 'error' WHERE id = ?", String(payload.engineUserId));
     if (job.kind === "source.icon") failIconCheck(app, String(payload.sourceId));
     if (job.kind === "filter.judge") failJudging(app, payload);
-    if (job.kind === "capture.fulltext") failCapture(app, String(payload.captureId), "The page couldn't be captured. Its details and feed content are still kept.");
+    if (job.kind === "capture.fulltext") failCapture(app, String(payload.captureId), server.api.failures.pageNotCaptured);
   } else if (job.kind === "engine.subscribe") {
     const text = subscribeRetryText(reason);
     if (text) onSubscribeFailed(app, String(payload.sourceId), text);
@@ -134,8 +135,8 @@ export function retryOverloadedSubscribes(app: App): void {
  * ever stored or shown now (a big feed is followed through the gateway; one that can't be followed says what any other failure says),
  * so a source still carrying either is brought up to date: its text becomes what the same failure says now.
  */
-const EARLIER_TOO_LARGE_TEXT = "The feed is too large to follow.";
-const EARLIER_NOT_A_FEED_TEXT = "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
+const EARLIER_TOO_LARGE_TEXT = server.api.failures.feedTooLarge;
+const EARLIER_NOT_A_FEED_TEXT = server.api.failures.notAFeedOrTooLarge;
 
 /**
  * Sources that failed with the earlier size message get the plain message and one more subscription through the feed gateway (`trim`),

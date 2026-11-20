@@ -1,4 +1,5 @@
 import type { ConnectClientKind } from "@purss/domain";
+import { server } from "@purss/copy/server";
 
 /*
  * The first-party clients that may connect, fixed in code: no registration, nothing for an
@@ -26,14 +27,14 @@ const FIREFOX_HOST = /^([0-9a-f]{40})\.extensions\.allizom\.org$/;
  *   No query, fragment, port or credentials, and the address must already be in its normal form.
  */
 export function checkRedirect(kind: ConnectClientKind, raw: string): { uri: string; label: string } | null {
-  if (kind === "mobile") return raw === MOBILE_REDIRECT ? { uri: raw, label: "The PURSS app on this device" } : null;
+  if (kind === "mobile") return raw === MOBILE_REDIRECT ? { uri: raw, label: server.api.connectClients.appOnThisDevice } : null;
   let u: URL;
   try { u = new URL(raw); } catch { return null; }
   if (u.href !== raw || u.protocol !== "https:" || u.username || u.password || u.port || u.search || u.hash) return null;
   const chromium = CHROMIUM_HOST.exec(u.hostname);
-  if (chromium) return { uri: raw, label: `Extension ${chromium[1]} in Chrome, Edge or another Chromium browser` };
+  if (chromium) return { uri: raw, label: server.api.connectClients.chromiumExtension(chromium[1]) };
   const firefox = FIREFOX_HOST.exec(u.hostname);
-  if (firefox) return { uri: raw, label: `Extension ${firefox[1]!.slice(0, 12)}… in Firefox` };
+  if (firefox) return { uri: raw, label: server.api.connectClients.firefoxExtension(firefox[1]!.slice(0, 12)) };
   return null;
 }
 
@@ -43,7 +44,7 @@ export const REDIRECT_PATTERNS: Record<ConnectClientKind, string[]> = {
   extension: ["https://<extension id>.chromiumapp.org/", "https://<add-on id hash>.extensions.allizom.org/"],
 };
 
-export const DEFAULT_DEVICE_NAME: Record<ConnectClientKind, string> = { mobile: "Phone, tablet or computer", extension: "Browser extension" };
+export const DEFAULT_DEVICE_NAME: Record<ConnectClientKind, string> = { mobile: server.api.connectClients.defaultDeviceMobile, extension: server.api.connectClients.defaultDeviceExtension };
 
 /** A display name from the app: control characters removed, spaces collapsed, at most 80 characters. */
 export function cleanDeviceName(kind: ConnectClientKind, raw: string | undefined): string {

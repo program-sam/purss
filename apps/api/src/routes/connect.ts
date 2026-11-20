@@ -17,6 +17,7 @@ import { authenticationOptions, verifyAuthentication } from "../auth/passkeys.ts
 import { signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
 import { appPasskeys } from "../connect/app-association.ts";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
+import { server } from "@purss/copy/server";
 
 /*
  * Connected apps. The app opens /connect in the system browser with
@@ -36,15 +37,15 @@ function checkRequest(input: z.infer<typeof connectRequestSchema>): Checked {
   let redirect: Checked["redirect"] = null;
   if (input.redirect_uri !== undefined) {
     redirect = checkRedirect(input.client, input.redirect_uri);
-    if (!redirect) throw badRequest("This connection link doesn't come from a PURSS app (its return address isn't one the apps use).", "bad_redirect");
-    if (!input.state) throw badRequest("This connection link is incomplete. Start connecting again from the app.", "bad_request");
+    if (!redirect) throw badRequest(server.api.connectRoute.returnAddressNotApps, "bad_redirect");
+    if (!input.state) throw badRequest(server.api.connectRoute.linkIncomplete, "bad_request");
   }
   return { client: input.client, redirect, state: redirect ? input.state! : null, codeChallenge: input.code_challenge, deviceName: cleanDeviceName(input.client, input.device_name) };
 }
 
 function parseRequest(value: unknown): Checked {
   const r = connectRequestSchema.safeParse(value ?? {});
-  if (!r.success) throw badRequest("This connection link isn't complete or isn't valid. Start connecting again from the app.", "bad_request");
+  if (!r.success) throw badRequest(server.api.connectRoute.linkInvalid, "bad_request");
   return checkRequest(r.data);
 }
 
@@ -98,7 +99,7 @@ export function connectRouter(): Router<Ctx> {
     const out = redeemCode(app, { code: body.code, codeVerifier: body.codeVerifier, kind: body.client, clientId: null, redirectUri: body.redirectUri ?? null });
     if (!out.ok) {
       audit(app, out.accountId, "device_connect", null, "failure", out.reason);
-      throw new HttpError(400, "invalid_grant", "That connection code isn't valid any more. Start connecting again from the app.");
+      throw new HttpError(400, "invalid_grant", server.api.connectRoute.codeInvalid);
     }
     try {
       const made = createDeviceToken(app, out.grant.accountId, body.client, out.grant.label);
@@ -127,7 +128,7 @@ export function connectRouter(): Router<Ctx> {
       return connectedApp(app, accountId, deviceName, method);
     };
     const answer = (out: ConnectTokenResult | { keepToken: string; dueAt: string }): ConnectTokenResult => {
-      if ("keepToken" in out) throw new HttpError(409, "deletion_pending", "This account is set to be deleted. You can still keep it.", { dueAt: out.dueAt, keepToken: out.keepToken });
+      if ("keepToken" in out) throw new HttpError(409, "deletion_pending", server.api.shared.deletionPending, { dueAt: out.dueAt, keepToken: out.keepToken });
       return out;
     };
     if (body.method === "passkey") {
@@ -143,7 +144,7 @@ export function connectRouter(): Router<Ctx> {
     const accountId = await checkPassword(app, body.email, body.password);
     if (!accountId) {
       audit(app, null, "sign_in", method, "failure");
-      throw new HttpError(401, "bad_password", "That email address and password don't match.");
+      throw new HttpError(401, "bad_password", server.api.shared.badPassword);
     }
     const keep = signedIn(app, null, tries.bucket, body.email, body.known);
     return { ...answer(app.db.tx(() => connect(accountId))), known: keep };
@@ -151,7 +152,7 @@ export function connectRouter(): Router<Ctx> {
 
   /** A passkey challenge for signing in from the phone app (where the PURSS vouches for it). */
   r.post("/api/connect/passkey/options", (req, ctx) => {
-    if (!appPasskeys(ctx.app)) throw new HttpError(404, "not_available", "Passkeys can't be used in the app with this PURSS yet.");
+    if (!appPasskeys(ctx.app)) throw new HttpError(404, "not_available", server.api.connectRoute.passkeysUnavailable);
     rateLimit(`passkey:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 60);
     return authenticationOptions(ctx.app);
   });
@@ -192,7 +193,7 @@ export function connectRouter(): Router<Ctx> {
   r.delete("/api/connect/device", (_req, ctx) => {
     const p = requirePrincipal(ctx);
     const id = deviceIdOf(p);
-    if (!id) throw badRequest("This is for connected apps. Sign out in PURSS instead.", "not_device");
+    if (!id) throw badRequest(server.api.connectRoute.forConnectedApps, "not_device");
     return revokeDevice(ctx.app, p, id, "self");
   });
 
@@ -208,12 +209,12 @@ export function connectRouter(): Router<Ctx> {
 
   r.post("/api/connect/approve", (req, ctx): ConnectApproveResult => {
     const p = requirePrincipal(ctx);
-    if (deviceIdOf(p)) throw new HttpError(403, "not_for_apps", "That can only be done in PURSS in a web browser.");
+    if (deviceIdOf(p)) throw new HttpError(403, "not_for_apps", server.api.shared.webBrowserOnly);
     // A connected app holds a long-lived credential, so approving one needs a recent sign-in, like a new passkey or token.
     requireRecentAuth(p);
     rateLimit(`connect-approve:${p.accountId}`, 30);
     const body = connectApproveSchema.safeParse(req.body ?? {});
-    if (!body.success) throw badRequest("This connection request isn't valid. Start connecting again from the app.", "bad_request");
+    if (!body.success) throw badRequest(server.api.connectRoute.requestInvalid, "bad_request");
     const c = checkRequest(body.data);
     const deviceName = cleanDeviceName(c.client, body.data.device_name);
     if (deviceCount(ctx.app, p.accountId) >= MAX_DEVICES) throw tooMany();

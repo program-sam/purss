@@ -1,6 +1,7 @@
 import { safeFetch } from "@purss/connectors";
 import type { SafeFetchOptions } from "@purss/connectors";
 import { rateLimit } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Who is asking: OAuth clients identify themselves with a Client ID Metadata Document
@@ -112,37 +113,37 @@ const SHARED_SECRET_METHODS = new Set<unknown>(["client_secret_basic", "client_s
  * must be "none". Neither present means "none". Returns why the document is refused, or null.
  */
 function authMethodProblem(single: unknown, plural: unknown): string | null {
-  const unsupported = "only clients without a secret or key (token endpoint authentication method \"none\") are supported";
-  if (single !== undefined && typeof single !== "string") return "the authentication methods aren't a list of names";
-  if (plural !== undefined && (!Array.isArray(plural) || !plural.every((m) => typeof m === "string"))) return "the authentication methods aren't a list of names";
-  if ([single, ...(plural ?? [])].some((m) => SHARED_SECRET_METHODS.has(m))) return "they name a client secret method, which a metadata document must not";
+  const unsupported = server.api.oauthClients.onlyPublicClients;
+  if (single !== undefined && typeof single !== "string") return server.api.oauthClients.authMethodsNotList;
+  if (plural !== undefined && (!Array.isArray(plural) || !plural.every((m) => typeof m === "string"))) return server.api.oauthClients.authMethodsNotList;
+  if ([single, ...(plural ?? [])].some((m) => SHARED_SECRET_METHODS.has(m))) return server.api.oauthClients.clientSecretMethod;
   if (plural === undefined) return single === undefined || single === "none" ? null : unsupported;
-  if (single !== undefined && !plural.includes(single)) return "their token endpoint authentication methods don't agree";
+  if (single !== undefined && !plural.includes(single)) return server.api.oauthClients.authMethodsDisagree;
   return plural.includes("none") ? null : unsupported;
 }
 
 /** Validate a fetched document against the URL it came from. */
 export function parseDocument(clientId: string, body: string): ClientResult {
   const host = new URL(clientId).host;
-  const bad = (why: string): ClientResult => ({ ok: false, message: `The assistant's details at ${host} aren't usable: ${why}.` });
+  const bad = (why: string): ClientResult => ({ ok: false, message: server.api.oauthClients.detailsNotUsable(host, why) });
   let doc: unknown;
-  try { doc = JSON.parse(body); } catch { return bad("they aren't valid JSON"); }
-  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return bad("they aren't a JSON object");
+  try { doc = JSON.parse(body); } catch { return bad(server.api.oauthClients.notJson); }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return bad(server.api.oauthClients.notJsonObject);
   const d = doc as Record<string, unknown>;
-  if (d.client_id !== clientId) return bad("the client_id inside doesn't match their address");
+  if (d.client_id !== clientId) return bad(server.api.oauthClients.clientIdMismatch);
   // A metadata document describes a public client; anything secret-based is refused (CIMD §4.1).
-  if ("client_secret" in d || "client_secret_expires_at" in d) return bad("they contain a client secret");
+  if ("client_secret" in d || "client_secret_expires_at" in d) return bad(server.api.oauthClients.containsSecret);
   const auth = authMethodProblem(d.token_endpoint_auth_method, d.token_endpoint_auth_methods_supported);
   if (auth) return bad(auth);
-  if (d.grant_types !== undefined && !(Array.isArray(d.grant_types) && d.grant_types.includes("authorization_code"))) return bad("they don't use the authorization code flow");
-  if (d.response_types !== undefined && !(Array.isArray(d.response_types) && d.response_types.includes("code"))) return bad("they don't use the authorization code flow");
-  if (!Array.isArray(d.redirect_uris) || d.redirect_uris.length === 0 || d.redirect_uris.length > MAX_REDIRECT_URIS) return bad("they list no usable return addresses");
+  if (d.grant_types !== undefined && !(Array.isArray(d.grant_types) && d.grant_types.includes("authorization_code"))) return bad(server.api.oauthClients.notAuthorizationCode);
+  if (d.response_types !== undefined && !(Array.isArray(d.response_types) && d.response_types.includes("code"))) return bad(server.api.oauthClients.notAuthorizationCode);
+  if (!Array.isArray(d.redirect_uris) || d.redirect_uris.length === 0 || d.redirect_uris.length > MAX_REDIRECT_URIS) return bad(server.api.oauthClients.noReturnAddresses);
   // Return addresses we would never send a code to are left out; one usable address is enough.
   const redirectUris = d.redirect_uris.filter((r): r is string => typeof r === "string" && isAcceptableRedirect(r));
-  if (redirectUris.length === 0) return bad("they list no usable return addresses (https, or this computer)");
+  if (redirectUris.length === 0) return bad(server.api.oauthClients.noReturnAddressesHttps);
   // The MCP profile requires a name to show; the page shows the host that vouches for it next to it.
   const name = cleanName(d.client_name);
-  if (!name) return bad("they don't name the assistant (client_name)");
+  if (!name) return bad(server.api.oauthClients.noAssistantName);
   return { ok: true, client: { id: clientId, name, host, redirectUris } };
 }
 
@@ -155,7 +156,7 @@ function cacheSeconds(cacheControl: string | undefined): number {
 
 /** The client behind a client_id: cached, or fetched safely now on behalf of `accountId`. */
 export async function resolveClient(clientId: string, accountId: string): Promise<ClientResult> {
-  if (!isClientIdUrl(clientId)) return { ok: false, message: "The assistant didn't identify itself with a usable address (client_id)." };
+  if (!isClientIdUrl(clientId)) return { ok: false, message: server.api.oauthClients.noUsableClientId };
   const hit = cache.get(clientId);
   if (hit && hit.until > Date.now()) return { ok: true, client: hit.client };
   cache.delete(clientId);
@@ -170,10 +171,10 @@ export async function resolveClient(clientId: string, accountId: string): Promis
     accept: "application/json",
   });
   if (!r.ok) {
-    const why = r.reason === "toolarge" ? "they are larger than 5 kB" : r.reason === "timeout" ? "the site took too long to answer" : r.reason === "blocked" ? "that address isn't on the public internet" : r.message.replace(/\.$/, "").toLowerCase();
-    return { ok: false, message: `We couldn't read the assistant's details at ${host}: ${why}.` };
+    const why = r.reason === "toolarge" ? server.api.oauthClients.tooLarge : r.reason === "timeout" ? server.api.oauthClients.tookTooLong : r.reason === "blocked" ? server.api.oauthClients.notPublic : r.message.replace(/\.$/, "").toLowerCase();
+    return { ok: false, message: server.api.oauthClients.couldNotRead(host, why) };
   }
-  if (r.response.status !== 200) return { ok: false, message: `We couldn't read the assistant's details at ${host}: it answered with status ${r.response.status}.` };
+  if (r.response.status !== 200) return { ok: false, message: server.api.oauthClients.answeredWithStatus(host, r.response.status) };
   const out = parseDocument(clientId, r.response.body.toString("utf8"));
   const seconds = cacheSeconds(r.response.headers["cache-control"]);
   if (out.ok && seconds > 0) {

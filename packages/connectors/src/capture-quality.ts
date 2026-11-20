@@ -10,6 +10,8 @@
  * Pure text rules, no network, so the same answer comes whatever fetched the page.
  */
 
+import { server } from "@purss/copy/server";
+
 export type PartialReason = "gated" | "references" | "short";
 export type CaptureAssessment = { full: true } | { full: false; reason: PartialReason };
 
@@ -234,8 +236,8 @@ export function assessCapture(capture: { text: string; feedTextLength: number })
 /** What the reader says when a capture is only part of the page. */
 export function partialReasonText(reason: PartialReason): string {
   switch (reason) {
-    case "gated": return "Only part of the page could be saved: it looks like a sign-in, subscription, consent or menu page.";
-    case "references": return "Only part of the page could be saved: what was captured is mostly a list of references.";
-    case "short": return "Only part of the page could be saved: what was captured is shorter than the text the feed already gave.";
+    case "gated": return server.sources.connectors.captureQuality.gated;
+    case "references": return server.sources.connectors.captureQuality.references;
+    case "short": return server.sources.connectors.captureQuality.short;
   }
 }

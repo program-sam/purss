@@ -1,6 +1,7 @@
 import type { DiscoveryCandidate } from "@purss/domain";
 import type { App } from "../app.ts";
 import { PRODUCT_NAME } from "./public-pages.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The installation's news by its addresses (services/news.ts has the rest). Kept apart, with nothing but the database
@@ -8,7 +9,7 @@ import { PRODUCT_NAME } from "./public-pages.ts";
  * would close an import cycle through items, notifications and home).
  */
 
-export const NEWS_TITLE = `${PRODUCT_NAME} news`;
+export const NEWS_TITLE = server.api.newsAddress.newsTitle(PRODUCT_NAME);
 /** What a PURSS receives of what was already published when it gets the news source or follows it again. */
 export const NEWS_INITIAL_POSTS = 3;
 
@@ -31,7 +32,7 @@ export function newsCandidate(app: App, url: string): Omit<DiscoveryCandidate, "
   const u = url.trim().replace(/\/+$/, "");
   if (u !== page && u !== feed) return null;
   return {
-    title: NEWS_TITLE, kind: "feed", origin: `News from this ${PRODUCT_NAME}`, via: "News feed", feedUrl: feed, siteUrl: page, cadence: null,
+    title: NEWS_TITLE, kind: "feed", origin: server.api.shared.newsFrom(PRODUCT_NAME), via: server.api.newsAddress.newsFeed, feedUrl: feed, siteUrl: page, cadence: null,
     samples: publishedNews(app, 3).map((p) => ({ title: p.title, publishedAt: p.published_at })), summariesOnly: false, privateWarning: null,
   };
 }

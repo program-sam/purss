@@ -43,6 +43,7 @@ import { listNotifications, markNotificationsRead, unreadCount } from "../servic
 import { readIcon } from "../services/icons.ts";
 import { emailSchema } from "../services/account-email.ts";
 import { DELETION_COOKIE, keepAccount, leaveDeletion, pendingDeletion, requestDeletion } from "../services/deletion.ts";
+import { server } from "@purss/copy/server";
 
 const limit = rateLimit;
 
@@ -90,7 +91,7 @@ function appPage(title: string, paragraphs: string[], head = ""): string {
 }
 
 /** What it shows when an app's flow was refused: the reason, and the way back. */
-const appErrorPage = (message: string) => appPage("That didn't work", [escapeHtml(message), "Go back to the PURSS app and try again. You can close this page."]);
+const appErrorPage = (message: string) => appPage(server.api.publicRoute.appErrorTitle, [escapeHtml(message), server.api.publicRoute.appErrorBack]);
 
 /**
  * What it shows once an app's link or confirmation was signed in at the provider: the browser goes back to the app (purss://connect)
@@ -103,8 +104,8 @@ function appCodePage(origin: string, purpose: "link" | "stepup", appCode: { code
   back.searchParams.set("state", appCode.state);
   back.searchParams.set("iss", origin);
   const href = escapeHtml(back.href);
-  const what = purpose === "link" ? "connecting" : "confirming it's you";
-  return appPage("Almost done", [`Going back to the PURSS app to finish ${escapeHtml(what)}.`, `<a href="${href}">Go back to the PURSS app</a>`], `<meta http-equiv="refresh" content="0;url=${href}">`);
+  const what = purpose === "link" ? server.api.publicRoute.connecting : server.api.publicRoute.confirmingItsYou;
+  return appPage(server.api.publicRoute.almostDone, [server.api.publicRoute.goingBack(escapeHtml(what)), server.api.publicRoute.goBackLink(href)], `<meta http-equiv="refresh" content="0;url=${href}">`);
 }
 
 /** A sign-in the phone or desktop app opened ends on its approval page: `next` is that /connect request. */
@@ -189,7 +190,7 @@ export function publicRouter(): Router<Ctx> {
     const accountId = await checkPassword(ctx.app, body.email, body.password);
     if (!accountId) {
       audit(ctx.app, null, "sign_in", "password", "failure");
-      throw new HttpError(401, "bad_password", "That email address and password don't match.");
+      throw new HttpError(401, "bad_password", server.api.shared.badPassword);
     }
     signedIn(ctx.app, res, tries.bucket, body.email, req.cookies[KNOWN_COOKIE]);
     startSession(ctx.app, res, req.raw, accountId, "password", { sharedComputer: body.sharedComputer });
@@ -225,7 +226,7 @@ export function publicRouter(): Router<Ctx> {
       }
     } else {
       const p = purpose === "signin" ? null : requirePrincipal(ctx);
-      if (p && deviceIdOf(p)) throw badRequest("A connected app opens this in the system browser with a ticket.", "use_ticket");
+      if (p && deviceIdOf(p)) throw badRequest(server.api.publicRoute.useTicket, "use_ticket");
       if (purpose === "link") requireRecentAuth(p!);
       const sharedComputer = purpose === "signin" && req.query.get("shared") === "1";
       url = await startOidc(ctx.app, providerId, purpose, p?.accountId ?? null, binder, { sharedComputer, sessionId: p?.sessionId ?? null, appReturn: opensApp(next) });
@@ -277,7 +278,7 @@ export function publicRouter(): Router<Ctx> {
    */
   r.post("/api/auth/oidc/:provider/ticket", (req, ctx) => {
     const p = requirePrincipal(ctx);
-    if (!deviceIdOf(p)) throw badRequest("Browsers start this themselves.", "not_device");
+    if (!deviceIdOf(p)) throw badRequest(server.api.publicRoute.browsersStartThemselves, "not_device");
     limit(`oidc-ticket:${p.accountId}`, 30);
     const body = parse(z.object({ purpose: z.enum(["link", "stepup"]), codeChallenge: z.string().max(200).optional(), state: z.string().max(200).optional() }), req.body);
     if (body.purpose === "link") requireRecentAuth(p);
@@ -286,7 +287,7 @@ export function publicRouter(): Router<Ctx> {
   /** The app finishes linking: the code the browser handed it and the verifier it made. Only then is the provider sign-in added. */
   r.post("/api/auth/oidc/:provider/link", (req, ctx) => {
     const p = requirePrincipal(ctx);
-    if (!deviceIdOf(p)) throw badRequest("Browsers link in the browser.", "not_device");
+    if (!deviceIdOf(p)) throw badRequest(server.api.publicRoute.browsersLinkInBrowser, "not_device");
     limit(`oidc-link:${p.accountId}`, 30);
     const body = parse(z.object({ code: z.string().min(1).max(200), codeVerifier: z.string().min(1).max(200) }), req.body);
     redeemLinkCode(ctx.app, req.params.provider!, p, body.code, body.codeVerifier);
@@ -295,7 +296,7 @@ export function publicRouter(): Router<Ctx> {
   /** The app finishes confirming it's you: the code the browser handed it and the verifier it made. Only then is its connection's recent sign-in refreshed. */
   r.post("/api/auth/oidc/:provider/confirm", (req, ctx) => {
     const p = requirePrincipal(ctx);
-    if (!deviceIdOf(p)) throw badRequest("Browsers confirm in the browser.", "not_device");
+    if (!deviceIdOf(p)) throw badRequest(server.api.publicRoute.browsersConfirmInBrowser, "not_device");
     limit(`oidc-confirm:${p.accountId}`, 30);
     const body = parse(z.object({ code: z.string().min(1).max(200), codeVerifier: z.string().min(1).max(200) }), req.body);
     redeemConfirmCode(ctx.app, req.params.provider!, p, body.code, body.codeVerifier);
@@ -320,7 +321,7 @@ export function publicRouter(): Router<Ctx> {
     limit(`stepup-passkey:${p.accountId}`, 30);
     const body = parse(z.object({ challengeId: z.string(), response: z.record(z.string(), z.unknown()) }), req.body);
     const result = await verifyAuthentication(ctx.app, body.challengeId, body.response as unknown as AuthenticationResponseJSON);
-    if (result.accountId !== p.accountId) throw new HttpError(403, "wrong_account", "That passkey belongs to a different account.");
+    if (result.accountId !== p.accountId) throw new HttpError(403, "wrong_account", server.api.publicRoute.passkeyOtherAccount);
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
     return { ok: true };
   });
@@ -328,7 +329,7 @@ export function publicRouter(): Router<Ctx> {
     const p = requirePrincipal(ctx);
     stepUpTry(p);
     const { password } = parse(z.object({ password: z.string().min(1).max(PASSWORD_MAX * 4) }), req.body);
-    if ((await checkPassword(ctx.app, "", password, p.accountId)) !== p.accountId) throw new HttpError(401, "bad_password", "That password isn't right.");
+    if ((await checkPassword(ctx.app, "", password, p.accountId)) !== p.accountId) throw new HttpError(401, "bad_password", server.api.publicRoute.passwordWrong);
     sessionWrite(ctx.app, p.accountId, p.sessionId, () => refreshAuth(ctx.app, p.sessionId));
     return { ok: true };
   });
@@ -346,7 +347,7 @@ export function publicRouter(): Router<Ctx> {
     }
     stepUpTry(p); // the same guesses as confirming it's you with the password
     if (!body.currentPassword || !(await verifyPassword(body.currentPassword, stored))) {
-      throw new HttpError(401, "bad_current_password", "Your current password isn't right.");
+      throw new HttpError(401, "bad_current_password", server.api.publicRoute.currentPasswordWrong);
     }
     // As after a reset, but for the session or app making the change: a cookie, app token or assistant taken with the
     // old password stops working. The new password and the sign-outs commit together; open streams close after.
@@ -401,7 +402,7 @@ export function publicRouter(): Router<Ctx> {
     const p = requirePrincipal(ctx);
     const revoked = sessionWrite(ctx.app, p.accountId, p.sessionId, () => {
       const rows = ctx.app.db.all<{ id: string }>("SELECT id FROM sessions WHERE account_id = ? AND substr(id, 1, 16) = ? AND id <> ?", p.accountId, req.params.id!, p.sessionId);
-      if (!rows.length) throw notFound("That session");
+      if (!rows.length) throw notFound(server.api.publicRoute.thatSession);
       ctx.app.db.run("DELETE FROM sessions WHERE account_id = ? AND substr(id, 1, 16) = ? AND id <> ?", p.accountId, req.params.id!, p.sessionId);
       audit(ctx.app, p.accountId, "session_revoke", null, "success");
       return rows.map((r) => r.id);
@@ -432,11 +433,11 @@ export function publicRouter(): Router<Ctx> {
         status: eu?.status === "ready" ? (cp?.last_error ? "unavailable" : "ok") : eu?.status === "error" ? "unavailable" : "starting",
         lastSyncAt: cp?.last_success_at ?? null,
         // The sync's own words for what went wrong come first, then how long it has been.
-        message: eu?.status === "error" ? ctx.app.config.mode === "hosted" ? "Your PURSS couldn't finish setting up. Try again later." : "The collection engine couldn't be set up for your PURSS. An administrator can retry it."
+        message: eu?.status === "error" ? ctx.app.config.mode === "hosted" ? server.api.publicRoute.setupFailedHosted : server.api.publicRoute.setupFailedSelfHosted
           : [
             cp?.last_error,
             staleDays(cp?.last_success_at) >= 1
-              ? `New items last arrived ${staleDays(cp?.last_success_at)} day${staleDays(cp?.last_success_at) === 1 ? "" : "s"} ago. Everything you have is still here, but the engine drops entries it hasn't passed on after ${ENGINE_RETENTION_DAYS} days, so a longer gap can't be filled in later.`
+              ? server.api.publicRoute.staleNote(staleDays(cp?.last_success_at), ENGINE_RETENTION_DAYS)
               : null,
           ].filter(Boolean).join(" ") || null,
       },
@@ -452,13 +453,13 @@ export function publicRouter(): Router<Ctx> {
     const q = parse(itemListQuerySchema, Object.fromEntries(req.query));
     // Home's lists (mix=home) have their own order and are not searched: asking for either is refused rather than answered
     // by a list that follows none of Home's rules.
-    if (q.mix && (q.q || q.sort !== "newest")) throw badRequest("Home's lists have their own order and can't be searched or sorted.");
+    if (q.mix && (q.q || q.sort !== "newest")) throw badRequest(server.api.publicRoute.homeListsOrder);
     return listItems(ctx.app, p, q);
   });
   /** "Select all" on a list: every item it shows, in its order (not Home's lists, which aren't selected from). */
   r.get("/api/items/ids", (req, ctx) => {
     const q = parse(itemIdsQuerySchema, Object.fromEntries(req.query));
-    if (q.mix) throw badRequest("Home's lists can't be selected as a whole.");
+    if (q.mix) throw badRequest(server.api.publicRoute.homeListsSelect);
     return listItemIds(ctx.app, requirePrincipal(ctx), q);
   });
   /** What the PURSS has for a page (the browser extension asks this). Before /api/items/:id, which would match it too. */

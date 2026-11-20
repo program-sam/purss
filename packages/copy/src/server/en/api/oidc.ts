@@ -1,0 +1,22 @@
+// Server copy: apps/api/src/auth/oidc.ts
+export default {
+  optionNotSetUp: "That sign-in option isn't set up here.",
+  providerNotConnected: (label: string) => `${label} isn't connected to this account, so it can't confirm it's you.`,
+  confirmAnotherWay: (label: string) => `Confirm it's you with your password or a passkey instead: ${label} can only confirm an account that has neither.`,
+  forConnectedApps: "This is for connected apps.",
+  appNeedsChallenge: "An app needs to send its code challenge and state.",
+  linkExpiredStartFromApp: "That link has expired or was already used. Start again from the app.",
+  codeInvalidStartFromApp: "That code isn't valid any more. Start again from the app.",
+  externalAccountUsed: "That external account is already used by another PURSS.",
+  providerSignInFailed: "Signing in with that provider didn't work. Please try again.",
+  signInExpired: "That sign-in took too long or was already used. Please try again.",
+  signInOtherBrowser: "That sign-in didn't start in this browser. Please try again.",
+  finishInSignedInBrowser: "Please finish in the browser where you're signed in.",
+  signInFirst: "Please sign in first.",
+  startLinkingAgain: "Start linking again from the app.",
+  wrongProviderAccount: (label: string) => `That ${label} account isn't the one connected to this PURSS account.`,
+  providerNotReauthenticated: (label: string) => `${label} didn't confirm that you just signed in again, so it can't confirm it's you. Try again.`,
+  startConfirmingAgain: "Start confirming again from the app.",
+  providerAccountNotConnected: (label: string) => `That ${label} account isn't connected to a PURSS here. Sign in another way and connect it in Settings first.`,
+  providerNoVerifiedEmail: (label: string) => `${label} didn't give PURSS a verified email address, so it can't make an account from it.`,
+};

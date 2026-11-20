@@ -1,6 +1,7 @@
 import type { ActivityDTO, ActivityEvent, ActivitySource, SourceHealth } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { syncDelaySeconds } from "./failures.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * What the engine has been doing for this PURSS, in plain words: checking sources, setting new ones up,
@@ -11,7 +12,6 @@ import { syncDelaySeconds } from "./failures.ts";
 
 const DAY_MS = 86_400_000;
 const MAX_EVENTS = 30;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 type SourceRow = {
   id: string; title: string; health: SourceHealth; health_text: string | null; paused: number; paused_until: string | null;
@@ -41,10 +41,10 @@ export function activityFor(app: App, p: Principal, now: Date = new Date()): Act
 
   const rows: ActivitySource[] = sources.map((s) => {
     let note: string | null = null;
-    if (s.paused) note = s.paused_until ? `Paused until ${new Date(s.paused_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : "Paused";
+    if (s.paused) note = s.paused_until ? server.api.activity.pausedUntil(new Date(s.paused_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })) : server.api.activity.paused;
     else if (s.health === "error" || s.health === "reconnect" || s.health === "login") note = s.health_text;
-    else if (!s.engine_stream_id) note = "Setting up…";
-    else if (s.health === "pending") note = "Waiting for its first items";
+    else if (!s.engine_stream_id) note = server.api.activity.settingUp;
+    else if (s.health === "pending") note = server.api.activity.waitingForFirstItems;
     const checkable = !!s.engine_stream_id && !s.paused && s.health !== "error";
     return { id: s.id, title: s.title, health: s.health, note, lastCheckedAt: checkable ? lastChecked : null, lastItemAt: s.last_item_at, arrived: arrived.get(s.id)?.n ?? 0 };
   });
@@ -52,16 +52,16 @@ export function activityFor(app: App, p: Principal, now: Date = new Date()): Act
   const events: ActivityEvent[] = [];
   for (const [sourceId, a] of arrived) {
     const title = titles.get(sourceId);
-    if (title) events.push({ at: a.at, kind: "arrived", sourceId, text: `${plural(a.n, "new item")} from ${title}` });
+    if (title) events.push({ at: a.at, kind: "arrived", sourceId, text: server.api.activity.arrived(a.n, title) });
   }
   for (const s of sources) {
-    if (s.created_at >= since && s.engine_stream_id) events.push({ at: s.created_at, kind: "subscribed", sourceId: s.id, text: `Started following ${s.title}` });
-    if (s.health === "error" || s.health === "reconnect") events.push({ at: lastChecked ?? s.created_at, kind: "problem", sourceId: s.id, text: `${s.title}: ${s.health_text ?? "couldn't be collected"}` });
+    if (s.created_at >= since && s.engine_stream_id) events.push({ at: s.created_at, kind: "subscribed", sourceId: s.id, text: server.api.activity.startedFollowing(s.title) });
+    if (s.health === "error" || s.health === "reconnect") events.push({ at: lastChecked ?? s.created_at, kind: "problem", sourceId: s.id, text: server.api.activity.sourceProblem(s.title, s.health_text) });
   }
   for (const c of app.db.all<{ status: string; n: number; at: string }>(
     "SELECT status, COUNT(*) AS n, MAX(completed_at) AS at FROM captures WHERE workspace_id = ? AND completed_at >= ? AND status IN ('done', 'failed') GROUP BY status", ws, since)) {
-    if (c.status === "done") events.push({ at: c.at, kind: "saved", sourceId: null, text: `Saved the text of ${plural(c.n, "item")}` });
-    else events.push({ at: c.at, kind: "save_failed", sourceId: null, text: `Couldn't save the text of ${plural(c.n, "item")}` });
+    if (c.status === "done") events.push({ at: c.at, kind: "saved", sourceId: null, text: server.api.activity.savedText(c.n) });
+    else events.push({ at: c.at, kind: "save_failed", sourceId: null, text: server.api.activity.couldNotSaveText(c.n) });
   }
   events.sort((a, b) => (a.at < b.at ? 1 : -1));
 

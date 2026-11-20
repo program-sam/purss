@@ -4,6 +4,7 @@ import type { Ctx } from "../app.ts";
 import { requirePrincipal } from "../app.ts";
 import { HttpError, Router, clientAddress, parse, rateLimit } from "../http.ts";
 import { pushInfo, registerPushDevice, takePending, unregisterPushDevice } from "../services/push.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Phone notifications. The phone app, with its device token: GET /api/push (is this PURSS
@@ -30,7 +31,7 @@ export function pushRouter(): Router<Ctx> {
     rateLimit(`push-pending:${clientAddress(req.raw, ctx.app.config.trustProxy)}`, 240);
     const m = /^Bearer\s+(\S+)$/i.exec(String(req.raw.headers.authorization ?? ""));
     const out = m ? takePending(ctx.app, m[1]!) : null;
-    if (!out) throw new HttpError(401, "push_signed_out", "This phone isn't registered for notifications any more.");
+    if (!out) throw new HttpError(401, "push_signed_out", server.api.pushRoute.phoneNotRegistered);
     return out;
   });
 

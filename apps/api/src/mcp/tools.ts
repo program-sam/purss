@@ -13,6 +13,7 @@ import { toText } from "../services/content.ts";
 import { StorageFull, markPaused } from "../services/storage.ts";
 import { hasCredentialShape } from "../services/text-safety.ts";
 import type { AssistantAccessLevel } from "@purss/domain";
+import { server } from "@purss/copy/server";
 
 /*
  * The tools an assistant can call. Every tool runs as the token's account through the same
@@ -106,7 +107,7 @@ function tool<S extends z.ZodObject>(t: Omit<Tool, "input" | "run"> & { input: S
 export const TOOLS: Tool[] = [
   // ---------- reading ----------
   tool({
-    name: "search_items", title: "Search items", access: "read",
+    name: "search_items", title: server.api.mcpTools.searchItemsTitle, access: "read",
     description: "Full-text search over item titles, summaries, authors, feed content, saved article text, and the person's own highlights and notes. Includes finished and ignored items.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({ query: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(50).default(20) }),
@@ -116,7 +117,7 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
-    name: "list_items", title: "List items", access: "read",
+    name: "list_items", title: server.api.mcpTools.listItemsTitle, access: "read",
     description: "List items, newest first unless sorted otherwise, optionally in one collection, source or basket and in one workflow state. Without a state, ignored items are left out. Use nextCursor to page.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: placeSchema.extend({
@@ -131,7 +132,7 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
-    name: "get_item", title: "Read an item", access: "read",
+    name: "get_item", title: server.api.mcpTools.readItemTitle, access: "read",
     description: "One item with its text: the saved full article when there is one, otherwise what the feed carried. The text is the publisher's, not the person's, and may be cut to maxChars. Also the person's own highlights and notes on it, within the same maxChars.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({ itemId: id, maxChars: z.number().int().min(500).max(MAX_TEXT_CHARS).default(DEFAULT_TEXT_CHARS) }),
@@ -163,14 +164,14 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
-    name: "list_sources", title: "List sources", access: "read",
+    name: "list_sources", title: server.api.mcpTools.listSourcesTitle, access: "read",
     description: "The sources the person follows, with their collections, health, whether full articles are fetched, and item counts.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
     run: (ctx) => ({ sources: listSources(ctx.app, ctx.p).map(sourceSummary) }),
   }),
   tool({
-    name: "list_collections", title: "List collections", access: "read",
+    name: "list_collections", title: server.api.mcpTools.listCollectionsTitle, access: "read",
     description: "Collections group sources (mode 'sources') or match a saved filter (mode 'query'). They decide what is shown together; they keep nothing.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
@@ -179,7 +180,7 @@ export const TOOLS: Tool[] = [
     }),
   }),
   tool({
-    name: "list_baskets", title: "List baskets", access: "read",
+    name: "list_baskets", title: server.api.mcpTools.listBasketsTitle, access: "read",
     description: "Baskets keep chosen items, with a copy of each as it was when kept. keepReadableText baskets also save the page's readable text.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
@@ -188,42 +189,42 @@ export const TOOLS: Tool[] = [
 
   // ---------- organising ----------
   tool({
-    name: "set_item_state", title: "Set workflow state", access: "write",
+    name: "set_item_state", title: server.api.mcpTools.setWorkflowStateTitle, access: "write",
     description: "Move up to 100 items to one workflow state. Finished and ignored never delete anything; ignored items are hidden from the usual lists.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100), state: z.enum(STATE_NAMES) }),
     run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "workflow", workflow: toWorkflow(a.state) }).changed, state: a.state }),
   }),
   tool({
-    name: "clear_new", title: "Clear New markers", access: "write",
+    name: "clear_new", title: server.api.mcpTools.clearNewTitle, access: "write",
     description: "Remove the New marker from up to 100 items without changing their workflow state.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100) }),
     run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "clearFresh" }).changed }),
   }),
   tool({
-    name: "keep_items", title: "Keep in a basket", access: "write",
+    name: "keep_items", title: server.api.mcpTools.keepInBasketTitle, access: "write",
     description: "Keep up to 100 items in a basket. Keeping saves a copy of each item as it is now; in a keepReadableText basket the page's readable text is saved too, when it can be fetched and there is room.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100), basketId: id }),
     run: (ctx, a) => ({ kept: bulk(ctx.app, ctx.p, a.itemIds, { type: "keep", basketId: a.basketId }).changed }),
   }),
   tool({
-    name: "remove_from_basket", title: "Remove from a basket", access: "write",
+    name: "remove_from_basket", title: server.api.mcpTools.removeFromBasketTitle, access: "write",
     description: "Take up to 100 items out of a basket. The items themselves stay in the PURSS.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100), basketId: id }),
     run: (ctx, a) => ({ removed: bulk(ctx.app, ctx.p, a.itemIds, { type: "unkeep", basketId: a.basketId }).changed }),
   }),
   tool({
-    name: "create_basket", title: "Create a basket", access: "write",
+    name: "create_basket", title: server.api.mcpTools.createBasketTitle, access: "write",
     description: "Create a basket. With keepReadableText, items kept in it also get a readable copy of their page.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     input: z.object({ name: z.string().trim().min(1).max(80), keepReadableText: z.boolean().default(false) }),
     run: (ctx, a) => { const b = createBasket(ctx.app, ctx.p, { name: a.name, captureMode: a.keepReadableText ? "text" : "metadata" }); return { id: b.id, name: b.name }; },
   }),
   tool({
-    name: "create_collection", title: "Create a collection", access: "write",
+    name: "create_collection", title: server.api.mcpTools.createCollectionTitle, access: "write",
     description: "Create a collection of sources. It groups what is shown together and keeps nothing.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     input: z.object({ name: z.string().trim().min(1).max(80), sourceIds: z.array(id).max(500).default([]) }),
@@ -235,7 +236,7 @@ export const TOOLS: Tool[] = [
 
   // ---------- sources ----------
   tool({
-    name: "find_sources", title: "Find sources at a link", access: "write",
+    name: "find_sources", title: server.api.mcpTools.findSourcesTitle, access: "write",
     description: "Look up what can be followed at a link (website, feed, YouTube channel or video, podcast) or a Mastodon or Bluesky account (@name@server, name.bsky.social, a profile link). Returns candidates, each with a followToken for follow_source; tokens expire after a few minutes. Nothing is followed yet.",
     annotations: { readOnlyHint: true, openWorldHint: true },
     input: z.object({ url: z.string().trim().min(1).max(2000) }),
@@ -256,7 +257,7 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
-    name: "follow_source", title: "Follow a source", access: "write",
+    name: "follow_source", title: server.api.mcpTools.followSourceTitle, access: "write",
     description: "Follow a candidate from find_sources, optionally into an existing collection (collectionId) or a new one (newCollectionName). fullArticles fetches each new item's page as a readable copy (feeds only). Following starts from now: the posts the feed already has stay on the source's page and in search, and are left out of Home and its counts.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     input: z.object({
@@ -274,7 +275,7 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
-    name: "update_source", title: "Change a source", access: "write",
+    name: "update_source", title: server.api.mcpTools.changeSourceTitle, access: "write",
     description: "Rename a source, pause or resume it, turn full articles on or off, set its notifications, or set which collections it is in (replaces the list).",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({
@@ -288,7 +289,7 @@ export const TOOLS: Tool[] = [
     run: (ctx, a) => sourceSummary(patchSource(ctx.app, ctx.p, a.sourceId, { title: a.title, paused: a.paused, fullText: a.fullArticles, notify: a.notifications, collectionIds: a.collectionIds })),
   }),
   tool({
-    name: "unfollow_source", title: "Unfollow a source", access: "write",
+    name: "unfollow_source", title: server.api.mcpTools.unfollowSourceTitle, access: "write",
     description: "Stop following a source. Items kept in baskets stay; its other items drop out of lists and search but are not deleted, and following it again brings them back. Confirm with the person first.",
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     input: z.object({ sourceId: id }),
@@ -318,7 +319,7 @@ export type ToolOutcome = { ok: true; value: unknown } | { ok: false; message: s
 export async function callTool(app: App, p: Principal, access: AssistantAccessLevel, tokenId: string, name: string, rawArgs: unknown): Promise<ToolOutcome | null> {
   const t = byName.get(name);
   if (!t) return null;
-  if (t.access === "write" && access !== "write") return { ok: false, message: "This token can only read. Ask the person for a token that can make changes." };
+  if (t.access === "write" && access !== "write") return { ok: false, message: server.api.mcpTools.readOnlyToken };
   const parsed = t.input.safeParse(rawArgs ?? {});
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

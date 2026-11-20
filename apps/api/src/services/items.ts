@@ -21,6 +21,7 @@ import type { PartialReason } from "@purss/connectors";
 import { pictureUrl, postGallery, storedPictures, withStoredPictures } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { keptDisplays } from "./kept-display.ts";
+import { server } from "@purss/copy/server";
 
 export type NewItem = {
   accountId: string;
@@ -290,13 +291,13 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
       return "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id AND b.basket_id = ?)";
     case "collection": {
       const c = app.db.get<{ mode: string; query: string | null }>("SELECT mode, query FROM collections WHERE id = ? AND workspace_id = ?", id!, p.workspaceId);
-      if (!c) throw notFound("That collection");
+      if (!c) throw notFound(server.api.shared.thatCollection);
       if (c.mode === "sources") { params.push(id!); return "i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)"; }
       const q = checkQuery(JSON.parse(c.query ?? "null"));
       return q.ok ? compileQuery(q.query, params, p.workspaceId) : "0";
     }
     default:
-      throw badRequest("Unknown view.");
+      throw badRequest(server.api.items.unknownView);
   }
 }
 
@@ -473,7 +474,7 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
       if (runs && (!Number.isInteger(c[3]) || (c[3] as number) < 0 || (c[3] as number) >= runs.length || (home && !Number.isInteger(c[2])))) throw new Error("shape");
       cur = [c[0], c[1]];
       if (runs) { run = c[3] as number; if (home) snapshot = c[2] as number; }
-    } catch { throw badRequest("That page link has expired."); }
+    } catch { throw badRequest(server.api.items.pageLinkExpired); }
   } else if (home) {
     snapshot = app.db.get<{ m: number | null }>("SELECT MAX(seq) AS m FROM items")?.m ?? 0;
   }
@@ -574,28 +575,28 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
 /** The item with this number in the person's workspace (its short link, /app/i/<number>). */
 export function itemIdByNumber(app: App, p: Principal, number: number): { id: string } {
   const row = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND number = ?", p.workspaceId, number);
-  if (!row) throw notFound("That item");
+  if (!row) throw notFound(server.api.shared.thatItem);
   return { id: row.id };
 }
 
 export function getItem(app: App, p: Principal, id: string): ItemDTO {
   const row = app.db.get<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, id, p.workspaceId);
-  if (!row) throw notFound("That item");
+  if (!row) throw notFound(server.api.shared.thatItem);
   return toDTO(row, keptDisplays(app, p.workspaceId, row.basket_ids ? [id] : []).get(id));
 }
 
 const CAPTURE_LABELS = {
-  metadata: "Saved details (title, link and summary)",
-  feed: "Saved the feed's text",
-  fulltext: "Full text saved",
-  partial: "Only part of the page was saved",
-  browser: "Saved from your browser",
-  pending: "Saving readable text…",
-  failed: "Couldn't save the text",
+  metadata: server.api.shared.labelMetadata,
+  feed: server.api.shared.labelFeed,
+  fulltext: server.api.shared.labelFulltext,
+  partial: server.api.items.labelPartial,
+  browser: server.api.items.labelBrowser,
+  pending: server.api.items.labelPending,
+  failed: server.api.items.labelFailed,
 } as const;
 
 /** Shown with a browser capture: where its text came from and what that means. */
-export const BROWSER_CAPTURE_NOTE = "The text as your browser showed it. PURSS didn't fetch the page, so it can't confirm that this matches the original.";
+export const BROWSER_CAPTURE_NOTE = server.api.items.browserCaptureNote;
 
 export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   const dto = getItem(app, p, id);
@@ -616,8 +617,8 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     const level = c.status !== "done" ? c.status : c.kind === "browser" ? "browser" : c.quality === "partial" ? "partial" : "fulltext";
     // A failed try that carries a reason is a try again whose page was still only part of it: the copy saved earlier stays (captures.ts).
     const noBetter = c.status === "failed" && c.partial_reason !== null;
-    captures.push({ id: c.id, level, label: noBetter ? "Tried again, nothing better" : CAPTURE_LABELS[level], createdAt: c.completed_at ?? c.created_at,
-      note: noBetter ? `The page still gave only part of its text: ${partialReasonText(c.partial_reason!).split(": ").slice(1).join(": ")} The copy saved earlier stays.`
+    captures.push({ id: c.id, level, label: noBetter ? server.api.items.triedAgainNothingBetter : CAPTURE_LABELS[level], createdAt: c.completed_at ?? c.created_at,
+      note: noBetter ? server.api.items.stillPartial(partialReasonText(c.partial_reason!).split(": ").slice(1).join(": "))
         : c.status === "failed" ? c.error : level === "browser" ? BROWSER_CAPTURE_NOTE : level === "partial" ? partialReasonText(c.partial_reason ?? "short") : null });
   }
   // Only a copy that passed the checks is the article; one that is only part of the page waits behind a toggle.

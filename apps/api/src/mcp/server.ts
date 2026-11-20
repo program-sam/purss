@@ -7,6 +7,7 @@ import { ACCESS_TOKEN_PREFIX, resolveAccessToken } from "../oauth/grants.ts";
 import { resourceMetadataUrl } from "../oauth/endpoints.ts";
 import { assertStillUsable } from "../services/deletion.ts";
 import { SERVER_INSTRUCTIONS, callTool, describeTools } from "./tools.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * The MCP endpoint (Streamable HTTP): one POST /mcp, JSON answers, no sessions.
@@ -68,20 +69,20 @@ export async function handleMcp(app: App, raw: IncomingMessage, res: ServerRespo
 async function answer(app: App, raw: IncomingMessage): Promise<Answer> {
   if (raw.method !== "POST") return { status: 405, headers: { allow: "POST" } };
   const origin = header(raw, "origin");
-  if (origin && origin !== app.config.publicOrigin) return { status: 403, body: rpcError(null, -32600, "Requests from other web pages aren't accepted.") };
+  if (origin && origin !== app.config.publicOrigin) return { status: 403, body: rpcError(null, -32600, server.api.shared.otherWebPages) };
 
   const caller = resolveCaller(app, header(raw, "authorization"));
   if ("error" in caller) {
-    if (caller.error === "off") return { status: 403, body: rpcError(null, -32600, "Assistant access is turned off for this account or PURSS. Turn it on in the PURSS's Settings → Assistants.") };
+    if (caller.error === "off") return { status: 403, body: rpcError(null, -32600, server.api.mcpServer.assistantsOff) };
     const oauth = app.config.assistantOAuth ? `, resource_metadata="${resourceMetadataUrl(app)}", scope="read write"` : "";
     return {
       status: 401,
       headers: { "www-authenticate": `Bearer realm="PURSS"${caller.error === "invalid" ? ', error="invalid_token"' : ""}${oauth}` },
-      body: rpcError(null, -32600, caller.error === "missing" ? "This needs a personal access token from Settings → Assistants." : "That token isn't valid any more. Create a new one in Settings → Assistants."),
+      body: rpcError(null, -32600, caller.error === "missing" ? server.api.mcpServer.needsToken : server.api.mcpServer.tokenInvalid),
     };
   }
   try { rateLimit(`mcp:${caller.tokenId}`, CALLS_PER_MINUTE, 60_000); } catch {
-    return { status: 429, headers: { "retry-after": "60" }, body: rpcError(null, -32000, "Too many requests. Wait a minute and try again.") };
+    return { status: 429, headers: { "retry-after": "60" }, body: rpcError(null, -32000, server.api.mcpServer.tooManyRequests) };
   }
 
   let msg: unknown;
@@ -89,7 +90,7 @@ async function answer(app: App, raw: IncomingMessage): Promise<Answer> {
     msg = await readBody(raw, BODY_LIMIT, UPLOAD_PACE, accountSender(caller.principal.accountId));
     if (typeof msg === "string") msg = JSON.parse(msg);
   } catch (err) {
-    if (err instanceof HttpError && err.status === 413) return { status: 413, body: rpcError(null, -32600, "That request is too large.") };
+    if (err instanceof HttpError && err.status === 413) return { status: 413, body: rpcError(null, -32600, server.api.shared.requestTooLarge) };
     // Busy, or the body stalled: say so (with when to try again), so an assistant waits instead of resending at once.
     if (err instanceof HttpError && (err.status === 503 || err.status === 408)) {
       return { status: err.status, headers: { "retry-after": err.status === 503 ? "5" : "1" }, body: rpcError(null, -32000, err.message) };
@@ -98,7 +99,7 @@ async function answer(app: App, raw: IncomingMessage): Promise<Answer> {
   }
   // The token may have been revoked, or the account deleted, while the body arrived.
   try { assertStillUsable(app, caller.principal); } catch {
-    return { status: 401, headers: { "www-authenticate": 'Bearer realm="PURSS", error="invalid_token"' }, body: rpcError(null, -32600, "That token isn't valid any more. Create a new one in Settings → Assistants.") };
+    return { status: 401, headers: { "www-authenticate": 'Bearer realm="PURSS", error="invalid_token"' }, body: rpcError(null, -32600, server.api.mcpServer.tokenInvalid) };
   }
   if (!isMessage(msg)) return { status: 400, body: rpcError(null, -32600, "Send one JSON-RPC 2.0 request or notification per POST.") };
   // Notifications (no id), e.g. notifications/initialized, need no answer.

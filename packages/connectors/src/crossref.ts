@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { normalIssn, resolverUrl } from "./journals.ts";
 import { escapeXml } from "./text.ts";
 
@@ -140,13 +141,13 @@ export function crossrefWorksToRss(data: unknown, issn: string): string {
     if (summary) parts.push(`<description>${escapeXml(summary)}</description>`);
     out.push(`<item>${parts.join("")}</item>`);
   }
-  const name = journal || `ISSN ${hyphenIssn(issn)}`;
+  const name = journal || server.sources.connectors.crossref.issnTitle(hyphenIssn(issn));
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>',
     `<title>${escapeXml(name)}</title>`,
     `<link>${escapeXml(issnPortalUrl(issn))}</link>`,
-    `<description>${escapeXml(`Articles registered with Crossref for ISSN ${hyphenIssn(issn)}`)}</description>`,
+    `<description>${escapeXml(server.sources.connectors.crossref.description(hyphenIssn(issn)))}</description>`,
     ...out,
     "</channel></rss>",
   ].join("");

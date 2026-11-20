@@ -11,6 +11,7 @@ import { planOf } from "./plans.ts";
 import { PRODUCT_NAME, pageShell, productHome, publicLink } from "./public-pages.ts";
 import { escapeHtml, escapeXml, plainText, uuidFrom } from "./text-safety.ts";
 import type { SqlParam } from "../db/database.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Sharing: a basket or a collection can be shared as a public page and an Atom feed of its own
@@ -28,16 +29,16 @@ const PAGE_ITEMS = 200;
 const FEED_ITEMS = 100;
 
 export function shareStatement(listed: boolean): string {
-  return "Sharing makes this page and its feed readable by anyone who has the link, with no sign-in, and it keeps showing what you add from now on. " +
-    (listed ? "You chose to let search engines list it, so people can also find it by searching. " : "Search engines are asked not to index it, but that is a request, not access control. ") +
-    "You can pause or stop sharing at any time, but copies that people or feed readers have already fetched, cached or kept can't be recalled.";
+  return server.api.shares.statementIntro +
+    (listed ? server.api.shares.statementListed : server.api.shares.statementNotListed) +
+    server.api.shares.statementOutro;
 }
-export const LISTING_STATEMENT = "Search engines may list this page from their next visit, so people can find it by searching. Turning it off later asks them to drop it, but they decide when.";
-export const REVOCATION_NOTICE = "The page and feed no longer show. Copies that were already fetched, cached or kept by others can't be recalled.";
+export const LISTING_STATEMENT = server.api.shares.listingStatement;
+export const REVOCATION_NOTICE = server.api.shares.revocationNotice;
 const takenDownBlocker = (app: App) => app.config.mode === "hosted"
-  ? "PURSS took this page down after a report, so it can't be shared again. The reason is shown above."
-  : "An administrator took this page down after a report, so it can't be shared again. The reason is shown above.";
-const PLUS_ONLY = "Sharing a basket or collection as a public page is part of Plus.";
+  ? server.api.shares.takenDownHosted
+  : server.api.shares.takenDownAdministrator;
+const PLUS_ONLY = server.api.shares.plusOnly;
 
 type ShareRow = {
   id: string; workspace_id: string; target_kind: ShareTarget; target_id: string; slug: string; curator_name: string; description: string | null;
@@ -96,8 +97,8 @@ function target(app: App, kind: ShareTarget, id: string, workspaceId: string): T
 /** Why this target can't be shared right now, or null. */
 function unshareable(t: Target): string | null {
   if (t.mode !== "query") return null;
-  if (!t.query) return "This filter collection's rules can't be read, so it can't be shared.";
-  for (const f of fields(t.query)) if (READING_STATE_FIELDS.has(f)) return "This filter collection uses your reading state (such as To read, New, opened or saved text), so sharing it would show what you read. Change its rules to share it.";
+  if (!t.query) return server.api.shares.rulesUnreadable;
+  for (const f of fields(t.query)) if (READING_STATE_FIELDS.has(f)) return server.api.shares.usesReadingState;
   return null;
 }
 
@@ -171,7 +172,7 @@ function toDTO(app: App, r: ShareRow): ShareDTO {
 
 function own(app: App, p: Principal, id: string): ShareRow {
   const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-  if (!r) throw notFound("That shared page");
+  if (!r) throw notFound(server.api.shares.thatSharedPage);
   return r;
 }
 
@@ -183,7 +184,7 @@ export function listShares(app: App, p: Principal): ShareDTO[] {
 /** A basket's or collection's sharing: its share if any, and whether it can be shared (with why not). */
 export function shareFor(app: App, p: Principal, kind: ShareTarget, id: string): { share: ShareDTO | null; blocked: string | null } {
   const t = target(app, kind, id, p.workspaceId);
-  if (!t) throw notFound(kind === "basket" ? "That basket" : "That collection");
+  if (!t) throw notFound(kind === "basket" ? server.api.shared.thatBasket : server.api.shared.thatCollection);
   const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND workspace_id = ?", kind, id, p.workspaceId);
   return { share: r ? toDTO(app, r) : null, blocked: !canShare(app, p.accountId) ? PLUS_ONLY : unshareable(t) };
 }
@@ -191,7 +192,7 @@ export function shareFor(app: App, p: Principal, kind: ShareTarget, id: string):
 /** Set up or change a basket's or collection's sharing settings. A new one starts as a draft: nothing is public until published. */
 export function saveShare(app: App, p: Principal, kind: ShareTarget, id: string, input: z.infer<typeof shareSettingsSchema>): ShareDTO {
   const t = target(app, kind, id, p.workspaceId);
-  if (!t) throw notFound(kind === "basket" ? "That basket" : "That collection");
+  if (!t) throw notFound(kind === "basket" ? server.api.shared.thatBasket : server.api.shared.thatCollection);
   const cur = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND workspace_id = ?", kind, id, p.workspaceId);
   const now = nowIso();
   if (!cur) {
@@ -218,26 +219,26 @@ export function shareItems(app: App, p: Principal, id: string): ShareItemDTO[] {
 /** Write, change or remove the public note on one item of a share. On a public page it shows at once. */
 export function setShareNote(app: App, p: Principal, id: string, itemId: string, note: string | null): { note: string | null; notice: string | null } {
   const r = own(app, p, id);
-  if (!(projection(app, r, 100_000) ?? []).some((i) => i.itemId === itemId)) throw notFound("That item on this shared page");
+  if (!(projection(app, r, 100_000) ?? []).some((i) => i.itemId === itemId)) throw notFound(server.api.shares.thatItemOnPage);
   const text = plainText(note, 500) || null;
   app.db.tx(() => {
     if (text) app.db.run("INSERT INTO share_notes (share_id, item_id, note, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (share_id, item_id) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at", id, itemId, text, nowIso());
     else app.db.run("DELETE FROM share_notes WHERE share_id = ? AND item_id = ?", id, itemId);
     app.db.run("UPDATE shares SET updated_at = ? WHERE id = ?", nowIso(), id);
   });
-  return { note: text, notice: r.status === "published" ? "This page is public, so the note shows on it and in its feed now." : null };
+  return { note: text, notice: r.status === "published" ? server.api.shares.notePublic : null };
 }
 
 /** What sharing would make visible that the person added themselves, so they are told before they share. */
 function warnings(app: App, r: ShareRow, t: Target, items: { ownLink: boolean; note: string | null }[]): string[] {
   const out: string[] = [];
-  if (t.mode === "basket") out.push(`Everything you keep in “${t.name}” shows on the page, including what you add later.`);
-  if (t.mode === "query" && t.query && [...fields(t.query)].some((f) => KEEPING_FIELDS.has(f))) out.push("This collection's rules use your baskets, so the page shows which items you keep.");
-  if (t.mode !== "basket") out.push("New items from its sources show on the page as they arrive.");
+  if (t.mode === "basket") out.push(server.api.shares.basketShows(t.name));
+  if (t.mode === "query" && t.query && [...fields(t.query)].some((f) => KEEPING_FIELDS.has(f))) out.push(server.api.shares.collectionUsesBaskets);
+  if (t.mode !== "basket") out.push(server.api.shares.newItemsShow);
   const own = items.filter((i) => i.ownLink).length;
-  if (own) out.push(`${own === 1 ? "1 link you saved yourself" : `${own} links you saved yourself`} (not from a feed) will be public, with the title you gave ${own === 1 ? "it" : "them"}.`);
+  if (own) out.push(server.api.shares.ownLinksPublic(own));
   const notes = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM share_notes WHERE share_id = ?", r.id)!.n;
-  if (notes) out.push(`${notes === 1 ? "1 public note" : `${notes} public notes`} you wrote for this page will show, with the name you chose.`);
+  if (notes) out.push(server.api.shares.publicNotesShow(notes));
   return out;
 }
 
@@ -251,7 +252,7 @@ export function previewShare(app: App, p: Principal, id: string): SharePreview {
   const t = target(app, r.target_kind, r.target_id, r.workspace_id);
   const items = projection(app, r) ?? [];
   const blockers: string[] = [];
-  if (!t) blockers.push("This basket or collection no longer exists.");
+  if (!t) blockers.push(server.api.shares.noLongerExists);
   else {
     const why = unshareable(t);
     if (why) blockers.push(why);
@@ -282,12 +283,12 @@ export function publishShare(app: App, p: Principal, id: string, confirmToken: s
     if (r.taken_down_at) throw new HttpError(403, "taken_down", takenDownBlocker(app));
     if (!canShare(app, p.accountId)) throw new HttpError(403, "plan_sharing", PLUS_ONLY);
     const t = target(app, r.target_kind, r.target_id, r.workspace_id);
-    const why = t ? unshareable(t) : "This basket or collection no longer exists.";
+    const why = t ? unshareable(t) : server.api.shares.noLongerExists;
     if (why) throw badRequest(why, "unshareable");
     const tok = app.db.get<{ data: string }>("SELECT data FROM confirm_tokens WHERE token = ? AND workspace_id = ? AND purpose = 'share-publish' AND expires_at > ?", confirmToken, p.workspaceId, nowIso());
-    if (!tok) throw badRequest("Please review what visitors will see and confirm again.", "confirm");
+    if (!tok) throw badRequest(server.api.shares.reviewVisitors, "confirm");
     const planned = JSON.parse(tok.data) as { id: string; hash: string };
-    if (planned.id !== id || planned.hash !== confirmHash(r)) throw badRequest("The sharing settings changed since you reviewed them. Please review again.", "confirm");
+    if (planned.id !== id || planned.hash !== confirmHash(r)) throw badRequest(server.api.shares.settingsChanged, "confirm");
     app.db.run("DELETE FROM confirm_tokens WHERE token = ?", confirmToken);
     app.db.run("UPDATE shares SET status = 'published', published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ?", nowIso(), nowIso(), id);
     audit(app, p.accountId, "share_publish", id, "success");
@@ -297,7 +298,7 @@ export function publishShare(app: App, p: Principal, id: string, confirmToken: s
 
 export function pauseShare(app: App, p: Principal, id: string): { share: ShareDTO; notice: string } {
   const r = own(app, p, id);
-  if (r.status !== "published") throw badRequest("Only a public page can be paused.", "not_published");
+  if (r.status !== "published") throw badRequest(server.api.shares.onlyPublicPaused, "not_published");
   app.db.run("UPDATE shares SET status = 'paused', updated_at = ? WHERE id = ?", nowIso(), id);
   audit(app, p.accountId, "share_pause", id, "success");
   return { share: toDTO(app, own(app, p, id)), notice: REVOCATION_NOTICE };
@@ -307,11 +308,11 @@ export function pauseShare(app: App, p: Principal, id: string): { share: ShareDT
 export function stopSharing(app: App, p: Principal, id: string): { ok: true; notice: string } {
   const r = own(app, p, id);
   if (r.taken_down_at) throw badRequest(app.config.mode === "hosted"
-    ? "PURSS took this page down after a report. It stays switched off until the report is reviewed."
-    : "An administrator took this page down; it stays switched off until they restore it.", "taken_down");
+    ? server.api.shares.takenDownStaysOffHosted
+    : server.api.shares.takenDownStaysOffAdministrator, "taken_down");
   app.db.run("DELETE FROM shares WHERE id = ?", id);
   audit(app, p.accountId, "share_stop", id, "success");
-  return { ok: true, notice: r.status === "published" ? REVOCATION_NOTICE : "Stopped." };
+  return { ok: true, notice: r.status === "published" ? REVOCATION_NOTICE : server.api.shares.stopped };
 }
 
 /** A basket or collection is deleted: its share goes with it. */
@@ -347,27 +348,15 @@ export function renderPage(app: App, pub: ShareHead, items: PageItem[]): string 
       const meta = [i.sourceTitle ? escapeHtml(i.sourceTitle) : null, date ? `<time datetime="${escapeHtml(i.publishedAt!)}">${escapeHtml(date)}</time>` : null].filter(Boolean).join(" · ");
       return `<li><article><h2><a href="${escapeHtml(i.url)}" rel="noopener noreferrer nofollow">${escapeHtml(i.title)}</a></h2>${meta ? `<p class="meta">${meta}</p>` : ""}${i.note ? `<p class="note"><b>${curator}:</b> ${escapeHtml(i.note)}</p>` : ""}${i.summary ? `<p class="sum">${escapeHtml(i.summary)}</p>` : ""}</article></li>`;
     }).join("")}</ol>`
-    : `<p class="empty">Nothing here yet.</p>`;
+    : server.api.shares.nothingHereYet;
   const home = productHome(app);
   return pageShell({
-    title: `${pub.title} · shared by ${pub.curatorName}`,
+    title: server.api.shares.pageTitle(pub.title, pub.curatorName),
     indexable: pub.listed,
     head: `<link rel="alternate" type="application/atom+xml" title="${escapeHtml(pub.title)}" href="${escapeHtml(feedUrl)}">
 <link rel="canonical" href="${escapeHtml(publicUrl)}">
 `,
-    body: `<header>
-<h1>${escapeHtml(pub.title)}</h1>
-<p class="by">Shared by ${curator}</p>
-${pub.description ? `<p class="about">${escapeHtml(pub.description)}</p>` : ""}
-<div class="acts"><a class="btn primary sm" href="${escapeHtml(follow)}" title="Get what ${curator} adds next, in your PURSS or any feed reader">Follow</a><a class="feed" href="${escapeHtml(feedUrl)}">Feed</a></div>
-</header>
-<main id="main">
-${list}
-</main>
-<footer>
-<p>These are links shared by ${curator}. The articles belong to their authors and sites.</p>
-<p>${home ? `Made with <a href="${escapeHtml(home)}">${PRODUCT_NAME}</a>: share your own baskets and collections as a page and a feed. · ` : ""}<a href="${escapeHtml(`${publicUrl}/report`)}">Report this page</a></p>
-</footer>`,
+    body: server.api.shares.pageBody(escapeHtml(pub.title), curator, pub.description ? `<p class="about">${escapeHtml(pub.description)}</p>` : "", escapeHtml(follow), escapeHtml(feedUrl), list, home ? server.api.shares.madeWith(escapeHtml(home), PRODUCT_NAME) : "", escapeHtml(`${publicUrl}/report`)),
   });
 }
 
@@ -439,7 +428,7 @@ const reports = limiter(5, 3600_000);
 
 /** Simple per-address limit for the public pages, feeds and follow page. */
 export function limitPublicRead(address: string | undefined): void {
-  if (!reads.hit(address)) throw new HttpError(429, "slow_down", "Too many requests. Please wait a minute and try again.");
+  if (!reads.hit(address)) throw new HttpError(429, "slow_down", server.api.shares.tooManyRequests);
 }
 export const resetPublicReadLimit = () => { reads.reset(); reports.reset(); };
 
@@ -456,17 +445,17 @@ export function reportShare(app: App, pub: PublicShare, input: ReportInput, addr
   const reason = (REPORT_REASONS as readonly string[]).includes(input.reason) ? input.reason as ReportReason : null;
   const details = input.details.trim().slice(0, 2000);
   const contact = plainText(input.contact, 200) || null;
-  if (!reason) return { ok: false, status: 400, error: "Please choose what's wrong with the page." };
-  if (details.length < 10) return { ok: false, status: 400, error: "Please say a little more about what's wrong (at least a few words)." };
-  if (!reports.hit(address)) return { ok: false, status: 429, error: "You've sent several reports in a short time. Please try again in an hour." };
+  if (!reason) return { ok: false, status: 400, error: server.api.shares.chooseWhatsWrong };
+  if (details.length < 10) return { ok: false, status: 400, error: server.api.shares.sayMore };
+  if (!reports.hit(address)) return { ok: false, status: 429, error: server.api.shares.tooManyReports };
   const open = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM share_reports WHERE share_id = ? AND resolved_at IS NULL", pub.id)!.n;
   if (open >= OPEN_REPORTS_PER_PAGE) return { ok: true };
   const now = nowIso();
   const told = app.db.tx(() => {
     app.db.run("INSERT INTO share_reports (id, share_id, reason, details, contact, created_at) VALUES (?, ?, ?, ?, ?, ?)", newId("rpt"), pub.id, reason, details, contact, now);
     const admins = app.db.all<{ id: string; account_id: string }>("SELECT w.id, w.account_id FROM workspaces w JOIN role_grants g ON g.account_id = w.account_id AND g.role = 'admin'");
-    const title = `A shared page was reported: ${plainText(pub.title, 80)}`;
-    const body = `${REPORT_REASON_LABELS[reason]}. Review it in Administration → Reports.`;
+    const title = server.api.shares.reportedTitle(plainText(pub.title, 80));
+    const body = server.api.shares.reportedBody(REPORT_REASON_LABELS[reason]);
     for (const a of admins) {
       app.db.run(`INSERT INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)
         ON CONFLICT (workspace_id, dedup_key) DO UPDATE SET title = excluded.title, body = excluded.body, read_at = NULL`,
@@ -502,7 +491,7 @@ export function listReports(app: App, which: "open" | "all" | "taken_down"): Sha
 
 function reportedShare(app: App, id: string): ShareRow {
   const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE id = ? AND id IN (SELECT share_id FROM share_reports)", id);
-  if (!r) throw notFound("That reported page");
+  if (!r) throw notFound(server.api.shares.thatReportedPage);
   return r;
 }
 
@@ -520,15 +509,15 @@ function tellOwner(app: App, r: ShareRow, title: string, body: string, key: stri
 /** Take a reported page down: it stops showing at once, its open reports are closed, and its owner is told why. */
 export function takeDownShare(app: App, admin: Principal, id: string, reason: string): { ok: true } {
   const text = plainText(reason, 500);
-  if (text.length < 5) throw badRequest("Write the reason the owner will see.", "reason");
+  if (text.length < 5) throw badRequest(server.api.shares.writeReason, "reason");
   const r = app.db.tx(() => {
     const cur = reportedShare(app, id);
-    if (cur.taken_down_at) throw badRequest("That page is already taken down.", "already");
+    if (cur.taken_down_at) throw badRequest(server.api.shares.alreadyTakenDown, "already");
     const now = nowIso();
     app.db.run("UPDATE shares SET taken_down_at = ?, takedown_reason = ?, status = CASE WHEN status = 'published' THEN 'paused' ELSE status END, updated_at = ? WHERE id = ?", now, text, now, id);
     app.db.run("UPDATE share_reports SET resolved_at = ?, resolution = 'taken_down', resolved_by = ? WHERE share_id = ? AND resolved_at IS NULL", now, admin.accountId, id);
-    tellOwner(app, cur, `Your shared page “${plainText(head(app, cur).title, 80)}” was taken down`,
-      `${app.config.mode === "hosted" ? "PURSS took its page and feed down after a report" : "An administrator took its page and feed down after a report"}: ${text} You can still change it, but not share it again until the report is reviewed.`, `share-takedown:${id}:${now}`);
+    tellOwner(app, cur, server.api.shares.takenDownTitle(plainText(head(app, cur).title, 80)),
+      server.api.shares.takenDownBody(app.config.mode, text), `share-takedown:${id}:${now}`);
     return cur;
   });
   emit(app, accountOf(app, r.workspace_id), { type: "notification" });
@@ -540,10 +529,10 @@ export function takeDownShare(app: App, admin: Principal, id: string, reason: st
 export function restoreShare(app: App, admin: Principal, id: string): { ok: true } {
   const r = app.db.tx(() => {
     const cur = reportedShare(app, id);
-    if (!cur.taken_down_at) throw badRequest("That page isn't taken down.", "not_taken_down");
+    if (!cur.taken_down_at) throw badRequest(server.api.shares.notTakenDown, "not_taken_down");
     app.db.run("UPDATE shares SET taken_down_at = NULL, takedown_reason = NULL, updated_at = ? WHERE id = ?", nowIso(), id);
-    tellOwner(app, cur, `Your shared page “${plainText(head(app, cur).title, 80)}” can be shared again`,
-      `${app.config.mode === "hosted" ? "PURSS lifted the takedown" : "An administrator lifted the takedown"}. It is still paused: review it and share it again when you're ready.`, `share-restore:${id}:${nowIso()}`);
+    tellOwner(app, cur, server.api.shares.canShareAgainTitle(plainText(head(app, cur).title, 80)),
+      server.api.shares.canShareAgainBody(app.config.mode), `share-restore:${id}:${nowIso()}`);
     return cur;
   });
   emit(app, accountOf(app, r.workspace_id), { type: "notification" });
@@ -554,7 +543,7 @@ export function restoreShare(app: App, admin: Principal, id: string): { ok: true
 /** Close a report without action. */
 export function dismissReport(app: App, admin: Principal, reportId: string): { ok: true } {
   const n = app.db.run("UPDATE share_reports SET resolved_at = ?, resolution = 'dismissed', resolved_by = ? WHERE id = ? AND resolved_at IS NULL", nowIso(), admin.accountId, reportId).changes;
-  if (!n) throw notFound("That open report");
+  if (!n) throw notFound(server.api.shares.thatOpenReport);
   audit(app, admin.accountId, "share_report_dismiss", reportId, "success");
   return { ok: true };
 }

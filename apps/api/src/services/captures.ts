@@ -11,6 +11,7 @@ import { reindex } from "./items.ts";
 import { queueItemImages } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { enqueue } from "./jobs.ts";
+import { server } from "@purss/copy/server";
 
 /** Reserved for a readable-text capture before the job runs; settled to actual bytes. */
 export const CAPTURE_RESERVE_BYTES = 1_500_000;
@@ -97,7 +98,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
   const reservation = app.db.get<{ id: string }>("SELECT id FROM reservations WHERE idempotency_key = ? AND settled_at IS NULL AND released_at IS NULL", `capture:${captureId}`);
   const parsed = captureResult.safeParse(raw);
   if (!parsed.success) {
-    failCapture(app, captureId, "The page couldn't be read. Its details and feed content are still kept.");
+    failCapture(app, captureId, server.api.captures.pageCouldNotBeRead);
     return;
   }
   const html = sanitize(parsed.data.html) ?? "";
@@ -126,7 +127,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
     if (!(err instanceof StorageFull)) throw err;
     // Only a Keep capture holds a reservation; an automatic copy is optional and doesn't pause growth.
     if (reservation) markPaused(app, err);
-    failCapture(app, captureId, "There wasn't enough storage for a readable copy. Details and feed content are still kept.");
+    failCapture(app, captureId, server.api.captures.notEnoughStorageForCopy);
     return;
   }
   app.db.run("UPDATE captures SET status = 'done', title = ?, text = ?, html = ?, final_url = ?, quality = ?, partial_reason = ?, completed_at = ? WHERE id = ?",
@@ -198,7 +199,7 @@ function betterThan(next: { reason: PartialReason; length: number }, earlier: { 
  */
 function rejectCapture(app: App, captureId: string, reason: PartialReason): void {
   app.db.run("UPDATE captures SET status = 'failed', error = ?, partial_reason = ?, completed_at = ? WHERE id = ? AND status = 'pending'",
-    "The page gave no more than the copy already saved, so that copy stays.", reason, nowIso(), captureId);
+    server.api.captures.noMoreThanSaved, reason, nowIso(), captureId);
   const reservation = app.db.get<{ id: string }>("SELECT id FROM reservations WHERE idempotency_key = ?", `capture:${captureId}`);
   if (reservation) releaseReservation(app, reservation.id);
 }
@@ -251,8 +252,8 @@ export function saveBrowserCapture(app: App, target: { accountId: string; worksp
   } catch (err) {
     if (!(err instanceof StorageFull)) throw err;
     return { saved: false, replaced: false, note: earlier
-      ? "There isn't enough storage for the new text, so the text captured earlier is kept."
-      : "There isn't enough storage for the text, so only the link was kept." };
+      ? server.api.captures.notEnoughStorageNewText
+      : server.api.captures.notEnoughStorageLinkOnly };
   }
   emit(app, target.accountId, { type: "storage" });
   return { saved: true, replaced: !!earlier, note: null };
@@ -267,11 +268,11 @@ export function retryCapture(app: App, p: Principal, itemId: string): { queued: 
   return app.db.tx(() => {
     const item = app.db.get<{ id: string; url: string | null; is_private: number | null }>(
       "SELECT i.id, i.url, s.is_private FROM items i LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?", itemId, p.workspaceId);
-    if (!item) throw notFound("That item");
+    if (!item) throw notFound(server.api.shared.thatItem);
     if (app.db.get(`SELECT 1 WHERE ${settledCopy("?")}`, itemId)) return { queued: false };
-    if (!app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND (status = 'failed' OR (status = 'done' AND quality = 'partial'))", itemId)) throw badRequest("There is no failed or incomplete copy to try again.");
-    if (!item.url) throw badRequest("This item has no page to read.");
-    if (item.is_private) throw badRequest("Readable copies aren't made for items from private sources.");
+    if (!app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND (status = 'failed' OR (status = 'done' AND quality = 'partial'))", itemId)) throw badRequest(server.api.captures.noFailedCopy);
+    if (!item.url) throw badRequest(server.api.captures.noPageToRead);
+    if (item.is_private) throw badRequest(server.api.shared.privateNoCopies);
     const queued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId, url: item.url }, { again: true });
     // The new attempt takes the failed one's place in "What was kept".
     app.db.run("DELETE FROM captures WHERE item_id = ? AND status = 'failed'", itemId);

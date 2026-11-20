@@ -5,6 +5,7 @@ import { audit } from "../app.ts";
 import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "../services/deletion.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Device tokens for connected apps. A token is a bearer credential like a session cookie:
@@ -49,8 +50,8 @@ export const revokedEvent = (deviceId: string) => `device-revoked:${deviceId}`;
 export function createDeviceToken(app: App, accountId: string, kind: ConnectClientKind, name: string, authMethod = "connect"): { device: DeviceDTO; secret: string } {
   return app.db.tx(() => {
     const status = app.db.get<{ status: string }>("SELECT status FROM accounts WHERE id = ?", accountId)?.status;
-    if (status !== "active") throw new HttpError(403, "suspended", app.config.mode === "hosted" ? "This account is suspended and can't be used right now." : "This account is suspended. Contact the PURSS administrator.");
-    if (!isAccountUsable(app, accountId)) throw new HttpError(403, "account_deleting", "This account is set to be deleted, so no app can connect to it.");
+    if (status !== "active") throw new HttpError(403, "suspended", app.config.mode === "hosted" ? server.api.shared.suspendedHosted : server.api.shared.suspendedContactAdministrator);
+    if (!isAccountUsable(app, accountId)) throw new HttpError(403, "account_deleting", server.api.devices.accountDeleting);
     if (deviceCount(app, accountId) >= MAX_DEVICES) throw tooMany();
     const secret = `${DEVICE_TOKEN_PREFIX}${randomToken(32)}`;
     const now = nowIso();
@@ -66,7 +67,7 @@ export function deviceCount(app: App, accountId: string): number {
   return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM device_tokens WHERE account_id = ? AND last_used_at > ?", accountId, idleCutoff())!.n;
 }
 
-export const tooMany = () => new HttpError(409, "too_many_devices", `You can connect up to ${MAX_DEVICES} apps. Disconnect one you no longer use in Settings → Connected apps first.`);
+export const tooMany = () => new HttpError(409, "too_many_devices", server.api.devices.tooManyDevices(MAX_DEVICES));
 
 /**
  * The caller behind a bearer secret, or null when it isn't a live token of an active account. Looked
@@ -101,7 +102,7 @@ export function listDevices(app: App, p: Principal): DeviceDTO[] {
 /** Disconnect one of the account's apps. */
 export function revokeDevice(app: App, p: Principal, id: string, how: "settings" | "self"): { ok: true } {
   const r = app.db.run("DELETE FROM device_tokens WHERE id = ? AND account_id = ?", id, p.accountId);
-  if (!r.changes) throw notFound("That app");
+  if (!r.changes) throw notFound(server.api.devices.thatApp);
   audit(app, p.accountId, "device_revoke", id, "success", how);
   app.events.emit(revokedEvent(id));
   return { ok: true };

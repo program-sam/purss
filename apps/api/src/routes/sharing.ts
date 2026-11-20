@@ -13,6 +13,7 @@ import type { PublicShare, ReportInput } from "../services/shares.ts";
 import { followTarget, pageShell, renderFollowError, renderFollowPage } from "../services/public-pages.ts";
 import { escapeHtml, httpUrlOrNull } from "../services/text-safety.ts";
 import { publishedPost, renderNewsAtom, renderNewsPage, renderNewsPostPage } from "../services/news.ts";
+import { server } from "@purss/copy/server";
 
 const targetKind = z.enum(["basket", "collection"]);
 
@@ -41,8 +42,8 @@ export function sharingRouter(): Router<Ctx> {
     const feed = followTarget(raw);
     if (feed) return { followUrl: followUrl(ctx.app, feed) };
     throw httpUrlOrNull(raw)
-      ? badRequest("This address has a key or token in it, so it looks like a private feed. A Follow button would show it to everyone; use the site's public feed address instead.", "private_link")
-      : badRequest("Enter a full feed address starting with https:// or http://.", "not_a_link");
+      ? badRequest(server.api.sharingRoute.privateFeedLink, "private_link")
+      : badRequest(server.api.sharingRoute.enterFeedAddress, "not_a_link");
   });
   return r;
 }
@@ -50,10 +51,10 @@ export function sharingRouter(): Router<Ctx> {
 const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 /** The report form posts to itself; nothing else on these pages submits anything. */
 const FORM_CSP = PAGE_CSP.replace("form-action 'none'", "form-action 'self'");
-const NOT_FOUND_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Not found</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;color:#1c2431}@media (prefers-color-scheme:dark){body{background:#181c22;color:#e8edf4}}</style></head><body><h1>Not found</h1><p>This page doesn't exist, or it isn't shared right now.</p></body></html>`;
+const NOT_FOUND_PAGE = server.api.sharingRoute.notFoundPage;
 
 function notFoundPage(res: ServerResponse, kind: "html" | "feed"): void {
-  const body = kind === "html" ? NOT_FOUND_PAGE : "Not found";
+  const body = kind === "html" ? NOT_FOUND_PAGE : server.api.shared.notFound;
   res.writeHead(404, {
     "content-type": kind === "html" ? "text/html; charset=utf-8" : "text/plain; charset=utf-8",
     "cache-control": "no-store", "x-robots-tag": "noindex, nofollow", "content-security-policy": PAGE_CSP,
@@ -84,37 +85,17 @@ function reportForm(pub: PublicShare, input: ReportInput, error: string | null):
   const action = `/p/${pub.slug}/report`;
   const reasons = REPORT_REASONS.map((r) => `<label class="opt"><input type="radio" name="reason" value="${r}" required${input.reason === r ? " checked" : ""}> ${escapeHtml(REPORT_REASON_LABELS[r])}</label>`).join("\n");
   return pageShell({
-    title: `Report ${pub.title}`,
+    title: server.api.sharingRoute.reportTitle(pub.title),
     indexable: false,
-    body: `<header>
-<h1>Report this page</h1>
-<p class="about">“${escapeHtml(pub.title)}”, shared by ${escapeHtml(pub.curatorName)}. Your report goes to the people who run this site, who can take down pages that break the law or the terms of use.</p>
-</header>
-<main id="main">
-${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
-<form method="post" action="${escapeHtml(action)}" class="card">
-<fieldset><legend>What's wrong?</legend>
-${reasons}
-</fieldset>
-<label class="l" for="details">Tell us more</label>
-<textarea id="details" name="details" rows="5" maxlength="2000" required>${escapeHtml(input.details)}</textarea>
-<p class="hint">Which item, and why. For a copyright complaint, say which work is yours.</p>
-<label class="l" for="contact">How to reach you (optional)</label>
-<input type="text" id="contact" name="contact" maxlength="200" value="${escapeHtml(input.contact)}" autocomplete="email">
-<p class="hint">Only if you'd like an answer. We keep only what you type here; the curator doesn't see it.</p>
-<button class="btn primary" type="submit">Send report</button>
-<a class="btn" href="/p/${escapeHtml(pub.slug)}">Back to the page</a>
-</form>
-</main>`,
+    body: server.api.sharingRoute.reportFormBody(escapeHtml(pub.title), escapeHtml(pub.curatorName), error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : "", escapeHtml(action), reasons, escapeHtml(input.details), escapeHtml(input.contact), escapeHtml(pub.slug)),
   });
 }
 
 function reportThanks(pub: PublicShare): string {
   return pageShell({
-    title: "Report sent",
+    title: server.api.sharingRoute.reportSent,
     indexable: false,
-    body: `<header><h1>Thank you</h1><p class="about">Your report about “${escapeHtml(pub.title)}” was sent. The people who run this site will look at it.</p></header>
-<main id="main"><p><a class="btn" href="/p/${escapeHtml(pub.slug)}">Back to the page</a></p></main>`,
+    body: server.api.sharingRoute.reportThanksBody(escapeHtml(pub.title), escapeHtml(pub.slug)),
   });
 }
 
@@ -185,7 +166,7 @@ export function publicPagesRouter(): Router<Ctx> {
     const site = req.raw.headers["sec-fetch-site"];
     const origin = req.raw.headers.origin;
     if ((site && site !== "same-origin" && site !== "none") || (origin && origin !== ctx.app.config.publicOrigin)) {
-      sendPage(res, 403, reportForm(pub, { reason: "", details: "", contact: "" }, "Please send your report from this page."), FORM_CSP);
+      sendPage(res, 403, reportForm(pub, { reason: "", details: "", contact: "" }, server.api.sharingRoute.sendFromThisPage), FORM_CSP);
       return undefined;
     }
     const input = readForm(req.body);

@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { decodeBody } from "./content-type.ts";
 import { isForbiddenLiteralHost } from "./addresses.ts";
 import { looksPrivateUrl, privateUrlReason } from "./privacy.ts";
@@ -41,7 +42,7 @@ export function generateOpml(subscriptions: readonly OpmlSubscription[], opts: {
   const groups = new Map<string, string[]>();
   let included = 0;
   for (const sub of subscriptions.slice(0, MAX_EXPORT)) {
-    const label = plainLine(sub.title, 200) ?? "Untitled source";
+    const label = plainLine(sub.title, 200) ?? server.sources.connectors.opml.untitledSource;
     const feedUrl = cleanUrl(sub.feedUrl);
     if (!feedUrl) {
       omitted.push({ title: label, reason: "invalid" });
@@ -65,7 +66,7 @@ export function generateOpml(subscriptions: readonly OpmlSubscription[], opts: {
     if (folder) lines.push(`    <outline text="${escapeXml(folder)}" title="${escapeXml(folder)}">`, ...outlines.map((o) => `      ${o}`), "    </outline>");
     else lines.push(...outlines.map((o) => `    ${o}`));
   }
-  const title = escapeXml(plainLine(opts.title ?? "Subscriptions", 120) ?? "Subscriptions");
+  const title = escapeXml(plainLine(opts.title ?? server.sources.connectors.opml.title, 120) ?? server.sources.connectors.opml.title);
   const created = (opts.now ?? new Date()).toUTCString();
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n  <head>\n    <title>${title}</title>\n    <dateCreated>${created}</dateCreated>\n  </head>\n  <body>\n${lines.join("\n")}${lines.length ? "\n" : ""}  </body>\n</opml>\n`;
   return { xml, included, omitted };
@@ -97,25 +98,25 @@ function attr(node: XNode, ...names: string[]): string | null {
 }
 
 export function parseOpml(input: string | Uint8Array): OpmlParse {
-  if (typeof input !== "string" && input.length > OPML_MAX_BYTES) return { ok: false, reason: "toolarge", message: "That file is larger than the 2 MB we accept for an import." };
+  if (typeof input !== "string" && input.length > OPML_MAX_BYTES) return { ok: false, reason: "toolarge", message: server.sources.connectors.opml.tooLarge };
   const text = typeof input === "string" ? input : decodeBody(input, null);
-  if (text.length > OPML_MAX_BYTES) return { ok: false, reason: "toolarge", message: "That file is larger than the 2 MB we accept for an import." };
-  if (!text.trim()) return { ok: false, reason: "empty", message: "That file is empty." };
+  if (text.length > OPML_MAX_BYTES) return { ok: false, reason: "toolarge", message: server.sources.connectors.opml.tooLarge };
+  if (!text.trim()) return { ok: false, reason: "empty", message: server.sources.connectors.opml.empty };
   let doc: XNode;
   try {
     assertShallowMarkup(text, "xml", { depth: OPML_MAX_DEPTH + 8 });
     doc = parseXml(text);
   } catch (error) {
-    if (error instanceof TooComplexError) return { ok: false, reason: "invalid", message: "That file is nested too deeply to be a subscription list." };
+    if (error instanceof TooComplexError) return { ok: false, reason: "invalid", message: server.sources.connectors.opml.nestedTooDeeply };
     throw error;
   }
   const root = (doc.children ?? []).find((n) => n.type === "tag" && n.name?.toLowerCase() === "opml");
-  if (!root) return { ok: false, reason: "invalid", message: "That file isn't an OPML subscription list." };
+  if (!root) return { ok: false, reason: "invalid", message: server.sources.connectors.opml.notOpml };
   const head = (root.children ?? []).find((n) => n.type === "tag" && n.name?.toLowerCase() === "head");
   const titleNode = (head?.children ?? []).find((n) => n.type === "tag" && n.name?.toLowerCase() === "title");
   const listTitle = plainLine((titleNode?.children ?? []).map((c) => c.data ?? "").join(""), 120);
   const body = (root.children ?? []).find((n) => n.type === "tag" && n.name?.toLowerCase() === "body");
-  if (!body) return { ok: false, reason: "invalid", message: "That OPML file has no subscriptions in it." };
+  if (!body) return { ok: false, reason: "invalid", message: server.sources.connectors.opml.noSubscriptions };
 
   const outlines: OpmlOutline[] = [];
   const skipped = new Map<OpmlSkipReason, number>();
@@ -161,6 +162,6 @@ export function parseOpml(input: string | Uint8Array): OpmlParse {
     }
     if (depth < OPML_MAX_DEPTH) pushChildren(node, !xmlUrl && label ? [...path, label] : path, depth + 1);
   }
-  if (outlines.length === 0 && skipped.size === 0) return { ok: false, reason: "empty", message: "That OPML file doesn't contain any feeds." };
+  if (outlines.length === 0 && skipped.size === 0) return { ok: false, reason: "empty", message: server.sources.connectors.opml.noFeeds };
   return { ok: true, title: listTitle, outlines, skipped: [...skipped].map(([reason, count]) => ({ reason, count })), truncated };
 }

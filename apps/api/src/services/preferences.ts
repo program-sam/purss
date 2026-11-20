@@ -3,6 +3,7 @@ import type { Preferences } from "@purss/domain";
 import { z } from "zod";
 import type { App } from "../app.ts";
 import { nowIso } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 const time = z.string().regex(/^\d{2}:\d{2}$/).nullable();
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -39,7 +40,7 @@ export const preferencesPatchSchema = z.object({
   welcomeAsked: z.boolean(),
   notifications: notificationsPatch,
   mutedWords: z.array(z.object({ text: z.string().trim().min(1).max(80), until: z.iso.datetime().nullable() })).max(100).refine(
-    (words) => new Set(words.map((w) => w.text.toLowerCase())).size === words.length, "Each muted word is listed once."),
+    (words) => new Set(words.map((w) => w.text.toLowerCase())).size === words.length, server.api.preferences.mutedOnce),
   timezone: z.string().min(1).max(64).refine((tz) => { try { new Intl.DateTimeFormat("en", { timeZone: tz }); return true; } catch { return false; } }).nullable(),
   discoveryShare: z.boolean(),
 }).partial();

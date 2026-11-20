@@ -3,12 +3,13 @@ import type { Ctx } from "../app.ts";
 import { requirePrincipal } from "../app.ts";
 import { Router, badRequest, parse } from "../http.ts";
 import { deleteAnnotation, listAnnotations, putAnnotation } from "../services/annotations.ts";
+import { server } from "@purss/copy/server";
 
 /** Comfortably above the longest comment plus the longest passage, JSON-encoded. */
 const BODY_LIMIT = 96 * 1024;
 
 function annotationId(raw: string): string {
-  if (!annotationIdSchema.safeParse(raw).success) throw badRequest("That note's id isn't valid.");
+  if (!annotationIdSchema.safeParse(raw).success) throw badRequest(server.api.annotationsRoute.invalidNoteId);
   return raw;
 }
 

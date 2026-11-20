@@ -24,10 +24,11 @@ import { deleteSourceNotifications } from "./notifications.ts";
 import { assertRoom } from "./plans.ts";
 import { deliverNews } from "./news.ts";
 import { isNewsFeed, newsCandidate } from "./news-address.ts";
+import { server } from "@purss/copy/server";
 
 const QUIET_DAYS = 30;
 /** What a followed feed says while it has no posts at all. */
-export const NO_POSTS_YET = "No posts yet. Still following; new posts will appear here.";
+export const NO_POSTS_YET = server.api.sources.noPostsYet;
 
 type SourceRow = {
   id: string; kind: SourceDTO["kind"]; title: string; origin: string; site_url: string | null; feed_url: string | null; is_private: number;
@@ -40,10 +41,10 @@ type SourceRow = {
 };
 
 function healthOf(r: SourceRow): { health: SourceHealth; text: string | null } {
-  if (r.health === "reconnect") return { health: "reconnect", text: r.health_text ?? "Reconnect required: this private source needs its link again." };
+  if (r.health === "reconnect") return { health: "reconnect", text: r.health_text ?? server.api.sources.reconnectRequired };
   if (r.paused) {
     const until = r.paused_until ? new Date(r.paused_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
-    return { health: "paused", text: until ? `Paused until ${until}. Nothing new is collected until then.` : "Paused. Nothing new is collected until you resume it." };
+    return { health: "paused", text: until ? server.api.sources.pausedUntilNote(until) : server.api.sources.pausedNote };
   }
   if (r.health !== "ok" && r.health !== "quiet") return { health: r.health, text: r.health_text };
   // The engine looked at the feed and it had nothing in it yet (see applySyncBatch).
@@ -51,7 +52,7 @@ function healthOf(r: SourceRow): { health: SourceHealth; text: string | null } {
   const last = r.last_item_at ?? r.last_success_at;
   if (last) {
     const days = Math.floor((Date.now() - Date.parse(last)) / 86_400_000);
-    if (days >= QUIET_DAYS) return { health: "quiet", text: `No new posts for ${days} days. Still following.` };
+    if (days >= QUIET_DAYS) return { health: "quiet", text: server.api.sources.noNewPosts(days) };
   }
   return { health: "ok", text: null };
 }
@@ -97,7 +98,7 @@ export function getSource(app: App, p: Principal, id: string): SourceDTO {
        (SELECT digest FROM source_icons si WHERE si.source_id = s.id) AS icon_digest,
        EXISTS (SELECT 1 FROM ai_filters f WHERE f.enabled = 1 AND f.source_id = s.id) AS ai_filtered
      FROM sources s WHERE s.id = ? AND s.workspace_id = ?`, id, p.workspaceId);
-  if (!r) throw notFound("That source");
+  if (!r) throw notFound(server.api.shared.thatSource);
   return toSourceDTO(r);
 }
 
@@ -162,11 +163,11 @@ function siteOrigin(url: string | null): string | null {
 
 export function followSource(app: App, p: Principal, input: z.input<typeof followSchema>): SourceDTO {
   const c = peekCandidate(input.token, p.workspaceId) as Candidate | null;
-  if (!c) throw badRequest("That preview has expired. Please look up the link again.", "expired");
+  if (!c) throw badRequest(server.api.shared.lookupExpired, "expired");
   const existing = followedSource(app, p, c.feedUrl);
   if (existing) return getSource(app, p, existing.id);
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
-  if (!engineUser) throw badRequest("Your PURSS isn't connected to the collection engine yet. Try again in a minute.", "engine_pending");
+  if (!engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
   // This installation's news comes from here, not from the engine (services/news.ts).
   const isNews = isNewsFeed(app, c.feedUrl);
   // A bridged source's address is a descriptor, not a link anyone holds, so it is never a private link.
@@ -188,14 +189,14 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
       assertRoom(app, p.accountId, "sources");
       let collectionId = input.collectionId;
       if (!collectionId && input.newCollectionName) collectionId = createCollection(app, p, { name: input.newCollectionName, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id;
-      if (collectionId && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", collectionId, p.workspaceId)) throw notFound("That collection");
+      if (collectionId && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", collectionId, p.workspaceId)) throw notFound(server.api.shared.thatCollection);
       if (former) {
         // Followed again: what the feed already has is back catalogue again, not New, and the engine has yet to confirm this new subscription.
         // (The posts stored the first time keep what they were; only what arrives now is the back catalogue of this follow.)
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
              health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ? WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", nowIso(), viaGateway ? 1 : 0, id,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : server.api.shared.gettingFirstItems, nowIso(), viaGateway ? 1 : 0, id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
@@ -203,7 +204,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
           `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
-          isNews ? "ok" : "pending", isNews ? null : "Getting the first items…", isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
+          isNews ? "ok" : "pending", isNews ? null : server.api.shared.gettingFirstItems, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
@@ -265,12 +266,12 @@ export function onSubscribeFailed(app: App, sourceId: string, message: string): 
 export function retrySource(app: App, p: Principal, id: string): SourceDTO {
   const s = app.db.get<{ title: string; feed_url: string | null; is_private: number; health: string; engine_stream_id: string | null; via_gateway: number }>(
     "SELECT title, feed_url, is_private, health, engine_stream_id, via_gateway FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
-  if (!s) throw notFound("That source");
-  if (s.engine_stream_id || s.health !== "error") throw badRequest("This source is working, so there is nothing to retry.", "not_failed");
+  if (!s) throw notFound(server.api.shared.thatSource);
+  if (s.engine_stream_id || s.health !== "error") throw badRequest(server.api.sources.workingNoRetry, "not_failed");
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
-  if (!engineUser) throw badRequest("Your PURSS isn't connected to the collection engine yet. Try again in a minute.", "engine_pending");
+  if (!engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
   const feedUrl = s.is_private ? `secret:source-urls/${id}` : s.feed_url;
-  if (!feedUrl) throw badRequest("This source's link is missing. Remove it and add it again.", "link_missing");
+  if (!feedUrl) throw badRequest(server.api.sources.linkMissing, "link_missing");
   app.db.tx(() => {
     app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
     // The same key re-arms the finished job; one still waiting for its next try is brought forward.
@@ -284,8 +285,8 @@ export function retrySource(app: App, p: Principal, id: string): SourceDTO {
 export function patchSource(app: App, p: Principal, id: string, patch: z.infer<typeof sourcePatchSchema>): SourceDTO {
   const s = app.db.get<{ engine_stream_id: string | null; title: string; kind: string; is_private: number; full_text: number; builtin: string | null }>(
     "SELECT engine_stream_id, title, kind, is_private, full_text, builtin FROM sources WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-  if (!s) throw notFound("That source");
-  if (patch.fullText && !fullTextAvailable(s)) throw badRequest("Full articles can't be fetched for this kind of source.", "full_text_unavailable");
+  if (!s) throw notFound(server.api.shared.thatSource);
+  if (patch.fullText && !fullTextAvailable(s)) throw badRequest(server.api.sources.fullArticlesUnavailable, "full_text_unavailable");
   app.db.tx(() => {
     if (patch.title && patch.title !== s.title) {
       app.db.run("UPDATE sources SET title = ?, hue = ? WHERE id = ?", patch.title, hueFor(patch.title), id);
@@ -304,7 +305,7 @@ export function patchSource(app: App, p: Principal, id: string, patch: z.infer<t
     if (patch.collectionIds) {
       patch.collectionIds = [...new Set(patch.collectionIds)];
       for (const cid of patch.collectionIds) {
-        if (!app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", cid, p.workspaceId)) throw notFound("That collection");
+        if (!app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", cid, p.workspaceId)) throw notFound(server.api.shared.thatCollection);
       }
       app.db.run("DELETE FROM collection_sources WHERE source_id = ?", id);
       for (const cid of patch.collectionIds) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", cid, id);
@@ -331,11 +332,11 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
   find: (url: string) => Promise<DiscoveryDraft> = (url) => discover(url, bridgeOptions(app))): Promise<SourceDTO> {
   const s = app.db.get<{ kind: string; feed_url: string | null; site_url: string | null; is_private: number; health: string; builtin: string | null }>(
     "SELECT kind, feed_url, site_url, is_private, health, builtin FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1 AND kind <> 'manual'", id, p.workspaceId);
-  if (!s) throw notFound("That source");
+  if (!s) throw notFound(server.api.shared.thatSource);
   if (!!s.is_private === makePrivate) return getSource(app, p, id);
   const file = `source-urls/${id}`;
   if (makePrivate) {
-    if (s.builtin || !s.feed_url || s.feed_url.startsWith("bridge:")) throw badRequest("This source has no link of its own to keep private.", "no_link");
+    if (s.builtin || !s.feed_url || s.feed_url.startsWith("bridge:")) throw badRequest(server.api.sources.noOwnLink, "no_link");
     const link = s.feed_url;
     writeSecret(app.config.secretsDir, file, link);
     try {
@@ -345,7 +346,7 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
         pointSubscribeJobs(app, id, `secret:${file}`);
         // Pages and pictures of its items are no longer fetched: those still on their way are dropped (finished ones stay).
         for (const c of app.db.all<{ id: string }>("SELECT c.id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.kind = 'fulltext' AND c.status = 'pending'", id)) {
-          failCapture(app, c.id, "Readable copies aren't made for items from private sources.");
+          failCapture(app, c.id, server.api.shared.privateNoCopies);
           app.db.run("UPDATE jobs SET status = 'cancelled', lease_id = NULL, updated_at = ? WHERE kind = 'capture.fulltext' AND status IN ('queued', 'leased') AND json_extract(payload, '$.captureId') = ?", nowIso(), c.id);
         }
         // A worker holding one loses its lease: its result is refused, and the job doesn't come back after a crash.
@@ -360,15 +361,15 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
     }
   } else {
     const link = readSecret(app.config.secretsDir, file);
-    if (!link || s.health === "reconnect") throw badRequest("This source needs its link again before it can be made public. Reconnect it first.", "reconnect");
+    if (!link || s.health === "reconnect") throw badRequest(server.api.sources.needsLinkAgain, "reconnect");
     // A worker holding a subscription reads the link from its file; it goes only once nothing in flight still needs it.
     if (app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe' AND status = 'leased' AND json_extract(payload, '$.sourceId') = ?", id)) {
-      throw badRequest("This source is still being set up. Try again in a minute.", "busy");
+      throw badRequest(server.api.sources.stillSettingUp, "busy");
     }
     const result = await find(link).catch(() => null);
     const key = canonicalFeedKey(link);
     const same = result?.ok ? result.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } }) : undefined;
-    if (!same) throw badRequest("The feed couldn't be reached to check what it is, so its link stays private. Try again later.", "unreachable");
+    if (!same) throw badRequest(server.api.sources.feedUnreachable, "unreachable");
     // The source may have been changed or unfollowed while the feed was looked up.
     const changed = app.db.tx(() => {
       const n = app.db.run("UPDATE sources SET kind = ?, origin = ?, is_private = 0, feed_url = ?, feed_key = NULL, site_url = ? WHERE id = ? AND is_private = 1 AND followed = 1",
@@ -406,7 +407,7 @@ function backfillFullText(app: App, p: Principal, sourceId: string): void {
  */
 export function unfollowSource(app: App, p: Principal, id: string, opts: { deleteUnkept?: boolean } = {}): { keptItems: number; deletedItems: number } {
   const s = app.db.get<{ engine_stream_id: string | null }>("SELECT engine_stream_id FROM sources WHERE id = ? AND workspace_id = ? AND followed = 1", id, p.workspaceId);
-  if (!s) throw notFound("That source");
+  if (!s) throw notFound(server.api.shared.thatSource);
   const kept = app.db.get<{ n: number }>("SELECT COUNT(DISTINCT b.item_id) AS n FROM basket_items b JOIN items i ON i.id = b.item_id WHERE i.source_id = ?", id)!.n;
   let deletedItems = 0;
   app.db.tx(() => {

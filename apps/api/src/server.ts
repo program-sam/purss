@@ -14,6 +14,7 @@ import { handleBillingPlan } from "./billing.ts";
 import { assertStillUsable } from "./services/deletion.ts";
 import { markSignedIn, webRoute } from "./web-routes.ts";
 import { APP_PATH } from "@purss/domain/paths";
+import { server } from "@purss/copy/server";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
@@ -46,7 +47,7 @@ function errorResponse(app: App, res: ServerResponse, err: unknown): void {
     return;
   }
   console.error("[api] unexpected error:", err instanceof Error ? err.stack ?? err.message : err);
-  sendJson(res, 500, { error: { code: "internal", message: "Something went wrong on our side. Nothing was changed; please try again." } });
+  sendJson(res, 500, { error: { code: "internal", message: server.api.httpServer.wentWrong } });
 }
 
 /** A route taking more than the default (a page's readable text from the browser, up to 8 MB) gives a slow uplink time to send it. */
@@ -94,24 +95,24 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
         if (gate.kind === "browser" && method !== "GET" && method !== "HEAD") {
           // Mutations: same-origin only, plus the per-session CSRF token when signed in.
           const origin = raw.headers.origin;
-          if (!origin || origin !== app.config.publicOrigin) throw new HttpError(403, "origin", "This request didn't come from the PURSS page.");
+          if (!origin || origin !== app.config.publicOrigin) throw new HttpError(403, "origin", server.api.httpServer.notFromPage);
           if (principal && !safeEqual(String(raw.headers["x-purss-csrf"] ?? ""), principal.csrf)) {
-            throw new HttpError(403, "csrf", "Your session changed. Please reload the page.");
+            throw new HttpError(403, "csrf", server.api.httpServer.sessionChanged);
           }
         }
         if (url.pathname === "/api/events" && method === "GET") {
           checkDeviceRoute(gate, method, url.pathname);
-          if (!principal) throw new HttpError(401, "signed_out", "Please sign in again.");
+          if (!principal) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
           extra.events(raw, res, ctx);
           return;
         }
         for (const router of routers) {
           const m = router.match(method, url.pathname);
-          if (m === "method") throw new HttpError(405, "method", "That isn't supported here.");
+          if (m === "method") throw new HttpError(405, "method", server.api.httpServer.notSupportedHere);
           if (!m) continue;
           checkDeviceRoute(gate, method, m.pattern);
           // A large body costs memory before any handler could refuse it: only someone signed in may send one.
-          if (!principal && (m.options.bodyLimit ?? 0) > DEFAULT_BODY_LIMIT) throw new HttpError(401, "signed_out", "Please sign in again.");
+          if (!principal && (m.options.bodyLimit ?? 0) > DEFAULT_BODY_LIMIT) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
           const req = await toReq(raw, url, m.params, m.options, principal !== null, bodySender(app, raw, principal));
           if (gate.kind !== "browser") req.cookies = {};
           // Reading the body can take a while: the account may have been deleted or signed out meanwhile.
@@ -120,7 +121,7 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
           if (!res.headersSent && out !== undefined) sendJson(res, 200, out);
           return;
         }
-        throw new HttpError(404, "not_found", "That doesn't exist.");
+        throw new HttpError(404, "not_found", server.api.httpServer.thatDoesntExist);
       }
 
       // A page has one address. A trailing or doubled slash redirects to it (never off the site: the
@@ -151,7 +152,7 @@ function serveStatic(app: App, url: URL, signedIn: boolean, res: ServerResponse)
   const withSite = app.config.mode === "hosted" && existsSync(path.join(siteRoot, "index.html"));
   const route = webRoute(url.pathname, { withSite });
   if (route.kind === "redirect") { res.writeHead(302, { location: route.to, "cache-control": "no-store" }).end(); return; }
-  if (route.kind === "missing") { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("Not found"); return; }
+  if (route.kind === "missing") { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end(server.api.shared.notFound); return; }
   const root = path.resolve(route.kind === "app" ? app.config.webDist : siteRoot);
   let decoded: string;
   try { decoded = decodeURIComponent(route.file); } catch { res.writeHead(400).end(); return; }

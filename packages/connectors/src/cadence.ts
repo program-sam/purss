@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import type { FeedItem } from "./feed.ts";
 
 /** Plain-language posting rhythm estimated from the dates in a feed sample. */
@@ -9,19 +10,19 @@ function plural(n: number, noun: { one: string; many: string }): string {
 }
 
 export type Noun = { one: string; many: string };
-export const POSTS: Noun = { one: "post", many: "posts" };
-export const EPISODES: Noun = { one: "episode", many: "episodes" };
-export const VIDEOS: Noun = { one: "video", many: "videos" };
+export const POSTS: Noun = server.sources.connectors.cadence.post;
+export const EPISODES: Noun = server.sources.connectors.cadence.episode;
+export const VIDEOS: Noun = server.sources.connectors.cadence.video;
 
 function agoText(days: number): string {
-  if (days < 1) return "less than a day ago";
+  if (days < 1) return server.sources.connectors.cadence.lessThanADayAgo;
   if (days < 45) {
     const d = Math.round(days);
-    return d === 1 ? "1 day ago" : `${d} days ago`;
+    return d === 1 ? server.sources.connectors.cadence.oneDayAgo : server.sources.connectors.cadence.daysAgo(d);
   }
-  if (days < 365) return `${Math.round(days / 30)} months ago`;
+  if (days < 365) return server.sources.connectors.cadence.monthsAgo(Math.round(days / 30));
   const years = Math.round((days / 365) * 10) / 10;
-  return years < 1.5 ? "about a year ago" : `about ${Math.round(years)} years ago`;
+  return years < 1.5 ? server.sources.connectors.cadence.aboutAYearAgo : server.sources.connectors.cadence.aboutYearsAgo(Math.round(years));
 }
 
 /** Windows (days) tried from the shortest, so a busy feed is read over its recent days and a quiet one over months. */
@@ -59,12 +60,12 @@ export function cadenceText(items: FeedItem[], noun: Noun, now: Date): string | 
     .filter((t) => Number.isFinite(t) && t <= now.getTime() + DAY)
     .sort((a, b) => b - a)
     .slice(0, 50);
-  if (items.length === 0) return `No ${noun.many} yet`;
-  if (times.length < 2) return times.length === 1 ? `Latest ${noun.one} ${agoText((now.getTime() - times[0]!) / DAY)}` : null;
+  if (items.length === 0) return server.sources.connectors.cadence.noneYet(noun.many);
+  if (times.length < 2) return times.length === 1 ? server.sources.connectors.cadence.latest(noun.one, agoText((now.getTime() - times[0]!) / DAY)) : null;
   const newest = times[0]!;
   const staleDays = (now.getTime() - newest) / DAY;
-  if (staleDays > 180) return `No new ${noun.many} for ${agoText(staleDays).replace(" ago", "")}`;
-  if (times.length < 3) return `Latest ${noun.one} ${agoText(staleDays)}`;
+  if (staleDays > 180) return server.sources.connectors.cadence.noNewFor(noun.many, agoText(staleDays).replace(" ago", ""));
+  if (times.length < 3) return server.sources.connectors.cadence.latest(noun.one, agoText(staleDays));
   let perDay = recentRate(times, now.getTime());
   if (perDay === null) {
     // No recent rhythm to read. The whole sample says how often it posted over its span, a long silence
@@ -73,14 +74,14 @@ export function cadenceText(items: FeedItem[], noun: Noun, now: Date): string | 
     const recent = times.slice(0, 20);
     const spanDays = Math.max((newest - recent[recent.length - 1]!) / DAY, 0.5);
     perDay = (recent.length - 1) / Math.max(spanDays, staleDays);
-    if (perDay * 30.4 < 0.9 && staleDays < 30) return `Latest ${noun.one} ${agoText(staleDays)}`;
+    if (perDay * 30.4 < 0.9 && staleDays < 30) return server.sources.connectors.cadence.latest(noun.one, agoText(staleDays));
   }
-  if (perDay >= 1.5) return `about ${plural(Math.round(perDay), noun)} a day`;
+  if (perDay >= 1.5) return server.sources.connectors.cadence.aboutADay(plural(Math.round(perDay), noun));
   const perWeek = perDay * 7;
-  if (perWeek >= 0.9) return `about ${plural(Math.max(1, Math.round(perWeek)), noun)} a week`;
+  if (perWeek >= 0.9) return server.sources.connectors.cadence.aboutAWeek(plural(Math.max(1, Math.round(perWeek)), noun));
   const perMonth = perDay * 30.4;
-  if (perMonth >= 0.9) return `about ${plural(Math.max(1, Math.round(perMonth)), noun)} a month`;
+  if (perMonth >= 0.9) return server.sources.connectors.cadence.aboutAMonth(plural(Math.max(1, Math.round(perMonth)), noun));
   const perYear = perDay * 365;
-  if (perYear >= 1.5) return `about ${plural(Math.max(2, Math.round(perYear)), noun)} a year`;
-  return `less than one ${noun.one} a year`;
+  if (perYear >= 1.5) return server.sources.connectors.cadence.aboutAYear(plural(Math.max(2, Math.round(perYear)), noun));
+  return server.sources.connectors.cadence.lessThanOneAYear(noun.one);
 }

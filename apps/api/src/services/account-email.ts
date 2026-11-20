@@ -9,6 +9,7 @@ import { HttpError, addSeconds, nowIso, parse } from "../http.ts";
 import { maskAddress, mailConfigured, sendLater } from "../mail/mailer.ts";
 import { emailChangedMail, passwordChangedMail, resetMail, verifyMail } from "../mail/templates.ts";
 import { randomToken, sha256 } from "../secrets.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * An account's email address: every account has one, it is what the account signs in with, and each
@@ -23,7 +24,7 @@ export const VERIFY_HOURS = 48;
 export const RESET_MINUTES = 60;
 const RESETS_PER_HOUR = 3;
 
-export const emailSchema = z.string().trim().max(254).pipe(z.email({ message: "That doesn't look like an email address." }));
+export const emailSchema = z.string().trim().max(254).pipe(z.email({ message: server.api.accountEmail.notAnEmail }));
 
 /** Whether addresses are sent links (confirmation, sign-up, password reset): wherever a mail server is set up, in any mode. */
 export function accountEmailAvailable(app: App): boolean {
@@ -31,7 +32,7 @@ export function accountEmailAvailable(app: App): boolean {
 }
 
 function requireAvailable(app: App): void {
-  if (!accountEmailAvailable(app)) throw new HttpError(404, "not_available", "Email isn't available yet.");
+  if (!accountEmailAvailable(app)) throw new HttpError(404, "not_available", server.api.accountEmail.emailUnavailable);
 }
 
 /** The address waiting for its confirmation link to become the account's, if any. */
@@ -47,7 +48,7 @@ export function getAccountEmail(app: App, accountId: string): AccountEmail {
   return { available: accountEmailAvailable(app), address, confirmed: !!row?.email_verified_at, pending: accountEmailAvailable(app) ? pendingAddress(app, accountId, address) : null };
 }
 
-const takenByAnother = () => new HttpError(409, "email_in_use", "Another account already uses this email address.");
+const takenByAnother = () => new HttpError(409, "email_in_use", server.api.accountEmail.emailTakenByAnother);
 
 function usedByAnother(app: App, accountId: string, email: string): boolean {
   return !!app.db.get("SELECT 1 FROM accounts WHERE lower(email) = lower(?) AND id <> ?", email.trim(), accountId);
@@ -110,7 +111,7 @@ export function resendVerification(app: App, accountId: string): AccountEmail {
   return getAccountEmail(app, accountId);
 }
 
-const SPENT = "That link has expired or was already used.";
+const SPENT = server.api.accountEmail.linkSpent;
 
 /**
  * Confirm an address from the link in the message. Works signed in or not: the link is the proof. A link for a new
@@ -123,7 +124,7 @@ export function confirmEmail(app: App, token: string): void {
       "SELECT account_id, email FROM email_tokens WHERE id = ? AND purpose = 'verify' AND used_at IS NULL AND expires_at > ?", sha256(token), nowIso());
     const account = row ? app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", row.account_id) : null;
     // An account whose data was removed has no address left to confirm or change.
-    if (!row || !account?.email) throw new HttpError(400, "link_spent", `${SPENT} Send a new one from Settings → Security.`);
+    if (!row || !account?.email) throw new HttpError(400, "link_spent", server.api.accountEmail.linkSpentSettings(SPENT));
     if (row.email !== account.email && usedByAnother(app, row.account_id, row.email)) throw takenByAnother();
     app.db.run("UPDATE email_tokens SET used_at = ? WHERE id = ?", nowIso(), sha256(token));
     app.db.run("UPDATE accounts SET email = ?, email_verified_at = ? WHERE id = ?", row.email, nowIso(), row.account_id);
@@ -170,7 +171,7 @@ function hostResetTarget(app: App, accountId: string): { id: string; email: stri
  * reset by email. It is the same link the email flow sends, and works without email being set up. Run inside the caller's transaction.
  */
 export function hostResetLink(app: App, accountId: string): { link: string; minutes: number } {
-  if (!hostResetTarget(app, accountId)) throw new HttpError(404, "no_password", "That account has no password to reset.");
+  if (!hostResetTarget(app, accountId)) throw new HttpError(404, "no_password", server.api.accountEmail.noPasswordToReset);
   return { link: link(app, "/reset-password", issueToken(app, accountId, "reset", MADE_AT_SERVER, RESET_MINUTES * 60)), minutes: RESET_MINUTES };
 }
 
@@ -202,7 +203,7 @@ export async function resetPassword(app: App, token: string, password: string): 
   const id = sha256(token);
   const row = app.db.get<{ account_id: string; email: string }>(
     "SELECT account_id, email FROM email_tokens WHERE id = ? AND purpose = 'reset' AND used_at IS NULL AND expires_at > ?", id, nowIso());
-  const spent = () => new HttpError(400, "link_spent", `${SPENT} Ask for a new one on the sign-in page.`);
+  const spent = () => new HttpError(400, "link_spent", server.api.accountEmail.linkSpentSignIn(SPENT));
   // A link sent by email only works for an account that still qualifies for one; a link made at the server needs only a usable account.
   const targetNow = (): { id: string; email: string | null } | undefined => !row ? undefined
     : row.email === MADE_AT_SERVER ? hostResetTarget(app, row.account_id)

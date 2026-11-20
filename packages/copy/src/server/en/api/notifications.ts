@@ -1,0 +1,20 @@
+// Server copy: apps/api/src/services/notifications.ts
+export default {
+  newFrom: (title: string) => `New from ${title}`,
+  newCountFrom: (count: number, title: string) => `${count} new from ${title}`,
+  yourOtherSources: "your other sources",
+  digestLine: (name: string, count: number, titles: string) => `${name}: ${count} new${titles}`,
+  digestAndMore: (more: number) => `and ${more} more`,
+  digestTitle: (kind: string, total: number, where: string) => `Your ${kind} digest: ${total} new in ${where}`,
+  justNow: "just now",
+  minutesAgo: (minutes: number) => `${minutes} minutes ago`,
+  yesterday: "yesterday",
+  daysAgo: (days: number) => `${days} days ago`,
+  sourceNotWorking: (title: string) => `${title} isn't working`,
+  captureFailedBody: "The details and feed content are still kept. Open the list to see which, and try again from an item.",
+  collections: (n: number) => n === 1 ? "1 collection" : `${n} collections`,
+  hoursAgo: (n: number) => n === 1 ? "1 hour ago" : `${n} hours ago`,
+  digestIntro: (total: number, kind: string) => `${total === 1 ? "1 new item" : `${total} new items`} ${kind === "weekly" ? "this week" : "today"}, still waiting for you.`,
+  captureFailedFromSource: (count: number, name: string) => `Couldn't save the text of ${count === 1 ? "1 item" : `${count} items`} from ${name}`,
+  captureFailedInBasket: (count: number, links: boolean, name: string) => `Couldn't save the text of ${count === 1 ? (links ? "1 kept link" : "1 kept item") : `${count} ${links ? "kept links" : "kept items"}`} in ${name}`,
+};

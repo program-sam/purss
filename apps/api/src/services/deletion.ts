@@ -15,6 +15,7 @@ import { ASSISTANT_SESSION_PREFIX } from "./assistant.ts";
 import { enqueue } from "./jobs.ts";
 import { pauseAllShares } from "./shares.ts";
 import { stageFile } from "./portability.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Account deletion, asked for by the account's owner. The request starts a grace period: the
@@ -50,7 +51,7 @@ export function isAccountUsable(app: App, accountId: string): boolean {
  * Run inside the write transaction where a credential is written after an await.
  */
 export function assertStillUsable(app: App, p: Principal): void {
-  if (!credentialExists(app, p) || !isAccountUsable(app, p.accountId)) throw new HttpError(401, "signed_out", "Please sign in again.");
+  if (!credentialExists(app, p) || !isAccountUsable(app, p.accountId)) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);
 }
 
 /** The credential behind a principal still exists: a session, a connected app, an assistant token or an OAuth grant. */
@@ -83,12 +84,12 @@ export function requestDeletion(app: App, p: Principal, confirm: string): Deleti
     assertStillUsable(app, p);
     const name = app.db.get<{ display_name: string | null }>("SELECT display_name FROM accounts WHERE id = ?", p.accountId)!.display_name;
     if (confirm.trim() !== confirmWord(name)) {
-      throw badRequest(name?.trim() ? "Type your display name exactly as shown to confirm." : "Type the word delete to confirm.", "confirm_mismatch");
+      throw badRequest(name?.trim() ? server.api.deletion.typeDisplayName : server.api.deletion.typeDelete, "confirm_mismatch");
     }
     // Inside the same transaction as the insert, so two administrators can't both leave.
     const isAdmin = !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", p.accountId);
     if (isAdmin && !app.db.get(`SELECT 1 FROM role_grants r WHERE r.role = 'admin' AND r.account_id <> ? AND ${usableAccountSql("r.account_id")}`, p.accountId)) {
-      throw new HttpError(409, "last_admin", "You're the only administrator. Make someone else an administrator first, then delete your account.");
+      throw new HttpError(409, "last_admin", server.api.deletion.onlyAdministrator);
     }
     const now = nowIso();
     const dueAt = addSeconds(GRACE_DAYS * 86_400);
@@ -113,7 +114,7 @@ export function refuseDeletingSignIn(app: App, res: ServerResponse, accountId: s
   const pending = keepTokenFor(app, accountId, method);
   if (!pending) return;
   setCookie(res, DELETION_COOKIE, pending.token, { maxAge: CANCEL_SECONDS, secure: secure(app), path: DELETION_COOKIE_PATH });
-  throw new HttpError(409, "deletion_pending", "This account is set to be deleted. You can still keep it.", { dueAt: pending.dueAt });
+  throw new HttpError(409, "deletion_pending", server.api.shared.deletionPending, { dueAt: pending.dueAt });
 }
 
 /**
@@ -124,7 +125,7 @@ export function keepTokenFor(app: App, accountId: string, method: string): { tok
   const row = app.db.get<{ request_id: string; due_at: string; state: string }>("SELECT request_id, due_at, state FROM account_deletions WHERE account_id = ?", accountId);
   if (!row) return null;
   if (row.state !== "pending" || row.due_at <= nowIso()) {
-    throw new HttpError(403, "account_deleting", "This account is being deleted. It can't be signed in to or kept any more.");
+    throw new HttpError(403, "account_deleting", server.api.deletion.beingDeletedNoSignIn);
   }
   const token = randomToken(32);
   const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
@@ -165,12 +166,12 @@ export function keepAccount(app: App, req: IncomingMessage, res: ServerResponse,
 export function endDeletion(app: App, rawToken: string | undefined): { accountId: string; method: string } {
   return app.db.tx(() => {
     const t = cancelToken(app, rawToken);
-    const expired = () => new HttpError(403, "cancel_expired", "That took too long. Sign in again to keep your account.");
+    const expired = () => new HttpError(403, "cancel_expired", server.api.deletion.keepTookTooLong);
     if (!t) throw expired();
     app.db.run("DELETE FROM confirm_tokens WHERE token = ?", t.hash);
     const row = app.db.get<{ request_id: string; state: string; due_at: string }>("SELECT request_id, state, due_at FROM account_deletions WHERE account_id = ?", t.accountId);
     if (!row || row.request_id !== t.requestId) throw expired();
-    if (row.state !== "pending" || row.due_at <= nowIso()) throw new HttpError(403, "account_deleting", "This account is being deleted. It can't be kept any more.");
+    if (row.state !== "pending" || row.due_at <= nowIso()) throw new HttpError(403, "account_deleting", server.api.deletion.beingDeletedCannotKeep);
     app.db.run("DELETE FROM account_deletions WHERE account_id = ?", t.accountId);
     app.db.run("DELETE FROM confirm_tokens WHERE workspace_id = ? AND purpose = ?", t.workspaceId, CANCEL_PURPOSE);
     audit(app, t.accountId, "account_deletion_cancelled", t.accountId, "success");
@@ -354,7 +355,7 @@ export function recordEngineRemoved(app: App, engineUserId: string, jobId: strin
   return engineState(app, accountId);
 }
 
-export const ENGINE_REVIEW_MESSAGE = "Confirm the engine user's data was removed: it was gone after a removal attempt that wasn't confirmed.";
+export const ENGINE_REVIEW_MESSAGE = server.api.deletion.engineReview;
 
 /**
  * The engine user was missing after an unconfirmed attempt: an administrator confirms its data is
@@ -376,7 +377,7 @@ export function confirmEngineRemoved(app: App, admin: Principal, accountId: stri
     const row = app.db.get<{ workspace_id: string; engine_user_id: string; username: string }>(
       `SELECT w.id AS workspace_id, e.id AS engine_user_id, e.username FROM account_deletions d JOIN workspaces w ON w.account_id = d.account_id JOIN engine_users e ON e.account_id = d.account_id
        WHERE d.account_id = ? AND d.engine_review_at IS NOT NULL AND d.engine_removed_at IS NULL`, accountId);
-    if (!row) throw new HttpError(409, "conflict", "This account isn't waiting for that confirmation.");
+    if (!row) throw new HttpError(409, "conflict", server.api.deletion.notWaiting);
     app.db.run("UPDATE account_deletions SET engine_removed_at = ?, engine_review_at = NULL WHERE account_id = ?", nowIso(), accountId);
     enqueue(app, "engine.delete_user", { engineUserId: row.engine_user_id, username: row.username }, { accountId, workspaceId: row.workspace_id, idempotencyKey: `delete-user:${accountId}`, maxAttempts: 20 });
     audit(app, admin.accountId, "admin_deletion_engine_confirmed", accountId, "success");
@@ -404,7 +405,7 @@ export function finalizeDeletion(app: App, engineUserId: string, jobId: string, 
   return app.db.tx(() => {
     if (!app.db.get("SELECT 1 FROM engine_users WHERE id = ?", engineUserId)) return { finalized: false };
     const accountId = deletionLease(app, engineUserId, jobId, leaseId);
-    if (!engineState(app, accountId).engineRemovedAt) throw new HttpError(409, "engine_not_removed", "The engine user hasn't been confirmed removed yet.");
+    if (!engineState(app, accountId).engineRemovedAt) throw new HttpError(409, "engine_not_removed", server.api.deletion.engineNotRemoved);
     finalizeAccount(app, accountId);
     return { finalized: true };
   });

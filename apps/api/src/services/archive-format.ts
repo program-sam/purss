@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ANNOTATION_BODY_MAX, ANNOTATION_CONTEXT_MAX, ANNOTATION_QUOTE_MAX, ITEM_KINDS, WORKFLOW_STATES } from "@purss/domain";
+import { server } from "@purss/copy/server";
 
 /*
  * PURSS export archive, schema version 1.
@@ -48,13 +49,13 @@ export const OPTIONAL_SECTION_NAMES = ["stateLog", "annotations", "images", "ite
 export type SectionName = (typeof SECTION_NAMES)[number] | (typeof OPTIONAL_SECTION_NAMES)[number];
 
 export const ARCHIVE_OMITTED: readonly string[] = [
-  "Passwords, passkeys, sign-in sessions and access tokens are never exported.",
-  "Service secrets and the collection engine's own data and identifiers are not included.",
-  "Private source links, and any link, image or media address that belongs to an item from a private source, are left out. Those sources are exported as references that need to be reconnected.",
-  "Addresses that carry a password or access key are left out of item links and media.",
-  "Readable-text captures that were still in progress, and temporary data (undo history, pending confirmations, discovery previews, notifications), are not exported.",
-  "Only text and links that were actually saved are included. Pages, images, audio and video that were never captured are not, and may no longer exist at their original address.",
-  "Sharing settings and public notes are exported; importing them never shares anything.",
+  server.api.archiveFormat.neverExportedCredentials,
+  server.api.archiveFormat.engineDataNotIncluded,
+  server.api.archiveFormat.privateLinksLeftOut,
+  server.api.archiveFormat.secretAddressesLeftOut,
+  server.api.archiveFormat.temporaryDataNotExported,
+  server.api.archiveFormat.onlySavedIncluded,
+  server.api.archiveFormat.sharingExported,
 ];
 
 export const sha256Hex = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -70,7 +71,7 @@ const sourceSchema = z.object({
   id,
   kind: z.enum(["feed", "youtube", "podcast", "publication", "private", "manual"]),
   title: text(300),
-  origin: text(200).default("RSS feed"),
+  origin: text(200).default(server.api.archiveFormat.defaultOrigin),
   siteUrl: text(2000).nullable().default(null),
   feedUrl: text(2000).nullable().default(null),
   isPrivate: z.boolean().default(false),
@@ -291,22 +292,22 @@ export class ArchiveError extends Error {
  * `raw` is the parsed JSON before any defaults are applied, so hashes cover exactly what was written.
  */
 export function parseArchive(raw: unknown): Archive {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new ArchiveError("not_archive", "That file isn't a PURSS export.");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new ArchiveError("not_archive", server.api.archiveFormat.notExport);
   const head = raw as Record<string, unknown>;
-  if (head.format !== ARCHIVE_FORMAT) throw new ArchiveError("not_archive", "That file isn't a PURSS export.");
+  if (head.format !== ARCHIVE_FORMAT) throw new ArchiveError("not_archive", server.api.archiveFormat.notExport);
   if (typeof head.schemaVersion !== "number" || !Number.isInteger(head.schemaVersion) || head.schemaVersion < 1) {
-    throw new ArchiveError("bad_version", "That export file has no readable version.");
+    throw new ArchiveError("bad_version", server.api.archiveFormat.noReadableVersion);
   }
   if (head.schemaVersion > ARCHIVE_SCHEMA_VERSION) {
-    throw new ArchiveError("newer_version", "That export was made by a newer version of PURSS. Update this installation before importing it.");
+    throw new ArchiveError("newer_version", server.api.archiveFormat.newerVersion);
   }
   const manifest = head.manifest as { sections?: Record<string, { count?: unknown; sha256?: unknown }> } | undefined;
-  if (!manifest?.sections) throw new ArchiveError("incomplete", "That export file looks incomplete: it has no integrity manifest. It may have been cut short while downloading.");
+  if (!manifest?.sections) throw new ArchiveError("incomplete", server.api.archiveFormat.incomplete);
   const verify = (name: SectionName, section: unknown, stats: { count?: unknown; sha256?: unknown } | undefined) => {
-    if (section === undefined || !stats) throw new ArchiveError("incomplete", `That export file is missing its "${name}" section.`);
+    if (section === undefined || !stats) throw new ArchiveError("incomplete", server.api.archiveFormat.missingSection(name));
     const count = Array.isArray(section) ? section.length : 1;
     if (stats.count !== count || stats.sha256 !== sha256Hex(JSON.stringify(section))) {
-      throw new ArchiveError("damaged", `That export file looks damaged: its "${name}" section doesn't match its integrity check.`);
+      throw new ArchiveError("damaged", server.api.archiveFormat.damagedSection(name));
     }
   };
   for (const name of SECTION_NAMES) verify(name, head[name], manifest.sections[name]);
@@ -322,7 +323,7 @@ export function parseArchive(raw: unknown): Archive {
       const entry = schema.safeParse(section[i]);
       if (!entry.success) {
         const issue = entry.error.issues[0];
-        throw new ArchiveError("invalid", `That export file has details this version can't read (${[name, i, ...(issue?.path ?? [])].slice(0, 3).join(".")}).`);
+        throw new ArchiveError("invalid", server.api.archiveFormat.unreadableDetailsAt([name, i, ...(issue?.path ?? [])].slice(0, 3).join(".")));
       }
     }
   }
@@ -330,7 +331,7 @@ export function parseArchive(raw: unknown): Archive {
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const where = issue?.path.length ? ` (${issue.path.slice(0, 3).join(".")})` : "";
-    throw new ArchiveError("invalid", `That export file has details this version can't read${where}.`);
+    throw new ArchiveError("invalid", server.api.archiveFormat.unreadableDetails(where));
   }
   return ignoreMarkedBackCatalogue(parsed.data);
 }

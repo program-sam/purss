@@ -1,8 +1,11 @@
+import { server } from "@purss/copy/server";
 import type { DraftCandidate } from "./discover.ts";
 import type { ParsedFeed } from "./feed.ts";
 import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed, sameEntries } from "./feed-choice.ts";
 import { planJournal } from "./journals.ts";
 import { hostOf as host, isHostOrSub, planServiceFeeds, segmentsOf as segments } from "./services.ts";
+
+const feedLabels = server.sources.connectors.labels;
 
 /*
  * Services whose feed addresses follow a fixed pattern, so a pasted page address can be turned
@@ -74,10 +77,10 @@ function reddit(url: URL): KnownPlan | null {
   const kind = (s[0] ?? "").toLowerCase();
   const name = s[1] ?? "";
   if (kind === "r" && /^[A-Za-z0-9_]{2,21}$/.test(name) && (s.length === 2 || (s.length === 3 && /^(?:hot|new|top|rising|best|controversial)$/i.test(s[2]!)))) {
-    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/r/${name}/.rss`, title: `r/${name}`, via: "Posts feed", origin: "Reddit feed" }] };
+    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/r/${name}/.rss`, title: `r/${name}`, via: feedLabels.postsFeed, origin: server.sources.connectors.known.redditFeed }] };
   }
   if ((kind === "user" || kind === "u") && /^[A-Za-z0-9_-]{3,20}$/.test(name) && (s.length === 2 || (s.length === 3 && /^(?:submitted|overview|posts)$/i.test(s[2]!)))) {
-    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/user/${name}/.rss`, title: `u/${name}`, via: "Posts feed", origin: "Reddit feed" }] };
+    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/user/${name}/.rss`, title: `u/${name}`, via: feedLabels.postsFeed, origin: server.sources.connectors.known.redditFeed }] };
   }
   return null;
 }
@@ -88,14 +91,14 @@ function github(url: URL): KnownPlan | null {
   const repo = (s[1] ?? "").replace(/\.git$/, "");
   if (!owner || RESERVED_GITHUB.has(owner.toLowerCase()) || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner)) return null;
   // A user or organisation page: its public activity.
-  if (s.length === 1) return { service: "GitHub", feeds: [{ feedUrl: `https://github.com/${owner}.atom`, title: `${owner} activity`, via: "Activity feed", origin: "GitHub activity" }] };
+  if (s.length === 1) return { service: "GitHub", feeds: [{ feedUrl: `https://github.com/${owner}.atom`, title: server.sources.connectors.known.activity(owner), via: feedLabels.activityFeed, origin: server.sources.connectors.known.githubActivity }] };
   if (!repo || !/^[\w.-]{1,100}$/.test(repo)) return null;
   const base = `https://github.com/${owner}/${repo}`;
   return {
     service: "GitHub",
     feeds: [
-      { feedUrl: `${base}/releases.atom`, title: `${owner}/${repo} releases`, via: "Releases feed", origin: "GitHub releases" },
-      { feedUrl: `${base}/tags.atom`, title: `${owner}/${repo} tags`, via: "Tags feed", origin: "GitHub tags" },
+      { feedUrl: `${base}/releases.atom`, title: server.sources.connectors.known.releases(`${owner}/${repo}`), via: feedLabels.releasesFeed, origin: server.sources.connectors.known.githubReleases },
+      { feedUrl: `${base}/tags.atom`, title: server.sources.connectors.known.tags(`${owner}/${repo}`), via: feedLabels.tagsFeed, origin: server.sources.connectors.known.githubTags },
     ],
   };
 }
@@ -118,13 +121,13 @@ function guardian(url: URL): KnownPlan | null {
   return {
     service: "The Guardian",
     feeds: [
-      { feedUrl: `${base}/podcast.xml`, via: "Podcast feed", origin: "Podcast feed", lead: true },
-      { feedUrl: `${base}/rss`, via: "Posts feed", alsoNote: "The show's articles and video pages, without the audio. Choose the podcast feed above to listen." },
+      { feedUrl: `${base}/podcast.xml`, via: feedLabels.podcastFeed, origin: feedLabels.podcastFeed, lead: true },
+      { feedUrl: `${base}/rss`, via: feedLabels.postsFeed, alsoNote: server.sources.connectors.known.guardianPodcastNote },
     ],
   };
 }
 
-function simple(service: string, feedUrl: string, via = "Posts feed"): KnownPlan {
+function simple(service: string, feedUrl: string, via = feedLabels.postsFeed): KnownPlan {
   return { service, feeds: [{ feedUrl, via }] };
 }
 
@@ -174,7 +177,7 @@ function blogger(url: URL): KnownPlan | null {
   const s = segments(url);
   const label = s[0] === "search" && s[1] === "label" ? sectionTail(s, 2) : null;
   // A label page has a feed of its own, which comes before the whole blog's.
-  if (label && !label.includes("/")) return { service: "Blogger", feeds: [{ feedUrl: `${base}/-/${label}`, via: "Section feed", section: true }, { feedUrl: base, via: "Posts feed" }] };
+  if (label && !label.includes("/")) return { service: "Blogger", feeds: [{ feedUrl: `${base}/-/${label}`, via: feedLabels.sectionFeed, section: true }, { feedUrl: base, via: feedLabels.postsFeed }] };
   return simple("Blogger", base);
 }
 
@@ -186,16 +189,16 @@ function wordpressCom(url: URL): KnownPlan | null {
   const kind = (s[0] ?? "").toLowerCase();
   const tail = kind === "category" || kind === "tag" || kind === "author" ? sectionTail(s, 1) : null;
   // A category, tag or author page has a feed of its own, which comes before the whole blog's.
-  if (tail) return { service: "WordPress", feeds: [{ feedUrl: `${base}/${kind}/${tail}/feed/`, via: "Section feed", section: true }, { feedUrl: `${base}/feed/`, via: "Posts feed" }] };
+  if (tail) return { service: "WordPress", feeds: [{ feedUrl: `${base}/${kind}/${tail}/feed/`, via: feedLabels.sectionFeed, section: true }, { feedUrl: `${base}/feed/`, via: feedLabels.postsFeed }] };
   return simple("WordPress", `${base}/feed/`);
 }
 
 function vimeo(url: URL): KnownPlan | null {
   const s = segments(url);
   const first = (s[0] ?? "").toLowerCase();
-  if ((first === "channels" || first === "groups") && /^[A-Za-z0-9_-]{1,60}$/.test(s[1] ?? "")) return simple("Vimeo", `https://vimeo.com/${first}/${s[1]}/videos/rss`, "Channel feed");
+  if ((first === "channels" || first === "groups") && /^[A-Za-z0-9_-]{1,60}$/.test(s[1] ?? "")) return simple("Vimeo", `https://vimeo.com/${first}/${s[1]}/videos/rss`, feedLabels.channelFeed);
   if (!first || RESERVED_VIMEO.has(first) || /^\d+$/.test(first) || !/^[A-Za-z0-9_-]{1,60}$/.test(s[0]!)) return null;
-  return simple("Vimeo", `https://vimeo.com/${s[0]}/videos/rss`, "Channel feed");
+  return simple("Vimeo", `https://vimeo.com/${s[0]}/videos/rss`, feedLabels.channelFeed);
 }
 
 function pinterest(url: URL): KnownPlan | null {
@@ -255,7 +258,7 @@ export type KnownOutcome =
   | { trouble: { timeout: boolean; busy: boolean } }
   | null;
 
-export const APPLE_NO_FEED = "Apple Podcasts doesn't list a public feed for that show, so it can't be followed from here. Try the show's own website, or search for it by name in a podcast app.";
+export const APPLE_NO_FEED = server.sources.connectors.known.appleNoFeed;
 
 function firstFeedUrl(data: unknown): string | null {
   const results = (data as { results?: unknown } | null)?.results;
@@ -289,7 +292,7 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
     const feedUrl = firstFeedUrl(found.data);
     if (!feedUrl) return { failure: { reason: "unsupported", message: APPLE_NO_FEED } };
     const probe = await deps.probe(feedUrl);
-    if ("feedUrl" in probe) return { candidates: [deps.candidate(probe.feedUrl, probe.parsed, { via: "Podcast feed", origin: "Podcast feed" })] };
+    if ("feedUrl" in probe) return { candidates: [deps.candidate(probe.feedUrl, probe.parsed, { via: feedLabels.podcastFeed, origin: feedLabels.podcastFeed })] };
     if (probe.failed) return { failure: probe.failed };
     return { failure: { reason: "unsupported", message: APPLE_NO_FEED } };
   }
@@ -312,7 +315,7 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
       const wholeSite = !feed.section && (sectionAsked || isSiteWideFeed(feed.feedUrl, pageUrl));
       const title = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? undefined;
       const c = deps.candidate(probe.feedUrl, probe.parsed, wholeSite
-        ? { title, via: "Whole site feed", origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
+        ? { title, via: feedLabels.wholeSiteFeed, origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
         : { title, via: feed.via, origin: feed.origin, ...(leadAnswered && feed.alsoNote ? { note: feed.alsoNote } : feed.emptyNote && probe.parsed.items.length === 0 ? { note: feed.emptyNote } : feed.note ? { note: feed.note } : {}) });
       byAddress.set(feed.feedUrl, c);
       // When one feed is the page's own, say which.

@@ -8,6 +8,7 @@ import { randomToken, sha256 } from "../secrets.ts";
 import { VERIFY_HOURS } from "../services/account-email.ts";
 import { createAccount, emailInUse, openSignup } from "./accounts.ts";
 import type { PreparedPassword } from "./passwords.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Open sign-up (hosted, with working email) starts with the address: a single-use link goes there, and the account is made
@@ -21,7 +22,7 @@ const MAILS_PER_ADDRESS = 3;
 
 /** Send the link that finishes sign-up (or the "you already have an account" note). Says nothing about which. */
 export function startSignup(app: App, email: string): void {
-  if (!signupOpen(app)) throw new HttpError(403, "closed", "New accounts are by invitation only here.");
+  if (!signupOpen(app)) throw new HttpError(403, "closed", server.api.shared.invitationOnly);
   const address = email.trim();
   if (!consumeRateLimit(`signup-mail:${address.toLowerCase()}`, MAILS_PER_ADDRESS, 60 * 60_000).allowed) return;
   const origin = app.config.publicOrigin;
@@ -34,7 +35,7 @@ export function startSignup(app: App, email: string): void {
   sendLater(app, "signup", null, signupMail(address, { link: `${origin}${appUrl("/signup")}?token=${encodeURIComponent(token)}`, hours: VERIFY_HOURS, origin }));
 }
 
-const spent = () => new HttpError(400, "link_spent", "That link has expired or was already used. Start again to get a new one.");
+const spent = () => new HttpError(400, "link_spent", server.api.signup.linkSpent);
 
 function pendingRequest(app: App, token: string): { email: string } {
   const row = app.db.get<{ email: string }>("SELECT email FROM signup_requests WHERE id = ? AND used_at IS NULL AND expires_at > ?", sha256(token), nowIso());
@@ -44,7 +45,7 @@ function pendingRequest(app: App, token: string): { email: string } {
 
 /** The address a sign-up link is for, to show on the page that finishes it. */
 export function signupRequestEmail(app: App, token: string): string {
-  if (!signupOpen(app)) throw new HttpError(403, "closed", "New accounts are by invitation only here.");
+  if (!signupOpen(app)) throw new HttpError(403, "closed", server.api.shared.invitationOnly);
   return pendingRequest(app, token).email;
 }
 

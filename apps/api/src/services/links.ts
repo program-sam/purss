@@ -11,6 +11,7 @@ import { hueFor } from "./content.ts";
 import { getItem, insertItem, reindex } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Keeping a single link, with or without the text the person's browser captured,
@@ -26,11 +27,11 @@ const lookupPage: MetadataLookup = (url) => fetchLinkMetadata(url);
 /** A web address typed or shared by a person: "example.org/a" means https; other schemes (ftp:, mailto:) are refused, not read as a host. */
 export function parseWebAddress(raw: string): URL {
   // "host:8080" is an address with a port, not a scheme.
-  if (/^[a-z][a-z0-9+.-]*:(?!\d+(?:[/?#]|$))/i.test(raw) && !/^https?:/i.test(raw)) throw badRequest("Only web addresses can be kept.");
+  if (/^[a-z][a-z0-9+.-]*:(?!\d+(?:[/?#]|$))/i.test(raw) && !/^https?:/i.test(raw)) throw badRequest(server.api.links.onlyWebAddressesKept);
   let url: URL;
-  try { url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); } catch { throw badRequest("That doesn't look like a web address."); }
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest("Only web addresses can be kept.");
-  if (!url.hostname) throw badRequest("That doesn't look like a web address.");
+  try { url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); } catch { throw badRequest(server.api.links.notWebAddress); }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest(server.api.links.onlyWebAddressesKept);
+  if (!url.hostname) throw badRequest(server.api.links.notWebAddress);
   return url;
 }
 
@@ -78,7 +79,7 @@ const inBasket = (app: App, p: Principal, basketId: string, itemId: string) =>
  */
 export async function keepLink(app: App, p: Principal, input: { url: string; basketId: string; title?: string; readableText?: boolean }, lookup: MetadataLookup = lookupPage): Promise<ManualKeepResult> {
   const url = parseWebAddress(input.url);
-  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound("That basket");
+  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound(server.api.shared.thatBasket);
   const key = urlKey(url.href);
   const meta = key && findByKey(app, p, key) ? null : await lookup(url.href).catch(() => null);
   return app.db.tx(() => {
@@ -91,14 +92,14 @@ export async function keepLink(app: App, p: Principal, input: { url: string; bas
       try {
         // The page of an item from a private source is never fetched (queueCapture refuses too); the link itself is kept.
         if (app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", item.id)) {
-          keep.captureNote ??= "Kept with its details. Readable copies aren't made for items from private sources.";
+          keep.captureNote ??= server.api.links.noPrivateCopies;
         } else {
           keep.captureQueued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: url.href });
         }
       } catch (err) {
         if (!(err instanceof StorageFull)) throw err;
         markPaused(app, err);
-        keep.captureNote ??= "Kept with its details. A readable copy wasn't made because storage is full.";
+        keep.captureNote ??= server.api.links.storageFull;
       }
     }
     return { itemId: item.id, existing: item.existing, alreadyInBasket, ...keep };
@@ -114,12 +115,12 @@ export async function keepLink(app: App, p: Principal, input: { url: string; bas
 export function keepWithBrowserCapture(app: App, p: Principal, input: { url: string; basketId: string; title?: string; html: string }): BrowserCaptureResult {
   const url = parseWebAddress(input.url);
   const clean = cleanBrowserHtml(input.html);
-  if (!clean) throw badRequest("No readable text came with the page, so nothing was kept.", "no_text");
+  if (!clean) throw badRequest(server.api.links.noReadableText, "no_text");
   return app.db.tx(() => {
     const item = itemForLink(app, p, url, input.title);
     const alreadyInBasket = item.existing && inBasket(app, p, input.basketId, item.id);
     // Check the basket first, so a wrong one stores nothing.
-    if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound("That basket");
+    if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound(server.api.shared.thatBasket);
     const text = saveBrowserCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: url.href, title: input.title || null, ...clean });
     const keep = keepItem(app, p, item.id, input.basketId);
     return { itemId: item.id, existing: item.existing, alreadyInBasket, ...keep, textSaved: text.saved, textReplaced: text.replaced, textNote: text.note };
@@ -163,11 +164,11 @@ export function lookupUrl(app: App, p: Principal, raw: string): UrlLookup {
 /** Change the title of a link kept by hand. Followed sources' titles are the publisher's and stay as they arrived. */
 export function renameKeptLink(app: App, p: Principal, itemId: string, title: string): ItemDTO {
   const clean = title.replace(/\s+/g, " ").trim();
-  if (!clean) throw badRequest("A title can't be empty.");
+  if (!clean) throw badRequest(server.api.links.titleEmpty);
   const owned = app.db.get<{ kind: string }>(
     "SELECT s.kind FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?", itemId, p.workspaceId);
-  if (!owned) throw notFound("That item");
-  if (owned.kind !== "manual") throw badRequest("Only links you kept by hand can be renamed here.", "not_renamable");
+  if (!owned) throw notFound(server.api.shared.thatItem);
+  if (owned.kind !== "manual") throw badRequest(server.api.links.onlyHandKeptRenamed, "not_renamable");
   app.db.tx(() => {
     app.db.run("UPDATE items SET title = ?, updated_at = ? WHERE id = ?", clean.slice(0, 300), nowIso(), itemId);
     reindex(app, itemId);

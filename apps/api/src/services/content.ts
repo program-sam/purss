@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import sanitizeHtml from "sanitize-html";
 import { assertShallowMarkup, escapeHtml, looksLikeCss, markupParagraphs, TooComplexError } from "@purss/connectors";
 import type { ItemKind } from "@purss/domain";
+import { server } from "@purss/copy/server";
 
 /**
  * Bounds on the markup handed to sanitize-html, whose work grows with nesting depth (quadratically)
@@ -155,7 +156,7 @@ export function toText(html: string | null | undefined): string {
  *  Display only: stored titles stay as they arrived, so matching and content hashes don't change. */
 /** What Bluesky's feed writes into a post's text where the post carries a quote or an attachment it does not send, and what is shown in its place. */
 const EMBED_PLACEHOLDER = /\[contains quote post or other embedded content\]/gi;
-export const EMBED_LABEL = "[quote or attachment: open the post to see it]";
+export const EMBED_LABEL = server.api.content.embedLabel;
 const embedLabelled = (text: string): string => (text.includes("[contains") ? text.replace(EMBED_PLACEHOLDER, EMBED_LABEL) : text);
 
 /** Tags that are only text in an excerpt (the excerpt is plain text, so any real tag is one a feed escaped). */

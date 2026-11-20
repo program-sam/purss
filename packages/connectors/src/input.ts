@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { isForbiddenLiteralHost } from "./addresses.ts";
 import { parseTarget } from "./safe-fetch.ts";
 
@@ -17,8 +18,8 @@ export type NormalizedInput =
 
 const FEED_SCHEMES = new Set(["feed", "feeds", "rss", "pcast", "itpc", "podcast"]);
 
-export const EMAIL_MESSAGE = "That's an email address. Newsletters that only arrive by email can't be followed here yet; many have a web page with a feed — paste that.";
-export const NAME_MESSAGE = "Paste a link. To follow a YouTube channel, open it in YouTube and copy its address.";
+export const EMAIL_MESSAGE = server.sources.connectors.input.email;
+export const NAME_MESSAGE = server.sources.connectors.input.name;
 
 /** One word or a few that were typed as a name: nothing in them is shaped like an address. */
 function looksLikeAddress(token: string): boolean {
@@ -68,18 +69,18 @@ export function cleanPasted(raw: string): string {
 }
 
 export function normalizeInput(raw: string, opts: { testAllowAddress?: (ip: string) => boolean } = {}): NormalizedInput {
-  if (!raw.trim()) return { ok: false, reason: "invalid", message: "Paste a web address, a feed address or a YouTube link." };
-  if (raw.trim().length > 2000) return { ok: false, reason: "invalid", message: "That address is too long." };
+  if (!raw.trim()) return { ok: false, reason: "invalid", message: server.sources.connectors.input.empty };
+  if (raw.trim().length > 2000) return { ok: false, reason: "invalid", message: server.sources.connectors.address.tooLong };
   let s = cleanPasted(raw);
   if (/\s/.test(s)) {
     if (!s.split(/\s+/).some(looksLikeAddress)) return { ok: false, reason: "invalid", message: NAME_MESSAGE };
-    return { ok: false, reason: "invalid", message: "That doesn't look like a single web address. Paste just one address." };
+    return { ok: false, reason: "invalid", message: server.sources.connectors.input.notSingle };
   }
-  if (!s) return { ok: false, reason: "invalid", message: "Paste a web address, a feed address or a YouTube link." };
+  if (!s) return { ok: false, reason: "invalid", message: server.sources.connectors.input.empty };
   if (/^(?:mailto:)?[^\s@/:?#]+@[^\s@/:?#]+\.[^\s@/:?#]+$/i.test(s)) return { ok: false, reason: "invalid", message: EMAIL_MESSAGE };
 
   if (s.startsWith("@")) {
-    return { ok: false, reason: "invalid", message: "Paste the full web address, for example https://www.youtube.com/@name, or a whole handle such as @name@mastodon.social or @name.bsky.social. A bare @name could belong to any site." };
+    return { ok: false, reason: "invalid", message: server.sources.connectors.input.bareHandle };
   }
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(s);
   let hadHttp = false;
@@ -88,7 +89,7 @@ export function normalizeInput(raw: string, opts: { testAllowAddress?: (ip: stri
     const name = scheme[1]!.toLowerCase();
     const rest = s.slice(scheme[0].length);
     if (name === "http" || name === "https") {
-      if (!rest.startsWith("//")) return { ok: false, reason: "invalid", message: "That doesn't look like a valid web address." };
+      if (!rest.startsWith("//")) return { ok: false, reason: "invalid", message: server.sources.connectors.address.invalid };
       hadHttp = name === "http";
       s = `${name}:${rest}`;
     } else if (FEED_SCHEMES.has(name)) {
@@ -98,9 +99,9 @@ export function normalizeInput(raw: string, opts: { testAllowAddress?: (ip: stri
     } else if (/^[^/\s:]+\.[^/\s:]+:\d+(?:[/?#]|$)/.test(s) || /^localhost:\d+/i.test(s)) {
       s = `https://${s}`; // host:port with no scheme
     } else if (name === "mailto" || name === "javascript" || name === "data" || name === "file" || name === "ftp" || name === "tel" || name === "about" || name === "blob") {
-      return { ok: false, reason: "invalid", message: "Only web addresses (starting with http:// or https://) can be followed." };
+      return { ok: false, reason: "invalid", message: server.sources.connectors.input.notWebScheme };
     } else {
-      return { ok: false, reason: "invalid", message: "That doesn't look like a web address. Paste something like https://example.com or example.com." };
+      return { ok: false, reason: "invalid", message: server.sources.connectors.input.notWebAddress };
     }
   } else if (s.startsWith("//")) {
     s = `https:${s}`;
@@ -116,7 +117,7 @@ export function normalizeInput(raw: string, opts: { testAllowAddress?: (ip: stri
   const url = new URL(withoutCookieBounce(target.url.href));
   const literal = url.hostname.startsWith("[") ? url.hostname.slice(1, -1) : url.hostname;
   if (isForbiddenLiteralHost(url.hostname) && !opts.testAllowAddress?.(literal)) {
-    return { ok: false, reason: "blocked", message: "That address points to a private or internal network, so it can't be followed." };
+    return { ok: false, reason: "blocked", message: server.sources.connectors.address.private };
   }
   const explicitPort = /^https?:\/\/[^/?#]*:\d+/i.test(s);
   if (hadHttp && !explicitPort) {

@@ -5,6 +5,7 @@ import { emit } from "../app.ts";
 import { notFound } from "../http.ts";
 import { getPreferences } from "./preferences.ts";
 import { usableAccountSql } from "./deletion.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Personal rediscovery: "On this day" reminders over items the owner kept in a
@@ -84,9 +85,9 @@ type Candidate = {
 };
 
 const CAPTURE_LABEL = {
-  metadata: "Saved details (title, link and summary)",
-  feed: "Saved the feed's text",
-  fulltext: "Full text saved",
+  metadata: server.api.shared.labelMetadata,
+  feed: server.api.shared.labelFeed,
+  fulltext: server.api.shared.labelFulltext,
 } as const;
 
 function captureLabel(c: { version_has_content: number; has_fulltext: number }): string {
@@ -161,7 +162,7 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
     if (r.status === "shown" && !isAnniversary(localDate(r.kept_at, tz), today)) continue;
     seen.add(r.item_id);
     out.push({
-      id: r.id, itemId: r.item_id, title: r.title, sourceTitle: r.source_title ?? "Saved link", basketName: r.basket_name,
+      id: r.id, itemId: r.item_id, title: r.title, sourceTitle: r.source_title ?? server.api.shared.savedLink, basketName: r.basket_name,
       keptAt: r.kept_at, captureLabel: captureLabel(r),
     });
   }
@@ -173,7 +174,7 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
     const body = prefs.notifications.previews && single && !isPrivate ? single.title : null;
     const created = app.db.run(
       "INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
-      newId("ntf"), workspaceId, out.length === 1 ? "On this day: 1 thing you kept" : `On this day: ${out.length} things you kept`, body, `reminder:${forDate}`, ts,
+      newId("ntf"), workspaceId, out.length === 1 ? server.api.reminders.onThisDayOne : server.api.reminders.onThisDayMany(out.length), body, `reminder:${forDate}`, ts,
     ).changes;
     if (created) emit(app, accountId, { type: "notification" });
   }
@@ -187,7 +188,7 @@ export function listReminders(app: App, p: Principal, now: Date = new Date()): R
 /** Hide ends this reminder for good; snooze brings it back on the next local day. */
 export function reminderAction(app: App, p: Principal, id: string, action: "hide" | "snooze", now: Date = new Date()): { ok: true } {
   const row = app.db.get<{ id: string }>("SELECT id FROM reminders WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-  if (!row) throw notFound("That reminder");
+  if (!row) throw notFound(server.api.reminders.thatReminder);
   if (action === "hide") {
     app.db.run("UPDATE reminders SET status = 'hidden', snoozed_until = NULL WHERE id = ?", id);
   } else {

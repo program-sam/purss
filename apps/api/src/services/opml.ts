@@ -6,6 +6,7 @@ import type { App, Principal } from "../app.ts";
 import { badRequest, nowIso } from "../http.ts";
 import { canonicalFeedKey, privateFeedKey } from "./feed-keys.ts";
 import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
+import { server } from "@purss/copy/server";
 
 export { canonicalFeedKey };
 
@@ -22,7 +23,7 @@ const MAX_DEPTH = 16;
 
 /** Parse an OPML document with a bounded XML parser. Entities beyond the standard five are never expanded. */
 export function parseOpml(text: string): ParsedOpml {
-  if (Buffer.byteLength(text, "utf8") > OPML_MAX_BYTES) throw badRequest("That file is too large to be a subscription list.", "too_large");
+  if (Buffer.byteLength(text, "utf8") > OPML_MAX_BYTES) throw badRequest(server.api.opml.fileTooLarge, "too_large");
   const feeds: OpmlFeed[] = [];
   const skipped = { notWebAddress: 0, duplicates: 0 };
   const seen = new Set<string>();
@@ -36,7 +37,7 @@ export function parseOpml(text: string): ParsedOpml {
     // Any element, not only outlines, could nest deep enough to stall the parser.
     assertShallowMarkup(text, "xml", { depth: MAX_DEPTH + 8 });
   } catch (err) {
-    if (err instanceof TooComplexError) throw badRequest("That subscription list is nested too deeply to read safely.", "too_deep");
+    if (err instanceof TooComplexError) throw badRequest(server.api.opml.nestedTooDeeply, "too_deep");
     throw err;
   }
   const parser = new Parser({
@@ -75,10 +76,10 @@ export function parseOpml(text: string): ParsedOpml {
     parser.write(text);
     parser.end();
   } catch {
-    throw badRequest("That file doesn't look like an OPML subscription list.", "not_opml");
+    throw badRequest(server.api.opml.notOpml, "not_opml");
   }
-  if (!sawRoot) throw badRequest("That file doesn't look like an OPML subscription list.", "not_opml");
-  if (tooDeep) throw badRequest("That subscription list is nested too deeply to read safely.", "too_deep");
+  if (!sawRoot) throw badRequest(server.api.opml.notOpml, "not_opml");
+  if (tooDeep) throw badRequest(server.api.opml.nestedTooDeeply, "too_deep");
   return { feeds, skipped, truncated };
 }
 
@@ -145,7 +146,7 @@ export function generateOpml(app: App, p: Principal): { xml: string; included: n
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
   <head>
-    <title>Followed sources</title>
+    <title>${server.api.opml.title}</title>
     <dateCreated>${new Date(nowIso()).toUTCString()}</dateCreated>
   </head>
   <body>

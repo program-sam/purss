@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { cleanPasted } from "./input.ts";
 
 /*
@@ -45,7 +46,7 @@ function bskyActor(raw: string): string | null {
   return DID.test(value) || isDomainName(value) ? value : null;
 }
 
-export const BLUESKY_NO_FEED = "Bluesky custom feeds and lists don't have a feed to follow. Paste the profile of an account instead.";
+export const BLUESKY_NO_FEED = server.sources.connectors.social.blueskyNoFeed;
 
 /** Recognise a social account in what was pasted, or return null for everything else. */
 export function classifySocialInput(raw: string): SocialTarget | null {
@@ -109,16 +110,16 @@ export function looksLikeSocialPostPath(pathname: string): boolean {
 export type SocialPlatform = "mastodon" | "fediverse" | "bluesky";
 
 export const SOCIAL_ORIGIN: Record<SocialPlatform, string> = {
-  mastodon: "Mastodon account",
-  fediverse: "Fediverse account",
-  bluesky: "Bluesky account",
+  mastodon: server.sources.connectors.social.mastodonAccount,
+  fediverse: server.sources.connectors.social.fediverseAccount,
+  bluesky: server.sources.connectors.social.blueskyAccount,
 };
 
 /** Honest limits, shown with the preview before following. */
 export const SOCIAL_NOTE: Record<SocialPlatform, string> = {
-  mastodon: "Public posts only, the latest 20 at each check. Boosts and replies aren't included. A post its author deletes stays in your PURSS.",
-  fediverse: "Public posts only, as this server publishes them. A post its author deletes stays in your PURSS.",
-  bluesky: "Public posts only, the most recent ones at each check. Reposts and replies aren't included. A post its author deletes stays in your PURSS.",
+  mastodon: server.sources.connectors.social.mastodonNote,
+  fediverse: server.sources.connectors.social.fediverseNote,
+  bluesky: server.sources.connectors.social.blueskyNote,
 };
 
 export function platformForFeed(generator: string | null): SocialPlatform {
@@ -129,5 +130,5 @@ export function platformForFeed(generator: string | null): SocialPlatform {
 export function blueskyTitle(feedTitle: string | null, actor: string): string {
   const m = feedTitle ? /^(@\S+)(?:\s+-\s+(.+))?$/.exec(feedTitle.trim()) : null;
   if (m) return m[2]?.trim() || m[1]!;
-  return feedTitle?.trim() || (actor.startsWith("did:") ? "Bluesky account" : `@${actor}`);
+  return feedTitle?.trim() || (actor.startsWith("did:") ? server.sources.connectors.social.blueskyAccount : `@${actor}`);
 }

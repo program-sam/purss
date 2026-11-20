@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { decodeBody } from "./content-type.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import type { Resolver, SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
@@ -9,7 +10,7 @@ import type { Resolver, SafeFetchOptions, SafeFetchResult } from "./safe-fetch.t
  * through discovery, which fetches and previews that feed like any other.
  */
 
-export const PODCAST_DIRECTORY = "Apple's podcast directory";
+export const PODCAST_DIRECTORY = server.sources.connectors.podcastSearch.directory;
 const SEARCH_URL = "https://itunes.apple.com/search";
 const MAX_HITS = 10;
 
@@ -67,16 +68,16 @@ export async function searchPodcasts(query: string, opts: PodcastSearchOptions =
     testTlsCa: opts.testTlsCa,
   });
   if (!res.ok) {
-    if (res.reason === "timeout" || res.reason === "aborted") return { ok: false, reason: "timeout", message: `${PODCAST_DIRECTORY} was slow to answer. Try again in a moment.` };
-    return { ok: false, reason: "unreachable", message: `We couldn't reach ${PODCAST_DIRECTORY} just now. Try again later, or paste the show's website or feed address.` };
+    if (res.reason === "timeout" || res.reason === "aborted") return { ok: false, reason: "timeout", message: server.sources.connectors.podcastSearch.slow(PODCAST_DIRECTORY) };
+    return { ok: false, reason: "unreachable", message: server.sources.connectors.podcastSearch.unreachable(PODCAST_DIRECTORY) };
   }
-  if (res.response.status === 429 || res.response.status >= 500) return { ok: false, reason: "unreachable", message: `${PODCAST_DIRECTORY} is busy or limiting searches. Try again in a few minutes.` };
-  if (res.response.status !== 200) return { ok: false, reason: "unreachable", message: `${PODCAST_DIRECTORY} answered with an unexpected result (${res.response.status}). Try again later.` };
+  if (res.response.status === 429 || res.response.status >= 500) return { ok: false, reason: "unreachable", message: server.sources.connectors.podcastSearch.busy(PODCAST_DIRECTORY) };
+  if (res.response.status !== 200) return { ok: false, reason: "unreachable", message: server.sources.connectors.podcastSearch.unexpected(PODCAST_DIRECTORY, res.response.status) };
   let results: unknown;
   try {
     results = (JSON.parse(decodeBody(res.response.body, res.response.contentType)) as { results?: unknown }).results;
   } catch {
-    return { ok: false, reason: "unreachable", message: `${PODCAST_DIRECTORY} sent something we couldn't read. Try again later.` };
+    return { ok: false, reason: "unreachable", message: server.sources.connectors.podcastSearch.unreadable(PODCAST_DIRECTORY) };
   }
   const hits: PodcastHit[] = [];
   const seen = new Set<string>();

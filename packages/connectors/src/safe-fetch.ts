@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { lookup as dnsLookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
@@ -144,24 +145,24 @@ export type ParsedTarget = { ok: true; url: URL } | { ok: false; reason: "invali
 
 /** Validate the syntactic parts of a fetch target: scheme, credentials, host, port. */
 export function parseTarget(input: string): ParsedTarget {
-  if (input.length > MAX_URL_LENGTH) return { ok: false, reason: "invalid", message: "That address is too long." };
+  if (input.length > MAX_URL_LENGTH) return { ok: false, reason: "invalid", message: server.sources.connectors.address.tooLong };
   let url: URL;
   try {
     url = new URL(input);
   } catch {
-    return { ok: false, reason: "invalid", message: "That doesn't look like a valid web address." };
+    return { ok: false, reason: "invalid", message: server.sources.connectors.address.invalid };
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return { ok: false, reason: "invalid", message: "Only web addresses starting with http:// or https:// can be followed." };
+    return { ok: false, reason: "invalid", message: server.sources.connectors.address.notWebScheme };
   }
   if (url.username || url.password) {
-    return { ok: false, reason: "invalid", message: "Addresses with a username or password in them aren't supported. Remove the login part of the address." };
+    return { ok: false, reason: "invalid", message: server.sources.connectors.address.hasLogin };
   }
   url.hash = "";
   const verdict = hostnameVerdict(url.hostname);
   if (!verdict.ok) return { ok: false, reason: "blocked", message: verdict.message };
   const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
-  if (isBlockedPort(port)) return { ok: false, reason: "blocked", message: "That address uses a port that isn't used for websites, so it can't be followed." };
+  if (isBlockedPort(port)) return { ok: false, reason: "blocked", message: server.sources.connectors.address.badPort };
   return { ok: true, url };
 }
 
@@ -170,7 +171,7 @@ export type ResolveResult =
   | { ok: true; addresses: ResolvedAddress[] }
   | { ok: false; reason: "blocked" | "unreachable" | "timeout" | "aborted"; message: string; detail: string };
 
-const BLOCKED_MESSAGE = "That address points to a private or internal network, so it can't be followed.";
+const BLOCKED_MESSAGE = server.sources.connectors.address.private;
 
 function stripBrackets(host: string): string {
   return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
@@ -180,9 +181,9 @@ async function raceTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSig
   let timer: NodeJS.Timeout | undefined;
   let onAbort: (() => void) | undefined;
   const guard = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Failure("timeout", "Looking up that website took too long.", "dns timeout")), ms);
+    timer = setTimeout(() => reject(new Failure("timeout", server.sources.connectors.fetch.lookupTimeout, "dns timeout")), ms);
     if (signal) {
-      onAbort = () => reject(new Failure("aborted", "The request was cancelled.", "aborted"));
+      onAbort = () => reject(new Failure("aborted", server.sources.connectors.fetch.cancelled, "aborted"));
       if (signal.aborted) onAbort();
       else signal.addEventListener("abort", onAbort, { once: true });
     }
@@ -227,13 +228,13 @@ export async function resolveDestination(
     }
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOTFOUND" || code === "ENODATA") {
-      return { ok: false, reason: "unreachable", message: "We couldn't find that website. Check the spelling of the address.", detail: `dns ${code}` };
+      return { ok: false, reason: "unreachable", message: server.sources.connectors.fetch.notFound, detail: `dns ${code}` };
     }
-    return { ok: false, reason: "unreachable", message: "We couldn't look up that website right now.", detail: `dns ${code ?? "error"}` };
+    return { ok: false, reason: "unreachable", message: server.sources.connectors.fetch.lookupFailed, detail: `dns ${code ?? "error"}` };
   }
   const unique = [...new Set(raw.map((a) => a.replace(/%.*$/, "")))];
   if (unique.length === 0) {
-    return { ok: false, reason: "unreachable", message: "We couldn't find that website. Check the spelling of the address.", detail: "dns empty answer" };
+    return { ok: false, reason: "unreachable", message: server.sources.connectors.fetch.notFound, detail: "dns empty answer" };
   }
   const addresses: ResolvedAddress[] = [];
   for (const ip of unique) {
@@ -241,7 +242,7 @@ export async function resolveDestination(
     // One forbidden answer rejects the whole name: a mixed answer is how rebinding attacks start.
     if (!c.ok) return { ok: false, reason: "blocked", message: BLOCKED_MESSAGE, detail: `host resolves to ${c.range} range` };
     const family = isIP(ip);
-    if (family === 0) return { ok: false, reason: "unreachable", message: "We couldn't look up that website right now.", detail: "dns returned a non-address" };
+    if (family === 0) return { ok: false, reason: "unreachable", message: server.sources.connectors.fetch.lookupFailed, detail: "dns returned a non-address" };
     addresses.push({ address: ip, family: family === 6 ? 6 : 4 });
   }
   return { ok: true, addresses };
@@ -311,17 +312,17 @@ function mapNetworkError(error: unknown, url: string): Failure {
   const code = e.code ?? "";
   const where = redactUrl(url);
   if (code.startsWith("ERR_TLS") || code.startsWith("CERT_") || code.includes("SELF_SIGNED") || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "DEPTH_ZERO_SELF_SIGNED_CERT" || code === "ERR_SSL_WRONG_VERSION_NUMBER" || /certificate|ssl|tls/i.test(e.message ?? "")) {
-    return new Failure("unreachable", "That website's secure connection (HTTPS certificate) isn't valid, so we can't safely read it.", `tls ${code || "error"} ${where}`);
+    return new Failure("unreachable", server.sources.connectors.fetch.badCertificate, `tls ${code || "error"} ${where}`);
   }
-  if (code === "ETIMEDOUT") return new Failure("timeout", "That website took too long to answer.", `connect timeout ${where}`);
-  if (code === "ECONNREFUSED") return new Failure("unreachable", "That website refused the connection.", `ECONNREFUSED ${where}`);
-  if (code === "ENOTFOUND") return new Failure("unreachable", "We couldn't find that website. Check the spelling of the address.", `ENOTFOUND ${where}`);
-  if (code === "ECONNRESET" || code === "EPIPE" || code === "ECONNABORTED" || code === "ERR_STREAM_PREMATURE_CLOSE") return new Failure("unreachable", "The connection to that website was interrupted.", `${code} ${where}`);
-  if (code === "EHOSTUNREACH" || code === "ENETUNREACH") return new Failure("unreachable", "We couldn't reach that website.", `${code} ${where}`);
+  if (code === "ETIMEDOUT") return new Failure("timeout", server.sources.connectors.fetch.slowAnswer, `connect timeout ${where}`);
+  if (code === "ECONNREFUSED") return new Failure("unreachable", server.sources.connectors.fetch.refused, `ECONNREFUSED ${where}`);
+  if (code === "ENOTFOUND") return new Failure("unreachable", server.sources.connectors.fetch.notFound, `ENOTFOUND ${where}`);
+  if (code === "ECONNRESET" || code === "EPIPE" || code === "ECONNABORTED" || code === "ERR_STREAM_PREMATURE_CLOSE") return new Failure("unreachable", server.sources.connectors.fetch.interrupted, `${code} ${where}`);
+  if (code === "EHOSTUNREACH" || code === "ENETUNREACH") return new Failure("unreachable", server.sources.connectors.fetch.unreachable, `${code} ${where}`);
   if (code.startsWith("HPE_") || code.startsWith("Z_") || code === "ERR_BROTLI_DECOMPRESSION_FAILED" || code === "ERR_BROTLI_INVALID_PARAM") {
-    return new Failure("invalid", "That website sent a response we couldn't read.", `${code} ${where}`);
+    return new Failure("invalid", server.sources.connectors.fetch.unreadableResponse, `${code} ${where}`);
   }
-  return new Failure("unreachable", "We couldn't reach that website.", `${code || e.name || "error"} ${where}`);
+  return new Failure("unreachable", server.sources.connectors.fetch.unreachable, `${code || e.name || "error"} ${where}`);
 }
 
 function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boolean): Promise<HopOk> {
@@ -368,11 +369,11 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
     };
     const arm = (ms: number, label: string) => {
       clear();
-      timer = setTimeout(() => fail(new Failure("timeout", "That website took too long to answer.", `${label} timeout ${redactUrl(url.href)}`)), ms);
+      timer = setTimeout(() => fail(new Failure("timeout", server.sources.connectors.fetch.slowAnswer, `${label} timeout ${redactUrl(url.href)}`)), ms);
     };
     const onAbort = () => {
       const reason = ctx.signal.reason;
-      fail(reason instanceof Failure ? reason : new Failure("aborted", "The request was cancelled.", "aborted"));
+      fail(reason instanceof Failure ? reason : new Failure("aborted", server.sources.connectors.fetch.cancelled, "aborted"));
     };
     if (ctx.signal.aborted) {
       onAbort();
@@ -431,7 +432,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
         .map((s) => s.trim())
         .filter((s) => s && s !== "identity");
       if (encodings.length > 3) {
-        fail(new Failure("invalid", "That website sent a response we couldn't read.", "too many content encodings"));
+        fail(new Failure("invalid", server.sources.connectors.fetch.unreadableResponse, "too many content encodings"));
         return;
       }
       // With a sink only a successful answer streams to it; an error answer is read as a short buffered body.
@@ -440,7 +441,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
       const limit = ctx.sink !== undefined && !sinking ? Math.min(ctx.maxBytes, SINK_ERROR_BYTES) : ctx.maxBytes;
       const declared = Number(rawHeaders["content-length"]);
       if (encodings.length === 0 && Number.isFinite(declared) && declared > limit && !partial && !(sinking && ctx.streamPastDeclaredLength)) {
-        fail(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `declared length ${declared} exceeds limit`));
+        fail(new Failure("toolarge", server.sources.connectors.fetch.tooLarge, `declared length ${declared} exceeds limit`));
         return;
       }
       // Encodings are listed in the order applied, so undo them last-to-first.
@@ -448,7 +449,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
       for (const enc of [...encodings].reverse()) {
         const d = decoderFor(enc, 16 * 1024);
         if (!d) {
-          fail(new Failure("invalid", "That website used a compression format we can't read.", `unsupported content-encoding ${enc.slice(0, 20)}`));
+          fail(new Failure("invalid", server.sources.connectors.fetch.unreadableCompression, `unsupported content-encoding ${enc.slice(0, 20)}`));
           return;
         }
         decoders.push(d);
@@ -467,7 +468,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
               cb(new StopReading());
               return;
             }
-            cb(new Failure("toolarge", "That page or feed is larger than we're willing to download.", `body exceeded ${limit} bytes after decoding`));
+            cb(new Failure("toolarge", server.sources.connectors.fetch.tooLarge, `body exceeded ${limit} bytes after decoding`));
             return;
           }
           total += chunk.length;
@@ -526,8 +527,8 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
     post: opts.post,
     fail: (f) => controller.abort(f),
   };
-  const total = setTimeout(() => ctx.fail(new Failure("timeout", "That website took too long to answer.", "overall timeout")), totalMs);
-  const onCallerAbort = () => ctx.fail(new Failure("aborted", "The request was cancelled.", "aborted"));
+  const total = setTimeout(() => ctx.fail(new Failure("timeout", server.sources.connectors.fetch.slowAnswer, "overall timeout")), totalMs);
+  const onCallerAbort = () => ctx.fail(new Failure("aborted", server.sources.connectors.fetch.cancelled, "aborted"));
   if (opts.signal?.aborted) onCallerAbort();
   else opts.signal?.addEventListener("abort", onCallerAbort, { once: true });
 
@@ -542,7 +543,7 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
         throw new Failure(target.reason, target.message, `${target.reason}: ${redactUrl(current)}`);
       }
       const url = target.url;
-      if (seen.has(url.href)) throw new Failure("invalid", "That address keeps redirecting in a loop.", "redirect loop");
+      if (seen.has(url.href)) throw new Failure("invalid", server.sources.connectors.fetch.redirectLoop, "redirect loop");
       seen.add(url.href);
       const lookup = () => resolveDestination(url.hostname, { signal: ctx.signal, resolver: ctx.resolver, testAllowAddress: ctx.testAllowAddress, timeoutMs: ctx.timeouts.resolveMs });
       let resolved = await lookup();
@@ -572,16 +573,16 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
         };
       }
       // A redirected POST would send the body somewhere nobody configured.
-      if (ctx.post) throw new Failure("invalid", "That service answered with a redirect, which isn't followed for a POST.", "redirect after POST refused");
-      if (hop >= maxRedirects) throw new Failure("invalid", "That address redirects too many times.", `more than ${maxRedirects} redirects`);
+      if (ctx.post) throw new Failure("invalid", server.sources.connectors.fetch.redirectAfterPost, "redirect after POST refused");
+      if (hop >= maxRedirects) throw new Failure("invalid", server.sources.connectors.fetch.tooManyRedirects, `more than ${maxRedirects} redirects`);
       let next: URL;
       try {
         next = new URL(result.location, url);
       } catch {
-        throw new Failure("invalid", "That website redirected us to an address that isn't valid.", "malformed redirect location");
+        throw new Failure("invalid", server.sources.connectors.fetch.badRedirect, "malformed redirect location");
       }
       if (next.protocol !== "http:" && next.protocol !== "https:") {
-        throw new Failure("blocked", "That website redirected us somewhere that isn't a web address.", `redirect to ${next.protocol} refused`);
+        throw new Failure("blocked", server.sources.connectors.fetch.redirectNotWeb, `redirect to ${next.protocol} refused`);
       }
       redirects.push(url.href);
       current = next.href;

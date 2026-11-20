@@ -7,6 +7,7 @@ import { emit } from "../app.ts";
 import { HttpError, badRequest, conflict, notFound, nowIso } from "../http.ts";
 import { detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.ts";
 import { insertItem } from "./items.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Reconciliation review. When the collection engine is replaced or restored, the
@@ -30,12 +31,12 @@ type Candidate = { itemId: string; reason: string } | { ambiguous: string } | nu
 /** The existing item an entry most likely is: the one found at queue time by source + original id, else the single item with the same link. */
 function candidateFor(app: App, row: QueueRow, entry: SyncEntry, source: Source | null): Candidate {
   if (row.candidate_item_id && app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", row.candidate_item_id, row.workspace_id)) {
-    return { itemId: row.candidate_item_id, reason: "Same source and the same original ID." };
+    return { itemId: row.candidate_item_id, reason: server.api.reconcile.sameOriginalId };
   }
   if (!source || !entry.url) return null;
   const same = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ?", row.workspace_id, source.id, entry.url);
-  if (same.length === 1) return { itemId: same[0]!.id, reason: "Same source and the same link." };
-  if (same.length > 1) return { ambiguous: "More than one existing item has this link, so it needs your decision." };
+  if (same.length === 1) return { itemId: same[0]!.id, reason: server.api.reconcile.sameLink };
+  if (same.length > 1) return { ambiguous: server.api.reconcile.moreThanOneWithLink };
   return null;
 }
 
@@ -54,7 +55,7 @@ function toDTO(app: App, row: QueueRow): ReconcileEntryDTO {
     entry: { title: entry.title, url: entry.url, author: displayAuthor(entry.author), publishedAt: entry.publishedAt, summary: excerpt(toText(entry.summaryHtml), 200) },
     candidate,
     suggestion: candidate ? "match" : c && "ambiguous" in c ? "review" : "new",
-    reason: c ? ("reason" in c ? c.reason : c.ambiguous) : "Nothing in your library matches this, so it looks new.",
+    reason: c ? ("reason" in c ? c.reason : c.ambiguous) : server.api.reconcile.nothingMatches,
   };
 }
 
@@ -71,8 +72,8 @@ export type ReconcileAction = "match" | "new" | "dismiss";
 export function resolveEntry(app: App, p: Principal, id: string, action: ReconcileAction, itemId?: string): { status: "matched" | "new" | "dismissed"; itemId: string | null } {
   const out = app.db.tx((): { status: "matched" | "new" | "dismissed"; itemId: string | null } => {
     const row = app.db.get<QueueRow>("SELECT * FROM reconciliation_queue WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
-    if (!row) throw notFound("That entry");
-    if (row.status !== "open") throw conflict("That entry was already handled.");
+    if (!row) throw notFound(server.api.reconcile.thatEntry);
+    if (row.status !== "open") throw conflict(server.api.reconcile.alreadyHandled);
     const entry = JSON.parse(row.entry) as SyncEntry;
     const source = sourceFor(app, p.workspaceId, entry.streamId);
 
@@ -85,9 +86,9 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
     if (action === "match") {
       const c = itemId ? { itemId } : candidateFor(app, row, entry, source);
       const target = c && "itemId" in c ? c.itemId : null;
-      if (!target) throw badRequest("Choose which of your items this is.", "choose_item");
-      if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", target, p.workspaceId)) throw notFound("That item");
-      if (existingMap && existingMap.item_id !== target) throw conflict("This entry has already been linked to a different item.");
+      if (!target) throw badRequest(server.api.reconcile.chooseItem, "choose_item");
+      if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", target, p.workspaceId)) throw notFound(server.api.shared.thatItem);
+      if (existingMap && existingMap.item_id !== target) throw conflict(server.api.reconcile.linkedToOther);
       if (!existingMap) {
         app.db.run("INSERT INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           newId("ext"), p.workspaceId, target, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
@@ -97,11 +98,11 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
     }
 
     // action === "new": create through the core item creation path
-    if (existingMap) throw conflict("This entry has already been added.");
+    if (existingMap) throw conflict(server.api.reconcile.alreadyAdded);
     if (app.db.get("SELECT 1 FROM item_tombstones WHERE engine_user_id = ? AND external_id = ?", row.engine_user_id, entry.externalId)) {
-      throw conflict("You deleted this item earlier, so it won't be added again. You can dismiss the entry.");
+      throw conflict(server.api.reconcile.deletedEarlier);
     }
-    if (!source) throw new HttpError(409, "source_gone", "The source this belongs to isn't followed any more. You can dismiss the entry.");
+    if (!source) throw new HttpError(409, "source_gone", server.api.reconcile.sourceGone);
     const doi = findDoi(entry.url, entry.summaryHtml, entry.contentHtml);
     const created = insertItem(app, {
       accountId: p.accountId, workspaceId: p.workspaceId, sourceId: source.id,

@@ -8,6 +8,7 @@ import type { Config } from "../config.ts";
 import { Database } from "../db/database.ts";
 import { HttpError } from "../http.ts";
 import { checkUpload } from "./portability.ts";
+import { server } from "@purss/copy/server";
 
 process.once("message", (job: { config: Config; principal: Principal; file: string }) => {
   let db: Database | null = null;
@@ -20,7 +21,7 @@ process.once("message", (job: { config: Config; principal: Principal; file: stri
   } catch (err) {
     answer = err instanceof HttpError
       ? { ok: false, status: err.status, code: err.code, message: err.message }
-      : { ok: false, status: 500, code: "internal", message: "Something went wrong checking that file." };
+      : { ok: false, status: 500, code: "internal", message: server.api.shared.wentWrongChecking };
     if (!(err instanceof HttpError)) console.error("[api] import check failed:", err instanceof Error ? err.message : "unknown error");
   } finally {
     db?.raw.close();

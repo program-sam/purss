@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { decodeBody } from "./content-type.ts";
 import type { SafeFetchResponse, SafeFetchResult } from "./safe-fetch.ts";
 
@@ -41,7 +42,7 @@ export function classifyYoutubeUrl(url: URL): YoutubeTarget {
   const playlistId = list && FEEDABLE_PLAYLIST.test(list) ? list : null;
   if (host.endsWith("youtu.be")) {
     const id = segments[0] ?? "";
-    return VIDEO_ID.test(id) ? { kind: "video", videoId: id, playlistId } : { kind: "unsupported", message: "That YouTube link doesn't point to a video, channel or playlist." };
+    return VIDEO_ID.test(id) ? { kind: "video", videoId: id, playlistId } : { kind: "unsupported", message: server.sources.connectors.youtube.notVideoChannelOrPlaylist };
   }
   const first = segments[0] ?? "";
   if (first === "feeds" && segments[1] === "videos.xml") {
@@ -51,10 +52,10 @@ export function classifyYoutubeUrl(url: URL): YoutubeTarget {
     if ((channelId && CHANNEL_ID.test(channelId)) || (pl && FEEDABLE_PLAYLIST.test(pl)) || user) {
       return { kind: "feed", channelId: channelId && CHANNEL_ID.test(channelId) ? channelId : null, playlistId: pl && FEEDABLE_PLAYLIST.test(pl) ? pl : null, user };
     }
-    return { kind: "unsupported", message: "That YouTube feed address is incomplete." };
+    return { kind: "unsupported", message: server.sources.connectors.youtube.incompleteFeedAddress };
   }
   if (first === "channel") {
-    return segments[1] && CHANNEL_ID.test(segments[1]) ? { kind: "channel-id", channelId: segments[1] } : { kind: "unsupported", message: "That doesn't look like a YouTube channel address (channel ids start with UC)." };
+    return segments[1] && CHANNEL_ID.test(segments[1]) ? { kind: "channel-id", channelId: segments[1] } : { kind: "unsupported", message: server.sources.connectors.youtube.notChannelAddress };
   }
   if (first.startsWith("@") && first.length > 1) return { kind: "page", path: `/@${encodeURIComponent(first.slice(1))}`, label: "handle" };
   if (first === "user" && segments[1]) return { kind: "page", path: `/user/${encodeURIComponent(segments[1])}`, label: "user" };
@@ -63,23 +64,23 @@ export function classifyYoutubeUrl(url: URL): YoutubeTarget {
     if (list && FEEDABLE_PLAYLIST.test(list)) return { kind: "playlist", playlistId: list };
     return {
       kind: "unsupported",
-      message: list ? "YouTube doesn't publish a feed for that kind of playlist (mixes, liked videos and watch-later lists have none)." : "That YouTube playlist link has no playlist id.",
+      message: list ? server.sources.connectors.youtube.noPlaylistFeed : server.sources.connectors.youtube.noPlaylistId,
     };
   }
   if (first === "watch") {
     const v = url.searchParams.get("v") ?? "";
-    return VIDEO_ID.test(v) ? { kind: "video", videoId: v, playlistId } : { kind: "unsupported", message: "That YouTube link doesn't point to a video, channel or playlist." };
+    return VIDEO_ID.test(v) ? { kind: "video", videoId: v, playlistId } : { kind: "unsupported", message: server.sources.connectors.youtube.notVideoChannelOrPlaylist };
   }
   if ((first === "shorts" || first === "live" || first === "embed" || first === "v") && segments[1] && VIDEO_ID.test(segments[1])) {
     return { kind: "video", videoId: segments[1], playlistId };
   }
   if (segments.length === 0) {
-    return { kind: "unsupported", message: "That's YouTube's home page. Paste a channel, video or playlist address." };
+    return { kind: "unsupported", message: server.sources.connectors.youtube.homePage };
   }
   if (["feed", "results", "hashtag", "gaming", "trending", "premium", "account", "tv"].includes(first)) {
-    return { kind: "unsupported", message: "That YouTube page isn't a channel. Paste a channel (youtube.com/@name), a video or a playlist address. Search results, your subscriptions and watch history can't be followed." };
+    return { kind: "unsupported", message: server.sources.connectors.youtube.notAChannel };
   }
-  return { kind: "unsupported", message: "We couldn't tell which YouTube channel that is. Try the channel's address, for example youtube.com/@name." };
+  return { kind: "unsupported", message: server.sources.connectors.youtube.unknownChannel };
 }
 
 export function channelFeedUrl(channelId: string): string {
@@ -97,13 +98,13 @@ export function userFeedUrl(user: string): string {
 export type ChannelIdResult = { ok: true; channelId: string } | { ok: false; reason: "unsupported" | "unreachable" | "invalid" | "timeout" | "nofeed"; message: string };
 
 /** YouTube did not answer in time. Not "couldn't reach": the same lookup usually works a moment later. */
-export const YOUTUBE_SLOW = "YouTube was slow to answer. Try again in a moment; it usually works the second time.";
+export const YOUTUBE_SLOW = server.sources.connectors.youtube.slow;
 
 /** A handle YouTube has no page for. Handles get renamed, and a guessed one is often wrong, so this does not claim the channel doesn't exist. */
 export function handleNotFoundMessage(path: string): string {
   const name = decodeURIComponent(path.split("/")[1] ?? "");
-  const what = name.startsWith("@") ? `the handle ${name}` : "that address";
-  return `YouTube has no page for ${what}. The channel may have a different handle now. Paste a link to one of its videos, or its youtube.com/channel/UC… address, and we'll find it that way.`;
+  const what = name.startsWith("@") ? server.sources.connectors.youtube.theHandle(name) : server.sources.connectors.youtube.thatAddress;
+  return server.sources.connectors.youtube.noPage(what);
 }
 
 const CONSENT_HINT = /consent\.youtube\.com|<form[^>]+action="https:\/\/consent\.youtube\.com/i;
@@ -133,11 +134,11 @@ export function channelIdFromHtml(html: string, mode: "channel" | "video"): Chan
     }
   }
   if (found.size === 1) return { ok: true, channelId: [...found][0]! };
-  if (found.size > 1) return { ok: false, reason: "unsupported", message: "That YouTube page points at more than one channel, so we can't tell which one you mean. Paste the channel's own address." };
+  if (found.size > 1) return { ok: false, reason: "unsupported", message: server.sources.connectors.youtube.severalChannels };
   if (CONSENT_HINT.test(html)) {
-    return { ok: false, reason: "unreachable", message: "YouTube asked for cookie consent before showing that page, so we couldn't look the channel up. Paste the channel address that contains /channel/UC… instead." };
+    return { ok: false, reason: "unreachable", message: server.sources.connectors.youtube.cookieConsent };
   }
-  return { ok: false, reason: "unsupported", message: "We couldn't find which YouTube channel that page belongs to." };
+  return { ok: false, reason: "unsupported", message: server.sources.connectors.youtube.channelNotFound };
 }
 
 /** Read a successful channel/video page response into a channel id. */
@@ -151,12 +152,12 @@ export function channelIdFromResponse(result: SafeFetchResult, mode: "channel" |
 
 function channelIdFromHtmlResponse(response: SafeFetchResponse, mode: "channel" | "video", path: string): ChannelIdResult {
   if (response.status === 404 || response.status === 410) {
-    return mode === "channel" && path ? { ok: false, reason: "nofeed", message: handleNotFoundMessage(path) } : { ok: false, reason: "unreachable", message: "YouTube has no page at that address." };
+    return mode === "channel" && path ? { ok: false, reason: "nofeed", message: handleNotFoundMessage(path) } : { ok: false, reason: "unreachable", message: server.sources.connectors.youtube.noPageAtAddress };
   }
-  if (response.status >= 400) return { ok: false, reason: "unreachable", message: `YouTube didn't show that page (error ${response.status}). Try again later.` };
+  if (response.status >= 400) return { ok: false, reason: "unreachable", message: server.sources.connectors.youtube.pageError(response.status) };
   try {
     if (new URL(response.url).hostname.endsWith("consent.youtube.com")) {
-      return { ok: false, reason: "unreachable", message: "YouTube asked for cookie consent before showing that page, so we couldn't look the channel up. Paste the channel address that contains /channel/UC… instead." };
+      return { ok: false, reason: "unreachable", message: server.sources.connectors.youtube.cookieConsent };
     }
   } catch {
     /* ignore */

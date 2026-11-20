@@ -3,6 +3,7 @@ import { newId } from "@purss/domain";
 import type { App } from "../app.ts";
 import { audit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Email address and password sign-in: every account has a password made with it, except one made by signing in with a
@@ -46,9 +47,9 @@ export function normalizeEmail(raw: string): string {
 }
 
 export function checkNewPassword(password: string, email: string | null): void {
-  if ([...password].length < PASSWORD_MIN) throw new HttpError(400, "short_password", `Use at least ${PASSWORD_MIN} characters for the password.`);
-  if ([...password].length > PASSWORD_MAX) throw new HttpError(400, "long_password", `Use at most ${PASSWORD_MAX} characters for the password.`);
-  if (email !== null && password.toLowerCase() === normalizeEmail(email)) throw new HttpError(400, "weak_password", "The password can't be the same as your email address.");
+  if ([...password].length < PASSWORD_MIN) throw new HttpError(400, "short_password", server.api.passwords.tooShort(PASSWORD_MIN));
+  if ([...password].length > PASSWORD_MAX) throw new HttpError(400, "long_password", server.api.passwords.tooLong(PASSWORD_MAX));
+  if (email !== null && password.toLowerCase() === normalizeEmail(email)) throw new HttpError(400, "weak_password", server.api.passwords.sameAsEmail);
 }
 
 /** The account's address, which a new password is checked against. */

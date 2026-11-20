@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import type { DiscoveryCandidate, DiscoveryResult, KeepOffer } from "@purss/domain";
 import { EPISODES, POSTS, VIDEOS, cadenceText } from "./cadence.ts";
 import type { Noun } from "./cadence.ts";
@@ -36,6 +37,8 @@ import {
   userFeedUrl,
   YOUTUBE_SLOW,
 } from "./youtube.ts";
+
+const feedLabels = server.sources.connectors.labels;
 
 /*
  * Source discovery: from whatever was pasted to a short list of followable feeds, each
@@ -124,7 +127,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
     now: opts.now ?? (() => new Date()),
     get: async (url, o) => {
       // One lookup is never allowed to turn into an unbounded number of requests to someone else's site.
-      if (requests >= maxRequests) return { ok: false, reason: "aborted", message: "Looking stopped: this site needed too many requests.", detail: "request cap of one lookup" };
+      if (requests >= maxRequests) return { ok: false, reason: "aborted", message: server.sources.connectors.discover.requestCap, detail: "request cap of one lookup" };
       requests++;
       const result = await fetcher(url, {
         signal,
@@ -159,12 +162,12 @@ function fail(url: string, reason: Failure["reason"], message: string): Failure 
 }
 
 /** Slowness is as likely to be here as there, so the message names neither as the culprit. */
-export const COMMENTS_ONLY_MESSAGE = "The only feed we found on that page is for its comments, not its posts. If the comments are what you want, paste that feed's own address.";
-export const TIMEOUT_MESSAGE = "Looking took too long. The site may be slow or PURSS busy; try again.";
-export const BUSY_MESSAGE = "The site didn't give us what we needed just now: it was busy or limiting requests. Try again in a few minutes.";
+export const COMMENTS_ONLY_MESSAGE = server.sources.connectors.discover.commentsOnly;
+export const TIMEOUT_MESSAGE = server.sources.connectors.discover.timeout;
+export const BUSY_MESSAGE = server.sources.connectors.discover.busy;
 /** One lookup made all the requests it may, probing a site that never showed a feed. */
-export const CAP_MESSAGE = "We stopped looking after trying many addresses on that site without finding a feed. If you have the feed's own address, paste that.";
-export const MISSING_HOST_MESSAGE = "There's no website with that name; the address doesn't exist. Check it for typing mistakes.";
+export const CAP_MESSAGE = server.sources.connectors.discover.cap;
+export const MISSING_HOST_MESSAGE = server.sources.connectors.discover.missingHost;
 
 /** safeFetch's detail for a name that does not resolve (as opposed to one that merely did not answer). */
 const MISSING_HOST = /^(?:dns (?:ENOTFOUND|ENODATA|empty answer)|ENOTFOUND )/;
@@ -174,7 +177,7 @@ function failFromFetch(url: string, f: Extract<SafeFetchResult, { ok: false }>):
     case "blocked":
       return fail(url, "blocked", f.message);
     case "toolarge":
-      return fail(url, "toolarge", "That page or feed is too large for us to read safely.");
+      return fail(url, "toolarge", server.sources.connectors.discover.tooLarge);
     case "timeout":
     case "aborted":
       return fail(url, "timeout", TIMEOUT_MESSAGE);
@@ -186,18 +189,18 @@ function failFromFetch(url: string, f: Extract<SafeFetchResult, { ok: false }>):
 }
 
 export const YOUTUBE_REFUSED =
-  "YouTube isn't handing out this channel's feed to this server right now. It often refuses feed requests from cloud servers; from a home connection it usually works. Try again later.";
+  server.sources.connectors.discover.youtubeRefused;
 
-const NO_FEED_MESSAGE = "We couldn't find a feed on that page. Try the site's blog or news page, or paste the feed address itself if you have it.";
+const NO_FEED_MESSAGE = server.sources.connectors.discover.noFeed;
 
 function failFromStatus(url: string, status: number): Failure | null {
   if (status >= 200 && status < 300) return null;
-  if (status === 401) return fail(url, "unsupported", "That address asks for a username and password, which isn't supported yet.");
-  if (status === 403) return fail(url, "unreachable", "That website refused to show us the page (error 403). It may block automated readers or need a login.");
-  if (status === 404 || status === 410) return fail(url, "unreachable", `We couldn't find anything at that address (error ${status}). Check it for typing mistakes.`);
-  if (status === 429) return fail(url, "unreachable", "That website asked us to slow down (too many requests). Try again in a few minutes.");
-  if (status >= 500) return fail(url, "unreachable", `That website is having problems right now (error ${status}). Try again later.`);
-  return fail(url, "unreachable", `That website answered with an unexpected result (${status}).`);
+  if (status === 401) return fail(url, "unsupported", server.sources.connectors.discover.needsLogin);
+  if (status === 403) return fail(url, "unreachable", server.sources.connectors.discover.refused);
+  if (status === 404 || status === 410) return fail(url, "unreachable", server.sources.connectors.discover.notFoundAt(status));
+  if (status === 429) return fail(url, "unreachable", server.sources.connectors.discover.slowDown);
+  if (status >= 500) return fail(url, "unreachable", server.sources.connectors.discover.siteProblems(status));
+  return fail(url, "unreachable", server.sources.connectors.discover.unexpectedAnswer(status));
 }
 
 /** Fetch with an https-first attempt when the person gave no scheme or plain http. */
@@ -249,23 +252,23 @@ function nounFor(feed: ParsedFeed): Noun {
 }
 
 function originFor(feed: ParsedFeed): string {
-  if (feed.youtube?.playlistId) return "YouTube playlist feed";
-  if (feed.youtube) return "YouTube channel feed";
-  if (feed.isPodcast) return "Podcast feed";
+  if (feed.youtube?.playlistId) return feedLabels.youtubePlaylistFeed;
+  if (feed.youtube) return feedLabels.youtubeChannelFeed;
+  if (feed.isPodcast) return feedLabels.podcastFeed;
   switch (feed.format) {
     case "atom":
-      return "Atom feed";
+      return feedLabels.atomFeed;
     case "jsonfeed":
-      return "JSON Feed";
+      return feedLabels.jsonFeed;
     default:
-      return "RSS feed";
+      return feedLabels.rssFeed;
   }
 }
 
 function viaFor(feed: ParsedFeed, hint: Hint): string {
-  if (feed.youtube?.playlistId) return "Playlist feed";
-  if (feed.youtube) return "Channel feed";
-  if (feed.isPodcast) return "Podcast feed";
+  if (feed.youtube?.playlistId) return feedLabels.playlistFeed;
+  if (feed.youtube) return feedLabels.channelFeed;
+  if (feed.isPodcast) return feedLabels.podcastFeed;
   const label = `${hint.title ?? ""} ${feed.title ?? ""}`;
   let path = "";
   try {
@@ -274,9 +277,9 @@ function viaFor(feed: ParsedFeed, hint: Hint): string {
   } catch {
     path = "";
   }
-  if (/\bcomments?\b|\breplies\b|\bdiscussion\b/i.test(label) || /\/comments?(?:\/|$)|[?&]feed=comments|comments\/feed/i.test(path)) return "Comments feed";
-  if (hint.section || /\/(?:category|categories|tag|tags|topic|topics|section|label|author|search)\//i.test(path) || /[?&](?:cat|category|tag|s|label)=/i.test(path)) return "Section feed";
-  return "Posts feed";
+  if (/\bcomments?\b|\breplies\b|\bdiscussion\b/i.test(label) || /\/comments?(?:\/|$)|[?&]feed=comments|comments\/feed/i.test(path)) return feedLabels.commentsFeed;
+  if (hint.section || /\/(?:category|categories|tag|tags|topic|topics|section|label|author|search)\//i.test(path) || /[?&](?:cat|category|tag|s|label)=/i.test(path)) return feedLabels.sectionFeed;
+  return feedLabels.postsFeed;
 }
 
 function sampleTitle(feed: ParsedFeed, index: number): string {
@@ -284,7 +287,7 @@ function sampleTitle(feed: ParsedFeed, index: number): string {
   if (item.title) return item.title.length > 140 ? `${item.title.slice(0, 139)}…` : item.title;
   const text = htmlToText(item.summaryHtml ?? item.contentHtml ?? "", 400);
   if (text) return text.length > 70 ? `${text.slice(0, 69)}…` : text;
-  return "Untitled";
+  return server.sources.connectors.discover.untitled;
 }
 
 function newestFirst(feed: ParsedFeed): ParsedFeed {
@@ -453,20 +456,20 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
         // The channel is known, only its feed didn't answer: offer it anyway; the engine keeps retrying.
         if (what === "channel" && channelLabel) {
           candidates.push({
-            title: channelLabel, kind: "youtube", origin: "YouTube channel feed", via: via ?? "Channel feed",
+            title: channelLabel, kind: "youtube", origin: feedLabels.youtubeChannelFeed, via: via ?? feedLabels.channelFeed,
             feedUrl, siteUrl: inputUrl, cadence: null, samples: [], summariesOnly: false, privateWarning: null, alreadyFollowingSourceId: null,
-            note: "YouTube didn't send recent videos just now. Following will keep trying.",
+            note: server.sources.connectors.discover.youtubeNoRecentVideos,
           });
           return null;
         }
         return probe.failed.reason === "timeout" ? fail(inputUrl, "timeout", YOUTUBE_SLOW) : fail(inputUrl, "unreachable", YOUTUBE_REFUSED);
       }
       if (probe.failed) return probe.failed;
-      return fail(inputUrl, "unreachable", what === "playlist" ? "YouTube doesn't publish a feed for that playlist (it may be private or an automatic mix)." : "YouTube didn't return a feed for that channel.");
+      return fail(inputUrl, "unreachable", what === "playlist" ? server.sources.connectors.discover.youtubeNoPlaylistFeed : server.sources.connectors.discover.youtubeNoChannelFeed);
     }
     const hint = { url: probe.feedUrl };
     const base = buildCandidate(probe.feedUrl, probe.parsed, hint, ctx);
-    candidates.push({ ...base, via: via ?? base.via, origin: what === "playlist" ? "YouTube playlist feed" : "YouTube channel feed", kind: "youtube" });
+    candidates.push({ ...base, via: via ?? base.via, origin: what === "playlist" ? feedLabels.youtubePlaylistFeed : feedLabels.youtubeChannelFeed, kind: "youtube" });
     return null;
   };
 
@@ -477,7 +480,7 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
 
   switch (target.kind) {
     case "channel-id": {
-      channelLabel = "YouTube channel";
+      channelLabel = feedLabels.youtubeChannel;
       const err = await feedCandidate(channelFeedUrl(target.channelId), null, "channel");
       if (err) return err;
       break;
@@ -499,7 +502,7 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
         }
         return fail(inputUrl, id.reason, id.message);
       }
-      channelLabel = decodeURIComponent(target.path.split("/")[1] ?? "") || "YouTube channel";
+      channelLabel = decodeURIComponent(target.path.split("/")[1] ?? "") || feedLabels.youtubeChannel;
       const err = await feedCandidate(channelFeedUrl(id.channelId), null, "channel");
       if (err) return err;
       break;
@@ -511,7 +514,7 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
     }
     case "video": {
       let channelId: string | null = null;
-      let message = "We couldn't find which channel uploaded that video.";
+      let message = server.sources.connectors.discover.videoChannelNotFound;
       let reason: Failure["reason"] = "unsupported";
       const oembed = await getYoutube(ctx, `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${target.videoId}`)}`, {
         maxBytes: 64 * 1024,
@@ -547,8 +550,8 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
         else if (id.reason === "unreachable" || id.reason === "timeout") ({ message, reason } = { message: id.message, reason: id.reason });
       }
       if (channelId) {
-        channelLabel ??= "YouTube channel";
-        const err = await feedCandidate(channelFeedUrl(channelId), "Related channel — confirm", "channel");
+        channelLabel ??= feedLabels.youtubeChannel;
+        const err = await feedCandidate(channelFeedUrl(channelId), feedLabels.relatedChannelConfirm, "channel");
         if (err && !target.playlistId && !keep) return err;
       } else if (!target.playlistId && !keep) {
         return fail(inputUrl, reason, message);
@@ -603,7 +606,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const attempted = new Set<string>();
   const trouble: Trouble = { timeout: prior?.timeout ?? false, busy: prior?.busy ?? false, failure: null };
   /** A feed of comments is not what a site's page is followed for: it does not end the search for the posts, and is never offered alone. */
-  const hasPosts = () => found.some((f) => f.c.via !== "Comments feed");
+  const hasPosts = () => found.some((f) => f.c.via !== feedLabels.commentsFeed);
   /** An advertised feed for this very page or section did not answer. */
   let ownFeedSilent = false;
   /** Feeds that cover the whole site although the page is a section; judged by the address asked for, since a blog's feed often answers from another host. */
@@ -741,7 +744,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const ojs = facts.links.find((l) => l.source === "alternate" && /\/gateway\/plugin\/WebFeedGatewayPlugin\//.test(l.url));
   if (ojs && !publisherPage) {
     const base = ojs.url.slice(0, ojs.url.indexOf("/gateway/plugin/"));
-    await tryJournal({ feedUrl: `${base}/gateway/plugin/AnnouncementFeedGatewayPlugin/atom`, via: "Announcements feed", note: OJS_ANNOUNCEMENTS_NOTE, needsItems: true }, () => true);
+    await tryJournal({ feedUrl: `${base}/gateway/plugin/AnnouncementFeedGatewayPlugin/atom`, via: feedLabels.announcementsFeed, note: OJS_ANNOUNCEMENTS_NOTE, needsItems: true }, () => true);
   }
   // Unless the page's own feed or journal was already found.
   if (pageIssns.size && !found.some((f) => f.matches && !wholeSiteFeeds.has(f.c))) {
@@ -754,7 +757,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   found.sort((a, b) => Number(a.via === "journal" && !a.matches) - Number(b.via === "journal" && !b.matches));
 
   // A section's own feed comes before any guess at the whole site. Publishers keep no feed at a blog's usual addresses.
-  if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c) && f.c.via !== "Comments feed")) {
+  if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c) && f.c.via !== feedLabels.commentsFeed)) {
     await tryPaths(sectionFeedPaths(section).map((p) => `${origin}${p}`), { section: true });
   }
   if (!hasPosts() && !publisherPage) {
@@ -805,9 +808,9 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     found.map((f) => f.parsed),
   ).map((c) => {
     const matchesPage = matching.has(c);
-    if (wholeSiteFeeds.has(c)) return { ...c, matchesPage, via: "Whole site feed", note: c.note ?? (ownFeedSilent ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE) };
-    if (isDiscourse(html) && /\/posts\.rss$/.test(new URL(c.feedUrl).pathname)) return { ...c, matchesPage, via: "All replies", note: "Includes every reply, so it is busy. Latest topics is usually what you want." };
-    if (isDiscourse(html) && /\/latest\.rss$/.test(new URL(c.feedUrl).pathname)) return { ...c, matchesPage, via: "Latest topics" };
+    if (wholeSiteFeeds.has(c)) return { ...c, matchesPage, via: feedLabels.wholeSiteFeed, note: c.note ?? (ownFeedSilent ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE) };
+    if (isDiscourse(html) && /\/posts\.rss$/.test(new URL(c.feedUrl).pathname)) return { ...c, matchesPage, via: feedLabels.allReplies, note: server.sources.connectors.discover.allRepliesNote };
+    if (isDiscourse(html) && /\/latest\.rss$/.test(new URL(c.feedUrl).pathname)) return { ...c, matchesPage, via: feedLabels.latestTopics };
     return { ...c, matchesPage };
   });
   const ordered = orderByVia(withoutCommentFeeds(unique)).slice(0, max);
@@ -815,7 +818,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     ok: true,
     url: inputUrl,
     candidates: unopened
-      ? ordered.map((c) => ({ ...c, note: [`${section ? "That page" : "The site's front page"} didn't open (error ${unopened.status}), but this feed does.`, c.note].filter(Boolean).join(" ") }))
+      ? ordered.map((c) => ({ ...c, note: [server.sources.connectors.discover.didntOpen(section ? server.sources.connectors.discover.thatPage : server.sources.connectors.discover.frontPage, unopened.status), c.note].filter(Boolean).join(" ") }))
       : ordered,
   };
 }
@@ -874,7 +877,7 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
       parsed = { ...parseFeed(response.body, response.contentType, { baseUrl: response.url }), ...(tooBigForEngine(response) ? { large: true } : {}) };
     } catch (error) {
       if (error instanceof FeedParseError) {
-        return fail(inputUrl, "invalid", error.code === "toolarge" ? "That feed is too large for us to read safely." : "That address looks like a feed, but we couldn't read it. The feed may be damaged.");
+        return fail(inputUrl, "invalid", error.code === "toolarge" ? server.sources.connectors.discover.feedTooLarge : server.sources.connectors.discover.feedUnreadable);
       }
       throw error;
     }
@@ -888,17 +891,17 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
   }
   if (kind === "xml") {
     const text = decodeBody(response.body.subarray(0, 4096), response.contentType);
-    if (/<opml[\s>]/i.test(text)) return fail(inputUrl, "unsupported", "That looks like an OPML list of subscriptions, not a single feed. Use Import to add the feeds in it.");
-    if (/<urlset[\s>]|<sitemapindex[\s>]/i.test(text)) return fail(inputUrl, "unsupported", "That's a sitemap, not a feed. Try the site's main page.");
-    return fail(inputUrl, "unsupported", "That address returns XML that isn't a feed we can read.");
+    if (/<opml[\s>]/i.test(text)) return fail(inputUrl, "unsupported", server.sources.connectors.discover.opmlList);
+    if (/<urlset[\s>]|<sitemapindex[\s>]/i.test(text)) return fail(inputUrl, "unsupported", server.sources.connectors.discover.sitemap);
+    return fail(inputUrl, "unsupported", server.sources.connectors.discover.notAFeedXml);
   }
-  if (kind === "json") return fail(inputUrl, "unsupported", "That address returns data, not a feed. A JSON Feed has \"version\": \"https://jsonfeed.org/version/1.1\".");
-  return fail(inputUrl, "unsupported", "That address isn't a web page or a feed (it looks like a file). Paste a website or feed address.");
+  if (kind === "json") return fail(inputUrl, "unsupported", server.sources.connectors.discover.notAFeedJson);
+  return fail(inputUrl, "unsupported", server.sources.connectors.discover.notAPage);
 }
 
 // ---------- registries ----------
 
-export const WIKIDATA_NOTE = "The site doesn't point to this feed itself; Wikidata, the open knowledge base, lists it as the site's.";
+export const WIKIDATA_NOTE = server.sources.connectors.discover.wikidataNote;
 /**
  * The answers after which the registries are asked: nothing found on the page, or a page that turns automated readers
  * away (403, 429, "busy or limiting") or is broken (5xx). Asking a registry puts no load on the site, and whatever it names
@@ -953,7 +956,7 @@ async function withRegistry(ctx: Ctx, draft: DiscoveryDraft, pageUrl: string, ma
     const probe = await probeFeed(ctx, feedUrl, false);
     if ("failed" in probe || offered.some((p) => sameEntries(p, probe.parsed))) continue;
     offered.push(probe.parsed);
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, wholeSite ? { via: "Whole site feed", note: `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}` } : { note: WIKIDATA_NOTE });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, wholeSite ? { via: feedLabels.wholeSiteFeed, note: `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}` } : { note: WIKIDATA_NOTE });
     found.push({ ...c, matchesPage: !wholeSite });
   }
   return found.length ? { ok: true, url: draft.url, candidates: found } : draft;
@@ -979,9 +982,9 @@ async function wikidataItems(ctx: Ctx, addresses: string[]): Promise<WikidataIte
 
 // ---------- scholarly journals ----------
 
-export const LINKED_JOURNAL_NOTE = "Linked from that page.";
-export const CROSSREF_VIA = "Registered articles";
-export const CROSSREF_NOTE = "Every article the publisher registers with Crossref, the open registry of scholarly articles. Can arrive a few days after the publisher's own feed, and some publishers send no abstracts.";
+export const LINKED_JOURNAL_NOTE = server.sources.connectors.discover.linkedJournalNote;
+export const CROSSREF_VIA = feedLabels.registeredArticles;
+export const CROSSREF_NOTE = server.sources.connectors.discover.crossrefNote;
 const OJS_GENERATOR = /<meta[^>]+name=["']generator["'][^>]+content=["']Open Journal Systems/i;
 
 /**
@@ -1023,11 +1026,11 @@ async function discoverIssn(ctx: Ctx, issn: string, max: number): Promise<Discov
   const label = `ISSN ${issn.slice(0, 4)}-${issn.slice(4)}`;
   const record = await knownDeps(ctx).json(crossrefJournalUrl(issn));
   const journal = record.ok ? readCrossrefJournal(record.data) : null;
-  if (!journal) return fail(label, "nofeed", "Crossref doesn't know a journal with that ISSN. Check the number, or paste the journal's own page.");
+  if (!journal) return fail(label, "nofeed", server.sources.connectors.discover.unknownIssn);
   const plan = planFromIssns(journal.publisher, [issn, ...journal.issns], journal.title);
   const known = plan ? await resolveKnown(plan, knownDeps(ctx), label) : null;
   if (known && "candidates" in known) return { ok: true, url: label, candidates: known.candidates.slice(0, max) };
-  return fail(label, "nofeed", `${journal.title ?? "That journal"}${journal.publisher ? ` (${journal.publisher})` : ""} has no feed of its own that we could find.`);
+  return fail(label, "nofeed", server.sources.connectors.discover.journalNoFeed(`${journal.title ?? server.sources.connectors.discover.thatJournal}${journal.publisher ? ` (${journal.publisher})` : ""}`));
 }
 
 /** The journal's ISSN for its Crossref choice: one it was told, else one Crossref finds for the journal's name. */
@@ -1073,7 +1076,7 @@ async function wileyJournalName(ctx: Ctx, code: string): Promise<string | null> 
 
 /** A journal's own articles (or issues) feed, as opposed to its announcements or a site's other feeds. */
 function isJournalArticlesFeed(c: DraftCandidate): boolean {
-  return (c.via === "Articles feed" || c.via === "Early articles feed" || c.via === "Issues feed") && !c.feedUrl.startsWith("bridge:");
+  return (c.via === feedLabels.articlesFeed || c.via === feedLabels.earlyArticlesFeed || c.via === feedLabels.issuesFeed) && !c.feedUrl.startsWith("bridge:");
 }
 
 /**
@@ -1109,7 +1112,7 @@ async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDra
   if (!draft.candidates.some(isJournalArticlesFeed)) return { ...draft, candidates: [{ ...c, matchesPage: true }, ...others] };
   return { ...draft, candidates: [...others, { ...c, alternative: true }] };
 }
-export const OJS_ANNOUNCEMENTS_NOTE = "The journal's news and calls, not its articles.";
+export const OJS_ANNOUNCEMENTS_NOTE = server.sources.connectors.journals.announcementsNote;
 
 function isDuke(url: string): boolean {
   const h = bareHost(url);
@@ -1141,7 +1144,7 @@ async function discoverDoi(ctx: Ctx, doi: string, pageUrl: string, max: number, 
   // Only a conclusive miss (nothing found, the article page refused or missing) names the journal; a busy or slow site stays retryable.
   const conclusive = draft.reason === "nofeed" || draft.reason === "unsupported" || [403, 404, 410].some((status) => draft.message === failFromStatus(label, status)!.message);
   if (!conclusive) return draft;
-  return fail(label, "nofeed", `That article is in ${journal.title}${journal.publisher ? ` (${journal.publisher})` : ""}, but its feed can't be found from an article link. Paste the journal's own page instead.`);
+  return fail(label, "nofeed", server.sources.connectors.discover.articleInJournal(`${journal.title}${journal.publisher ? ` (${journal.publisher})` : ""}`));
 }
 
 /** The feed plan of a ScienceDirect journal, from Crossref's one Elsevier journal whose title is the address's name. */
@@ -1171,15 +1174,15 @@ function knownDeps(ctx: Ctx): KnownDeps {
       try {
         return { ok: true, data: JSON.parse(decodeBody(res.response.body, res.response.contentType)) };
       } catch {
-        return { ok: false, reason: "unsupported", message: "That service answered with something we couldn't read." };
+        return { ok: false, reason: "unsupported", message: server.sources.connectors.discover.serviceUnreadable };
       }
     },
     candidate: (feedUrl, parsed, extra) => buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, extra),
     unverified: (feed, service) => ({
       title: feed.title ?? service,
       kind: "feed",
-      origin: feed.origin ?? `${service} feed`,
-      via: feed.via ?? "Posts feed",
+      origin: feed.origin ?? server.sources.connectors.discover.serviceFeed(service),
+      via: feed.via ?? feedLabels.postsFeed,
       feedUrl: feed.feedUrl,
       siteUrl: null,
       cadence: null,
@@ -1187,7 +1190,7 @@ function knownDeps(ctx: Ctx): KnownDeps {
       summariesOnly: false,
       alreadyFollowingSourceId: null,
       privateWarning: null,
-      note: `${service} didn't send recent posts just now. Following will keep trying.`,
+      note: server.sources.connectors.discover.serviceNoRecentPosts(service),
     }),
   };
 }
@@ -1198,8 +1201,8 @@ function knownDeps(ctx: Ctx): KnownDeps {
 const JRD_ACCEPT = "application/jrd+json, application/json;q=0.9";
 const HTML_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5";
 const PROFILE_REL = "http://webfinger.net/rel/profile-page";
-const FEDIVERSE_NO_FEED = "This account doesn't offer a public feed. Some servers only publish one when the account's owner turns it on.";
-const FEDIVERSE_NOT_PROFILE = "That page doesn't offer a feed. If it's a post, paste the account's profile address or its @name@server handle instead.";
+const FEDIVERSE_NO_FEED = server.sources.connectors.discover.fediverseNoFeed;
+const FEDIVERSE_NOT_PROFILE = server.sources.connectors.discover.fediverseNotProfile;
 
 /** The feeds a fediverse profile page advertises, labelled with the platform and its limits. */
 async function socialFeedsFromProfile(ctx: Ctx, links: FoundLink[], max: number, inputUrl: string, fallbackTitle: string | null): Promise<DiscoveryDraft> {
@@ -1212,7 +1215,7 @@ async function socialFeedsFromProfile(ctx: Ctx, links: FoundLink[], max: number,
       continue;
     }
     const platform = platformForFeed(probe.parsed.generator);
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, { origin: SOCIAL_ORIGIN[platform], via: "Posts feed" });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, { origin: SOCIAL_ORIGIN[platform], via: feedLabels.postsFeed });
     candidates.push({ ...c, kind: "feed", title: meaningfulTitle(probe.parsed.title) ?? fallbackTitle ?? c.title, note: SOCIAL_NOTE[platform] });
   }
   if (candidates.length === 0) return fail(inputUrl, "nofeed", FEDIVERSE_NO_FEED);
@@ -1222,12 +1225,12 @@ async function socialFeedsFromProfile(ctx: Ctx, links: FoundLink[], max: number,
 /** @name@server: WebFinger names the profile page, and the profile page names its feed. */
 async function discoverFediverse(t: { user: string; domain: string }, ctx: Ctx, max: number, opts: DiscoverOptions): Promise<DiscoveryDraft> {
   const handle = `@${t.user}@${t.domain}`;
-  const server = normalizeInput(`https://${t.domain}/`, { testAllowAddress: opts.testAllowAddress });
-  if (!server.ok) return fail(handle, server.reason, server.message);
+  const serverCheck = normalizeInput(`https://${t.domain}/`, { testAllowAddress: opts.testAllowAddress });
+  if (!serverCheck.ok) return fail(handle, serverCheck.reason, serverCheck.message);
   const wf = await ctx.get(`https://${t.domain}/.well-known/webfinger?resource=${encodeURIComponent(`acct:${t.user}@${t.domain}`)}`, { maxBytes: 64 * 1024, accept: JRD_ACCEPT });
   if (!wf.ok) return failFromFetch(handle, wf);
   if (wf.response.status === 404 || wf.response.status === 410) {
-    return fail(handle, "nofeed", `We couldn't find ${handle}. Check the spelling; the part after the second @ is the account's server.`);
+    return fail(handle, "nofeed", server.sources.connectors.discover.handleNotFound(handle));
   }
   const wfStatus = failFromStatus(handle, wf.response.status);
   if (wfStatus) return wfStatus;
@@ -1243,9 +1246,9 @@ async function discoverFediverse(t: { user: string; domain: string }, ctx: Ctx, 
       } catch { /* not an address */ }
     }
   } catch {
-    return fail(handle, "invalid", `${t.domain} answered, but not with an account we could read. It may not be a fediverse server.`);
+    return fail(handle, "invalid", server.sources.connectors.discover.notAnAccount(t.domain));
   }
-  if (!profile) return fail(handle, "nofeed", `${t.domain} knows ${handle} but doesn't link a public profile, so there's no feed to follow.`);
+  if (!profile) return fail(handle, "nofeed", server.sources.connectors.discover.noPublicProfile(t.domain, handle));
   const page = await ctx.get(profile, { accept: HTML_ACCEPT });
   if (!page.ok) return failFromFetch(handle, page);
   const pageStatus = failFromStatus(handle, page.response.status);
@@ -1262,21 +1265,21 @@ async function discoverBluesky(t: { actor: string; related: boolean }, ctx: Ctx)
   const res = await ctx.get(requested, { maxBytes: FEED_MAX_BYTES });
   if (!res.ok) return failFromFetch(label, res);
   const r = res.response;
-  if (r.status === 403) return fail(label, "nofeed", "This Bluesky account asks apps not to show its posts to people who aren't signed in, so it can't be followed here.");
-  if (r.status === 404) return fail(label, "nofeed", `We couldn't find ${label} on Bluesky. Check the handle, for example name.bsky.social.`);
-  if (r.status === 400) return fail(label, "invalid", "That isn't a valid Bluesky handle. It looks like name.bsky.social or a web address such as example.com.");
+  if (r.status === 403) return fail(label, "nofeed", server.sources.connectors.discover.blueskyHidden);
+  if (r.status === 404) return fail(label, "nofeed", server.sources.connectors.discover.blueskyNotFound(label));
+  if (r.status === 400) return fail(label, "invalid", server.sources.connectors.discover.blueskyBadHandle);
   const status = failFromStatus(label, r.status);
   if (status) return status;
-  if (!isFeedKind(sniffContent(r.body, r.contentType))) return fail(label, "unreachable", "Bluesky didn't send the account's feed just now. Try again in a moment.");
+  if (!isFeedKind(sniffContent(r.body, r.contentType))) return fail(label, "unreachable", server.sources.connectors.discover.blueskyNoFeed);
   let parsed: ParsedFeed;
   try {
     parsed = parseFeed(r.body, r.contentType, { baseUrl: r.url });
   } catch (error) {
-    if (error instanceof FeedParseError) return fail(label, "invalid", "Bluesky sent a feed we couldn't read. Try again later.");
+    if (error instanceof FeedParseError) return fail(label, "invalid", server.sources.connectors.discover.blueskyUnreadable);
     throw error;
   }
   const feedUrl = stableFeedUrl(requested, r.url);
-  const c = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, { origin: SOCIAL_ORIGIN.bluesky, via: t.related ? "Related account — confirm" : "Posts feed" });
+  const c = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, { origin: SOCIAL_ORIGIN.bluesky, via: t.related ? feedLabels.relatedAccountConfirm : feedLabels.postsFeed });
   return { ok: true, url: label, candidates: [{ ...c, kind: "feed", title: blueskyTitle(parsed.title, t.actor), note: SOCIAL_NOTE.bluesky }] };
 }
 
@@ -1292,7 +1295,7 @@ async function discoverSocial(t: SocialTarget, ctx: Ctx, max: number, opts: Disc
 
 // ---------- bridged services ----------
 
-export const BRIDGE_NOTE = "Collected by this server from the public page, as the latest posts at each check. It can stop working when the service changes its site.";
+export const BRIDGE_NOTE = server.sources.connectors.discover.bridgeNote;
 
 /** A bridged source (a Telegram channel, a Bandcamp artist…), previewed through the bridge router. */
 async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: Ctx, label: string): Promise<DiscoveryDraft> {
@@ -1301,16 +1304,16 @@ async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: 
   const answer = await bridge(target, ctx.signal).catch(() => ({ failed: true }) as const);
   if (ctx.signal.aborted) return fail(label, "timeout", TIMEOUT_MESSAGE);
   if ("failed" in answer || answer.status !== 200) {
-    return fail(label, "unreachable", `${service.name} didn't give us the posts of ${key} just now. Check the address, or try again in a few minutes.`);
+    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPostsCheck(service.name, key));
   }
   let parsed: ParsedFeed;
   try {
     parsed = parseFeed(answer.body, "application/rss+xml");
   } catch {
-    return fail(label, "unreachable", `${service.name} didn't give us the posts of ${key} just now. Try again in a few minutes.`);
+    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPosts(service.name, key));
   }
   const crossref = service.backend.kind === "crossref";
-  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, { origin: service.origin, via: crossref ? CROSSREF_VIA : "Posts feed", note: crossref ? CROSSREF_NOTE : BRIDGE_NOTE });
+  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, { origin: service.origin, via: crossref ? CROSSREF_VIA : feedLabels.postsFeed, note: crossref ? CROSSREF_NOTE : BRIDGE_NOTE });
   return { ok: true, url: service.pageUrl(key), candidates: [{ ...candidate, siteUrl: service.pageUrl(key) }] };
 }
 
@@ -1320,7 +1323,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const trimmed = typeof input === "string" ? input.trim() : "";
   if (trimmed.startsWith("bridge:")) {
     const described = parseBridgeDescriptor(trimmed);
-    if (!described || !opts.bridge || !(opts.bridgeServes?.(described.service) ?? true)) return fail(trimmed.slice(0, 200), "unsupported", "That source comes from a server bridge this installation doesn't run, so it can't be followed here.");
+    if (!described || !opts.bridge || !(opts.bridgeServes?.(described.service) ?? true)) return fail(trimmed.slice(0, 200), "unsupported", server.sources.connectors.discover.bridgeNotRun);
     return await discoverBridged(described, opts.bridge, makeCtx(opts), trimmed);
   }
   // An article's DOI, bare (10.1111/…), as doi:10.1111/… or as a doi.org address. Read before the address rules: a bare DOI
@@ -1334,7 +1337,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     try {
       return await withCrossref(ctx, opts, await discoverDoi(ctx, doi.doi, pageUrl, max, doi.viaResolver ? pageUrl : doi.doi), max);
     } catch {
-      return fail(doi.doi.slice(0, 200), "unreachable", "Something went wrong while looking up that DOI. Try again in a moment.");
+      return fail(doi.doi.slice(0, 200), "unreachable", server.sources.connectors.discover.doiFailed);
     }
   }
   // A journal's ISSN: the publisher's feed when its address is made from the ISSN, and the journal's Crossref choice.
@@ -1345,7 +1348,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     try {
       return await withCrossref(ctx, opts, await discoverIssn(ctx, issn, max), max);
     } catch {
-      return fail(issn, "unreachable", "Something went wrong while looking up that ISSN. Try again in a moment.");
+      return fail(issn, "unreachable", server.sources.connectors.discover.issnFailed);
     }
   }
   const social = typeof input === "string" ? classifySocialInput(input) : null;
@@ -1354,7 +1357,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     try {
       return await discoverSocial(social, ctx, Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES), opts, input);
     } catch {
-      return fail(input.slice(0, 200), "unreachable", "Something went wrong while looking up that account. Try again in a moment.");
+      return fail(input.slice(0, 200), "unreachable", server.sources.connectors.discover.accountFailed);
     }
   }
   const norm = normalizeInput(input, { testAllowAddress: opts.testAllowAddress });
@@ -1365,7 +1368,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
     return await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max);
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
-    return fail(norm.url, "unreachable", `Something went wrong while checking ${redactUrl(norm.url)}. Try again in a moment.`);
+    return fail(norm.url, "unreachable", server.sources.connectors.discover.checkFailed(redactUrl(norm.url)));
   }
 }
 
@@ -1377,7 +1380,7 @@ async function discoverUrl(ctx: Ctx, opts: DiscoverOptions, norm: Extract<Return
     if (isYoutubeHost(entry.hostname)) {
       const draft = await discoverYoutube(norm, ctx, max);
       if (!draft.ok || draft.candidates.length > 0 || draft.keep) return draft;
-      return fail(norm.url, "nofeed", "We couldn't find a feed for that YouTube address.");
+      return fail(norm.url, "nofeed", server.sources.connectors.discover.noYoutubeFeed);
     }
     // Pages of services this server follows through its bridge.
     const found = opts.bridge ? bridgeTargetForPage(entry) : null;

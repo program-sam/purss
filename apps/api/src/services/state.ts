@@ -9,6 +9,7 @@ import { VISIBLE_SOURCE, getItem, scopeClause } from "./items.ts";
 import type { SqlParam } from "../db/database.ts";
 import { queueCapture } from "./captures.ts";
 import { queueItemImages } from "./images.ts";
+import { server } from "@purss/copy/server";
 
 export type UndoOp =
   | { type: "workflow"; itemId: string; workflow: WorkflowState }
@@ -31,13 +32,13 @@ function ownItem(app: App, p: Principal, itemId: string): OwnedItem {
   const row = app.db.get<OwnedItem>(
     `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.workflow_revision, st.playback_workflow_session, st.progress, st.opened_at, s.is_private
      FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, itemId, p.workspaceId);
-  if (!row) throw notFound("That item");
+  if (!row) throw notFound(server.api.shared.thatItem);
   return row;
 }
 
 function ownBasket(app: App, p: Principal, basketId: string): OwnedBasket {
   const b = app.db.get<OwnedBasket>("SELECT id, capture_mode, name FROM baskets WHERE id = ? AND workspace_id = ?", basketId, p.workspaceId);
-  if (!b) throw notFound("That basket");
+  if (!b) throw notFound(server.api.shared.thatBasket);
   return b;
 }
 
@@ -62,9 +63,9 @@ export function changeState(app: App, p: Principal, itemId: string, change: Stat
     if (auto) {
       const chain = cur.workflow_revision === auto.expected && (cur.workflow_revision === auto.started || cur.playback_workflow_session === auto.session);
       const forward = auto.to === "inprogress" ? cur.workflow === "new" || cur.workflow === "toread" : cur.workflow === "new" || cur.workflow === "toread" || cur.workflow === "inprogress";
-      if (!chain || !forward) throw conflict("This item was changed after playback started, so playback left it alone.");
+      if (!chain || !forward) throw conflict(server.api.state.changedDuringPlayback);
     } else if (cur.revision !== change.expectedRevision) {
-      throw new HttpError(409, "conflict", "This item changed in another tab or device. It has been refreshed; please try again.");
+      throw new HttpError(409, "conflict", server.api.state.changedElsewhere);
     }
     const inverse: UndoOp[] = [];
     const sets: string[] = [];
@@ -99,7 +100,7 @@ export function changeState(app: App, p: Principal, itemId: string, change: Stat
 function automaticChange(change: StateChange): { session: string; expected: number; started: number; to: "inprogress" | "finished" } | null {
   const { playbackSessionId: session, expectedWorkflowRevision: expected, playbackStartedWorkflowRevision: started, workflow } = change;
   if (session === undefined || expected === undefined || started === undefined) return null;
-  if (workflow !== "inprogress" && workflow !== "finished") throw new HttpError(400, "invalid", "Playback can only move an item to In progress or Finished.");
+  if (workflow !== "inprogress" && workflow !== "finished") throw new HttpError(400, "invalid", server.api.state.playbackOnly);
   return { session, expected, started, to: workflow };
 }
 
@@ -187,7 +188,7 @@ function keepOwned(app: App, p: Principal, item: OwnedItem, basket: OwnedBasket,
     } catch (err) {
       if (!(err instanceof StorageFull)) throw err;
       markPaused(app, err);
-      captureNote = "Kept with its details and feed content. A readable copy wasn't made because this PURSS is out of space.";
+      captureNote = server.api.state.keptOutOfSpace;
     }
   }
   // The pictures of the kept copy follow its readable copy when one is on the way, and are fetched now otherwise.
@@ -323,7 +324,7 @@ export function clearFreshAll(app: App, p: Principal, scope: string): { changed:
 
 export function applyUndo(app: App, p: Principal, token: string): { applied: number } {
   const row = app.db.get<{ ops: string; expires_at: string }>("SELECT ops, expires_at FROM undo_tokens WHERE id = ? AND workspace_id = ?", token, p.workspaceId);
-  if (!row || row.expires_at < nowIso()) throw conflict("That change can no longer be undone.");
+  if (!row || row.expires_at < nowIso()) throw conflict(server.api.state.cannotUndo);
   const ops = JSON.parse(row.ops) as UndoOp[];
   app.db.tx(() => {
     for (const op of ops.reverse()) {

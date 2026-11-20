@@ -19,6 +19,7 @@ import { capacity, storedPlan } from "./plans.ts";
 import { serverTokensOf } from "./ai-access.ts";
 import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Administrator operations. Everything here is operational: aggregates, job and
@@ -129,9 +130,9 @@ export async function adminHealth(app: App, now = Date.now()): Promise<AdminHeal
     version: null, // the engine's version isn't tracked by the product
     lastSyncAt,
     lagSeconds,
-    message: failing ? `${failing} of ${users.length} ${users.length === 1 ? "PURSS isn't" : "PURSSes aren't"} syncing. Check the engine and the worker.`
-      : stalled ? "Nothing has synced for much longer than the sync interval. Check that the engine and the worker are running."
-      : starting ? "The engine is still being set up." : null,
+    message: failing ? server.api.admin.syncFailing(failing, users.length)
+      : stalled ? server.api.admin.syncStalled
+      : starting ? server.api.admin.engineStarting : null,
   };
 
   const jobCounts = new Map(app.db.all<{ status: string; n: number }>("SELECT status, COUNT(*) AS n FROM jobs WHERE status IN ('queued', 'leased', 'failed') GROUP BY status").map((r) => [r.status, r.n]));
@@ -185,7 +186,7 @@ export function listAdminJobs(app: App, opts: { status?: string; limit?: number 
 
 function jobAction(app: App, admin: Principal, id: string, action: "retry" | "cancel"): { ok: true } {
   const job = app.db.get<{ kind: string; account_id: string | null; status: string; payload: string }>("SELECT kind, account_id, status, payload FROM jobs WHERE id = ?", id);
-  if (!job) throw notFound("That job");
+  if (!job) throw notFound(server.api.admin.thatJob);
   const done = app.db.tx(() => {
     const ok = action === "retry" ? retryJob(app, id) : cancelJob(app, id);
     // A cancelled Smart filter job leaves its posts unjudged; they are announced as a sync would have (a failed one already was).
@@ -195,8 +196,8 @@ function jobAction(app: App, admin: Principal, id: string, action: "retry" | "ca
   if (!done) {
     const waiting = action === "retry" && !!job.account_id && job.kind !== "engine.delete_user" && !isAccountUsable(app, job.account_id);
     audit(app, admin.accountId, `admin_job_${action}`, id, "failure", waiting ? "account unusable" : "wrong state");
-    throw conflict(waiting ? "This job's account is suspended or being deleted, so its jobs wait until it is usable again."
-      : action === "retry" ? "Only failed or cancelled jobs can be retried." : "Only queued or failed jobs can be cancelled.");
+    throw conflict(waiting ? server.api.admin.jobAccountUnavailable
+      : action === "retry" ? server.api.admin.onlyRetry : server.api.admin.onlyCancel);
   }
   audit(app, admin.accountId, `admin_job_${action}`, id, "success", job.kind);
   if (job.account_id) emit(app, job.account_id, { type: "jobs" });
@@ -238,7 +239,7 @@ export function reconcileUsage(app: App, admin: Principal | null): UsageReport {
 // ---------- accounts (every installation; storage allowances only on hosted ones)
 
 function requireHosted(app: App, what: string): void {
-  if (app.config.mode !== "hosted") throw new HttpError(400, "not_available", `${what} are a hosted-service feature; self-hosted accounts have no storage limit.`);
+  if (app.config.mode !== "hosted") throw new HttpError(400, "not_available", server.api.admin.hostedOnly(what));
 }
 
 /** Minimal account metadata: no content, no sign-in details. */
@@ -265,35 +266,35 @@ export async function issueInvite(app: App, adminId: string, email: string, note
   const sent = await sendMail(app, "invitation", null, invitationMail(email, { link, days, origin: app.config.publicOrigin }));
   inviteDelivered(app, code, sent);
   if (sent) return { code: null };
-  throw new HttpError(502, "invite_not_sent", "The invitation couldn't be emailed, so it wasn't made. Check the address, or the mail server under Health, and try again.");
+  throw new HttpError(502, "invite_not_sent", server.api.admin.invitationNotSent);
 }
 
 /** Create an invitation from the dashboard. `code` is null where it was emailed (the administrator never sees it). */
 export async function adminInvite(app: App, admin: Principal, email: string, note: string | null, allocationBytes: number | null, days: number): Promise<{ code: string | null; expiresInDays: number }> {
-  if (allocationBytes !== null) requireHosted(app, "Storage allowances");
+  if (allocationBytes !== null) requireHosted(app, server.api.admin.storageAllowances);
   return { ...(await issueInvite(app, admin.accountId, email, note, allocationBytes, days)), expiresInDays: days };
 }
 
 export function updateAccount(app: App, admin: Principal, id: string, patch: { allocationBytes?: number | null; plan?: Plan; status?: "active" | "suspended"; isAdmin?: boolean }): AdminAccountDTO {
-  if (patch.allocationBytes !== undefined) requireHosted(app, "Storage allowances");
-  if (patch.plan !== undefined) requireHosted(app, "Plans");
+  if (patch.allocationBytes !== undefined) requireHosted(app, server.api.admin.storageAllowances);
+  if (patch.plan !== undefined) requireHosted(app, server.api.admin.plans);
   const acct = app.db.get<{ id: string; status: string }>("SELECT id, status FROM accounts WHERE id = ?", id);
-  if (!acct) throw notFound("That account");
+  if (!acct) throw notFound(server.api.admin.thatAccount);
   const refuse = (message: string, detail: string): never => {
     audit(app, admin.accountId, "admin_account_update", id, "failure", detail);
     throw conflict(message);
   };
-  if (app.db.get("SELECT 1 FROM account_deletions WHERE account_id = ?", id)) refuse("This account is being deleted, so it can't be changed.", "being deleted");
+  if (app.db.get("SELECT 1 FROM account_deletions WHERE account_id = ?", id)) refuse(server.api.admin.accountBeingDeleted, "being deleted");
   if (patch.status === "suspended" && acct.status !== "suspended") {
-    if (id === admin.accountId) refuse("You can't suspend your own account.", "self");
+    if (id === admin.accountId) refuse(server.api.admin.cannotSuspendSelf, "self");
     const isAdmin = !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", id);
     const others = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM role_grants r WHERE r.role = 'admin' AND ${usableAccountSql("r.account_id")} AND r.account_id <> ?`, id)!.n;
-    if (isAdmin && others === 0) refuse("This is the last active administrator. Another administrator has to be active first.", "last admin");
+    if (isAdmin && others === 0) refuse(server.api.admin.lastAdministratorFirst, "last admin");
   }
   if (patch.isAdmin === false) {
-    if (id === admin.accountId) refuse("You can't remove your own administrator role. Ask another administrator.", "self demote");
+    if (id === admin.accountId) refuse(server.api.admin.cannotRemoveOwnRole, "self demote");
     const others = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM role_grants r WHERE r.role = 'admin' AND ${usableAccountSql("r.account_id")} AND r.account_id <> ?`, id)!.n;
-    if (others === 0) refuse("This is the last active administrator.", "last admin");
+    if (others === 0) refuse(server.api.admin.lastAdministrator, "last admin");
   }
   app.db.tx(() => {
     const changes: string[] = [];
@@ -359,7 +360,7 @@ export function listInvites(app: App): AdminInviteDTO[] {
 
 export function revokeInvite(app: App, admin: Principal, shortId: string): { ok: true } {
   const r = app.db.run("UPDATE invites SET expires_at = ? WHERE substr(id, 1, 16) = ? AND used_at IS NULL AND expires_at > ?", nowIso(), shortId, nowIso());
-  if (!r.changes) throw notFound("That invitation");
+  if (!r.changes) throw notFound(server.api.admin.thatInvitation);
   audit(app, admin.accountId, "invite_revoke", null, "success");
   return { ok: true };
 }

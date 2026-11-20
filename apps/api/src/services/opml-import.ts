@@ -16,6 +16,7 @@ import { assertRoom, PlanLimit } from "./plans.ts";
 import { followedSource, followSource, presentCandidates } from "./sources.ts";
 import { newsCandidate } from "./news-address.ts";
 import { httpUrlOrNull } from "./text-safety.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Following a list of feeds (OPML) on the server, one feed after the other. The person picks feeds in the
@@ -74,18 +75,18 @@ function toDTO(app: App, row: ImportRow, withEntries: boolean): OpmlImportDTO {
 
 function ownImport(app: App, p: Principal, id: string): ImportRow {
   const row = app.db.get<ImportRow>("SELECT * FROM opml_imports WHERE id = ? AND account_id = ? AND workspace_id = ?", id, p.accountId, p.workspaceId);
-  if (!row) throw notFound("That import");
+  if (!row) throw notFound(server.api.opmlImport.thatImport);
   return row;
 }
 
 /** Record the chosen feeds as a list to follow (`runOpmlImports` follows it). One list at a time per account. */
 export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest): OpmlImportDTO {
   if (app.db.get("SELECT 1 FROM opml_imports WHERE account_id = ? AND status = 'running'", p.accountId)) {
-    throw new HttpError(409, "import_running", "A list is already being followed. Wait for it to finish, or stop it first.");
+    throw new HttpError(409, "import_running", server.api.opmlImport.listAlreadyRunning);
   }
   const d = input.destination;
-  if (d.kind === "collection" && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", d.id, p.workspaceId)) throw notFound("That collection");
-  if (d.kind === "new" && !d.name.trim()) throw badRequest("Name the new collection first.");
+  if (d.kind === "collection" && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", d.id, p.workspaceId)) throw notFound(server.api.shared.thatCollection);
+  if (d.kind === "new" && !d.name.trim()) throw badRequest(server.api.opmlImport.nameNewCollection);
   const seen = new Set<string>();
   const feeds: { title: string; feedUrl: string; folder: string | null; private: boolean }[] = [];
   for (const f of input.feeds) {
@@ -96,8 +97,8 @@ export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest
     seen.add(key);
     feeds.push({ title: f.title.trim().slice(0, 200) || hostOf(feedUrl), feedUrl, folder: f.folder?.trim().slice(0, 80) || null, private: looksPrivateFeed(feedUrl) });
   }
-  if (!feeds.length) throw badRequest("None of those feeds has a web address to follow.");
-  if (feeds.length > OPML_MAX_FEEDS) throw badRequest("That list is too long to follow at once.");
+  if (!feeds.length) throw badRequest(server.api.opmlImport.noWebAddress);
+  if (feeds.length > OPML_MAX_FEEDS) throw badRequest(server.api.opmlImport.listTooLong);
 
   const id = newId("opl");
   try {
@@ -140,7 +141,7 @@ export function stopOpmlImport(app: App, p: Principal, id: string): OpmlImportDT
 /** Forget a finished list (its record only; the sources it followed stay). */
 export function dismissOpmlImport(app: App, p: Principal, id: string): void {
   const row = ownImport(app, p, id);
-  if (row.status === "running") throw badRequest("Stop the list first.", "import_running");
+  if (row.status === "running") throw badRequest(server.api.opmlImport.stopListFirst, "import_running");
   // The folder first: if that fails the record stays, and forgetting it can be tried again.
   removeImportSecrets(app, id);
   app.db.tx(() => {
@@ -299,7 +300,7 @@ function collectionFor(app: App, row: ImportRow, p: Principal, entry: EntryRow):
   const named = (name: string): Target => {
     const existing = app.db.get<{ id: string; mode: string }>("SELECT id, mode FROM collections WHERE workspace_id = ? AND lower(name) = lower(?)", p.workspaceId, name);
     if (!existing) return { target: { name: name.trim() }, note: null };
-    return existing.mode === "sources" ? { target: { id: existing.id }, note: null } : { target: null, note: `Not put in “${name}”: a filter collection has that name.` };
+    return existing.mode === "sources" ? { target: { id: existing.id }, note: null } : { target: null, note: server.api.opmlImport.notPutIn(name) };
   };
   switch (row.destination) {
     case "none": return { target: null, note: null };
@@ -316,7 +317,7 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
   const p = principalOf(row);
   try {
     const feedUrl = entry.feed_url ?? readSecret(app.config.secretsDir, secretName(row.id, entry.position));
-    if (!feedUrl) { settle("failed", "This feed's private link is no longer here. Import the list again."); return; }
+    if (!feedUrl) { settle("failed", server.api.opmlImport.privateLinkGone); return; }
     // This installation's own news is recognised without asking the site (services/news.ts).
     const news = newsCandidate(app, feedUrl);
     const found = news ? { ok: true as const, url: feedUrl, candidates: [news] } : await look(feedUrl);
@@ -325,12 +326,12 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
       app.db.run("UPDATE opml_import_entries SET state = 'waiting' WHERE import_id = ? AND position = ?", row.id, entry.position);
       return;
     }
-    if (!found.ok) { settle("failed", found.message || "That address couldn't be followed."); dropLink(); return; }
+    if (!found.ok) { settle("failed", found.message || server.api.opmlImport.couldNotFollow); dropLink(); return; }
     const key = canonicalFeedKey(feedUrl);
     const exact = found.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } });
     const chosen = exact ?? (found.candidates.length === 1 ? found.candidates[0] : undefined);
     if (!chosen) {
-      settle("failed", found.candidates.length ? "More than one feed was found there. Add it from Add source to choose the right one." : "No feed was found at that address.");
+      settle("failed", found.candidates.length ? server.api.opmlImport.moreThanOneFeed : server.api.opmlImport.noFeedFound);
       dropLink();
       return;
     }
@@ -366,7 +367,7 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
       blockedUntil.set(row.account_id, (deps.now?.() ?? Date.now()) + ENGINE_WAIT_MS);
       return;
     }
-    settle("failed", err instanceof HttpError ? err.message : "Something went wrong while following this feed.");
+    settle("failed", err instanceof HttpError ? err.message : server.api.opmlImport.wentWrongFollowing);
     dropLink();
   }
 }

@@ -17,6 +17,7 @@ import { PRODUCT_NAME, pageShell } from "./public-pages.ts";
 import { escapeHtml, escapeXml, uuidFrom } from "./text-safety.ts";
 import { onAccountCreated } from "./account-hooks.ts";
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, newsUrls, publishedNews } from "./news-address.ts";
+import { server } from "@purss/copy/server";
 
 export { NEWS_INITIAL_POSTS, NEWS_TITLE } from "./news-address.ts";
 
@@ -113,7 +114,7 @@ export function addNewsSource(app: App, accountId: string, workspaceId: string):
   app.db.run(
     `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, hue, health, builtin, created_at)
      VALUES (?, ?, ?, 'feed', ?, ?, ?, ?, ?, 'ok', 'news', ?)`,
-    s.id, accountId, workspaceId, NEWS_TITLE, `News from this ${PRODUCT_NAME}`, page, feed, hueFor(NEWS_TITLE), nowIso());
+    s.id, accountId, workspaceId, NEWS_TITLE, server.api.shared.newsFrom(PRODUCT_NAME), page, feed, hueFor(NEWS_TITLE), nowIso());
   const posts = app.db.all<PostRow>("SELECT * FROM news_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT ?", NEWS_INITIAL_POSTS);
   let n = 0;
   for (const post of posts.reverse()) if (deliver(app, s, post, true)) n++;
@@ -234,7 +235,7 @@ export function newsAdmin(app: App): NewsAdminDTO {
 
 function postRow(app: App, id: string): PostRow {
   const r = app.db.get<PostRow>("SELECT * FROM news_posts WHERE id = ?", id);
-  if (!r) throw notFound("That post");
+  if (!r) throw notFound(server.api.news.thatPost);
   return r;
 }
 
@@ -321,10 +322,7 @@ export function renderNewsPage(app: App): string {
   const posts = publishedPosts(app, FEED_POSTS);
   return pageShell({
     title: NEWS_TITLE, indexable: true, head: feedLinks(app),
-    body: `<header><h1>${escapeHtml(NEWS_TITLE)}</h1>
-<p class="about">What's new on this ${PRODUCT_NAME}. Every PURSS here follows it; any feed reader can too.</p>
-<p class="acts"><a class="btn sm feed" href="${escapeHtml(feed)}">Atom feed</a></p></header>
-<main>${posts.length ? posts.map((p) => article(app, p, "h2")).join("\n") : `<p class="empty">No news yet.</p>`}</main>`,
+    body: server.api.news.pageBody(escapeHtml(NEWS_TITLE), PRODUCT_NAME, escapeHtml(feed), posts.length ? posts.map((p) => article(app, p, "h2")).join("\n") : server.api.news.noNewsYet),
   });
 }
 

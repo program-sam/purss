@@ -2,6 +2,7 @@ import { createWriteStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { pipeline } from "node:stream/promises";
 import type { z } from "zod";
+import { server } from "@purss/copy/server";
 
 /** A plain-language error that is safe to show to the user. */
 export class HttpError extends Error {
@@ -20,7 +21,7 @@ export class HttpError extends Error {
   }
 }
 
-export const notFound = (what = "That") => new HttpError(404, "not_found", `${what} doesn't exist or isn't yours.`);
+export const notFound = (what = server.api.http.that) => new HttpError(404, "not_found", server.api.http.notFound(what));
 export const badRequest = (message: string, code = "invalid") => new HttpError(400, code, message);
 export const conflict = (message: string) => new HttpError(409, "conflict", message);
 
@@ -126,10 +127,10 @@ export const SIGNED_OUT_PACE: UploadPace = { stallMs: 5_000, minRate: 32 * 1024,
  * must keep coming (UPLOAD_PACE): one that stalls or trickles would hold its connection and its memory indefinitely.
  */
 async function* bodyChunks(req: IncomingMessage, limit: number, pace: UploadPace): AsyncGenerator<Buffer> {
-  const tooLarge = () => new HttpError(413, "too_large", "That request is too large.");
+  const tooLarge = () => new HttpError(413, "too_large", server.api.shared.requestTooLarge);
   if (Number(req.headers["content-length"]) > limit) throw tooLarge();
   const started = Date.now();
-  const tooSlow = () => new HttpError(408, "upload_stalled", "The upload stopped or was too slow. Please try again.");
+  const tooSlow = () => new HttpError(408, "upload_stalled", server.api.http.uploadStalled);
   // Read by events rather than an async iterator: when the sender stalls, waiting stops without destroying the
   // connection, so the caller can still answer 408 (the server closes it after the answer, its body being unread).
   const queue: Buffer[] = [];
@@ -169,7 +170,7 @@ async function* bodyChunks(req: IncomingMessage, limit: number, pace: UploadPace
   } catch (err) {
     if (err instanceof HttpError) throw err;
     // The sender went away mid-upload: routine, not a server fault to log.
-    if ((err as NodeJS.ErrnoException).code === "ECONNRESET") throw new HttpError(400, "upload_aborted", "The upload was cut off.");
+    if ((err as NodeJS.ErrnoException).code === "ECONNRESET") throw new HttpError(400, "upload_aborted", server.api.shared.uploadCutOff);
     throw err;
   } finally {
     req.off("data", onData);
@@ -219,7 +220,7 @@ export async function readBody(req: IncomingMessage, limit = DEFAULT_BODY_LIMIT,
       if (from !== null) {
         const mine = bodiesBySender.get(from.key) ?? 0;
         if (bodiesInMemory[pool] + chunk.length > BODIES_IN_MEMORY_LIMIT || mine + chunk.length > from.share) {
-          throw new HttpError(503, "busy", "PURSS is busy. Please try again in a moment.", undefined, Date.now() + 5000);
+          throw new HttpError(503, "busy", server.api.http.busy, undefined, Date.now() + 5000);
         }
         bodiesInMemory[pool] += chunk.length;
         bodiesBySender.set(from.key, mine + chunk.length);
@@ -239,7 +240,7 @@ export async function readBody(req: IncomingMessage, limit = DEFAULT_BODY_LIMIT,
   // splice(0) lets the chunks go as soon as they're joined: a large body is held twice at most, never three times.
   const text = Buffer.concat(chunks.splice(0), size).toString("utf8");
   if (type.startsWith("application/json")) {
-    try { return JSON.parse(text); } catch { throw badRequest("The request body isn't valid JSON."); }
+    try { return JSON.parse(text); } catch { throw badRequest(server.api.http.notJson); }
   }
   return text;
 }
@@ -263,9 +264,9 @@ export async function saveUpload(req: IncomingMessage, file: string, limit: numb
   } catch (err) {
     if (err instanceof HttpError) throw err;
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOSPC" || code === "EDQUOT") throw new HttpError(507, "disk_reserve", "There isn't enough free space to store this file right now. Nothing you kept was removed.");
+    if (code === "ENOSPC" || code === "EDQUOT") throw new HttpError(507, "disk_reserve", server.api.shared.diskReserve);
     console.error("[api] an upload couldn't be stored:", code ?? (err instanceof Error ? err.message : "unknown error"));
-    throw new HttpError(500, "upload_not_stored", "PURSS couldn't store the upload. Please try again later.");
+    throw new HttpError(500, "upload_not_stored", server.api.http.uploadNotStored);
   }
   return size;
 }
@@ -275,7 +276,7 @@ export function parse<T extends z.ZodType>(schema: T, value: unknown): z.infer<T
   if (!r.success) {
     const first = r.error.issues[0];
     const where = first?.path.length ? ` (${first.path.join(".")})` : "";
-    throw badRequest(`Some details aren't valid${where}.`);
+    throw badRequest(server.api.http.invalidDetails(where));
   }
   return r.data;
 }
@@ -323,7 +324,7 @@ export function clearRateLimit(key: string): void {
 
 export function rateLimit(key: string, max = 20, windowMs = 10 * 60_000): void {
   const state = consumeRateLimit(key, max, windowMs);
-  if (!state.allowed) throw new HttpError(429, "slow_down", "Too many attempts. Please wait a few minutes and try again.", undefined, state.resetAt);
+  if (!state.allowed) throw new HttpError(429, "slow_down", server.api.http.tooManyAttempts, undefined, state.resetAt);
 }
 
 export const nowIso = () => new Date().toISOString();

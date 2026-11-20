@@ -9,6 +9,7 @@ import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
 import { itemCounts } from "./counts.ts";
 import { countMuted, mutedAmong, mutedScan, workspaceMuted } from "./muted.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * Home for someone coming back: when the last visit was, what is New since and what to pick up again.
@@ -93,7 +94,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     let total = 0;
     for (const r of rows) {
       const mine = links.get(r.source_id);
-      const shown = mine ? mine.filter((b) => b.home) : prefs.homeOther ? [{ id: OTHER_BOX_ID, name: "Other sources", home: true }] : [];
+      const shown = mine ? mine.filter((b) => b.home) : prefs.homeOther ? [{ id: OTHER_BOX_ID, name: server.api.shared.otherSources, home: true }] : [];
       if (!shown.length) continue;
       total += r.n;
       for (const b of shown) {

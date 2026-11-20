@@ -2,6 +2,7 @@ import { escapeHtml } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { displayAuthor, displayTitle } from "./content.ts";
 import { itemLinkIsMedia } from "./media.ts";
+import { server } from "@purss/copy/server";
 
 /*
  * A readable list of what the person has kept, to read, print or keep beside the machine-readable export:
@@ -27,20 +28,20 @@ function details(r: KeptRow): string[] {
   const from = r.source_kind === "manual" ? author : [r.source_title, author].filter((x, i, all) => x && all.indexOf(x) === i).join(", ");
   const published = day(r.published_at);
   const kept = day(r.kept_at);
-  return [from || null, published ? `published ${published}` : null, kept ? `kept ${kept}` : null].filter((x): x is string => !!x);
+  return [from || null, published ? server.api.keptLinksExport.published(published) : null, kept ? server.api.keptLinksExport.kept(kept) : null].filter((x): x is string => !!x);
 }
 
-const NOTE = "The links go to the original pages, which may change or disappear. What you kept is also saved in your PURSS.";
+const NOTE = server.api.keptLinksExport.note;
 
 function md(text: string): string {
   return text.replace(/[\\`*_{}[\]<>()#+!|]/g, "\\$&").replace(/\s+/g, " ").trim();
 }
 
 const HTML_HEAD = (today: string) =>
-  `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kept links, ${today}</title>\n`
+  `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${server.api.keptLinksExport.title(today)}</title>\n`
   + `<style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1b1b1b}h1{font-size:1.6rem}h2{font-size:1.2rem;margin-top:2rem;border-bottom:1px solid #ccc}`
-  + `li{margin:.5rem 0}.meta{color:#555;font-size:.9rem}.note{color:#555}@media print{a{color:inherit}}</style></head><body>\n<h1>Kept links</h1>\n`
-  + `<p class="note">Exported ${today}. ${escapeHtml(NOTE)}</p>\n`;
+  + `li{margin:.5rem 0}.meta{color:#555;font-size:.9rem}.note{color:#555}@media print{a{color:inherit}}</style></head><body>\n<h1>${server.api.keptLinksExport.heading}</h1>\n`
+  + `<p class="note">${server.api.keptLinksExport.exported(today)} ${escapeHtml(NOTE)}</p>\n`;
 
 function line(format: KeptListFormat, r: KeptRow): string {
   const title = displayTitle(r.title);
@@ -57,7 +58,7 @@ function line(format: KeptListFormat, r: KeptRow): string {
 /** The list in pieces, a basket at a time in pages, so a large collection is never held in memory whole. */
 export function* keptLinksChunks(app: App, p: Principal, format: KeptListFormat, now = new Date(), page = PAGE): Generator<string> {
   const today = now.toISOString().slice(0, 10);
-  yield format === "html" ? HTML_HEAD(today) : `# Kept links\n\nExported ${today}. ${NOTE}\n`;
+  yield format === "html" ? HTML_HEAD(today) : `# ${server.api.keptLinksExport.heading}\n\n${server.api.keptLinksExport.exported(today)} ${NOTE}\n`;
   for (const b of app.db.all<BasketRow>("SELECT id, name FROM baskets WHERE workspace_id = ? ORDER BY position, created_at", p.workspaceId)) {
     yield format === "html" ? `<h2 dir="auto">${escapeHtml(b.name)}</h2>\n` : `\n## ${md(b.name)}\n\n`;
     let cursor: [string, string] | null = null;
@@ -76,7 +77,7 @@ export function* keptLinksChunks(app: App, p: Principal, format: KeptListFormat,
       const last = rows[rows.length - 1]!;
       cursor = [last.kept_at, last.item_id];
     }
-    if (!any) yield format === "html" ? '<p class="meta">Nothing kept here yet.</p>\n' : "_Nothing kept here yet._\n";
+    if (!any) yield format === "html" ? server.api.keptLinksExport.nothingKeptHtml : server.api.keptLinksExport.nothingKeptMarkdown;
     else if (format === "html") yield "</ul>\n";
   }
   if (format === "html") yield "</body></html>\n";
