@@ -6,7 +6,7 @@ import { decodeBody, isFeedKind, sniffContent } from "./content-type.ts";
 import { FeedParseError, parseFeed } from "./feed.ts";
 import type { ParsedFeed } from "./feed.ts";
 import { isDiscourse, isGenericTitle, isMediaWiki, isSiteWideFeed, isSubscribeEndpoint, isWikiSiteFeed, linkMatchesPage, MORE_FEED_PATHS, nameFeed, nameMatchesTitle, orderByVia, probeLandedOnName, rankByPage, sameEntries, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, SITE_FEED_PATHS, WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, withoutCommentFeeds } from "./feed-choice.ts";
-import { extractPageFacts, findDirectoryLinks } from "./html-links.ts";
+import { extractPageFacts, findDirectoryLinks, isDirectoryAddress } from "./html-links.ts";
 import type { FoundLink } from "./html-links.ts";
 import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce, wwwAlternative } from "./input.ts";
 import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, journalTitle, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
@@ -334,7 +334,14 @@ function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ct
 }
 
 /** `inconclusive`: the probe timed out or the site was busy, so nothing is known about the address. */
-type FeedProbe = { feedUrl: string; parsed: ParsedFeed } | { failed: Failure | null; inconclusive?: boolean; /** The answer came from another host than the one asked: the site sends this address elsewhere. */ away?: boolean };
+type FeedProbe = { feedUrl: string; parsed: ParsedFeed } | {
+  failed: Failure | null;
+  inconclusive?: boolean;
+  /** The answer came from another host than the one asked: the site sends this address elsewhere. */
+  away?: boolean;
+  /** The address answered with a web page: where it ended up and what it said (a site's "RSS feeds" page at `/rss`, say). */
+  page?: { url: string; body: Uint8Array; contentType: string | null };
+};
 
 /** Fetch a URL expected to be a feed; returns the parsed feed or why not. */
 /**
@@ -378,7 +385,7 @@ async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedire
   const statusFail = failFromStatus(url, r.status);
   if (statusFail) return { failed: statusFail, inconclusive: r.status === 429 || r.status >= 500, away };
   const kind = sniffContent(r.body, r.contentType);
-  if (!isFeedKind(kind)) return { failed: null, away };
+  if (!isFeedKind(kind)) return { failed: null, away, ...(kind === "html" ? { page: { url: r.url, body: r.body, contentType: r.contentType ?? null } } : {}) };
   try {
     return { feedUrl: stableFeedUrl(start, r.url), parsed: { ...parseFeed(r.body, r.contentType, { baseUrl: r.url }), ...(tooBigForEngine(r) ? { large: true } : {}) } };
   } catch (error) {
@@ -611,6 +618,8 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   let ownFeedSilent = false;
   /** Feeds that cover the whole site although the page is a section; judged by the address asked for, since a blog's feed often answers from another host. */
   const wholeSiteFeeds = new Set<DraftCandidate>();
+  /** Feed-looking addresses that answered with the site's page of feeds instead (`/rss` → "RSS feeds"), read later without asking again. */
+  const probedListings = new Map<string, NonNullable<Extract<FeedProbe, { failed: Failure | null }>["page"]>>();
 
   const record = (probe: Extract<FeedProbe, { failed: Failure | null }>): void => {
     if (probe.failed) trouble.failure ??= probe.failed;
@@ -621,6 +630,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const add = (url: string, probe: FeedProbe, hint: Hint, via: FoundVia, matches: boolean): void => {
     if ("failed" in probe) {
       record(probe);
+      if (probe.page && isDirectoryAddress(probe.page.url, pageUrl)) probedListings.set(url, probe.page);
       if (probe.inconclusive && !isSiteWideFeed(url, pageUrl)) ownFeedSilent = true;
       return;
     }
@@ -651,13 +661,15 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   /**
    * Probe conventional addresses a few at a time; stop after two feeds, when a batch was sent to another host (a login wall,
    * a parked domain: the rest of this list would be too), or when this lookup has made all the requests it may. Another list
-   * of addresses is still tried: one odd redirect doesn't say that none of them is a feed.
+   * of addresses is still tried: one odd redirect doesn't say that none of them is a feed. A site that answered a guess with
+   * "too many requests", an error of its own or no answer in time gets no more guesses in this lookup.
    */
+  let siteStrained = false;
   const tryPaths = async (urls: string[], hint: { section?: boolean } = {}) => {
     const fresh = urls.filter((u) => !attempted.has(u));
     let hits = 0;
     let sendsAway = false;
-    for (let i = 0; i < fresh.length && hits < 2 && !sendsAway && !ctx.spent() && !ctx.signal.aborted; i += 3) {
+    for (let i = 0; i < fresh.length && hits < 2 && !sendsAway && !siteStrained && !ctx.spent() && !ctx.signal.aborted; i += 3) {
       const batch = await mapLimit(fresh.slice(i, i + 3), 3, async (u) => {
         attempted.add(u);
         const probe = await probeFeed(ctx, u, false, { maxRedirects: PROBE_REDIRECTS });
@@ -667,6 +679,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       for (const { u, probe } of batch) {
         if (!("failed" in probe)) hits++;
         else if (probe.away) sendsAway = true;
+        else if (probe.inconclusive) siteStrained = true;
         // A front page's conventional feed is the site's; a section's own feed is the section's.
         add(u, probe, { title: null, url: u, ...hint }, "path", !section || !!hint.section);
       }
@@ -765,24 +778,30 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     await tryPaths(PROBE_PATHS.map((p) => `${origin}${p}`));
   }
   if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
-    // Publisher and webcomic software that keeps its feed one folder down or names it after its format.
-    await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`));
-  }
-  if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
-    // Many news sites list their feeds on a page of their own ("RSS feeds"): look at the first two.
-    for (const dir of findDirectoryLinks(html, pageUrl).filter((u) => !attempted.has(u)).slice(0, 2)) {
-      attempted.add(dir);
-      const listing = await ctx.get(dir, { maxBytes: PAGE_MAX_BYTES, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" });
-      if (!listing.ok) {
-        if (listing.reason === "timeout" || listing.reason === "aborted") trouble.timeout = true;
-        continue;
+    // Many news sites list their feeds on a page of their own ("RSS feeds"): look at the first two, those the page links to first,
+    // then a feed-looking link or conventional address that answered with such a page (`/rss`), which was already fetched.
+    const linked = findDirectoryLinks(html, pageUrl).filter((u) => probedListings.has(u) || !attempted.has(u));
+    for (const dir of [...new Set([...linked, ...probedListings.keys()])].slice(0, 2)) {
+      let shown = probedListings.get(dir);
+      if (!shown) {
+        attempted.add(dir);
+        const listing = await ctx.get(dir, { maxBytes: PAGE_MAX_BYTES, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" });
+        if (!listing.ok) {
+          if (listing.reason === "timeout" || listing.reason === "aborted") trouble.timeout = true;
+          continue;
+        }
+        if (listing.response.status >= 400 || sniffContent(listing.response.body, listing.response.contentType) !== "html") continue;
+        shown = { url: listing.response.url, body: listing.response.body, contentType: listing.response.contentType ?? null };
       }
-      if (listing.response.status >= 400 || sniffContent(listing.response.body, listing.response.contentType) !== "html") continue;
-      const listed = extractPageFacts(decodeBody(listing.response.body, listing.response.contentType), listing.response.url);
+      const listed = extractPageFacts(decodeBody(shown.body, shown.contentType), shown.url);
       // The listing may name a dozen feeds; the ones about the pasted page are looked at first.
       await tryLinks(rankByPage(listed.links, page).slice(0, 6), true);
       if (hasPosts()) break;
     }
+  }
+  if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
+    // Publisher and webcomic software that keeps its feed one folder down or names it after its format.
+    await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`));
   }
 
   // Feeds that were only listed (a hub's, a directory's) say nothing about the page unless one of them is the page's own.

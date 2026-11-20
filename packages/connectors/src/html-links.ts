@@ -34,6 +34,15 @@ const FEED_PATH = /(?:^|\/)(?:feed|feeds|rss|atom|rss\.xml|atom\.xml|feed\.xml|i
 const FEED_HOST = /^https?:\/\/feeds?\.[a-z0-9-]+\./i;
 const FEED_TEXT = /^\s*(?:rss|atom|feed|rss feed|atom feed|subscribe|subscribe via rss|rss 2\.0|news ?feed|xml)\s*$/i;
 
+/** At most this many feed addresses shown as text (not links) are taken from one page. */
+const MAX_SHOWN_FEEDS = 10;
+
+/** An address whose path or host says it is a feed. */
+function looksLikeFeedAddress(url: string): boolean {
+  const u = new URL(url);
+  return FEED_PATH.test(u.pathname + u.search) || FEED_HOST.test(url);
+}
+
 function resolve(href: string | undefined, base: string): string | null {
   if (!href) return null;
   const trimmed = href.trim();
@@ -78,6 +87,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
   const issns: string[] = [];
   const periodicalIssns: string[] = [];
   let publisher: string | null = null;
+  let shownFeeds = 0;
   const stack: XNode[] = [root];
   let visited = 0;
   while (stack.length && visited++ < 200_000) {
@@ -125,6 +135,15 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
           if (FEED_PATH.test(path) || FEED_HOST.test(url) || (feedishText && /\.(?:xml|rss|atom|json)(?:$|\?)|\/(?:feed|rss|atom)/i.test(path)) || (feedishText && /\bfeeds?\./i.test(url))) {
             anchors.push({ url, title: label ? cleanLine(label, 120) : cleanLine(a.title, 120), type: null, source: "anchor" });
           }
+        }
+      }
+      if (shownFeeds < MAX_SHOWN_FEEDS && (name === "input" || name === "code" || name === "pre" || name === "kbd" || name === "samp" || a["data-clipboard-text"] || a["data-copy"])) {
+        // A feed address shown for copying ("paste this into your reader"): an input's value, a copy button's text, a lone address in code.
+        const shown = a["data-clipboard-text"] ?? a["data-copy"] ?? (name === "input" ? a.value : name === "code" || name === "pre" || name === "kbd" || name === "samp" ? textOf(node) : undefined);
+        const url = shown && /^\s*https?:\/\/\S+\s*$/i.test(shown) ? resolve(shown, base) : null;
+        if (url && looksLikeFeedAddress(url)) {
+          shownFeeds++;
+          anchors.push({ url, title: cleanLine(a["aria-label"] ?? a.title, 120), type: null, source: "anchor" });
         }
       }
     }
@@ -177,6 +196,17 @@ export function periodicalIssnsIn(json: string): string[] {
 /** Where a page's own address ends for a page that lists a site's feeds: `/rss-feeds`, `/feeds`, `/rss`. */
 const DIRECTORY_PATH = /(?:^|\/)(?:rss-?feeds?|feeds?|rss|alle-feeds|rss-overzicht|syndication|abonneren|subscribe)\/?$/i;
 const DIRECTORY_TEXT = /^\s*(?:rss(?:[ -]feeds?)?|feeds?|alle feeds|subscribe|abonneren)\s*$/i;
+
+/** Whether an address on the pasted page's own site is where a site lists its feeds (`/rss`, `/feeds`, `/rss-feeds`). */
+export function isDirectoryAddress(url: string, pageUrl: string): boolean {
+  try {
+    const u = new URL(url);
+    const site = (h: string) => h.toLowerCase().replace(/^www\./, "");
+    return site(u.hostname) === site(new URL(pageUrl).hostname) && u.href !== pageUrl && DIRECTORY_PATH.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Links on a page that lead to a page listing the site's feeds (a news site's "RSS feeds" page), same

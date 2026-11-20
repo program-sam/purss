@@ -97,18 +97,22 @@ For a web address, the first of these that applies wins:
 In this order, stopping when posts have been found:
 
 1. The feeds the page advertises (`<link rel="alternate">`), then, if there are none, links on
-   the page that look like feeds, those about this page first. A page that lists many sites'
-   feeds is cut to the six most relevant.
+   the page that look like feeds, those about this page first, and feed addresses the page shows
+   for copying (an input's value, a copy button's text, a lone address in code). A page that
+   lists many sites' feeds is cut to the six most relevant.
 2. For a journal: the journal on its publisher's platform that the page links to, an Open
    Journal Systems journal's announcements feed, and, from the ISSN the page states in its
    scholarly metadata, the feed a publisher makes from an ISSN.
 3. For a section page, the section's own conventional feed addresses before any guess at the
    whole site's.
 4. The site's conventional addresses (`/feed`, `/rss`, `/atom.xml`, `/feed.xml`, `/rss.xml`,
-   `/index.xml`), then a longer list (`/rss.php`, `/comic/rss`, `/blog/feed`, …). They are
-   tried three at a time, stop after two hits, and stop when a batch is sent to another host
-   (a login wall, a parked domain).
-5. The first two "RSS feeds" pages the page links to, searched the same way.
+   `/index.xml`), tried three at a time. They stop after two hits, when a batch is sent to
+   another host (a login wall, a parked domain), and for the rest of the lookup once the site
+   answers a guess with "too many requests", an error of its own or nothing in time.
+5. The site's "RSS feeds" pages, searched the same way, at most two: those the page links to,
+   then a feed-looking link or conventional address (`/rss`, `/feeds`) that answered with a page,
+   which is read as it came without asking again.
+6. A longer list of addresses (`/rss.php`, `/comic/rss`, `/blog/feed`, …), tried like step 4.
 
 Along the way:
 

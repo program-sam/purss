@@ -286,6 +286,51 @@ test("a page that lists the site's feeds is followed one step, and the feeds are
   assert.deepEqual(c.map((x) => x.title), ["RTV Example – Nieuws", "RTV Example – Sport"]);
 });
 
+test("a feed-looking link that opens the site's feeds page is read as that page once, and the address it shows for copying is followed before any long guessing", async () => {
+  // De Correspondent: no advertised feed; the footer's RSS icon leads to /rss, a page with the feed address in a read-only box.
+  const home = "https://news.example/";
+  const html = `<html><head><title>News Example</title></head><body><footer><a href="https://news.example/rss"><svg></svg></a></footer></body></html>`;
+  const list = `<html><head><title>RSS-feeds - News Example</title></head><body><a href="/rss">RSS</a><form><input readonly name="rss-link" type="text" value="https://news.example/feed/v1/publications"></form></body></html>`;
+  const { fetch, calls } = stub({
+    [home]: page(home, html),
+    "https://news.example/rss": page("https://news.example/rss", list),
+    "https://news.example/feed/v1/publications": feedRes("https://news.example/feed/v1/publications", rss("News Example", WEEKLY, "https://news.example")),
+  });
+  const c = ok(await discover(home, { fetch, now: NOW })).candidates;
+  assert.deepEqual(c.map((x) => x.feedUrl), ["https://news.example/feed/v1/publications"]);
+  assert.equal(calls.filter((u) => u === "https://news.example/rss").length, 1);
+  assert.ok(!calls.includes("https://news.example/comic/rss"), calls.join("\n"));
+});
+
+test("a conventional address that answers with the site's feeds page is read as one, and a feed address shown in code or on a copy button counts", async () => {
+  const home = "https://paper.example/";
+  const list = `<html><body><p>Copy into your reader:</p><pre><code> https://paper.example/feeds/all.xml </code></pre><button data-clipboard-text="https://feeds.paper.example/sport">Copy</button>
+    <input type="search" value="https://paper.example/about"></body></html>`;
+  const { fetch, calls } = stub({
+    [home]: page(home, `<html><head><title>Paper</title></head><body></body></html>`),
+    "https://paper.example/rss": page("https://paper.example/rss", list),
+    "https://paper.example/feeds/all.xml": feedRes("https://paper.example/feeds/all.xml", rss("Paper", WEEKLY, "https://paper.example")),
+    "https://feeds.paper.example/sport": feedRes("https://feeds.paper.example/sport", rss("Paper Sport", WEEKLY.slice(0, 4), "https://paper.example")),
+  });
+  const c = ok(await discover(home, { fetch, now: NOW })).candidates;
+  assert.deepEqual(c.map((x) => x.feedUrl).sort(), ["https://feeds.paper.example/sport", "https://paper.example/feeds/all.xml"]);
+  assert.ok(!calls.includes("https://paper.example/about"), "an address that does not look like a feed is not asked for");
+});
+
+test("a site that answers a guessed address with 'too many requests' gets no more guesses", async () => {
+  const home = "https://strict.example/";
+  const { fetch, calls } = stub({
+    [home]: page(home, `<html><head><title>Strict</title></head><body></body></html>`),
+    "https://strict.example/feed": fakeResponse("https://strict.example/feed", "<html>Slow down</html>", "text/html", 429),
+  });
+  const d = await discover(home, { fetch, now: NOW, retryDelayMs: 0 });
+  assert.ok(!d.ok);
+  assert.equal(d.message, BUSY_MESSAGE);
+  const guesses = calls.filter((u) => u.startsWith("https://strict.example/") && u !== home);
+  assert.ok(guesses.length <= 3 + 1, guesses.join("\n")); // the first batch of three, and at most one retry of the 429
+  assert.ok(!calls.includes("https://strict.example/comic/rss"));
+});
+
 test("generic feed names become the site's name; a page's own feed link name is cleaned", async () => {
   const home = "https://blog.example/";
   const html = `<html><head><title>Dan's Blog</title><meta property="og:site_name" content="Dan's Blog">
