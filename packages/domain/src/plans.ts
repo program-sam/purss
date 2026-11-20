@@ -23,7 +23,10 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 export const PLAN_LABELS: Record<Plan, string> = { free: common.plans.free, plus: common.plans.plus, pro: common.plans.pro, unlimited: common.plans.unlimited };
 
 /** What the paid plans cost on the hosted service, in euros including VAT. */
-export const PLAN_PRICES_EUR = { plus: { month: 5, year: 48 }, pro: { month: 10, year: 96 } } as const;
+export const PLAN_PRICES_EUR = { plus: { month: 2.5, year: 24 }, pro: { month: 5, year: 48 } } as const;
+
+/** A euro amount as prices are written: €5, €2.50. */
+export const euros = (n: number): string => `€${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 /** Sharing baskets and collections as public pages: Plus and up. */
 export const planShares = (plan: Plan): boolean => plan !== "free";

@@ -5,14 +5,14 @@ export default {
   terms: {
     title: "Terms of service",
     updated: "November 2026",
-    body: (plans: { free: string; plus: string; pro: string; plusYear: number; plusMonth: number; proYear: number; proMonth: number }) => `
+    body: (plans: { free: string; plus: string; pro: string; plusYear: string; plusMonth: string; proYear: string; proMonth: string }) => `
 <p class="s-lead">These terms cover the hosted PURSS that Program Sam runs for you. If you run the software on your own server, these terms don't apply: the software itself is licensed under the <a class="link" href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>.</p>
 
 <h2>1. The plans</h2>
 <ul>
 <li><b>${plans.free}</b>, €0: up to 5 collections and 100 sources.</li>
-<li><b>${plans.plus}</b>, €${plans.plusYear} per year or €${plans.plusMonth} per month, including VAT: unlimited collections, up to 1,000 sources, and sharing baskets and collections as public pages.</li>
-<li><b>${plans.pro}</b>, €${plans.proYear} per year or €${plans.proMonth} per month, including VAT: everything in Plus, up to 5,000 sources, and Smart filters under fair use. If an account reaches the week's fair-use limit, its filters pause until the next week and new posts arrive unfiltered.</li>
+<li><b>${plans.plus}</b>, ${plans.plusYear} per year or ${plans.plusMonth} per month, including VAT: unlimited collections, up to 1,000 sources, and sharing baskets and collections as public pages.</li>
+<li><b>${plans.pro}</b>, ${plans.proYear} per year or ${plans.proMonth} per month, including VAT: everything in Plus, up to 5,000 sources, and Smart filters under fair use. If an account reaches the week's fair-use limit, its filters pause until the next week and new posts arrive unfiltered.</li>
 </ul>
 <p>Every plan includes the full reader: every view, baskets, search, and export of everything. Saved links don't count as sources. To protect the service, each account also has a limit on the space it takes on our server; ordinary use stays well below it. If an account reaches it, new items and readable copies pause until we give it more; nothing is deleted.</p>
 

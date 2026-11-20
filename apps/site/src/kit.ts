@@ -8,7 +8,7 @@ import { links, type Site } from "./site.ts";
  */
 import { ANDROID_APK, DESKTOP_DOWNLOADS, DISTRIBUTION, publishedStores } from "@purss/domain/distribution";
 import type { Distributed } from "@purss/domain/distribution";
-import { PLAN_PRICES_EUR } from "@purss/domain/plans";
+import { PLAN_PRICES_EUR, euros } from "@purss/domain/plans";
 import type { DesktopOs } from "./desktop.ts";
 
 const P: Record<string, string> = {
@@ -112,8 +112,8 @@ type Row = "sources" | "collections" | "sharing" | "smart";
 const PLAN_TEXT = copy.kit.plans;
 export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; lede: string; has: Partial<Record<Row, string>>; cta: string }> = {
   free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, lede: PLAN_TEXT.free.lede, has: { sources: "100", collections: "5" }, cta: PLAN_TEXT.free.cta },
-  plus: { name: PLAN_TEXT.plus.name, price: `€${PLUS.month}`, per: PLAN_TEXT.billedMonthly, yearly: { price: `€${PLUS.year / 12}`, per: PLAN_TEXT.billedYearly(PLUS.year) }, eur: PLUS, lede: PLAN_TEXT.plus.lede, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
-  pro: { name: PLAN_TEXT.pro.name, price: `€${PRO.month}`, per: PLAN_TEXT.billedMonthly, yearly: { price: `€${PRO.year / 12}`, per: PLAN_TEXT.billedYearly(PRO.year) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
+  plus: { name: PLAN_TEXT.plus.name, price: euros(PLUS.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PLUS.year / 12), per: PLAN_TEXT.billedYearly(euros(PLUS.year)) }, eur: PLUS, lede: PLAN_TEXT.plus.lede, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
+  pro: { name: PLAN_TEXT.pro.name, price: euros(PRO.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PRO.year / 12), per: PLAN_TEXT.billedYearly(euros(PRO.year)) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
 };
 
 
@@ -153,7 +153,7 @@ export function compareTable(): string {
   const cell = (label: string, v: string, cls = "") => `<td data-l="${label}"${cls ? ` class="${cls}"` : ""}><span>${v}</span></td>`;
   const head = (period: string) => C.paid(period);
   const period = (k: "year" | "month") => `<th scope="col" class="bill-${k[0]}">${head(k === "year" ? C.yearly : C.monthly)}</th>`;
-  const us = (k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${C.us.price(OURS[k].amount)}</b><small>${money(OURS[k], C.us.perMonthApprox, true)}${k === "year" ? C.us.perYear(PLUS.year) : ""}${C.us.plan}</small>`, `bill-${k[0]}`);
+  const us = (k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${C.us.price(euros(OURS[k].amount))}</b><small>${money(OURS[k], C.us.perMonthApprox, true)}${k === "year" ? C.us.perYear(euros(PLUS.year)) : ""}${C.us.plan}</small>`, `bill-${k[0]}`);
   const them = (r: (typeof RIVALS)[number], k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${money(r[k], C.perMonth)}</b><small>${r.tier}${k === "year" && r.plus ? `${C.proPlus}${money(r.plus)}` : ""}</small>`, `bill-${k[0]}`);
   return `<div class="s-compare"><table><thead><tr><th scope="col"><span class="sr">Product</span></th><th scope="col">${C.selfHostColumn}</th>${period("year")}${period("month")}<th scope="col">${C.freeTierColumn}</th></tr></thead><tbody>
 <tr class="s-us"><th scope="row">${C.us.name}</th>${cell(C.selfHostColumn, `${ic("check")}${C.us.selfHost}`)}${us("year")}${us("month")}${cell(C.freeTierColumn, C.us.freeTier)}</tr>

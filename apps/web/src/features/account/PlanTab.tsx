@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { app } from "@purss/copy/app";
-import { PLAN_LABELS, PLAN_LIMITS, PLAN_PRICES_EUR } from "@purss/domain";
+import { PLAN_LABELS, PLAN_LIMITS, PLAN_PRICES_EUR, euros } from "@purss/domain";
 import type { Capacity } from "@purss/domain";
 import { Button, Icon, Segmented } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
@@ -21,7 +21,6 @@ const PAID = [
   { plan: "pro", lede: copy.proLede, has: copy.proHas },
 ] as const;
 
-const euros = (n: number) => `€${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 /**
  * Settings → Plan (hosted): what the account's plan allows and uses, and, where the service takes
