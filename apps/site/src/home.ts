@@ -1,3 +1,4 @@
+import { site as copy } from "@purss/copy/site";
 import { PLANS, appCards, billingToggle, compareTable, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
@@ -6,67 +7,68 @@ import { links, type Site } from "./site.ts";
 // you follow. On, everything you didn't choose slides out, the posts you chose stay on screen and shrink into the boxes of a PURSS
 // Home that forms around them. The page is rendered with the switch on, so it reads the same with scripts off or reduced motion.
 
-const PITCH = "You used to choose what you read. Then feeds started choosing for you, ranked to keep you scrolling. PURSS hands the choice back: you decide what comes in, in what order, and what's worth keeping.";
-
 const FEATURES = [
-  { k: "Follow", icon: "plus", h: "Nothing from the people you follow gets buried.", p: "Subscribing on YouTube or following someone on Bluesky doesn't mean you'll see what they post. Here it does: paste a link, and new posts arrive, unranked, until you say stop." },
-  { k: "Keep", icon: "basket", h: "Find it again in six months.", p: "Drop it in a basket for the project, the trip or the rainy Sunday, and its details, summary and, if you ask, a readable copy of the text stay with you." },
-  { k: "Read", icon: "book", h: "Start on the laptop, finish on the train.", p: "Your place, your highlights and your notes follow you to every device, so nothing you started gets lost." },
-  { k: "Share", icon: "share", h: "You're the one people ask for good links.", p: "Share a basket or collection as a page anyone can open. Anyone who follows it gets each new pick as you add it." },
+  { ...copy.home.features.follow, icon: "plus" },
+  { ...copy.home.features.keep, icon: "basket" },
+  { ...copy.home.features.read, icon: "book" },
+  { ...copy.home.features.share, icon: "share" },
 ] as const;
 
-const HOST_POINTS = ["Every feature, free forever", "Runs on a spare computer, in about 1&nbsp;GB of memory", "Open source, AGPL-3.0"];
+const HOST_POINTS = copy.home.pricing.hostPoints;
 
 const HOSTED = ["free", "plus", "pro"] as const;
 const planLine = (k: (typeof HOSTED)[number]) => {
   const has = PLANS[k].has;
-  return [`${has.sources} sources`, `${has.collections === "Unlimited" ? "unlimited" : has.collections} collections`, ...(has.sharing ? ["public pages"] : []), ...(has.smart ? ["Smart filters"] : [])].join(" · ");
+  const line = copy.home.pricing.planLine;
+  return [line.sources(has.sources!), line.collections(has.collections!), ...(has.sharing ? [line.publicPages] : []), ...(has.smart ? [line.smartFilters] : [])].join(" · ");
 };
 const planRow = (site: Site, k: (typeof HOSTED)[number]) => {
   const p = PLANS[k];
   const price = p.yearly ? `<span class="bill-y">${p.yearly.price}</span><span class="bill-m">${p.price}</span>` : p.price;
   const per = p.yearly ? `<span class="bill-y">${p.yearly.per}</span><span class="bill-m">${p.per}</span>` : p.per;
-  const fx = p.eur ? `<span class="pk-fx"><span class="bill-y">${money({ amount: p.eur.year / 12, cur: "EUR" }, " a month, charged in euros", true)}</span><span class="bill-m">${money({ amount: p.eur.month, cur: "EUR" }, " a month, charged in euros", true)}</span></span>` : "";
+  const fx = p.eur ? `<span class="pk-fx"><span class="bill-y">${money({ amount: p.eur.year / 12, cur: "EUR" }, copy.home.pricing.chargedInEuros, true)}</span><span class="bill-m">${money({ amount: p.eur.month, cur: "EUR" }, copy.home.pricing.chargedInEuros, true)}</span></span>` : "";
   return `<li class="pk-row"><h4 class="title">${p.name}</h4><p class="row-s">${planLine(k)}</p><p class="pk-p">${price}</p>
 <div class="pk-per"><span>${per}${fx}</span><a class="btn" href="${links(site).signUp}">${p.cta}</a></div></li>`;
 };
 
 /** Pricing as two doors of equal weight: you run it (the install commands) or we run it (the three hosted plans). */
 const pricingDoors = (site: Site): string => `<div class="pk">
-<section class="mod" id="self-host" aria-labelledby="pk-you"><div class="mod-h"><h3 class="pk-n" id="pk-you">You run it</h3></div>
-<div class="pk-own"><div class="pk-row"><h4 class="title">Your own server</h4><p class="row-s">unlimited sources · unlimited collections · public pages</p><p class="pk-p">€0</p></div>
+<section class="mod" id="self-host" aria-labelledby="pk-you"><div class="mod-h"><h3 class="pk-n" id="pk-you">${copy.home.pricing.youRunIt}</h3></div>
+<div class="pk-own"><div class="pk-row"><h4 class="title">${copy.home.pricing.ownServer}</h4><p class="row-s">${copy.home.pricing.ownServerLimits}</p><p class="pk-p">€0</p></div>
 ${terminal(site)}
-<div class="pk-per"><span>${HOST_POINTS[0]}</span><a class="btn" href="${links(site).install}">Read the install guide</a></div></div>
+<div class="pk-per"><span>${HOST_POINTS[0]}</span><a class="btn" href="${links(site).install}">${copy.home.pricing.installGuide}</a></div></div>
 <p class="pk-foot">${HOST_POINTS.slice(1).join(" · ")}</p>
 </section>
-<section class="mod" aria-labelledby="pk-we"><div class="mod-h"><h3 class="pk-n" id="pk-we">We run it</h3>${billingToggle()}</div>
+<section class="mod" aria-labelledby="pk-we"><div class="mod-h"><h3 class="pk-n" id="pk-we">${copy.home.pricing.weRunIt}</h3>${billingToggle()}</div>
 <ul>${HOSTED.map((k) => planRow(site, k)).join("")}</ul>
-<p class="pk-foot">Cancel any time · Export everything, any time · Prices include VAT</p>
+<p class="pk-foot">${copy.home.pricing.hostedNote}</p>
 </section>
 </div>`;
 
-type Mine = { l: string; h: number; t: string; src: string; when: string; box: number; fresh?: true };
-type Junk = { tag: string; t: string; sub: string; c: string };
+type Mine = { l: string; h: number; title: string; source: string; when: string; box: number; fresh?: true };
+type Junk = { tag: string; title: string; sub: string; c: string };
+const POSTS = copy.home.picture.posts;
 const MINE: Mine[] = [
-  { l: "MG", h: 210, t: "Council approves the Mill Road cycle path", src: "Millbrook Gazette", when: "12 min ago", box: 0, fresh: true },
-  { l: "MB", h: 18, t: "Restoring a 1970s hand plane", src: "Maker Bench", when: "1 h ago · 24:10", box: 1 },
-  { l: "NS", h: 280, t: "Ep. 112: Small libraries", src: "Night Shift Radio", when: "3 h ago · 58 min", box: 1 },
-  { l: "SL", h: 228, t: "The night sky is getting brighter", src: "Slow Light Journal", when: "Today · 9 min read", box: 2, fresh: true },
-  { l: "KT", h: 12, t: "Slow-roast tomato sauce that keeps all week", src: "Kitchen Table", when: "Yesterday", box: 3 },
+  { l: "MG", h: 210, ...POSTS.cyclePath, box: 0, fresh: true },
+  { l: "MB", h: 18, ...POSTS.handPlane, box: 1 },
+  { l: "NS", h: 280, ...POSTS.smallLibraries, box: 1 },
+  { l: "SL", h: 228, ...POSTS.nightSky, box: 2, fresh: true },
+  { l: "KT", h: 12, ...POSTS.tomatoSauce, box: 3 },
 ];
+const ADS = copy.home.picture.junk;
 const JUNK: Junk[] = [
-  { tag: "Sponsored", t: "The mattress 4 million sleepers can't stop talking about", sub: "Shop now", c: "#e58a34" },
-  { tag: "Suggested for you", t: "A stranger is extremely angry about something", sub: "Because you paused on a post like this", c: "#cc5a8c" },
-  { tag: "Trending", t: "Everyone is arguing about this today", sub: "48.2K posts", c: "#d0584d" },
-  { tag: "People you may know", t: "Someone you met once in 2014", sub: "Follow back", c: "#8a70cc" },
+  { ...ADS.sponsored, c: "#e58a34" },
+  { ...ADS.suggested, c: "#cc5a8c" },
+  { ...ADS.trending, c: "#d0584d" },
+  { ...ADS.people, c: "#8a70cc" },
 ];
 /** The feed's order: a junk card, a post you chose, and so on. */
 const ORDER: ({ mine: number } | { junk: number })[] = [{ junk: 0 }, { mine: 0 }, { junk: 1 }, { mine: 1 }, { junk: 2 }, { mine: 2 }, { junk: 3 }, { mine: 3 }, { mine: 4 }];
 const BOXES = [
-  { title: "Local", stack: [["MG", 210]] },
-  { title: "Watch & listen", stack: [["MB", 18], ["NS", 280]] },
-  { title: "Slow reads", stack: [["SL", 228]] },
-  { title: "Recipes", stack: [["KT", 12]] },
+  { title: copy.home.picture.boxes.local, stack: [["MG", 210]] },
+  { title: copy.home.picture.boxes.watchListen, stack: [["MB", 18], ["NS", 280]] },
+  { title: copy.home.picture.boxes.slowReads, stack: [["SL", 228]] },
+  { title: copy.home.picture.boxes.recipes, stack: [["KT", 12]] },
 ] as const;
 
 const css = `
@@ -218,45 +220,45 @@ const css = `
 @media (max-width:480px){.pf-nav{padding:10px 18px}.pf-h1{font-size:29px;line-height:1.04}.pf-lead{font-size:15px;line-height:1.42}.pf-sw{font-size:13px}.pf-stage{height:clamp(420px,calc(100svh - 300px),560px)!important}.pf-hero{gap:12px;padding-top:2px}}
 `;
 
-const mineEl = (k: number): string => { const m = MINE[k]!; return `<div class="pf-slot"><div class="pf-m" data-k="${k}"><span class="av" style="--ah:${m.h}" aria-hidden="true">${m.l}</span><span><b>${m.fresh ? '<i class="fd"></i>' : ""}${m.t}</b><small>${m.src} · ${m.when}</small></span></div></div>`; };
-const junkEl = (j: number): string => { const x = JUNK[j]!; return `<div class="pf-c junk" style="--c:${x.c}" data-dir="${j % 2 ? 1 : -1}"><span class="th"></span><span><b>${x.t}</b><small><em>${x.tag}</em>${x.sub}</small></span></div>`; };
-const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flatMap((m, k) => (m.box === n ? [k] : [])); return `<section class="mod pf-box"><div class="mod-h"><div class="mod-t"><button type="button"><span class="stack">${b.stack.map(([l, h]) => av(l, h, 22)).join("")}</span><span class="t">${b.title}</span></button></div>${ks.some((k) => MINE[k]!.fresh) ? `<span class="mod-fresh"><span class="dot"></span>${ks.filter((k) => MINE[k]!.fresh).length} new</span>` : ""}</div><div class="mod-b" data-box="${n}">${ks.map(mineEl).join("")}</div></section>`; };
+const mineEl = (k: number): string => { const m = MINE[k]!; return `<div class="pf-slot"><div class="pf-m" data-k="${k}"><span class="av" style="--ah:${m.h}" aria-hidden="true">${m.l}</span><span><b>${m.fresh ? '<i class="fd"></i>' : ""}${m.title}</b><small>${m.source} · ${m.when}</small></span></div></div>`; };
+const junkEl = (j: number): string => { const x = JUNK[j]!; return `<div class="pf-c junk" style="--c:${x.c}" data-dir="${j % 2 ? 1 : -1}"><span class="th"></span><span><b>${x.title}</b><small><em>${x.tag}</em>${x.sub}</small></span></div>`; };
+const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flatMap((m, k) => (m.box === n ? [k] : [])); return `<section class="mod pf-box"><div class="mod-h"><div class="mod-t"><button type="button"><span class="stack">${b.stack.map(([l, h]) => av(l, h, 22)).join("")}</span><span class="t">${b.title}</span></button></div>${ks.some((k) => MINE[k]!.fresh) ? `<span class="mod-fresh"><span class="dot"></span>${copy.home.picture.newCount(ks.filter((k) => MINE[k]!.fresh).length)}</span>` : ""}</div><div class="mod-b" data-box="${n}">${ks.map(mineEl).join("")}</div></section>`; };
 
 export const home = {
   render: (site: Site) => `<style>${css}${COMPARISON_CSS}</style>
-<a class="s-skip" href="#main">Skip to content</a><main class="pf" id="main" tabindex="-1" data-on="1"><div class="pf-sky" aria-hidden="true">${quilt("pf-quilt", 150)}</div>
-<header class="pf-nav"><b>${ic("mark")}PURSS</b><a href="#why">Why</a><a href="#features">What it does</a><a href="#pricing">Pricing</a><a href="#self-host">Host it yourself</a><a href="${links(site).docs}">Docs</a><span><a class="s-out" href="${links(site).dashboard}">Open dashboard</a><a class="btn primary s-out" href="${links(site).signUp}">Create a free account</a><a class="btn primary s-in" href="${links(site).dashboard}">Go to your PURSS</a></span></header>
+<a class="s-skip" href="#main">${copy.kit.skipToContent}</a><main class="pf" id="main" tabindex="-1" data-on="1"><div class="pf-sky" aria-hidden="true">${quilt("pf-quilt", 150)}</div>
+<header class="pf-nav"><b>${ic("mark")}${copy.kit.brand}</b><a href="#why">${copy.home.nav.why}</a><a href="#features">${copy.home.nav.whatItDoes}</a><a href="#pricing">${copy.home.nav.pricing}</a><a href="#self-host">${copy.home.nav.hostIt}</a><a href="${links(site).docs}">${copy.home.nav.docs}</a><span><a class="s-out" href="${links(site).dashboard}">${copy.kit.actions.dashboard}</a><a class="btn primary s-out" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn primary s-in" href="${links(site).dashboard}">${copy.kit.actions.signedIn}</a></span></header>
 <section class="pf-hero">
-<div><h1 class="pf-h1">Your internet, organized by you.</h1>
-<p class="pf-lead">A reader you fill yourself. Pick the blogs, channels, podcasts and journals; PURSS brings what they post, in order, and nothing else.</p>
-<div class="pf-sw"><label class="l0" for="pf-t">Chosen for you</label><button class="pf-toggle" id="pf-t" type="button" role="switch" aria-checked="true" aria-label="Show only what you chose"><i>${ic("mark")}</i></button><label class="l1" for="pf-t">Chosen by you</label></div>
-<ul class="pf-points">${[["No algorithmic feed", "Everything in the order it was posted."], ["No ads, no trackers", "Nothing sponsored, nothing suggested."], ["You're in control", "You pick every source and what stays."]].map(([t, d]) => `<li><span class="pt">${ic("check")}</span><span>${t}<small>${d}</small></span></li>`).join("")}</ul>
-<div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">Create a free account</a><a class="btn xl" href="#self-host">${ic("server")}Host it yourself</a></div></div>
-<div class="pf-stage" role="img" aria-label="PURSS Home: a dashboard with a box for each source you follow, and nothing else.">
-<div class="s-win pf-win"><div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="u0">the feed</span><span class="u1">your.purss</span></div>
-<div class="pf-bar" aria-hidden="true"><span class="l"><span class="t0">For You</span><span class="t1">Home</span></span><span class="r"><span class="bell">${ic("bell")}</span><span class="vw">${ic("list")}View</span></span></div>
+<div><h1 class="pf-h1">${copy.home.hero.heading}</h1>
+<p class="pf-lead">${copy.home.hero.lead}</p>
+<div class="pf-sw"><label class="l0" for="pf-t">${copy.home.hero.switchOff}</label><button class="pf-toggle" id="pf-t" type="button" role="switch" aria-checked="true" aria-label="Show only what you chose"><i>${ic("mark")}</i></button><label class="l1" for="pf-t">${copy.home.hero.switchOn}</label></div>
+<ul class="pf-points">${copy.home.hero.points.map(({ title, text }) => `<li><span class="pt">${ic("check")}</span><span>${title}<small>${text}</small></span></li>`).join("")}</ul>
+<div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn xl" href="#self-host">${ic("server")}${copy.home.hero.hostIt}</a></div></div>
+<div class="pf-stage" role="img" aria-label="${copy.home.picture.labelOn}">
+<div class="s-win pf-win"><div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="u0">${copy.home.picture.addressOff}</span><span class="u1">${copy.home.picture.addressOn}</span></div>
+<div class="pf-bar" aria-hidden="true"><span class="l"><span class="t0">${copy.home.picture.titleOff}</span><span class="t1">${copy.home.picture.titleOn}</span></span><span class="r"><span class="bell">${ic("bell")}</span><span class="vw">${ic("list")}${copy.home.picture.view}</span></span></div>
 <div class="pf-main" aria-hidden="true">${sidebar()}
 <div class="pf-content"><div class="pf-list"></div>
-<div class="pf-wash"><div class="homewash">${quilt("pf-wash-q")}<div class="col"><div class="s-mh home">Good morning, Robin</div><p class="s-wash-sub">New items since your last visit (yesterday) in 2&nbsp;collections</p></div></div></div>
+<div class="pf-wash"><div class="homewash">${quilt("pf-wash-q")}<div class="col"><div class="s-mh home">${copy.home.picture.greeting}</div><p class="s-wash-sub">${copy.home.picture.sinceLastVisit}</p></div></div></div>
 <div class="pf-boxes col home-body"><div class="mods"><div class="mcol">${boxEl(0)}${boxEl(2)}</div><div class="mcol">${boxEl(1)}${boxEl(3)}</div></div></div>
-<div class="pf-more"><i></i>Loading more for you…</div><div class="pf-ghosts"></div></div></div></div></div>
+<div class="pf-more"><i></i>${copy.home.picture.loadingMore}</div><div class="pf-ghosts"></div></div></div></div></div>
 </section>
 
-<section class="pf-sec" id="why"><h2 class="pf-h2">The web was yours once. Take it back.</h2><p class="pf-p">${PITCH}</p>${comparison()}</section>
+<section class="pf-sec" id="why"><h2 class="pf-h2">${copy.home.why.heading}</h2><p class="pf-p">${copy.home.why.pitch}</p>${comparison()}</section>
 
-<section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.k}</span></div></div><div class="mod-b"><h3>${f.h}</h3><p>${f.p}</p></div></section>`).join("")}</div></section>
+<section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.label}</span></div></div><div class="mod-b"><h3>${f.heading}</h3><p>${f.text}</p></div></section>`).join("")}</div></section>
 
-<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}Apps and extensions</span><h2 class="s-h2" style="margin:10px 0 12px">Wherever you come across things.</h2><p class="s-lead">Save it where you find it, read it where you are. Your browser, phone, computer and e-reader all share one PURSS.</p></div>
+<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.home.apps.kicker}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2><p class="s-lead">${copy.home.apps.lead}</p></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
-<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">Pricing</span><h2 class="s-h2" style="margin:10px 0 12px">Simple, honest pricing.</h2><p class="s-lead pk-say">No ads, no engagement algorithm, and we don't sell your data. Run it yourself or let us run it: it's the same app, and one export moves you between them.</p></div>
+<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.home.pricing.kicker}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
 ${pricingDoors(site)}</div></section>
 
-<section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">Compare</span><h2 class="s-h2" style="margin-top:10px">The only one of the five you can run yourself.</h2><p class="s-lead" style="margin-top:12px">Hosted by us or on your own server, it's the same app, and one export moves you between them.</p></div>${compareTable()}</div></section>
+<section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">${copy.home.compare.kicker}</span><h2 class="s-h2" style="margin-top:10px">${copy.home.compare.heading}</h2><p class="s-lead" style="margin-top:12px">${copy.home.compare.lead}</p></div>${compareTable()}</div></section>
 
-<section class="s-sec" id="faq"><div class="s-wrap"><h2 class="s-h2 s-center" style="margin-bottom:30px">Questions</h2>${faq(site)}</div></section>
+<section class="s-sec" id="faq"><div class="s-wrap"><h2 class="s-h2 s-center" style="margin-bottom:30px">${copy.home.faq.heading}</h2>${faq(site)}</div></section>
 
-<section class="pf-end"><h2 class="pf-h2">Make the internet yours again.</h2><div class="s-cta" style="margin-top:22px"><a class="btn primary xl" href="${links(site).signUp}">Create a free account</a><a class="btn xl" href="#self-host">Host it yourself</a></div></section>
+<section class="pf-end"><h2 class="pf-h2">${copy.home.end.heading}</h2><div class="s-cta" style="margin-top:22px"><a class="btn primary xl" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn xl" href="#self-host">${copy.home.end.hostIt}</a></div></section>
 </main>
 ${footer(site)}`,
   mount: (root: HTMLElement): void => {
@@ -276,7 +278,7 @@ ${footer(site)}`,
 
     const toList = () => { list.replaceChildren(...ORDER.map((o) => { if ("mine" in o) return slots[o.mine]!; const t = document.createElement("div"); t.innerHTML = junkEl(o.junk); return t.firstElementChild!; })); };
     const toBoxes = () => { slots.forEach((el, k) => root.querySelector(`.mod-b[data-box="${MINE[k]!.box}"]`)!.append(el)); list.replaceChildren(); };
-    const label = (v: boolean) => stage.setAttribute("aria-label", v ? "PURSS Home: a dashboard with a box for each source you follow, and nothing else." : "A typical feed: ads, suggestions and trending posts mixed in with the few things you follow, with more loading forever.");
+    const label = (v: boolean) => stage.setAttribute("aria-label", v ? copy.home.picture.labelOn : copy.home.picture.labelOff);
     // Posts hold an opaque white surface for the whole trip (it is invisible inside a white box); only the border and radius tween.
     const CARD = { borderRadius: "13px", paddingTop: "9px", paddingBottom: "9px", backgroundColor: "rgb(255,255,255)", borderTopColor: "#dcdce2", borderLeftColor: "#dcdce2", borderRightColor: "#dcdce2", borderBottomColor: "#dcdce2" };
     const ROW = { borderRadius: "0px", paddingTop: "10px", paddingBottom: "10px", backgroundColor: "rgb(255,255,255)", borderTopColor: "rgba(220,220,226,0)", borderLeftColor: "rgba(220,220,226,0)", borderRightColor: "rgba(220,220,226,0)", borderBottomColor: "rgb(228,232,240)" };

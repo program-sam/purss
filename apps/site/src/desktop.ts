@@ -1,3 +1,5 @@
+import { site as copy } from "@purss/copy/site";
+
 /**
  * The download button: the visitor's system, read from the browser's user agent, points the button at that
  * system's file (kit.ts, getDesktop) and shows the link to the other systems. Android phones and tablets get the
@@ -16,7 +18,7 @@ export function desktopOs(userAgent: string, touchPoints = 0): DesktopOs | null 
   return null;
 }
 
-const NAMES: Record<DesktopOs, string> = { windows: "Download for Windows", macos: "Download for Mac", linux: "Download for Linux", android: "Download for Android" };
+const NAMES: Record<DesktopOs, string> = copy.desktop.download;
 
 export function pickDesktopDownload(doc: Pick<Document, "querySelector">, nav: { userAgent: string; maxTouchPoints?: number }): void {
   const main = doc.querySelector<HTMLAnchorElement>("[data-desktop-main]");

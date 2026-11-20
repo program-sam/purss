@@ -1,8 +1,9 @@
+import { site as copy } from "@purss/copy/site";
 import { ic } from "./kit.ts";
 
 // The "algorithmic feeds against your PURSS" panel: one line runs across the top, tangled over the feed's column and straight over PURSS's.
-const THEM = ["Ranked to keep you scrolling", "Strangers and ads in between", "Your attention is the product", "Gone when the platform changes its mind"];
-const US = ["Only the sources you chose, in your order", "No ads, no third-party trackers, no suggested posts", "Open source: read the code, or run it yourself", "What you keep stays put. Export it all, any time"];
+const THEM = copy.compare.feeds.points;
+const US = copy.compare.purss.points;
 
 /** The line, drawn `w` units wide: tangled over the feed side, a steady wobble up to the middle, then straight over PURSS.
  * Loops and waves keep their size at every width, so a narrow drawing has fewer waves instead of squashed ones. */
@@ -39,5 +40,5 @@ export const COMPARISON_CSS = `
 @media (max-width:760px){.cmp-cols{grid-template-columns:minmax(0,1fr)}.cmp-line{height:auto;aspect-ratio:480/84}.cmp-line .wide{display:none}.cmp-line .narrow{display:block}}
 `;
 export const comparison = (): string => `<div class="cmp"><div class="cmp-line" aria-hidden="true">${line(1000, "wide")}${line(480, "narrow")}</div>
-<div class="cmp-cols"><div><h3>Algorithmic feeds</h3><ul>${THEM.map((t) => `<li>${ic("x")}${t}</li>`).join("")}</ul></div><div><h3>Your PURSS</h3><ul>${US.map((t) => `<li>${ic("check")}${t}</li>`).join("")}</ul></div></div></div>`;
+<div class="cmp-cols"><div><h3>${copy.compare.feeds.heading}</h3><ul>${THEM.map((t) => `<li>${ic("x")}${t}</li>`).join("")}</ul></div><div><h3>${copy.compare.purss.heading}</h3><ul>${US.map((t) => `<li>${ic("check")}${t}</li>`).join("")}</ul></div></div></div>`;
 

@@ -1,3 +1,4 @@
+import { site as copy } from "@purss/copy/site";
 import { CURRENCIES, ECB, currencyName, show, type Money } from "./currency.ts";
 import { links, type Site } from "./site.ts";
 
@@ -59,7 +60,7 @@ export function ic(name: string, cls = ""): string {
   return `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"${fill}>${body}</svg>`;
 }
 
-const brand = (label = "PURSS") =>
+const brand = (label = copy.kit.brand) =>
   `<span class="brand"><span class="mark" aria-hidden="true">${ic("mark")}</span><span class="brand-t">${label}</span></span>`;
 
 export const av = (letters: string, hue: number, size = 24) =>
@@ -67,30 +68,31 @@ export const av = (letters: string, hue: number, size = 24) =>
 
 // ---------- The sidebar of the app, as pictured on the home page ----------
 
+const SIDEBAR = copy.kit.sidebar;
 const COLLECTIONS = [
-  { n: "Local", c: 9 },
-  { n: "Watch", c: 4 },
-  { n: "Listen", c: 2 },
-  { n: "Slow reads", c: 7 },
-  { n: "Recipes", c: 12 },
+  { n: SIDEBAR.collections.local, c: 9 },
+  { n: SIDEBAR.collections.watch, c: 4 },
+  { n: SIDEBAR.collections.listen, c: 2 },
+  { n: SIDEBAR.collections.slowReads, c: 7 },
+  { n: SIDEBAR.collections.recipes, c: 12 },
 ] as const;
 
 export const quilt = (id = "quilt", size = 96) => `<svg class="quilt" aria-hidden="true"><defs><pattern id="${id}" width="${size}" height="${size}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H${size}M0 0V${size}"/><circle r="${(size / 34).toFixed(1)}"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
 
 /** The app's sidebar, a picture only: the page hides it from assistive technology. */
-export function sidebar(selected = "Home"): string {
+export function sidebar(selected: string = SIDEBAR.home): string {
   return `<aside class="s-side">
-<div class="side-head">${brand()}<span class="btn primary">${ic("plus")}Add source</span>
-<span class="pill-search">${ic("search")}Search<kbd>/</kbd></span></div>
+<div class="side-head">${brand()}<span class="btn primary">${ic("plus")}${SIDEBAR.addSource}</span>
+<span class="pill-search">${ic("search")}${SIDEBAR.search}<kbd>/</kbd></span></div>
 <div class="side-scroll">
-<span class="nav-row ${selected === "Home" ? "sel" : ""}">${ic("home")}Home</span>
-<div class="sec-head"><div class="s-sh">Collections</div></div>
+<span class="nav-row ${selected === SIDEBAR.home ? "sel" : ""}">${ic("home")}${SIDEBAR.home}</span>
+<div class="sec-head"><div class="s-sh">${SIDEBAR.collectionsTitle}</div></div>
 ${COLLECTIONS.map((c) => `<div class="grow ${selected === c.n ? "sel" : ""}"><span class="chev">${ic("chev")}</span><span class="glabel">${c.n}</span><span class="cnt">${c.c}</span></div>`).join("")}
 
-<div class="sec-head"><div class="s-sh">Baskets</div></div>
-${[["Local history", 6], ["Thesis sources", 38]].map(([n, c]) => `<span class="bk">${ic("basket")}<span class="nm">${n}</span><span class="n">${c}</span></span>`).join("\n")}
+<div class="sec-head"><div class="s-sh">${SIDEBAR.basketsTitle}</div></div>
+${[[SIDEBAR.baskets.localHistory, 6], [SIDEBAR.baskets.thesisSources, 38]].map(([n, c]) => `<span class="bk">${ic("basket")}<span class="nm">${n}</span><span class="n">${c}</span></span>`).join("\n")}
 </div>
-<div class="side-foot"><span class="stor"><span class="meter"><i class="feeds" style="width:37%"></i></span>37 of 100 sources</span></div>
+<div class="side-foot"><span class="stor"><span class="meter"><i class="feeds" style="width:37%"></i></span>${SIDEBAR.storage}</span></div>
 </aside>`;
 }
 
@@ -102,22 +104,24 @@ export const PLUS = PLAN_PRICES_EUR.plus;
 export const PRO = PLAN_PRICES_EUR.pro;
 
 /** Self-hosting: free, with no limits; offered as the "You run it" door in the pricing section, not as a plan. */
-export const SELF_HOSTED = { name: "Self-hosted", price: "0" };
+export const SELF_HOSTED = { name: copy.kit.plans.selfHosted, price: "0" };
 
 type Row = "sources" | "collections" | "sharing" | "smart";
 
 /** A plan's price; `yearly` is shown while the pricing toggle is on yearly billing, `price`/`per` while it is on monthly. */
+const PLAN_TEXT = copy.kit.plans;
 export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; lede: string; has: Partial<Record<Row, string>>; cta: string }> = {
-  free: { name: "Free", price: "€0", per: "per month", lede: "We run it for you. No card needed.", has: { sources: "100", collections: "5" }, cta: "Create a free account" },
-  plus: { name: "Plus", price: `€${PLUS.month}`, per: "per month, billed monthly", yearly: { price: `€${PLUS.year / 12}`, per: `per month, billed yearly as €${PLUS.year}` }, eur: PLUS, lede: "For people who follow a lot, and keep a lot.", has: { sources: "1,000", collections: "Unlimited", sharing: "yes" }, cta: "Start with Plus" },
-  pro: { name: "Pro", price: `€${PRO.month}`, per: "per month, billed monthly", yearly: { price: `€${PRO.year / 12}`, per: `per month, billed yearly as €${PRO.year}` }, eur: PRO, lede: "For busy feeds you want curated for you.", has: { sources: "5,000", collections: "Unlimited", sharing: "yes", smart: "yes" }, cta: "Start with Pro" },
+  free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, lede: PLAN_TEXT.free.lede, has: { sources: "100", collections: "5" }, cta: PLAN_TEXT.free.cta },
+  plus: { name: PLAN_TEXT.plus.name, price: `€${PLUS.month}`, per: PLAN_TEXT.billedMonthly, yearly: { price: `€${PLUS.year / 12}`, per: PLAN_TEXT.billedYearly(PLUS.year) }, eur: PLUS, lede: PLAN_TEXT.plus.lede, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
+  pro: { name: PLAN_TEXT.pro.name, price: `€${PRO.month}`, per: PLAN_TEXT.billedMonthly, yearly: { price: `€${PRO.year / 12}`, per: PLAN_TEXT.billedYearly(PRO.year) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
 };
 
 
 /** Yearly or monthly billing for the plan cards and the comparison table; CSS shows the matching prices, so it works without scripts. */
 export function billingToggle(): string {
+  const B = copy.kit.billing;
   const opt = (id: string, label: string, checked = false) => `<input type="radio" name="billing" id="${id}" class="sr"${checked ? " checked" : ""}><label for="${id}">${label}</label>`;
-  return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", `Yearly <span class="s-save">save ${Math.round(100 - (100 * PLUS.year) / (12 * PLUS.month))}%</span>`, true)}${opt("bill-month", "Monthly")}</fieldset>${currencyPicker()}</div>`;
+  return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", `${B.yearly} <span class="s-save">${B.save(Math.round(100 - (100 * PLUS.year) / (12 * PLUS.month)))}</span>`, true)}${opt("bill-month", B.monthly)}</fieldset>${currencyPicker()}</div>`;
 }
 
 /**
@@ -125,11 +129,12 @@ export function billingToggle(): string {
  * Feedly offers Pro+ only billed annually (€12.18 a month, before a first-year discount). Check again before changing
  * the footnote's date.
  */
-const RIVALS: { n: string; self: string; year: Money; month: Money; tier: string; plus?: Money; free: string }[] = [
-  { n: "Feedly", self: "No", year: { amount: 6.99, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" }, tier: "Pro", plus: { amount: 12.18, cur: "EUR" }, free: "100 feeds · 3 folders" },
-  { n: "Inoreader", self: "No", year: { amount: 6.67, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" }, tier: "Pro", free: "150 feeds" },
-  { n: "Readwise Reader", self: "No", year: { amount: 9.99, cur: "USD" }, month: { amount: 12.99, cur: "USD" }, tier: "Full Readwise", free: "None; 30-day trial" },
-  { n: "Instapaper", self: "No", year: { amount: 5, cur: "USD" }, month: { amount: 5.99, cur: "USD" }, tier: "Premium; read later only, no feeds", free: "Saving and reading; 5 notes a month" },
+const RIVAL_TEXT = copy.kit.compare.rivals;
+const RIVALS: { name: string; selfHost: string; year: Money; month: Money; tier: string; plus?: Money; freeTier: string }[] = [
+  { ...RIVAL_TEXT.feedly, year: { amount: 6.99, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" }, plus: { amount: 12.18, cur: "EUR" } },
+  { ...RIVAL_TEXT.inoreader, year: { amount: 6.67, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" } },
+  { ...RIVAL_TEXT.readwise, year: { amount: 9.99, cur: "USD" }, month: { amount: 12.99, cur: "USD" } },
+  { ...RIVAL_TEXT.instapaper, year: { amount: 5, cur: "USD" }, month: { amount: 5.99, cur: "USD" } },
 ];
 
 /** A price the visitor's currency script can rewrite; `approx` prices are ours, shown converted only outside the euro. */
@@ -140,19 +145,20 @@ const OURS = { year: { amount: PLUS.year / 12, cur: "EUR" }, month: { amount: PL
 
 /** Show prices in another currency; hidden until the script runs, since only the script can convert. */
 export function currencyPicker(): string {
-  return `<div class="s-cur" hidden><label for="currency">Show prices in</label><select id="currency">${CURRENCIES.map((c) => `<option value="${c}">${currencyName(c)}</option>`).join("")}</select></div>`;
+  return `<div class="s-cur" hidden><label for="currency">${copy.kit.billing.showPricesIn}</label><select id="currency">${CURRENCIES.map((c) => `<option value="${c}">${currencyName(c)}</option>`).join("")}</select></div>`;
 }
 
 export function compareTable(): string {
+  const C = copy.kit.compare;
   const cell = (label: string, v: string, cls = "") => `<td data-l="${label}"${cls ? ` class="${cls}"` : ""}><span>${v}</span></td>`;
-  const head = (period: string) => `Paid plan, billed ${period}`;
-  const period = (k: "year" | "month") => `<th scope="col" class="bill-${k[0]}">${head(k === "year" ? "yearly" : "monthly")}</th>`;
-  const us = (k: "year" | "month") => cell(head(k === "year" ? "yearly" : "monthly"), `<b>€${OURS[k].amount} / month</b><small>${money(OURS[k], " / month · ", true)}${k === "year" ? `€${PLUS.year} a year · ` : ""}Plus: 1,000 sources · unlimited collections</small>`, `bill-${k[0]}`);
-  const them = (r: (typeof RIVALS)[number], k: "year" | "month") => cell(head(k === "year" ? "yearly" : "monthly"), `<b>${money(r[k], " / month")}</b><small>${r.tier}${k === "year" && r.plus ? `; Pro+ ${money(r.plus)}` : ""}</small>`, `bill-${k[0]}`);
-  return `<div class="s-compare"><table><thead><tr><th scope="col"><span class="sr">Product</span></th><th scope="col">Host it yourself</th>${period("year")}${period("month")}<th scope="col">Free tier</th></tr></thead><tbody>
-<tr class="s-us"><th scope="row">PURSS</th>${cell("Host it yourself", `${ic("check")}Yes, free and unlimited`)}${us("year")}${us("month")}${cell("Free tier", "Self-hosted: unlimited.<br>Hosted: 100&nbsp;sources · 5&nbsp;collections")}</tr>
-${RIVALS.map((r) => `<tr><th scope="row">${r.n}</th>${cell("Host it yourself", r.self)}${them(r, "year")}${them(r, "month")}${cell("Free tier", r.free)}</tr>`).join("")}
-</tbody></table></div><p class="fine s-src">We charge in euros, including VAT. Competitor prices as listed in the EU in November 2026: Feedly and Inoreader in euros (Inoreader adds VAT on top), Readwise and Instapaper in US dollars. Amounts marked ≈ are converted at the European Central Bank rate of ${ECB.label}; local prices and taxes can differ. Sources: <a class="link" href="https://feedly.com/i/pro">Feedly</a>, <a class="link" href="https://www.inoreader.com/pricing">Inoreader</a>, <a class="link" href="https://readwise.io/pricing">Readwise</a>, <a class="link" href="https://www.instapaper.com/premium">Instapaper</a>, <a class="link" href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">ECB</a>.</p>`;
+  const head = (period: string) => C.paid(period);
+  const period = (k: "year" | "month") => `<th scope="col" class="bill-${k[0]}">${head(k === "year" ? C.yearly : C.monthly)}</th>`;
+  const us = (k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${C.us.price(OURS[k].amount)}</b><small>${money(OURS[k], C.us.perMonthApprox, true)}${k === "year" ? C.us.perYear(PLUS.year) : ""}${C.us.plan}</small>`, `bill-${k[0]}`);
+  const them = (r: (typeof RIVALS)[number], k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${money(r[k], C.perMonth)}</b><small>${r.tier}${k === "year" && r.plus ? `${C.proPlus}${money(r.plus)}` : ""}</small>`, `bill-${k[0]}`);
+  return `<div class="s-compare"><table><thead><tr><th scope="col"><span class="sr">Product</span></th><th scope="col">${C.selfHostColumn}</th>${period("year")}${period("month")}<th scope="col">${C.freeTierColumn}</th></tr></thead><tbody>
+<tr class="s-us"><th scope="row">${C.us.name}</th>${cell(C.selfHostColumn, `${ic("check")}${C.us.selfHost}`)}${us("year")}${us("month")}${cell(C.freeTierColumn, C.us.freeTier)}</tr>
+${RIVALS.map((r) => `<tr><th scope="row">${r.name}</th>${cell(C.selfHostColumn, r.selfHost)}${them(r, "year")}${them(r, "month")}${cell(C.freeTierColumn, r.freeTier)}</tr>`).join("")}
+</tbody></table></div><p class="fine s-src">${C.footnote(ECB.label)}<a class="link" href="https://feedly.com/i/pro">${C.sources.feedly}</a>, <a class="link" href="https://www.inoreader.com/pricing">${C.sources.inoreader}</a>, <a class="link" href="https://readwise.io/pricing">${C.sources.readwise}</a>, <a class="link" href="https://www.instapaper.com/premium">${C.sources.instapaper}</a>, <a class="link" href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">${C.sources.ecb}</a>.</p>`;
 }
 
 // ---------- Apps and extensions ----------
@@ -164,7 +170,7 @@ function getIt(what: Distributed): string {
 }
 
 /** For developers: the apps can already be built from the source code. Shown with the install commands in the pricing section's "You run it" door. */
-const developerLinks = () => `<p class="fine a-dev">Developers: <a class="link" href="${DISTRIBUTION.mobile.install}">build the phone app</a> or <a class="link" href="${DISTRIBUTION.extension.install}">load the browser extension</a> from the source.</p>`;
+const developerLinks = () => { const D = copy.kit.terminal.developers; return `<p class="fine a-dev">${D.before}<a class="link" href="${DISTRIBUTION.mobile.install}">${D.phone}</a>${D.between}<a class="link" href="${DISTRIBUTION.extension.install}">${D.extension}</a>${D.after}</p>`; };
 
 /**
  * The desktop app's download: one button, which a few lines of script (main.ts, pickDesktopDownload) point
@@ -175,17 +181,17 @@ function getDesktop(site: Site): string {
   const url = (file: string) => `${site.repo}/releases/latest/download/${file}`;
   const first = (os: Exclude<DesktopOs, "android">) => url(DESKTOP_DOWNLOADS.find((p) => p.os === os)!.file);
   const releases = `${site.repo}/releases/latest`;
-  return `<div class="a-desktop"><a class="btn primary" data-desktop-main href="${releases}" data-windows="${first("windows")}" data-macos="${first("macos")}" data-linux="${first("linux")}" data-android="${url(ANDROID_APK)}">Download</a>`
-    + `<a class="link fine" data-desktop-other hidden href="${releases}">Other systems</a></div>`;
+  return `<div class="a-desktop"><a class="btn primary" data-desktop-main href="${releases}" data-windows="${first("windows")}" data-macos="${first("macos")}" data-linux="${first("linux")}" data-android="${url(ANDROID_APK)}">${copy.kit.apps.desktop.download}</a>`
+    + `<a class="link fine" data-desktop-other hidden href="${releases}">${copy.kit.apps.desktop.otherSystems}</a></div>`;
 }
 
 const APPS = (site: Site) => [
-  ["ext", "Browser extension", `Found something good? Keep it or follow its site without leaving the page. For ${DISTRIBUTION.extension.platforms}.`, () => getIt("extension")],
-  ["phone", "Phone and tablet", `Catch up in the queue or on the plane. The ${DISTRIBUTION.mobile.platforms} app plays with the screen off, keeps downloads for offline and takes links shared from any app.`, () => `<span class="a-stores">${getIt("mobile")}<a class="btn" href="${site.repo}/releases/latest/download/${ANDROID_APK}">Download for Android</a></span>`],
-  ["laptop", "Windows, Mac and Linux", "Close the window and it keeps working: alerts and downloads carry on from the tray, and it updates itself.", () => getDesktop(site)],
-  ["bookmark", "Bookmarklets", "Can't install anything? Two bookmarks send any page to PURSS, in any browser.", () => ""],
-  ["key", "Your assistant, if you want one", "Ask Claude, ChatGPT or another assistant you already use what you've read about something, and let it tidy up if you allow. Connects through MCP; off until you turn it on.", () => ""],
-  ["page", "E-ink compatible", "Made to work on e-readers: black on white, with page buttons instead of scrolling.", () => ""],
+  ["ext", copy.kit.apps.extension.title, copy.kit.apps.extension.text(DISTRIBUTION.extension.platforms), () => getIt("extension")],
+  ["phone", copy.kit.apps.phone.title, copy.kit.apps.phone.text(DISTRIBUTION.mobile.platforms), () => `<span class="a-stores">${getIt("mobile")}<a class="btn" href="${site.repo}/releases/latest/download/${ANDROID_APK}">${copy.kit.apps.phone.android}</a></span>`],
+  ["laptop", copy.kit.apps.desktop.title, copy.kit.apps.desktop.text, () => getDesktop(site)],
+  ["bookmark", copy.kit.apps.bookmarklets.title, copy.kit.apps.bookmarklets.text, () => ""],
+  ["key", copy.kit.apps.assistant.title, copy.kit.apps.assistant.text, () => ""],
+  ["page", copy.kit.apps.eink.title, copy.kit.apps.eink.text, () => ""],
 ] as const;
 
 export function appCards(site: Site): string {
@@ -194,55 +200,34 @@ export function appCards(site: Site): string {
 
 const steps = (site: Site) => [
   // The repository address may break after its last slash, or anywhere on the narrowest screens.
-  { t: "Get the code", c: `git clone <span class="url">${links(site).clone.replace(/\/(?=[^/]*$)/, "/<wbr>")}</span> purss\ncd purss` },
-  { t: "Settings (empty is fine for one machine)", c: "touch .env" },
-  { t: "Start", c: 'docker compose <span class="nw">--env-file .env</span> \\\n<span class="ind">    </span><span class="nw">-f infra/compose.yaml</span> <span class="nw">up -d --build</span>' },
+  { t: copy.kit.terminal.steps.code, c: `git clone <span class="url">${links(site).clone.replace(/\/(?=[^/]*$)/, "/<wbr>")}</span> purss\ncd purss` },
+  { t: copy.kit.terminal.steps.settings, c: "touch .env" },
+  { t: copy.kit.terminal.steps.start, c: 'docker compose <span class="nw">--env-file .env</span> \\\n<span class="ind">    </span><span class="nw">-f infra/compose.yaml</span> <span class="nw">up -d --build</span>' },
 ];
 
 /** The install commands as a terminal, with the developer links under it. */
 export function terminal(site: Site): string {
   // Each command is its own block with a hanging indent, so wrapped lines never look like new commands.
   const cmds = (c: string) => c.split(/\n(?!<span class="ind">)/).map((cmd) => `<span class="cmd"><span class="p">$</span> ${cmd}</span>`).join("");
-  return `<div class="s-term"><div class="s-term-h" aria-hidden="true"><i></i><i></i><i></i><span>your-server</span></div>
-<pre tabindex="0" aria-label="Install commands" class="s-pre">${steps(site).map((s) => `<span class="c"># ${s.t}</span>${cmds(s.c)}`).join("")}<span class="ok">✔ PURSS running on http://localhost:8940</span></pre></div>${developerLinks()}`;
+  return `<div class="s-term"><div class="s-term-h" aria-hidden="true"><i></i><i></i><i></i><span>${copy.kit.terminal.host}</span></div>
+<pre tabindex="0" aria-label="Install commands" class="s-pre">${steps(site).map((s) => `<span class="c"># ${s.t}</span>${cmds(s.c)}`).join("")}<span class="ok">${copy.kit.terminal.running}</span></pre></div>${developerLinks()}`;
 }
 
-type Answer = string | ((site: Site) => string);
-const FAQ: readonly (readonly [string, Answer])[] = [
-  ["What can I follow?", "Anything with a feed: blogs, news sites, journals, newsletters with a feed, YouTube channels, podcasts, and the public posts of Mastodon and Bluesky accounts. Paste a link or a handle and PURSS finds the feed and shows you a preview before you follow."],
-  ["Can I follow sites in other languages, including Arabic?", "Yes. Sources in any language or script work, and right-to-left text such as Arabic reads the right way round, even in a list next to English titles. Nothing is translated or changed. PURSS's own menus and buttons are in English for now."],
-  ["Is self-hosting really the full product?", "Yes. It's the same app with no limits unless you set them. The hosted plans exist for people who'd rather not run a server."],
-  ["What happens if I stop paying?", "Plus and Pro are billed yearly or monthly, as you choose, and you can cancel any time. Your plan runs to the end of the year or month you paid for, then your account moves to the Free limits. Nothing is deleted automatically to fit the free plan. You keep reading and exporting everything; new items pause until you're back under the free limits or renew."],
-  ["What are Smart filters?", "An optional filter for a source or collection that floods your lists. You describe which posts you want (\"keep posts about food, travel and gardening\", \"drop job ads\"), try it on the latest 20 posts, then turn it on. Jev, an AI model by TypeSafe AI that answers yes or no, judges each new post, and the ones it drops are marked Ignored: nothing is deleted, and a post you move back stays where you put it. Only a post's title, summary, author and source name are sent to be judged, never your reading, notes or account. Smart filters are included in the Pro plan. They are off until you set one up."],
-  ["Why not just run FreshRSS?", "FreshRSS does the fetching here too, and it's excellent at it. PURSS adds the parts people actually live in: guided Add source with YouTube, podcast, Mastodon and Bluesky discovery, collections, baskets with kept copies, five views, workflow with undo, highlights and notes, a podcast player, search, fingerprint and face sign-in, backups and invitations, plus a browser extension and phone apps. You never touch FreshRSS settings."],
-  ["How does Discovery work?", "Discovery is coming soon to the hosted service. It suggests sources you don't follow yet, from what other readers who follow your sources also follow, and says which of your sources led to each one, with a few chance picks for variety. It's an exchange: your followed sources count, without your name, and only readers who share get suggestions. A source counts only once at least 10 readers follow it, nobody sees who follows what or how many do, private sources never count, and suggestions never appear in your lists. Switch it off in Settings any time. A PURSS you host yourself has no Discovery."],
-  ["Who can see my data on the hosted plans?", "Your PURSS is private to your account; other users never see it. The admin tools we use to run the service show health, jobs and storage use, not your items or reading history; the only content they show is a shared page you published that someone reported. We don't sell your data or show ads, and you can export everything at any time. The hosted service is run by Program Sam on a server it manages."],
-  ["Who runs the hosted service?", 'Program Sam, the company behind the open-source code, runs it on a server it manages; how to reach Program Sam is on the <a class="link" href="/legal.html">legal notice</a>. You aren\'t locked in: every plan exports everything, and the same software runs on your own server. If the hosted service ever closed, the terms promise notice well in advance and time to export.'],
-  ["Does a basket save the whole web page?", "A basket keeps the item's details and summary, and can keep a readable text copy; with the browser extension, also the text as your browser shows it. Videos and episodes stay with their publisher; the phone app can download an episode to your device. None of that keeps the original page, video or episode online."],
-  ["Does a basket keep pictures?", "Yes, when the basket keeps a readable text copy: it then keeps the item's main picture and the pictures inside the text with it, so a recipe or a comic keeps its images. Items you only follow, without keeping them, still load their pictures from the publisher. Videos and episodes stay with their publisher."],
-  ["Can I be reminded about something I kept?", "Yes. Choose Remind me on a kept item, pick a date and add a note if you like. On that day the bell tells you, and an email comes too if you turn on Email me reminders in Settings. Home shows what's coming up in the next 7 days. It's meant for things like an exhibition or a deadline."],
-  ["Can I share something with other people?", "Yes. Copy link to the original on an item copies the original page's address, so you can send it to anyone and they need no account. A separate Copy your private link to this item opens it for you after you sign in. You can also share a whole basket or collection with Share on its page: it becomes a public page and feed that anyone can read without an account and follow from their own PURSS or any feed reader, and it keeps showing what you add. You can add a public note to any item on it. Before anything is shared you see the page and what of yours becomes public; it never shows your reading, private notes, highlights or saved text. Sharing is part of Plus and Pro, and included when you host PURSS yourself."],
-  ["Can readers of my blog follow it here?", "Yes. In Settings → Connected apps, paste your blog's feed address to get a Follow button for your pages. Readers who press it can follow you in their PURSS, or copy the feed into any other reader. The button is a plain link: no script, no tracking."],
-  ["What works without a connection?", "In the installed app, your reading list is saved on the device: your To read and In progress items, recent new ones, and kept items with saved text. You can read them, mark them and write highlights and notes; changes are sent when you're back online. Adding sources, search, settings and anything not saved need a connection, and so can pictures. The phone app can also download an episode to your device for listening offline."],
-  ["Is there a phone app or a browser extension?", "Both are on the way to the stores. The Android app can already be downloaded from this page; the extension for Chrome, Edge and Firefox isn't in the browser stores yet. On an iPhone or iPad, add PURSS to your home screen from your browser: it opens like an app and keeps your reading list for offline. Bookmarklets work in any browser with nothing to install. If you're technical, you can already build both from the source code."],
-  ["Can I sign in on a borrowed or shared computer?", "Yes. Fingerprint, face or screen lock is the quickest way in on your own devices, but you can also sign in with your email address and password on any computer. On a library, work or borrowed computer, choose This is a shared computer on the sign-in page: the session ends when the browser closes, and after eight hours at the latest, and offline copies stay off in an ordinary browser tab. Two people on one laptop each use their own account."],
-  ["Is it accessible?", (site) => `We build the website and the app for keyboard use and screen readers: named controls, visible focus, keyboard shortcuts in the app, a skip link on the website, and text that still fits when enlarged. We have checked them with the keyboard alone, with the browser's accessibility tree and with enlarged text, and we fix what that finds. We have not had an independent audit or tested with a panel of people who use assistive technology, so there will be gaps. If something doesn't work for you, <a class="link" href="${links(site).source}/issues">open an issue</a> or reach Program Sam through the <a class="link" href="/legal.html">legal notice</a>, and say what you were doing and what you use. We treat it as a bug.`],
-  ["Does it use AI?", "Not unless you ask it to. If you want, you can connect your own assistant, such as Claude or ChatGPT, to search and read your PURSS, and organise it if you allow. It's off until you turn it on, and you can disconnect it at any time. You can also give a source or collection a Smart filter: you describe in plain words which posts you want, instead of combining keywords and rules, and an AI model sets the rest aside. Smart filters are off until you set one up."],
-  ["Can I move between hosted and self-hosted?", "Yes. Export your PURSS from one and import it into the other. Coming from Feedly, Inoreader or another reader? Import its OPML file (the export file most readers offer) and your sources come with you."],
-] as const;
-
 export function faq(site: Site): string {
-  return `<div class="s-faq">${FAQ.map(([q, a]) => `<details><summary>${q}${ic("chev")}</summary><p>${typeof a === "function" ? a(site) : a}</p></details>`).join("")}</div>`;
+  return `<div class="s-faq">${copy.kit.faq.map(({ question, answer }) => `<details><summary>${question}${ic("chev")}</summary><p>${typeof answer === "function" ? answer(`${links(site).source}/issues`) : answer}</p></details>`).join("")}</div>`;
 }
 
 export function footer(site: Site): string {
-  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">Features</a><a href="/#apps">Apps and extensions</a><a href="/#pricing">Pricing</a><a href="/#self-host">Host it yourself</a><a href="${links(site).docs}">Docs</a><a href="${links(site).source}">Source code</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/legal.html">Legal notice</a></nav><span class="fine">Run by <a class="link" href="https://github.com/program-sam">Program Sam</a>. Built on the <a class="link" href="https://freshrss.org">FreshRSS</a> engine. No trackers on this site.</span></div></footer>`;
+  const F = copy.kit.footer;
+  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">${F.features}</a><a href="/#apps">${F.apps}</a><a href="/#pricing">${F.pricing}</a><a href="/#self-host">${F.hostIt}</a><a href="${links(site).docs}">${F.docs}</a><a href="${links(site).source}">${F.source}</a><a href="/privacy.html">${F.privacy}</a><a href="/terms.html">${F.terms}</a><a href="/legal.html">${F.legalNotice}</a></nav><span class="fine">${F.credit.before}<a class="link" href="https://github.com/program-sam">${F.credit.operator}</a>${F.credit.middle}<a class="link" href="https://freshrss.org">${F.credit.engine}</a>${F.credit.after}</span></div></footer>`;
 }
 
 /** The header. A page the server marks `data-session` (signed in) swaps the sign-up buttons for Go to your PURSS. */
-export function nav(site: Site, base = "", cta = "Create a free account", short = "Start free"): string {
+export function nav(site: Site, base = "", cta = copy.kit.actions.signUp, short = copy.kit.actions.signUpShort): string {
   const to = links(site);
-  const items = `<a href="${base}#why">Why</a><a href="${base}#features">Features</a><a href="${base}#apps">Apps</a><a href="${base}#pricing">Pricing</a><a href="${base}#self-host">Host it yourself</a><a href="${to.docs}">Docs</a>`;
-  return `<header class="s-nav"><div class="s-wrap s-nav-in"><a class="s-home" href="/">${brand()}</a><nav aria-label="Main">${items}</nav><span class="s-nav-cta"><a class="btn ghost s-out" href="${to.dashboard}">Open dashboard</a><a class="btn primary s-out" href="${to.signUp}"><span class="s-long">${cta}</span><span class="s-short">${short}</span></a><a class="btn primary s-in" href="${to.dashboard}">Go to your PURSS</a>
-<details class="s-menu"><summary class="ibtn" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary><nav aria-label="Main, small screens">${items}<a class="s-out" href="${to.dashboard}">Open dashboard</a></nav></details></span></div></header>`;
+  const N = copy.kit.nav;
+  const A = copy.kit.actions;
+  const items = `<a href="${base}#why">${N.why}</a><a href="${base}#features">${N.features}</a><a href="${base}#apps">${N.apps}</a><a href="${base}#pricing">${N.pricing}</a><a href="${base}#self-host">${N.hostIt}</a><a href="${to.docs}">${N.docs}</a>`;
+  return `<header class="s-nav"><div class="s-wrap s-nav-in"><a class="s-home" href="/">${brand()}</a><nav aria-label="Main">${items}</nav><span class="s-nav-cta"><a class="btn ghost s-out" href="${to.dashboard}">${A.dashboard}</a><a class="btn primary s-out" href="${to.signUp}"><span class="s-long">${cta}</span><span class="s-short">${short}</span></a><a class="btn primary s-in" href="${to.dashboard}">${A.signedIn}</a>
+<details class="s-menu"><summary class="ibtn" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary><nav aria-label="Main, small screens">${items}<a class="s-out" href="${to.dashboard}">${A.dashboard}</a></nav></details></span></div></header>`;
 }
