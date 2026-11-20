@@ -3,6 +3,9 @@ import { platform } from "../platform/index.ts";
 import { withinApp } from "../app-base.ts";
 import { pkce, readAppCode } from "../platform/native/connect.ts";
 import { rememberConfirming } from "./confirm-marker.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.providerConfirm;
 
 /*
  * "Confirm it's you" with a linked external sign-in (Google): the provider checks the person again and PURSS marks this
@@ -35,7 +38,7 @@ async function throughSystemBrowser(provider: { id: string }, purpose: "link" | 
       const back = readAppCode(url, kind, { state: request.state, issuer: platform.publicOrigin() });
       if (back.kind === "code") resolve(back.code);
     });
-    const timer = setTimeout(() => reject(new ApiError(0, "timeout", "That wasn't finished in the browser. Try again.")), WAIT_MS);
+    const timer = setTimeout(() => reject(new ApiError(0, "timeout", t.notFinished)), WAIT_MS);
     cancel = () => { clearTimeout(timer); stop(); };
   });
   try {
@@ -72,6 +75,6 @@ export async function linkWithProvider(provider: { id: string; label: string }):
 /** What to tell the person back from the provider's page, as PURSS itself says whether they are confirmed. */
 export async function confirmationNotice(label: string): Promise<string> {
   return (await security()).recentAuth
-    ? `Confirmed with ${label}. You can go ahead and do that again now.`
-    : `${label} didn't confirm it's you. Try again, or use another way.`;
+    ? t.confirmed(label)
+    : t.notConfirmed(label);
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssistantAccess, AssistantAccessLevel, AssistantGrantDTO, AssistantTokenCreated, AssistantTokenDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Check, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, post, put } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
@@ -13,8 +14,9 @@ import { CopyButton, Note } from "../shared/bits.tsx";
 import { useStepUp } from "../shared/step-up.tsx";
 
 const assistantKey = ["assistant"] as const;
-const ACCESS_LABEL: Record<AssistantAccessLevel, string> = { read: "Read only", write: "Read and organise" };
-const EXPIRY = [{ value: "30", label: "30 days" }, { value: "90", label: "90 days" }, { value: "365", label: "1 year" }, { value: "never", label: "No expiry" }] as const;
+const copy = app.assistant.assistantSettings;
+const ACCESS_LABEL: Record<AssistantAccessLevel, string> = copy.access;
+const EXPIRY = [{ value: "30", label: copy.expiry.days30 }, { value: "90", label: copy.expiry.days90 }, { value: "365", label: copy.expiry.year1 }, { value: "never", label: copy.expiry.never }] as const;
 
 /** The connection details for a new token, in the forms common assistants accept. */
 function ConnectInstructions({ endpoint, secret, access }: { endpoint: string; secret: string; access: AssistantAccessLevel }) {
@@ -22,13 +24,13 @@ function ConnectInstructions({ endpoint, secret, access }: { endpoint: string; s
   const json = JSON.stringify({ mcpServers: { "purss": { type: "http", url: endpoint, headers: { Authorization: `Bearer ${secret}` } } } }, null, 2);
   return (
     <div className="fx-stack" role="status">
-      <Note tone="warn" icon="lock">This token is shown only now. Anyone who has it can {access === "write" ? "read and organise" : "read"} your PURSS until you revoke it.</Note>
-      <div className="fx-link"><span className="fx-link-l">Token</span><code className="fx-url">{secret}</code><CopyButton value={secret} what="Token" /></div>
-      <div className="fx-link"><span className="fx-link-l">Address</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what="Address" /></div>
-      <p className="fine">In Claude Code, run:</p>
-      <div className="fx-link"><code className="fx-url">{claude}</code><CopyButton value={claude} what="Command" /></div>
-      <p className="fine">Other assistants that support MCP over HTTP (Claude Desktop, Cursor and others) take the address with an <code>Authorization: Bearer</code> header, often in a settings file like this:</p>
-      <div className="fx-link"><code className="fx-url" style={{ whiteSpace: "pre-wrap" }}>{json}</code><CopyButton value={json} what="Settings" /></div>
+      <Note tone="warn" icon="lock">{copy.connect.shownOnceBefore}{access === "write" ? copy.connect.readAndOrganise : copy.connect.read}{copy.connect.shownOnceAfter}</Note>
+      <div className="fx-link"><span className="fx-link-l">{copy.connect.token}</span><code className="fx-url">{secret}</code><CopyButton value={secret} what={copy.connect.token} /></div>
+      <div className="fx-link"><span className="fx-link-l">{copy.connect.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={copy.connect.address} /></div>
+      <p className="fine">{copy.connect.claudeCode}</p>
+      <div className="fx-link"><code className="fx-url">{claude}</code><CopyButton value={claude} what={copy.connect.command} /></div>
+      <p className="fine">{copy.connect.othersBefore}<code>Authorization: Bearer</code>{copy.connect.othersAfter}</p>
+      <div className="fx-link"><code className="fx-url" style={{ whiteSpace: "pre-wrap" }}>{json}</code><CopyButton value={json} what={copy.connect.settings} /></div>
     </div>
   );
 }
@@ -42,12 +44,12 @@ function TokenRow({ t, onRevoke }: { t: AssistantTokenDTO; onRevoke: () => void 
       <span className="tx">
         <b>{t.name}</b>
         <small>
-          {ACCESS_LABEL[t.access]} · made {shortDate(t.createdAt, Date.now(), tz)}
-          {t.expiresAt ? ` · ${expired ? "expired" : "expires"} ${shortDate(t.expiresAt, Date.now(), tz)}` : " · no expiry"}
-          {t.lastUsedAt ? ` · last used ${timeAgo(t.lastUsedAt) || "just now"}` : " · not used yet"}
+          {ACCESS_LABEL[t.access]}{copy.tokenRow.made(shortDate(t.createdAt, Date.now(), tz))}
+          {t.expiresAt ? copy.tokenRow.expiry(expired, shortDate(t.expiresAt, Date.now(), tz)) : copy.tokenRow.noExpiry}
+          {t.lastUsedAt ? copy.tokenRow.lastUsed(timeAgo(t.lastUsedAt) || copy.justNow) : copy.tokenRow.notUsed}
         </small>
       </span>
-      <Button onClick={onRevoke} aria-label={`Revoke ${t.name}`}>Revoke</Button>
+      <Button onClick={onRevoke} aria-label={`Revoke ${t.name}`}>{copy.tokenRow.revoke}</Button>
     </li>
   );
 }
@@ -59,9 +61,9 @@ function GrantRow({ g, onRevoke }: { g: AssistantGrantDTO; onRevoke: () => void 
       <Icon name="user" />
       <span className="tx">
         <b>{g.clientName}</b>
-        <small>{g.clientHost} · {ACCESS_LABEL[g.access]} · connected {shortDate(g.createdAt, Date.now(), tz)} · last used {timeAgo(g.lastUsedAt) || "just now"}</small>
+        <small>{copy.grantRow.summary(g.clientHost, ACCESS_LABEL[g.access], shortDate(g.createdAt, Date.now(), tz), timeAgo(g.lastUsedAt) || copy.justNow)}</small>
       </span>
-      <Button onClick={onRevoke} aria-label={`Disconnect ${g.clientName}`}>Disconnect</Button>
+      <Button onClick={onRevoke} aria-label={`Disconnect ${g.clientName}`}>{copy.grantRow.disconnect}</Button>
     </li>
   );
 }
@@ -70,8 +72,8 @@ function GrantRow({ g, onRevoke }: { g: AssistantGrantDTO; onRevoke: () => void 
 function SignInInstructions({ endpoint }: { endpoint: string }) {
   return (
     <div className="fx-stack">
-      <p className="fine">Assistants that sign in, such as Claude and ChatGPT, need only this address. Add it as a custom connector, then allow it here.</p>
-      <div className="fx-link"><span className="fx-link-l">Address</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what="Address" /></div>
+      <p className="fine">{copy.signIn.hint}</p>
+      <div className="fx-link"><span className="fx-link-l">{copy.signIn.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={copy.signIn.address} /></div>
     </div>
   );
 }
@@ -106,8 +108,8 @@ export function AssistantSettings() {
   }
   async function setEnabled(on: boolean) {
     const n = (data?.tokens.length ?? 0) + (data?.grants.length ?? 0);
-    if (!on && n && !window.confirm(`Turning this off revokes your tokens and disconnects your assistants. ${n === 1 ? "The assistant using it stops" : "Assistants using them stop"} working.`)) return;
-    await act(async () => { await put("/api/assistant", { enabled: on }); setMade(null); setComposing(false); toast(on ? "Assistant access on" : "Assistant access off; tokens revoked and assistants disconnected"); });
+    if (!on && n && !window.confirm(copy.confirmOff(n))) return;
+    await act(async () => { await put("/api/assistant", { enabled: on }); setMade(null); setComposing(false); toast(on ? copy.accessOn : copy.accessOff); });
   }
   async function create() {
     await act(async () => {
@@ -117,35 +119,35 @@ export function AssistantSettings() {
     });
   }
   async function disconnect(g: AssistantGrantDTO) {
-    if (!window.confirm(`Disconnect “${g.clientName}”? It stops working at once; connect it again from the assistant.`)) return;
-    await act(async () => { await del(`/api/assistant/grants/${encodeURIComponent(g.id)}`); toast(`Disconnected ${g.clientName}`); });
+    if (!window.confirm(copy.confirmDisconnect(g.clientName))) return;
+    await act(async () => { await del(`/api/assistant/grants/${encodeURIComponent(g.id)}`); toast(copy.disconnected(g.clientName)); });
   }
   async function revoke(t: AssistantTokenDTO) {
-    if (!window.confirm(`Revoke “${t.name}”? Assistants using it stop working at once.`)) return;
-    await act(async () => { await del(`/api/assistant/tokens/${encodeURIComponent(t.id)}`); if (made?.token.id === t.id) setMade(null); toast(`Revoked ${t.name}`); });
+    if (!window.confirm(copy.confirmRevoke(t.name))) return;
+    await act(async () => { await del(`/api/assistant/tokens/${encodeURIComponent(t.id)}`); if (made?.token.id === t.id) setMade(null); toast(copy.revoked(t.name)); });
   }
 
-  if (q.isPending) return <p className="state"><span className="spin" aria-hidden="true" />Loading…</p>;
+  if (q.isPending) return <p className="state"><span className="spin" aria-hidden="true" />{copy.loading}</p>;
   if (q.isError || !data) return <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p>;
   const insecure = data.endpoint.startsWith("http:") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(data.endpoint);
   return (
     <>
       {stepUp.dialog}
-      <p className="hint">Assistants that support MCP (such as Claude or ChatGPT) can search and read your PURSS. If you allow it, they can also organise it: change states, keep items, manage sources and collections. They can't delete anything for good, share, publish, export or change your sign-in. What they read goes to the assistant and its provider.</p>
+      <p className="hint">{copy.intro}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       {!data.available && session ? <Note>{hosted
-        ? `Assistant access isn't available yet.${data.tokens.length || data.grants.length ? " Your tokens and connected assistants don't work now." : ""}`
-        : <>Your administrator hasn't turned on assistant access for this PURSS{data.tokens.length || data.grants.length ? ", so your tokens and connected assistants don't work now. They work again if it is turned back on; revoke any you no longer want" : ""}.{isAdmin ? <> <button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/admin"); }}>Turn it on in Administration → Assistants</button>.</> : null}</>}</Note> : null}
+        ? copy.notAvailable(!!(data.tokens.length || data.grants.length))
+        : <>{copy.notTurnedOn(!!(data.tokens.length || data.grants.length))}.{isAdmin ? <> <button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/admin"); }}>{copy.turnOnInAdmin}</button>.</> : null}</>}</Note> : null}
       {data.available || data.enabled ? (
         <Check checked={data.enabled} disabled={busy || (!data.available && !data.enabled)} onChange={(on) => void setEnabled(on)}
-          hint="Turning it off revokes every token you made and disconnects every assistant.">Let assistants use my PURSS</Check>
+          hint={copy.switchHint}>{copy.switchLabel}</Check>
       ) : null}
-      {data.available && data.enabled && insecure ? <Note tone="warn" icon="alert">This PURSS is reached over plain HTTP, so a token would travel unencrypted. Use it only on a network you trust.</Note> : null}
+      {data.available && data.enabled && insecure ? <Note tone="warn" icon="alert">{copy.insecure}</Note> : null}
       {made ? <ConnectInstructions endpoint={data.endpoint} secret={made.secret} access={made.token.access} /> : null}
       {data.oauth && data.available && data.enabled && !made ? <SignInInstructions endpoint={data.endpoint} /> : null}
       {data.grants.length ? (
         <section className="field" aria-labelledby="as-g">
-          <div className="lbl" id="as-g">Connected assistants</div>
+          <div className="lbl" id="as-g">{copy.connectedAssistants}</div>
           <ul className="seclist">
             {data.grants.map((g) => <GrantRow key={g.id} g={g} onRevoke={() => void disconnect(g)} />)}
           </ul>
@@ -153,35 +155,35 @@ export function AssistantSettings() {
       ) : null}
       {data.enabled || data.tokens.length ? (
         <section className="field" aria-labelledby="as-t">
-          <div className="lbl" id="as-t">Tokens</div>
+          <div className="lbl" id="as-t">{copy.tokens}</div>
           <ul className="seclist">
             {data.tokens.map((t) => <TokenRow key={t.id} t={t} onRevoke={() => void revoke(t)} />)}
-            {!data.tokens.length ? <li><span className="tx"><small>No tokens yet.</small></span></li> : null}
+            {!data.tokens.length ? <li><span className="tx"><small>{copy.noTokens}</small></span></li> : null}
           </ul>
         </section>
       ) : null}
       {data.available && data.enabled && !composing ? (
-        <div><Button onClick={() => setComposing(true)}><Icon name="plus" size="sm" />New token</Button></div>
+        <div><Button onClick={() => setComposing(true)}><Icon name="plus" size="sm" />{copy.newToken}</Button></div>
       ) : null}
       {data.available && data.enabled && composing ? (
         <form className="field" aria-labelledby="as-n" onSubmit={(e) => { e.preventDefault(); void create(); }} style={{ display: "grid", gap: 10 }}>
-          <div className="lbl" id="as-n">New token</div>
-          <label className="fine" htmlFor="as-name">Name, so you recognise it later</label>
-          <TextInput id="as-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Claude on my laptop" autoComplete="off" />
-          <label className="fine" htmlFor="as-access">What it may do</label>
+          <div className="lbl" id="as-n">{copy.newToken}</div>
+          <label className="fine" htmlFor="as-name">{copy.nameLabel}</label>
+          <TextInput id="as-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={copy.namePlaceholder} autoComplete="off" />
+          <label className="fine" htmlFor="as-access">{copy.mayDo}</label>
           <SelectInput id="as-access" value={access} onChange={(e) => setAccess(e.target.value as AssistantAccessLevel)}>
-            <option value="read">Read only: search and read items, sources, collections and baskets</option>
-            <option value="write">Read and organise: also change states, keep items, follow and change sources</option>
+            <option value="read">{copy.optionRead}</option>
+            <option value="write">{copy.optionWrite}</option>
           </SelectInput>
-          <label className="fine" htmlFor="as-exp">Stops working after</label>
+          <label className="fine" htmlFor="as-exp">{copy.stopsAfter}</label>
           <SelectInput id="as-exp" value={expiry} onChange={(e) => setExpiry(e.target.value as (typeof EXPIRY)[number]["value"])}>
             {EXPIRY.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
           </SelectInput>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button type="submit" variant="primary" disabled={busy || !name.trim()}>Create token</Button>
-            <Button onClick={() => { setComposing(false); setName(""); }} disabled={busy}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={busy || !name.trim()}>{copy.createToken}</Button>
+            <Button onClick={() => { setComposing(false); setName(""); }} disabled={busy}>{copy.cancel}</Button>
           </div>
-          <p className="fine">You'll be asked to confirm it's you. Text from a source could try to instruct the assistant, so check what it proposes before it changes many things.</p>
+          <p className="fine">{copy.confirmItsYou}</p>
         </form>
       ) : null}
     </>

@@ -1,4 +1,7 @@
 import type { MouseEventHandler } from "react";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.providerButton;
 
 /** An external sign-in this PURSS offers (PURSS_OIDC). */
 export type ProviderInfo = { id: string; label: string };
@@ -21,7 +24,7 @@ function GoogleMark() {
  */
 export function ProviderButton({ provider, href, onClick, disabled }: { provider: ProviderInfo; href?: string; onClick?: MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) {
   const google = provider.id === "google";
-  const text = `Continue with ${provider.label}`;
+  const text = t.continueWith(provider.label);
   const inner = google ? <><GoogleMark /><span>{text}</span></> : text;
   const className = google ? "gsi-button" : "btn lg";
   const style = google ? undefined : { width: "100%" };

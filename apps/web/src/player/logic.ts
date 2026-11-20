@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { PlaybackPosition, WorkflowState } from "@purss/domain";
 
 /** Pure decisions of the player, kept apart so they can be tested without a browser. */
@@ -92,5 +93,5 @@ export function fileSize(bytes: number | null): string {
 
 /** Plain words for where the sound comes from, shown beside the controls. */
 export function sourceLabel(from: "publisher" | "device"): string {
-  return from === "device" ? "Playing the download on this device" : "Streaming from the publisher";
+  return from === "device" ? app.player.source.device : app.player.source.publisher;
 }

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { app } from "@purss/copy/app";
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
@@ -76,7 +77,7 @@ export function useItemActions() {
       toast(messageOf(err), { tone: "error" });
     };
 
-    const NOT_SENT = "Not sent yet: it goes as soon as PURSS can be reached.";
+    const t = app.state.actions;
 
     /**
      * Shows the change at once, keeps it on this device and sends it. Resolves with how it ended: confirmed (Undo
@@ -86,9 +87,9 @@ export function useItemActions() {
       const before = findItem(qc, id);
       if (!before) return;
       const label = workflowLabel(workflow, before.kind);
-      if (how === "set" && before.workflow === workflow) { toast(`Already ${label.toLowerCase()}`); return; }
+      if (how === "set" && before.workflow === workflow) { toast(t.already(label)); return; }
       if (how === "set" && workflow === "ignored") previousWorkflow.set(id, before.workflow);
-      const message = how === "restore" ? `Restored to ${label}` : workflow === "ignored" ? "Ignored" : `Marked ${label}`;
+      const message = how === "restore" ? t.restoredTo(label) : workflow === "ignored" ? t.ignored : t.marked(label);
       putItem(qc, { ...before, workflow, workflowRevision: before.workflow === workflow ? before.workflowRevision : before.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       const change: Change = { kind: "workflow", itemId: id, from: before.workflow, to: workflow, revision: revision ?? before.revision };
       let out: Outcome;
@@ -101,7 +102,7 @@ export function useItemActions() {
         toast(message, { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
         const entryId = out.entry.id;
-        toast(`${message}. ${NOT_SENT}`, { undo: () => takeBack(entryId, change, () => putItem(qc, before), (revision) => changeWorkflow(id, before.workflow, "set", revision)) });
+        toast(t.withNote(message, t.notSent), { undo: () => takeBack(entryId, change, () => putItem(qc, before), (revision) => changeWorkflow(id, before.workflow, "set", revision)) });
       } else if (out.status === "dropped") {
         putItem(qc, before);
         void qc.invalidateQueries({ queryKey: keys.item(id) });
@@ -141,7 +142,7 @@ export function useItemActions() {
       refreshWorkspace(qc);
       const refused = sum.dropped.length ? droppedLine(sum.dropped) : "";
       if (!sum.items) { toast(refused, { tone: "error" }); return; }
-      const message = [describe(sum.items) + (sum.waiting.length ? `. ${NOT_SENT}` : ""), refused].filter(Boolean).join(" ");
+      const message = [sum.waiting.length ? t.withNote(describe(sum.items), t.notSent) : describe(sum.items), refused].filter(Boolean).join(" ");
       if (!sum.tokens.length && !sum.waiting.length) { toast(message); return; }
       toast(message, {
         undo: async () => {
@@ -165,15 +166,15 @@ export function useItemActions() {
       const label = workflowLabel(workflow);
       const items = ids.map((id) => findItem(qc, id)).filter((x): x is ItemDTO => !!x);
       const changes = workflowChanges(items, workflow);
-      if (!changes.length) { toast(`Already ${label.toLowerCase()}`); return; }
+      if (!changes.length) { toast(t.already(label)); return; }
       const before = new Map(items.map((it) => [it.id, it] as const));
       for (const c of changes) {
         const it = before.get(c.itemId)!;
         if (workflow === "ignored") previousWorkflow.set(it.id, it.workflow);
         putItem(qc, { ...it, workflow, workflowRevision: it.workflow === workflow ? it.workflowRevision : it.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       }
-      const verb = workflow === "ignored" ? "Ignored" : `Marked ${label}`;
-      await sendMany(changes, (n) => `${verb} for ${plural(n, "item")}`, {
+      const verb = workflow === "ignored" ? t.ignored : t.marked(label);
+      await sendMany(changes, (n) => t.markedFor(verb, plural(n, app.lib.nouns.item)), {
         revert: (c) => { const it = c.kind === "workflow" ? before.get(c.itemId) : undefined; if (it) putItem(qc, it); },
         inverse: (c, revision) => (c.kind === "workflow" ? { kind: "workflow", itemId: c.itemId, from: c.to, to: c.from, revision: revision ?? c.revision } : null),
       });
@@ -217,7 +218,7 @@ export function useItemActions() {
       putItem(qc, { ...before, fresh: false, basketIds: on ? [...new Set([...before.basketIds, basketId])] : before.basketIds.filter((b) => b !== basketId) });
       // A removed item leaves that basket's page at once; Undo refreshes the lists and brings it back.
       if (!on) dropFromScope(qc, `basket:${basketId}`, id);
-      const message = `${on ? "Kept in" : "Removed from"} ${isolate(basket.name)}`;
+      const message = t.keep(on, isolate(basket.name));
       const change: Change = { kind: "keep", itemId: id, basketId, on };
       let out: Outcome;
       try {
@@ -228,10 +229,10 @@ export function useItemActions() {
         refreshAfterNewCleared(qc, before, out.result.item);
         void qc.invalidateQueries({ queryKey: keys.item(id) });
         staleLists(qc);
-        toast(on && out.result.captureNote ? `${message}. ${out.result.captureNote}` : message, { undoToken: out.result.undoToken });
+        toast(on && out.result.captureNote ? t.withNote(message, out.result.captureNote) : message, { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
         const entryId = out.entry.id;
-        toast(`${message}. ${NOT_SENT}`, { undo: () => takeBack(entryId, change, () => { putItem(qc, before); if (!on) void qc.invalidateQueries({ queryKey: keys.items }); }, () => keep(id, basketId, !on)) });
+        toast(t.withNote(message, t.notSent), { undo: () => takeBack(entryId, change, () => { putItem(qc, before); if (!on) void qc.invalidateQueries({ queryKey: keys.items }); }, () => keep(id, basketId, !on)) });
       } else if (out.status === "dropped") {
         putItem(qc, before);
         void qc.invalidateQueries({ queryKey: keys.item(id) });
@@ -243,15 +244,15 @@ export function useItemActions() {
     async function keepMany(ids: string[], basketIds: string[]): Promise<void> {
       const items = ids.map((id) => findItem(qc, id)).filter((x): x is ItemDTO => !!x);
       const changes = keepChanges(items, ids, basketIds);
-      if (!changes.length) { toast("Already kept there"); return; }
+      if (!changes.length) { toast(t.alreadyKept); return; }
       const before = new Map(items.map((it) => [it.id, it] as const));
       for (const it of items) {
         const add = basketIds.filter((b) => !it.basketIds.includes(b));
         if (add.length) putItem(qc, { ...it, fresh: false, basketIds: [...it.basketIds, ...add] });
       }
       const names = basketIds.map((b) => ws.basketById.get(b)?.name).filter((n): n is string => !!n);
-      const where = names.length === 1 ? isolate(names[0]!) : plural(names.length, "basket");
-      await sendMany(changes, (n) => `Kept ${plural(n, "item")} in ${where}`, {
+      const where = names.length === 1 ? isolate(names[0]!) : plural(names.length, app.lib.nouns.basket);
+      await sendMany(changes, (n) => t.keptIn(plural(n, app.lib.nouns.item), where), {
         revert: (c) => { const it = c.kind === "keep" ? before.get(c.itemId) : undefined; if (it) putItem(qc, it); },
         inverse: (c) => (c.kind === "keep" ? { kind: "keep", itemId: c.itemId, basketId: c.basketId, on: false } : null),
       });
@@ -262,13 +263,13 @@ export function useItemActions() {
      * arrived since, which the person never saw. Offline, it says so instead of failing without a word.
      */
     async function clearFresh(scope: string): Promise<void> {
-      const needsConnection = () => toast("Mark all as seen needs a connection. Nothing was changed.", { tone: "error" });
+      const needsConnection = () => toast(t.needsConnection, { tone: "error" });
       if (typeof navigator !== "undefined" && navigator.onLine === false) { needsConnection(); return; }
       try {
         const out = await post<ClearFreshResult>("/api/items/clear-fresh", { scope });
         refreshWorkspace(qc);
-        if (!out.changed || !out.undoToken) { toast("Nothing new to mark as seen"); return; }
-        toast(`Marked ${plural(out.changed, "item")} as seen`, { undoToken: out.undoToken });
+        if (!out.changed || !out.undoToken) { toast(t.nothingNew); return; }
+        toast(t.markedSeen(plural(out.changed, app.lib.nouns.item)), { undoToken: out.undoToken });
       } catch (err) {
         if (err instanceof ApiError && err.code === "offline") needsConnection(); else fail(err);
       }
@@ -283,10 +284,10 @@ export function useItemActions() {
       } catch (err) { before.forEach((it) => putItem(qc, it)); fail(err); return; }
       if (out.status === "sent" && out.result.kind === "clearFresh") {
         refreshWorkspace(qc);
-        if (!out.result.changed || !out.result.undoToken) { toast(`${ids.length === 1 ? "That item wasn't" : "Those items weren't"} marked New`); return; }
-        toast(`Marked ${plural(out.result.changed, "item")} as seen`, { undoToken: out.result.undoToken });
+        if (!out.result.changed || !out.result.undoToken) { toast(t.notMarkedNew(ids.length === 1)); return; }
+        toast(t.markedSeen(plural(out.result.changed, app.lib.nouns.item)), { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
-        toast(`Marked as seen. ${NOT_SENT}`);
+        toast(t.markedSeenLater);
       } else if (out.status === "dropped") {
         before.forEach((it) => putItem(qc, it));
         refreshWorkspace(qc);

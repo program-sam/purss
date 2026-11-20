@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { linkIsMediaFile, sameAddress } from "@purss/domain";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
@@ -98,7 +99,7 @@ export function isTimeBased(kind: ItemDTO["kind"]): boolean {
 
 export function lengthText(item: ItemDTO): string {
   if (isTimeBased(item.kind)) return item.durationSeconds ? clock(item.durationSeconds) : "";
-  return item.readMinutes ? `${item.readMinutes} min` : "";
+  return item.readMinutes ? app.lib.items.minutes(item.readMinutes) : "";
 }
 
 export function isYouTube(url: string | null): boolean {

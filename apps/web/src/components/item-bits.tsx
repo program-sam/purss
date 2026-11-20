@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO, ItemKind, KeptCopy } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
@@ -7,6 +8,8 @@ import { workflowLabel } from "../lib/constants.ts";
 import { isTimeBased, isYouTube, itemExcerpt, itemPicture, lengthText, manualSiteName, safeHref } from "../lib/items.ts";
 import { usePendingMark } from "../outbox/hooks.ts";
 import { useRowLookups } from "../state/workspace.tsx";
+
+const t = app.components.itemBits;
 
 export type Face = { hue: number; initials: string; iconUrl: string | null; name: string; curator: string | null };
 
@@ -36,15 +39,15 @@ export function useFace(item: ItemDTO): Face {
 }
 
 export function FreshDot({ fresh }: { fresh: boolean }) {
-  return fresh ? <><i className="dot" title="New since you last looked" /><span className="sr">New. </span></> : null;
+  return fresh ? <><i className="dot" title={t.freshTitle} /><span className="sr">New. </span></> : null;
 }
 
 const COPY: Record<KeptCopy, { text: string; icon: IconName }> = {
-  text: { text: "Text saved", icon: "check" },
-  partial: { text: "Only part saved", icon: "info" },
-  summary: { text: "Feed text only", icon: "item" },
-  pending: { text: "Saving text…", icon: "clock" },
-  failed: { text: "Couldn't save the text", icon: "alert" },
+  text: { text: t.copy.text, icon: "check" },
+  partial: { text: t.copy.partial, icon: "info" },
+  summary: { text: t.copy.summary, icon: "item" },
+  pending: { text: t.copy.pending, icon: "clock" },
+  failed: { text: t.copy.failed, icon: "alert" },
 };
 
 /** What was kept of an item in a basket, in words: the readable text, only part of it, the summary, or nothing of the page. Shown in basket lists. */
@@ -67,7 +70,7 @@ export function NoteLine({ item, id }: { item: ItemDTO; id?: string }) {
 export function useItemLabel(item: ItemDTO, o: { source: string; when: string; showKept: boolean; showCopy?: boolean }): string {
   const lookups = useRowLookups();
   const n = item.basketIds.length;
-  const kept = o.showKept && n ? `Kept in ${n === 1 ? lookups.basketName(item.basketIds[0]!) ?? "1 basket" : `${n} baskets`}` : null;
+  const kept = o.showKept && n ? `Kept in ${n === 1 ? lookups.basketName(item.basketIds[0]!) ?? t.oneBasket : t.baskets(n)}` : null;
   return [item.fresh ? "New" : null, item.title, o.source, o.when, item.workflow !== "new" ? workflowLabel(item.workflow, item.kind) : null, kept, o.showCopy && item.kept ? COPY[item.kept.copy].text : null].filter(Boolean).join(", ");
 }
 
@@ -81,7 +84,7 @@ export function WfTag({ workflow, kind }: { workflow: ItemDTO["workflow"]; kind?
  */
 export function PendingMark({ id }: { id: string }) {
   if (!usePendingMark(id)) return null;
-  return <span className="pend" title="Not sent yet"><Icon name="clock" size="sm" /><span className="sr">Not sent yet. </span></span>;
+  return <span className="pend" title={t.pendingTitle}><Icon name="clock" size="sm" /><span className="sr">Not sent yet. </span></span>;
 }
 
 /** Which baskets keep the item, in words: "Fieldwork", or "2 baskets". Nothing when it isn't kept. */
@@ -89,7 +92,7 @@ export function KeptTag({ item }: { item: ItemDTO }) {
   const lookups = useRowLookups();
   const n = item.basketIds.length;
   if (!n) return null;
-  const name = n === 1 ? lookups.basketName(item.basketIds[0]!) ?? "1 basket" : `${n} baskets`;
+  const name = n === 1 ? lookups.basketName(item.basketIds[0]!) ?? t.oneBasket : t.baskets(n);
   return <span className="kept"><Icon name="bookmark" size="sm" /><span className="sr">Kept in </span><span dir="auto">{name}</span></span>;
 }
 
@@ -153,7 +156,7 @@ export function Art({ item, face, playable = false }: { item: ItemDTO; face: Fac
 export function videoLink(item: ItemDTO): { href: string; label: string } | null {
   if (item.kind !== "video") return null;
   const href = safeHref(item.url);
-  return href ? { href, label: isYouTube(href) ? "Play on YouTube" : "Open the video" } : null;
+  return href ? { href, label: isYouTube(href) ? t.playOnYouTube : t.openVideo } : null;
 }
 
 /** Said after the name of a link that opens another tab, for screen readers. */
@@ -162,16 +165,16 @@ export function NewTab() {
 }
 
 export function SharedBy({ curator }: { curator: string | null }) {
-  return curator ? <span className="shared">shared by <span dir="auto">{curator}</span></span> : null;
+  return curator ? <span className="shared">{t.sharedBy}<span dir="auto">{curator}</span></span> : null;
 }
 
 /** Reading progress, shown only when there is some. Never colour alone: the number is always there. */
-export function Progress({ value, label = "Reading progress" }: { value: number; label?: string }) {
+export function Progress({ value, label = t.readingProgress }: { value: number; label?: string }) {
   if (!(value > 0)) return null;
   const pct = Math.round(value * 100);
   return (
     <div className="prog">
-      <span>{label}: {pct}% read</span>
+      <span>{t.progress(label, pct)}</span>
       <div className="track" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
     </div>
   );

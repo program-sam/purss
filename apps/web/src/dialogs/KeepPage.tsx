@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { BasketDTO, UrlLookup } from "@purss/domain";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { get, messageOf, post } from "../api/client.ts";
@@ -10,13 +11,15 @@ import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
+const t = app.dialogs.keepPage;
+
 const NEW = "__new";
 
 /** What keeping a link did, for the toast. */
 export function keptMessage(out: ManualKeepResult, basketName: string, noun: "link" | "video" = "link"): string {
-  const what = !out.existing ? `Kept the ${noun} in ${basketName}`
-    : out.alreadyInBasket ? `You already had this page in ${basketName}` : `You already had this page; kept it in ${basketName}`;
-  return `${what}${out.captureNote ? `. ${out.captureNote}` : ""}`;
+  const what = !out.existing ? t.kept(t.nouns[noun], basketName)
+    : out.alreadyInBasket ? t.alreadyInBasket(basketName) : t.alreadyKept(basketName);
+  return `${what}${out.captureNote ? t.captureNote(out.captureNote) : ""}`;
 }
 
 const webAddress = (raw: string): string | null => {
@@ -50,39 +53,39 @@ export function KeepPageDialog({ url: raw, title: initialTitle }: { url: string;
       let basketId = basketChoice;
       let basketName = ws.basketById.get(basketChoice)?.name ?? "";
       if (basketChoice === NEW) {
-        if (!newBasket.trim()) { setError("Name the new basket first."); setBusy(false); return; }
+        if (!newBasket.trim()) { setError(t.nameBasketFirst); setBusy(false); return; }
         const b = await post<BasketDTO>("/api/baskets", { name: newBasket.trim(), captureMode: "metadata" });
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url, basketId, ...(title.trim() ? { title: title.trim() } : {}) });
       refreshWorkspace(qc);
       ov.close();
-      toast(keptMessage(out, basketName), { actions: [{ label: "Open", onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
+      toast(keptMessage(out, basketName), { actions: [{ label: t.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
-  const footer = <><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={busy || !url} onClick={keep}>Keep</Button></>;
+  const footer = <><Button onClick={ov.close}>{t.cancel}</Button><Button variant="primary" disabled={busy || !url} onClick={keep}>{t.keep}</Button></>;
   return (
-    <Dialog title="Keep this page" onClose={ov.close} footer={footer} initialFocus="#kp-b">
-      {!url ? <p className="state note" role="alert"><Icon name="info" /><span>That link can't be kept: <b style={{ wordBreak: "break-all" }}>{raw}</b></span></p> : (
+    <Dialog title={t.title} onClose={ov.close} footer={footer} initialFocus="#kp-b">
+      {!url ? <p className="state note" role="alert"><Icon name="info" /><span>{t.cannotKeep}<b style={{ wordBreak: "break-all" }}>{raw}</b></span></p> : (
         <div style={{ display: "grid", gap: 14 }}>
           <p className="hint" style={{ wordBreak: "break-all" }}>{url}</p>
           <div aria-live="polite">
-            {lookup.isPending ? <p className="state"><span className="spin" aria-hidden="true" />Checking your PURSS…</p> : null}
+            {lookup.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.checking}</p> : null}
             {lookup.isError ? <p className="state note"><Icon name="info" /><span>{messageOf(lookup.error)}</span></p> : null}
-            {have?.baskets.length ? <p className="state note"><Icon name="check" /><span>Already kept in {have.baskets.map((b) => b.name).join(", ")}.</span></p>
-              : have ? <p className="fine">This page is already in your PURSS. Keeping it keeps that copy.</p> : null}
-            {lookup.data?.followedSources.length ? <p className="fine">You follow {lookup.data.followedSources.map((s) => s.title).join(", ")}, which publishes on this site.</p> : null}
+            {have?.baskets.length ? <p className="state note"><Icon name="check" /><span>{t.alreadyKeptIn.before}{have.baskets.map((b) => b.name).join(", ")}{t.alreadyKeptIn.after}</span></p>
+              : have ? <p className="fine">{t.alreadyHave}</p> : null}
+            {lookup.data?.followedSources.length ? <p className="fine">{t.followedSources.before}{lookup.data.followedSources.map((s) => s.title).join(", ")}{t.followedSources.after}</p> : null}
           </div>
-          <Field label="Basket" htmlFor="kp-b">
+          <Field label={t.basket} htmlFor="kp-b">
             <SelectInput id="kp-b" value={basketChoice} onChange={(e) => setBasketChoice(e.target.value)}>
-              {ws.data.baskets.map((b) => <option key={b.id} value={b.id}>{b.name}{have?.baskets.some((x) => x.id === b.id) ? " (already there)" : ""}</option>)}
-              <option value={NEW}>New basket…</option>
+              {ws.data.baskets.map((b) => <option key={b.id} value={b.id}>{b.name}{have?.baskets.some((x) => x.id === b.id) ? t.alreadyThere : ""}</option>)}
+              <option value={NEW}>{t.newBasket}</option>
             </SelectInput>
-            {basketChoice === NEW ? <input className="in" placeholder="Name your basket" aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus /> : null}
+            {basketChoice === NEW ? <input className="in" placeholder={t.newBasketPlaceholder} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus /> : null}
           </Field>
-          {have ? null : <Field label="Title (optional)" htmlFor="kp-t"><TextInput id="kp-t" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} autoComplete="off" /></Field>}
-          <p className="fine">Keeping saves the link and its title. The original page may change or disappear.</p>
+          {have ? null : <Field label={t.titleOptional} htmlFor="kp-t"><TextInput id="kp-t" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} autoComplete="off" /></Field>}
+          <p className="fine">{t.keepNote}</p>
           {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         </div>
       )}

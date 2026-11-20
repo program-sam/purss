@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { RefObject } from "react";
+import { app } from "@purss/copy/app";
 import { Icon } from "@purss/ui";
 import { markPaging } from "../lib/reading-progress.ts";
+
+const t = app.components.pageNav;
 
 /** Keep a line of the previous screen in view, so reading carries on from where it stopped. */
 const OVERLAP = 40;
@@ -33,8 +36,8 @@ export function PageNav({ target, what }: { target: RefObject<HTMLElement | null
   };
   return (
     <div className="pagenav" role="group" aria-label={`Page through the ${what}`}>
-      <button type="button" className="btn" disabled={edge.top} onClick={() => page(-1)}><Icon name="up" />Page up</button>
-      <button type="button" className="btn" disabled={edge.bottom} onClick={() => page(1)}><Icon name="down" />Page down</button>
+      <button type="button" className="btn" disabled={edge.top} onClick={() => page(-1)}><Icon name="up" />{t.up}</button>
+      <button type="button" className="btn" disabled={edge.bottom} onClick={() => page(1)}><Icon name="down" />{t.down}</button>
     </div>
   );
 }

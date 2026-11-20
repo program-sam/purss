@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { ItemMedia, PlaybackPosition, WorkflowState } from "@purss/domain";
 import type { BackendState, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
@@ -110,8 +111,8 @@ export class Player {
     this.#workflowSession?.tally.report(s, this.#playbackNow(), this.#rate);
     if (this.#current && s.failed && !this.#error) {
       this.#error = this.#current.from === "device"
-        ? "The download on this device couldn't be played. Remove it and download it again."
-        : "The publisher's file couldn't be played here. It may have moved, or need the publisher's own app.";
+        ? app.player.errors.deviceFailed
+        : app.player.errors.publisherFailed;
     }
     // Pausing or reaching the end saves straight away; while playing, now and then.
     const stopped = this.#wasPlaying && !s.playing;
@@ -248,7 +249,7 @@ export class Player {
     this.#error = null;
     // A publisher's file only over a secure connection: the page's policy requires it, and the apps' native player follows suit.
     if (from === "publisher" && !/^https:\/\//i.test(url)) {
-      this.#error = "The publisher doesn't offer this file over a secure connection, so it can't be played here.";
+      this.#error = app.player.errors.notSecure;
       this.#emit();
       return;
     }

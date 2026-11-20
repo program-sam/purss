@@ -1,6 +1,9 @@
 import { CapacitorPasskey } from "@capgo/capacitor-passkey";
 import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 import type { Passkeys } from "../types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.passkeys;
 
 /**
  * The phone's own passkeys (Credential Manager on Android, AuthenticationServices on iOS), for a PURSS that
@@ -12,7 +15,7 @@ async function call<T>(run: () => Promise<unknown>): Promise<T> {
     return (await run()) as T;
   } catch (err) {
     const e = err as { code?: string; name?: string; message?: string };
-    const named = new Error(e.message ?? "The passkey didn't work.");
+    const named = new Error(e.message ?? t.didntWork);
     named.name = e.code ?? e.name ?? "UnknownError";
     throw named;
   }

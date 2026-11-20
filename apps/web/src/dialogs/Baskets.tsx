@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { BasketDTO } from "@purss/domain";
 import { Button, Dialog, Icon, TextInput } from "@purss/ui";
 import { messageOf, patch, post, put } from "../api/client.ts";
@@ -13,9 +14,11 @@ import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
+const t = app.dialogs.baskets;
+
 const MODES: { value: BasketDTO["captureMode"]; label: string; blurb: string }[] = [
-  { value: "metadata", label: "Link and summary", blurb: "The title, the link and whatever text the feed gave." },
-  { value: "text", label: "Readable copy too", blurb: "Also the page's own text and pictures, fetched when you keep the item, where the site allows it." },
+  { value: "metadata", label: t.modes.metadata.label, blurb: t.modes.metadata.blurb },
+  { value: "text", label: t.modes.text.label, blurb: t.modes.text.blurb },
 ];
 
 /** Create a basket, or change its name and what it saves. Opened from an item's keep controls, the new basket keeps that item. */
@@ -39,15 +42,15 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
         await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: name.trim(), captureMode: mode });
         refreshWorkspace(qc);
         ov.close();
-        toast("Saved basket settings", { undo: async () => { await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: existing.name, captureMode: existing.captureMode }); refreshWorkspace(qc); } });
+        toast(t.form.savedSettings, { undo: async () => { await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: existing.name, captureMode: existing.captureMode }); refreshWorkspace(qc); } });
       } else {
         const b = await post<BasketDTO>("/api/baskets", { name: name.trim(), captureMode: mode });
         putBasket(qc, b);
         ov.close();
-        const open = { actions: [{ label: "Open", onSelect: () => nav.go({ t: "b", id: b.id }) }] };
+        const open = { actions: [{ label: t.form.open, onSelect: () => nav.go({ t: "b", id: b.id }) }] };
         if (!keepItemId) {
           refreshWorkspace(qc, { items: false });
-          toast(`Created the basket ${isolate(b.name)}`, open);
+          toast(t.form.created(isolate(b.name)), open);
           return;
         }
         try {
@@ -55,22 +58,22 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
           // The item shows as kept straight away, without waiting for the lists to be fetched again.
           putItem(qc, out.item);
           void qc.invalidateQueries({ queryKey: keys.item(keepItemId) });
-          toast(`Created ${isolate(b.name)} and kept the item in it${out.captureNote ? `. ${out.captureNote}` : ""}`, open);
+          toast(t.form.createdAndKept(isolate(b.name), out.captureNote), open);
         } catch (err) {
-          toast(`Created ${isolate(b.name)}, but the item couldn't be kept in it: ${messageOf(err)}`, { tone: "error", ...open });
+          toast(t.form.createdNotKept(isolate(b.name), messageOf(err)), { tone: "error", ...open });
         } finally { refreshWorkspace(qc); }
       }
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
   return (
-    <Dialog title={existing ? "Basket settings" : "New basket"} size="sm" onClose={ov.close} initialFocus="#bk-name"
-      footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={submit}>{existing ? "Save changes" : "Create basket"}</Button></>}>
-      {existing ? null : <p className="fine">A basket keeps the items you put in it, even after their feed drops them or you unfollow the source.</p>}
-      <div className="field"><label htmlFor="bk-name">Name</label>
-        <TextInput id="bk-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder="Weekend reading, Thesis references"
+    <Dialog title={existing ? t.form.titleEdit : t.form.titleNew} size="sm" onClose={ov.close} initialFocus="#bk-name"
+      footer={<><Button onClick={ov.close}>{t.form.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={submit}>{existing ? t.form.saveChanges : t.form.create}</Button></>}>
+      {existing ? null : <p className="fine">{t.form.intro}</p>}
+      <div className="field"><label htmlFor="bk-name">{t.form.name}</label>
+        <TextInput id="bk-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder={t.form.placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy) void submit(); }} /></div>
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>What this basket saves</legend>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.form.saves}</legend>
         <div className="radiolist">
           {MODES.map((m) => (
             <label key={m.value} className="rl" style={{ alignItems: "flex-start", padding: "10px" }}>
@@ -80,8 +83,8 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
             </label>
           ))}
         </div>
-        {keepItemId && !existing ? <p className="fine">The item you chose is kept in this basket once it's created.</p> : null}
-        <p className="fine">The original page can still change or disappear. A basket keeps what it saved, not the page itself.{existing ? " Changes apply to items you keep from now on." : ""}</p>
+        {keepItemId && !existing ? <p className="fine">{t.form.itemKept}</p> : null}
+        <p className="fine">{t.form.originalPage}{existing ? t.form.changesApply : ""}</p>
       </fieldset>
       {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
@@ -109,21 +112,21 @@ export function BasketDeleteDialog({ id }: { id: string }) {
       refreshWorkspace(qc);
       ov.close();
       nav.go({ t: "home" });
-      toast(`Deleted the basket ${isolate(basket!.name)}`);
+      toast(t.delete.deleted(isolate(basket!.name)));
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
   const p = preview.data;
   return (
-    <Dialog title={`Delete ${basket.name}?`} size="sm" onClose={ov.close}
-      footer={<><Button onClick={ov.close}>Keep the basket</Button><Button variant="danger" disabled={!p || busy} onClick={confirm}>Delete basket</Button></>}>
-      {preview.isPending ? <p className="state"><span className="spin" aria-hidden="true" />Checking what's inside…</p> : null}
+    <Dialog title={t.delete.title(basket.name)} size="sm" onClose={ov.close}
+      footer={<><Button onClick={ov.close}>{t.delete.keepBasket}</Button><Button variant="danger" disabled={!p || busy} onClick={confirm}>{t.delete.deleteBasket}</Button></>}>
+      {preview.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.delete.checking}</p> : null}
       {preview.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(preview.error)}</span></p> : null}
       {p ? (
         <div style={{ display: "grid", gap: 10 }}>
-          <p className="hint">Deleting removes the basket, not its {plural(p.items, "item")}: {p.items === 1 ? "it stays" : "they stay"} in your PURSS.</p>
+          <p className="hint">{t.delete.removes(plural(p.items, t.delete.item), p.items === 1 ? t.delete.itStays : t.delete.theyStay)}</p>
           <p className="hint">{p.onlyHere > 0
-            ? <>But {plural(p.onlyHere, "item")} {p.onlyHere === 1 ? "is" : "are"} in no other basket, so {p.onlyHere === 1 ? "it stops" : "they stop"} being kept.</>
-            : "Everything in it is also kept in another basket, so all of it stays kept."}</p>
+            ? <>{t.delete.onlyHere(plural(p.onlyHere, t.delete.item), p.onlyHere === 1 ? t.delete.is : t.delete.are, p.onlyHere === 1 ? t.delete.itStops : t.delete.theyStop)}</>
+            : t.delete.allElsewhere}</p>
         </div>
       ) : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}

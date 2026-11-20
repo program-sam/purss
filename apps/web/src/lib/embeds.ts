@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 /**
  * A video page's own embedded player: YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch; and an Instagram
  * post's own embed, the only way its pictures and videos can be shown here (Instagram's picture servers refuse other sites).
@@ -121,17 +122,17 @@ export function embedFor(url: string | null | undefined, page: { protocol: strin
   try { u = new URL(url); } catch { return null; }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   const od = odysee(u);
-  if (od) return { src: od, platform: "Odysee" };
+  if (od) return { src: od, platform: app.lib.embeds.platform.odysee };
   if (!page || (page.protocol !== "https:" && page.protocol !== "http:")) return null;
   const yt = youtube(u);
-  if (yt) return { src: yt, platform: "YouTube" };
+  if (yt) return { src: yt, platform: app.lib.embeds.platform.youtube };
   const vm = vimeo(u);
-  if (vm) return { src: vm, platform: "Vimeo" };
+  if (vm) return { src: vm, platform: app.lib.embeds.platform.vimeo };
   const dm = dailymotion(u);
-  if (dm) return { src: dm, platform: "Dailymotion" };
+  if (dm) return { src: dm, platform: app.lib.embeds.platform.dailymotion };
   const tw = twitch(u, page);
-  if (tw) return { src: tw, platform: "Twitch" };
+  if (tw) return { src: tw, platform: app.lib.embeds.platform.twitch };
   const ig = instagram(u);
-  if (ig) return { src: ig, platform: "Instagram", post: true };
+  if (ig) return { src: ig, platform: app.lib.embeds.platform.instagram, post: true };
   return null;
 }

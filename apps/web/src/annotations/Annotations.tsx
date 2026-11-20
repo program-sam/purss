@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { app } from "@purss/copy/app";
 import type { TextRef } from "@purss/domain";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { shortDate } from "../lib/format.ts";
@@ -20,6 +21,8 @@ import type { useAnnotations } from "./use-annotations.ts";
  * selection, the keyboard (h and c act on the selected text) and screen readers; the mobile app
  * uses this same UI.
  */
+
+const t = app.annotations;
 
 type Annotations = ReturnType<typeof useAnnotations>;
 
@@ -72,12 +75,12 @@ export function ReaderHighlights({ proseRef, ann, textRef }: { proseRef: RefObje
   const highlight = useCallback(async (withComment: boolean) => {
     const p = held.current;
     if (!p) return;
-    if (p.quote.exact.length > QUOTE_MAX) { toast(`That passage is too long to highlight. Select up to ${QUOTE_MAX.toLocaleString()} characters.`, { tone: "error" }); return; }
+    if (p.quote.exact.length > QUOTE_MAX) { toast(t.reader.tooLong(QUOTE_MAX.toLocaleString()), { tone: "error" }); return; }
     if (withComment) { setEditing({ mode: "new", passage: p }); return; }
     document.getSelection()?.removeAllRanges();
     setPassage(null);
     await ann.save(newAnnotationId(), { kind: "highlight", quote: p.quote, position: p.position, target: textRef, body: null });
-    toast("Highlighted");
+    toast(t.reader.highlighted);
   }, [ann, textRef, toast]);
 
   // h highlights and c comments on the selected text, for keyboard selection (caret browsing, screen
@@ -134,7 +137,7 @@ export function ReaderHighlights({ proseRef, ann, textRef }: { proseRef: RefObje
             document.getSelection()?.removeAllRanges();
             setPassage(null);
             await ann.save(newAnnotationId(), { kind: "highlight", quote: p.quote, position: p.position, target: textRef, body: body || null });
-            toast("Highlighted with your comment");
+            toast(t.reader.highlightedWithComment);
           }} />
       ) : null}
       {current && current.quote ? (
@@ -142,7 +145,7 @@ export function ReaderHighlights({ proseRef, ann, textRef }: { proseRef: RefObje
           onSave={async (body) => {
             setEditing(null);
             await ann.save(current.id, { kind: "highlight", quote: current.quote!, position: current.position, target: current.target, body: body || null });
-            toast("Comment saved");
+            toast(t.reader.commentSaved);
           }}
           onRemove={async () => {
             setEditing(null);
@@ -158,7 +161,7 @@ async function removeWithUndo(ann: Annotations, a: ViewAnnotation, toast: Return
   const restore = a.kind === "highlight" && a.quote
     ? () => ann.save(a.id, { kind: "highlight", quote: a.quote!, position: a.position, target: a.target, body: a.body })
     : () => ann.save(a.id, { kind: "note", body: a.body ?? "" });
-  toast(a.kind === "highlight" ? "Highlight removed" : "Note removed", { undo: restore });
+  toast(a.kind === "highlight" ? t.reader.highlightRemoved : t.reader.noteRemoved, { undo: restore });
 }
 
 /** The small bar offered under a selection: below it, so a phone's own selection menu above it stays clear. */
@@ -179,8 +182,8 @@ function SelectionBar({ rect, onHighlight, onComment }: { rect: DOMRect; onHighl
   return createPortal(
     <div ref={ref} className="sel-bar" role="toolbar" aria-label="Selected text" onPointerDown={keep} onMouseDown={keep}
       style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: "hidden" }}>
-      <button type="button" className="btn" aria-keyshortcuts="h" onClick={onHighlight}><Icon name="check" size="sm" />Highlight</button>
-      <button type="button" className="btn" aria-keyshortcuts="c" onClick={onComment}>Add comment</button>
+      <button type="button" className="btn" aria-keyshortcuts="h" onClick={onHighlight}><Icon name="check" size="sm" />{t.selectionBar.highlight}</button>
+      <button type="button" className="btn" aria-keyshortcuts="c" onClick={onComment}>{t.selectionBar.addComment}</button>
     </div>,
     document.body,
   );
@@ -192,28 +195,28 @@ function HighlightDialog({ quote, initial, isNew, onClose, onSave, onRemove }: {
   const [text, setText] = useState(initial);
   const id = useId();
   return (
-    <Dialog title={isNew ? "Add a comment" : "Your highlight"} size="sm" onClose={onClose} initialFocus="textarea"
+    <Dialog title={isNew ? t.highlightDialog.titleNew : t.highlightDialog.titleEdit} size="sm" onClose={onClose} initialFocus="textarea"
       footer={<>
-        {onRemove ? <Button variant="danger" onClick={() => void onRemove()}>Remove highlight</Button> : null}
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={() => void onSave(text.trim())}>{isNew ? "Save highlight" : "Save"}</Button>
+        {onRemove ? <Button variant="danger" onClick={() => void onRemove()}>{t.highlightDialog.remove}</Button> : null}
+        <Button onClick={onClose}>{t.highlightDialog.cancel}</Button>
+        <Button variant="primary" onClick={() => void onSave(text.trim())}>{isNew ? t.highlightDialog.saveNew : t.highlightDialog.save}</Button>
       </>}>
       <blockquote className="anno-quote">{short(quote, 600)}</blockquote>
-      <label className="lbl" htmlFor={id}>Comment</label>
+      <label className="lbl" htmlFor={id}>{t.highlightDialog.comment}</label>
       <textarea id={id} className="in anno-text" rows={4} maxLength={BODY_MAX} value={text} onChange={(e) => setText(e.target.value)}
-        placeholder="What you think about this passage (optional)" />
+        placeholder={t.highlightDialog.placeholder} />
     </Dialog>
   );
 }
 
 function SyncNote({ a, ann }: { a: ViewAnnotation; ann: Annotations }) {
   if (a.sync === "synced") return null;
-  if (a.sync === "waiting") return <span className="anno-sync"><Icon name="clock" size="sm" />Waiting to sync</span>;
+  if (a.sync === "waiting") return <span className="anno-sync"><Icon name="clock" size="sm" />{t.syncNote.waiting}</span>;
   return (
     <span className="anno-sync failed" role="alert">
-      <Icon name="alert" size="sm" />Couldn't save: {a.error}
-      <button type="button" className="link" onClick={() => void ann.retry(a.id)}>Try again</button>
-      <button type="button" className="link" onClick={() => void ann.discard(a.id)}>Discard this change</button>
+      <Icon name="alert" size="sm" />{t.syncNote.couldntSave}{a.error}
+      <button type="button" className="link" onClick={() => void ann.retry(a.id)}>{t.syncNote.tryAgain}</button>
+      <button type="button" className="link" onClick={() => void ann.discard(a.id)}>{t.syncNote.discard}</button>
     </span>
   );
 }
@@ -242,27 +245,27 @@ export function NotesSection({ ann, detached, hasText, proseRef, tz }: {
 
   return (
     <section className="anno-notes" aria-labelledby={headingId}>
-      <div className="lbl" id={headingId}>Your notes and highlights</div>
-      {waiting ? <p className="fine" role="status">{waiting === 1 ? "1 change is" : `${waiting} changes are`} waiting to sync. {waiting === 1 ? "It is" : "They are"} saved on this device and sent when the connection is back.</p> : null}
-      {ann.unavailable ? <p className="fine">Your notes on this item can't be shown without a connection. Anything you add now is kept and synced later.</p> : null}
+      <div className="lbl" id={headingId}>{t.notes.title}</div>
+      {waiting ? <p className="fine" role="status">{t.notes.waiting(waiting)}</p> : null}
+      {ann.unavailable ? <p className="fine">{t.notes.unavailable}</p> : null}
       {notes.map((n) => editingNote === n.id ? (
         <NoteEditor key={n.id} initial={n.body ?? ""} onCancel={() => setEditingNote(null)}
-          onSave={async (body) => { setEditingNote(null); await ann.save(n.id, { kind: "note", body }); toast("Note saved"); }} />
+          onSave={async (body) => { setEditingNote(null); await ann.save(n.id, { kind: "note", body }); toast(t.notes.saved); }} />
       ) : (
         <article key={n.id} className="anno-item">
           <p className="anno-body">{n.body}</p>
           <p className="fine anno-meta">
-            <span>Note · {shortDate(n.updatedAt, Date.now(), tz ?? undefined)}</span>
+            <span>{t.notes.meta(shortDate(n.updatedAt, Date.now(), tz ?? undefined))}</span>
             <SyncNote a={n} ann={ann} />
-            <button type="button" className="link" onClick={() => setEditingNote(n.id)}>Edit<span className="sr"> note</span></button>
-            <button type="button" className="link" onClick={() => void removeWithUndo(ann, n, toast)}>Remove<span className="sr"> note</span></button>
+            <button type="button" className="link" onClick={() => setEditingNote(n.id)}>{t.notes.edit}<span className="sr"> note</span></button>
+            <button type="button" className="link" onClick={() => void removeWithUndo(ann, n, toast)}>{t.notes.remove}<span className="sr"> note</span></button>
           </p>
         </article>
       ))}
       {adding ? (
         <NoteEditor initial="" onCancel={() => setAdding(false)}
-          onSave={async (body) => { setAdding(false); await ann.save(newAnnotationId(), { kind: "note", body }); toast("Note added"); }} />
-      ) : <div><Button onClick={() => setAdding(true)}><Icon name="plus" size="sm" />Add a note</Button></div>}
+          onSave={async (body) => { setAdding(false); await ann.save(newAnnotationId(), { kind: "note", body }); toast(t.notes.added); }} />
+      ) : <div><Button onClick={() => setAdding(true)}><Icon name="plus" size="sm" />{t.notes.addNote}</Button></div>}
       {highlights.length ? (
         <ul className="anno-list" aria-label="Highlights">
           {highlights.map((h) => (
@@ -270,15 +273,15 @@ export function NotesSection({ ann, detached, hasText, proseRef, tz }: {
               <blockquote className="anno-quote">{short(h.quote?.exact ?? "", 280)}</blockquote>
               {h.body ? <p className="anno-body">{h.body}</p> : null}
               <p className="fine anno-meta">
-                {detached.has(h.id) ? <span className="anno-detached"><Icon name="info" size="sm" />Not found in the text shown. Your highlight is kept with its quote.</span> : null}
+                {detached.has(h.id) ? <span className="anno-detached"><Icon name="info" size="sm" />{t.notes.notFound}</span> : null}
                 <SyncNote a={h} ann={ann} />
-                {hasText && !detached.has(h.id) ? <button type="button" className="link" onClick={() => show(h.id)}>Show in text</button> : null}
-                <button type="button" className="link" onClick={() => void removeWithUndo(ann, h, toast)}>Remove<span className="sr"> highlight</span></button>
+                {hasText && !detached.has(h.id) ? <button type="button" className="link" onClick={() => show(h.id)}>{t.notes.showInText}</button> : null}
+                <button type="button" className="link" onClick={() => void removeWithUndo(ann, h, toast)}>{t.notes.remove}<span className="sr"> highlight</span></button>
               </p>
             </li>
           ))}
         </ul>
-      ) : hasText ? <p className="fine">Select text in the article to highlight it or add a comment.</p> : null}
+      ) : hasText ? <p className="fine">{t.notes.selectHint}</p> : null}
     </section>
   );
 }
@@ -292,15 +295,15 @@ function NoteEditor({ initial, onSave, onCancel }: { initial: string; onSave: (b
   return (
     <div className="anno-editor">
       <label className="sr" htmlFor={id}>Note</label>
-      <textarea ref={ref} id={id} className="in anno-text" rows={3} maxLength={BODY_MAX} value={text} placeholder="Your note about this item"
+      <textarea ref={ref} id={id} className="in anno-text" rows={3} maxLength={BODY_MAX} value={text} placeholder={t.noteEditor.placeholder}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
         }} />
       <div className="anno-actions">
-        <Button variant="primary" disabled={!text.trim()} onClick={save}>Save note</Button>
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" disabled={!text.trim()} onClick={save}>{t.noteEditor.save}</Button>
+        <Button onClick={onCancel}>{t.noteEditor.cancel}</Button>
       </div>
     </div>
   );

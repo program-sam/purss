@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, PodcastSearchHit, PodcastSearchResponse, SourceDTO } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, messageOf, post } from "../api/client.ts";
@@ -21,22 +22,24 @@ import { isolate } from "../lib/bidi.ts";
 import { preselect } from "../lib/discovery.ts";
 import { looksLikePodcastName } from "../lib/podcast-name.ts";
 
+const t = app.dialogs.addSource;
+
 type Failure = Extract<DiscoveryResult, { ok: false }>;
 
 type StartFrom = "now" | "week";
 /** What following does with the posts a source already has. Either way the older ones are kept as Ignored, and search finds them. */
 const START_CHOICES: { value: StartFrom; label: string; blurb: string }[] = [
-  { value: "now", label: "Start from now", blurb: "Only posts that come after you follow are New. Older posts are kept as Ignored: search finds them." },
-  { value: "week", label: "Also show posts from the last week as New", blurb: "Older posts are kept as Ignored: search finds them." },
+  { value: "now", label: t.startNow.label, blurb: t.startNow.blurb },
+  { value: "week", label: t.startWeek.label, blurb: t.startWeek.blurb },
 ];
 const FAIL_TITLE: Record<Failure["reason"], string> = {
-  invalid: "That doesn't look like a web address",
-  blocked: "We can't follow that address",
-  unreachable: "We couldn't reach that site",
-  nofeed: "Nothing to follow there",
-  unsupported: "We can't follow that kind of link",
-  toolarge: "We couldn't read that page",
-  timeout: "That took too long",
+  invalid: t.failTitle.invalid,
+  blocked: t.failTitle.blocked,
+  unreachable: t.failTitle.unreachable,
+  nofeed: t.failTitle.nofeed,
+  unsupported: t.failTitle.unsupported,
+  toolarge: t.failTitle.toolarge,
+  timeout: t.failTitle.timeout,
 };
 /** Reasons where keeping the page as a single saved link is still a sensible thing to offer. */
 const CAN_KEEP: Failure["reason"][] = ["nofeed", "unsupported", "unreachable", "timeout", "toolarge"];
@@ -47,7 +50,7 @@ const LOOSE = "__none";
 /** Nothing chosen yet: a kept link goes into a basket the person names, never into whichever came first. */
 const UNSET = "";
 /** What searching for a show by name tells the person up front: where the words go. */
-const PODCAST_SEARCH_NOTE = "Searching sends only the name you typed to Apple's podcast directory.";
+const PODCAST_SEARCH_NOTE = t.podcastSearchNote;
 
 function CandidateCard({ c, checked, own, onPick }: { c: DiscoveryCandidate; checked: boolean; own: boolean; onPick: () => void }) {
   return (
@@ -56,12 +59,12 @@ function CandidateCard({ c, checked, own, onPick }: { c: DiscoveryCandidate; che
       <span className="radio" aria-hidden="true" />
       <span style={{ display: "grid", gap: 0, minWidth: 0, gridColumn: "span 2" }}>
         <h3><bdi>{c.title}</bdi><span className="tag">{c.kind === "youtube" ? <Icon name="play" /> : <span className="rss"><Icon name="rss" /></span>}{c.origin}</span></h3>
-        <span className="cad">{c.via}{c.cadence ? `, ${c.cadence}` : ""}</span>
-        {c.samples.length ? <ul>{c.samples.slice(0, 3).map((s, i) => <li key={i}><bdi>{s.title}</bdi>{s.publishedAt ? <span style={{ color: "var(--ink-3)" }}> · {shortDate(s.publishedAt)}</span> : null}</li>)}</ul> : <span className="fine" style={{ marginTop: 6 }}>No posts yet. Follow it and new posts will appear.</span>}
-        {c.summariesOnly ? <span className="fine" style={{ marginTop: 6 }}>Summaries only. The full article stays on the original site.</span> : null}
-        {own ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>This is the feed of the page you gave.</span> : null}
-        {c.alreadyFollowingSourceId ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>You already follow this.</span> : null}
-        {c.sameNameSource ? <span className="fine" style={{ marginTop: 6 }}>You already follow a source called <b><bdi>{c.sameNameSource.title}</bdi></b> (another address). Following this one adds a second source with the same name.</span> : null}
+        <span className="cad">{c.via}{c.cadence ? t.candidate.cadence(c.cadence) : ""}</span>
+        {c.samples.length ? <ul>{c.samples.slice(0, 3).map((s, i) => <li key={i}><bdi>{s.title}</bdi>{s.publishedAt ? <span style={{ color: "var(--ink-3)" }}> · {shortDate(s.publishedAt)}</span> : null}</li>)}</ul> : <span className="fine" style={{ marginTop: 6 }}>{t.candidate.noPosts}</span>}
+        {c.summariesOnly ? <span className="fine" style={{ marginTop: 6 }}>{t.candidate.summariesOnly}</span> : null}
+        {own ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>{t.candidate.own}</span> : null}
+        {c.alreadyFollowingSourceId ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>{t.candidate.alreadyFollowing}</span> : null}
+        {c.sameNameSource ? <span className="fine" style={{ marginTop: 6 }}>{t.candidate.sameName.before}<b><bdi>{c.sameNameSource.title}</bdi></b>{t.candidate.sameName.after}</span> : null}
         {c.privateWarning ? <span className="p-warn" style={{ marginTop: 8 }}><Icon name="lock" /><span>{c.privateWarning}</span></span> : null}
         {c.note ? <span className="fine" style={{ marginTop: 6 }}>{c.note}</span> : null}
       </span>
@@ -78,9 +81,9 @@ function KeepOfferCard({ offer, checked, onPick }: { offer: KeepOffer; checked: 
       <span style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, alignItems: "start", minWidth: 0, gridColumn: "span 2" }}>
         {offer.imageUrl ? <img src={offer.imageUrl} alt="" width={120} height={68} referrerPolicy="no-referrer" style={{ objectFit: "cover", borderRadius: 6, background: "var(--bg-2)" }} /> : null}
         <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
-          <h3><bdi>{offer.title}</bdi><span className="tag"><Icon name="play" />Single video</span></h3>
+          <h3><bdi>{offer.title}</bdi><span className="tag"><Icon name="play" />{t.keepOffer.singleVideo}</span></h3>
           <span className="cad" dir="auto">{[offer.author, offer.siteName].filter(Boolean).join(" · ")}</span>
-          <span className="fine" style={{ marginTop: 6 }}>Keep just this video in a basket.</span>
+          <span className="fine" style={{ marginTop: 6 }}>{t.keepOffer.keepJust}</span>
         </span>
       </span>
     </label>
@@ -193,13 +196,13 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
       refreshWorkspace(qc);
       ov.close();
       const createdCollection = colChoice === NEW ? src.collectionIds[0] : undefined;
-      toast(`Following ${isolate(src.title)}${colChoice !== LOOSE ? ` in ${isolate(ws.collectionById.get(colChoice)?.name ?? newName.trim())}` : ""}`, {
+      toast(`${t.following(isolate(src.title))}${colChoice !== LOOSE ? t.inCollection(isolate(ws.collectionById.get(colChoice)?.name ?? newName.trim())) : ""}`, {
         undo: async () => {
           await del(`/api/sources/${encodeURIComponent(src.id)}`);
           if (createdCollection) await del(`/api/collections/${encodeURIComponent(createdCollection)}`).catch(() => undefined);
           refreshWorkspace(qc);
         },
-        actions: [{ label: "Open source", onSelect: () => nav.go({ t: "s", id: src.id }) }],
+        actions: [{ label: t.openSource, onSelect: () => nav.go({ t: "s", id: src.id }) }],
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
@@ -210,16 +213,16 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
     try {
       let basketId = basketChoice;
       let basketName = ws.basketById.get(basketChoice)?.name ?? "";
-      if (basketChoice === UNSET) { setError("Choose a basket for it first."); setBusy(false); return; }
+      if (basketChoice === UNSET) { setError(t.chooseBasketFirst); setBusy(false); return; }
       if (basketChoice === NEW) {
-        if (!newBasket.trim()) { setError("Name the new basket first."); setBusy(false); return; }
+        if (!newBasket.trim()) { setError(t.nameBasketFirst); setBusy(false); return; }
         const b = await post<BasketDTO>("/api/baskets", { name: newBasket.trim(), captureMode: "metadata" });
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url: target, basketId, ...(linkTitle.trim() ? { title: linkTitle.trim() } : {}), ...(readableText ? { readableText: true } : {}) });
       refreshWorkspace(qc);
       ov.close();
-      toast(keptMessage(out, basketName, noun), { actions: [{ label: "Open", onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
+      toast(keptMessage(out, basketName, noun), { actions: [{ label: t.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
@@ -229,70 +232,70 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   /** The paste hints give way once something was found, to leave room for the choices. */
   const showHelp = !(phase === "found" && (candidates.length || offer));
   const footer = phase === "single"
-    ? <><Button onClick={() => setPhase(result && !result.ok ? "failed" : "paste")}>Back</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(url.trim())}>Keep link</Button></>
+    ? <><Button onClick={() => setPhase(result && !result.ok ? "failed" : "paste")}>{t.back}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(url.trim())}>{t.keepLink}</Button></>
     : keeping
-      ? <><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(keeping.url, "video")}>Keep this video</Button></>
-      : <><Button onClick={ov.close}>Cancel</Button>{phase === "found" ? <Button variant={cand ? "primary" : "default"} disabled={busy || !cand || (!cand.alreadyFollowingSourceId && colChoice === NEW && !newName.trim())} onClick={follow}>{cand?.alreadyFollowingSourceId ? "Open source" : "Follow"}</Button> : null}</>;
+      ? <><Button onClick={ov.close}>{t.cancel}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(keeping.url, "video")}>{t.keepThisVideo}</Button></>
+      : <><Button onClick={ov.close}>{t.cancel}</Button>{phase === "found" ? <Button variant={cand ? "primary" : "default"} disabled={busy || !cand || (!cand.alreadyFollowingSourceId && colChoice === NEW && !newName.trim())} onClick={follow}>{cand?.alreadyFollowingSourceId ? t.openSource : t.follow}</Button> : null}</>;
 
   /** The basket to keep into, and the title; shared by keeping one video and keeping one page. */
   const keepFields = (
     <>
-      <Field label="Basket" htmlFor="kl-b">
+      <Field label={t.keepFields.basket} htmlFor="kl-b">
         <SelectInput id="kl-b" value={basketChoice} onChange={(e) => setBasketChoice(e.target.value)}>
-          {ws.data.baskets.length ? <option value={UNSET}>Choose a basket…</option> : null}
+          {ws.data.baskets.length ? <option value={UNSET}>{t.keepFields.chooseBasket}</option> : null}
           {ws.data.baskets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          <option value={NEW}>New basket…</option>
+          <option value={NEW}>{t.keepFields.newBasket}</option>
         </SelectInput>
-        {basketChoice === NEW ? <input className="in" placeholder="Name your basket" aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus={ws.data.baskets.length > 0} /> : null}
+        {basketChoice === NEW ? <input className="in" placeholder={t.keepFields.newBasketPlaceholder} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus={ws.data.baskets.length > 0} /> : null}
       </Field>
-      <Field label="Title (optional)" htmlFor="kl-t" hint="Empty uses the page's title">
+      <Field label={t.keepFields.title} htmlFor="kl-t" hint={t.keepFields.titleHint}>
         <TextInput id="kl-t" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} maxLength={300} autoComplete="off" placeholder={keeping?.title ?? ""} />
       </Field>
       {keeping?.kind === "video" ? null : (
         <Check checked={readableText} onChange={setReadableText}
-          hint="Saves a copy of the page's text, so you can read it if the page changes or disappears. Some sites don't allow it.">Keep readable text too</Check>
+          hint={t.keepFields.readableHint}>{t.keepFields.readable}</Check>
       )}
     </>
   );
 
   return (
-    <Dialog title="Add source" onClose={ov.close} footer={footer} initialFocus="#as-url">
+    <Dialog title={t.title} onClose={ov.close} footer={footer} initialFocus="#as-url">
       {phase !== "single" ? (
         <form className="field" onSubmit={(e) => { if (nameLike) { e.preventDefault(); void searchShows(); } else void look(e); }}>
-          <label htmlFor="as-url">Link or podcast name</label>
+          <label htmlFor="as-url">{t.linkOrName}</label>
           <div className="find">
-            <input className="in" id="as-url" type="text" inputMode="url" autoComplete="off" spellCheck={false} placeholder="e.g. quietharbour.example" aria-describedby={showHelp ? "as-help" : undefined}
+            <input className="in" id="as-url" type="text" inputMode="url" autoComplete="off" spellCheck={false} placeholder={t.placeholder} aria-describedby={showHelp ? "as-help" : undefined}
               value={url} onChange={(e) => editUrl(e.target.value)} />
             {nameLike
-              ? <button type="submit" className="btn primary" style={{ height: 38 }}>Search podcasts</button>
-              : <button type="submit" className={`btn${phase === "paste" || phase === "failed" ? " primary" : ""}`} disabled={phase === "looking" || phase === "shows" || !url.trim()} style={{ height: 38 }}>Find</button>}
+              ? <button type="submit" className="btn primary" style={{ height: 38 }}>{t.searchPodcasts}</button>
+              : <button type="submit" className={`btn${phase === "paste" || phase === "failed" ? " primary" : ""}`} disabled={phase === "looking" || phase === "shows" || !url.trim()} style={{ height: 38 }}>{t.find}</button>}
           </div>
           {showHelp ? (
             <>
-              <p className="fine" id="as-help">Paste any link: a site, blog, YouTube channel, podcast or feed, or a Mastodon or Bluesky handle. Or type a podcast's name. You see what's there before you follow.</p>
+              <p className="fine" id="as-help">{t.help}</p>
               {nameLike ? <p className="fine">{PODCAST_SEARCH_NOTE}</p> : null}
-              {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>Import your list from another reader (OPML)</button></p> : null}
-              {platform.connection ? null : <p className="fine">Found something while browsing? The <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>browser extension or a bookmarklet</button> brings the page here in one click.</p>}
+              {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>{t.importOpml}</button></p> : null}
+              {platform.connection ? null : <p className="fine">{t.extension.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>{t.extension.link}</button>{t.extension.after}</p>}
             </>
           ) : null}
         </form>
       ) : null}
       <div className="sr" role="status">{addSourceStatus({ phase, searching, shows: shows.length, candidates: candidates.length, failure: result && !result.ok ? FAIL_TITLE[result.reason] : null, keeping: !!result?.ok && !!result.keep })}</div>
       <div style={{ display: "grid", gap: 16 }}>
-        {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />Looking…</p> : null}
+        {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />{t.looking}</p> : null}
         {error && phase !== "single" ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         {phase === "failed" && result && !result.ok ? (
           <>
             <p className="state note" id="as-failed" tabIndex={-1}><Icon name="info" /><span><b style={{ display: "block" }}>{FAIL_TITLE[result.reason]}</b>{result.message}</span></p>
-            {fromShow ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>Back to the shows found</button></div> : null}
-            {CAN_KEEP.includes(result.reason) && !isHandle(url) && !fromShow ? <div><Button onClick={() => setPhase("single")}>Keep this link</Button></div> : null}
+            {fromShow ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>{t.backToShows}</button></div> : null}
+            {CAN_KEEP.includes(result.reason) && !isHandle(url) && !fromShow ? <div><Button onClick={() => setPhase("single")}>{t.keepThisLink}</Button></div> : null}
           </>
         ) : null}
         {phase === "shows" ? (
           <div className="field" id="as-shows">
-            <div className="lbl" id="shw">{searching ? "Searching Apple's podcast directory…" : shows.length ? `Podcasts matching “${url.trim()}”` : "Shows in Apple's podcast directory"}</div>
-            {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />Searching…</p> : null}
-            {!searching && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>No shows found. Try other words, or paste the show's website or feed address.</span></p> : null}
+            <div className="lbl" id="shw">{searching ? t.searchingDirectory : shows.length ? t.podcastsMatching(url.trim()) : t.showsInDirectory}</div>
+            {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />{t.searching}</p> : null}
+            {!searching && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>{t.noShows}</span></p> : null}
             {shows.length ? (
               <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {shows.map((h) => (
@@ -308,38 +311,38 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 ))}
               </ul>
             ) : null}
-            <p className="fine">Choose a show to see its latest episodes before you follow it. {PODCAST_SEARCH_NOTE}</p>
+            <p className="fine">{t.chooseShow(PODCAST_SEARCH_NOTE)}</p>
           </div>
         ) : null}
         {phase === "found" && (candidates.length || offer) ? (
           <>
-            {fromShow && shows.length ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>Back to the shows found</button></div> : null}
-            <div className="field"><div className="lbl" id="fnd">{offer ? (candidates.length ? "Keep the video, or follow where it comes from" : "This link is a single video") : candidates.length === 1 ? "1 source found" : `${candidates.length} sources found`}</div>
+            {fromShow && shows.length ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>{t.backToShows}</button></div> : null}
+            <div className="field"><div className="lbl" id="fnd">{offer ? (candidates.length ? t.keepOrFollow : t.singleVideoLink) : candidates.length === 1 ? t.oneSourceFound : t.sourcesFound(candidates.length)}</div>
               <div className="cands" role="radiogroup" aria-labelledby="fnd">
                 {offer ? <KeepOfferCard offer={offer} checked={mode === "keep"} onPick={() => setMode("keep")} /> : null}
                 {candidates.map((c, i) => <CandidateCard key={c.token} c={c} checked={mode === "follow" && pick === i} own={candidates.length > 1 && c.matchesPage === true} onPick={() => { setMode("follow"); setPick(i); setFullTextChoice(null); setMarkPrivate(null); }} />)}
               </div>
-              {pick < 0 && mode === "follow" && candidates.length ? <p className="fine">None of these clearly matches your link. Choose the one to follow.</p> : null}
+              {pick < 0 && mode === "follow" && candidates.length ? <p className="fine">{t.noneMatches}</p> : null}
             </div>
             {keeping ? (
               <>
                 {keepFields}
-                <p className="fine">The original video may change or disappear. Your basket keeps the link, title and picture.</p>
+                <p className="fine">{t.videoNote}</p>
               </>
             ) : null}
             {!keeping && cand && !cand.alreadyFollowingSourceId ? (
               <>
-                <div className="field"><label htmlFor="as-col">Collection</label>
+                <div className="field"><label htmlFor="as-col">{t.collection}</label>
                   <SelectInput id="as-col" value={colChoice} onChange={(e) => setColChoice(e.target.value)}>
-                    <option value={LOOSE}>No collection</option>
+                    <option value={LOOSE}>{t.noCollection}</option>
                     {sourceCollections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    <option value={NEW} disabled={!!collectionFull}>New collection…{collectionFull ? " (limit reached)" : ""}</option>
+                    <option value={NEW} disabled={!!collectionFull}>{t.newCollection}{collectionFull ? t.limitReached : ""}</option>
                   </SelectInput>
-                  {colChoice === NEW ? <input className="in" placeholder="Name your collection" aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
-                  {collectionFull ? <p className="fine">{collectionFull} <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>See plans</button></p> : null}
-                  <p className="fine">{colChoice === LOOSE ? "Without a collection, it shows in “Other sources” on Home. You can group it later." : "A collection groups sources you read together. Home shows your collections."}</p>
+                  {colChoice === NEW ? <input className="in" placeholder={t.newCollectionPlaceholder} aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
+                  {collectionFull ? <p className="fine">{collectionFull} <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{t.seePlans}</button></p> : null}
+                  <p className="fine">{colChoice === LOOSE ? t.withoutCollection : t.collectionGroups}</p>
                 </div>
-                <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Posts the source already has</legend>
+                <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.postsAlreadyHas}</legend>
                   <div className="radiolist">
                     {START_CHOICES.map((c) => (
                       <label key={c.value} className="rl" style={{ alignItems: "flex-start", padding: "10px" }}>
@@ -352,22 +355,22 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 </fieldset>
                 {cand.feedUrl.startsWith("bridge:") ? null : <Check checked={isPrivate} onChange={setMarkPrivate}
                   hint={cand.privateWarning
-                    ? "This link looks like it has a personal key in it, so it starts ticked. Untick it if this is an ordinary public feed."
-                    : "For a members-only or paid feed whose link is yours alone, such as Patreon or a private podcast. PURSS hides the link and leaves it out of exports."}>
-                  Keep this feed's link private</Check>}
+                    ? t.privateKey
+                    : t.privateMembers}>
+                  {t.keepPrivate}</Check>}
                 {canFullText ? (
                   <Check checked={fullText} onChange={setFullTextChoice}
-                    hint="Each new post's full text, to read here and offline, where the site allows it. You can switch this later.">Save full articles</Check>
+                    hint={t.fullTextHint}>{t.fullText}</Check>
                 ) : null}
               </>
             ) : null}
-            {isHandle(url) || fromShow || offer ? null : <div><button type="button" className="link" onClick={() => setPhase("single")}>Keep this link instead</button></div>}
+            {isHandle(url) || fromShow || offer ? null : <div><button type="button" className="link" onClick={() => setPhase("single")}>{t.keepInstead}</button></div>}
           </>
         ) : null}
-        {phase === "found" && result?.ok && !candidates.length && !offer ? <p className="state note"><Icon name="info" /><span>Nothing to follow was found at that address.</span></p> : null}
+        {phase === "found" && result?.ok && !candidates.length && !offer ? <p className="state note"><Icon name="info" /><span>{t.nothingFound}</span></p> : null}
         {phase === "single" ? (
           <div style={{ display: "grid", gap: 14 }}>
-            <p className="hint">This saves only the page at <b style={{ wordBreak: "break-all" }}>{url.trim()}</b> in a basket. You won't follow the site. The original page may change or disappear.</p>
+            <p className="hint">{t.single.before}<b style={{ wordBreak: "break-all" }}>{url.trim()}</b>{t.single.after}</p>
             {keepFields}
             {error ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
           </div>

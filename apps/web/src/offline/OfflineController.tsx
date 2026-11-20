@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import { useSession } from "../api/hooks.ts";
 import { outbox } from "../outbox/instance.ts";
 import { useToasts } from "../state/toasts.tsx";
@@ -11,6 +12,8 @@ import { clearRecords } from "./store.ts";
 import { onBackOnline, refreshBrowserOnline, showsSavedCopy, useOfflineStatus } from "./status.ts";
 import { usePack } from "./use-pack.ts";
 import { applyUpdate, onUpdateReady, registerWorker, syncWorkerState } from "./worker-link.ts";
+
+const t = app.offline.controller;
 
 /**
  * Renders nothing. Registers the service worker, offers a new build when one is waiting, keeps the
@@ -28,7 +31,7 @@ export function OfflineController() {
 
   useEffect(() => {
     void registerWorker();
-    return onUpdateReady(() => toast("A new version is ready", { sticky: true, tone: "none", actions: [{ label: "Reload", onSelect: applyUpdate }] }));
+    return onUpdateReady(() => toast(t.updateReady, { sticky: true, tone: "none", actions: [{ label: t.reload, onSelect: applyUpdate }] }));
   }, [toast]);
 
   // Nobody signed in, or the setting off: nothing may stay saved. (usePack tells the worker in the other case.)

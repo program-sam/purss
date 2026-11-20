@@ -1,15 +1,17 @@
-const DELETING = "This account is being deleted. It can't be signed in to or kept any more.";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.oidcErrors;
 
 /** What the sign-in page says when an external sign-in comes back with a problem (the server's code in `?error=`). */
 export function oidcError(code: string, label?: string): string {
   switch (code) {
-    case "account_deleting": return DELETING;
-    case "email_in_use": return `An account with this email address already exists. Sign in with your email address and password, then connect ${label ?? "it"} in Settings → Security.`;
-    case "email_unverified": return `${label ?? "The provider"} didn't give PURSS a verified email address, so an account can't be made from it.`;
-    case "not_linked": return `That ${label ?? "external"} account isn't connected to an account here. Sign in another way and connect it in Settings → Security first.`;
-    case "signup_full": return "New accounts are full for now. Try again later.";
-    case "signup_rate_limited": return "Too many attempts to make an account from this address. Try again later.";
-    default: return "That sign-in didn't work. Try again, or use another way in.";
+    case "account_deleting": return t.deleting;
+    case "email_in_use": return t.emailInUse(label);
+    case "email_unverified": return t.emailUnverified(label);
+    case "not_linked": return t.notLinked(label);
+    case "signup_full": return t.signupFull;
+    case "signup_rate_limited": return t.signupRateLimited;
+    default: return t.didntWork;
   }
 }
 

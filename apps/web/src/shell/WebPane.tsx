@@ -1,9 +1,12 @@
+import { app } from "@purss/copy/app";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, IconButton } from "@purss/ui";
 import { platform } from "../platform/index.ts";
 import type { WebView } from "../platform/types.ts";
 import { addressParts, coversOver, placeWebView } from "../lib/originals.ts";
 import type { Box } from "../lib/originals.ts";
+
+const t = app.shell.webPane;
 
 /**
  * A page from another site in the reader: the article's original or a link in it, over the article, which
@@ -24,22 +27,22 @@ export function WebPane({ url, top, onClose }: { url: string; top: number; onClo
     <div className="web-pane" style={{ top }} role="region" aria-label={`Page from ${address.site}`}
       onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
       <div className="web-bar">
-        <button ref={closeRef} type="button" className="ibtn web-close" onClick={onClose} aria-label="Back to the article" title="Back to the article (Esc)">
-          <Icon name="back" /><span aria-hidden="true">Article</span>
+        <button ref={closeRef} type="button" className="ibtn web-close" onClick={onClose} aria-label={t.backToArticle} title={t.backToArticleEsc}>
+          <Icon name="back" /><span aria-hidden="true">{t.article}</span>
         </button>
         {view ? (
           <>
-            <IconButton label="Back in this page" title="Back" onClick={() => view.go("back")}><Icon name="back" size="sm" /></IconButton>
-            <IconButton label="Forward in this page" title="Forward" onClick={() => view.go("forward")}><Icon name="chev" size="sm" /></IconButton>
+            <IconButton label="Back in this page" title={t.back} onClick={() => view.go("back")}><Icon name="back" size="sm" /></IconButton>
+            <IconButton label="Forward in this page" title={t.forward} onClick={() => view.go("forward")}><Icon name="chev" size="sm" /></IconButton>
           </>
         ) : null}
         <span className="web-addr" title={shown.url || url}>
-          {address.secure ? null : <span className="web-plain">Not secure</span>}
+          {address.secure ? null : <span className="web-plain">{t.notSecure}</span>}
           <bdi className="web-site">{address.site}</bdi><span className="web-rest">{address.rest}</span>
         </span>
-        {shown.loading ? <span className="web-loading" role="status">Loading…</span> : null}
-        <IconButton label="Reload the page" title="Reload" onClick={() => (view ? view.go("reload") : setReloads((n) => n + 1))}><Icon name="reload" size="sm" /></IconButton>
-        <a className="ibtn" href={shown.url || url} target="_blank" rel="noopener noreferrer" aria-label={view ? "Open in your browser" : "Open in a new tab"} title={view ? "Open in your browser" : "Open in a new tab"}
+        {shown.loading ? <span className="web-loading" role="status">{t.loading}</span> : null}
+        <IconButton label="Reload the page" title={t.reload} onClick={() => (view ? view.go("reload") : setReloads((n) => n + 1))}><Icon name="reload" size="sm" /></IconButton>
+        <a className="ibtn" href={shown.url || url} target="_blank" rel="noopener noreferrer" aria-label={view ? t.openInBrowser : t.openInTab} title={view ? t.openInBrowser : t.openInTab}
           onClick={(e) => { if (view) { e.preventDefault(); platform.openExternal(shown.url || url); } }}><Icon name="ext" size="sm" /></a>
       </div>
       {view ? <NativeView view={view} url={url} onState={setShown} />
@@ -124,7 +127,7 @@ function NativeView({ view, url, onState }: { view: WebView; url: string; onStat
 
   return (
     <div className="web-view" ref={place}>
-      {failed ? <p className="web-failed">This page couldn't be shown here. <button type="button" className="link" onClick={() => platform.openExternal(url)}>Open it in your browser</button></p> : null}
+      {failed ? <p className="web-failed">{t.failed.before}<button type="button" className="link" onClick={() => platform.openExternal(url)}>{t.failed.link}</button></p> : null}
     </div>
   );
 }

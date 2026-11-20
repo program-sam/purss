@@ -4,6 +4,9 @@ import type { BackendState, PlaybackSource, PlayerBackend } from "../../player/b
 import { IDLE_STATE } from "../../player/backend.ts";
 import { HtmlMediaBackend } from "../../player/html-backend.ts";
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from "../../player/logic.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.audioBackend;
 
 /**
  * The apps' player. Audio plays in the system's own player through
@@ -73,7 +76,7 @@ export class NativeAudioBackend implements PlayerBackend {
     for (const l of this.#listeners) l();
     if (this.#readyTimer) clearTimeout(this.#readyTimer);
     this.#readyTimer = setTimeout(() => { if (gen === this.#generation && !this.#started) this.#fail(); }, READY_TIMEOUT_MS);
-    const meta = { friendlyTitle: source.title ?? "Playing", artistName: source.artist ?? "", ...(source.artwork ? { artworkSource: source.artwork } : {}) };
+    const meta = { friendlyTitle: source.title ?? t.untitled, artistName: source.artist ?? "", ...(source.artwork ? { artworkSource: source.artwork } : {}) };
     void this.#queue(async () => {
       if (!this.#created) {
         // A player left over from before the page was reloaded (the native side outlives the page) goes first.

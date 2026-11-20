@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { MutedWord } from "@purss/domain";
 
 /** How long a muted word mutes: a week, a month, or until it is removed. */
@@ -26,7 +27,6 @@ export function mutedNoticeShown(hidden: number, atLeast: boolean, showing: bool
  * part held none, "Items further down may be hidden by muted words".
  */
 export function hiddenByMuted(count: number, atLeast: boolean, format: (n: number) => string = (n) => n.toLocaleString("en")): string {
-  if (count === 0 && atLeast) return "Items further down may be hidden by muted words";
-  const items = `${format(count)} ${count === 1 ? "item" : "items"}`;
-  return `${atLeast ? "At least " : ""}${items} hidden by muted words`;
+  if (count === 0 && atLeast) return app.lib.mutedWords.furtherDown;
+  return app.lib.mutedWords.hidden(count, format(count), atLeast);
 }

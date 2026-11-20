@@ -1,9 +1,11 @@
+import { app as copy } from "@purss/copy/app";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button, Check, Icon } from "@purss/ui";
 import { platform } from "../platform/index.ts";
 import type { DesktopApp, DesktopUpdate } from "../platform/types.ts";
 import { useToasts } from "../state/toasts.tsx";
 
+const t = copy.shell.desktopApp;
 const noSubscribe = () => () => {};
 const none: DesktopUpdate = { state: "none" };
 
@@ -30,13 +32,13 @@ function AppUpdate({ app, update }: { app: DesktopApp; update: DesktopUpdate }) 
   if (update.state === "none") return null;
   return (
     <section className="field" aria-labelledby="dv-app">
-      <div className="lbl" id="dv-app">New version of the app</div>
-      {update.state === "downloading" ? <p className="state" role="status"><span className="spin" aria-hidden="true" />Downloading version {update.version}…</p> : null}
+      <div className="lbl" id="dv-app">{t.updateTitle}</div>
+      {update.state === "downloading" ? <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.downloading(update.version)}</p> : null}
       {update.state === "ready" ? <>
-        <p className="fine">Version {update.version} is ready. It's installed when you restart the app, or when you quit it from the tray.</p>
-        <div><Button variant="primary" disabled={busy} onClick={() => { setBusy(true); void app.restartToUpdate().finally(() => setBusy(false)); }}>Restart to update</Button></div>
+        <p className="fine">{t.ready(update.version)}</p>
+        <div><Button variant="primary" disabled={busy} onClick={() => { setBusy(true); void app.restartToUpdate().finally(() => setBusy(false)); }}>{t.restart}</Button></div>
       </> : null}
-      {update.state === "failed" ? <p className="state note"><Icon name="info" /><span>The new version couldn't be installed: {update.detail} The app tries again later.</span></p> : null}
+      {update.state === "failed" ? <p className="state note"><Icon name="info" /><span>{t.failed(update.detail)}</span></p> : null}
     </section>
   );
 }
@@ -47,10 +49,10 @@ function StartAtLogin({ app }: { app: DesktopApp }) {
   useEffect(() => { void app.startAtLogin().then(setOn, () => setOn(null)); }, [app]);
   if (on === null) return null;
   return (
-    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>On this computer</legend>
-      <Check checked={on} onChange={(v) => { void app.setStartAtLogin(v).then(() => setOn(v), () => toast("Couldn't change that. Try again.")); }}
-        hint="The app starts in the tray, so notifications and automatic downloads go on. Closing its window keeps it running there; quit it from the tray icon.">
-        Start when you sign in to the computer
+    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.computer}</legend>
+      <Check checked={on} onChange={(v) => { void app.setStartAtLogin(v).then(() => setOn(v), () => toast(t.cantChange)); }}
+        hint={t.startHint}>
+        {t.startLabel}
       </Check>
     </fieldset>
   );
@@ -67,7 +69,7 @@ function DownloadsFolder({ app }: { app: DesktopApp }) {
     setBusy(true);
     try {
       const next = await app.chooseDownloadsFolder();
-      if (next) { setFolder({ path: next }); toast("Downloads are now kept in the new folder."); }
+      if (next) { setFolder({ path: next }); toast(t.folderChanged); }
     } catch (err) {
       toast(err instanceof Error && err.message ? err.message : String(err));
     } finally { setBusy(false); }
@@ -75,13 +77,13 @@ function DownloadsFolder({ app }: { app: DesktopApp }) {
   if (folder === null) return null;
   return (
     <section className="field" aria-labelledby="dv-folder">
-      <div className="lbl" id="dv-folder">Downloads folder</div>
+      <div className="lbl" id="dv-folder">{t.folderTitle}</div>
       {"path" in folder
-        ? <p className="fine">Downloads are files in <b style={{ wordBreak: "break-all" }}>{folder.path}</b>, one folder per item. Other programs can open them. They're removed when you remove the download or disconnect this app; anything else you put in that folder is left alone.</p>
-        : <p className="p-warn"><Icon name="alert" /><span>{folder.problem} Downloads can't be kept until you do.</span></p>}
+        ? <p className="fine">{t.folder.before}<b style={{ wordBreak: "break-all" }}>{folder.path}</b>{t.folder.after}</p>
+        : <p className="p-warn"><Icon name="alert" /><span>{folder.problem}{t.folderProblem}</span></p>}
       <div className="fx-acts-row">
-        {"path" in folder ? <Button onClick={() => void app.showDownloadsFolder()}><Icon name="folder" size="sm" />Show in folder</Button> : null}
-        <Button disabled={busy} onClick={() => void choose()}>{busy ? "Moving…" : "Change folder…"}</Button>
+        {"path" in folder ? <Button onClick={() => void app.showDownloadsFolder()}><Icon name="folder" size="sm" />{t.showInFolder}</Button> : null}
+        <Button disabled={busy} onClick={() => void choose()}>{busy ? t.moving : t.changeFolder}</Button>
       </div>
     </section>
   );
@@ -91,5 +93,5 @@ function CredentialNote({ app }: { app: DesktopApp }) {
   const [store, setStore] = useState<"system" | "file" | null>(null);
   useEffect(() => { void app.credentialStore().then(setStore, () => undefined); }, [app]);
   if (store !== "file") return null;
-  return <p className="p-warn"><Icon name="alert" /><span>This computer has no keyring for passwords, so the app's connection is kept in a file only your user account can read.</span></p>;
+  return <p className="p-warn"><Icon name="alert" /><span>{t.noKeyring}</span></p>;
 }

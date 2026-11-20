@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { app } from "@purss/copy/app";
 import type { NotificationFrequency } from "@purss/domain";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Check, Dialog, SelectInput, TextInput } from "@purss/ui";
@@ -7,6 +8,8 @@ import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
 import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.dialogs.firstVisitQuestion;
 
 const CHOICES: NotificationFrequency[] = ["weekly", "daily", "off"];
 
@@ -42,15 +45,15 @@ function Question() {
     : { welcomeAsked: true, freshDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day }, ...(hosted ? { discoveryShare } : {}) });
 
   return (
-    <Dialog title="How often do you want to hear about new items?" size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
-      footer={<><Button onClick={() => done(true)}>Not now</Button><Button variant="primary" onClick={() => done(false)}>Save</Button></>}>
-      <fieldset className="field"><legend className="sr">How often do you want to hear about new items?</legend>
+    <Dialog title={t.title} size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
+      footer={<><Button onClick={() => done(true)}>{t.notNow}</Button><Button variant="primary" onClick={() => done(false)}>{t.save}</Button></>}>
+      <fieldset className="field"><legend className="sr">{t.title}</legend>
         <div className="radiolist">
           {CHOICES.map((v) => (
             <label key={v} className="rl" style={{ alignItems: "flex-start", padding: 10 }}>
               <input type="radio" name="freq" checked={frequency === v} onChange={() => setFrequency(v)} />
               <span className="radio" aria-hidden="true" style={{ marginTop: 2 }} />
-              <span style={{ display: "grid", gap: 2 }}><span>{FREQUENCY_LABELS[v].label}{v === "weekly" ? " (suggested)" : ""}</span><span className="fine">{FREQUENCY_LABELS[v].blurb}</span></span>
+              <span style={{ display: "grid", gap: 2 }}><span>{FREQUENCY_LABELS[v].label}{v === "weekly" ? t.suggested : ""}</span><span className="fine">{FREQUENCY_LABELS[v].blurb}</span></span>
             </label>
           ))}
         </div>
@@ -65,23 +68,23 @@ function Question() {
           </div>
         ) : null}
         <p className="fine">{frequency === "off"
-          ? "No digest. Sources set to “Notify me”, reminders and problem notices still show in the bell. Add browser alerts in Settings."
+          ? t.digestOff
           : emailed
-            ? `In your time zone. It arrives in the bell and by email to ${email.address}; turn the email off in Settings.`
-            : "In your time zone. It arrives in the bell; add browser alerts in Settings."}</p>
+            ? t.digestEmailed(email.address)
+            : t.digestBell}</p>
       </fieldset>
       {hosted ? <div className="field" style={{ gap: 2 }}>
         <Check checked={discoveryShare} onChange={setDiscoveryShare}
-          hint="PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.">
-          Share my sources
+          hint={t.shareHint}>
+          {t.shareSources}
         </Check>
       </div> : null}
-      <div className="field"><label htmlFor="fresh-days">Keep items marked New for</label>
+      <div className="field"><label htmlFor="fresh-days">{t.keepNewFor}</label>
         <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {freshDaysChoices(ws.data.preferences.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </SelectInput>
-        <p className="fine">Then only the marker goes; the items stay where they are.</p></div>
-      <p className="fine">Change either any time in Settings → Notifications and New.</p>
+        <p className="fine">{t.markerOnly}</p></div>
+      <p className="fine">{t.changeAnytime}</p>
     </Dialog>
   );
 }

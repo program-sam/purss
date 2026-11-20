@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { itemPath } from "@purss/domain/paths";
 import { useCallback } from "react";
 import type { ItemDTO } from "@purss/domain";
@@ -14,6 +15,8 @@ import { usePopups } from "./popups.tsx";
 import { useToasts } from "./toasts.tsx";
 import { useWorkspace } from "./workspace.tsx";
 
+const t = app.state.itemMenus;
+
 /** The baskets list shown from the bookmark button, a menu of checkable items. Stays open so several baskets can be ticked. */
 function KeepList({ itemId, onClose }: { itemId: string; onClose: (restore?: boolean) => void }) {
   const ws = useWorkspace();
@@ -23,18 +26,18 @@ function KeepList({ itemId, onClose }: { itemId: string; onClose: (restore?: boo
   if (!item) return null;
   return (
     <>
-      <div className="menu-h">Keep in</div>
+      <div className="menu-h">{t.keepIn}</div>
       {ws.data.baskets.map((b) => {
         const on = item.basketIds.includes(b.id);
         return (
           <button key={b.id} type="button" className="mi" role="menuitemcheckbox" aria-checked={on} onClick={() => void actions.keep(itemId, b.id, !on)}>
-            <span className="cb" aria-hidden="true"><Icon name="check" /></span><span className="nm" dir="auto">{b.name}</span><span className="n">{b.captureMode === "text" ? "saves text" : "saves link"}</span>
+            <span className="cb" aria-hidden="true"><Icon name="check" /></span><span className="nm" dir="auto">{b.name}</span><span className="n">{b.captureMode === "text" ? t.savesText : t.savesLink}</span>
           </button>
         );
       })}
-      {!ws.data.baskets.length ? <p className="fine" style={{ padding: "6px 10px" }}>No baskets yet. A basket keeps items you choose, even after their source drops them.</p> : null}
+      {!ws.data.baskets.length ? <p className="fine" style={{ padding: "6px 10px" }}>{t.noBaskets}</p> : null}
       <hr className="mhr" />
-      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(true); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">New basket…</span></button>
+      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(true); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">{t.newBasket}</span></button>
     </>
   );
 }
@@ -48,7 +51,7 @@ export function useItemMenus() {
   const { sourceById } = useWorkspace();
 
   const copy = useCallback(async (text: string, message: string) => {
-    try { await navigator.clipboard.writeText(text); toast(message); } catch { toast("Couldn't copy the link."); }
+    try { await navigator.clipboard.writeText(text); toast(message); } catch { toast(t.couldntCopy); }
   }, [toast]);
   /** "Copy link to the original" and "Copy your private link to this item". */
   const linkEntries = useCallback((item: ItemDTO): MenuEntry[] => copyLinkEntries(item, {
@@ -59,23 +62,23 @@ export function useItemMenus() {
   /** "Open original": the item's own page, or its show's website when its link is only the audio or video file; nothing when there is neither. */
   const originalEntries = useCallback((item: ItemDTO): MenuEntry[] => {
     const original = originalLink(item, item.sourceId ? sourceById.get(item.sourceId) : null);
-    return original ? [{ label: original.of === "show" ? "Open the show's website" : "Open original", icon: "ext", onSelect: () => platform.openExternal(original.href) }] : [];
+    return original ? [{ label: original.of === "show" ? t.openShowSite : t.openOriginal, icon: "ext", onSelect: () => platform.openExternal(original.href) }] : [];
   }, [sourceById]);
 
   const common = useCallback((item: ItemDTO, anchor: HTMLElement, basketId: string | null): MenuEntry[] => {
     return [
-      { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
-      { label: `Mark ${workflowLabel("finished", item.kind)}`, disabled: item.workflow === "finished", hint: item.workflow === "finished" ? "Current" : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
+      { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? t.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
+      { label: t.mark(workflowLabel("finished", item.kind)), disabled: item.workflow === "finished", hint: item.workflow === "finished" ? t.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
       // Ignoring is for what arrives; an item in a basket was saved on purpose, and Remove from basket takes it out.
-      ...(basketId ? [] : [item.workflow === "ignored" ? { label: "Restore", onSelect: () => void actions.restore(item.id) } : { label: "Ignore", onSelect: () => void actions.setWorkflow([item.id], "ignored") }]),
+      ...(basketId ? [] : [item.workflow === "ignored" ? { label: t.restore, onSelect: () => void actions.restore(item.id) } : { label: t.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") }]),
       { type: "separator" },
-      { label: "Keep in…", onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
-      ...(basketId ? [{ label: "Remove from basket", onSelect: () => void actions.keep(item.id, basketId, false) } as MenuEntry] : []),
+      { label: t.keepInMenu, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
+      ...(basketId ? [{ label: t.removeFromBasket, onSelect: () => void actions.keep(item.id, basketId, false) } as MenuEntry] : []),
       { type: "separator" },
       ...originalEntries(item),
       ...linkEntries(item),
       { type: "separator" },
-      { label: "Delete permanently…", icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
+      { label: t.deletePermanently, icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
     ];
   }, [actions, popups, overlays, linkEntries, originalEntries]);
 
@@ -89,14 +92,14 @@ export function useItemMenus() {
       type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
     }));
     popups.menu(anchor, [
-      { type: "heading", label: "Move to" }, ...moves,
-      item.workflow === "ignored" ? { label: "Restore", onSelect: () => void actions.restore(item.id) } : { label: "Ignore", onSelect: () => void actions.setWorkflow([item.id], "ignored") },
+      { type: "heading", label: t.moveTo }, ...moves,
+      item.workflow === "ignored" ? { label: t.restore, onSelect: () => void actions.restore(item.id) } : { label: t.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") },
       { type: "separator" },
-      { label: "Keep in…", onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
+      { label: t.keepInMenu, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
       ...originalEntries(item),
       ...linkEntries(item),
       { type: "separator" },
-      { label: "Delete permanently…", icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
+      { label: t.deletePermanently, icon: "trash", onSelect: () => overlays.open({ kind: "delete-items", itemIds: [item.id] }) },
     ], `Move or act on ${item.title}`);
   }, [popups, actions, linkEntries, originalEntries, overlays]);
 

@@ -9,6 +9,9 @@ import { useToasts } from "../state/toasts.tsx";
 import { platform } from "../platform/index.ts";
 import { tokenFromLink } from "../lib/email-links.ts";
 import { useSession } from "../api/hooks.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.accountEmailSection;
 
 const KEY = ["account-email"] as const;
 /** The account's address, whether it is confirmed and any new address waiting for its link (Settings → Security, and the choice to get digests by email). */
@@ -38,7 +41,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
         qc.setQueryData(KEY, out);
         void qc.invalidateQueries({ queryKey: sessionQuery.queryKey });
         setEditing(false);
-        toast(out.pending ? "We sent a link to confirm it" : "Email address saved");
+        toast(out.pending ? t.toasts.linkSent : t.toasts.saved);
       } catch (err) {
         if ((err as { code?: string }).code === "step_up") throw err; // the tab asks to confirm it's you, then saves again
         setError(messageOf(err));
@@ -50,57 +53,57 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
   async function confirmFromLink(e: FormEvent) {
     e.preventDefault();
     const token = tokenFromLink(link);
-    if (!token) { setError("That isn't the link from the email. Copy the whole link and try again."); return; }
+    if (!token) { setError(t.notTheLink); return; }
     setBusy(true); setError("");
     try {
       await post("/api/email/verify", { token });
       setLink("");
       await Promise.all([qc.invalidateQueries({ queryKey: KEY }), qc.invalidateQueries({ queryKey: sessionQuery.queryKey })]);
-      toast("Email address confirmed");
+      toast(t.toasts.confirmed);
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   async function resend() {
     setBusy(true); setError("");
-    try { qc.setQueryData(KEY, await post<AccountEmail>("/api/account/email/resend")); toast("We sent a new link"); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
+    try { qc.setQueryData(KEY, await post<AccountEmail>("/api/account/email/resend")); toast(t.toasts.newLinkSent); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
   const data = q.data;
   const waiting = data?.available ? data.pending ?? (data.address && !data.confirmed ? data.address : null) : null;
   return (
     <section className="field" aria-labelledby="sec-e">
-      <div className="lbl" id="sec-e">Email address</div>
+      <div className="lbl" id="sec-e">{t.heading}</div>
       {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
       {data && !editing ? (
         <>
           <p className="fine">
-            {data.address ? <><b>{data.address}</b>{data.available ? ` · ${data.confirmed ? "confirmed" : "not confirmed yet"}` : ""}</> : "No address yet."} You sign in with it.{" "}
+            {data.address ? <><b>{data.address}</b>{data.available ? t.addressStatus(data.confirmed) : ""}</> : t.noAddress}{" "}{t.signInWithIt}{" "}
             {data.available
-              ? "We email it only about your account, such as password resets, and with your digest of what's new, which you can turn off under Notifications and New. No newsletters or marketing."
-              : selfHosted ? "This PURSS doesn't send email, so nothing is sent to it." : "Email isn't available for this service yet."}
+              ? t.emailedAbout
+              : selfHosted ? t.selfHostedNoEmail : t.unavailable}
           </p>
-          {data.pending ? <p className="state" role="status"><Icon name="info" /><span>Waiting for you to confirm {data.pending}. You still sign in with {data.address} until then.</span></p> : null}
+          {data.pending ? <p className="state" role="status"><Icon name="info" /><span>{t.waitingToConfirm(data.pending, data.address ?? "")}</span></p> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button onClick={() => { setValue(data.address ?? ""); setEditing(true); setError(""); }}>{data.address ? "Change address" : "Add an address"}</Button>
-            {waiting ? <Button disabled={busy} onClick={() => void resend()}>Send the link again</Button> : null}
+            <Button onClick={() => { setValue(data.address ?? ""); setEditing(true); setError(""); }}>{data.address ? t.changeAddress : t.addAddress}</Button>
+            {waiting ? <Button disabled={busy} onClick={() => void resend()}>{t.sendLinkAgain}</Button> : null}
           </div>
           {waiting && platform.connection ? (
             <form onSubmit={confirmFromLink} style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <Field label="Confirm with the link from the email" htmlFor="sec-link" hint="Paste it from the email">
+              <Field label={t.confirmWithLink.label} htmlFor="sec-link" hint={t.confirmWithLink.hint}>
                 <TextInput id="sec-link" value={link} onChange={(e) => setLink(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" inputMode="url" />
               </Field>
-              <div><Button type="submit" disabled={busy || !link.trim()}>Confirm</Button></div>
+              <div><Button type="submit" disabled={busy || !link.trim()}>{t.confirmWithLink.confirm}</Button></div>
             </form>
           ) : null}
         </>
       ) : null}
       {editing && data ? (
         <form onSubmit={save} style={{ display: "grid", gap: 10 }}>
-          <Field label="New email address" htmlFor="sec-email" hint={data.available ? "We'll email a link to confirm it" : undefined}>
+          <Field label={t.newAddress.label} htmlFor="sec-email" hint={data.available ? t.newAddress.hint : undefined}>
             <TextInput id="sec-email" type="email" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" autoFocus maxLength={254} />
           </Field>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="primary" type="submit" disabled={busy || !value.trim()}>Save</Button>
-            <Button onClick={() => { setEditing(false); setError(""); }}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={busy || !value.trim()}>{t.newAddress.save}</Button>
+            <Button onClick={() => { setEditing(false); setError(""); }}>{t.newAddress.cancel}</Button>
           </div>
         </form>
       ) : null}

@@ -4,6 +4,9 @@ import { NO_COPY_HEADER } from "../../sw/protocol.ts";
 import { createPictureCache } from "../pictures.ts";
 import { followEvents } from "../sse.ts";
 import type { Transport } from "../types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.transport;
 
 /**
  * How the apps reach PURSS: every API request goes to the connected server with the device
@@ -35,7 +38,7 @@ export function createAppTransport(deps: AppTransportDeps): Transport {
   const transport: Transport = {
     async fetch(path, init) {
       // The token is PURSS's; an absolute address anywhere else is refused, never sent with it.
-      if (!ownOrigin(path)) throw new TypeError("The app only sends requests to the PURSS it is connected to.");
+      if (!ownOrigin(path)) throw new TypeError(t.onlyConnectedPurss);
       const headers = new Headers(init.headers);
       const noCopy = headers.has(NO_COPY_HEADER);
       // Only headers PURSS's CORS rules allow; the change token belongs to browser sessions.

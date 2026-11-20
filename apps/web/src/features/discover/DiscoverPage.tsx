@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DiscoverSuggestion } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Check, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
@@ -11,19 +12,21 @@ import { useWorkspace } from "../../state/workspace.tsx";
 import { fkeys, suggestionsQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Note, Page, Section } from "../shared/bits.tsx";
 
-const KIND_LABEL: Record<DiscoverSuggestion["kind"], string> = { feed: "Feed", youtube: "YouTube", podcast: "Podcast" };
+const copy = app.discover.discoverPage;
+
+const KIND_LABEL: Record<DiscoverSuggestion["kind"], string> = copy.kind;
 
 function names(titles: string[]): string {
-  return titles.length <= 1 ? titles.join("") : `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
+  return titles.length <= 1 ? titles.join("") : copy.and(titles.slice(0, -1).join(", "), titles[titles.length - 1]);
 }
 
 function Reason({ s }: { s: DiscoverSuggestion }) {
   const ws = useWorkspace();
   if (s.reason.kind === "because") {
     const titles = s.reason.sourceIds.map((id) => ws.sourceById.get(id)?.title).filter((t): t is string => !!t);
-    return <span className="fine">{titles.length ? <>Followed by readers of <span dir="auto">{names(titles)}</span></> : "Followed by readers like you"}</span>;
+    return <span className="fine">{titles.length ? <>{copy.followedBy}<span dir="auto">{names(titles)}</span></> : copy.followedByLikeYou}</span>;
   }
-  return <span className="fine">{s.reason.kind === "wildcard" ? "Wildcard: popular here" : "Popular here"}</span>;
+  return <span className="fine">{s.reason.kind === "wildcard" ? copy.wildcard : copy.popular}</span>;
 }
 
 function Row({ s, onDismiss }: { s: DiscoverSuggestion; onDismiss: (s: DiscoverSuggestion) => void }) {
@@ -37,8 +40,8 @@ function Row({ s, onDismiss }: { s: DiscoverSuggestion; onDismiss: (s: DiscoverS
       </div>
       <div className="fx-end">
         {/* Following goes through Add source, which looks the address up again like any pasted link. */}
-        <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: s.feedUrl })}><Icon name="plus" size="sm" />Follow…</Button>
-        <Button onClick={() => onDismiss(s)}>Not interested</Button>
+        <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: s.feedUrl })}><Icon name="plus" size="sm" />{copy.follow}</Button>
+        <Button onClick={() => onDismiss(s)}>{copy.notInterested}</Button>
       </div>
     </div>
   );
@@ -53,7 +56,7 @@ function Suggestions({ suggestions }: { suggestions: DiscoverSuggestion[] }) {
     try {
       await post("/api/suggestions/dismiss", { key: s.key });
       void qc.invalidateQueries({ queryKey: fkeys.suggestions });
-      toast(`${s.title} won't be suggested again`);
+      toast(copy.wontBeSuggested(s.title));
     } catch (err) {
       setHidden((h) => { const n = new Set(h); n.delete(s.key); return n; });
       toast(messageOf(err), { tone: "error" });
@@ -63,8 +66,8 @@ function Suggestions({ suggestions }: { suggestions: DiscoverSuggestion[] }) {
   if (!list.length) {
     return (
       <div className="empty card-like">
-        <h2>Nothing new right now</h2>
-        <p>Check back later.</p>
+        <h2>{copy.nothingNew}</h2>
+        <p>{copy.checkBack}</p>
       </div>
     );
   }
@@ -77,8 +80,8 @@ function SharingChoice() {
   const qc = useQueryClient();
   return (
     <Check checked={ws.prefs.discoveryShare} onChange={(v) => { void save({ discoveryShare: v }).then(() => qc.invalidateQueries({ queryKey: fkeys.suggestions })); }}
-      hint="PURSS counts sources followed by people who share, anonymously, to suggest sources followed by people with similar taste. Other people can't see your list, and private sources never count.">
-      Share my sources
+      hint={copy.shareHint}>
+      {copy.shareLabel}
     </Check>
   );
 }
@@ -92,25 +95,25 @@ export function DiscoverPage() {
   const hosted = session?.installation.mode === "hosted";
   const q = useQuery({ ...suggestionsQuery, enabled: hosted });
   if (session && !hosted) {
-    return <Page title="Discovery"><Note>Discovery is only on hosted PURSSes. A PURSS you host yourself never compares what its readers follow.</Note></Page>;
+    return <Page title={copy.title}><Note>{copy.hostedOnly}</Note></Page>;
   }
-  const lead = "New sources, picked from what readers like you follow. Changes daily.";
+  const lead = copy.lead;
   return (
-    <Page title="Discovery" lead={lead}>
-      {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what="suggestions" onRetry={() => void q.refetch()} /> : !q.data.ready ? (
+    <Page title={copy.title} lead={lead}>
+      {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what={copy.suggestionsName} onRetry={() => void q.refetch()} /> : !q.data.ready ? (
         <div className="empty card-like">
-          <h2>Coming soon</h2>
-          <p>Suggestions start once enough people share their sources.</p>
+          <h2>{copy.comingSoon}</h2>
+          <p>{copy.comingSoonText}</p>
         </div>
       ) : !q.data.sharing ? (
         <div className="empty card-like">
-          <h2>Share to get suggestions</h2>
-          <p>Turn on sharing below to see them.</p>
+          <h2>{copy.shareToGet}</h2>
+          <p>{copy.shareToGetText}</p>
         </div>
       ) : (
-        <Section title="Suggestions"><Suggestions suggestions={q.data.suggestions} /></Section>
+        <Section title={copy.suggestions}><Suggestions suggestions={q.data.suggestions} /></Section>
       )}
-      <Section title="Sharing"><SharingChoice /></Section>
+      <Section title={copy.sharing}><SharingChoice /></Section>
     </Page>
   );
 }

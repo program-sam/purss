@@ -3,6 +3,8 @@
  * person's own time zone, never an instant, so these work on the date text and use UTC only as a neutral calendar.
  */
 
+import { app } from "@purss/copy/app";
+
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function parts(day: string): [number, number, number] {
@@ -35,8 +37,8 @@ export function daysBetween(from: string, to: string): number {
 /** "Today", "Tomorrow", or the weekday and date ("Fri 14 Nov", with the year when it is not this year). */
 export function dayLabel(day: string, today: string, locale?: string): string {
   const diff = daysBetween(today, day);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
+  if (diff === 0) return app.lib.reminderDays.today;
+  if (diff === 1) return app.lib.reminderDays.tomorrow;
   const [y, m, d] = parts(day);
   const sameYear = y === parts(today)[0];
   return new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));

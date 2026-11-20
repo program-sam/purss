@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import { useId } from "react";
@@ -8,6 +9,8 @@ import { Art, CopyTag, FreshDot, KeptTag, NoteLine, PendingMark, WfTag, useFace,
 import { RowActions, actionRoom } from "../components/ItemRow.tsx";
 import { useRowCtx, useRowMarks } from "../components/row-context.tsx";
 import { Avatar } from "@purss/ui";
+
+const t = app.views.cards;
 
 const Card = memo(function Card({ item }: { item: ItemDTO }) {
   const c = useRowCtx();
@@ -29,7 +32,7 @@ const Card = memo(function Card({ item }: { item: ItemDTO }) {
         <span className="title" dir="auto">{item.title}</span>
         {excerpt ? <span className="excerpt" id={excerptId} dir="auto">{excerpt}</span> : null}
         {c.basket ? <NoteLine item={item} id={noteId} /> : null}
-        <span className="meta"><FreshDot fresh={item.fresh} /><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={20} /><span className="sn" dir="auto">{face.name}</span><time dateTime={itemDate(item)}>{when}</time>{len ? <span className="len"><Icon name="clock" size="sm" />{isTimeBased(item.kind) ? len : `${len} read`}</span> : null}</span>
+        <span className="meta"><FreshDot fresh={item.fresh} /><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={20} /><span className="sn" dir="auto">{face.name}</span><time dateTime={itemDate(item)}>{when}</time>{len ? <span className="len"><Icon name="clock" size="sm" />{isTimeBased(item.kind) ? len : t.read(len)}</span> : null}</span>
         <span className="wfrow row-s"><WfTag workflow={item.workflow} kind={item.kind} />{c.basket ? <CopyTag item={item} /> : <KeptTag item={item} />}<PendingMark id={item.id} /></span>
       </button>
       <RowActions item={item} />

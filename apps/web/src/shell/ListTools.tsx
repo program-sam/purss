@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { BASKET_VIEW_MODES } from "@purss/domain";
 import type { BasketViewMode, Sort, ViewMode } from "@purss/domain";
@@ -14,6 +15,8 @@ import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { useMainWidth } from "../lib/use-now.ts";
+
+const t = app.shell.listTools;
 
 const isBasketView = (v: ViewMode): v is BasketViewMode => (BASKET_VIEW_MODES as readonly ViewMode[]).includes(v);
 
@@ -47,7 +50,7 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
     // A basket has nothing to ignore (its All already shows everything kept in it), and the queue never holds ignored items.
     if (place.t === "b" || place.t === "r") return [...radios, ...typeLengthEntries(ls, nav.patchSearch)];
     const canToggle = ls.filter === "active" || ls.filter === "all";
-    return [...radios, { type: "separator" }, { type: "check", label: "Show ignored items", on: ls.filter === "all", disabled: !canToggle, onSelect: () => nav.patchSearch({ filter: filterParam(ls, ls.filter === "all" ? "active" : "all") }) }, ...typeLengthEntries(ls, nav.patchSearch)];
+    return [...radios, { type: "separator" }, { type: "check", label: t.showIgnored, on: ls.filter === "all", disabled: !canToggle, onSelect: () => nav.patchSearch({ filter: filterParam(ls, ls.filter === "all" ? "active" : "all") }) }, ...typeLengthEntries(ls, nav.patchSearch)];
   };
   const sortEntries = (): MenuEntry[] =>
     SORT_ORDER.filter((s) => s !== "kept" || place.t === "b").map<MenuEntry>((s: Sort) => ({ type: "radio", label: SORT_LABELS[s], on: ls.sort === s, onSelect: () => nav.patchSearch({ sort: s === "newest" ? undefined : s }) }));
@@ -56,14 +59,14 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
     if (place.t === "c") {
       const c = ws.collectionById.get(place.id);
       return [
-        { label: "Collection settings…", icon: "gear", onSelect: () => overlays.open({ kind: "collection-settings", id: place.id }) },
+        { label: t.collectionSettings, icon: "gear", onSelect: () => overlays.open({ kind: "collection-settings", id: place.id }) },
         ...(c?.mode === "sources" ? [
-          { label: "Add source here", icon: "plus" as const, onSelect: () => overlays.open({ kind: "add-source", collectionId: place.id }) },
-          { label: "Smart filter…", icon: "filter" as const, onSelect: () => overlays.open({ kind: "ai-filter", collectionId: place.id }) },
+          { label: t.addSourceHere, icon: "plus" as const, onSelect: () => overlays.open({ kind: "add-source", collectionId: place.id }) },
+          { label: t.smartFilter, icon: "filter" as const, onSelect: () => overlays.open({ kind: "ai-filter", collectionId: place.id }) },
         ] : []),
       ];
     }
-    if (place.t === "b") return [{ label: "Basket settings…", icon: "gear", onSelect: () => overlays.open({ kind: "basket-form", id: place.id }) }, { label: "Delete basket…", icon: "trash", onSelect: () => overlays.open({ kind: "basket-delete", id: place.id }) }];
+    if (place.t === "b") return [{ label: t.basketSettings, icon: "gear", onSelect: () => overlays.open({ kind: "basket-form", id: place.id }) }, { label: t.deleteBasket, icon: "trash", onSelect: () => overlays.open({ kind: "basket-delete", id: place.id }) }];
     return [];
   };
   const menuLabel = place.t === "c" ? "More for this collection" : place.t === "b" ? "More for this basket" : "More";
@@ -72,7 +75,7 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
   const menu = (): MenuEntry[] => {
     const more = moreEntries();
     if (bp !== "xs") return more;
-    const select: MenuEntry = { type: "check", label: "Select items", on: sel.selecting, onSelect: () => sel.setSelecting(!sel.selecting) };
+    const select: MenuEntry = { type: "check", label: t.selectItems, on: sel.selecting, onSelect: () => sel.setSelecting(!sel.selecting) };
     return more.length ? [select, { type: "separator" }, ...more] : [select];
   };
 
@@ -85,17 +88,17 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
       ) : (
         <button type="button" className="mbtn" aria-haspopup="menu" aria-label={`View: ${VIEW_LABELS[ls.view]}`}
           onClick={(e) => popups.menu(e.currentTarget, ls.modes.map<MenuEntry>((m) => ({ type: "radio", label: VIEW_LABELS[m], on: ls.view === m, onSelect: () => setView(m) })), "View")}>
-          <span className="k">View</span>{VIEW_LABELS[ls.view]}<Icon name="chev" size="sm" />
+          <span className="k">{t.view}</span>{VIEW_LABELS[ls.view]}<Icon name="chev" size="sm" />
         </button>
       )}
       <button type="button" className="mbtn" aria-haspopup="menu" aria-label={`Filter: ${filterLabel(place, ls.filter)}${typeLengthSummary(ls) ? `, ${typeLengthSummary(ls)}` : ""}`} onClick={(e) => popups.menu(e.currentTarget, filterEntries(), "Filter items")}>
-        <Icon name="filter" /><span className="k">Show</span>{filterLabel(place, ls.filter)}{typeLengthSummary(ls) ? ` · ${typeLengthSummary(ls)}` : ""}<Icon name="chev" size="sm" />
+        <Icon name="filter" /><span className="k">{t.show}</span>{filterLabel(place, ls.filter)}{typeLengthSummary(ls) ? ` · ${typeLengthSummary(ls)}` : ""}<Icon name="chev" size="sm" />
       </button>
       <button type="button" className="mbtn" aria-haspopup="menu" aria-label={`Sort: ${SORT_LABELS[ls.sort]}`} onClick={(e) => popups.menu(e.currentTarget, sortEntries(), "Sort items")}>
         <Icon name="sort" />{SORT_LABELS[ls.sort]}<Icon name="chev" size="sm" />
       </button>
-      {bp !== "xs" ? <button type="button" className="mbtn" aria-pressed={sel.selecting} onClick={() => sel.setSelecting(!sel.selecting)}><Icon name="selectsq" />Select</button> : null}
-      {menu().length ? <button type="button" className="ibtn" aria-haspopup="menu" aria-label={menuLabel} onClick={(e) => popups.menu(e.currentTarget, menu(), menuLabel)}><Icon name="more" /><span className="ml" aria-hidden="true">More</span></button> : null}
+      {bp !== "xs" ? <button type="button" className="mbtn" aria-pressed={sel.selecting} onClick={() => sel.setSelecting(!sel.selecting)}><Icon name="selectsq" />{t.select}</button> : null}
+      {menu().length ? <button type="button" className="ibtn" aria-haspopup="menu" aria-label={menuLabel} onClick={(e) => popups.menu(e.currentTarget, menu(), menuLabel)}><Icon name="more" /><span className="ml" aria-hidden="true">{t.more}</span></button> : null}
     </div>
   );
 }

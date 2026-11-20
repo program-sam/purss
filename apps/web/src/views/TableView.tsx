@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO, Sort } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { KIND_LABELS, workflowLabel } from "../lib/constants.ts";
@@ -8,15 +9,17 @@ import { FreshDot, PendingMark, useFace } from "../components/item-bits.tsx";
 import { TriageActions } from "../components/ItemRow.tsx";
 import { useRowCtx, useRowMarks } from "../components/row-context.tsx";
 
+const t = app.views.table;
+
 type Col = { key: string; label: string; sort?: [Sort, Sort | null] };
 const COLS: Col[] = [
-  { key: "source", label: "Source", sort: ["source", null] },
-  { key: "title", label: "Title", sort: ["title", null] },
-  { key: "type", label: "Type" },
-  { key: "length", label: "Length" },
-  { key: "added", label: "Date", sort: ["newest", "oldest"] },
-  { key: "state", label: "State" },
-  { key: "kept", label: "Kept", sort: ["kept", null] },
+  { key: "source", label: t.columns.source, sort: ["source", null] },
+  { key: "title", label: t.columns.title, sort: ["title", null] },
+  { key: "type", label: t.columns.type },
+  { key: "length", label: t.columns.length },
+  { key: "added", label: t.columns.added, sort: ["newest", "oldest"] },
+  { key: "state", label: t.columns.state },
+  { key: "kept", label: t.columns.kept, sort: ["kept", null] },
 ];
 
 const Row = memo(function Row({ item }: { item: ItemDTO }) {
@@ -39,8 +42,8 @@ const Row = memo(function Row({ item }: { item: ItemDTO }) {
       <td>{workflowLabel(item.workflow, item.kind)}<PendingMark id={item.id} /></td>
       <td>
         {item.workflow === "ignored" ? (
-          <button type="button" className="kbtn" onClick={() => c.onRestore(item)}>Restore</button>
-        ) : c.selecting ? (kept ? plural(kept, "basket") : "") : (
+          <button type="button" className="kbtn" onClick={() => c.onRestore(item)}>{t.restore}</button>
+        ) : c.selecting ? (kept ? plural(kept, t.basket) : "") : (
           <button type="button" className={`kbtn${kept ? " on" : ""}`} aria-haspopup="menu"
             aria-label={`${kept ? `Kept in ${plural(kept, "basket")}. Change baskets for` : "Keep in a basket:"} ${item.title}`} onClick={(e) => c.onKeep(item, e.currentTarget)}>
             <Icon name="bookmark" />{kept || ""}

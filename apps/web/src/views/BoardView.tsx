@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import { itemListQuery } from "../api/queries.ts";
 import type { ListParams } from "../api/queries.ts";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
@@ -14,6 +15,8 @@ import { itemDate } from "../lib/items.ts";
 import { FreshDot, KeptTag, PendingMark, useFace, useItemLabel } from "../components/item-bits.tsx";
 import { useRowCtx, useRowMarks } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
+
+const t = app.views.board;
 
 const BoardCard = memo(function BoardCard({ item, onDragStart, onDragEnd }: { item: ItemDTO; onDragStart: (id: string) => void; onDragEnd: () => void }) {
   const c = useRowCtx();
@@ -107,7 +110,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
     const ids = c.selecting && selected.has(id) ? [...selected] : [id];
     // A collection whose own filter leaves this state out would otherwise just lose the card without a word.
     const why = collection ? excludesWorkflow(collection, to) : null;
-    setNote(why ? `${ids.length === 1 ? "The card moved" : `${ids.length} cards moved`} to ${WORKFLOW_LABELS[to]} and left this board, because ${why}.` : null);
+    setNote(why ? t.moved(ids.length, WORKFLOW_LABELS[to], why) : null);
     // Reload the columns afterwards so counts and order match the server.
     void onMove(ids, to).then(() => { for (const k of columns) void cols[k].refetch(); });
   }
@@ -123,7 +126,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
           ))}
         </div>
       ) : null}
-      {note ? <p className="state note board-note" role="status"><Icon name="info" /><span>{note}</span><button type="button" className="link" onClick={() => setNote(null)}>Dismiss</button></p> : null}
+      {note ? <p className="state note board-note" role="status"><Icon name="info" /><span>{note}</span><button type="button" className="link" onClick={() => setNote(null)}>{t.dismiss}</button></p> : null}
       <div className="board" ref={boardRef} role="group" aria-label="Workflow board" onScroll={onScroll}>
         {columns.map((k) => {
           const list = by(k);
@@ -134,7 +137,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
               <section key={k} className={`bcol ign${over === k ? " drop" : ""}${count(k) === 0 ? " is-empty" : ""}`} data-col={k} aria-label={`${label}, ${count(k)}`}
                 onDragOver={(e) => { if (dragId) { e.preventDefault(); setOver(k); } }} onDrop={(e) => { e.preventDefault(); drop(k); }}>
                 <button type="button" className="bcol-h" aria-expanded="false" onClick={() => setIgnOpen(true)}><span>{label}</span><span className="n" aria-label={plural(count(k), "item")}>{count(k)}</span></button>
-                {count(k) ? <button type="button" className="ign-show" onClick={() => setIgnOpen(true)}>Show ignored items<Icon name="chev" size="sm" /></button> : <p className="bcol-empty">Nothing here</p>}
+                {count(k) ? <button type="button" className="ign-show" onClick={() => setIgnOpen(true)}>{t.showIgnored}<Icon name="chev" size="sm" /></button> : <p className="bcol-empty">{t.nothingHere}</p>}
               </section>
             );
           }
@@ -152,7 +155,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
               <ul className="bcards" aria-label={label}>
                 {list.map((it) => <BoardCard key={it.id} item={it} onDragStart={setDragId} onDragEnd={endDrag} />)}
               </ul>
-              {cols[k].hasNextPage ? <button type="button" className="link bcol-more" disabled={cols[k].isFetchingNextPage} onClick={() => void cols[k].fetchNextPage()}>{cols[k].isFetchingNextPage ? "Loading…" : `Show ${Math.max(0, count(k) - list.length)} more`}</button> : null}
+              {cols[k].hasNextPage ? <button type="button" className="link bcol-more" disabled={cols[k].isFetchingNextPage} onClick={() => void cols[k].fetchNextPage()}>{cols[k].isFetchingNextPage ? t.loading : t.showMore(Math.max(0, count(k) - list.length))}</button> : null}
             </section>
           );
         })}

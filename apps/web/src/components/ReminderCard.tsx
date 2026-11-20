@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { ReminderDTO } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../api/client.ts";
@@ -7,6 +8,8 @@ import { shortDate } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.components.reminderCard;
 
 /** Path of the reminder action endpoint, built by the reminders executor alongside GET /api/reminders. */
 const actionPath = (id: string) => `/api/reminders/${encodeURIComponent(id)}`;
@@ -29,7 +32,7 @@ export function ReminderCard() {
     qc.setQueryData<ReminderDTO[]>(keys.reminders, (cur) => (cur ?? []).filter((x) => x.id !== r.id));
     try {
       await post(actionPath(r.id), { action });
-      toast(action === "hide" ? "Hidden. It won't come back." : "Snoozed. It may come back later.");
+      toast(action === "hide" ? t.hidden : t.snoozed);
     } catch (err) {
       void qc.invalidateQueries({ queryKey: keys.reminders });
       toast(messageOf(err), { tone: "error" });
@@ -41,15 +44,15 @@ export function ReminderCard() {
       <Icon name="cal" />
       <div className="tx">
         <p>
-          A year ago you kept{" "}
+          {t.before}{" "}
           <button type="button" className="link" onClick={() => nav.patchSearch({ item: r.itemId }, false)}><bdi>{r.title}</bdi></button>
-          <span className="fine"> from <bdi>{r.sourceTitle}</bdi>, in <bdi>{r.basketName}</bdi>, on {shortDate(r.keptAt, Date.now(), ws.prefs.timezone)}.</span>
+          <span className="fine">{t.from}<bdi>{r.sourceTitle}</bdi>{t.in}<bdi>{r.basketName}</bdi>{t.on(shortDate(r.keptAt, Date.now(), ws.prefs.timezone))}</span>
         </p>
-        <p className="fine">{r.captureLabel}. Nothing about it has changed.</p>
+        <p className="fine">{t.unchanged(r.captureLabel)}</p>
       </div>
       <div className="acts">
-        <Button onClick={() => void act("snooze")}>Snooze</Button>
-        <Button onClick={() => void act("hide")}>Hide</Button>
+        <Button onClick={() => void act("snooze")}>{t.snooze}</Button>
+        <Button onClick={() => void act("hide")}>{t.hide}</Button>
       </div>
     </section>
   );

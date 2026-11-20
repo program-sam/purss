@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,8 @@ import { useItemActions } from "../state/actions.ts";
 import { setHints, useHints } from "../state/ui-store.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 import "./home.css";
+
+const t = app.pages.welcomeBack;
 
 /** What Home says to someone coming back. Every part stays out of the way when it has nothing to say. */
 export function useHomeOverview() {
@@ -54,7 +57,7 @@ export function HomeBand() {
         <span>{today}</span>
         {o?.since && o.lastVisitAt ? (
           <span className="since"><i className="dot" />{sinceLine(o.since, o.lastVisitAt, { now: Date.now(), timeZone: ws.prefs.timezone, showCounts })}</span>
-        ) : fresh ? <span className="fr"><i className="dot" />{formatCount(fresh)} new in {plural(ws.data.sources.length, "source")}</span> : o ? <span>{calmLine(o, { visited: !!o.lastVisitAt, items: ws.data.sources.reduce((n, s) => n + s.itemCount, 0), showCounts })}</span> : null}
+        ) : fresh ? <span className="fr"><i className="dot" />{formatCount(fresh)}{t.newIn}{plural(ws.data.sources.length, app.lib.nouns.source)}</span> : o ? <span>{calmLine(o, { visited: !!o.lastVisitAt, items: ws.data.sources.reduce((n, s) => n + s.itemCount, 0), showCounts })}</span> : null}
       </p>
       {top.length > 1 ? (
         <p className="since-boxes">
@@ -63,7 +66,7 @@ export function HomeBand() {
             const label = showCounts ? `${b.name} · ${formatCount(b.count)}` : b.name;
             return known ? <button key={b.id} type="button" className="link" onClick={() => nav.go({ t: "c", id: b.id })}>{label}</button> : <span key={b.id}>{label}</span>;
           })}
-          {(o?.since?.boxes.length ?? 0) > top.length ? <span>and {(o?.since?.boxes.length ?? 0) - top.length} more</span> : null}
+          {(o?.since?.boxes.length ?? 0) > top.length ? <span>{t.andMore((o?.since?.boxes.length ?? 0) - top.length)}</span> : null}
         </p>
       ) : null}
     </div>
@@ -101,7 +104,7 @@ function Attention() {
   const sources = ws.data.sources.filter((s) => PROBLEM_HEALTH.has(s.health));
   if (!sources.length) return null;
   return (
-    <RowBox id="attention" title="Needs attention" count={sources.length}>
+    <RowBox id="attention" title={t.needsAttention} count={sources.length}>
       <ul className="mod-b wb-attn">
         {sources.slice(0, 6).map((s) => (
           <li key={s.id}>
@@ -114,7 +117,7 @@ function Attention() {
           </li>
         ))}
       </ul>
-      {sources.length > 6 ? <p className="fine wb-more">and {sources.length - 6} more in the sidebar</p> : null}
+      {sources.length > 6 ? <p className="fine wb-more">{t.moreInSidebar(sources.length - 6)}</p> : null}
     </RowBox>
   );
 }
@@ -161,7 +164,7 @@ function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: strin
   return (
     <RowBox id={id} title={title} count={totalKnown ? total : undefined}>
       <RowContext.Provider value={ctx}><ul className="mod-b">{items.map((it) => <ItemRow key={it.id} item={it} />)}</ul></RowContext.Provider>
-      {total > items.length ? <button type="button" className="mod-all" onClick={() => nav.go({ t: "r", id: "toread" }, { type })}>Show all{totalKnown ? ` ${total}` : ""}<Icon name="chev" size="sm" /></button> : null}
+      {total > items.length ? <button type="button" className="mod-all" onClick={() => nav.go({ t: "r", id: "toread" }, { type })}>{t.showAll}{totalKnown ? ` ${total}` : ""}<Icon name="chev" size="sm" /></button> : null}
     </RowBox>
   );
 }
@@ -175,18 +178,18 @@ export function WelcomeRows() {
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
   const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
-    <PutAsideRow key="toread" id="toread" title="To read" row={o?.toRead} keeps={isToRead} type="articles" />,
-    <PutAsideRow key="towatch" id="towatch" title="To watch" row={o?.toWatch} keeps={isToWatch} type="videos" />,
-    <PutAsideRow key="tolisten" id="tolisten" title="To listen" row={o?.toListen} keeps={isToListen} type="podcasts" />,
+    <PutAsideRow key="toread" id="toread" title={t.toRead} row={o?.toRead} keeps={isToRead} type="articles" />,
+    <PutAsideRow key="towatch" id="towatch" title={t.toWatch} row={o?.toWatch} keeps={isToWatch} type="videos" />,
+    <PutAsideRow key="tolisten" id="tolisten" title={t.toListen} row={o?.toListen} keeps={isToListen} type="podcasts" />,
     <Attention key="attention" />,
     offerFresh ? (
-      <section key="fresh" className="mod wb wb-fresh" aria-label="Mark all as seen">
+      <section key="fresh" className="mod wb wb-fresh" aria-label={t.markAllSeen}>
         <div className="wb-fresh-in">
           <div>
-            <b>Mark all as seen</b>
-            <p className="fine">{ws.prefs.showCounts ? `Takes the New marker off ${plural(fresh, "item")}.` : "Takes the New marker off every New item."} Nothing is finished, ignored or deleted. Undo brings the markers back.</p>
+            <b>{t.markAllSeen}</b>
+            <p className="fine">{ws.prefs.showCounts ? t.takesOffCount(plural(fresh, app.lib.nouns.item)) : t.takesOffEvery}{t.nothingChanged}</p>
           </div>
-          <Button onClick={() => void actions.clearFresh("all")}>Mark all as seen</Button>
+          <Button onClick={() => void actions.clearFresh("all")}>{t.markAllSeen}</Button>
         </div>
       </section>
     ) : null,

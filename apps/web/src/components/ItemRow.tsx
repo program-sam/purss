@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";
@@ -13,6 +14,8 @@ import { platform } from "../platform/index.ts";
 import { offersQuickDownload, useQuickDownloadState } from "../player/quick-download.ts";
 import { useRowCtx, useRowMarks } from "./row-context.tsx";
 
+const t = app.components.itemRow;
+
 /**
  * Room a row's or card's actions take, as CSS variables: --na icon slots in one line, --nc columns when
  * phone rows stack them two high. Restore is a word, about two slots.
@@ -23,13 +26,7 @@ export function actionRoom(item: ItemDTO): CSSProperties {
   return { "--na": icons, "--nc": Math.ceil(icons / 2) } as CSSProperties;
 }
 
-const DOWNLOAD_TIPS = {
-  none: "Download for offline play",
-  queued: "Waiting to download. Click to take it out of the queue",
-  busy: "Downloading…",
-  failed: "Download didn't finish. Try again",
-  done: "Downloaded to this device",
-} as const;
+const DOWNLOAD_TIPS = t.downloadTips;
 
 /**
  * The quick download of an item's audio or video to this device, in the apps: an empty ring with a cross
@@ -42,7 +39,7 @@ function DownloadButton({ item, tipAt }: { item: ItemDTO; tipAt?: "above" }) {
   const { progress } = useDownload(item.id);
   if (!state) return null;
   const share = state === "busy" ? progressFraction(progress) : null;
-  const tip = share === null ? DOWNLOAD_TIPS[state] : `Downloading… ${Math.round(share * 100)}%`;
+  const tip = share === null ? DOWNLOAD_TIPS[state] : t.downloading(Math.round(share * 100));
   return (
     <button type="button" className={`rq sv ${state}`} data-tip={tip} data-tip-at={tipAt}
       aria-label={`${tip}: ${item.title}`} aria-disabled={state === "busy" || state === "done" ? "true" : undefined}
@@ -65,12 +62,12 @@ export function TriageActions({ item, tipAt }: { item: ItemDTO; tipAt?: "above" 
   return (
     <>
       <DownloadButton item={item} tipAt={tipAt} />
-      <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? `In ${put}. Click to take it out` : put} data-tip-at={tipAt}
+      <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? t.inQueue(put) : put} data-tip-at={tipAt}
         aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "new" : "toread")}><Icon name="item" /></button>
       {c.basket ? (
-        <button type="button" className="rq ig" data-tip={`Remove from ${c.basket.name}`} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
+        <button type="button" className="rq ig" data-tip={t.removeFrom(c.basket.name)} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
       ) : (
-        <button type="button" className="rq ig" data-tip="Ignore" data-tip-at={tipAt} aria-label={`Ignore: ${item.title}`} onClick={() => c.onWorkflow(item, "ignored")}><Icon name="x" /></button>
+        <button type="button" className="rq ig" data-tip={t.ignore} data-tip-at={tipAt} aria-label={`Ignore: ${item.title}`} onClick={() => c.onWorkflow(item, "ignored")}><Icon name="x" /></button>
       )}
     </>
   );
@@ -83,14 +80,14 @@ export function RowActions({ item }: { item: ItemDTO }) {
   if (item.workflow === "ignored" && !c.basket) {
     return (
       <span className="racts">
-        <button type="button" className="restore" aria-label={`Restore: ${item.title}`} onClick={() => c.onRestore(item)}>Restore</button>
+        <button type="button" className="restore" aria-label={`Restore: ${item.title}`} onClick={() => c.onRestore(item)}>{t.restore}</button>
       </span>
     );
   }
   return (
     <span className="racts qa">
       <TriageActions item={item} tipAt="above" />
-      <button type="button" className="rq rm" aria-haspopup="menu" data-tip="More actions" data-tip-at="above" aria-label={`Actions for ${item.title}`} onClick={(e) => c.onMore(item, e.currentTarget)}><Icon name="more" /></button>
+      <button type="button" className="rq rm" aria-haspopup="menu" data-tip={t.moreActions} data-tip-at="above" aria-label={`Actions for ${item.title}`} onClick={(e) => c.onMore(item, e.currentTarget)}><Icon name="more" /></button>
     </span>
   );
 }

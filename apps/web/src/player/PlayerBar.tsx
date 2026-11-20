@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { app } from "@purss/copy/app";
 import { Avatar, Icon, IconButton } from "@purss/ui";
 import { nameFace } from "../components/item-bits.tsx";
 import { useNav } from "../nav.ts";
@@ -8,6 +9,8 @@ import { RATES, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, SLEEP_MINUTES, clock, r
 import { usePlayer } from "./PlayerProvider.tsx";
 import { playerArtwork } from "../lib/items.ts";
 import { hasKeyboard } from "../lib/returning.ts";
+
+const t = app.player.bar;
 
 /** Move focus to the player's Play/Pause button (the shortcut and the skip link). */
 export function focusPlayer(): boolean {
@@ -130,7 +133,7 @@ export function PlayerBar() {
     <section className="player" id="player" aria-label="Player" ref={bar} data-mini={mini ? "" : undefined}>
       {isVideo && showVideo && !mini ? <div className="player-screen" ref={videoBox} /> : null}
       <div className="player-body">
-        <button type="button" className="player-title" onClick={() => nav.openItem(now.itemId)} title="Open this item">
+        <button type="button" className="player-title" onClick={() => nav.openItem(now.itemId)} title={t.openItem}>
           <Avatar hue={face.hue} initials={face.initials} src={art} size={44} />
           <span className="player-meta">
             <b>{now.title}</b>
@@ -155,12 +158,12 @@ export function PlayerBar() {
             {rateLabel(snap.rate)}
           </button>
           <button type="button" className="player-pill player-sleep" data-on={sleep ? "" : undefined} aria-haspopup="menu"
-            aria-label={sleep ? `Sleep timer: pauses in ${sleep} min` : "Sleep timer"} title="Sleep timer"
+            aria-label={sleep ? `Sleep timer: pauses in ${sleep} min` : "Sleep timer"} title={t.sleepTimer}
             onClick={(e) => popups.menu(e.currentTarget, [
-              { type: "radio" as const, label: "Off", on: snap.sleepAt === null, onSelect: () => player.setSleepTimer(null) },
-              ...SLEEP_MINUTES.map((m) => ({ type: "radio" as const, label: `In ${m} minutes`, on: false, onSelect: () => player.setSleepTimer(m) })),
+              { type: "radio" as const, label: t.off, on: snap.sleepAt === null, onSelect: () => player.setSleepTimer(null) },
+              ...SLEEP_MINUTES.map((m) => ({ type: "radio" as const, label: t.inMinutes(m), on: false, onSelect: () => player.setSleepTimer(m) })),
             ], "Pause playback")}>
-            <Icon name="moon" size="sm" />{sleep ? <span aria-hidden="true">{sleep}<span className="player-unit"> min</span></span> : null}
+            <Icon name="moon" size="sm" />{sleep ? <span aria-hidden="true">{sleep}<span className="player-unit">{t.minutes}</span></span> : null}
           </button>
           <div className="player-end">
             <IconButton label={mini ? "Show the full player" : "Make the player smaller"} aria-expanded={!mini} className="player-size" onClick={toggleMini}>

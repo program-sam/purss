@@ -3,6 +3,9 @@ import type { FormEvent, ReactNode } from "react";
 import { Button, Field, Icon, TextInput } from "@purss/ui";
 import { messageOf, put } from "../api/client.ts";
 import { platform } from "../platform/index.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.passwordForm;
 
 export const PASSWORD_MIN = 10;
 
@@ -20,14 +23,14 @@ export function usePasswordFields(email: string | null = null, replacing = false
   const valid = [...password].length >= PASSWORD_MIN && same && !isEmail;
   const fields = (
     <>
-      <Field label={replacing ? "New password" : "Password"} htmlFor="pw-p" hint={`${PASSWORD_MIN}+ characters`}>
+      <Field label={replacing ? t.newPassword : t.password} htmlFor="pw-p" hint={t.minCharacters(PASSWORD_MIN)}>
         <TextInput id="pw-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
       </Field>
-      <Field label={replacing ? "New password again" : "Password again"} htmlFor="pw-a">
+      <Field label={replacing ? t.newPasswordAgain : t.passwordAgain} htmlFor="pw-a">
         <TextInput id="pw-a" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" aria-invalid={!!again && !same} />
       </Field>
-      {again && !same ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>The two passwords are different.</p> : null}
-      {isEmail ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>The password can't be the same as your email address.</p> : null}
+      {again && !same ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>{t.different}</p> : null}
+      {isEmail ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>{t.sameAsEmail}</p> : null}
     </>
   );
   return { fields, password, valid };
@@ -54,15 +57,15 @@ export function PasswordForm({ email, hasPassword, submitLabel, onDone, onCancel
   return (
     <form onSubmit={save} style={{ display: "grid", gap: 12 }}>
       {hasPassword ? (
-        <Field label="Current password" htmlFor="pw-c">
+        <Field label={t.currentPassword} htmlFor="pw-c">
           <TextInput id="pw-c" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" autoFocus />
         </Field>
       ) : null}
       {fields}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={busy || !ready}>{busy ? "Saving…" : submitLabel}</Button>
-        {onCancel ? <Button onClick={onCancel}>Cancel</Button> : null}
+        <Button variant="primary" type="submit" disabled={busy || !ready}>{busy ? t.saving : submitLabel}</Button>
+        {onCancel ? <Button onClick={onCancel}>{t.cancel}</Button> : null}
       </div>
     </form>
   );

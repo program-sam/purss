@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "@purss/ui";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.authFrame;
 
 /** The calm centred card used for setup, sign-in and invitations. */
 export function AuthFrame({ title, intro, children, footer }: { title: string; intro?: ReactNode; children: ReactNode; footer?: ReactNode }) {
@@ -8,7 +11,7 @@ export function AuthFrame({ title, intro, children, footer }: { title: string; i
   const heading = useRef<HTMLHeadingElement>(null);
   const shown = useRef(false);
   useEffect(() => {
-    document.title = `${title} · PURSS`;
+    document.title = t.documentTitle(title);
     if (shown.current) heading.current?.focus({ preventScroll: true });
     shown.current = true;
   }, [title]);
@@ -19,7 +22,7 @@ export function AuthFrame({ title, intro, children, footer }: { title: string; i
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="mark" aria-hidden="true"><Icon name="mark" /></span>
             <div style={{ display: "grid", gap: 3 }}>
-              <span className="fine" style={{ fontSize: 12 }}>PURSS</span>
+              <span className="fine" style={{ fontSize: 12 }}>{t.brand}</span>
               <h1 id="auth-title" className="auth-title" ref={heading} tabIndex={-1}>{title}</h1>
             </div>
           </div>

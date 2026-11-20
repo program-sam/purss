@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ConnectApproveResult, ConnectRequestSummary } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Field, Icon, TextInput } from "@purss/ui";
 import { get, messageOf, post } from "../../api/client.ts";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";
 import { useStepUp } from "../shared/step-up.tsx";
 import { CopyButton, Note } from "../shared/bits.tsx";
 import { KIND_LABEL } from "./ConnectedApps.tsx";
+
+const t = app.connect.connectPage;
 
 /** The query an app opens /connect with; passed to the server as it came. */
 export const CONNECT_PARAMS = ["client", "redirect_uri", "state", "code_challenge", "code_challenge_method", "device_name"] as const;
@@ -18,10 +21,7 @@ export function rawConnectParams(search: string): ConnectSearch {
   return Object.fromEntries(CONNECT_PARAMS.filter((k) => q.has(k)).map((k) => [k, q.get(k)!]));
 }
 
-const CAN_DO = {
-  mobile: "Everything you do in PURSS: reading, organising, keeping, sources and collections. Not your sign-in or security settings, administration or assistant access.",
-  extension: "Keep links in your baskets, check whether you already have a page, search, and find and follow sources. Nothing else.",
-} as const;
+const CAN_DO = t.canDo;
 
 type Phase = { kind: "ask" } | { kind: "sent" } | { kind: "code"; code: string; minutes: number } | { kind: "declined" };
 
@@ -36,18 +36,18 @@ export function ConnectPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (q.isPending) return <AuthFrame title="Connect an app"><p className="state"><span className="spin" aria-hidden="true" />Checking the request…</p></AuthFrame>;
+  if (q.isPending) return <AuthFrame title={t.connectApp}><p className="state"><span className="spin" aria-hidden="true" />{t.checking}</p></AuthFrame>;
   if (q.isError) {
     return (
-      <AuthFrame title="This connection link doesn't work">
+      <AuthFrame title={t.linkBroken}>
         <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p>
-        <p className="fine">Nothing was connected. <a className="link" href="/">Go to your PURSS</a></p>
+        <p className="fine">{t.nothingConnected}<a className="link" href="/">{t.goToPurss}</a></p>
       </AuthFrame>
     );
   }
   const req = q.data;
   const deviceName = name ?? req.deviceName;
-  const title = req.client === "mobile" ? "Connect the PURSS app?" : "Connect the browser extension?";
+  const title = req.client === "mobile" ? t.titleMobile : t.titleExtension;
 
   async function approve() {
     setBusy(true); setError("");
@@ -63,34 +63,34 @@ export function ConnectPage() {
     if (req.declineUrl) window.location.assign(req.declineUrl);
   }
 
-  if (phase.kind === "sent") return <AuthFrame title="Connected"><p className="hint" role="status">Return to the app to finish. You can close this page.</p></AuthFrame>;
-  if (phase.kind === "declined") return <AuthFrame title="Not connected"><p className="hint" role="status">Nothing was connected. You can close this page.</p></AuthFrame>;
+  if (phase.kind === "sent") return <AuthFrame title={t.connected}><p className="hint" role="status">{t.returnToApp}</p></AuthFrame>;
+  if (phase.kind === "declined") return <AuthFrame title={t.notConnected}><p className="hint" role="status">{t.nothingConnectedClose}</p></AuthFrame>;
   if (phase.kind === "code") {
     return (
-      <AuthFrame title="Type this code into the app">
+      <AuthFrame title={t.typeCode}>
         <div style={{ display: "grid", gap: 14 }} role="status">
-          <div className="fx-link"><code className="fx-url" style={{ fontSize: 22, letterSpacing: "0.08em" }}>{phase.code}</code><CopyButton value={phase.code} what="Code" /></div>
-          <p className="hint">It works once, for the next {phase.minutes} minutes, and only in the app that asked.</p>
-          <Note tone="warn" icon="lock">Don't share this code or type it anywhere else. PURSS will never ask for it.</Note>
+          <div className="fx-link"><code className="fx-url" style={{ fontSize: 22, letterSpacing: "0.08em" }}>{phase.code}</code><CopyButton value={phase.code} what={t.codeWhat} /></div>
+          <p className="hint">{t.codeWorksOnce(phase.minutes)}</p>
+          <Note tone="warn" icon="lock">{t.dontShare}</Note>
         </div>
       </AuthFrame>
     );
   }
   return (
     <AuthFrame title={title}
-      footer={<><Button disabled={busy} onClick={decline}>Don't connect</Button><Button variant="primary" disabled={busy || !deviceName.trim()} onClick={() => void approve()}>Connect</Button></>}>
+      footer={<><Button disabled={busy} onClick={decline}>{t.dontConnect}</Button><Button variant="primary" disabled={busy || !deviceName.trim()} onClick={() => void approve()}>{t.connect}</Button></>}>
       {stepUp.dialog}
       <div style={{ display: "grid", gap: 14 }}>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Note tone="warn" icon="alert">Only connect if you just started this from the app on your own device. If a message or website sent you here, choose Don't connect.</Note>
+        <Note tone="warn" icon="alert">{t.onlyIfStarted}</Note>
         <ul className="seclist">
-          <li><Icon name={req.client === "extension" ? "ext" : "link"} /><span className="tx"><b>{KIND_LABEL[req.client]}</b><small>{req.redirect ? req.redirect.label : "You'll get a code to type into the app"}</small></span></li>
+          <li><Icon name={req.client === "extension" ? "ext" : "link"} /><span className="tx"><b>{KIND_LABEL[req.client]}</b><small>{req.redirect ? req.redirect.label : t.getCode}</small></span></li>
         </ul>
-        <p className="fine"><b>It will be able to:</b> {CAN_DO[req.client]}</p>
-        <Field label="Name, so you recognise it later" htmlFor="cn-name">
+        <p className="fine"><b>{t.ableTo}</b> {CAN_DO[req.client]}</p>
+        <Field label={t.nameLabel} htmlFor="cn-name">
           <TextInput id="cn-name" value={deviceName} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" />
         </Field>
-        <p className="fine">Disconnect it any time in Settings → Connected apps. It disconnects itself after 90 days unused.</p>
+        <p className="fine">{t.disconnectAnyTime}</p>
       </div>
     </AuthFrame>
   );

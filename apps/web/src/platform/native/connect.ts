@@ -1,6 +1,9 @@
 import { parseWorkspaceAddress } from "@purss/domain";
 import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.connect;
 
 /**
  * Connecting the app to a PURSS: the pure parts, tested on their own. The app signs
@@ -14,10 +17,10 @@ export const REDIRECT_URI = "purss://connect";
 /** Whether an answer from /api/connect/info is a PURSS this app can connect to. */
 export function checkInfo(v: unknown): { ok: true; info: ConnectInfo } | { ok: false; message: string } {
   const info = v as Partial<ConnectInfo> | null;
-  if (!info || info.service !== "purss" || !info.connect) return { ok: false, message: "That address answers, but it isn't a PURSS." };
+  if (!info || info.service !== "purss" || !info.connect) return { ok: false, message: t.notAPurss };
   const mobile = info.connect.clients?.mobile;
   if (!info.connect.codeChallengeMethods?.includes("S256") || !mobile?.redirectUris.includes(REDIRECT_URI) || typeof info.connect.page !== "string") {
-    return { ok: false, message: "This PURSS can't connect this app. It may need updating." };
+    return { ok: false, message: t.cantConnect };
   }
   return { ok: true, info: info as ConnectInfo };
 }
@@ -92,10 +95,10 @@ export function readCallback(url: string, expected: { state: string; issuer: str
   const q = new URLSearchParams(rest);
   if (q.get("state") !== expected.state) return { kind: "ignored" };
   // PURSS names itself (RFC 9207 `iss`); an answer that doesn't, or names another, isn't taken.
-  if (q.get("iss") !== expected.issuer) return { kind: "error", message: "A different PURSS answered, or it didn't say which it is. Start connecting again." };
+  if (q.get("iss") !== expected.issuer) return { kind: "error", message: t.differentPurss };
   if (q.get("error") === "access_denied") return { kind: "declined" };
   const code = q.get("code");
-  if (!code) return { kind: "error", message: "PURSS didn't send a connection code. Start connecting again." };
+  if (!code) return { kind: "error", message: t.noCode };
   return { kind: "code", code };
 }
 

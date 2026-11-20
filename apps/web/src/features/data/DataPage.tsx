@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import type { ImportPreview, OpmlPreview, SourceDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Avatar, Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural } from "../../lib/format.ts";
@@ -11,6 +12,8 @@ import { downloadFile } from "../shared/download.ts";
 import { ImportDialog } from "./ImportDialog.tsx";
 import { OpmlDialog, OpmlImports } from "./OpmlDialog.tsx";
 import { ReconnectDialog } from "./ReconnectDialog.tsx";
+
+const t = app.data.dataPage;
 
 const IMPORT_LIMIT = 128 * 1024 * 1024;
 const OPML_LIMIT = 2 * 1024 * 1024;
@@ -31,18 +34,18 @@ function ExportSection() {
     setBusy(true); setFeedback(null); setProgress(0);
     try {
       const out = await downloadFile("/api/export", "purss-export.json", { onProgress: setProgress });
-      setFeedback({ tone: "ok", text: `Saved ${out.filename} (${bytesLabel(out.bytes)}). Keep it somewhere private: it holds what you kept and your reading state.` });
+      setFeedback({ tone: "ok", text: t.exportSection.saved(out.filename, bytesLabel(out.bytes)) });
     } catch (err) { setFeedback({ tone: "problem", text: messageOf(err) }); } finally { setBusy(false); }
   }
   return (
-    <Section title="Export everything" hint="One file you can keep, move, or import again later.">
+    <Section title={t.exportSection.title} hint={t.exportSection.hint}>
       <div className="fx-two-lines">
-        <p><b>Included:</b> your sources, collections and baskets with everything kept in them; saved text and pictures; your states, reading progress, highlights, notes and reminders; preferences; and sharing settings with their public notes.</p>
-        <p><b>Left out:</b> passwords and other sign-in methods; the links of private sources (they come back as “needs reconnecting”); and anything PURSS never saved, such as pages, audio and video that live only at their original address.</p>
+        <p><b>{t.exportSection.included}</b>{t.exportSection.includedText}</p>
+        <p><b>{t.exportSection.leftOut}</b>{t.exportSection.leftOutText}</p>
       </div>
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? "Preparing…" : "Download export"}</Button>
-        {busy ? <span className="state" role="status"><span className="spin" aria-hidden="true" />{progress ? `${bytesLabel(progress)} so far` : "Starting…"}</span> : null}
+        <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? t.preparing : t.exportSection.download}</Button>
+        {busy ? <span className="state" role="status"><span className="spin" aria-hidden="true" />{progress ? t.exportSection.soFar(bytesLabel(progress)) : t.exportSection.starting}</span> : null}
       </div>
       {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
     </Section>
@@ -58,16 +61,16 @@ function KeptLinksSection() {
     setBusy(format); setFeedback(null);
     try {
       const out = await downloadFile(`/api/export/kept-links?format=${format}`, `kept-links.${format}`);
-      setFeedback({ tone: "ok", text: `Saved ${out.filename} (${bytesLabel(out.bytes)}).` });
+      setFeedback({ tone: "ok", text: t.keptLinks.saved(out.filename, bytesLabel(out.bytes)) });
     } catch (err) { setFeedback({ tone: "problem", text: messageOf(err) }); } finally { setBusy(null); }
   }
   return (
-    <Section title="Kept links as a list">
-      <p>Every basket as a readable list: each kept item's title linked to the original, with its source and the dates it was published and kept. Open the web page in any browser, or the Markdown file in a notes app.</p>
-      <p className="fine">The originals may change or disappear, and this list can't be imported back; the full export above can.</p>
+    <Section title={t.keptLinks.title}>
+      <p>{t.keptLinks.text}</p>
+      <p className="fine">{t.keptLinks.fine}</p>
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? "Preparing…" : "Download web page"}</Button>
-        <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? "Preparing…" : "Download Markdown"}</Button>
+        <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? t.preparing : t.keptLinks.downloadPage}</Button>
+        <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? t.preparing : t.keptLinks.downloadMarkdown}</Button>
       </div>
       {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
     </Section>
@@ -86,21 +89,21 @@ function ImportSection() {
     e.target.value = "";
     if (!file) return;
     setError("");
-    if (file.size > IMPORT_LIMIT) { setError("That file is larger than the 128 MB an import can take."); return; }
+    if (file.size > IMPORT_LIMIT) { setError(t.importSection.tooLarge); return; }
     setBusy(true);
     try {
       let doc: unknown;
-      try { doc = JSON.parse(await file.text()); } catch { throw new Error("That file isn't a PURSS export (it isn't valid JSON)."); }
-      if (!doc || typeof doc !== "object" || Array.isArray(doc)) throw new Error("That file isn't a PURSS export.");
+      try { doc = JSON.parse(await file.text()); } catch { throw new Error(t.importSection.notJson); }
+      if (!doc || typeof doc !== "object" || Array.isArray(doc)) throw new Error(t.importSection.notExport);
       setStaged({ preview: await post<ImportPreview>("/api/import/preview", doc), name: file.name });
     } catch (err) { setError(err instanceof Error && !("code" in err) ? err.message : messageOf(err)); } finally { setBusy(false); }
   }
   return (
-    <Section title="Import a PURSS export">
-      <p>You see what would change first. Nothing is deleted and nothing is added twice. Sharing comes in switched off, and private sources need reconnecting.</p>
+    <Section title={t.importSection.title}>
+      <p>{t.importSection.text}</p>
       <div className="fx-acts-row">
         <input ref={input} type="file" accept=".json,application/json" hidden onChange={(e) => void chosen(e)} aria-label="Choose an export file" />
-        <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? "Reading…" : "Choose a file…"}</Button>
+        <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? t.reading : t.importSection.chooseFile}</Button>
       </div>
       {error ? <Outcome ref={result} tone="problem" text={error} /> : null}
       {staged ? <ImportDialog preview={staged.preview} fileName={staged.name} onClose={() => setStaged(null)} /> : null}
@@ -123,7 +126,7 @@ function OpmlSection() {
     try {
       const out = await downloadFile("/api/opml", "followed-sources.opml");
       const left = Number(out.headers.get("x-purss-left-out") ?? 0);
-      setFeedback({ tone: "ok", text: `Saved ${out.filename}.${left ? ` ${plural(left, "private source")} ${left === 1 ? "was" : "were"} left out because the link holds a secret.` : ""}` });
+      setFeedback({ tone: "ok", text: t.opmlSection.saved(out.filename, left, plural(left, t.opmlSection.privateSource)) });
     } catch (err) { setFeedback({ tone: "problem", text: messageOf(err) }); } finally { setExporting(false); }
   }
   async function chosen(e: ChangeEvent<HTMLInputElement>) {
@@ -131,18 +134,18 @@ function OpmlSection() {
     e.target.value = "";
     if (!file) return;
     setError("");
-    if (file.size > OPML_LIMIT) { setError("That file is too large to be a subscription list."); return; }
+    if (file.size > OPML_LIMIT) { setError(t.opmlSection.tooLarge); return; }
     setBusy(true);
     try { setStaged({ preview: await post<OpmlPreview>("/api/opml/preview", { opml: await file.text() }), name: file.name }); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   return (
-    <Section title="Subscription list (OPML)" hint="The standard list other feed readers use.">
-      <p>Export what you follow as an OPML file, or import a list from another reader and choose which feeds to follow. Importing continues in the background, so it keeps going if you close this page.</p>
-      <p className="fine">Only public feeds are exported. Private links contain a secret, so they are left out.</p>
+    <Section title={t.opmlSection.title} hint={t.opmlSection.hint}>
+      <p>{t.opmlSection.text}</p>
+      <p className="fine">{t.opmlSection.fine}</p>
       <div className="fx-acts-row">
-        <Button disabled={exporting} onClick={() => void exportOpml()}><Icon name="download" size="sm" />{exporting ? "Preparing…" : "Export subscriptions"}</Button>
+        <Button disabled={exporting} onClick={() => void exportOpml()}><Icon name="download" size="sm" />{exporting ? t.preparing : t.opmlSection.export}</Button>
         <input ref={input} type="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" hidden onChange={(e) => void chosen(e)} aria-label="Choose an OPML file" />
-        <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? "Reading…" : "Import a list…"}</Button>
+        <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? t.reading : t.opmlSection.importList}</Button>
       </div>
       {feedback ? <Outcome ref={exported} tone={feedback.tone} text={feedback.text} /> : null}
       {error ? <Outcome ref={read} tone="problem" text={error} /> : null}
@@ -156,13 +159,13 @@ function ReconnectSection({ sources }: { sources: SourceDTO[] }) {
   const [open, setOpen] = useState<SourceDTO | null>(null);
   if (!sources.length) return null;
   return (
-    <Section title="Sources that need reconnecting" hint="Their private links weren't kept, on purpose.">
+    <Section title={t.reconnectSection.title} hint={t.reconnectSection.hint}>
       <ul className="fx-rows">
         {sources.map((s) => (
           <li key={s.id} className="fx-row">
             <Avatar hue={s.hue} initials={s.initials} src={s.iconUrl} size={28} />
-            <div className="fx-grow"><b>{s.title}</b><span className="fine">{s.healthText ?? "Paste its link again to resume."}</span></div>
-            <div className="fx-end"><Button onClick={() => setOpen(s)} aria-label={`Reconnect ${s.title}`}>Reconnect…</Button></div>
+            <div className="fx-grow"><b>{s.title}</b><span className="fine">{s.healthText ?? t.reconnectSection.pasteAgain}</span></div>
+            <div className="fx-end"><Button onClick={() => setOpen(s)} aria-label={`Reconnect ${s.title}`}>{t.reconnectSection.reconnect}</Button></div>
           </li>
         ))}
       </ul>
@@ -175,7 +178,7 @@ export function DataPage() {
   const ws = useWorkspace();
   const needs = ws.data.sources.filter((s) => s.health === "reconnect");
   return (
-    <Page title="Your data" lead="Your PURSS is yours to take with you. None of this depends on your plan.">
+    <Page title={t.title} lead={t.lead}>
       <ReconnectSection sources={needs} />
       <ExportSection />
       <KeptLinksSection />

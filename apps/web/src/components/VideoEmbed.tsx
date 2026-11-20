@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import type { Embed } from "../lib/embeds.ts";
 import { Art, type Face } from "./item-bits.tsx";
 import { newPlaybackSessionId } from "../outbox/entries.ts";
 import { useItemActions } from "../state/actions.ts";
 import { youtubeStartWorkflow } from "../player/embedded-workflow.ts";
+
+const t = app.components.videoEmbed;
 
 /**
  * A video page's own player in the reader. Until the person presses play only the item's picture shows and
@@ -27,11 +30,11 @@ export function VideoEmbed({ item, face, embed, autoload = false }: { item: Item
   // The button the person pressed is replaced by the player: focus goes to it, so it doesn't fall to the page. One loaded by itself takes no focus.
   useEffect(() => { if (on && pressed.current) frame.current?.focus(); }, [on]);
   if (!on && embed.post) {
-    return <button type="button" className="mbtn embed-show" onClick={start} title={`Load the post from ${embed.platform}`}>Show the post here</button>;
+    return <button type="button" className="mbtn embed-show" onClick={start} title={t.loadPost(embed.platform)}>{t.showPost}</button>;
   }
   if (!on) {
     return (
-      <button type="button" className="art-link embed-start" onClick={start} aria-label={`Play here: ${item.title}`} title={`Play here, in ${embed.platform}'s player`}>
+      <button type="button" className="art-link embed-start" onClick={start} aria-label={`Play here: ${item.title}`} title={t.playHere(embed.platform)}>
         <Art item={item} face={face} playable />
       </button>
     );
@@ -42,7 +45,7 @@ export function VideoEmbed({ item, face, embed, autoload = false }: { item: Item
       <iframe
         ref={frame}
         src={embed.src}
-        title={`${embed.platform} ${embed.post ? "post" : "player"}: ${item.title}`}
+        title={t.frameTitle(embed.platform, embed.post ? t.post : t.player, item.title)}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
         // The platforms want to know which site plays their video (YouTube refuses to play without it): the origin only.

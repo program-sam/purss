@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import { Icon } from "@purss/ui";
 import { comingUpQuery } from "../api/reminder-queries.ts";
 import { dayLabel } from "../lib/reminder-days.ts";
 import { useNav } from "../nav.ts";
 import "./reminders.css";
+
+const t = app.components.comingUp;
 
 /** Home's "Coming up": the reminders set on kept items for today and the next six days. Renders nothing when there are none. */
 export function ComingUp() {
@@ -13,7 +16,7 @@ export function ComingUp() {
   if (!q.data || !list.length) return null;
   return (
     <section className="mod wb coming" aria-labelledby="wb-coming">
-      <header className="mod-h"><h2 className="mod-t" id="wb-coming"><span className="t">Coming up</span></h2></header>
+      <header className="mod-h"><h2 className="mod-t" id="wb-coming"><span className="t">{t.title}</span></h2></header>
       <ul className="mod-b">
         {list.map((r) => (
           <li key={r.id}>

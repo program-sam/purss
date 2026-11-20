@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import "./stats.css";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -23,14 +24,16 @@ import { Trail } from "../shell/crumbs.tsx";
  * (by name until they do).
  */
 
+const t = app.pages.stats;
+
 function Gone({ place }: { place: StatsPlace }) {
   const nav = useNav();
   return (
     <div className="col narrow">
       <div className="empty card-like" style={{ marginTop: 40 }}>
-        <h2>That {place.t === "c" ? "collection" : "source"} isn't here</h2>
-        <p>It may have been removed.</p>
-        <Button onClick={() => nav.go({ t: "home" })}>Go to Home</Button>
+        <h2>{t.missing(place.t === "c" ? app.lib.nouns.collection : app.lib.nouns.source)}</h2>
+        <p>{t.removed}</p>
+        <Button onClick={() => nav.go({ t: "home" })}>{t.goHome}</Button>
       </div>
     </div>
   );
@@ -43,11 +46,11 @@ function StatsHead({ place, title, asOf }: { place: StatsPlace; title: string; a
     <div className="phead">
       <h1>{title}</h1>
       <div className="psub">
-        <span className="tag">Statistics</span>
-        {asOf ? <span>As of <time dateTime={asOf}>{shortDate(asOf, Date.now(), ws.prefs.timezone)}</time></span> : null}
-        <button type="button" className="link" onClick={() => nav.goPath(pathFor(place))}><Icon name="back" size="sm" /> Back to items</button>
+        <span className="tag">{t.statistics}</span>
+        {asOf ? <span>{t.asOf}<time dateTime={asOf}>{shortDate(asOf, Date.now(), ws.prefs.timezone)}</time></span> : null}
+        <button type="button" className="link" onClick={() => nav.goPath(pathFor(place))}><Icon name="back" size="sm" />{t.backToItems}</button>
       </div>
-      <p className="fine">Only you can see these numbers.</p>
+      <p className="fine">{t.onlyYou}</p>
     </div>
   );
 }
@@ -57,7 +60,7 @@ function Loading() {
 }
 
 function Failed({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  return <div className="empty card-like"><h2>Couldn't load the statistics</h2><p>{messageOf(error)}</p><Button onClick={onRetry}>Try again</Button></div>;
+  return <div className="empty card-like"><h2>{t.loadFailed}</h2><p>{messageOf(error)}</p><Button onClick={onRetry}>{t.tryAgain}</Button></div>;
 }
 
 function Item({ label, sub, children }: { label: string; sub?: boolean; children: ReactNode }) {
@@ -71,35 +74,35 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 function SourceBody({ data }: { data: SourceStatsResponse }) {
   const ws = useWorkspace();
   const s = data.stats;
-  const when = (iso: string | null) => (iso ? <time dateTime={iso}>{shortDate(iso, Date.now(), ws.prefs.timezone)}</time> : "–");
+  const when = (iso: string | null) => (iso ? <time dateTime={iso}>{shortDate(iso, Date.now(), ws.prefs.timezone)}</time> : t.none);
   return (
     <div className="fx-stack">
       <section className="fx-sec">
-        <div className="fx-sec-h"><h2>Items per week</h2><span className="fine">Last {s.weekly.length} weeks</span></div>
+        <div className="fx-sec-h"><h2>{t.itemsPerWeek}</h2><span className="fine">{t.lastWeeks(s.weekly.length)}</span></div>
         <div className="fx-sec-b stat-spark">
           <Sparkline weekly={s.weekly} width={520} height={72} />
-          <p className="fine">Average {weeklyAverage(s.weekly)} per week. Most in one week: {Math.max(...s.weekly)}. Dated by the feed's publish date, or by arrival day if it gave none.</p>
+          <p className="fine">{t.average(weeklyAverage(s.weekly), Math.max(...s.weekly))}</p>
         </div>
       </section>
       <section className="fx-sec">
-        <div className="fx-sec-h"><h2>Numbers</h2></div>
+        <div className="fx-sec-h"><h2>{t.numbers}</h2></div>
         <div className="fx-sec-b stat-blocks">
-          <Block title="Items">
-            <Item label="Total">{s.totalItems}</Item>
-            <Item label="Latest item">{when(s.lastItemAt)}</Item>
-            <Item label="Longest gap between items, last 12 months">{gapLabel(s.longestGapDays)}</Item>
+          <Block title={t.blockItems}>
+            <Item label={t.total}>{s.totalItems}</Item>
+            <Item label={t.latestItem}>{when(s.lastItemAt)}</Item>
+            <Item label={t.longestGap}>{gapLabel(s.longestGapDays)}</Item>
           </Block>
-          <Block title="Workflow">
+          <Block title={t.blockWorkflow}>
             {WORKFLOW_ORDER.map((w) => <Item key={w} label={WORKFLOW_LABELS[w]}>{countWithShare(s.workflow[w], s.totalItems)}</Item>)}
-            {s.filteredOut > 0 ? <Item label={`Of ${WORKFLOW_LABELS.ignored}: filtered out by a Smart filter`} sub>{countWithShare(s.filteredOut, s.totalItems)}</Item> : null}
+            {s.filteredOut > 0 ? <Item label={t.filteredOut(WORKFLOW_LABELS.ignored)} sub>{countWithShare(s.filteredOut, s.totalItems)}</Item> : null}
           </Block>
-          <Block title="Reading and keeping">
-            <Item label="Opened at least once">{countWithShare(s.opened, s.totalItems)}</Item>
-            <Item label="In at least one basket">{countWithShare(s.kept, s.totalItems)}</Item>
+          <Block title={t.blockReading}>
+            <Item label={t.openedOnce}>{countWithShare(s.opened, s.totalItems)}</Item>
+            <Item label={t.inBasket}>{countWithShare(s.kept, s.totalItems)}</Item>
           </Block>
-          <Block title="Last 30 days">
-            <Item label={`Moved to ${WORKFLOW_LABELS.finished}`}>{s.finishedLast30Days}</Item>
-            <Item label={`Moved to ${WORKFLOW_LABELS.ignored}`}>{s.ignoredLast30Days}</Item>
+          <Block title={t.blockLast30}>
+            <Item label={t.movedTo(WORKFLOW_LABELS.finished)}>{s.finishedLast30Days}</Item>
+            <Item label={t.movedTo(WORKFLOW_LABELS.ignored)}>{s.ignoredLast30Days}</Item>
           </Block>
         </div>
       </section>
@@ -109,15 +112,15 @@ function SourceBody({ data }: { data: SourceStatsResponse }) {
 
 type Column = { key: StatsSortKey; label: string; numeric: boolean };
 const BASE_COLUMNS: readonly Column[] = [
-  { key: "name", label: "Source", numeric: false },
-  { key: "items", label: "Items", numeric: true },
-  { key: "weekly", label: "Items per week", numeric: false },
-  { key: "last", label: "Latest item", numeric: false },
+  { key: "name", label: t.columnSource, numeric: false },
+  { key: "items", label: t.columnItems, numeric: true },
+  { key: "weekly", label: t.itemsPerWeek, numeric: false },
+  { key: "last", label: t.latestItem, numeric: false },
   ...WORKFLOW_ORDER.map((w): Column => ({ key: w, label: WORKFLOW_LABELS[w], numeric: true })),
-  { key: "opened", label: "Opened", numeric: true },
-  { key: "kept", label: "In baskets", numeric: true },
+  { key: "opened", label: t.columnOpened, numeric: true },
+  { key: "kept", label: t.columnKept, numeric: true },
 ];
-const FILTERED_COLUMN: Column = { key: "filtered", label: "Filtered out by Smart filter", numeric: true };
+const FILTERED_COLUMN: Column = { key: "filtered", label: t.columnFiltered, numeric: true };
 
 function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) {
   const ws = useWorkspace();
@@ -126,7 +129,7 @@ function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) 
     <>
       <td className="num">{total}</td>
       <td><span className="stat-week"><Sparkline weekly={stats.weekly} width={96} height={24} /><span className="num">{weeklyAverage(stats.weekly)}</span></span></td>
-      <td>{stats.lastItemAt ? <time dateTime={stats.lastItemAt}>{shortDate(stats.lastItemAt, Date.now(), ws.prefs.timezone)}</time> : "–"}</td>
+      <td>{stats.lastItemAt ? <time dateTime={stats.lastItemAt}>{shortDate(stats.lastItemAt, Date.now(), ws.prefs.timezone)}</time> : t.none}</td>
       {WORKFLOW_ORDER.map((w: WorkflowState) => <td key={w} className="num">{countWithShare(stats.workflow[w], total)}</td>)}
       <td className="num">{countWithShare(stats.opened, total)}</td>
       <td className="num">{countWithShare(stats.kept, total)}</td>
@@ -156,7 +159,7 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
   // The Smart filter column appears only when a filter has items in Ignored here.
   const filtered = data.totals.filteredOut > 0;
   const columns = filtered ? [...BASE_COLUMNS, FILTERED_COLUMN] : BASE_COLUMNS;
-  if (!data.sources.length) return <div className="empty card-like"><h2>No sources to count yet</h2></div>;
+  if (!data.sources.length) return <div className="empty card-like"><h2>{t.noSources}</h2></div>;
   return (
     <div className="tblwrap">
       <table className="tbl stat-tbl" aria-label={`Statistics for each source in ${data.name}`}>
@@ -176,7 +179,7 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
           {rows.map((r) => <tr key={r.sourceId ?? "none"}><SourceCell row={r} /><Cells stats={r.stats} filtered={filtered} /></tr>)}
         </tbody>
         <tfoot>
-          <tr><th scope="row" className="stat-name">Total · {plural(data.sources.length, "source")}</th><Cells stats={data.totals} filtered={filtered} /></tr>
+          <tr><th scope="row" className="stat-name">{t.totalSources}{plural(data.sources.length, app.lib.nouns.source)}</th><Cells stats={data.totals} filtered={filtered} /></tr>
         </tfoot>
       </table>
     </div>

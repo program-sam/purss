@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { app } from "@purss/copy/app";
 import type { NotificationFrequency, NotificationInclude, Preferences } from "@purss/domain";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Check, Icon, SelectInput, TextInput } from "@purss/ui";
@@ -10,6 +11,8 @@ import { OTHER_BOX_ID } from "../pages/home-boxes.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { platform } from "../platform/index.ts";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.dialogs.notificationSettings;
 
 const FREQUENCIES: NotificationFrequency[] = ["daily", "weekly", "off"];
 
@@ -23,7 +26,7 @@ export function NotificationSettings() {
   const set = (patch: Partial<Preferences["notifications"]>) => void save({ notifications: { ...n, ...patch } });
   const include = (patch: Partial<NotificationInclude>) => set({ include: { ...n.include, ...patch } });
   const chosen = n.include.newItems === "all" ? null : n.include.newItems;
-  const pickable = [...ws.collections.map((c) => ({ id: c.id, name: c.name })), ...(ws.looseSources.length ? [{ id: OTHER_BOX_ID, name: "Other sources" }] : [])];
+  const pickable = [...ws.collections.map((c) => ({ id: c.id, name: c.name })), ...(ws.looseSources.length ? [{ id: OTHER_BOX_ID, name: t.otherSources }] : [])];
   const toggleBox = (id: string, on: boolean) => include({ newItems: on ? [...new Set([...(chosen ?? []), id])] : (chosen ?? []).filter((x) => x !== id) });
   const computer = platform.notifier.kind === "computer";
   // Digests and reminders by email need outgoing email on this installation and a confirmed address on the account.
@@ -35,7 +38,7 @@ export function NotificationSettings() {
 
   return (
     <div className="nset" style={{ display: "grid", gap: 16 }}>
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Tell me about new items</legend>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.tellMe}</legend>
         <div className="radiolist">
           {FREQUENCIES.map((v) => (
             <label key={v} className="rl" style={{ alignItems: "flex-start" }}>
@@ -56,34 +59,34 @@ export function NotificationSettings() {
           </div>
         ) : null}
         {(n.frequency === "daily" || n.frequency === "weekly") && canEmail ? (
-          <Check checked={n.emailDigest} onChange={(v) => set({ emailDigest: v })} hint={`Sent to ${address}, with the titles of the newest items in each collection. Titles from private sources are never included.`}>Email me the digest</Check>
+          <Check checked={n.emailDigest} onChange={(v) => set({ emailDigest: v })} hint={t.digestEmail(address)}>{t.emailDigest}</Check>
         ) : null}
-        {(n.frequency === "daily" || n.frequency === "weekly") && unconfirmed ? <p className="fine">Add and confirm an email address under Security to get the digest by email.</p> : null}
-        <p className="fine">Times are in your time zone ({p.timezone.replace(/_/g, " ")}). New items arrive in batches when sources are checked; it isn't instant.</p>
+        {(n.frequency === "daily" || n.frequency === "weekly") && unconfirmed ? <p className="fine">{t.confirmEmail}</p> : null}
+        <p className="fine">{t.times(p.timezone.replace(/_/g, " "))}</p>
       </fieldset>
 
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>What to tell me about</legend>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.whatToTell}</legend>
         <div className="inc">
           <div className="radiolist">
-            <label className="rl"><input type="radio" name="ninc" checked={chosen === null} onChange={() => include({ newItems: "all" })} /><span className="radio" aria-hidden="true" />New items from every collection shown on Home</label>
-            <label className="rl"><input type="radio" name="ninc" checked={chosen !== null} onChange={() => include({ newItems: ws.collections.filter((c) => c.showOnHome).map((c) => c.id) })} /><span className="radio" aria-hidden="true" />New items only from these collections</label>
+            <label className="rl"><input type="radio" name="ninc" checked={chosen === null} onChange={() => include({ newItems: "all" })} /><span className="radio" aria-hidden="true" />{t.everyCollection}</label>
+            <label className="rl"><input type="radio" name="ninc" checked={chosen !== null} onChange={() => include({ newItems: ws.collections.filter((c) => c.showOnHome).map((c) => c.id) })} /><span className="radio" aria-hidden="true" />{t.onlyThese}</label>
           </div>
           {chosen !== null ? (
-            <div className="cols">{pickable.length ? pickable.map((b) => <Check key={b.id} checked={chosen.includes(b.id)} onChange={(v) => toggleBox(b.id, v)}>{b.name}</Check>) : <p className="fine">No collections yet.</p>}</div>
-          ) : <p className="fine" style={{ marginLeft: 28 }}>Collections you hide from Home in Customise Home are left out.</p>}
-          <Check checked={n.include.problems} onChange={(v) => include({ problems: v })}>Sources that stop working</Check>
-          <Check checked={n.include.reminders} onChange={(v) => include({ reminders: v })} hint="“On this day” notes about kept items, and your Remind me days. Turn the notes off in General.">Reminders</Check>
-          {canEmail ? <div style={{ marginLeft: 28 }}><Check checked={n.emailReminders} disabled={!n.include.reminders} onChange={(v) => set({ emailReminders: v })} hint={`Also email your Remind me days to ${address}. Item titles are left out unless you show titles in notifications.`}>Email me reminders</Check></div> : null}
-          <Check checked={n.include.captures} onChange={(v) => include({ captures: v })}>Readable text that failed to save</Check>
+            <div className="cols">{pickable.length ? pickable.map((b) => <Check key={b.id} checked={chosen.includes(b.id)} onChange={(v) => toggleBox(b.id, v)}>{b.name}</Check>) : <p className="fine">{t.noCollections}</p>}</div>
+          ) : <p className="fine" style={{ marginLeft: 28 }}>{t.hiddenLeftOut}</p>}
+          <Check checked={n.include.problems} onChange={(v) => include({ problems: v })}>{t.problems}</Check>
+          <Check checked={n.include.reminders} onChange={(v) => include({ reminders: v })} hint={t.remindersHint}>{t.reminders}</Check>
+          {canEmail ? <div style={{ marginLeft: 28 }}><Check checked={n.emailReminders} disabled={!n.include.reminders} onChange={(v) => set({ emailReminders: v })} hint={t.emailRemindersHint(address)}>{t.emailReminders}</Check></div> : null}
+          <Check checked={n.include.captures} onChange={(v) => include({ captures: v })}>{t.captures}</Check>
         </div>
-        <Check checked={n.previews} onChange={(v) => set({ previews: v })} hint="Off by default, so a notification doesn't reveal what you follow on a shared screen. Private sources never show titles.">Show item titles in notifications</Check>
+        <Check checked={n.previews} onChange={(v) => set({ previews: v })} hint={t.previewsHint}>{t.previews}</Check>
       </fieldset>
 
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Where they show</legend>
-        {platform.push ? <p className="fine">In the bell, and as notifications on this phone when you turn them on in <b>This device</b>.</p> : <><div className="radiolist">
-          {([["inapp", "In PURSS", "A list in the bell. Nothing leaves this page."], computer
-            ? ["browser", "Also as notifications on this computer", "A system notification when something arrives while the app is running, also with its window closed."] as const
-            : ["browser", "Also as browser alerts", "A system notification when something arrives while this page is open."] as const] as const).map(([v, label, blurb]) => (
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.whereShow}</legend>
+        {platform.push ? <p className="fine">{t.pushNote.before}<b>{t.pushNote.strong}</b>{t.pushNote.after}</p> : <><div className="radiolist">
+          {([["inapp", t.modeInapp.label, t.modeInapp.blurb], computer
+            ? ["browser", t.modeComputer.label, t.modeComputer.blurb] as const
+            : ["browser", t.modeBrowser.label, t.modeBrowser.blurb] as const] as const).map(([v, label, blurb]) => (
             <label key={v} className="rl" style={{ alignItems: "flex-start" }}>
               <input type="radio" name="nmode" checked={n.mode === v} onChange={() => set({ mode: v })} />
               <span className="radio" aria-hidden="true" style={{ marginTop: 2 }} />
@@ -93,29 +96,29 @@ export function NotificationSettings() {
         </div>
         {n.mode === "browser" && !computer ? (
           <div className="field">
-            {perm === "granted" ? <p className="state"><Icon name="check" size="sm" />Your browser allows notifications from this page.</p> : null}
-            {perm === "default" ? <div><Button onClick={async () => setPerm(await platform.notifier.request())}>Allow browser notifications</Button></div> : null}
-            {perm === "denied" ? <p className="state note"><Icon name="info" /><span>Your browser blocks notifications from this site. Allow them in the browser's site settings. New items still appear in the bell.</span></p> : null}
-            {perm === "unsupported" ? <p className="state note"><Icon name="info" /><span>This browser can't show notifications. Arrivals still appear in the bell.</span></p> : null}
+            {perm === "granted" ? <p className="state"><Icon name="check" size="sm" />{t.permGranted}</p> : null}
+            {perm === "default" ? <div><Button onClick={async () => setPerm(await platform.notifier.request())}>{t.allowBrowser}</Button></div> : null}
+            {perm === "denied" ? <p className="state note"><Icon name="info" /><span>{t.permDenied}</span></p> : null}
+            {perm === "unsupported" ? <p className="state note"><Icon name="info" /><span>{t.permUnsupported}</span></p> : null}
           </div>
         ) : null}</>}
-        <div className="field"><div className="lbl" id="qh">Quiet hours</div>
+        <div className="field"><div className="lbl" id="qh">{t.quietHours}</div>
           <div className="two" style={{ gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
             <TextInput type="time" aria-label="Quiet hours start" value={n.quietStart ?? ""} onChange={(e) => set({ quietStart: e.target.value || null, quietEnd: n.quietEnd ?? (e.target.value ? "07:00" : null) })} />
             <TextInput type="time" aria-label="Quiet hours end" value={n.quietEnd ?? ""} onChange={(e) => set({ quietEnd: e.target.value || null, quietStart: n.quietStart ?? (e.target.value ? "22:00" : null) })} />
-            <Button disabled={!n.quietStart && !n.quietEnd} onClick={() => set({ quietStart: null, quietEnd: null })}>Clear</Button>
+            <Button disabled={!n.quietStart && !n.quietEnd} onClick={() => set({ quietStart: null, quietEnd: null })}>{t.clear}</Button>
           </div>
-          <p className="fine">Browser alerts and phone notifications are held back during these hours, in your time zone. Everything still waits in the bell.</p></div>
+          <p className="fine">{t.quietNote}</p></div>
       </fieldset>
 
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>New markers</legend>
-        <div className="field"><label htmlFor="fresh-days">Keep items marked New for</label>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.newMarkers}</legend>
+        <div className="field"><label htmlFor="fresh-days">{t.keepNewFor}</label>
           <SelectInput id="fresh-days" value={p.freshDays} onChange={(e) => void save({ freshDays: Number(e.target.value) })}>
             {freshDaysChoices(p.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </SelectInput>
-          <p className="fine">Then the New marker goes away. The item stays where it is.</p></div>
-        <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>Show New markers</Check>
-        <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })} hint="Off hides every count of New items, in the sidebar, page headers and Home.">Show counts</Check>
+          <p className="fine">{t.markerGoes}</p></div>
+        <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{t.showNewMarkers}</Check>
+        <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })} hint={t.countsHint}>{t.showCounts}</Check>
       </fieldset>
     </div>
   );

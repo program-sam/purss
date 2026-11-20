@@ -1,9 +1,12 @@
+import { app } from "@purss/copy/app";
 import { useBreakpoint } from "@purss/ui";
 import { statsPlaceOf, useNav } from "../nav.ts";
 import { TO_READ_TITLE } from "../lib/constants.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 import { pageFor } from "../plugins.ts";
 import { useCurrentPlace, usePathname } from "./place.ts";
+
+const t = app.shell.crumbs;
 
 export type Crumb = { label: string; to?: () => void };
 
@@ -15,31 +18,31 @@ export function useCrumbs(): Crumb[] {
   const pathname = usePathname();
   const goHome = () => nav.go({ t: "home" });
   const crumbs: Crumb[] = [];
-  if (place?.t === "home") crumbs.push({ label: "Home" });
-  else if (place?.t === "c") crumbs.push({ label: "Collections", to: goHome }, { label: ws.collectionById.get(place.id)?.name ?? "Collection" });
+  if (place?.t === "home") crumbs.push({ label: t.home });
+  else if (place?.t === "c") crumbs.push({ label: t.collections, to: goHome }, { label: ws.collectionById.get(place.id)?.name ?? t.collection });
   else if (place?.t === "s") {
     const s = ws.sourceById.get(place.id);
     const c = s ? ws.collectionById.get(s.collectionIds[0] ?? "") : undefined;
-    crumbs.push({ label: "Collections", to: goHome });
+    crumbs.push({ label: t.collections, to: goHome });
     if (c) crumbs.push({ label: c.name, to: () => nav.go({ t: "c", id: c.id }) });
-    crumbs.push({ label: s?.title ?? "Source" });
-  } else if (place?.t === "b") crumbs.push({ label: "Baskets" }, { label: ws.basketById.get(place.id)?.name ?? "Basket" });
+    crumbs.push({ label: s?.title ?? t.source });
+  } else if (place?.t === "b") crumbs.push({ label: t.baskets }, { label: ws.basketById.get(place.id)?.name ?? t.basket });
   else if (place?.t === "r") crumbs.push({ label: TO_READ_TITLE });
   else if (statsPlaceOf(pathname)) {
     const sp = statsPlaceOf(pathname)!;
-    crumbs.push({ label: "Collections", to: goHome });
-    if (sp.t === "c") crumbs.push({ label: ws.collectionById.get(sp.id)?.name ?? "Collection", to: () => nav.go(sp) });
+    crumbs.push({ label: t.collections, to: goHome });
+    if (sp.t === "c") crumbs.push({ label: ws.collectionById.get(sp.id)?.name ?? t.collection, to: () => nav.go(sp) });
     else {
       const s = ws.sourceById.get(sp.id);
       const c = s ? ws.collectionById.get(s.collectionIds[0] ?? "") : undefined;
       if (c) crumbs.push({ label: c.name, to: () => nav.go({ t: "c", id: c.id }) });
-      crumbs.push({ label: s?.title ?? "Source", to: () => nav.go(sp) });
+      crumbs.push({ label: s?.title ?? t.source, to: () => nav.go(sp) });
     }
-    crumbs.push({ label: "Statistics" });
+    crumbs.push({ label: t.statistics });
   } else {
     const page = pageFor(pathname);
     if (page?.parent) crumbs.push({ label: page.parent.label, to: () => nav.goPath(page.parent!.to) });
-    crumbs.push({ label: page?.title ?? "Home" });
+    crumbs.push({ label: page?.title ?? t.home });
   }
   return crumbs;
 }
@@ -51,7 +54,7 @@ export function Trail() {
   const crumbs = useCrumbs();
   const bp = useBreakpoint();
   if (bp === "sm" || bp === "xs") return null;
-  const up = crumbs.slice(0, -1).filter((c, i) => c.to && !(i === 0 && c.label === "Collections"));
+  const up = crumbs.slice(0, -1).filter((c, i) => c.to && !(i === 0 && c.label === t.collections));
   if (!up.length) return null;
   return (
     <nav className="trail" aria-label="Breadcrumb">

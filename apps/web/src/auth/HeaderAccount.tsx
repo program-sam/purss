@@ -6,6 +6,9 @@ import { usePopups } from "../state/popups.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useSignOut } from "./use-sign-out.ts";
 import "./header-account.css";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.headerAccount;
 
 /**
  * Account controls in the header that the sidebar's foot can't offer everywhere: Settings on a phone, where the sidebar is a
@@ -23,17 +26,17 @@ export function HeaderAccount() {
   if (session?.state !== "signed_in") return null;
   const name = session.account?.displayName;
   const accountEntries = [
-    { label: "Settings", icon: "gear" as const, onSelect: () => overlays.open({ kind: "settings" }) },
+    { label: t.settings, icon: "gear" as const, onSelect: () => overlays.open({ kind: "settings" }) },
     { type: "separator" as const },
-    { label: busy ? "Signing out…" : "Sign out", disabled: busy, onSelect: () => { void signOut(); } },
+    { label: busy ? t.signingOut : t.signOut, disabled: busy, onSelect: () => { void signOut(); } },
   ];
   return (
     <>
       <button type="button" className={`${bp === "xs" ? "ibtn" : "mbtn"} bar-acct`} aria-haspopup="menu" aria-label={name ? `Account menu for ${name}` : "Account menu"}
         onClick={(e) => popups.menu(e.currentTarget, accountEntries, "Account")}>
-        <Icon name="user" />{bp === "xs" ? null : <span dir="auto">{name ?? "Account"}</span>}
+        <Icon name="user" />{bp === "xs" ? null : <span dir="auto">{name ?? t.account}</span>}
       </button>
-      {session.account?.sharedComputer ? <button type="button" className="mbtn bar-acct" disabled={busy} onClick={() => void signOut()}>{busy ? "Signing out…" : "Sign out"}</button> : null}
+      {session.account?.sharedComputer ? <button type="button" className="mbtn bar-acct" disabled={busy} onClick={() => void signOut()}>{busy ? t.signingOut : t.signOut}</button> : null}
     </>
   );
 }

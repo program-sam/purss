@@ -1,3 +1,7 @@
+import { app } from "@purss/copy/app";
+
+const t = app.platform.forget;
+
 /**
  * What the app removes from the device when it stops being connected, apart from the
  * device APIs it calls, so the rules can be tested without a phone.
@@ -34,8 +38,6 @@ export type ForgetReason = "disconnected" | "unreachable" | "lost";
 
 export type Forgotten = { notice: string; stuck: boolean };
 
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many.replace("#", String(n)));
-
 export async function forgetDevice(deps: ForgetDeps, reason: ForgetReason): Promise<Forgotten> {
   await deps.stopAudio().catch(() => undefined);
   let stuck = false;
@@ -48,16 +50,12 @@ export async function forgetDevice(deps: ForgetDeps, reason: ForgetReason): Prom
   await deps.stopBackground().catch(() => undefined);
   deps.clearHints();
   const kept = keepOutbox ? await deps.unsent().catch(() => 0) : 0;
-  const keptNote = kept
-    ? ` ${plural(kept, "Your unsent highlight or note stays", "Your # unsent highlights and notes stay")} on this device and ${plural(kept, "is", "are")} sent when you connect again with the same account.`
-    : "";
-  const stuckNote = stuck
-    ? " The old connection couldn't be removed from this device's secure storage. Connecting again replaces it. If this keeps happening, reinstall the app."
-    : "";
+  const keptNote = kept ? t.unsentKept(kept) : "";
+  const stuckNote = stuck ? t.stuck : "";
   const notice = reason === "disconnected"
-    ? "This app is disconnected, and everything it kept on this device is removed."
+    ? t.disconnected
     : reason === "unreachable"
-      ? "Everything this app kept on this device is removed. PURSS couldn't be reached to disconnect it, so remove it in Settings → Connected apps next time you're there."
-      : `This app isn't connected to PURSS any more, so what it kept on this device was removed.${keptNote} Connect again to carry on.`;
+      ? t.unreachable
+      : t.lost(keptNote);
   return { notice: notice + stuckNote, stuck };
 }

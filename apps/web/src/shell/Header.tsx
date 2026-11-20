@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useLayoutEffect, useRef } from "react";
 import { Icon, useBreakpoint } from "@purss/ui";
 import { useOverlays } from "../state/overlays.tsx";
@@ -10,6 +11,8 @@ import { usePendingCount } from "../outbox/hooks.ts";
 import { NotificationsPanel } from "./Notifications.tsx";
 import { useCrumbs } from "./crumbs.tsx";
 import { useCurrentPlace } from "./place.ts";
+
+const t = app.shell.header;
 
 /** Lines the breadcrumbs up with the left edge of the page's content column, whatever its width,
  *  by setting --crumb-l on the bar. The sidebar toggle stays at the window edge. */
@@ -103,13 +106,13 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
         {bp === "xs" && place?.t === "home" ? (
           // On a phone the Home page carries its own title, so the bar names the app instead. The name reads and is cut in its own
           // direction (dir="auto" on the box that holds the ellipsis, not on something inside it), so a name that mixes scripts loses its end, not its middle.
-          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>PURSS{who ? <span className="who" dir="auto">{who}</span> : null}</span>
+          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>{t.brand}{who ? <span className="who" dir="auto">{who}</span> : null}</span>
         ) : bp === "xs" && crumbs.length > 1 ? (
           // A phone has room for one step back and where you are, not the whole trail.
           <nav className="crumbs xs" aria-label="Breadcrumb">
             {crumbs[crumbs.length - 2]!.to ? (
               // The page names itself in its heading; the bar says where Back goes.
-              <button type="button" className="crumb-back" onClick={crumbs[crumbs.length - 2]!.to}><Icon name="back" /><span className="sr">Back to </span><bdi>{crumbs[crumbs.length - 2]!.label}</bdi></button>
+              <button type="button" className="crumb-back" onClick={crumbs[crumbs.length - 2]!.to}><Icon name="back" /><span className="sr">{t.backTo}</span><bdi>{crumbs[crumbs.length - 2]!.label}</bdi></button>
             ) : <span className="here" aria-current="page"><bdi>{crumbs[crumbs.length - 1]!.label}</bdi></span>}
           </nav>
         ) : (
@@ -121,11 +124,11 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
             </ol>
           </nav>
         )}
-        {bp !== "xs" ? <button type="button" className="btn primary bar-add" style={{ height: 32 }} onClick={() => overlays.open({ kind: "add-source", collectionId: place?.t === "c" ? place.id : undefined })}><Icon name="plus" size="sm" />Add source</button> : null}
+        {bp !== "xs" ? <button type="button" className="btn primary bar-add" style={{ height: 32 }} onClick={() => overlays.open({ kind: "add-source", collectionId: place?.t === "c" ? place.id : undefined })}><Icon name="plus" size="sm" />{t.addSource}</button> : null}
       </header> : null}
       {savedCopy || (waiting > 0 && !offline.browserOnline) ? (
         <div className="offline-note" role="status"><Icon name="info" size="sm" />
-          <span>{savedCopy ? "Offline · showing what this device saved" : "Offline"}{waiting > 0 ? ` · ${waiting === 1 ? "1 change saved on this device. It'll" : `${waiting} changes saved on this device. They'll`} be sent when you're back online.` : ""}</span>
+          <span>{savedCopy ? t.offlineSaved : t.offline}{waiting > 0 ? t.waiting(waiting) : ""}</span>
         </div>
       ) : null}
       {showBar ? null : corner}

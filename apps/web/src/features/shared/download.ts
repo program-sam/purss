@@ -1,5 +1,8 @@
+import { app } from "@purss/copy/app";
 import { ApiError } from "../../api/client.ts";
 import { platform } from "../../platform/index.ts";
+
+const t = app.sharedFeatures.download;
 
 export type Downloaded = { filename: string; bytes: number; headers: Headers };
 
@@ -16,7 +19,7 @@ async function failure(res: Response): Promise<ApiError> {
     const body = (await res.json()) as { error?: { code?: string; message?: string } };
     if (body.error?.message) return new ApiError(res.status, body.error.code ?? "error", body.error.message);
   } catch { /* not JSON */ }
-  return new ApiError(res.status, "error", res.status >= 500 ? "Something went wrong on our side. Nothing was changed; please try again." : "That didn't work. Please try again.");
+  return new ApiError(res.status, "error", res.status >= 500 ? t.serverFailure : t.didntWork);
 }
 
 /**
@@ -29,7 +32,7 @@ export async function downloadFile(path: string, fallbackName: string, opts: { o
     res = await platform.transport.fetch(path, { headers: { accept: "*/*" }, signal: opts.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new ApiError(0, "offline", "Can't reach PURSS right now. Check your connection and try again.");
+    throw new ApiError(0, "offline", t.offline);
   }
   if (!res.ok) throw await failure(res);
   const chunks: Uint8Array<ArrayBuffer>[] = [];
@@ -47,7 +50,7 @@ export async function downloadFile(path: string, fallbackName: string, opts: { o
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
-      throw new ApiError(0, "interrupted", "The download was interrupted before it finished, so nothing was saved. Please try again.");
+      throw new ApiError(0, "interrupted", t.interrupted);
     }
   } else {
     const buf = new Uint8Array(await res.arrayBuffer());

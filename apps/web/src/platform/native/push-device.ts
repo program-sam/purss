@@ -4,6 +4,9 @@ import { api } from "../../api/client.ts";
 import type { PhonePush } from "../types.ts";
 import { PushController } from "./push.ts";
 import type { PushPermission } from "./push.ts";
+import { app } from "@purss/copy/app";
+
+const words = app.platform.pushDevice;
 
 declare const __PURSS_PHONE_PUSH_ENABLED__: boolean;
 const PHONE_PUSH_ENABLED = typeof __PURSS_PHONE_PUSH_ENABLED__ === "undefined" || __PURSS_PHONE_PUSH_ENABLED__;
@@ -51,14 +54,14 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
   async function token(): Promise<string> {
     if (setup.debugToken) return Promise.resolve(setup.debugToken);
     const notifications = await pushNotifications();
-    if (!notifications) throw new Error("This build of the app can't receive notifications.");
+    if (!notifications) throw new Error(words.cantReceive);
     return new Promise((resolve, reject) => {
       let done = false;
       const handles = [
         notifications.addListener("registration", (t) => finish(() => { lastToken = t.value; resolve(t.value); })),
         notifications.addListener("registrationError", (e) => finish(() => reject(new Error(e.error)))),
       ];
-      const timer = setTimeout(() => finish(() => reject(new Error("The phone didn't hand out a push address in time."))), 20_000);
+      const timer = setTimeout(() => finish(() => reject(new Error(words.noPushAddress))), 20_000);
       function finish(fn: () => void) {
         if (done) return;
         done = true;

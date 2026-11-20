@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, STORE_NAMES, desktopDownloadUrl, publishedStores } from "@purss/domain";
 import type { Distributed } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Icon } from "@purss/ui";
 import { platform } from "../../platform/index.ts";
 import { useSession } from "../../api/hooks.ts";
 import type { IconName } from "@purss/ui";
+
+const t = app.connect.appsAndExtensions;
 
 /** Store buttons for what is published, and an honest note with the install instructions for what isn't. */
 function Get({ what, selfHosted }: { what: Distributed; selfHosted: boolean }) {
@@ -14,8 +17,8 @@ function Get({ what, selfHosted }: { what: Distributed; selfHosted: boolean }) {
   return (
     <>
       {stores.length < d.stores.length ? (
-        <small>{`Not in ${missing.length < 2 ? missing.join("") : `${missing.slice(0, -1).join(", ")} or ${missing.at(-1)}`} yet.`}{" "}
-          {selfHosted ? <a className="link" href={d.install} target="_blank" rel="noopener noreferrer">{what === "extension" ? "How to install it" : "How to build it"}</a> : null}</small>
+        <small>{t.notIn(missing.length < 2 ? missing.join("") : t.listOr(missing.slice(0, -1).join(", "), missing.at(-1)))}{" "}
+          {selfHosted ? <a className="link" href={d.install} target="_blank" rel="noopener noreferrer">{what === "extension" ? t.howToInstall : t.howToBuild}</a> : null}</small>
       ) : null}
       {stores.length ? <span className="get-stores">{stores.map((s) => <a key={s.id} className="btn" href={s.url} target="_blank" rel="noopener noreferrer">{s.name}</a>)}</span> : null}
     </>
@@ -44,29 +47,29 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
   };
   return (
     <section className="field" aria-labelledby="ae-l" id="apps-and-extensions">
-      <div className="lbl" id="ae-l">Apps and extensions</div>
+      <div className="lbl" id="ae-l">{t.title}</div>
       <ul className="seclist get-apps">
-        <Row icon="ext" title="Browser extension">
-          <small>Keep the page you're reading, add its site as a source, and search your PURSS from the address bar. For {DISTRIBUTION.extension.platforms}.</small>
+        <Row icon="ext" title={t.extension.title}>
+          <small>{t.extension.text(DISTRIBUTION.extension.platforms)}</small>
           <Get what="extension" selfHosted={selfHosted} />
         </Row>
-        <Row icon="phone" title="Phone and tablet app" action={platform.connection && !platform.desktop ? undefined
-          : <a className="btn" href={desktopDownloadUrl(ANDROID_APK)} target="_blank" rel="noopener noreferrer">Download for Android</a>}>
-          <small>The same PURSS on {DISTRIBUTION.mobile.platforms}: listen with the screen off, download for reading offline, share links into it.</small>
+        <Row icon="phone" title={t.phone.title} action={platform.connection && !platform.desktop ? undefined
+          : <a className="btn" href={desktopDownloadUrl(ANDROID_APK)} target="_blank" rel="noopener noreferrer">{t.phone.download}</a>}>
+          <small>{t.phone.text(DISTRIBUTION.mobile.platforms)}</small>
           <Get what="mobile" selfHosted={selfHosted} />
         </Row>
-        <Row icon="download" title="Desktop app" action={platform.desktop ? undefined
-          : <a className="btn" href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer">Download</a>}>
-          <small>{platform.desktop ? "You're using it. " : ""}For Windows, Mac and Linux: keeps running in the tray with notifications and downloads, opens feed links and OPML files, and updates itself.</small>
+        <Row icon="download" title={t.desktop.title} action={platform.desktop ? undefined
+          : <a className="btn" href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer">{t.desktop.download}</a>}>
+          <small>{platform.desktop ? t.desktop.usingIt : ""}{t.desktop.text}</small>
         </Row>
-        <Row icon="bookmark" title="Bookmarklets" action={<Button onClick={toBookmarklets}>Show</Button>}>
-          <small>Nothing to install: bring any page to Add source or a basket from your bookmarks bar.</small>
+        <Row icon="bookmark" title={t.bookmarklets.title} action={<Button onClick={toBookmarklets}>{t.bookmarklets.show}</Button>}>
+          <small>{t.bookmarklets.text}</small>
         </Row>
-        <Row icon="key" title="Assistants" action={<Button onClick={() => onOpen("assistants")}>Open</Button>}>
-          <small>Let an AI assistant such as Claude search and read your PURSS, and organise it if you allow. Off until you turn it on.</small>
+        <Row icon="key" title={t.assistants.title} action={<Button onClick={() => onOpen("assistants")}>{t.assistants.open}</Button>}>
+          <small>{t.assistants.text}</small>
         </Row>
-        <Row icon="item" title="E-ink display" action={<Button onClick={() => onOpen("general")}>Open</Button>}>
-          <small>Black on white with page buttons instead of scrolling, for e-readers. Set on each device in General.</small>
+        <Row icon="item" title={t.eink.title} action={<Button onClick={() => onOpen("general")}>{t.eink.open}</Button>}>
+          <small>{t.eink.text}</small>
         </Row>
       </ul>
     </section>

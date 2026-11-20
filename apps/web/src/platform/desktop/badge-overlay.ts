@@ -1,3 +1,7 @@
+import { app } from "@purss/copy/app";
+
+const t = app.platform.badgeOverlay;
+
 /*
  * Windows has no badge count for desktop apps, only an overlay icon on the taskbar button. It is drawn
  * here, with the system's font at the screen's pixel density, and handed to the app as pixels: a disc in the app
@@ -12,7 +16,7 @@ export type BadgeOverlay = { size: number; rgba: number[] };
 
 /** What the overlay says: the count, or "99+". */
 export function badgeLabel(count: number): string {
-  return count > 99 ? "99+" : String(count);
+  return count > 99 ? t.overflow : String(count);
 }
 
 /** Windows shows the overlay at 16 points: its pixels follow the screen's scale, within what the app accepts. */

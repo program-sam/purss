@@ -1,4 +1,5 @@
 import { bind, play, setEnabled, setTheme, setVolume, unlock } from "cuelume";
+import { app } from "@purss/copy/app";
 import type { PlayOptions, SoundName, ThemeName } from "cuelume";
 
 /**
@@ -11,10 +12,10 @@ export type SoundMaterial = Extract<ThemeName, "default" | "mech" | "bubble" | "
 export type SoundSettings = { enabled: boolean; volume: number; material: SoundMaterial };
 
 export const SOUND_MATERIALS: { value: SoundMaterial; label: string; blurb: string }[] = [
-  { value: "default", label: "Glass and wood", blurb: "Warm taps and soft mallets" },
-  { value: "mech", label: "Mechanical", blurb: "Shutter clicks and latches" },
-  { value: "bubble", label: "Bubbly", blurb: "Playful drips and pops" },
-  { value: "press", label: "Trackpad", blurb: "Clicks over a deep note" },
+  { value: "default", ...app.lib.sound.materials.default },
+  { value: "mech", ...app.lib.sound.materials.mech },
+  { value: "bubble", ...app.lib.sound.materials.bubble },
+  { value: "press", ...app.lib.sound.materials.press },
 ];
 
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = { enabled: false, volume: 0.4, material: "default" };

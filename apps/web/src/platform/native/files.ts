@@ -6,6 +6,9 @@ import { DownloadError } from "../../downloads/manager.ts";
 import type { DeviceFiles } from "../../downloads/manager.ts";
 import { PurssDevice } from "./device-plugin.ts";
 import type { DownloadFailure } from "./device-plugin.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.files;
 
 /**
  * The apps' downloads folder: `downloads/` in the app's private storage that the system doesn't back up
@@ -28,7 +31,7 @@ async function ensureParent(name: string): Promise<void> {
 export const deviceFiles: DeviceFiles = {
   /** When `signal` aborts (the file became too large, or downloads were removed) the transfer is stopped and its partial file removed. */
   async download(url, name, onProgress, signal) {
-    if (signal.aborted) throw new DOMException("The download was stopped.", "AbortError");
+    if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
     const id = name;
     const listener = await PurssDevice.addListener("progress", (p) => {
       if (p.id === id && !signal.aborted) onProgress(p.bytes, p.total > 0 ? p.total : null);
@@ -38,7 +41,7 @@ export const deviceFiles: DeviceFiles = {
     try {
       return (await PurssDevice.download({ id, url, path: name })).bytes;
     } catch (err) {
-      if (signal.aborted) throw new DOMException("The download was stopped.", "AbortError");
+      if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
       const e = err as { code?: DownloadFailure["code"]; data?: { status?: number }; message?: string };
       throw new DownloadError(e.code === "http" ? e.data?.status ?? 0 : e.code === "too_large" ? -2 : e.code === "insecure" ? -1 : 0, e.message ?? "download failed");
     } finally {
@@ -103,7 +106,7 @@ export async function shareFile(data: Blob, filename: string): Promise<void> {
   const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Couldn't read the file."));
+    reader.onerror = () => reject(reader.error ?? new Error(t.couldntReadFile));
     reader.readAsDataURL(data);
   });
   const written = await Filesystem.writeFile({ path: `exports/${filename}`, data: base64, directory: Directory.Cache, recursive: true });

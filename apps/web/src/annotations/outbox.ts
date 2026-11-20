@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { AnnotationDTO, AnnotationPut, AnnotationWriteResult } from "@purss/domain";
 
 /**
@@ -90,7 +91,7 @@ export function outboxAsText(entries: readonly OutboxEntry[]): string {
   return entries.flatMap((e) => {
     if (e.op !== "put") return [];
     const b = e.body;
-    const lines = [`${b.kind === "highlight" ? "Highlight" : "Note"} · ${e.at} · item ${e.itemId}`];
+    const lines = [app.annotations.outbox.entry(b.kind === "highlight" ? app.annotations.outbox.highlight : app.annotations.outbox.note, e.at, e.itemId)];
     if (b.kind === "highlight") lines.push(`> ${b.quote.exact.replace(/\n/g, "\n> ")}`);
     if (b.body) lines.push(b.body);
     return [lines.join("\n")];

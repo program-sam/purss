@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
 
 /**
@@ -136,7 +137,7 @@ export function backoffSeconds(attempts: number): number {
 
 /** The person-facing reason a change was not applied. */
 export function notChangedMessage(reason: "conflict" | "rejected", serverMessage: string): string {
-  if (reason === "conflict") return "Not changed: this item was changed on another device.";
+  if (reason === "conflict") return app.outbox.entries.conflict;
   const detail = serverMessage.trim();
-  return detail ? `Not changed. ${detail}` : "Not changed. PURSS couldn't apply it.";
+  return detail ? app.outbox.entries.rejected(detail) : app.outbox.entries.couldntApply;
 }

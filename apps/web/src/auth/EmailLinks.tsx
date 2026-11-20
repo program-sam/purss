@@ -6,6 +6,9 @@ import { Button, Field, Icon, TextInput } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { messageOf, post } from "../api/client.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.emailLinks;
 
 /*
  * Pages opened from links in account emails: confirming an address, and
@@ -26,21 +29,21 @@ export function VerifyEmailPage() {
   useEffect(() => {
     if (sent.current || !session) return;
     sent.current = true;
-    if (!token) { setState("failed"); setError("This page needs the link from the email."); return; }
+    if (!token) { setState("failed"); setError(t.verify.needsLink); return; }
     post("/api/email/verify", { token }).then(() => setState("done"), (err) => { setError(messageOf(err)); setState("failed"); });
   }, [token, session]);
   const signedIn = session?.state === "signed_in";
   return (
-    <AuthFrame title="Confirm your email address">
+    <AuthFrame title={t.verify.title}>
       <div aria-live="polite" style={{ display: "grid", gap: 14 }}>
-        {state === "working" ? <p className="state"><span className="spin" aria-hidden="true" />Confirming…</p> : null}
-        {state === "done" ? <p className="state"><Icon name="check" /><span>Your email address is confirmed. It is the one you sign in with, and messages about your account go there.</span></p> : null}
+        {state === "working" ? <p className="state"><span className="spin" aria-hidden="true" />{t.verify.confirming}</p> : null}
+        {state === "done" ? <p className="state"><Icon name="check" /><span>{t.verify.confirmed}</span></p> : null}
         {state === "failed" ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>Go to your PURSS</a></div> : null}
+        {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>{t.verify.goToYourPurss}</a></div> : null}
         {state !== "working" && !signedIn ? (
           <>
-            <p>Sign in with your email address and password, or a passkey.</p>
-            <div><a className="btn primary" href={inApp("/signin")}>Sign in</a></div>
+            <p>{t.verify.signInPrompt}</p>
+            <div><a className="btn primary" href={inApp("/signin")}>{t.verify.signIn}</a></div>
           </>
         ) : null}
       </div>
@@ -66,7 +69,7 @@ export function ResetPasswordPage() {
   }
   async function choose(e: FormEvent) {
     e.preventDefault();
-    if (password !== again) { setError("The two passwords don't match."); return; }
+    if (password !== again) { setError(t.reset.passwordsDontMatch); return; }
     setBusy(true); setError("");
     try { await post("/api/password-reset/confirm", { token, password }); setDone(true); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
@@ -74,44 +77,44 @@ export function ResetPasswordPage() {
   const alert = error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null;
   if (!token) {
     return (
-      <AuthFrame title="Reset your password" intro={done ? undefined : "Enter your email address. If it has an account, we'll send a link to choose a new password."}>
+      <AuthFrame title={t.reset.askTitle} intro={done ? undefined : t.reset.askIntro}>
         {done ? (
           <div style={{ display: "grid", gap: 14 }}>
-            <p className="state"><Icon name="check" /><span>If that email address has an account, we've sent a link. It works once, for an hour. Check your spam folder.</span></p>
-            <div><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
+            <p className="state"><Icon name="check" /><span>{t.reset.sent}</span></p>
+            <div><a className="link" href={inApp("/signin")}>{t.reset.backToSignIn}</a></div>
           </div>
         ) : (
           <form onSubmit={ask} style={{ display: "grid", gap: 14 }}>
-            <Field label="Email address" htmlFor="rp-id">
+            <Field label={t.reset.emailLabel} htmlFor="rp-id">
               <TextInput id="rp-id" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus maxLength={300} />
             </Field>
             {alert}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !email.trim()}>Send a link</Button><a className="link" href={inApp("/signin")}>Back to sign in</a></div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !email.trim()}>{t.reset.sendLink}</Button><a className="link" href={inApp("/signin")}>{t.reset.backToSignIn}</a></div>
             {session?.installation.mode === "hosted"
-              ? session.installation.accountEmail ? null : <p className="fine">Password reset emails aren't available yet.</p>
-              : session ? <p className="fine">Administrators get a reset link from the operator tool instead.</p> : null}
+              ? session.installation.accountEmail ? null : <p className="fine">{t.reset.resetEmailsUnavailable}</p>
+              : session ? <p className="fine">{t.reset.administratorsGetLink}</p> : null}
           </form>
         )}
       </AuthFrame>
     );
   }
   return (
-    <AuthFrame title="Choose a new password">
+    <AuthFrame title={t.reset.chooseTitle}>
       {done ? (
         <div style={{ display: "grid", gap: 14 }}>
-          <p className="state"><Icon name="check" /><span>Your password is changed. You were signed out on every device; sign in again with your new password.</span></p>
-          <div><a className="btn primary" href={inApp("/signin")}>Sign in</a></div>
+          <p className="state"><Icon name="check" /><span>{t.reset.changed}</span></p>
+          <div><a className="btn primary" href={inApp("/signin")}>{t.reset.signIn}</a></div>
         </div>
       ) : (
         <form onSubmit={choose} style={{ display: "grid", gap: 14 }}>
-          <Field label="New password" htmlFor="rp-new" hint="10+ characters">
+          <Field label={t.reset.newPasswordLabel} htmlFor="rp-new" hint={t.reset.newPasswordHint}>
             <TextInput id="rp-new" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus />
           </Field>
-          <Field label="New password again" htmlFor="rp-again">
+          <Field label={t.reset.newPasswordAgainLabel} htmlFor="rp-again">
             <TextInput id="rp-again" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" />
           </Field>
           {alert}
-          <div><Button variant="primary" type="submit" disabled={busy || !password || !again}>Save new password</Button></div>
+          <div><Button variant="primary" type="submit" disabled={busy || !password || !again}>{t.reset.saveNewPassword}</Button></div>
         </form>
       )}
     </AuthFrame>

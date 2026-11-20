@@ -1,7 +1,10 @@
+import { app } from "@purss/copy/app";
 import type { ApiError as ApiErrorBody } from "@purss/domain";
 import { noteAnswer } from "../offline/status.ts";
 import { platform } from "../platform/index.ts";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
+
+const t = app.api.client;
 
 /** An error from the product API, carrying the plain-language message to show the user. */
 export class ApiError extends Error {
@@ -59,14 +62,14 @@ async function parseError(res: Response): Promise<ApiError> {
   const retryHeader = res.headers.get("retry-after");
   const retryAfterSeconds = retryHeader && /^\d+$/.test(retryHeader) ? Number(retryHeader) : null;
   if (e?.message) return new ApiError(res.status, e.code ?? "error", e.message, retryAfterSeconds);
-  return new ApiError(res.status, "error", res.status >= 500 ? "Something went wrong on our side. Nothing was changed; please try again." : "That didn't work. Please try again.");
+  return new ApiError(res.status, "error", res.status >= 500 ? t.serverTrouble : t.didntWork);
 }
 
 /** Typed JSON request. Mutations carry the CSRF header; a stale token is refreshed and retried once. */
 export async function api<T>(path: string, opts: RequestOptions = {}, retried = false): Promise<T> {
   const method = opts.method ?? "GET";
   if (method === "POST" && path === "/api/auth/logout" && !retried && beforeSignOut && (await beforeSignOut()) === "stay") {
-    throw new ApiError(0, "stay_signed_in", "You are still signed in: some changes haven't been sent yet.");
+    throw new ApiError(0, "stay_signed_in", t.stillSignedIn);
   }
   const headers: Record<string, string> = { accept: "application/json", ...opts.headers };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
@@ -79,10 +82,10 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retried = 
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new ApiError(0, "offline", "Can't reach PURSS right now. Check your connection and try again.");
+    throw new ApiError(0, "offline", t.offline);
   }
   noteAnswer(res.headers);
-  if (opts.live && res.headers.get(OFFLINE_HEADER) !== null) throw new ApiError(0, "offline", "Can't reach PURSS right now. Check your connection and try again.");
+  if (opts.live && res.headers.get(OFFLINE_HEADER) !== null) throw new ApiError(0, "offline", t.offline);
   if (res.ok) {
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -106,5 +109,5 @@ export const del = <T>(path: string, body?: unknown) => api<T>(path, { method: "
 /** Message for any thrown value, never a stack or technical detail. */
 export function messageOf(err: unknown): string {
   if (err instanceof ApiError) return err.message;
-  return "Something went wrong. Please try again.";
+  return t.wentWrong;
 }

@@ -1,9 +1,12 @@
 import { useCallback } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import { useDownload } from "../downloads/hooks.ts";
 import { useDownloadMovesToRead } from "../downloads/to-read.ts";
 import { platform } from "../platform/index.ts";
 import { useToasts } from "../state/toasts.tsx";
+
+const t = app.player.quickDownload;
 
 /** Where an item's quick download to this device stands. */
 export type QuickDownloadState = "none" | "queued" | "busy" | "failed" | "done";
@@ -32,10 +35,10 @@ export function useQuickDownload(): (item: ItemDTO) => Promise<void> {
     const downloads = platform.downloads;
     if (!downloads || !offersQuickDownload(item) || downloads.get(item.id)?.state === "done") return;
     const waits = downloads.list().some((r) => r.state === "downloading");
-    toast(waits ? "Queued: it downloads after the one in progress." : "Downloading to this device.");
+    toast(waits ? t.queued : t.downloading);
     void toRead(item);
     await downloads.download(item.id);
     const r = downloads.get(item.id);
-    if (r?.state === "failed") toast(`Download failed: ${r.error ?? "it didn't finish."}`, { tone: "error" });
+    if (r?.state === "failed") toast(t.failed(r.error ?? t.didntFinish), { tone: "error" });
   }, [toast, toRead]);
 }

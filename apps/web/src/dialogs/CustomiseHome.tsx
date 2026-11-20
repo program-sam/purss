@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { Bootstrap, Preferences } from "@purss/domain";
 import { Button, Dialog, Icon, IconButton, Segmented, Check } from "@purss/ui";
 import { messageOf, patch } from "../api/client.ts";
@@ -10,16 +11,18 @@ import { useSavePreferences } from "../state/prefs.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 
+const t = app.dialogs.customiseHome;
+
 type Layout = Preferences["homeLayout"];
 
 const LAYOUTS: { value: Layout; label: string; blurb: string; thumb: ReactNode }[] = [
-  { value: "collections", label: "Collections", blurb: "One box per collection.",
+  { value: "collections", label: t.layouts.collections.label, blurb: t.layouts.collections.blurb,
     thumb: <div className="thumb t-col">{[0, 1, 2, 3].map((i) => <div key={i}><i /><em /></div>)}</div> },
-  { value: "feed", label: "One feed", blurb: "Everything together, newest first.",
+  { value: "feed", label: t.layouts.feed.label, blurb: t.layouts.feed.blurb,
     thumb: <div className="thumb t-feed"><i className="dh" /><i /><i /><i className="dh" /><i /><i /></div> },
-  { value: "new", label: "Only new", blurb: "Only items still marked New.",
+  { value: "new", label: t.layouts.new.label, blurb: t.layouts.new.blurb,
     thumb: <div className="thumb t-new"><div><span className="f"><b /><i /></span><span className="f"><b /><i /></span></div><div><span className="f"><b /><i /></span></div></div> },
-  { value: "front", label: "Front page", blurb: "Headlines from every collection, and baskets.",
+  { value: "front", label: t.layouts.front.label, blurb: t.layouts.front.blurb,
     thumb: <div className="thumb t-front">{[0, 1, 2].map((k) => <div key={k} className="h"><i /><i /><i /></div>)}<div className="s"><i /><i /><i /></div></div> },
 ];
 
@@ -35,7 +38,7 @@ export function CustomiseHomeDialog() {
   const shown = homeBoxes(ws.homeCollections, ws.looseSources, p);
   const hidden = [
     ...ws.collections.filter((c) => !c.showOnHome),
-    ...(ws.looseSources.length && !p.homeOther ? [{ id: OTHER_BOX_ID, name: "Other sources", showOnHome: false }] : []),
+    ...(ws.looseSources.length && !p.homeOther ? [{ id: OTHER_BOX_ID, name: t.otherSources, showOnHome: false }] : []),
   ];
   const order = [...shown.map((c) => ({ id: c.id, name: c.name, showOnHome: true })), ...hidden.map((c) => ({ id: c.id, name: c.name, showOnHome: false }))];
 
@@ -63,9 +66,9 @@ export function CustomiseHomeDialog() {
   }
 
   return (
-    <Dialog title="Customise Home" onClose={ov.close} size="lg" initialFocus='input[name="lay"]:checked'
-      footer={<><Button className="lft" onClick={() => void reset()}>Reset to defaults</Button><Button variant="primary" onClick={ov.close}>Done</Button></>}>
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Layout</legend>
+    <Dialog title={t.title} onClose={ov.close} size="lg" initialFocus='input[name="lay"]:checked'
+      footer={<><Button className="lft" onClick={() => void reset()}>{t.reset}</Button><Button variant="primary" onClick={ov.close}>{t.done}</Button></>}>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.layout}</legend>
         <div className="lopts four">
           {LAYOUTS.map((l) => (
             <label key={l.value} className="lopt">{l.thumb}
@@ -76,7 +79,7 @@ export function CustomiseHomeDialog() {
         </div>
       </fieldset>
       <div className="two">
-        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Collections on Home</legend>
+        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.collectionsOnHome}</legend>
           {order.length ? (
             <div className="ordlist">
               {order.map((c, i) => (
@@ -87,17 +90,17 @@ export function CustomiseHomeDialog() {
                 </div>
               ))}
             </div>
-          ) : <p className="fine">No collections yet.</p>}
-          {ws.looseSources.length ? <p className="fine">“Other sources” holds the sources that are in no collection.</p> : null}
+          ) : <p className="fine">{t.noCollections}</p>}
+          {ws.looseSources.length ? <p className="fine">{t.otherSourcesNote}</p> : null}
         </fieldset>
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
-          <div className="field"><div className="lbl" id="dn">Density</div>
+          <div className="field"><div className="lbl" id="dn">{t.density}</div>
             <Segmented labelledBy="dn" value={p.density} onChange={(v) => void save({ density: v })} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
-              options={[{ value: "comfortable", label: "Comfortable" }, { value: "compact", label: "Compact" }]} /></div>
+              options={[{ value: "comfortable", label: t.comfortable }, { value: "compact", label: t.compact }]} /></div>
           <div className="field" style={{ gap: 2 }}>
-            <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>Show New markers</Check>
-            <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })}>Show counts</Check>
-            <p className="fine">Change how long items stay New, and notifications, in <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "notifications" })}>Settings</button>.</p>
+            <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{t.showNewMarkers}</Check>
+            <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })}>{t.showCounts}</Check>
+            <p className="fine">{t.settingsNote.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "notifications" })}>{t.settingsNote.link}</button>{t.settingsNote.after}</p>
           </div>
         </div>
       </div>

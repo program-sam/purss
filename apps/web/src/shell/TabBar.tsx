@@ -1,9 +1,12 @@
+import { app } from "@purss/copy/app";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { useCurrentPlace } from "./place.ts";
+
+const t = app.shell.tabBar;
 
 /** Phone navigation at thumb height: Home, everything you follow and keep, Search and Add source. */
 export function TabBar({ drawerOpen, onBrowse }: { drawerOpen: boolean; onBrowse: () => void }) {
@@ -21,10 +24,10 @@ export function TabBar({ drawerOpen, onBrowse }: { drawerOpen: boolean; onBrowse
   );
   return (
     <nav className="tabbar" aria-label="Main">
-      {tab("home", "Home", () => nav.go({ t: "home" }), { current: home })}
-      {tab("folder", "Collections", onBrowse, { expanded: drawerOpen, current: browsing })}
-      {tab("search", "Search", () => overlays.open({ kind: "palette" }))}
-      {tab("plus", "Add source", () => overlays.open({ kind: "add-source", collectionId: addTo }))}
+      {tab("home", t.home, () => nav.go({ t: "home" }), { current: home })}
+      {tab("folder", t.collections, onBrowse, { expanded: drawerOpen, current: browsing })}
+      {tab("search", t.search, () => overlays.open({ kind: "palette" }))}
+      {tab("plus", t.addSource, () => overlays.open({ kind: "add-source", collectionId: addTo }))}
     </nav>
   );
 }

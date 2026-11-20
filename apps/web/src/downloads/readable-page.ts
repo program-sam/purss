@@ -6,6 +6,10 @@
  * and http(s)/mailto links. The reader's display pass (lib/article-html.ts) runs on it again.
  */
 
+import { app } from "@purss/copy/app";
+
+const t = app.downloads.readablePage;
+
 /** A page larger than this isn't read; PURSS's own copies stop at the same size. */
 export const PAGE_MAX_BYTES = 3 * 1024 * 1024;
 /** The article kept: no larger than a copy PURSS keeps. */
@@ -88,7 +92,7 @@ export function cleanArticleHtml(html: string, base: string, parser: DOMParser =
 
 /** The readable article of a page's HTML; `url` is where the page came from, for its links and pictures. */
 export async function readablePage(page: string, url: string, parser: DOMParser = new DOMParser()): Promise<ReadableArticle> {
-  const noArticle: ReadableArticle = { ok: false, message: "No readable article was found on the publisher's page. It may need JavaScript or a login." };
+  const noArticle: ReadableArticle = { ok: false, message: t.noArticle };
   const doc = parser.parseFromString(page, "text/html");
   // Every address is made absolute against the page first: Readability would resolve what's left against this app's address.
   for (const el of Array.from(doc.querySelectorAll("[href],[src],[cite]"))) {
@@ -107,7 +111,7 @@ export async function readablePage(page: string, url: string, parser: DOMParser 
   const html = cleanArticleHtml(article.content, url, parser);
   const text = parser.parseFromString(`<!doctype html><html><body>${html}</body></html>`, "text/html").body.textContent?.replace(/\s+/g, " ").trim() ?? "";
   if (text.length < MIN_TEXT) return noArticle;
-  if (html.length > ARTICLE_MAX_CHARS) return { ok: false, message: "The article is longer than a download keeps." };
+  if (html.length > ARTICLE_MAX_CHARS) return { ok: false, message: t.tooLong };
   const title = (article.title ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || null;
   return { ok: true, title, html };
 }

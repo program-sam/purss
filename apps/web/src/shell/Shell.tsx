@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { ContextMenus } from "./ContextMenu.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
@@ -46,6 +47,8 @@ import { OpenLinks } from "./OpenLinks.tsx";
 import { leaveThen } from "../lib/leave.ts";
 
 
+const t = app.shell.shell;
+
 function Splash({ children }: { children: ReactNode }) {
   return <div className="splash" role="status">{children}</div>;
 }
@@ -53,14 +56,14 @@ function Splash({ children }: { children: ReactNode }) {
 /** The signed-in frame: sidebar, header, main, item panel and the popups. */
 export function Shell() {
   const q = useQuery(bootstrapQuery);
-  if (q.isPending) return <Splash><span className="spin" aria-hidden="true" />Loading your PURSS…</Splash>;
+  if (q.isPending) return <Splash><span className="spin" aria-hidden="true" />{t.loading}</Splash>;
   if (q.isError || !q.data) {
     return (
       <Splash>
         <div className="empty card-like" style={{ maxWidth: 440 }}>
-          <h2>Couldn't load your PURSS</h2>
+          <h2>{t.loadFailed}</h2>
           <p>{messageOf(q.error)}</p>
-          <Button variant="primary" onClick={() => void q.refetch()}>Try again</Button>
+          <Button variant="primary" onClick={() => void q.refetch()}>{t.tryAgain}</Button>
         </div>
       </Splash>
     );
@@ -138,17 +141,17 @@ function ShellFrame() {
   // Page title: the open item first, then the page it sits on.
   const openItemTitle = useCachedItem(itemId)?.title;
   useEffect(() => {
-    let name = "Home";
-    if (place?.t === "c") name = ws.collectionById.get(place.id)?.name ?? "Collection";
-    else if (place?.t === "s") name = ws.sourceById.get(place.id)?.title ?? "Source";
-    else if (place?.t === "b") name = ws.basketById.get(place.id)?.name ?? "Basket";
+    let name: string = t.home;
+    if (place?.t === "c") name = ws.collectionById.get(place.id)?.name ?? t.collection;
+    else if (place?.t === "s") name = ws.sourceById.get(place.id)?.title ?? t.source;
+    else if (place?.t === "b") name = ws.basketById.get(place.id)?.name ?? t.basket;
     else if (place?.t === "r") name = TO_READ_TITLE;
     else if (!place) {
       const sp = statsPlaceOf(pathname);
-      if (sp) name = `Statistics · ${sp.t === "c" ? ws.collectionById.get(sp.id)?.name ?? "Collection" : ws.sourceById.get(sp.id)?.title ?? "Source"}`;
-      else name = pageFor(pathname)?.title ?? "Home";
+      if (sp) name = t.statistics(sp.t === "c" ? ws.collectionById.get(sp.id)?.name ?? t.collection : ws.sourceById.get(sp.id)?.title ?? t.source);
+      else name = pageFor(pathname)?.title ?? t.home;
     }
-    document.title = `${openItemTitle ? `${openItemTitle} · ` : ""}${name} · PURSS`;
+    document.title = t.documentTitle(openItemTitle, name);
   }, [place, pathname, ws, openItemTitle]);
 
   // Going to another page puts focus on its heading, so it is announced and the next Tab starts inside the page. The
@@ -267,8 +270,8 @@ function ShellFrame() {
 
   return (
     <>
-      <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>Skip to content</a>
-      {playerOpen ? <a className="skip" href="#player" onClick={(e) => { e.preventDefault(); focusPlayer(); }}>Skip to the player</a> : null}
+      <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>{t.skipToContent}</a>
+      {playerOpen ? <a className="skip" href="#player" onClick={(e) => { e.preventDefault(); focusPlayer(); }}>{t.skipToPlayer}</a> : null}
       <ContextMenus />
       <div className="app" data-sb={sbMode} data-bp={bp} data-drawer={overlaySb && drawer ? "open" : "closed"} data-panel={itemId ? "open" : "closed"} data-player={playerOpen ? "open" : "closed"}>
         <aside className="side" id="side" aria-label="Sidebar"><Sidebar mode={sbMode === "rail" ? "rail" : "full"} onClose={overlaySb ? () => setDrawer(false) : undefined} onToggle={overlaySb ? undefined : () => { toggleSidebar(); requestAnimationFrame(() => document.querySelector<HTMLElement>("#side [data-fk='tside']")?.focus()); }} /></aside>

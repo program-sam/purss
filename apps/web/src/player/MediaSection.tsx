@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { ItemDetail, ItemMedia } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { clock, resumePoint } from "./logic.ts";
@@ -5,6 +6,8 @@ import { usePlayer } from "./PlayerProvider.tsx";
 import { useDownload } from "../downloads/hooks.ts";
 import { useFace } from "../components/item-bits.tsx";
 import { itemPicture } from "../lib/items.ts";
+
+const t = app.player.media;
 
 /**
  * An item's audio or video: play it here, from the download on this device when there is one (the apps)
@@ -20,7 +23,7 @@ export function MediaSection({ item }: { item: ItemDetail & { media: ItemMedia }
   const from = current && snap.now ? snap.now.from : downloaded?.state === "done" && downloaded.media ? "device" : "publisher";
   const playback = player.positionFor(item.id, item.playback);
   const resume = resumePoint(playback);
-  const word = media.kind === "video" ? "Watch" : "Listen";
+  const word = media.kind === "video" ? t.watch : t.listen;
   // An episode without its own picture plays with the show's art, as in its row and card.
   const art = itemPicture(item, useFace(item).iconUrl);
 
@@ -34,9 +37,9 @@ export function MediaSection({ item }: { item: ItemDetail & { media: ItemMedia }
       <div className="media-play">
         <Button variant="primary" onClick={play}>
           <Icon name={playing ? "pause" : "play"} size="sm" />
-          {playing ? "Pause" : current ? "Continue" : resume > 0 ? `${word} from ${clock(resume)}` : word}
+          {playing ? t.pause : current ? t.continue : resume > 0 ? t.from(word, clock(resume)) : word}
         </Button>
-        <span className="fine">{from === "device" ? "Plays the download on this device, with or without a connection." : "Streams from the publisher's site, which sees your address, like images do."}</span>
+        <span className="fine">{from === "device" ? t.onDevice : t.streams}</span>
       </div>
     </section>
   );

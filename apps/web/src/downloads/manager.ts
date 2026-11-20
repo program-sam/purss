@@ -6,6 +6,9 @@ import type { BackgroundState } from "./background.ts";
 import { PAGE_MAX_BYTES } from "./readable-page.ts";
 import type { ReadableArticle } from "./readable-page.ts";
 import type { DeviceArticle, DeviceDownloads, DownloadOrigin, DownloadProgress, DownloadRecord } from "./types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.downloads.manager;
 
 /**
  * Downloads on this device: one item at a time, kept per account in the app's own storage.
@@ -80,31 +83,31 @@ const cutOff = (err: unknown) => err instanceof DownloadError && err.status === 
 const unreachable = (err: unknown) => (err as { code?: unknown })?.code === "offline";
 const ITEM_PATH = /^\/api\/items\/([^/?]+)(\/annotations)?$/;
 
-const TOO_LARGE_AUTO = "The file is bigger than the space left in this device's automatic download limit.";
+const TOO_LARGE_AUTO = t.tooLargeAuto;
 
 /** Plain words for a failed download. */
 export function failureText(err: unknown): string {
   if (err instanceof DownloadError) {
-    if (err.status === -1) return "The publisher doesn't offer this file over a secure connection, so it can't be downloaded.";
+    if (err.status === -1) return t.notSecure;
     if (err.status === -2) return TOO_LARGE_AUTO;
-    if (err.status === 0) return "The download stopped before it finished. Check your connection and try again.";
-    if (err.status === 404 || err.status === 410) return "The file isn't available there any more.";
-    if (err.status === 401 || err.status === 403) return "The file's address refused the download.";
-    return "The download didn't finish. Try again later.";
+    if (err.status === 0) return t.stoppedEarly;
+    if (err.status === 404 || err.status === 410) return t.fileGone;
+    if (err.status === 401 || err.status === 403) return t.refused;
+    return t.didntFinish;
   }
   const status = (err as { status?: unknown })?.status;
-  if (status === 404) return "This item isn't in your PURSS any more.";
-  if ((err as { code?: unknown })?.code === "offline") return "Can't reach PURSS right now. Check your connection and try again.";
-  return "The download didn't finish. Try again later.";
+  if (status === 404) return t.itemGone;
+  if ((err as { code?: unknown })?.code === "offline") return t.cantReachPurss;
+  return t.didntFinish;
 }
 
 /** Plain words for a publisher's page that couldn't be fetched for its article. */
 function pageFailureText(err: unknown): string {
   const status = err instanceof DownloadError ? err.status : 0;
-  if (status === 404 || status === 410) return "The publisher's page isn't there any more.";
-  if (status === 401 || status === 403) return "The publisher's page needs a login or turns apps away.";
-  if (status === 0) return "Couldn't reach the publisher's page. Check your connection and try again.";
-  return "The publisher's page couldn't be fetched.";
+  if (status === 404 || status === 410) return t.pageGone;
+  if (status === 401 || status === 403) return t.pageNeedsLogin;
+  if (status === 0) return t.pageUnreachable;
+  return t.pageNotFetched;
 }
 
 const pageBytes = (page: DownloadRecord["page"]) => (page?.state === "saved" ? page.bytes : 0);
@@ -353,7 +356,7 @@ export class DownloadManager implements DeviceDownloads {
       const error = tooLarge
         ? origin === "auto"
           ? TOO_LARGE_AUTO
-          : `The file is over ${Math.round(MAX_DOWNLOAD_BYTES / 1024 ** 3)} GB, the most this app downloads.`
+          : t.tooLarge(Math.round(MAX_DOWNLOAD_BYTES / 1024 ** 3))
         : failureText(err);
       this.put({ ...(this.get(itemId) ?? started), state: "failed", error, media: null, bytes: 0 });
     } finally {
@@ -386,7 +389,7 @@ export class DownloadManager implements DeviceDownloads {
       }, transfer.signal);
       const bytes = await this.deps.files.readBytes(file);
       await this.deps.files.remove(file);
-      if (!bytes) return { state: "failed", error: "The publisher's page couldn't be fetched." };
+      if (!bytes) return { state: "failed", error: t.pageNotFetched };
       const article = await this.deps.readPage(bytes, url);
       if (!article.ok) return { state: "failed", error: article.message };
       const saved: DeviceArticle = { title: article.title, html: article.html, url, savedAt: new Date(this.now()).toISOString() };
@@ -394,7 +397,7 @@ export class DownloadManager implements DeviceDownloads {
     } catch (err) {
       await this.deps.files.remove(file).catch(() => undefined);
       if (transfer.signal.aborted && !tooLarge) throw err;
-      return { state: "failed", error: tooLarge ? "The publisher's page is too large to read." : pageFailureText(err) };
+      return { state: "failed", error: tooLarge ? t.pageTooLarge : pageFailureText(err) };
     }
   }
 

@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { CollectionStatsRow, StatsNumbers, WorkflowState } from "@purss/domain";
 
 /** Plain presentation of the statistics numbers. Nothing here ranks or judges; it only formats and orders. */
@@ -24,13 +25,13 @@ export function weeklyAverage(weekly: readonly number[]): number {
 
 /** The numbers behind a weekly bar chart, for people who can't see it. */
 export function sparklineLabel(weekly: readonly number[]): string {
-  return `Items per week over the last ${weekly.length} weeks, oldest first: ${weekly.join(", ")}. Average ${weeklyAverage(weekly)} per week.`;
+  return app.lib.stats.sparkline(weekly.length, weekly.join(", "), weeklyAverage(weekly));
 }
 
 /** "56 days", "1 day", "0.4 days"; a dash when there are fewer than two items to measure between. */
 export function gapLabel(days: number | null): string {
-  if (days === null) return "–";
-  return `${days} ${days === 1 ? "day" : "days"}`;
+  if (days === null) return app.lib.stats.noGap;
+  return app.lib.stats.gap(days);
 }
 
 export type StatsSortKey = "name" | "items" | "weekly" | "last" | WorkflowState | "opened" | "kept" | "filtered";

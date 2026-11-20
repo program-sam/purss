@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { app } from "@purss/copy/app";
 import { Button, Icon } from "@purss/ui";
 import { messageOf } from "../../api/client.ts";
 import { useToasts } from "../../state/toasts.tsx";
 import { Trail } from "../../shell/crumbs.tsx";
+
+const t = app.sharedFeatures.bits;
 
 /** Page frame: title, one calm sentence, then the sections. */
 export function Page({ title, lead, narrow = true, children, wide }: { title: string; lead?: ReactNode; narrow?: boolean; wide?: boolean; children: ReactNode }) {
@@ -30,16 +33,16 @@ export function Section({ title, hint, actions, children, id, tone }: { title: s
   );
 }
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+export function Loading({ label = t.loading }: { label?: string }) {
   return <p className="state" role="status"><span className="spin" aria-hidden="true" />{label}</p>;
 }
 
 export function LoadFailed({ error, onRetry, what }: { error: unknown; onRetry: () => void; what: string }) {
   return (
     <div className="empty card-like" role="alert">
-      <h2>Couldn't load {what}</h2>
+      <h2>{t.loadFailedTitle(what)}</h2>
       <p>{messageOf(error)}</p>
-      <Button onClick={onRetry}>Try again</Button>
+      <Button onClick={onRetry}>{t.tryAgain}</Button>
     </div>
   );
 }
@@ -62,10 +65,10 @@ export function CopyButton({ value, label, what }: { value: string; label?: stri
       setDone(true);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setDone(false), 2000);
-      toast(`${what} copied`);
-    } catch { toast(`Couldn't copy ${what.toLowerCase()}. Select it and copy by hand.`); }
+      toast(t.copied(what));
+    } catch { toast(t.couldntCopy(what.toLowerCase())); }
   }
-  return <Button onClick={() => void copy()} aria-label={`Copy ${what.toLowerCase()}`}><Icon name={done ? "check" : "copy"} size="sm" />{done ? "Copied" : label ?? "Copy"}</Button>;
+  return <Button onClick={() => void copy()} aria-label={`Copy ${what.toLowerCase()}`}><Icon name={done ? "check" : "copy"} size="sm" />{done ? t.copiedButton : label ?? t.copy}</Button>;
 }
 
 /** A label and value in a quiet two-column list. */

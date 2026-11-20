@@ -8,6 +8,9 @@ import { AuthFrame } from "./AuthFrame.tsx";
 import { PasskeyStep } from "./PasskeyStep.tsx";
 import { passkeysAvailable } from "./PasswordForm.tsx";
 import { tryAgainAfter } from "./retry.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.auth.newAccount;
 
 /**
  * What happens around making an account, whichever way it is made (setup, an invitation, the link from open sign-up): the button stays
@@ -48,6 +51,6 @@ export function useNewAccount(retryTime = false): { busy: boolean; error: string
     else await finish();
   }
 
-  const passkey = passkeyStep ? <AuthFrame title="Sign in without typing a password"><PasskeyStep onDone={finish} /></AuthFrame> : null;
+  const passkey = passkeyStep ? <AuthFrame title={t.passkeyTitle}><PasskeyStep onDone={finish} /></AuthFrame> : null;
   return { busy, error, submit, passkey };
 }

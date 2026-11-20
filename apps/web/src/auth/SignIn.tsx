@@ -15,8 +15,11 @@ import { passkeysAvailable } from "./PasswordForm.tsx";
 import { platform } from "../platform/index.ts";
 import { ProviderButton } from "./ProviderButton.tsx";
 import { oidcErrorFor } from "./oidc-errors.ts";
+import { app } from "@purss/copy/app";
 
-const PASSKEY_SIGNIN_FAILURE = "Sign-in failed. Try again, or use your password.";
+const t = app.auth.signIn;
+
+const PASSKEY_SIGNIN_FAILURE = t.passkeyFailed;
 
 /** Run a WebAuthn assertion against the server; used for sign-in and for step-up. */
 export async function assertPasskey(verifyPath: string, sharedComputer = false): Promise<void> {
@@ -49,7 +52,7 @@ export function SignInPage() {
   const search = useSearch({ strict: false }) as { error?: string; provider?: string; next?: string; notice?: string; due?: string };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(search.error ? oidcErrorFor(search.error, search.provider, session?.installation.oidcProviders ?? []) : "");
-  const [notice, setNotice] = useState(search.notice === "deletion_requested" && search.due ? `Your account will be deleted on ${shortDate(search.due)}. Sign in before then to keep it.` : "");
+  const [notice, setNotice] = useState(search.notice === "deletion_requested" && search.due ? t.deletionNotice(shortDate(search.due)) : "");
   const [pending, setPending] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [email, setEmail] = useState("");
@@ -66,7 +69,7 @@ export function SignInPage() {
   async function askToKeep() {
     try {
       const { dueAt } = await get<{ dueAt: string | null }>("/api/auth/deletion");
-      if (dueAt) { setError(""); setPending(dueAt); } else setError("That took too long. Sign in again to keep your account.");
+      if (dueAt) { setError(""); setPending(dueAt); } else setError(t.tookTooLong);
     } catch (err) { setError(messageOf(err)); }
   }
   /** Sign-in errors, with the deletion grace period handled here instead of shown as a failure. */
@@ -91,46 +94,46 @@ export function SignInPage() {
   if (pending) {
     const dueAt = pending;
     return (
-      <AuthFrame title="Keep your account?">
-        <KeepAccount dueAt={dueAt} onKept={done} onLeft={() => { setPending(null); setNotice(`Your account will be deleted on ${shortDate(dueAt)}. Sign in before then to keep it.`); }} />
+      <AuthFrame title={t.keepTitle}>
+        <KeepAccount dueAt={dueAt} onKept={done} onLeft={() => { setPending(null); setNotice(t.deletionNotice(shortDate(dueAt))); }} />
       </AuthFrame>
     );
   }
   return (
-    <AuthFrame title="Sign in" intro="Follow your sources. Keep what matters.">
+    <AuthFrame title={t.title} intro={t.intro}>
       <div style={{ display: "grid", gap: 14 }}>
         {notice ? <p className="state" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint="Signs out when the browser closes, or after 8 hours">This is a shared computer</Check>
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint={t.sharedComputerHint}>{t.sharedComputer}</Check>
         <form onSubmit={withPassword} style={{ display: "grid", gap: 10 }} aria-label="Sign in with an email address and password">
-          <Field label="Email address" htmlFor="si-u">
+          <Field label={t.emailLabel} htmlFor="si-u">
             <TextInput id="si-u" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus />
           </Field>
-          <Field label="Password" htmlFor="si-p">
+          <Field label={t.passwordLabel} htmlFor="si-p">
             <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
-          <div><Button variant="primary" type="submit" disabled={busy || !email.trim() || !password}>Sign in</Button></div>
+          <div><Button variant="primary" type="submit" disabled={busy || !email.trim() || !password}>{t.signIn}</Button></div>
         </form>
         {supported ? (
           <>
-            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? "Waiting for your device…" : "Sign in with a passkey"}</Button>
-            <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>Your fingerprint, face or screen lock (Touch ID, Face ID, Windows Hello) or a password manager.</p>
+            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? t.waitingForDevice : t.withPasskey}</Button>
+            <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>{t.passkeyHint}</p>
           </>
         ) : null}
         {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${oidcQuery(search.next, sharedComputer)}`} />)}
         {/* A reset link comes by email where available; self-hosted installations without email need their administrator. */}
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.accountEmail
-            ? <>Can't sign in? <a className="link" href={inApp("/reset-password")}>Reset your password by email</a></>
-            : session?.installation.mode === "hosted" ? "Password reset emails aren't available yet."
-              : session ? "Can't sign in? Ask your PURSS administrator for a password reset link."
+            ? <>{t.reset.before}<a className="link" href={inApp("/reset-password")}>{t.reset.link}</a></>
+            : session?.installation.mode === "hosted" ? t.resetEmailsUnavailable
+              : session ? t.askAdministrator
                 : null}
         </p>
         {/* With open sign-up an invitation is only ever followed from its email link, which fills in the code. */}
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.signup === "open"
-            ? <>New here? <a className="link" href={inApp("/signup")}>Create an account</a></>
-            : <>New here? <a className="link" href={inApp("/invite")}>Use an invitation</a></>}
+            ? <>{t.createAccount.before}<a className="link" href={inApp("/signup")}>{t.createAccount.link}</a></>
+            : <>{t.useInvitation.before}<a className="link" href={inApp("/invite")}>{t.useInvitation.link}</a></>}
         </p>
       </div>
     </AuthFrame>

@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
+import { app } from "@purss/copy/app";
 import { Button } from "@purss/ui";
+
+const t = app.components.loadMore;
 
 /** Loads the next page when scrolled into view; the button stays for keyboard and screen-reader users. */
 export function LoadMore({ hasMore, loading, onMore }: { hasMore: boolean; loading: boolean; onMore: () => void }) {
@@ -16,7 +19,7 @@ export function LoadMore({ hasMore, loading, onMore }: { hasMore: boolean; loadi
   if (!hasMore && !loading) return null;
   return (
     <div ref={ref} style={{ textAlign: "center", margin: "16px 0" }}>
-      {loading ? <p className="state" style={{ justifyContent: "center" }}><span className="spin" aria-hidden="true" />Loading more…</p> : <Button onClick={onMore}>Show more</Button>}
+      {loading ? <p className="state" style={{ justifyContent: "center" }}><span className="spin" aria-hidden="true" />{t.loading}</p> : <Button onClick={onMore}>{t.showMore}</Button>}
     </div>
   );
 }

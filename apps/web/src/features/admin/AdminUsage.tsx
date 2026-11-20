@@ -1,10 +1,13 @@
 import { useState } from "react";
 import type { UsageReport } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural, timeAgo } from "../../lib/format.ts";
 import { Note } from "../shared/bits.tsx";
 import { shortId } from "./admin-model.ts";
+
+const t = app.admin.adminUsage;
 
 /** Compare each account's usage ledger with what it really stores. The check only reports; it changes nothing. */
 export function AdminUsagePanel() {
@@ -17,22 +20,22 @@ export function AdminUsagePanel() {
   }
   return (
     <div className="fx-stack">
-      <p>Compares each account's recorded usage with what it actually stores. It only reports differences and changes nothing.</p>
-      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void run()}>{busy ? "Checking…" : "Run usage check"}</Button></div>
+      <p>{t.intro}</p>
+      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void run()}>{busy ? t.checking : t.run}</Button></div>
       {error ? <Note>{error}</Note> : null}
       {report ? (
         <>
           <p className="state" role="status"><Icon name={report.mismatched ? "alert" : "check"} />
-            {report.mismatched ? `${plural(report.mismatched, "account")} of ${report.accounts.length} ${report.mismatched === 1 ? "differs" : "differ"}.` : `All ${plural(report.accounts.length, "account")} match.`} Checked {timeAgo(report.checkedAt) || "just now"}.</p>
+            {report.mismatched ? t.differs(plural(report.mismatched, t.account), report.accounts.length, report.mismatched) : t.allMatch(plural(report.accounts.length, t.account))}{t.checked(timeAgo(report.checkedAt) || t.justNow)}</p>
           <ul className="fx-rows">
             {report.accounts.map((a) => (
               <li key={a.accountId} className="fx-row">
-                <div className="fx-grow"><b>Account {shortId(a.accountId)}</b><span className="fine">Ledger {bytesLabel(a.ledgerBytes)} · stored {bytesLabel(a.objectBytes)}</span></div>
-                <div className="fx-end"><span className={`tag fx-status ${a.differenceBytes ? "failed" : "ok"}`}>{a.differenceBytes ? `${a.differenceBytes > 0 ? "+" : "−"}${bytesLabel(Math.abs(a.differenceBytes))}` : "Matches"}</span></div>
+                <div className="fx-grow"><b>{t.accountId(shortId(a.accountId))}</b><span className="fine">{t.ledger(bytesLabel(a.ledgerBytes), bytesLabel(a.objectBytes))}</span></div>
+                <div className="fx-end"><span className={`tag fx-status ${a.differenceBytes ? "failed" : "ok"}`}>{a.differenceBytes ? `${a.differenceBytes > 0 ? "+" : "−"}${bytesLabel(Math.abs(a.differenceBytes))}` : t.matches}</span></div>
               </li>
             ))}
           </ul>
-          {report.mismatched ? <p className="fine">A difference means recorded usage and stored items disagree. Nothing was changed.</p> : null}
+          {report.mismatched ? <p className="fine">{t.disagree}</p> : null}
         </>
       ) : null}
     </div>

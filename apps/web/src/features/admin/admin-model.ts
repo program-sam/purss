@@ -1,55 +1,53 @@
+import { app } from "@purss/copy/app";
 import { appUrl } from "@purss/domain";
 import { bytesLabel } from "../../lib/format.ts";
 
+const copy = app.admin.adminModel;
+
 /** "under a minute", "5 min", "3 h", "2 days": how long ago, with no false precision. */
 export function durationLabel(seconds: number | null): string {
-  if (seconds === null) return "Unknown";
-  if (seconds < 60) return "under a minute";
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-  if (seconds < 86_400) return `${Math.round(seconds / 3600)} h`;
+  if (seconds === null) return copy.unknown;
+  if (seconds < 60) return copy.underAMinute;
+  if (seconds < 3600) return copy.minutes(Math.round(seconds / 60));
+  if (seconds < 86_400) return copy.hours(Math.round(seconds / 3600));
   const d = Math.round(seconds / 86_400);
-  return d === 1 ? "1 day" : `${d} days`;
+  return copy.days(d);
 }
 
 /** A number of bytes, or the honest word when it couldn't be measured. */
 export function bytesOrUnknown(n: number | null): string {
-  return n === null ? "Unknown" : bytesLabel(n);
+  return n === null ? copy.unknown : bytesLabel(n);
 }
 
-export const ENGINE_LABEL: Record<string, string> = { ok: "Running", starting: "Starting", degraded: "Partly failing", stalled: "Not syncing", unavailable: "Not available" };
+export const ENGINE_LABEL: Record<string, string> = copy.engine;
 export const engineLabel = (status: string): string => ENGINE_LABEL[status] ?? status;
 
 /** What a bridged source's failure means, in a sentence: the router's word for it (`timeout`, `http_503`…) turned into plain language. */
 export function bridgeFailureText(outcome: string): string {
   switch (outcome) {
-    case "timeout": return "The service took too long to answer.";
-    case "unreachable": return "The bridge couldn't reach the service.";
-    case "too_large": return "The answer was too big to use.";
-    case "parse_error": return "The answer couldn't be read.";
-    case "no_ids": return "Its posts had no usable address.";
-    case "no_posts": return "The answer had no posts, which for this service means its page couldn't be read.";
+    case "timeout": return copy.bridgeFailure.timeout;
+    case "unreachable": return copy.bridgeFailure.unreachable;
+    case "too_large": return copy.bridgeFailure.tooLarge;
+    case "parse_error": return copy.bridgeFailure.parseError;
+    case "no_ids": return copy.bridgeFailure.noIds;
+    case "no_posts": return copy.bridgeFailure.noPosts;
   }
   const status = /^http_(\d{3})$/.exec(outcome)?.[1];
-  if (!status) return "It failed, and no more is known.";
-  if (status === "404") return "The service says that page doesn't exist.";
-  if (status === "401" || status === "403") return "The service refused the request.";
-  if (status === "429") return "The service is limiting requests.";
-  if (status.startsWith("5")) return `The bridge or the service had an error (${status}).`;
-  return `The service answered with error ${status}.`;
+  if (!status) return copy.bridgeFailure.unknown;
+  if (status === "404") return copy.bridgeFailure.notFound;
+  if (status === "401" || status === "403") return copy.bridgeFailure.refused;
+  if (status === "429") return copy.bridgeFailure.limiting;
+  if (status.startsWith("5")) return copy.bridgeFailure.serverError(status);
+  return copy.bridgeFailure.otherError(status);
 }
 
 /** Why a lookup of a site failed, as a short label. */
-export const MISS_LABEL: Record<string, string> = {
-  nofeed: "No feed found",
-  unsupported: "Can't be followed",
-  unreachable: "Couldn't be reached",
-  timeout: "Took too long",
-};
+export const MISS_LABEL: Record<string, string> = copy.miss;
 export const missLabel = (reason: string): string => MISS_LABEL[reason] ?? reason;
 
 /** Last characters of an id: enough to tell accounts apart without printing the whole identifier. */
 export function shortId(id: string | null): string {
-  if (!id) return "System";
+  if (!id) return copy.system;
   return id.length > 10 ? `…${id.slice(-6)}` : id;
 }
 

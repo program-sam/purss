@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { MenuEntry } from "@purss/ui";
 import type { ListParams } from "../api/queries.ts";
 import type { ViewMode } from "@purss/domain";
@@ -65,9 +66,9 @@ export function isNarrowed(ls: ListState): boolean {
   return !!(ls.source || ls.without || ls.types.length || ls.length || ls.captureFailed);
 }
 
-const TYPE_LABELS: Record<ItemTypeFilter, string> = { articles: "Articles", videos: "Videos", podcasts: "Podcasts" };
+const TYPE_LABELS: Record<ItemTypeFilter, string> = app.lib.listFilters.types;
 const TYPE_ORDER: readonly ItemTypeFilter[] = ["articles", "videos", "podcasts"];
-const LENGTH_LABELS = { short: "Short (up to 5 min)", long: "Long (over 5 min)" } as const;
+const LENGTH_LABELS = app.lib.listFilters.lengths;
 
 /** The filter menu's Type and Length choices. Items whose length is not known are in neither Short nor Long. */
 export function typeLengthEntries(ls: ListState, patch: (p: Pick<ListSearch, "type" | "length">) => void): MenuEntry[] {
@@ -77,11 +78,11 @@ export function typeLengthEntries(ls: ListState, patch: (p: Pick<ListSearch, "ty
   };
   return [
     { type: "separator" },
-    { type: "heading", label: "Type" },
+    { type: "heading", label: app.lib.listFilters.typeHeading },
     ...TYPE_ORDER.map<MenuEntry>((t) => ({ type: "check", label: TYPE_LABELS[t], on: ls.types.includes(t), onSelect: () => toggle(t) })),
     { type: "separator" },
-    { type: "heading", label: "Length" },
-    { type: "radio", label: "Any length", on: !ls.length, onSelect: () => patch({ length: undefined }) },
+    { type: "heading", label: app.lib.listFilters.lengthHeading },
+    { type: "radio", label: app.lib.listFilters.anyLength, on: !ls.length, onSelect: () => patch({ length: undefined }) },
     { type: "radio", label: LENGTH_LABELS.short, on: ls.length === "short", onSelect: () => patch({ length: "short" }) },
     { type: "radio", label: LENGTH_LABELS.long, on: ls.length === "long", onSelect: () => patch({ length: "long" }) },
   ];

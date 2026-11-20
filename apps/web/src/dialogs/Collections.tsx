@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { CollectionDTO, ViewMode } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, Segmented, TextInput } from "@purss/ui";
 import { del, messageOf, patch, post } from "../api/client.ts";
@@ -15,6 +16,8 @@ import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { EmojiField, QueryBuilder, SourcePicks } from "./parts.tsx";
+
+const t = app.dialogs.collections;
 
 type Mode = CollectionDTO["mode"];
 
@@ -48,37 +51,37 @@ export function NewCollectionDialog() {
       const c = await post<CollectionDTO>("/api/collections", { name: name.trim(), emoji: emoji.trim() || null, mode, sourceIds: mode === "sources" ? sourceIds : [], query, view: "list" });
       refreshWorkspace(qc);
       ov.close();
-      toast(`Created ${c.name}${mode === "sources" && sourceIds.length ? ` with ${plural(sourceIds.length, "source")}` : ""}`, {
+      toast(t.newCollection.created(c.name, mode === "sources" && sourceIds.length ? t.newCollection.withSources(plural(sourceIds.length, t.newCollection.source)) : ""), {
         undo: async () => { await del(`/api/collections/${encodeURIComponent(c.id)}`); refreshWorkspace(qc); },
-        actions: [{ label: "Open", onSelect: () => nav.go({ t: "c", id: c.id }) }],
+        actions: [{ label: t.newCollection.open, onSelect: () => nav.go({ t: "c", id: c.id }) }],
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
   if (limit) {
     return (
-      <Dialog title="New collection" onClose={ov.close} size="md" initialFocus="dialog"
-        footer={<><Button onClick={ov.close}>Close</Button><Button variant="primary" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>See plans</Button></>}>
+      <Dialog title={t.newCollection.title} onClose={ov.close} size="md" initialFocus="dialog"
+        footer={<><Button onClick={ov.close}>{t.newCollection.close}</Button><Button variant="primary" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{t.newCollection.seePlans}</Button></>}>
         <p className="state note"><Icon name="info" /><span>{limit}</span></p>
       </Dialog>
     );
   }
 
   return (
-    <Dialog title="New collection" onClose={ov.close} size="md" initialFocus="#nc-name"
-      footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>Create collection</Button></>}>
-      <p className="fine">A collection groups sources you read together, with its own view. Home shows your collections.</p>
-      <div className="field"><label htmlFor="nc-name">Name</label>
-        <TextInput id="nc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder="News, Science, Friends' blogs"
+    <Dialog title={t.newCollection.title} onClose={ov.close} size="md" initialFocus="#nc-name"
+      footer={<><Button onClick={ov.close}>{t.newCollection.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>{t.newCollection.create}</Button></>}>
+      <p className="fine">{t.newCollection.intro}</p>
+      <div className="field"><label htmlFor="nc-name">{t.newCollection.name}</label>
+        <TextInput id="nc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder={t.newCollection.placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy && mode !== "query") void create(); }} /></div>
       <EmojiField value={emoji} onChange={setEmoji} />
-      <div className="field"><div className="lbl" id="nc-mode">What goes in it</div>
+      <div className="field"><div className="lbl" id="nc-mode">{t.newCollection.whatGoesIn}</div>
         <Segmented labelledBy="nc-mode" value={mode} onChange={setMode} style={{ justifySelf: "start" }}
-          options={[{ value: "sources", label: "Sources I pick" }, { value: "query", label: "Items matching a filter" }]} /></div>
+          options={[{ value: "sources", label: t.newCollection.sourcesIPick }, { value: "query", label: t.newCollection.itemsMatching }]} /></div>
       {mode === "sources" ? (
-        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Sources to include</legend>
+        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.newCollection.sourcesToInclude}</legend>
           <SourcePicks selected={sourceIds} onChange={setSourceIds} />
-          <p className="fine">A source can be in several collections; you follow it once.</p></fieldset>
+          <p className="fine">{t.newCollection.severalCollections}</p></fieldset>
       ) : null}
       {mode === "query" ? <QueryBuilder draft={draft} onChange={setDraft} /> : null}
       {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert">{error}</p> : null}
@@ -125,7 +128,7 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
       await patch(`/api/collections/${encodeURIComponent(id)}`, body);
       refreshWorkspace(qc);
       ov.close();
-      toast("Saved collection settings", { undo: async () => { await patch(`/api/collections/${encodeURIComponent(id)}`, before); refreshWorkspace(qc); } });
+      toast(t.settings.saved, { undo: async () => { await patch(`/api/collections/${encodeURIComponent(id)}`, before); refreshWorkspace(qc); } });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
@@ -137,30 +140,30 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
       refreshWorkspace(qc);
       ov.close();
       nav.go({ t: "home" });
-      toast(`Deleted the collection ${c.name}. Its sources and items are still here.`);
+      toast(t.settings.deleted(c.name));
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
 
   return (
-    <Dialog title="Collection settings" onClose={ov.close} size="md" initialFocus="#cs-name"
+    <Dialog title={t.settings.title} onClose={ov.close} size="md" initialFocus="#cs-name"
       footer={confirmDelete ? (
-        <><span className="fine lft" style={{ marginRight: "auto", alignSelf: "center" }}>Sources and items stay; only this grouping goes.</span><Button onClick={() => setConfirmDelete(false)}>Keep it</Button><Button variant="danger" disabled={busy} onClick={remove}>Delete collection</Button></>
+        <><span className="fine lft" style={{ marginRight: "auto", alignSelf: "center" }}>{t.settings.onlyGrouping}</span><Button onClick={() => setConfirmDelete(false)}>{t.settings.keepIt}</Button><Button variant="danger" disabled={busy} onClick={remove}>{t.settings.deleteCollection}</Button></>
       ) : (
-        <><Button className="lft" onClick={() => setConfirmDelete(true)}>Delete…</Button><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={busy} onClick={save}>Save changes</Button></>
+        <><Button className="lft" onClick={() => setConfirmDelete(true)}>{t.settings.delete}</Button><Button onClick={ov.close}>{t.settings.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{t.settings.saveChanges}</Button></>
       )}>
-      <div className="field"><label htmlFor="cs-name">Name</label><TextInput id="cs-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" /></div>
+      <div className="field"><label htmlFor="cs-name">{t.settings.name}</label><TextInput id="cs-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" /></div>
       <EmojiField value={emoji} onChange={setEmoji} />
-      <Field label="Default view" htmlFor="cs-view">
+      <Field label={t.settings.defaultView} htmlFor="cs-view">
         <SelectInput id="cs-view" value={view} onChange={(e) => setView(e.target.value as ViewMode)}>{VIEW_MODES.map((m) => <option key={m} value={m}>{VIEW_LABELS[m]}</option>)}</SelectInput>
       </Field>
       {c.mode === "sources" ? (
-        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Sources</legend>
+        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.settings.sources}</legend>
           <SourcePicks selected={sourceIds} onChange={setSourceIds} />
-          <p className="fine">Sources you untick are still followed.</p></fieldset>
+          <p className="fine">{t.settings.untickedFollowed}</p></fieldset>
       ) : null}
       {c.mode === "query" ? (parsed.editable ? <QueryBuilder draft={draft} onChange={setDraft} />
-        : <p className="state note">This collection's filter can't be edited here. It keeps working. You can rename it or change its view.</p>) : null}
-      <Check checked={onHome} onChange={setOnHome}>Show on Home</Check>
+        : <p className="state note">{t.settings.notEditable}</p>) : null}
+      <Check checked={onHome} onChange={setOnHome}>{t.settings.showOnHome}</Check>
       {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert">{error}</p> : null}
     </Dialog>
   );

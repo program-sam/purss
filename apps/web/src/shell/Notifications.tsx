@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NotificationDTO } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
@@ -10,6 +11,8 @@ import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { notificationPlace } from "./notification-target.ts";
 import { PhoneNotificationsOffer } from "./PhoneNotifications.tsx";
+
+const t = app.shell.notifications;
 
 /** The quiet bell's list. Real notifications only; nothing is invented to create urgency. */
 export function NotificationsPanel({ onClose }: { onClose: () => void }) {
@@ -46,21 +49,21 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="notif">
       <div className="notif-h">
-        <strong>Notifications</strong>
-        {unread ? <button type="button" className="link" onClick={() => void markRead("all")}>Mark all as read</button> : null}
+        <strong>{t.title}</strong>
+        {unread ? <button type="button" className="link" onClick={() => void markRead("all")}>{t.markAllRead}</button> : null}
       </div>
-      {noDigest ? <p className="fine" style={{ padding: "8px 12px 4px" }}>The digest is off. Sources set to “Notify me”, reminders and problem notices still appear here.</p> : null}
+      {noDigest ? <p className="fine" style={{ padding: "8px 12px 4px" }}>{t.digestOff}</p> : null}
       <PhoneNotificationsOffer />
-      {q.isPending ? <p className="fine" style={{ padding: 12 }}>Loading…</p> : null}
-      {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>Try again</Button></p> : null}
-      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>Nothing yet. {noDigest ? "Sources set to “Notify me”, reminders and problem notices still appear here." : "Your digest, reminders and news of a source that stops working arrive here."}</p> : null}
+      {q.isPending ? <p className="fine" style={{ padding: 12 }}>{t.loading}</p> : null}
+      {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>{t.tryAgain}</Button></p> : null}
+      {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>{t.nothingYet}{noDigest ? t.nothingDigestOff : t.nothingDigestOn}</p> : null}
       <ul className="notif-list">
         {list.map((n) => (
           <li key={n.id}>
             <button type="button" className="notif-i" onClick={() => open(n)}>
               <span className="notif-dot" aria-hidden="true">{n.read ? null : <i className="dot" />}</span>
               <span className="tx">
-                <span className="t">{n.read ? null : <span className="sr">Unread. </span>}<bdi>{n.title}</bdi></span>
+                <span className="t">{n.read ? null : <span className="sr">{t.unread}</span>}<bdi>{n.title}</bdi></span>
                 {n.body ? <span className="b">{n.body}</span> : null}
                 <span className="when">{timeAgo(n.createdAt, Date.now(), ws.prefs.timezone)}</span>
               </span>
@@ -69,7 +72,7 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
         ))}
       </ul>
       <div className="notif-f">
-        <button type="button" className="link" onClick={() => { onClose(); overlays.open({ kind: "settings", tab: "notifications" }); }}><Icon name="gear" size="sm" /> Notification settings</button>
+        <button type="button" className="link" onClick={() => { onClose(); overlays.open({ kind: "settings", tab: "notifications" }); }}><Icon name="gear" size="sm" />{t.settings}</button>
       </div>
     </div>
   );

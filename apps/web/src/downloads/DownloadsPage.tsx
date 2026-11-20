@@ -6,6 +6,9 @@ import { platform } from "../platform/index.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.downloads.downloadsPage;
 
 /** Everything downloaded to this device, in the apps. Opens items in the reader, with or without a connection. */
 export function DownloadsPage() {
@@ -21,39 +24,39 @@ export function DownloadsPage() {
   const auto = settings.autoToRead;
 
   return (
-    <Page title="Downloaded" lead="Items saved on this device for reading and listening offline.">
-      <Section title="On this device" actions={<Button onClick={() => overlays.open({ kind: "settings", tab: "device" })}><Icon name="gear" size="sm" />Download settings</Button>}>
+    <Page title={t.title} lead={t.lead}>
+      <Section title={t.deviceSection} actions={<Button onClick={() => overlays.open({ kind: "settings", tab: "device" })}><Icon name="gear" size="sm" />{t.downloadSettings}</Button>}>
         <Facts items={[
-          { label: "Downloads", value: done.length ? `${plural(done.length, "item")}, ${bytesLabel(used)}` : "None yet" },
-          { label: "Automatic downloads", value: auto ? `On${settings.wifiOnly ? ", on Wi-Fi only" : ""}, up to ${bytesLabel(settings.limitBytes)}` : "Off" },
+          { label: t.downloads, value: done.length ? `${plural(done.length, t.item)}, ${bytesLabel(used)}` : t.none },
+          { label: t.automatic, value: auto ? t.automaticOn(settings.wifiOnly, bytesLabel(settings.limitBytes)) : t.automaticOff },
         ]} />
-        <p className="fine">A download is a copy on this device. PURSS keeps no audio or video files, so if the publisher removes one, your download may be the only copy. Removing a download never changes your PURSS.</p>
+        <p className="fine">{t.copyNote}</p>
       </Section>
-      <Section title="Items">
+      <Section title={t.itemsSection}>
         {list.length ? (
           <ul className="fx-rows">
             {list.map((r) => (
               <li key={r.itemId} className="fx-row">
                 <div className="fx-grow">
-                  <b>{r.title || "Untitled"}</b>
+                  <b>{r.title || t.untitled}</b>
                   <span className="fine">
-                    {r.sourceTitle ? `${r.sourceTitle} · ` : ""}
-                    {r.state === "done" ? `${bytesLabel(r.bytes)}${r.media ? `, with its ${r.media.kind === "video" ? "video" : "audio"}` : ""} · ${r.origin === "auto" ? "automatic, " : ""}${timeAgo(r.savedAt) || "just now"}`
-                      : r.state === "downloading" ? "Downloading…" : `Not downloaded: ${r.error ?? "the download didn't finish."}`}
+                    {r.sourceTitle ? t.sourcePrefix(r.sourceTitle) : ""}
+                    {r.state === "done" ? t.doneLine(bytesLabel(r.bytes), r.media ? r.media.kind : null, r.origin === "auto", timeAgo(r.savedAt))
+                      : r.state === "downloading" ? t.downloading : t.notDownloaded(r.error)}
                   </span>
                 </div>
                 <div className="fx-acts">
-                  {r.state === "done" ? <Button onClick={() => nav.openItem(r.itemId)}>Open</Button> : null}
+                  {r.state === "done" ? <Button onClick={() => nav.openItem(r.itemId)}>{t.open}</Button> : null}
                   {r.state !== "downloading" ? (
-                    <Button aria-label={`Remove the download of ${r.title || "this item"}`} onClick={() => void downloads.remove(r.itemId).then(() => toast("Removed the download from this device."))}><Icon name="trash" size="sm" /></Button>
+                    <Button aria-label={`Remove the download of ${r.title || "this item"}`} onClick={() => void downloads.remove(r.itemId).then(() => toast(t.removedToast))}><Icon name="trash" size="sm" /></Button>
                   ) : (
-                    <Button onClick={() => void downloads.cancel(r.itemId).then(() => toast("Stopped the download. Nothing of it was kept."))}>Stop</Button>
+                    <Button onClick={() => void downloads.cancel(r.itemId).then(() => toast(t.stopped))}>{t.stop}</Button>
                   )}
                 </div>
               </li>
             ))}
           </ul>
-        ) : <p className="fine">Nothing downloaded yet. Open an item and choose Download to this device, or turn on automatic downloads.</p>}
+        ) : <p className="fine">{t.empty}</p>}
       </Section>
     </Page>
   );

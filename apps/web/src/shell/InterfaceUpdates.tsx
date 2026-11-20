@@ -1,8 +1,11 @@
+import { app } from "@purss/copy/app";
 import { useSyncExternalStore } from "react";
 import { Button, Check, Dialog } from "@purss/ui";
 import { platform } from "../platform/index.ts";
 import type { InterfaceUpdates, InterfaceUpdateState } from "../platform/types.ts";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.shell.interfaceUpdates;
 
 /** Updates of the app's interface from the connected server. Only in the apps; null elsewhere. */
 function useInterfaceUpdates(): { updates: InterfaceUpdates; state: InterfaceUpdateState } | null {
@@ -14,9 +17,7 @@ const noSubscribe = () => () => {};
 const noState = () => null;
 
 /** What the question is about; read when shown, since the platform is chosen after this module loads. */
-const what = () => platform.desktop
-  ? "PURSS can update the app's screens without a new version of the app. That code runs with your sign-in on this computer and can use what the app can (notifications, the downloads folder, starting when you sign in), so allow updates only from a PURSS you trust."
-  : "PURSS can update the app's screens without an update from the app store. That code runs with your sign-in on this phone, so allow updates only from a PURSS you trust.";
+const what = () => platform.desktop ? t.whatDesktop : t.whatPhone;
 
 /**
  * Asked once per server other than the official one, the first time it offers an update, after the first-visit
@@ -28,10 +29,10 @@ export function InterfaceUpdateQuestion() {
   if (!u?.state.asking || !ws.data.preferences.welcomeAsked || !platform.connection) return null;
   const answer = (allow: boolean) => void u.updates.answer(allow);
   return (
-    <Dialog title="Let PURSS update the app?" size="sm" onClose={() => answer(false)}
-      footer={<><Button onClick={() => answer(false)}>Don't allow</Button><Button variant="primary" onClick={() => answer(true)}>Allow updates</Button></>}>
-      <p><b style={{ wordBreak: "break-all" }}>{platform.connection.origin}</b> offers an update of this app's screens.</p>
-      <p className="fine">{what()} You can change this in Settings → This device.</p>
+    <Dialog title={t.title} size="sm" onClose={() => answer(false)}
+      footer={<><Button onClick={() => answer(false)}>{t.dontAllow}</Button><Button variant="primary" onClick={() => answer(true)}>{t.allow}</Button></>}>
+      <p><b style={{ wordBreak: "break-all" }}>{platform.connection.origin}</b>{t.offers}</p>
+      <p className="fine">{what()}{t.changeInSettings}</p>
     </Dialog>
   );
 }
@@ -41,9 +42,9 @@ export function InterfaceUpdatesSection() {
   const u = useInterfaceUpdates();
   if (!u || u.state.official || u.state.consent === null) return null;
   return (
-    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Updates of the app</legend>
-      <Check checked={u.state.consent === "yes"} onChange={(v) => void u.updates.answer(v)} hint={`${what()} Turned off, the app goes back to the screens it was installed with the next time it starts.`}>
-        Updates from PURSS
+    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.legend}</legend>
+      <Check checked={u.state.consent === "yes"} onChange={(v) => void u.updates.answer(v)} hint={t.hint(what())}>
+        {t.label}
       </Check>
     </fieldset>
   );

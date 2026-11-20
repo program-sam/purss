@@ -1,6 +1,9 @@
 import { KeychainAccess, SecureStorage } from "@aparajita/capacitor-secure-storage";
 import { parseConnection } from "./connect.ts";
 import type { Connection } from "./connect.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.connectionStore;
 
 /**
  * The device token, in the system's secure storage: the Keychain on iOS (this device only, readable
@@ -20,5 +23,5 @@ export async function saveConnection(c: Connection): Promise<void> {
 /** Remove the connection; rejects when secure storage refuses (it resolves when nothing was stored). */
 export async function forgetConnection(): Promise<void> {
   await SecureStorage.remove(KEY);
-  if (await readConnection()) throw new Error("The connection is still in secure storage.");
+  if (await readConnection()) throw new Error(t.stillInSecureStorage);
 }

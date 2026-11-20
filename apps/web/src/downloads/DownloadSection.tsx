@@ -12,12 +12,15 @@ import { useDownloadMovesToRead } from "./to-read.ts";
 import { pageToDownload } from "@purss/domain";
 import { useNav } from "../nav.ts";
 import type { DownloadProgress } from "./types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.downloads.downloadSection;
 
 /** " 23.4 MB of 65.6 MB (36%)", or just the bytes so far while the whole size isn't known. */
 function progressText(p: DownloadProgress | null): string {
   if (!p || p.bytes <= 0) return "";
   const share = progressFraction(p);
-  return share === null ? ` ${bytesLabel(p.bytes)}` : ` ${bytesLabel(p.bytes)} of ${bytesLabel(p.total!)} (${Math.round(share * 100)}%)`;
+  return share === null ? t.progressSoFar(bytesLabel(p.bytes)) : t.progressOf(bytesLabel(p.bytes), bytesLabel(p.total!), Math.round(share * 100));
 }
 
 /**
@@ -36,24 +39,24 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
 
   const media = item.media;
   const page = pageToDownload(item);
-  const what = media ? `its text, your highlights and notes, and the ${media.kind === "video" ? "video" : "audio"} file${media.length ? ` (about ${fileSize(media.length)})` : ""}`
-    : page ? "the full article (your PURSS has only the summary, so it's read from the publisher's page) and your highlights and notes"
-    : "its text and your highlights and notes";
-  const fromWhere = media ? " The file comes straight from the publisher, who sees this device's address."
-    : page ? " The page comes straight from the publisher, who sees this device's address." : "";
+  const what = media ? t.whatMedia(media.kind, media.length ? fileSize(media.length) : null)
+    : page ? t.whatPage
+    : t.whatText;
+  const fromWhere = media ? t.fromPublisherFile
+    : page ? t.fromPublisherPage : "";
 
   async function download() {
     setBusy(true);
     void toRead(item);
     try { await downloads!.download(item.id); } finally { setBusy(false); }
     const r = downloads!.get(item.id);
-    if (r?.state === "done") toast(`Downloaded to this device · ${bytesLabel(r.bytes)}`);
+    if (r?.state === "done") toast(t.downloadedToast(bytesLabel(r.bytes)));
   }
   async function again() {
     setBusy(true);
     try { await downloads!.remove(item.id); await downloads!.download(item.id); } finally { setBusy(false); }
     const r = downloads!.get(item.id);
-    if (r?.state === "done") toast(r.page?.state === "saved" ? "Downloaded the full article to this device." : "Downloaded to this device, still with the summary only.");
+    if (r?.state === "done") toast(r.page?.state === "saved" ? t.downloadedFullArticle : t.downloadedSummaryOnly);
   }
   async function remove() {
     setBusy(true);
@@ -61,7 +64,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
       if (snap.now?.itemId === item.id && snap.now.from === "device") await player.close();
       const bytes = record?.bytes ?? 0;
       await downloads!.remove(item.id);
-      toast(`Removed the download from this device${bytes ? `, freeing ${bytesLabel(bytes)}` : ""}. Nothing changed in your PURSS.`);
+      toast(t.removedToast(bytes ? bytesLabel(bytes) : null));
     } finally { setBusy(false); }
   }
 
@@ -71,32 +74,32 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
         <div className="media-saved">
           <div className="dl-state" role="status">
             <DownloadRing progress={null} queued />
-            <p>{record?.state === "downloading" ? "Waiting to go on downloading from where it stopped." : "Waiting to download, after the download in progress."}</p>
+            <p>{record?.state === "downloading" ? t.queuedResume : t.queuedNew}</p>
           </div>
-          <Button onClick={() => void downloads.cancel(item.id)}>Take out of the queue</Button>
+          <Button onClick={() => void downloads.cancel(item.id)}>{t.leaveQueue}</Button>
         </div>
       ) : !record ? (
         <div className="media-saved">
-          <p className="fine">Download {what} to read{media ? " and play" : ""} offline.{fromWhere} Downloads stay on this device.</p>
-          <Button disabled={busy} onClick={() => void download()}><Icon name="download" size="sm" />Download to this device</Button>
+          <p className="fine">{t.offer(what, !!media, fromWhere)}</p>
+          <Button disabled={busy} onClick={() => void download()}><Icon name="download" size="sm" />{t.download}</Button>
         </div>
       ) : record.state === "downloading" ? (
         <div className="media-saved">
           <div className="dl-state" role="status">
             <DownloadRing progress={progress} />
-            <p>Downloading to this device…{progressText(progress)}</p>
+            <p>{t.downloading}{progressText(progress)}</p>
           </div>
-          <Button onClick={() => void downloads.cancel(item.id).then(() => toast("Stopped the download. Nothing of it was kept."))}>Stop download</Button>
+          <Button onClick={() => void downloads.cancel(item.id).then(() => toast(t.stopped))}>{t.stop}</Button>
         </div>
       ) : record.state === "failed" ? (
         <div className="media-saved">
           <div className="dl-state failed">
             <Icon name="alert" />
-            <p><span className="dl-head">Not downloaded.</span> {record.error ?? "The download didn't finish."}</p>
+            <p><span className="dl-head">{t.notDownloaded}</span> {record.error ?? t.didntFinish}</p>
           </div>
           <div className="fx-acts-row">
-            <Button disabled={busy} onClick={() => void download()}>Try again</Button>
-            <Button disabled={busy} onClick={() => void remove()}>Dismiss</Button>
+            <Button disabled={busy} onClick={() => void download()}>{t.tryAgain}</Button>
+            <Button disabled={busy} onClick={() => void remove()}>{t.dismiss}</Button>
           </div>
         </div>
       ) : (
@@ -104,15 +107,15 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
           <div className="dl-state">
             <span className="dl-badge lg" aria-hidden="true"><Icon name="check" /></span>
             <div>
-              <p className="dl-head">Downloaded to this device{record.origin === "auto" ? " automatically" : ""}</p>
-              <p className="fine">{bytesLabel(record.bytes)} · {media ? "plays and reads" : record.page?.state === "saved" ? "the full article, shown below, reads" : "reads"} without a connection. <button type="button" className="link" onClick={() => nav.goPath("/downloads")}>All downloads</button></p>
+              <p className="dl-head">{t.downloaded(record.origin === "auto")}</p>
+              <p className="fine">{t.savedLine(bytesLabel(record.bytes), media ? t.playsAndReads : record.page?.state === "saved" ? t.articleReads : t.reads)}<button type="button" className="link" onClick={() => nav.goPath("/downloads")}>{t.allDownloads}</button></p>
             </div>
           </div>
-          <Button disabled={busy} onClick={() => void remove()}><Icon name="trash" size="sm" />Remove download</Button>
+          <Button disabled={busy} onClick={() => void remove()}><Icon name="trash" size="sm" />{t.remove}</Button>
           {record.page?.state === "failed" ? (
             <div className="dl-state failed dl-page">
               <Icon name="alert" />
-              <p><span className="dl-head">Only the summary was saved.</span> {record.page.error} <button type="button" className="link" disabled={busy} onClick={() => void again()}>Try again</button></p>
+              <p><span className="dl-head">{t.onlySummary}</span> {record.page.error} <button type="button" className="link" disabled={busy} onClick={() => void again()}>{t.tryAgain}</button></p>
             </div>
           ) : null}
         </div>

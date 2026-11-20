@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { AnnotationList, AnnotationPut, AnnotationWriteResult } from "@purss/domain";
 import { ApiError, del, get, put } from "../api/client.ts";
 import { useSession } from "../api/hooks.ts";
@@ -153,7 +154,7 @@ export function AnnotationSync({ keepOtherAccounts = false }: { keepOtherAccount
   useEffect(() => {
     if (!keepOtherAccounts || !others || told.current) return;
     told.current = true;
-    toast(`${others === 1 ? "1 highlight or note" : `${others} highlights or notes`} from another account ${others === 1 ? "is" : "are"} waiting on this device. Copy or discard ${others === 1 ? "it" : "them"} in Settings → This device.`);
+    toast(app.annotations.sync.otherAccounts(others));
   }, [keepOtherAccounts, others, toast]);
   useEffect(() => {
     if (!accountId || !waiting) return;

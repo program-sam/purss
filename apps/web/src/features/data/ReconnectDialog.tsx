@@ -2,10 +2,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DiscoveryCandidate, DiscoveryResult, SourceDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { refreshWorkspace } from "../../api/queries.ts";
 import { useToasts } from "../../state/toasts.tsx";
+
+const t = app.data.reconnectDialog;
 
 /** Paste a private source's link again to resume it. The link is stored apart from other data and never shown again. */
 export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClose: () => void }) {
@@ -33,24 +36,24 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
       await post(`/api/sources/${encodeURIComponent(source.id)}/reconnect`, { token: cand.token });
       refreshWorkspace(qc);
       onClose();
-      toast(`Reconnected ${source.title}. New items arrive after the next check.`);
+      toast(t.reconnected(source.title));
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
 
   return (
-    <Dialog title={`Reconnect ${source.title}`} size="md" onClose={onClose} initialFocus="#rc-url"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!cand || busy} onClick={() => void reconnect()}>Reconnect</Button></>}>
-      <p className="hint">This source's private link wasn't kept in the file, on purpose, because it contains a secret. Paste the link again to carry on. Everything already collected stays.</p>
+    <Dialog title={t.title(source.title)} size="md" onClose={onClose} initialFocus="#rc-url"
+      footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={!cand || busy} onClick={() => void reconnect()}>{t.reconnect}</Button></>}>
+      <p className="hint">{t.hint}</p>
       <form className="field" onSubmit={(e) => void look(e)}>
-        <label htmlFor="rc-url">The source's link</label>
+        <label htmlFor="rc-url">{t.linkLabel}</label>
         <div className="find">
           <input className="in" id="rc-url" type="text" inputMode="url" autoComplete="off" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)} aria-describedby="rc-help" />
-          <button type="submit" className="btn primary" style={{ height: 38 }} disabled={looking || !url.trim()}>Look up</button>
+          <button type="submit" className="btn primary" style={{ height: 38 }} disabled={looking || !url.trim()}>{t.lookUp}</button>
         </div>
-        <p className="fine" id="rc-help">It is stored apart from your other data and is never shown again.</p>
+        <p className="fine" id="rc-help">{t.stored}</p>
       </form>
       <div aria-live="polite" style={{ display: "grid", gap: 12 }}>
-        {looking ? <p className="state"><span className="spin" aria-hidden="true" />Looking…</p> : null}
+        {looking ? <p className="state"><span className="spin" aria-hidden="true" />{t.looking}</p> : null}
         {result && !result.ok ? <p className="state note" role="alert"><Icon name="info" /><span>{result.message}</span></p> : null}
         {cands.length ? (
           <div className="cands" role="radiogroup" aria-label="Feeds found">

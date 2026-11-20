@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import type { MenuEntry } from "@purss/ui";
 import { originalLink } from "./items.ts";
@@ -9,8 +10,9 @@ import { originalLink } from "./items.ts";
  */
 export function copyLinkEntries(item: Pick<ItemDTO, "url" | "media" | "linkIsMedia">, o: { workspaceLink: string; copy: (text: string, message: string) => void }): MenuEntry[] {
   const original = originalLink(item)?.href ?? null;
+  const t = app.lib.copyLink;
   return [
-    ...(original ? [{ label: "Copy link to the original", icon: "copy" as const, onSelect: () => o.copy(original, "Link copied") }] : []),
-    { label: "Copy your private link to this item", icon: "copy" as const, onSelect: () => o.copy(o.workspaceLink, "Link to this item in your PURSS copied. Only you can open it.") },
+    ...(original ? [{ label: t.original, icon: "copy" as const, onSelect: () => o.copy(original, t.originalCopied) }] : []),
+    { label: t.private, icon: "copy" as const, onSelect: () => o.copy(o.workspaceLink, t.privateCopied) },
   ];
 }

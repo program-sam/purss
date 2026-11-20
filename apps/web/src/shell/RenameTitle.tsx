@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: 
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!draft.trim()) { setError("A title can't be empty."); return; }
+    if (!draft.trim()) { setError(app.shell.renameTitle.empty); return; }
     if (draft.trim() === title) { onDone(); return; }
     setBusy(true); setError("");
     try {
@@ -30,8 +31,8 @@ export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: 
       <TextInput value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={300} aria-label="Title" autoFocus dir="auto" autoComplete="off" />
       {error ? <p className="fine" role="alert">{error}</p> : null}
       <div style={{ display: "flex", gap: 8 }}>
-        <Button type="submit" variant="primary" disabled={busy}>{busy ? "Saving…" : "Save title"}</Button>
-        <Button type="button" onClick={onDone}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={busy}>{busy ? app.shell.renameTitle.saving : app.shell.renameTitle.save}</Button>
+        <Button type="button" onClick={onDone}>{app.shell.renameTitle.cancel}</Button>
       </div>
     </form>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { SourceDTO } from "@purss/domain";
 import { Avatar, Button, Check, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { del, messageOf, patch } from "../api/client.ts";
@@ -11,6 +12,8 @@ import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.dialogs.sources;
 
 /** Give a source a name of your own (feeds often have long or generic titles). */
 export function RenameSourceDialog({ id }: { id: string }) {
@@ -32,14 +35,14 @@ export function RenameSourceDialog({ id }: { id: string }) {
       putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: next }));
       refreshWorkspace(qc);
       ov.close();
-      toast(`Renamed to ${isolate(next)}`, { undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: before })); refreshWorkspace(qc); } });
+      toast(t.rename.renamed(isolate(next)), { undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: before })); refreshWorkspace(qc); } });
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
   return (
-    <Dialog title="Rename source" size="sm" onClose={ov.close} initialFocus="#rn-title"
-      footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" type="submit" form="rn-form" disabled={busy || !title.trim()}>Save</Button></>}>
+    <Dialog title={t.rename.title} size="sm" onClose={ov.close} initialFocus="#rn-title"
+      footer={<><Button onClick={ov.close}>{t.rename.cancel}</Button><Button variant="primary" type="submit" form="rn-form" disabled={busy || !title.trim()}>{t.rename.save}</Button></>}>
       <form id="rn-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <Field label="Name" htmlFor="rn-title" hint="Only you see it">
+        <Field label={t.rename.name} htmlFor="rn-title" hint={t.rename.hint}>
           <TextInput id="rn-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} autoComplete="off" />
         </Field>
       </form>
@@ -69,14 +72,14 @@ export function MoveSourceDialog({ id }: { id: string }) {
       refreshWorkspace(qc);
       ov.close();
       const before = s.collectionIds;
-      toast(ids.length ? `${isolate(s.title)} is in ${ids.map((c) => ws.collectionById.get(c)?.name).filter((n): n is string => !!n).map(isolate).join(", ")}` : `${isolate(s.title)} is no longer in a collection`, {
+      toast(ids.length ? t.move.isIn(isolate(s.title), ids.map((c) => ws.collectionById.get(c)?.name).filter((n): n is string => !!n).map(isolate).join(", ")) : t.move.noLonger(isolate(s.title)), {
         undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { collectionIds: before })); refreshWorkspace(qc); },
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
   return (
-    <Dialog title="Collections for this source" size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="primary" disabled={busy} onClick={save}>Save</Button></>}>
+    <Dialog title={t.move.title} size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>{t.move.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{t.move.save}</Button></>}>
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}><Avatar hue={s.hue} initials={s.initials} src={s.iconUrl} size={20} /> {s.title}</legend>
         {options.length ? (
           <div className="radiolist">
@@ -86,13 +89,13 @@ export function MoveSourceDialog({ id }: { id: string }) {
                 <label key={c.id} className="rl">
                   <input type="checkbox" checked={on} onChange={(e) => setIds(e.target.checked ? [...ids, c.id] : ids.filter((x) => x !== c.id))} />
                   <span className="cb" aria-hidden="true"><Icon name="check" /></span><span>{c.name}</span>
-                  {s.collectionIds.includes(c.id) ? <span className="where">Current</span> : null}
+                  {s.collectionIds.includes(c.id) ? <span className="where">{t.move.current}</span> : null}
                 </label>
               );
             })}
           </div>
-        ) : <p className="fine">You have no collections that group sources yet. Create one from the sidebar.</p>}
-        <p className="fine">A source can be in several collections, or none. You follow it either way.</p>
+        ) : <p className="fine">{t.move.none}</p>}
+        <p className="fine">{t.move.note}</p>
       </fieldset>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
@@ -119,16 +122,16 @@ export function UnfollowDialog({ id }: { id: string }) {
       refreshWorkspace(qc);
       ov.close();
       nav.go(s.collectionIds[0] ? { t: "c", id: s.collectionIds[0] } : { t: "home" });
-      toast(`Unfollowed ${isolate(s.title)}.${out.deletedItems ? ` Deleted ${plural(out.deletedItems, "item")} you hadn't kept.` : ""}${out.keptItems ? ` ${plural(out.keptItems, "kept item")} stay in your baskets.` : ""}`);
+      toast(`${t.unfollow.unfollowed(isolate(s.title))}${out.deletedItems ? t.unfollow.deletedUnkept(plural(out.deletedItems, t.unfollow.item)) : ""}${out.keptItems ? t.unfollow.keptStay(plural(out.keptItems, t.unfollow.keptItem)) : ""}`);
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
 
   return (
-    <Dialog title={`Unfollow ${isolate(s.title)}?`} size="sm" onClose={ov.close} initialFocus=".dlg-f .btn"
-      footer={<><Button onClick={ov.close}>Cancel</Button><Button variant="danger" disabled={busy} onClick={go}>Unfollow</Button></>}>
-      <p className="hint">You'll get no new items, and the source leaves your collections. Kept items stay in their baskets. Items with your highlights or notes stay findable. All other items disappear from your lists and search.</p>
-      <Check checked={deleteUnkept} onChange={setDeleteUnkept} hint="Frees storage. This can't be undone. Kept items, shared items and items with your highlights or notes are never deleted.">Also delete the items you haven't kept</Check>
-      <p className="fine">You can follow it again later by pasting its link in Add source.</p>
+    <Dialog title={t.unfollow.title(isolate(s.title))} size="sm" onClose={ov.close} initialFocus=".dlg-f .btn"
+      footer={<><Button onClick={ov.close}>{t.unfollow.cancel}</Button><Button variant="danger" disabled={busy} onClick={go}>{t.unfollow.unfollow}</Button></>}>
+      <p className="hint">{t.unfollow.hint}</p>
+      <Check checked={deleteUnkept} onChange={setDeleteUnkept} hint={t.unfollow.deleteHint}>{t.unfollow.alsoDelete}</Check>
+      <p className="fine">{t.unfollow.followAgain}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
     </Dialog>
   );

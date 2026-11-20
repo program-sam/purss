@@ -9,6 +9,9 @@ import { checkInfo, connectPageUrl, parsePending, passkeysOffered, pkce, provide
 import { inviteFromLink, tokenFromLink } from "../../lib/email-links.ts";
 import type { Connection, Pending } from "./connect.ts";
 import type { Passkeys } from "../types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.connectScreen;
 
 /**
  * The apps' first screen: straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
@@ -87,17 +90,17 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     shell.closeBrowser();
     pendingRef.current = null;
     localStorage.removeItem(PENDING_KEY);
-    if (back.kind === "declined") { restart(pending.origin, "You chose not to connect this app."); return; }
+    if (back.kind === "declined") { restart(pending.origin, t.declined); return; }
     if (back.kind === "error") { restart(pending.origin, back.message); return; }
     setPhase({ kind: "finishing" });
     try {
       const out = await getJson(`${pending.origin}/api/connect/token`, { method: "POST", body: JSON.stringify({ client: "mobile", code: back.code, codeVerifier: pending.verifier, redirectUri: REDIRECT_URI }) });
       const token = (out.body as Partial<ConnectTokenResult> | null)?.token;
-      if (out.status !== 200 || typeof token !== "string") throw new Error((out.body as { error?: { message?: string } } | null)?.error?.message ?? "PURSS didn't accept the connection. Start again.");
+      if (out.status !== 200 || typeof token !== "string") throw new Error((out.body as { error?: { message?: string } } | null)?.error?.message ?? t.notAccepted);
       await saveConnection({ origin: pending.origin, token, passkeys: pending.passkeys === true });
       location.reload();
     } catch (err) {
-      restart(pending.origin, err instanceof Error && err.message && !/fetch|network|abort/i.test(err.message) ? err.message : "Couldn't reach PURSS to finish connecting. Check your connection and start again.");
+      restart(pending.origin, err instanceof Error && err.message && !/fetch|network|abort/i.test(err.message) ? err.message : t.finishUnreachable);
     }
   }
 
@@ -136,14 +139,14 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     const failed = (message: string) => { setError(message); setPhase(typed ? { kind: "address" } : { kind: "unreachable", origin: n.origin }); };
     try {
       const out = await getJson(`${n.origin}/api/connect/info`);
-      const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? "That address answers, but it isn't a PURSS." : "PURSS didn't answer properly. Try again later." };
+      const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? t.notAPurss : t.didntAnswer };
       if (!checked.ok) { failed(checked.message); return; }
       localStorage.setItem(ADDRESS_KEY, n.origin);
       const ws: Workspace = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info), providers: providersOffered(checked.info) };
       if (!signinOffered(checked.info)) { await openBrowser(ws); return; }
       setPhase({ kind: "signin", ws });
     } catch {
-      failed(typed ? "Couldn't reach that address. Check it, and that this device is online." : "Couldn't reach PURSS. Check that this device is online and try again.");
+      failed(typed ? t.unreachableAddress : t.unreachable);
     }
   }
 
@@ -178,9 +181,9 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
       if (!keeping && input.method === "passkey") {
         const challenge = await getJson(`${origin}/api/connect/passkey/options`, { method: "POST", body: "{}" });
         const { challengeId, options } = (challenge.body ?? {}) as { challengeId?: string; options?: Parameters<Passkeys["get"]>[0] };
-        if (challenge.status !== 200 || !challengeId || !options) return { error: errorMessage(challenge.body, "PURSS didn't start the sign-in. Try again.") };
+        if (challenge.status !== 200 || !challengeId || !options) return { error: errorMessage(challenge.body, t.signInNotStarted) };
         try { body = { method: "passkey", challengeId, response: await shell.passkeys!.get(options) }; } catch (err) {
-          return { error: (err as Error).name === "NotAllowedError" ? "That didn't sign you in. Try your passkey again, or use your password." : "This phone couldn't use fingerprint, face or screen lock for this PURSS." };
+          return { error: (err as Error).name === "NotAllowedError" ? t.passkeyRefused : t.passkeyUnsupported };
         }
       }
       // What this PURSS gave the app at its last password sign-in, for sign-in tries of its own (the server's auth/sign-in-limits.ts).
@@ -190,32 +193,32 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
       const error = (out.body as { error?: { code?: string; dueAt?: string; keepToken?: string } } | null)?.error;
       if (out.status === 409 && error?.code === "deletion_pending" && error.keepToken && error.dueAt) return { keep: { token: error.keepToken, dueAt: error.dueAt } };
       const token = (out.body as Partial<ConnectTokenResult> | null)?.token;
-      if (out.status !== 200 || typeof token !== "string") return { error: errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't sign you in. Try again.") };
+      if (out.status !== 200 || typeof token !== "string") return { error: errorMessage(out.body, out.status === 429 ? t.tooManyAttempts : t.notSignedIn) };
       const keepKnown = (out.body as Partial<ConnectTokenResult>).known;
       if (typeof keepKnown === "string") writeKnown(knownKey, keepKnown);
       await saveConnection({ origin, token, passkeys: ws.passkeys });
       location.reload();
       return {};
     } catch (err) {
-      return { error: offline(err) ? "Couldn't reach PURSS. Check your connection and try again." : (err as Error).message };
+      return { error: offline(err) ? t.cantReach : (err as Error).message };
     }
   }
 
   async function setNewPassword(origin: string, token: string, password: string): Promise<string | null> {
     try {
       const out = await getJson(`${origin}/api/password-reset/confirm`, { method: "POST", body: JSON.stringify({ token, password }) });
-      return out.status === 200 ? null : errorMessage(out.body, "PURSS didn't set the new password. Ask for a new link and try again.");
+      return out.status === 200 ? null : errorMessage(out.body, t.passwordNotSet);
     } catch {
-      return "Couldn't reach PURSS. Check your connection and try again.";
+      return t.cantReach;
     }
   }
 
   async function requestReset(origin: string, email: string): Promise<string | null> {
     try {
       const out = await getJson(`${origin}/api/password-reset`, { method: "POST", body: JSON.stringify({ email }) });
-      return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? "Too many requests. Wait a while and try again." : "PURSS didn't take the request. Try again.");
+      return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? t.tooManyRequests : t.requestNotTaken);
     } catch {
-      return "Couldn't reach PURSS. Check your connection and try again.";
+      return t.cantReach;
     }
   }
 
@@ -223,9 +226,9 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   async function startSignup(start: string, email: string): Promise<string | null> {
     try {
       const out = await getJson(start, { method: "POST", body: JSON.stringify({ email }) });
-      return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't take the request. Try again.");
+      return out.status === 200 ? null : errorMessage(out.body, out.status === 429 ? t.tooManyAttempts : t.requestNotTaken);
     } catch {
-      return "Couldn't reach PURSS. Check your connection and try again.";
+      return t.cantReach;
     }
   }
 
@@ -236,13 +239,13 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
       const out = await getJson(`${origin}/api/connect/signup`, { method: "POST", body: JSON.stringify({ ...input, client: "mobile", deviceName: await deviceName() }) });
       const token = (out.body as Partial<ConnectTokenResult> | null)?.token;
       if (out.status !== 200 || typeof token !== "string") {
-        return errorMessage(out.body, out.status === 429 ? "Too many attempts. Wait a while and try again." : "PURSS didn't create the account. Try again.");
+        return errorMessage(out.body, out.status === 429 ? t.tooManyAttempts : t.accountNotCreated);
       }
       await saveConnection({ origin, token, passkeys: ws.passkeys });
       location.reload();
       return null;
     } catch (err) {
-      return offline(err) ? "Couldn't reach PURSS. Check your connection and try again." : (err as Error).message;
+      return offline(err) ? t.cantReach : (err as Error).message;
     }
   }
 
@@ -259,56 +262,56 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   const officialHost = officialOrigin ? new URL(officialOrigin).host : "";
   const serverLine = (origin: string) => (
     <p className="fine">
-      Connected to {origin.replace(/^https?:\/\//, "")} · <button type="button" className="link" onClick={() => chooseServer(true)}>Use another PURSS</button>
+      {t.serverLine.before}{origin.replace(/^https?:\/\//, "")}{t.serverLine.between}<button type="button" className="link" onClick={() => chooseServer(true)}>{t.serverLine.link}</button>
     </p>
   );
 
   return (
     <>
       <IconSprite />
-      <AuthFrame title={phase.kind === "signin" ? "Sign in" : phase.kind === "signup" ? "Create your account" : "Connect to your PURSS"}
-        intro={phase.kind === "address" || phase.kind === "checking" ? "Type the address of your own PURSS, or of another hosted one." : undefined}>
+      <AuthFrame title={phase.kind === "signin" ? t.titles.signIn : phase.kind === "signup" ? t.titles.createAccount : t.titles.connect}
+        intro={phase.kind === "address" || phase.kind === "checking" ? t.addressIntro : undefined}>
         <div style={{ display: "grid", gap: 14 }}>
           {notice ? <p className="state note" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
           {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
           {phase.kind === "address" || phase.kind === "checking" ? (
             <form onSubmit={start} style={{ display: "grid", gap: 12 }}>
-              <Field label="PURSS address" htmlFor="cn-a" hint="e.g. purss.example.org">
-                <TextInput id="cn-a" type="url" inputMode="url" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="url" spellCheck={false} autoCapitalize="none" placeholder="purss.example.org" />
+              <Field label={t.address.label} htmlFor="cn-a" hint={t.address.hint}>
+                <TextInput id="cn-a" type="url" inputMode="url" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="url" spellCheck={false} autoCapitalize="none" placeholder={t.address.placeholder} />
               </Field>
               {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
-              <div><Button variant="primary" type="submit" disabled={phase.kind === "checking" || !address.trim()}>{phase.kind === "checking" ? "Checking…" : "Continue"}</Button></div>
-              {officialOrigin ? <p className="fine"><button type="button" className="link" disabled={phase.kind === "checking"} onClick={() => chooseServer(false)}>Use the official PURSS ({officialHost})</button></p> : null}
+              <div><Button variant="primary" type="submit" disabled={phase.kind === "checking" || !address.trim()}>{phase.kind === "checking" ? t.address.checking : t.address.continue}</Button></div>
+              {officialOrigin ? <p className="fine"><button type="button" className="link" disabled={phase.kind === "checking"} onClick={() => chooseServer(false)}>{t.address.useOfficial(officialHost)}</button></p> : null}
             </form>
           ) : phase.kind === "opening" ? (
-            <p className="state" role="status"><span className="spin" aria-hidden="true" />Opening your PURSS…</p>
+            <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.opening}</p>
           ) : phase.kind === "unreachable" ? (
             <div style={{ display: "grid", gap: 12 }}>
-              <div><Button variant="primary" onClick={() => void open(phase.origin)}>Try again</Button></div>
+              <div><Button variant="primary" onClick={() => void open(phase.origin)}>{t.tryAgain}</Button></div>
               {serverLine(phase.origin)}
             </div>
           ) : phase.kind === "signin" ? (
             <SigninForm ws={phase.ws} onSignIn={(input) => signIn(phase.ws, input)} onReset={(id) => requestReset(phase.ws.origin, id)} onNewPassword={(token, pw) => setNewPassword(phase.ws.origin, token, pw)}
               browserLabel={phase.ws.passkeys ? shell.browserSignin.withPasskeys : shell.browserSignin.withoutPasskeys}
-              onBrowser={() => void openBrowser(phase.ws).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError("Couldn't open the browser. Try again."); })}
+              onBrowser={() => void openBrowser(phase.ws).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError(t.browserNotOpened); })}
               providers={phase.ws.providers}
-              onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError("Couldn't open the browser. Try again."); })}
+              onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signin", ws: phase.ws }); setError(t.browserNotOpened); })}
               onSignup={phase.ws.signup ? () => setPhase({ kind: "signup", ws: phase.ws, ...phase.ws.signup! }) : null}
               server={serverLine(phase.ws.origin)} />
           ) : phase.kind === "signup" ? (
             <SignupForm start={phase.start} passwordMin={phase.passwordMin} onSubmit={(input) => createAccount(phase.ws, input)} onStart={(email) => startSignup(phase.start!, email)} onBack={() => setPhase({ kind: "signin", ws: phase.ws })}
-              providers={phase.start !== null ? phase.ws.providers : []} onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signup", ws: phase.ws, start: phase.start, passwordMin: phase.passwordMin }); setError("Couldn't open the browser. Try again."); })} />
+              providers={phase.start !== null ? phase.ws.providers : []} onProvider={(provider) => void openBrowser(phase.ws, provider).catch(() => { setPhase({ kind: "signup", ws: phase.ws, start: phase.start, passwordMin: phase.passwordMin }); setError(t.browserNotOpened); })} />
           ) : phase.kind === "waiting" ? (
             <div style={{ display: "grid", gap: 12 }}>
-              <p className="state" role="status"><span className="spin" aria-hidden="true" />Waiting for you to approve this app in the browser…</p>
-              <p className="fine">Sign in if asked, check that it names this device, then press Connect. You'll return here by yourself.</p>
+              <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.waiting.approve}</p>
+              <p className="fine">{t.waiting.steps}</p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {phase.page ? <Button onClick={() => void shell.openBrowser(phase.page)}>Open the browser again</Button> : null}
-                <Button onClick={cancel}>Start again</Button>
+                {phase.page ? <Button onClick={() => void shell.openBrowser(phase.page)}>{t.waiting.openAgain}</Button> : null}
+                <Button onClick={cancel}>{t.waiting.startAgain}</Button>
               </div>
             </div>
           ) : (
-            <p className="state" role="status"><span className="spin" aria-hidden="true" />Connecting…</p>
+            <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.connecting}</p>
           )}
         </div>
       </AuthFrame>
@@ -349,11 +352,11 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
   if (sent !== null) {
     return (
       <div style={{ display: "grid", gap: 12 }}>
-        <p className="state" role="status"><Icon name="check" /><span>Check your inbox: we sent a link to finish creating your account to {sent}.</span></p>
-        <p className="fine">Open the link on this device. It finishes in your browser; then come back here and sign in with that email address and the password you chose.</p>
+        <p className="state" role="status"><Icon name="check" /><span>{t.signupForm.sentTo(sent)}</span></p>
+        <p className="fine">{t.signupForm.openLink}</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={onBack}>Back to signing in</Button>
-          <Button onClick={() => setSent(null)}>Use a different email address</Button>
+          <Button variant="primary" onClick={onBack}>{t.signupForm.backToSigningIn}</Button>
+          <Button onClick={() => setSent(null)}>{t.signupForm.useDifferentEmail}</Button>
         </div>
       </div>
     );
@@ -364,33 +367,33 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
       {providers.length ? (
         <>
           {providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />)}
-          <p className="fine" style={{ textAlign: "center" }}>Opens in your browser. Or make an account here with an email address:</p>
+          <p className="fine" style={{ textAlign: "center" }}>{t.signupForm.providersNote}</p>
         </>
       ) : null}
       {withInvite ? (
-        <Field label="Invitation code" htmlFor="su-c" hint="Or paste the invitation link">
+        <Field label={t.signupForm.invitationCode} htmlFor="su-c" hint={t.signupForm.invitationHint}>
           <TextInput id="su-c" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" maxLength={300} />
         </Field>
       ) : null}
-      <Field label="Email address" htmlFor="su-e" hint={withInvite ? "The one you were invited with" : "We'll email you a link"}>
+      <Field label={t.signupForm.emailLabel} htmlFor="su-e" hint={withInvite ? t.signupForm.invitedEmailHint : t.signupForm.linkEmailHint}>
         <TextInput id="su-e" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={withInvite ? "username" : "email"} spellCheck={false} autoCapitalize="none" maxLength={254} />
       </Field>
-      {start !== null ? <p className="fine"><button type="button" className="link" onClick={() => setWithInvite(!withInvite)}>{withInvite ? "Sign up with an email address instead" : "I have an invitation code"}</button></p> : null}
+      {start !== null ? <p className="fine"><button type="button" className="link" onClick={() => setWithInvite(!withInvite)}>{withInvite ? t.signupForm.withEmailInstead : t.signupForm.haveInvitation}</button></p> : null}
       {withInvite ? (
         <>
-          <Field label="Your name (optional)" htmlFor="su-n">
+          <Field label={t.signupForm.nameLabel} htmlFor="su-n">
             <TextInput id="su-n" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={60} />
           </Field>
-          <Field label="Password" htmlFor="su-p" hint={`${passwordMin}+ characters`}>
+          <Field label={t.signupForm.passwordLabel} htmlFor="su-p" hint={t.signupForm.minCharacters(passwordMin)}>
             <TextInput id="su-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={256} />
           </Field>
         </>
       ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? "Creating…" : "Create account") : busy ? "Sending…" : "Send me the link"}</Button>
-        <Button onClick={onBack} disabled={busy}>Back</Button>
+        <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? t.signupForm.creating : t.signupForm.createAccount) : busy ? t.signupForm.sending : t.signupForm.sendLink}</Button>
+        <Button onClick={onBack} disabled={busy}>{t.signupForm.back}</Button>
       </div>
-      {withInvite ? <p className="fine">You can add a passkey later, under Settings → Security.</p> : null}
+      {withInvite ? <p className="fine">{t.signupForm.passkeyLater}</p> : null}
     </form>
   );
 }
@@ -439,10 +442,10 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
     return (
       <div style={{ display: "grid", gap: 12 }}>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <p className="state note" role="status"><Icon name="alert" /><span>This account is set to be deleted on {new Date(keep.dueAt).toLocaleDateString()}. Keep it, and nothing is deleted.</span></p>
+        <p className="state note" role="status"><Icon name="alert" /><span>{t.signinForm.deletionDue(new Date(keep.dueAt).toLocaleDateString())}</span></p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" disabled={busy} onClick={() => void keepAccount()}>{busy ? "Keeping…" : "Keep my account"}</Button>
-          <Button disabled={busy} onClick={() => { setKeep(null); setPassword(""); }}>Not now</Button>
+          <Button variant="primary" disabled={busy} onClick={() => void keepAccount()}>{busy ? t.signinForm.keeping : t.signinForm.keepAccount}</Button>
+          <Button disabled={busy} onClick={() => { setKeep(null); setPassword(""); }}>{t.signinForm.notNow}</Button>
         </div>
       </div>
     );
@@ -470,18 +473,18 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
     const token = tokenFromLink(link);
     return (
       <form onSubmit={choosePassword} style={{ display: "grid", gap: 12 }} aria-label="Choose a new password">
-        <p className="state" role="status"><Icon name="check" /><span>If that email address has an account, a link to set a new password is on its way.</span></p>
+        <p className="state" role="status"><Icon name="check" /><span>{t.signinForm.resetSent}</span></p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Field label="The link from the email" htmlFor="si-l" hint="Paste it from the email">
+        <Field label={t.signinForm.linkLabel} htmlFor="si-l" hint={t.signinForm.linkHint}>
           <TextInput id="si-l" value={link} onChange={(e) => setLink(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" inputMode="url" />
         </Field>
-        {link && !token ? <p className="fine" role="alert">That isn't the link from the email. Copy the whole link and try again.</p> : null}
-        <Field label="New password" htmlFor="si-np" hint={ws.signup ? `${ws.signup.passwordMin}+ characters` : undefined}>
+        {link && !token ? <p className="fine" role="alert">{t.signinForm.notTheLink}</p> : null}
+        <Field label={t.signinForm.newPassword} htmlFor="si-np" hint={ws.signup ? t.signinForm.minCharacters(ws.signup.passwordMin) : undefined}>
           <TextInput id="si-np" type="password" value={newPassword} onChange={(e) => setNewPasswordText(e.target.value)} autoComplete="new-password" maxLength={256} />
         </Field>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" type="submit" disabled={!token || !newPassword || busy}>{busy ? "Saving…" : "Set the new password"}</Button>
-          <Button onClick={() => go("password")} disabled={busy}>Back to signing in</Button>
+          <Button variant="primary" type="submit" disabled={!token || !newPassword || busy}>{busy ? t.signinForm.saving : t.signinForm.setNewPassword}</Button>
+          <Button onClick={() => go("password")} disabled={busy}>{t.signinForm.backToSigningIn}</Button>
         </div>
       </form>
     );
@@ -489,34 +492,34 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
   if (mode === "reset-done") {
     return (
       <div style={{ display: "grid", gap: 12 }}>
-        <p className="state" role="status"><Icon name="check" /><span>Your new password is set. Sign in with it.</span></p>
-        <div><Button variant="primary" onClick={() => go("password")}>Sign in</Button></div>
+        <p className="state" role="status"><Icon name="check" /><span>{t.signinForm.resetDone}</span></p>
+        <div><Button variant="primary" onClick={() => go("password")}>{t.signinForm.signIn}</Button></div>
       </div>
     );
   }
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }} aria-label="Sign in">
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      <Field label="Email address" htmlFor="si-u" hint={mode === "reset" ? "We'll email a reset link" : undefined}>
+      <Field label={t.signinForm.emailLabel} htmlFor="si-u" hint={mode === "reset" ? t.signinForm.resetHint : undefined}>
         <TextInput id="si-u" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={300} />
       </Field>
       {mode === "password" ? (
-        <Field label="Password" htmlFor="si-p">
+        <Field label={t.signinForm.passwordLabel} htmlFor="si-p">
           <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={256} />
         </Field>
       ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? "Sending…" : "Signing in…") : mode === "reset" ? "Send the link" : "Sign in"}</Button>
+        <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? t.signinForm.sending : t.signinForm.signingIn) : mode === "reset" ? t.signinForm.sendLink : t.signinForm.signIn}</Button>
       </div>
-      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />Sign in with a passkey</Button></div> : null}
+      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />{t.signinForm.withPasskey}</Button></div> : null}
       {mode !== "reset" ? providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />) : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
-        {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>Use an email address and password</button> : null}
-        {mode === "password" && ws.info.signin.passwordReset ? <button type="button" className="link" onClick={() => go("reset")}>Forgot your password?</button> : null}
-        {mode === "reset" ? <button type="button" className="link" onClick={() => go("reset-sent")}>I already have a link</button> : null}
+        {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>{t.signinForm.useEmailAndPassword}</button> : null}
+        {mode === "password" && ws.info.signin.passwordReset ? <button type="button" className="link" onClick={() => go("reset")}>{t.signinForm.forgotPassword}</button> : null}
+        {mode === "reset" ? <button type="button" className="link" onClick={() => go("reset-sent")}>{t.signinForm.haveLink}</button> : null}
         <button type="button" className="link" onClick={onBrowser}>{browserLabel}</button>
       </p>
-      {onSignup ? <p className="fine">New here? <button type="button" className="link" onClick={onSignup}>Create an account</button></p> : null}
+      {onSignup ? <p className="fine">{t.signinForm.newHere.before}<button type="button" className="link" onClick={onSignup}>{t.signinForm.newHere.link}</button></p> : null}
       {server}
     </form>
   );

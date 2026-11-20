@@ -45,6 +45,9 @@ import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQu
 import type { BundleRef, Updater } from "./live-update.ts";
 import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.native;
 
 /**
  * The Android and iOS apps' platform. The interface is the web app's own build, bundled in
@@ -66,12 +69,12 @@ const phoneConnectShell: ConnectShell = {
     try {
       const d = await Device.getInfo();
       const name = d.platform === "android" ? [d.manufacturer.replace(/^./, (c) => c.toUpperCase()), d.model].join(" ") : d.name || d.model;
-      return name.trim().slice(0, 80) || "Phone or tablet";
-    } catch { return "Phone or tablet"; }
+      return name.trim().slice(0, 80) || t.deviceName;
+    } catch { return t.deviceName; }
   },
   save: saveConnection,
   passkeys: nativePasskeys,
-  browserSignin: { withPasskeys: "Sign in with a linked account (opens a sign-in tab)", withoutPasskeys: "Use a passkey or a linked account (opens a sign-in tab)" },
+  browserSignin: t.browserSignin,
 };
 
 /** A bundle as the plugin reports it, or null for its empty answers. */
@@ -201,9 +204,9 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
   const transport: Transport = conn
     ? createAppTransport({ origin, token: conn.token, worker, downloaded: (path) => downloads!.answer(path), fetch: (r) => fetch(r), onLost: () => connection?.lost() })
     : {
-      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: "Connect the app first." } }), { status: 401, headers: { "content-type": "application/json" } }),
+      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: t.connectFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
       events: () => () => {},
-      picture: () => Promise.reject(new Error("Connect the app first.")),
+      picture: () => Promise.reject(new Error(t.connectFirst)),
     };
 
   const offline: OfflineHost = {

@@ -1,5 +1,6 @@
 import type { PushInfo, PushRegisterResult } from "@purss/domain";
 import type { PushStatus } from "../types.ts";
+import { app } from "@purss/copy/app";
 
 /*
  * Notifications on this phone, apart from the device APIs, so the rules can be tested without
@@ -37,13 +38,7 @@ const KEY = "purss:push";
 /** `unsent`: turned off while PURSS or relay couldn't be told; they are told at the next start. */
 type Saved = { on: boolean; scope: string; handle: string | null; unsent?: boolean };
 
-export const PUSH_MESSAGES = {
-  unavailable: "This build of the app can't receive notifications.",
-  workspaceOff: "This PURSS doesn't send phone notifications; its operator has turned them off.",
-  otherRelay: "This PURSS sends phone notifications through another relay than this app uses, so they can't reach it.",
-  denied: "Notifications for this app are blocked in the phone's settings. Allow them there, then turn this on again.",
-  relayDown: "The notification relay couldn't be reached. Try again later.",
-} as const;
+export const PUSH_MESSAGES = app.platform.push.messages;
 
 export class PushController {
   #d: PushDeps;

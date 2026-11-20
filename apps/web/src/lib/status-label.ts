@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { ItemKind, WorkflowState } from "@purss/domain";
 import { workflowLabel } from "./constants.ts";
 
@@ -11,8 +12,8 @@ const NEXT: Partial<Record<WorkflowState, WorkflowState>> = { new: "toread", tor
  */
 export function statusButton(workflow: WorkflowState, kind?: ItemKind): { text: string; aria: string; keyed: boolean; next?: WorkflowState; menuAria: string } {
   const current = workflowLabel(workflow, kind);
-  const menuAria = `State: ${current}. Change state`;
+  const menuAria = app.lib.statusLabel.menu(current);
   const next = NEXT[workflow];
-  if (next) return { text: `Mark ${workflowLabel(next, kind)}`, aria: `Mark ${workflowLabel(next, kind)}`, keyed: false, next, menuAria };
+  if (next) return { text: app.lib.statusLabel.mark(workflowLabel(next, kind)), aria: app.lib.statusLabel.mark(workflowLabel(next, kind)), keyed: false, next, menuAria };
   return { text: current, aria: menuAria, keyed: true, menuAria };
 }

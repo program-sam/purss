@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon, PaletteLayer } from "@purss/ui";
 import type { IconName } from "@purss/ui";
@@ -13,6 +14,8 @@ import { useNav } from "../nav.ts";
 import type { Place } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.dialogs.palette;
 
 /** The search box shows this many items, and asks for this many more each time "Show more results" is chosen, up to the most the server returns. */
 const FIRST = 8;
@@ -47,20 +50,20 @@ export function PaletteDialog({ query }: { query?: string }) {
   const groups = useMemo<Group[]>(() => {
     const go = (p: Place, search?: { item?: string }) => () => { ov.close(); nav.go(p, search); };
     const lower = term.toLowerCase();
-    const places: Result[] = [{ key: "home", label: "Home", sub: "Start page", icon: "home", run: go({ t: "home" }) }];
-    ws.collections.forEach((c) => places.push({ key: `c:${c.id}`, label: c.name, sub: "Collection", icon: "folder", run: go({ t: "c", id: c.id }) }));
-    ws.data.sources.forEach((s) => places.push({ key: `s:${s.id}`, label: s.title, sub: "Source", icon: "rss", run: go({ t: "s", id: s.id }) }));
-    ws.data.baskets.forEach((b) => places.push({ key: `b:${b.id}`, label: b.name, sub: "Basket", icon: "basket", run: go({ t: "b", id: b.id }) }));
+    const places: Result[] = [{ key: "home", label: t.places.home.label, sub: t.places.home.sub, icon: "home", run: go({ t: "home" }) }];
+    ws.collections.forEach((c) => places.push({ key: `c:${c.id}`, label: c.name, sub: t.places.collection, icon: "folder", run: go({ t: "c", id: c.id }) }));
+    ws.data.sources.forEach((s) => places.push({ key: `s:${s.id}`, label: s.title, sub: t.places.source, icon: "rss", run: go({ t: "s", id: s.id }) }));
+    ws.data.baskets.forEach((b) => places.push({ key: `b:${b.id}`, label: b.name, sub: t.places.basket, icon: "basket", run: go({ t: "b", id: b.id }) }));
     const actions: Result[] = [
-      { key: "a:add", label: "Add source", sub: "Action", icon: "plus", run: () => ov.open({ kind: "add-source" }) },
-      { key: "a:col", label: "New collection", sub: "Action", icon: "plus", run: () => ov.open({ kind: "new-collection" }) },
-      { key: "a:bk", label: "New basket", sub: "Action", icon: "plus", run: () => ov.open({ kind: "basket-form" }) },
-      { key: "a:home", label: "Customise Home", sub: "Action", icon: "gear", run: () => ov.open({ kind: "customise-home" }) },
-      { key: "a:set", label: "Settings", sub: "Action", icon: "gear", run: () => ov.open({ kind: "settings" }) },
-      { key: "a:keys", label: "Keyboard shortcuts", sub: "Action", icon: "gear", run: () => ov.open({ kind: "shortcuts" }) },
-      { key: "a:apps", label: "Apps and extensions", sub: "Action", icon: "ext", run: () => ov.open({ kind: "settings", tab: "apps" }) },
+      { key: "a:add", label: t.actions.addSource, sub: t.action, icon: "plus", run: () => ov.open({ kind: "add-source" }) },
+      { key: "a:col", label: t.actions.newCollection, sub: t.action, icon: "plus", run: () => ov.open({ kind: "new-collection" }) },
+      { key: "a:bk", label: t.actions.newBasket, sub: t.action, icon: "plus", run: () => ov.open({ kind: "basket-form" }) },
+      { key: "a:home", label: t.actions.customiseHome, sub: t.action, icon: "gear", run: () => ov.open({ kind: "customise-home" }) },
+      { key: "a:set", label: t.actions.settings, sub: t.action, icon: "gear", run: () => ov.open({ kind: "settings" }) },
+      { key: "a:keys", label: t.actions.shortcuts, sub: t.action, icon: "gear", run: () => ov.open({ kind: "shortcuts" }) },
+      { key: "a:apps", label: t.actions.apps, sub: t.action, icon: "ext", run: () => ov.open({ kind: "settings", tab: "apps" }) },
     ];
-    if (!term) return [{ heading: "Go to", results: places.slice(0, 1 + ws.collections.length) }, { heading: "Actions", results: actions }];
+    if (!term) return [{ heading: t.goTo, results: places.slice(0, 1 + ws.collections.length) }, { heading: t.actionsHeading, results: actions }];
     const out: Group[] = [];
     const items: ItemDTO[] = debounced === term ? search.data?.items ?? [] : [];
     if (items.length) {
@@ -69,13 +72,13 @@ export function PaletteDialog({ query }: { query?: string }) {
         run: go(i.basketIds[0] && !i.sourceId ? { t: "b", id: i.basketIds[0] } : i.sourceId && ws.sourceById.has(i.sourceId) ? { t: "s", id: i.sourceId } : i.basketIds[0] ? { t: "b", id: i.basketIds[0] } : { t: "home" }, { item: i.id }),
       }));
       // Not a result but a way on, last in the list: the arrow keys reach it and Enter asks for more, so the box never closes on the way.
-      if (more) rows.push({ key: "more", label: loadingMore ? "Loading more…" : "Show more results", sub: "Keep going through the items that match", icon: "plus", run: () => setLimit((l) => Math.min(MOST, l + STEP)) });
-      out.push({ heading: "Items in all sources", results: rows });
+      if (more) rows.push({ key: "more", label: loadingMore ? t.loadingMore : t.showMore, sub: t.showMoreSub, icon: "plus", run: () => setLimit((l) => Math.min(MOST, l + STEP)) });
+      out.push({ heading: t.itemsHeading, results: rows });
     }
     const where = places.filter((p) => p.label.toLowerCase().includes(lower)).slice(0, 6);
-    if (where.length) out.push({ heading: "Go to", results: where });
+    if (where.length) out.push({ heading: t.goTo, results: where });
     const acts = actions.filter((a) => a.label.toLowerCase().includes(lower));
-    if (acts.length) out.push({ heading: "Actions", results: acts });
+    if (acts.length) out.push({ heading: t.actionsHeading, results: acts });
     return out;
   }, [term, debounced, search.data, more, loadingMore, ws, ov, nav]);
 
@@ -100,15 +103,15 @@ export function PaletteDialog({ query }: { query?: string }) {
   // One polite announcement for screen readers: that it is searching, then how many results.
   // "Show more results" is a way on, not a result.
   const found = flat.length - (more ? 1 : 0);
-  const count = `${found === 1 ? "1 result" : `${found} results`}`;
-  const spoken = !term ? "" : searching ? "Searching…" : search.isError ? "The search didn't work." : loadingMore ? "Loading more…" : found ? `${count}${more ? ", more available" : ""}` : "Nothing matches.";
+  const count = t.count(found);
+  const spoken = !term ? "" : searching ? t.searching : search.isError ? t.searchFailed : loadingMore ? t.loadingMore : found ? `${count}${more ? t.moreAvailable : ""}` : t.nothing;
   return (
     <PaletteLayer label="Search" onClose={ov.close}>
       <div className="pal-in">
         <Icon name="search" />
         <input id="pq" role="combobox" aria-expanded="true" aria-controls="pl" aria-autocomplete="list" aria-activedescendant={flat.length ? `po${active}` : undefined}
-          placeholder="Search items, sources, collections and baskets" autoComplete="off" spellCheck={false} autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} />
-        <button type="button" className="ibtn" aria-label="Close search" title="Close (Esc)" onClick={ov.close}><Icon name="x" /></button>
+          placeholder={t.placeholder} autoComplete="off" spellCheck={false} autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} />
+        <button type="button" className="ibtn" aria-label="Close search" title={t.closeTitle} onClick={ov.close}><Icon name="x" /></button>
       </div>
       <div className="pal-list" id="pl" role="listbox" aria-label="Results" ref={listRef}>
         {groups.map((g) => (
@@ -127,12 +130,12 @@ export function PaletteDialog({ query }: { query?: string }) {
             })}
           </div>
         ))}
-        {atMost ? <p className="fine" style={{ padding: "6px 12px" }}>Showing the first {MOST} items that match. Add a word to narrow the search.</p> : null}
-        {nothing ? <p className="pal-empty">Nothing matches <span dir="auto">“{term}”</span>.</p> : null}
-        {searching ? <p className="fine" style={{ padding: "6px 12px" }}>Searching…</p> : null}
+        {atMost ? <p className="fine" style={{ padding: "6px 12px" }}>{t.atMost(MOST)}</p> : null}
+        {nothing ? <p className="pal-empty">{t.nothingMatches.before}<span dir="auto">{t.nothingMatches.open}{term}{t.nothingMatches.close}</span>{t.nothingMatches.after}</p> : null}
+        {searching ? <p className="fine" style={{ padding: "6px 12px" }}>{t.searching}</p> : null}
         {search.isError && answered ? <p className="fine" style={{ padding: "6px 12px" }} role="alert">{messageOf(search.error)}</p> : null}
       </div>
-      {flat.length ? <div className="pal-foot">{count}{more ? " so far" : ""}<span className="keys">↑↓ to choose · Enter to open</span></div> : null}
+      {flat.length ? <div className="pal-foot">{count}{more ? t.soFar : ""}<span className="keys">{t.footer}</span></div> : null}
       <div className="sr" role="status" aria-live="polite">{spoken}</div>
     </PaletteLayer>
   );
@@ -146,5 +149,5 @@ function ResultFace({ item }: { item: ItemDTO }) {
 /** The server's snippet, with the matched words (between U+0001 and U+0002) marked. */
 function Marked({ text, note = false }: { text: string; note?: boolean }) {
   const parts = text.split(/\u0001|\u0002/);
-  return <small className="snip" dir="auto">{note ? <b className="snip-note">Your note: </b> : null}{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</small>;
+  return <small className="snip" dir="auto">{note ? <b className="snip-note">{t.yourNote}</b> : null}{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</small>;
 }

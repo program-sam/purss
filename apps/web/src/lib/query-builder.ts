@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { CollectionDTO, ItemKind, QueryNode, WorkflowState } from "@purss/domain";
 import { KIND_LABELS, WORKFLOW_LABELS } from "./constants.ts";
 import { interfaceLocale } from "./format.ts";
@@ -33,7 +34,7 @@ export function draftToQuery(d: QueryDraft): BuildResult {
   const leaves: QueryNode[] = [];
   const text = d.text.trim();
   if (text) {
-    if (text.length > 200) return { ok: false, message: "Keep the words to 200 characters or fewer." };
+    if (text.length > 200) return { ok: false, message: app.lib.queryBuilder.wordsTooLong };
     leaves.push({ field: "text", value: text });
   }
   if (d.sourceIds.length) leaves.push({ field: "source", value: d.sourceIds.slice(0, 50) });
@@ -41,12 +42,12 @@ export function draftToQuery(d: QueryDraft): BuildResult {
   if (d.workflows.length) leaves.push({ field: "workflow", value: [...d.workflows] });
   if (d.kept !== "any") leaves.push({ field: "kept", value: d.kept === "kept" });
   if (d.from || d.to) {
-    if ((d.from && !DATE.test(d.from)) || (d.to && !DATE.test(d.to))) return { ok: false, message: "Use a valid date." };
-    if (d.from && d.to && d.from > d.to) return { ok: false, message: "The start date is after the end date." };
+    if ((d.from && !DATE.test(d.from)) || (d.to && !DATE.test(d.to))) return { ok: false, message: app.lib.queryBuilder.invalidDate };
+    if (d.from && d.to && d.from > d.to) return { ok: false, message: app.lib.queryBuilder.startAfterEnd };
     leaves.push({ field: "date", which: d.dateBasis, ...(d.from ? { from: d.from } : {}), ...(d.to ? { to: d.to } : {}) });
   }
-  if (!leaves.length) return { ok: false, message: "Add at least one condition." };
-  if (leaves.length > 24) return { ok: false, message: "That filter has too many conditions." };
+  if (!leaves.length) return { ok: false, message: app.lib.queryBuilder.noCondition };
+  if (leaves.length > 24) return { ok: false, message: app.lib.queryBuilder.tooManyConditions };
   return { ok: true, query: leaves.length === 1 ? leaves[0]! : { all: leaves } };
 }
 
@@ -75,7 +76,7 @@ export function queryToDraft(query: QueryNode | null): ParsedDraft {
   return { editable: true, draft };
 }
 
-const BASIS_WORD: Record<DateBasis, string> = { published: "published", discovered: "arrived", kept: "kept" };
+const BASIS_WORD: Record<DateBasis, string> = app.lib.queryBuilder.basis;
 
 /** "3 Nov 2026" for a YYYY-MM-DD date, read as that calendar day wherever the person is. */
 function plainDay(day: string, locale: string): string {
@@ -84,28 +85,29 @@ function plainDay(day: string, locale: string): string {
 }
 
 function joinOr(words: string[]): string {
-  return words.length < 3 ? words.join(" or ") : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
+  return app.lib.queryBuilder.joinOr(words);
 }
 
 /** Plain-language summary of a stored query, for settings and empty states. */
 export function describeQuery(query: QueryNode | null, names: { source: (id: string) => string }, locale = interfaceLocale()): string {
   const parsed = queryToDraft(query);
-  if (!parsed.editable) return "A custom filter.";
+  const t = app.lib.queryBuilder;
+  if (!parsed.editable) return t.custom;
   const d = parsed.draft;
   const bits: string[] = [];
   if (d.text) {
     const words = d.text.split(/[\s,]+/).filter(Boolean);
-    bits.push(words.length > 1 ? `containing all of these words: ${words.join(", ")}` : `containing “${d.text.trim()}”`);
+    bits.push(words.length > 1 ? t.containingAll(words) : t.containing(d.text.trim()));
   }
-  if (d.sourceIds.length) bits.push(`from ${d.sourceIds.map(names.source).join(", ")}`);
-  if (d.kinds.length) bits.push(`that are ${joinOr(d.kinds.map((k) => `${KIND_LABELS[k].toLowerCase()}s`))}`);
-  if (d.workflows.length) bits.push(`marked ${joinOr(d.workflows.map((w) => WORKFLOW_LABELS[w]))}`);
-  if (d.kept !== "any") bits.push(d.kept === "kept" ? "kept in a basket" : "not kept");
+  if (d.sourceIds.length) bits.push(t.from(d.sourceIds.map(names.source)));
+  if (d.kinds.length) bits.push(t.thatAre(joinOr(d.kinds.map((k) => t.kindPlural(KIND_LABELS[k])))));
+  if (d.workflows.length) bits.push(t.marked(joinOr(d.workflows.map((w) => WORKFLOW_LABELS[w]))));
+  if (d.kept !== "any") bits.push(d.kept === "kept" ? t.keptInBasket : t.notKept);
   if (d.from || d.to) {
     const basis = BASIS_WORD[d.dateBasis];
-    bits.push(d.from && d.to ? `${basis} ${plainDay(d.from, locale)} to ${plainDay(d.to, locale)}` : d.from ? `${basis} from ${plainDay(d.from, locale)}` : `${basis} until ${plainDay(d.to, locale)}`);
+    bits.push(d.from && d.to ? t.dateRange(basis, plainDay(d.from, locale), plainDay(d.to, locale)) : d.from ? t.dateFrom(basis, plainDay(d.from, locale)) : t.dateUntil(basis, plainDay(d.to, locale)));
   }
-  return bits.length ? `Items ${bits.join(", ")}.` : "Everything.";
+  return bits.length ? t.items(bits) : t.everything;
 }
 
 /**
@@ -116,5 +118,5 @@ export function excludesWorkflow(collection: Pick<CollectionDTO, "mode" | "query
   if (collection.mode !== "query") return null;
   const parsed = queryToDraft(collection.query);
   if (!parsed.editable || !parsed.draft.workflows.length || parsed.draft.workflows.includes(workflow)) return null;
-  return `this collection only shows items marked ${joinOr(parsed.draft.workflows.map((w) => WORKFLOW_LABELS[w]))}`;
+  return app.lib.queryBuilder.onlyShowsMarked(joinOr(parsed.draft.workflows.map((w) => WORKFLOW_LABELS[w])));
 }

@@ -12,6 +12,9 @@ import { DesktopAppSection } from "../shell/DesktopApp.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
 import { LIMIT_CHOICES } from "./types.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.downloads.deviceTab;
 
 /**
  * Settings → This device, in the apps: the server this app is connected to, updates of the app from it and new versions of it, notifications on this phone, automatic downloads and
@@ -33,8 +36,8 @@ export function DeviceTab() {
   const choices = [...new Set([...LIMIT_CHOICES, settings.limitBytes])].sort((a, b) => a - b);
 
   async function disconnect() {
-    const warn = unsynced ? ` ${unsynced === 1 ? "1 highlight or note hasn't" : `${unsynced} highlights or notes haven't`} synced yet and will be lost.` : "";
-    if (!window.confirm(`Disconnect this app from PURSS? Everything it keeps on this device, downloads included, is removed.${warn}`)) return;
+    const warn = unsynced ? t.unsyncedLost(unsynced) : "";
+    if (!window.confirm(t.disconnectConfirm(warn))) return;
     setBusy(true);
     await conn!.disconnect();
   }
@@ -44,31 +47,31 @@ export function DeviceTab() {
   const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
   const isOfficial = official.kind === "official" && official.origin === conn.origin;
   const otherCount = others.entries.length;
-  const otherWords = otherCount === 1 ? "1 highlight or note" : `${otherCount} highlights or notes`;
+  const otherWords = t.otherWords(otherCount);
   async function copyOthers() {
     try {
       await navigator.clipboard.writeText(outboxAsText(others.entries));
-      toast(`Copied ${otherWords} as text.`);
-    } catch { toast("Couldn't copy to the clipboard."); }
+      toast(t.copied(otherWords));
+    } catch { toast(t.copyFailed); }
   }
   async function discardOthers() {
-    if (!window.confirm(`Discard ${otherWords} written with another account? They haven't been sent, so they will be lost.`)) return;
+    if (!window.confirm(t.discardConfirm(otherWords))) return;
     await others.discard();
-    toast("Discarded.");
+    toast(t.discarded);
   }
 
   return (
     <>
       {otherCount ? (
         <section className="field" aria-labelledby="dv-other">
-          <div className="lbl" id="dv-other">Unsent from another account</div>
-          <p className="fine">{otherWords} from another account {otherCount === 1 ? "hasn't" : "haven't"} been sent. {otherCount === 1 ? "It'll be" : "They'll be"} sent if that account connects this app again. You can copy {otherCount === 1 ? "it" : "them"} as text or discard {otherCount === 1 ? "it" : "them"}.</p>
-          <div className="fx-acts-row"><Button onClick={() => void copyOthers()}>Copy as text</Button><Button onClick={() => void discardOthers()}>Discard</Button></div>
+          <div className="lbl" id="dv-other">{t.otherHeading}</div>
+          <p className="fine">{t.otherNote(otherWords, otherCount)}</p>
+          <div className="fx-acts-row"><Button onClick={() => void copyOthers()}>{t.copyAsText}</Button><Button onClick={() => void discardOthers()}>{t.discard}</Button></div>
         </section>
       ) : null}
       <section className="field" aria-labelledby="dv-ws">
-        <div className="lbl" id="dv-ws">Connection</div>
-        <p className="fine">Connected to <b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? ", the official PURSS" : ""}. To connect another PURSS, disconnect this app below and choose it when you connect again.</p>
+        <div className="lbl" id="dv-ws">{t.connectionHeading}</div>
+        <p className="fine">{t.connectedTo.before}<b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? t.connectedTo.official : ""}{t.connectedTo.after}</p>
         {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
       </section>
 
@@ -80,29 +83,29 @@ export function DeviceTab() {
 
       <PhoneNotificationsSection />
 
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Automatic downloads</legend>
-        <Check checked={settings.autoToRead} onChange={(v) => set({ autoToRead: v })}>To read podcast episodes</Check>
-        {computer ? null : <Check checked={settings.wifiOnly} onChange={(v) => set({ wifiOnly: v })} hint="Downloads you start yourself always go ahead.">Only on Wi-Fi</Check>}
-        <label className="field" style={{ gap: 4, marginTop: 6 }}><span className="lbl">Stop automatic downloads at</span>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.automaticDownloads}</legend>
+        <Check checked={settings.autoToRead} onChange={(v) => set({ autoToRead: v })}>{t.toRead}</Check>
+        {computer ? null : <Check checked={settings.wifiOnly} onChange={(v) => set({ wifiOnly: v })} hint={t.wifiOnlyHint}>{t.wifiOnly}</Check>}
+        <label className="field" style={{ gap: 4, marginTop: 6 }}><span className="lbl">{t.stopAt}</span>
           <SelectInput value={String(settings.limitBytes)} onChange={(e) => set({ limitBytes: Number(e.target.value) })}>
             {choices.map((b) => <option key={b} value={b}>{bytesLabel(b)}</option>)}
           </SelectInput></label>
-        <Check checked={settings.removeFinished} onChange={(v) => set({ removeFinished: v })} hint="Once an item is marked Finished or Ignored, or played to the end, its download is removed from this device. Nothing changes in your PURSS.">Remove downloads when finished</Check>
+        <Check checked={settings.removeFinished} onChange={(v) => set({ removeFinished: v })} hint={t.removeFinishedHint}>{t.removeFinished}</Check>
         <p className="fine">{computer
-          ? "Automatic downloads happen while the app is running, also with its window closed."
-          : "Automatic downloads happen while the app is open, and while it is closed about once an hour, when the phone allows it (battery and storage not low)."}</p>
+          ? t.automaticOnComputer
+          : t.automaticOnPhone}</p>
       </fieldset>
 
       <section className="field" aria-labelledby="dv-st">
-        <div className="lbl" id="dv-st">Storage on this device</div>
-        <p className="fine">Downloads use <b>{bytesLabel(used)}</b> on this device.</p>
-        {used ? <div><Button onClick={() => void downloads.removeAll().then(() => toast("Removed every download from this device."))}><Icon name="trash" size="sm" />Remove all downloads</Button></div> : null}
+        <div className="lbl" id="dv-st">{t.storageHeading}</div>
+        <p className="fine">{t.storageUse.before}<b>{bytesLabel(used)}</b>{t.storageUse.after}</p>
+        {used ? <div><Button onClick={() => void downloads.removeAll().then(() => toast(t.removedAll))}><Icon name="trash" size="sm" />{t.removeAll}</Button></div> : null}
       </section>
 
       {unsynced ? (
-        <p className="p-warn"><Icon name="alert" /><span>{unsynced === 1 ? "1 highlight or note hasn't" : `${unsynced} highlights or notes haven't`} synced yet. Disconnecting deletes {unsynced === 1 ? "it" : "them"}. Go online first to keep {unsynced === 1 ? "it" : "them"}.</span></p>
+        <p className="p-warn"><Icon name="alert" /><span>{t.unsyncedWarning(unsynced)}</span></p>
       ) : null}
-      <div><Button disabled={busy} onClick={() => void disconnect()}>Disconnect this app</Button></div>
+      <div><Button disabled={busy} onClick={() => void disconnect()}>{t.disconnect}</Button></div>
     </>
   );
 }

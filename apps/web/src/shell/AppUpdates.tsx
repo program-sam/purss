@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@purss/ui";
 import { platform } from "../platform/index.ts";
@@ -12,6 +13,7 @@ import { useToasts } from "../state/toasts.tsx";
 
 const noSubscribe = () => () => {};
 const noState = () => null;
+const t = app.shell.appUpdates;
 
 function useAppUpdates(): { updates: AppUpdates; state: AppUpdateState; needed: boolean } | null {
   const updates = platform.appUpdates;
@@ -28,18 +30,18 @@ function describe(state: AppUpdateState, needed: boolean): { kind: "newer" | "ne
   if (state.newer) {
     return {
       kind: "newer",
-      short: `Version ${state.newer} of the app is out`,
-      long: `Version ${state.newer} is out${state.installed ? ` (this app is ${state.installed})` : ""}. Download it and open the file to install it over this one; what the app keeps on this phone stays.`,
-      action: where.url ? { label: "Download", url: where.url } : null,
+      short: t.newerShort(state.newer),
+      long: t.newerLong(state.newer, state.installed),
+      action: where.url ? { label: t.download, url: where.url } : null,
     };
   }
   if (!needed || state.source === "github") return null;
-  const update = where.name ? `Update it in ${where.name}.` : "Update it from where you installed it.";
+  const update = where.name ? t.updateIn(where.name) : t.updateFromInstall;
   return {
     kind: "needed",
-    short: `PURSS needs a newer version of the app. ${update}`,
-    long: `PURSS needs a newer version of the app than this one, so the app shows the screens it was installed with. ${update}`,
-    action: where.url ? { label: `Open ${where.name}`, url: where.url } : null,
+    short: t.neededShort(update),
+    long: t.neededLong(update),
+    action: where.url ? { label: t.open(where.name), url: where.url } : null,
   };
 }
 
@@ -71,11 +73,11 @@ export function AppUpdateSection() {
   if (!said && !waiting) return null;
   return (
     <section className="field" aria-labelledby="dv-app-version">
-      <div className="lbl" id="dv-app-version">New version of the app</div>
+      <div className="lbl" id="dv-app-version">{t.sectionTitle}</div>
       {said ? <>
         <p className="fine">{said.long}</p>
-        {said.action ? <div><Button variant="primary" onClick={() => platform.openExternal(said.action!.url)}>{said.kind === "newer" ? `Download version ${u!.state.newer}` : said.action.label}</Button></div> : null}
-      </> : <p className="fine">PURSS needs a newer version of the app than this one. It isn't out yet; the app says so when it is.</p>}
+        {said.action ? <div><Button variant="primary" onClick={() => platform.openExternal(said.action!.url)}>{said.kind === "newer" ? t.downloadVersion(u!.state.newer) : said.action.label}</Button></div> : null}
+      </> : <p className="fine">{t.waiting}</p>}
     </section>
   );
 }

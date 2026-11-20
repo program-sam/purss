@@ -31,6 +31,9 @@ import type { Incoming } from "./bridge.ts";
 import { drawBadgeOverlay, wantsOverlay } from "./badge-overlay.ts";
 import { feedAddress } from "./feed-link.ts";
 import { desktopConnection, desktopFiles } from "./files.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.desktop;
 
 /**
  * The desktop app's platform: the phone apps' model in a Tauri shell. The interface is the web app's
@@ -52,7 +55,7 @@ async function saveConnection(c: Connection): Promise<void> {
 
 async function forgetConnection(): Promise<void> {
   await desktop.forgetConnection();
-  if (await readConnection()) throw new Error("The connection is still in the credential store.");
+  if (await readConnection()) throw new Error(t.connectionStillStored);
 }
 
 /**
@@ -94,11 +97,11 @@ const desktopConnectShell: ConnectShell = {
     listener(i.url);
     return true;
   }),
-  deviceName: () => desktop.deviceName().catch(() => "Computer"),
+  deviceName: () => desktop.deviceName().catch(() => t.deviceName),
   save: saveConnection,
   // The page's origin isn't PURSS's, so no passkeys here; the browser's work on PURSS's Connect page.
   passkeys: null,
-  browserSignin: { withPasskeys: "Sign in in your browser (passkey or linked account)", withoutPasskeys: "Sign in in your browser (passkey or linked account)" },
+  browserSignin: t.browserSignin,
 };
 
 /** The interfaces Rust keeps. The page fetches PURSS's zip and checks it; Rust unpacks and serves it. */
@@ -108,10 +111,10 @@ function desktopUpdater(): Updater {
     current: () => desktop.interfaceCurrent(),
     async download({ url, version, checksum }) {
       const res = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(120_000) });
-      if (!res.ok) throw new Error(`The interface couldn't be downloaded (${res.status}).`);
+      if (!res.ok) throw new Error(t.interfaceNotDownloaded(res.status));
       const zip = new Uint8Array(await res.arrayBuffer());
       const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", zip)), (b) => b.toString(16).padStart(2, "0")).join("");
-      if (digest !== checksum) throw new Error("The downloaded interface isn't the one on offer.");
+      if (digest !== checksum) throw new Error(t.interfaceNotTheOffer);
       return desktop.interfaceInstall(version, zip);
     },
     downloaded: () => desktop.interfaceList(),
@@ -258,9 +261,9 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
   const transport: Transport = conn
     ? createAppTransport({ origin, token: conn.token, worker, downloaded: (path) => downloads!.answer(path), fetch: (r) => fetch(r), onLost: () => connection?.lost() })
     : {
-      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: "Connect the app first." } }), { status: 401, headers: { "content-type": "application/json" } }),
+      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: t.connectFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
       events: () => () => {},
-      picture: () => Promise.reject(new Error("Connect the app first.")),
+      picture: () => Promise.reject(new Error(t.connectFirst)),
     };
 
   const offline: OfflineHost = {

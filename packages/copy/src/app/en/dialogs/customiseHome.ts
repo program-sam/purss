@@ -1,0 +1,22 @@
+export default {
+  layouts: {
+    collections: { label: "Collections", blurb: "One box per collection." },
+    feed: { label: "One feed", blurb: "Everything together, newest first." },
+    new: { label: "Only new", blurb: "Only items still marked New." },
+    front: { label: "Front page", blurb: "Headlines from every collection, and baskets." },
+  },
+  otherSources: "Other sources",
+  title: "Customise Home",
+  reset: "Reset to defaults",
+  done: "Done",
+  layout: "Layout",
+  collectionsOnHome: "Collections on Home",
+  noCollections: "No collections yet.",
+  otherSourcesNote: "“Other sources” holds the sources that are in no collection.",
+  density: "Density",
+  comfortable: "Comfortable",
+  compact: "Compact",
+  showNewMarkers: "Show New markers",
+  showCounts: "Show counts",
+  settingsNote: { before: "Change how long items stay New, and notifications, in ", link: "Settings", after: "." },
+};

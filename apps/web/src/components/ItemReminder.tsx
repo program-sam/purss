@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { app } from "@purss/copy/app";
 import { REMINDER_NOTE_MAX } from "@purss/domain";
 import { Button, Icon, TextInput } from "@purss/ui";
 import { del, messageOf, put } from "../api/client.ts";
@@ -9,6 +10,8 @@ import { addDays, dayIn, dayLabel } from "../lib/reminder-days.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import "./reminders.css";
+
+const t = app.components.itemReminder;
 
 /**
  * "Remind me" on a kept item: a day, and a note if wanted. On that day the bell says so (and email, when it
@@ -44,7 +47,7 @@ export function ItemReminder({ itemId }: { itemId: string }) {
       qc.setQueryData(reminderKeys.item(itemId), out.reminder);
       void qc.invalidateQueries({ queryKey: reminderKeys.comingUp });
       setEditing(false);
-      toast(`We'll remind you ${dayLabel(day, today).toLowerCase()}.`);
+      toast(t.willRemind(dayLabel(day, today).toLowerCase()));
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   async function remove() {
@@ -54,7 +57,7 @@ export function ItemReminder({ itemId }: { itemId: string }) {
       qc.setQueryData(reminderKeys.item(itemId), null);
       void qc.invalidateQueries({ queryKey: reminderKeys.comingUp });
       setEditing(false);
-      toast("Reminder removed.");
+      toast(t.removed);
     } catch (err) { toast(messageOf(err), { tone: "error" }); } finally { setBusy(false); }
   }
 
@@ -65,34 +68,34 @@ export function ItemReminder({ itemId }: { itemId: string }) {
     return current ? (
       <p className="p-remind" role="group" aria-label="Reminder">
         <Icon name="cal" size="sm" />
-        <span>Reminder <b>{dayLabel(current.remindOn, today).toLowerCase()}</b>{current.note ? <> · <bdi dir="auto">{current.note}</bdi></> : null}</span>
-        <button type="button" className="link" onClick={begin}>Change</button>
-        <button type="button" className="link" disabled={busy} onClick={() => void remove()}>Remove</button>
+        <span>{t.reminder}<b>{dayLabel(current.remindOn, today).toLowerCase()}</b>{current.note ? <> · <bdi dir="auto">{current.note}</bdi></> : null}</span>
+        <button type="button" className="link" onClick={begin}>{t.change}</button>
+        <button type="button" className="link" disabled={busy} onClick={() => void remove()}>{t.remove}</button>
       </p>
     ) : (
-      <div className="p-remind"><button type="button" className="mbtn" onClick={begin}><Icon name="cal" />Remind me</button></div>
+      <div className="p-remind"><button type="button" className="mbtn" onClick={begin}><Icon name="cal" />{t.remindMe}</button></div>
     );
   }
   return (
     <form className="p-remind form" onSubmit={save} aria-label="Remind me">
       <div className="rm-row">
-        <label className="rm-f">Remind me on
+        <label className="rm-f">{t.remindMeOn}
           <input className="in" type="date" value={day} min={today} onChange={(e) => setDay(e.target.value)} required />
         </label>
         <span className="rm-q" role="group" aria-label="Quick choices">
-          <button type="button" className="link" onClick={() => setDay(addDays(today, 1))}>Tomorrow</button>
-          <button type="button" className="link" onClick={() => setDay(addDays(today, 7))}>In a week</button>
-          <button type="button" className="link" onClick={() => setDay(addDays(today, 30))}>In a month</button>
+          <button type="button" className="link" onClick={() => setDay(addDays(today, 1))}>{t.tomorrow}</button>
+          <button type="button" className="link" onClick={() => setDay(addDays(today, 7))}>{t.inAWeek}</button>
+          <button type="button" className="link" onClick={() => setDay(addDays(today, 30))}>{t.inAMonth}</button>
         </span>
       </div>
-      <label className="rm-f">Note (optional)
-        <TextInput value={note} maxLength={REMINDER_NOTE_MAX} onChange={(e) => setNote(e.target.value)} placeholder="Why, or what to do" dir="auto" />
+      <label className="rm-f">{t.note}
+        <TextInput value={note} maxLength={REMINDER_NOTE_MAX} onChange={(e) => setNote(e.target.value)} placeholder={t.notePlaceholder} dir="auto" />
       </label>
-      {quiet ? <p className="fine">Reminders are off in Settings. This only shows under Coming up on Home.</p> : null}
+      {quiet ? <p className="fine">{t.quiet}</p> : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div className="rm-acts">
-        <Button variant="primary" type="submit" disabled={busy || !day}>{busy ? "Saving…" : "Save reminder"}</Button>
-        <Button onClick={() => setEditing(false)}>Cancel</Button>
+        <Button variant="primary" type="submit" disabled={busy || !day}>{busy ? t.saving : t.save}</Button>
+        <Button onClick={() => setEditing(false)}>{t.cancel}</Button>
       </div>
     </form>
   );

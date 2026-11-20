@@ -1,0 +1,155 @@
+// App copy: apps/web/src/lib
+export default {
+  /** Singular nouns that `plural(n, noun)` counts. */
+  nouns: {
+    item: "item",
+    source: "source",
+    collection: "collection",
+    basket: "basket",
+    show: "show",
+    olderItem: "older item",
+  },
+  format: {
+    bytes: {
+      small: (n: number) => `${n} B`,
+      units: ["KB", "MB", "GB", "TB"],
+    },
+  },
+  mutedWords: {
+    furtherDown: "Items further down may be hidden by muted words",
+    hidden: (count: number, formatted: string, atLeast: boolean) => {
+      const items = `${formatted} ${count === 1 ? "item" : "items"}`;
+      return `${atLeast ? "At least " : ""}${items} hidden by muted words`;
+    },
+  },
+  planLimits: {
+    plusNoLimit: " Plus has no limit on collections.",
+    collectionLimit: (plan: string, collections: string, used: number, more: string) =>
+      `Your ${plan} plan allows ${collections}, and you have ${used}. Remove one to add another.${more}`,
+  },
+  addSourceStatus: {
+    looking: "Looking…",
+    searching: "Searching for shows…",
+    showsFound: (shows: string) => `${shows} found.`,
+    noShows: "No shows found.",
+    failedWith: (failure: string) => `Couldn't follow that: ${failure}`,
+    failed: "Couldn't follow that.",
+    keepable: "Found a page you can keep.",
+    oneFeed: "Found 1 feed to follow.",
+    feeds: (n: number) => `Found ${n} feeds. Choose one to follow.`,
+    nothing: "Found nothing to follow.",
+  },
+  reminderDays: {
+    today: "Today",
+    tomorrow: "Tomorrow",
+  },
+  statusLabel: {
+    menu: (current: string) => `State: ${current}. Change state`,
+    mark: (label: string) => `Mark ${label}`,
+  },
+  returning: {
+    weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    frequency: {
+      off: { label: "Never", blurb: "No digest. Sources you set to “Notify me”, your reminders and news of a source that stops working still tell you." },
+      daily: { label: "Once a day", blurb: "One summary of what's still New." },
+      weekly: { label: "Once a week", blurb: "One summary of what's still New." },
+    },
+    freshDays: {
+      week: "7 days",
+      fortnight: "14 days",
+      month: "30 days",
+      quarter: "90 days",
+      never: "Until I clear them",
+      other: (days: number) => `${days} days`,
+    },
+    olderNotLookedAt: (older: string) => ` · ${older} not looked at`,
+    nothingNewSince: "Nothing new since your last visit",
+    nothingMarkedNew: "Nothing is marked New",
+    upToDate: "You're up to date",
+    nothingArrived: "Nothing has arrived yet",
+    inPlace: (place: string) => `in ${place}`,
+    sinceWithCount: (when: string, total: string, where: string) => `Since your last visit (${when}): ${total} new ${where}`,
+    sinceWithoutCount: (when: string, where: string) => `New items since your last visit (${when}) ${where}`,
+    settingUp: (sources: string) => `Setting up ${sources}…`,
+    checking: (sources: string) => `Checking ${sources}…`,
+    savingText: (items: string) => `Saving text for ${items}…`,
+    cantCheck: "Couldn't check your sources",
+    upToDateChecked: (ago: string) => `Up to date · checked ${ago}`,
+    waitingFirstCheck: "Waiting for the first check",
+    nextCheckSoon: "Next check: any moment",
+    nextCheckAbout: (time: string) => `Next check about ${time}`,
+    resumes: (day: string) => `Resumes ${day}`,
+  },
+  constants: {
+    workflow: { new: "Undecided", toread: "To read", inprogress: "In progress", finished: "Finished", ignored: "Ignored" },
+    toWatch: "To watch",
+    toListen: "To listen",
+    views: { list: "List", cards: "Cards", board: "Board", table: "Table", timeline: "Timeline" },
+    kinds: { article: "Article", video: "Video", paper: "Paper", post: "Post", podcast: "Podcast", link: "Link" },
+    sorts: { newest: "Newest", oldest: "Oldest", source: "Source", title: "Title", kept: "Recently kept" },
+    filters: { active: "All", all: "All + ignored", fresh: "New", new: "Undecided", toread: "To read", inprogress: "In progress", finished: "Finished", ignored: "Ignored" },
+    toReadTitle: "To read, watch and listen",
+  },
+  stats: {
+    sparkline: (weeks: number, weekly: string, average: number) =>
+      `Items per week over the last ${weeks} weeks, oldest first: ${weekly}. Average ${average} per week.`,
+    noGap: "–",
+    gap: (days: number) => `${days} ${days === 1 ? "day" : "days"}`,
+  },
+  copyLink: {
+    original: "Copy link to the original",
+    originalCopied: "Link copied",
+    private: "Copy your private link to this item",
+    privateCopied: "Link to this item in your PURSS copied. Only you can open it.",
+  },
+  items: {
+    minutes: (n: number) => `${n} min`,
+  },
+  version: {
+    page: (version: string) => `Version ${version}`,
+    app: (version: string) => `app ${version}`,
+    server: (version: string) => `server ${version}`,
+  },
+  sound: {
+    materials: {
+      default: { label: "Glass and wood", blurb: "Warm taps and soft mallets" },
+      mech: { label: "Mechanical", blurb: "Shutter clicks and latches" },
+      bubble: { label: "Bubbly", blurb: "Playful drips and pops" },
+      press: { label: "Trackpad", blurb: "Clicks over a deep note" },
+    },
+  },
+  listFilters: {
+    types: { articles: "Articles", videos: "Videos", podcasts: "Podcasts" },
+    lengths: { short: "Short (up to 5 min)", long: "Long (over 5 min)" },
+    typeHeading: "Type",
+    lengthHeading: "Length",
+    anyLength: "Any length",
+  },
+  queryBuilder: {
+    wordsTooLong: "Keep the words to 200 characters or fewer.",
+    invalidDate: "Use a valid date.",
+    startAfterEnd: "The start date is after the end date.",
+    noCondition: "Add at least one condition.",
+    tooManyConditions: "That filter has too many conditions.",
+    basis: { published: "published", discovered: "arrived", kept: "kept" },
+    joinOr: (words: string[]) => (words.length < 3 ? words.join(" or ") : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`),
+    custom: "A custom filter.",
+    containingAll: (words: string[]) => `containing all of these words: ${words.join(", ")}`,
+    containing: (text: string) => `containing “${text}”`,
+    from: (sources: string[]) => `from ${sources.join(", ")}`,
+    kindPlural: (kind: string) => `${kind.toLowerCase()}s`,
+    thatAre: (kinds: string) => `that are ${kinds}`,
+    marked: (states: string) => `marked ${states}`,
+    keptInBasket: "kept in a basket",
+    notKept: "not kept",
+    dateRange: (basis: string, from: string, to: string) => `${basis} ${from} to ${to}`,
+    dateFrom: (basis: string, from: string) => `${basis} from ${from}`,
+    dateUntil: (basis: string, to: string) => `${basis} until ${to}`,
+    items: (bits: string[]) => `Items ${bits.join(", ")}.`,
+    everything: "Everything.",
+    onlyShowsMarked: (states: string) => `this collection only shows items marked ${states}`,
+  },
+  embeds: {
+    platform: { odysee: "Odysee", youtube: "YouTube", vimeo: "Vimeo", dailymotion: "Dailymotion", twitch: "Twitch", instagram: "Instagram" },
+  },
+};

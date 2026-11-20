@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { Outlet, createRootRouteWithContext, createRoute, lazyRouteComponent, notFound, redirect, useParams, useRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionInfo, Sort, ViewMode } from "@purss/domain";
@@ -76,9 +77,9 @@ function LoadFailed({ error, reset }: { error: unknown; reset: () => void }) {
   return (
     <div className="splash">
       <div className="empty card-like" style={{ maxWidth: 440 }}>
-        <h2>Couldn't open PURSS</h2>
+        <h2>{app.shell.app.openFailed}</h2>
         <p>{messageOf(error)}</p>
-        <Button variant="primary" onClick={() => { reset(); void router.invalidate(); }}>Try again</Button>
+        <Button variant="primary" onClick={() => { reset(); void router.invalidate(); }}>{app.shell.app.tryAgain}</Button>
       </div>
     </div>
   );
@@ -88,7 +89,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <><IconSprite /><Outlet /></>,
   errorComponent: LoadFailed,
   notFoundComponent: () => (
-    <div className="splash"><div className="empty card-like" style={{ maxWidth: 440 }}><h2>That page isn't here</h2><a className="btn primary" href={inApp("/")}>Go to Home</a></div></div>
+    <div className="splash"><div className="empty card-like" style={{ maxWidth: 440 }}><h2>{app.shell.app.pageMissing}</h2><a className="btn primary" href={inApp("/")}>{app.shell.app.goHome}</a></div></div>
   ),
 });
 
@@ -172,7 +173,7 @@ const shortItemRoute = createRoute({
         id = (await get<{ id: string }>(`/api/items/number/${number}`)).id;
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) throw notFound();
-        if (err instanceof ApiError && err.code === "offline") throw new ApiError(err.status, err.code, "This item isn't saved on this device, so its link opens only with a connection.");
+        if (err instanceof ApiError && err.code === "offline") throw new ApiError(err.status, err.code, app.shell.app.itemNotSaved);
         throw err;
       }
     }

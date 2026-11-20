@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Check, Icon } from "@purss/ui";
 import { messageOf } from "../api/client.ts";
@@ -26,6 +27,7 @@ export function usePhonePush() {
 }
 
 const OFFER_KEY = "purss:push-offer";
+const t = app.shell.phoneNotifications;
 
 /** Settings → This device: the switch, with what it does and what others learn. */
 export function PhoneNotificationsSection() {
@@ -34,10 +36,10 @@ export function PhoneNotificationsSection() {
   const s = p.status;
   const blocked = s?.state === "unavailable";
   return (
-    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>Notifications on this phone</legend>
+    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.legend}</legend>
       <Check checked={s?.state === "on"} disabled={!s || p.busy || blocked} onChange={(v) => void p.set(v)}
-        hint="When available, your phone follows your notification settings and quiet hours, and asks your PURSS for the text before showing it.">
-        Notifications on this phone
+        hint={t.hint}>
+        {t.label}
       </Check>
       {s?.detail ? <p className="state note"><Icon name="info" /><span>{s.detail}</span></p> : null}
       {p.error ? <p className="state note" role="alert"><Icon name="info" /><span>{p.error}</span></p> : null}
@@ -53,11 +55,11 @@ export function PhoneNotificationsOffer() {
   const dismiss = () => { try { localStorage.setItem(OFFER_KEY, "1"); } catch { /* shown again next time */ } setDismissed(true); };
   return (
     <div className="fine" style={{ padding: "8px 12px", display: "grid", gap: 6 }}>
-      <span>Get these as notifications on this phone too?</span>
+      <span>{t.offer}</span>
       {p.error ? <span role="alert">{p.error}</span> : null}
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={p.busy} onClick={() => void p.set(true).then((done) => { if (done) dismiss(); })}>Turn on</Button>
-        <Button onClick={dismiss}>Not now</Button>
+        <Button variant="primary" disabled={p.busy} onClick={() => void p.set(true).then((done) => { if (done) dismiss(); })}>{t.turnOn}</Button>
+        <Button onClick={dismiss}>{t.notNow}</Button>
       </div>
     </div>
   );

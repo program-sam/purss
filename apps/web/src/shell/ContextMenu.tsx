@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MenuEntry } from "@purss/ui";
@@ -14,6 +15,8 @@ import { usePopups } from "../state/popups.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { platform } from "../platform/index.ts";
+
+const cm = app.shell.contextMenu;
 
 /**
  * Right-click menus for items, sources, collections, baskets and empty space, built from the
@@ -69,10 +72,10 @@ export function ContextMenus() {
           type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k,
           onSelect: () => void actions.setWorkflow([item.id], k),
         }));
-        const rest = itemEntries(item, anchor, basketId).filter((x) => !("label" in x) || !["To read", "To watch", "To listen", "Mark Finished"].includes(String(x.label)));
+        const rest = itemEntries(item, anchor, basketId).filter((x) => !("label" in x) || ![app.lib.constants.workflow.toread, app.lib.constants.toWatch, app.lib.constants.toListen, app.state.itemMenus.mark(app.lib.constants.workflow.finished)].includes(String(x.label)));
         return {
           label: `Actions for ${item.title}`,
-          items: [{ label: "Open", onSelect: () => nav.openItem(item.id) }, { type: "separator" }, { type: "heading", label: "State" }, ...states, ...rest],
+          items: [{ label: cm.open, onSelect: () => nav.openItem(item.id) }, { type: "separator" }, { type: "heading", label: cm.state }, ...states, ...rest],
         };
       }
       const sourceEl = t.closest<HTMLElement>("[data-source]");
@@ -85,20 +88,20 @@ export function ContextMenus() {
         return {
           label: `Actions for ${s.title}`,
           items: [
-            { label: "Open", onSelect: () => nav.go({ t: "s", id: s.id }) },
+            { label: cm.open, onSelect: () => nav.go({ t: "s", id: s.id }) },
             { type: "separator" },
-            { label: "Rename…", onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
-            { label: "Change collections…", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
-            { label: "Smart filter…", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
-            ...(canRetrySource(s) ? [{ label: "Try again", onSelect: () => void retrySource(qc, toast, s.id, s.title) } as MenuEntry] : []),
-            s.paused ? { label: "Resume this source", onSelect: () => void set({ paused: false }, `Resumed ${s.title}`) } : { label: "Pause this source", onSelect: () => void set({ paused: true }, `Paused ${s.title}`) },
-            s.notify === "muted" ? { label: "Unmute notifications", onSelect: () => void set({ notify: "default" }, `Notifications on for ${s.title}`) } : { label: "Mute notifications", onSelect: () => void set({ notify: "muted" }, `Muted ${s.title}`) },
+            { label: cm.rename, onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
+            { label: cm.changeCollections, onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
+            { label: cm.smartFilter, onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
+            ...(canRetrySource(s) ? [{ label: cm.tryAgain, onSelect: () => void retrySource(qc, toast, s.id, s.title) } as MenuEntry] : []),
+            s.paused ? { label: cm.resume, onSelect: () => void set({ paused: false }, cm.resumed(s.title)) } : { label: cm.pause, onSelect: () => void set({ paused: true }, cm.paused(s.title)) },
+            s.notify === "muted" ? { label: cm.unmute, onSelect: () => void set({ notify: "default" }, cm.notificationsOn(s.title)) } : { label: cm.mute, onSelect: () => void set({ notify: "muted" }, cm.muted(s.title)) },
             ...(s.fullTextAvailable ? [s.fullText
-              ? { label: "Stop saving full articles", onSelect: () => void set({ fullText: false }, `Stopped saving full articles for ${s.title}`) }
-              : { label: "Save full articles", onSelect: () => void set({ fullText: true }, `Saving full articles for ${s.title}`) } as MenuEntry] : []),
-            ...(s.siteUrl ? [{ label: "Open website", icon: "ext" as const, onSelect: () => platform.openExternal(s.siteUrl!) } as MenuEntry] : []),
+              ? { label: cm.stopFullArticles, onSelect: () => void set({ fullText: false }, cm.stoppedFullArticles(s.title)) }
+              : { label: cm.saveFullArticles, onSelect: () => void set({ fullText: true }, cm.savingFullArticles(s.title)) } as MenuEntry] : []),
+            ...(s.siteUrl ? [{ label: cm.openWebsite, icon: "ext" as const, onSelect: () => platform.openExternal(s.siteUrl!) } as MenuEntry] : []),
             { type: "separator" },
-            { label: "Unfollow…", icon: "trash", onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
+            { label: cm.unfollow, icon: "trash", onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
           ],
         };
       }
@@ -109,13 +112,13 @@ export function ContextMenus() {
         return {
           label: `Actions for ${c.name}`,
           items: [
-            { label: "Open", onSelect: () => nav.go({ t: "c", id: c.id }) },
-            ...(c.mode === "sources" ? [{ label: "Add a source here…", icon: "plus" as const, onSelect: () => overlays.open({ kind: "add-source", collectionId: c.id }) } as MenuEntry] : []),
+            { label: cm.open, onSelect: () => nav.go({ t: "c", id: c.id }) },
+            ...(c.mode === "sources" ? [{ label: cm.addSourceHere, icon: "plus" as const, onSelect: () => overlays.open({ kind: "add-source", collectionId: c.id }) } as MenuEntry] : []),
             { type: "separator" },
-            { label: "Collection settings…", onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
-            ...(c.mode === "sources" ? [{ label: "Smart filter…", onSelect: () => overlays.open({ kind: "ai-filter", collectionId: c.id }) } as MenuEntry] : []),
-            { label: c.showOnHome ? "Hide from Home" : "Show on Home", onSelect: () => void patch(`/api/collections/${encodeURIComponent(c.id)}`, { showOnHome: !c.showOnHome }).then(() => refreshWorkspace(qc, { items: false }), (err) => toast(messageOf(err), { tone: "error" })) },
-            { label: "Mark all as seen", onSelect: () => void actions.clearFresh(`collection:${c.id}`) },
+            { label: cm.collectionSettings, onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
+            ...(c.mode === "sources" ? [{ label: cm.smartFilter, onSelect: () => overlays.open({ kind: "ai-filter", collectionId: c.id }) } as MenuEntry] : []),
+            { label: c.showOnHome ? cm.hideFromHome : cm.showOnHome, onSelect: () => void patch(`/api/collections/${encodeURIComponent(c.id)}`, { showOnHome: !c.showOnHome }).then(() => refreshWorkspace(qc, { items: false }), (err) => toast(messageOf(err), { tone: "error" })) },
+            { label: cm.markAllSeen, onSelect: () => void actions.clearFresh(`collection:${c.id}`) },
           ],
         };
       }
@@ -126,10 +129,10 @@ export function ContextMenus() {
         return {
           label: `Actions for ${b.name}`,
           items: [
-            { label: "Open", onSelect: () => nav.go({ t: "b", id: b.id }) },
+            { label: cm.open, onSelect: () => nav.go({ t: "b", id: b.id }) },
             { type: "separator" },
-            { label: "Basket settings…", onSelect: () => overlays.open({ kind: "basket-form", id: b.id }) },
-            { label: "Delete basket…", icon: "trash", onSelect: () => overlays.open({ kind: "basket-delete", id: b.id }) },
+            { label: cm.basketSettings, onSelect: () => overlays.open({ kind: "basket-form", id: b.id }) },
+            { label: cm.deleteBasket, icon: "trash", onSelect: () => overlays.open({ kind: "basket-delete", id: b.id }) },
           ],
         };
       }
@@ -138,11 +141,11 @@ export function ContextMenus() {
       return {
         label: "PURSS",
         items: [
-          { label: "Add source…", icon: "plus", onSelect: () => overlays.open({ kind: "add-source" }) },
-          { label: "New collection…", onSelect: () => overlays.open({ kind: "new-collection" }) },
-          { label: "New basket…", onSelect: () => overlays.open({ kind: "basket-form" }) },
+          { label: cm.addSource, icon: "plus", onSelect: () => overlays.open({ kind: "add-source" }) },
+          { label: cm.newCollection, onSelect: () => overlays.open({ kind: "new-collection" }) },
+          { label: cm.newBasket, onSelect: () => overlays.open({ kind: "basket-form" }) },
           { type: "separator" },
-          { label: "Search…", icon: "search", onSelect: () => overlays.open({ kind: "palette" }) },
+          { label: cm.search, icon: "search", onSelect: () => overlays.open({ kind: "palette" }) },
         ],
       };
     }

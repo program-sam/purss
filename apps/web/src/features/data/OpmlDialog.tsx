@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OpmlImportDestination, OpmlImportDTO, OpmlImportEntryDTO, OpmlPreview, OpmlPreviewEntry } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, post } from "../../api/client.ts";
 import { refreshWorkspace } from "../../api/queries.ts";
 import { plural } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useWorkspace } from "../../state/workspace.tsx";
+
+const t = app.data.opmlDialog;
 
 /** An OPML file opened with the desktop app: read on the server, then the same choice as an import from Your data. */
 export function OpenedOpmlFile({ name, text, onClose }: { name: string; text: string; onClose: () => void }) {
@@ -18,9 +21,9 @@ export function OpenedOpmlFile({ name, text, onClose }: { name: string; text: st
   }, [text]);
   if (read && "preview" in read) return <OpmlDialog preview={read.preview} fileName={name} onClose={onClose} />;
   return (
-    <Dialog title="Subscription list (OPML)" onClose={onClose} footer={<Button onClick={onClose}>Close</Button>}>
+    <Dialog title={t.openedTitle} onClose={onClose} footer={<Button onClick={onClose}>{t.close}</Button>}>
       {read ? <p className="state note"><Icon name="info" /><span>{read.error}</span></p>
-        : <p className="state" role="status"><span className="spin" aria-hidden="true" />Reading <b style={{ wordBreak: "break-all" }}>{name}</b>…</p>}
+        : <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.readingBefore}<b style={{ wordBreak: "break-all" }}>{name}</b>{t.readingAfter}</p>}
     </Dialog>
   );
 }
@@ -48,10 +51,10 @@ const opmlImportQuery = (id: string) => queryOptions({
 function Outcome({ o }: { o: OpmlImportEntryDTO }) {
   const nav = useNav();
   switch (o.state) {
-    case "waiting": return <span className="fine">Waiting</span>;
-    case "working": return <span className="state"><span className="spin" aria-hidden="true" />Looking…</span>;
-    case "followed": return <span className="fx-ok"><Icon name="check" size="sm" />Following{o.message ? <span className="fine"> · {o.message}</span> : null}</span>;
-    case "already": return <span className="fine">Already following{o.sourceId ? <> · <button type="button" className="link" onClick={() => nav.go({ t: "s", id: o.sourceId! })}>Open</button></> : null}</span>;
+    case "waiting": return <span className="fine">{t.outcome.waiting}</span>;
+    case "working": return <span className="state"><span className="spin" aria-hidden="true" />{t.outcome.looking}</span>;
+    case "followed": return <span className="fx-ok"><Icon name="check" size="sm" />{t.outcome.following}{o.message ? <span className="fine"> · {o.message}</span> : null}</span>;
+    case "already": return <span className="fine">{t.outcome.alreadyFollowing}{o.sourceId ? <> · <button type="button" className="link" onClick={() => nav.go({ t: "s", id: o.sourceId! })}>{t.outcome.open}</button></> : null}</span>;
     case "failed": return <span className="fx-fail"><Icon name="alert" size="sm" />{o.message}</span>;
   }
 }
@@ -59,8 +62,8 @@ function Outcome({ o }: { o: OpmlImportEntryDTO }) {
 /** One-line account of a list: how far it is and how it went. */
 export function importSummary(i: OpmlImportDTO): string {
   const checked = i.total - i.waiting;
-  if (i.status === "running") return `${checked} of ${plural(i.total, "feed")} checked`;
-  const parts = [i.followed ? `Following ${plural(i.followed, "new source")}` : "Nothing new followed", i.already ? `${i.already} already followed` : "", i.failed ? `${i.failed} couldn't be followed` : "", i.status === "stopped" && i.waiting ? `${i.waiting} not looked at` : ""];
+  if (i.status === "running") return t.summary.progress(checked, plural(i.total, t.summary.feed));
+  const parts = [i.followed ? t.summary.following(plural(i.followed, t.summary.newSource)) : t.summary.nothingNew, i.already ? t.summary.already(i.already) : "", i.failed ? t.summary.failed(i.failed) : "", i.status === "stopped" && i.waiting ? t.summary.notLookedAt(i.waiting) : ""];
   return `${parts.filter(Boolean).join(". ")}.`;
 }
 
@@ -80,15 +83,15 @@ export function OpmlProgressDialog({ id, onClose }: { id: string; onClose: () =>
   const followed = list?.followed ?? 0;
   useEffect(() => { if (followed) refreshWorkspace(qc); }, [followed, qc]);
   return (
-    <Dialog title={running ? "Following your list…" : "Your list"} size="md" onClose={onClose}
+    <Dialog title={running ? t.progress.runningTitle : t.progress.title} size="md" onClose={onClose}
       footer={running
-        ? <><Button onClick={() => stop.mutate()} disabled={stop.isPending}>Stop after this one</Button><Button variant="primary" onClick={onClose}>Close</Button></>
-        : <Button variant="primary" onClick={onClose}>Done</Button>}>
+        ? <><Button onClick={() => stop.mutate()} disabled={stop.isPending}>{t.progress.stop}</Button><Button variant="primary" onClick={onClose}>{t.progress.close}</Button></>
+        : <Button variant="primary" onClick={onClose}>{t.progress.done}</Button>}>
       {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
       {list ? (
         <>
           <p className="state" aria-live="polite">{running ? <span className="spin" aria-hidden="true" /> : null}{importSummary(list)}</p>
-          {running ? <p className="fine">This runs in the background. You can close this window. Progress is on the Your data page.</p> : null}
+          {running ? <p className="fine">{t.progress.background}</p> : null}
           {stop.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(stop.error)}</span></p> : null}
           <ul className="fx-rows fx-scroll">
             {list.entries!.map((e) => (
@@ -98,9 +101,9 @@ export function OpmlProgressDialog({ id, onClose }: { id: string; onClose: () =>
               </li>
             ))}
           </ul>
-          {!running && list.followed ? <p className="fine">New items arrive after the next check. Open any source from the sidebar.{" "}<button type="button" className="link" onClick={() => { onClose(); nav.go({ t: "home" }); }}>Go to Home</button></p> : null}
+          {!running && list.followed ? <p className="fine">{t.progress.newItems}{" "}<button type="button" className="link" onClick={() => { onClose(); nav.go({ t: "home" }); }}>{t.progress.goHome}</button></p> : null}
         </>
-      ) : q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />Loading…</p> : null}
+      ) : q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.progress.loading}</p> : null}
     </Dialog>
   );
 }
@@ -123,8 +126,8 @@ export function OpmlImports() {
           <li key={i.id} className="fx-row">
             <div className="fx-grow"><b>{i.fileName}</b><span className="fine" aria-live="polite">{importSummary(i)}</span></div>
             <div className="fx-end">
-              <Button onClick={() => setOpen(i.id)} aria-label={`${i.status === "running" ? "Watch" : "See"} ${i.fileName}`}>{i.status === "running" ? "Watch" : "See"}</Button>
-              {i.status !== "running" ? <Button onClick={() => forget.mutate(i.id)} disabled={forget.isPending} aria-label={`Forget ${i.fileName}`}>Forget</Button> : null}
+              <Button onClick={() => setOpen(i.id)} aria-label={`${i.status === "running" ? "Watch" : "See"} ${i.fileName}`}>{i.status === "running" ? t.imports.watch : t.imports.see}</Button>
+              {i.status !== "running" ? <Button onClick={() => forget.mutate(i.id)} disabled={forget.isPending} aria-label={`Forget ${i.fileName}`}>{t.imports.forget}</Button> : null}
             </div>
           </li>
         ))}
@@ -175,20 +178,20 @@ export function OpmlDialog({ preview, fileName, onClose }: { preview: OpmlPrevie
   if (started) return <OpmlProgressDialog id={started} onClose={onClose} />;
 
   return (
-    <Dialog title="Import a list of feeds" size="lg" onClose={onClose} initialFocus="#op-all"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!total || !destOk || busy} onClick={() => void run()}>{total ? `Follow ${plural(total, "feed")}` : "Follow"}</Button></>}>
-      <p className="hint"><b style={{ wordBreak: "break-all" }}>{fileName}</b> lists {plural(feeds.length, "feed")}. Choose which to follow. Each is looked up like Add source and keeps the name from the file. Importing continues in the background, so you can close this window. Progress is on the Your data page.</p>
-      {preview.truncated ? <p className="state note"><Icon name="info" /><span>The list was longer than can be read at once, so only the first {feeds.length} are shown.</span></p> : null}
+    <Dialog title={t.dialog.title} size="lg" onClose={onClose} initialFocus="#op-all"
+      footer={<><Button onClick={onClose}>{t.dialog.cancel}</Button><Button variant="primary" disabled={!total || !destOk || busy} onClick={() => void run()}>{total ? t.dialog.followFeeds(plural(total, t.summary.feed)) : t.dialog.follow}</Button></>}>
+      <p className="hint"><b style={{ wordBreak: "break-all" }}>{fileName}</b>{t.dialog.listsAfter(plural(feeds.length, t.summary.feed))}</p>
+      {preview.truncated ? <p className="state note"><Icon name="info" /><span>{t.dialog.truncated(feeds.length)}</span></p> : null}
       {preview.skipped.notWebAddress || preview.skipped.duplicates ? (
-        <p className="fine">Left out of the list: {[preview.skipped.notWebAddress ? `${plural(preview.skipped.notWebAddress, "entry", "entries")} without a web address` : "", preview.skipped.duplicates ? `${plural(preview.skipped.duplicates, "duplicate")}` : ""].filter(Boolean).join(", ")}.</p>
+        <p className="fine">{t.dialog.leftOut}{[preview.skipped.notWebAddress ? t.dialog.withoutWebAddress(plural(preview.skipped.notWebAddress, t.dialog.entry, t.dialog.entries)) : "", preview.skipped.duplicates ? `${plural(preview.skipped.duplicates, t.dialog.duplicate)}` : ""].filter(Boolean).join(", ")}.</p>
       ) : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       {feeds.length ? (
         <div className="field">
           <div className="fx-pick-head">
             <label className="fx-allbox"><input id="op-all" type="checkbox" checked={allOn && picked.size > 0} onChange={(e) => setPicked(e.target.checked ? new Set(feeds.flatMap((f, i) => (selectable(f) ? [i] : []))) : new Set())} />
-              <span className="cb" aria-hidden="true"><Icon name="check" /></span>Select all</label>
-            <span className="fine" aria-live="polite">{picked.size} selected</span>
+              <span className="cb" aria-hidden="true"><Icon name="check" /></span>{t.dialog.selectAll}</label>
+            <span className="fine" aria-live="polite">{t.dialog.selected(picked.size)}</span>
           </div>
           <div className="picks fx-picks" role="group" aria-label="Feeds in the list">
             {feeds.map((f, i) => (
@@ -196,23 +199,23 @@ export function OpmlDialog({ preview, fileName, onClose }: { preview: OpmlPrevie
                 <input type="checkbox" checked={picked.has(i)} disabled={!selectable(f)} onChange={() => toggle(i)} />
                 <span className="cb" aria-hidden="true"><Icon name="check" /></span>
                 <span className="fx-grow"><b>{f.title}</b><span className="fine">{hostOf(f.feedUrl)}{f.folder ? ` · ${f.folder}` : ""}</span></span>
-                {f.alreadyFollowing ? <span className="tag">Already following</span> : null}
-                {f.looksPrivate ? <span className="tag warn"><Icon name="lock" />Looks private</span> : null}
+                {f.alreadyFollowing ? <span className="tag">{t.dialog.alreadyFollowing}</span> : null}
+                {f.looksPrivate ? <span className="tag warn"><Icon name="lock" />{t.dialog.looksPrivate}</span> : null}
               </label>
             ))}
           </div>
-          {feeds.some((f) => f.looksPrivate) ? <p className="fine">Feeds marked “Looks private” have a secret in their link. They start unticked; if you follow one, its link is kept apart from your other data and never shown again.</p> : null}
+          {feeds.some((f) => f.looksPrivate) ? <p className="fine">{t.dialog.privateNote}</p> : null}
         </div>
-      ) : <p className="state note"><Icon name="info" /><span>No feeds were found in that file.</span></p>}
+      ) : <p className="state note"><Icon name="info" /><span>{t.dialog.noFeeds}</span></p>}
       {feeds.length ? (
-        <Field label="Put them in" htmlFor="op-dest">
+        <Field label={t.dialog.putThemIn} htmlFor="op-dest">
           <SelectInput id="op-dest" value={dest} onChange={(e) => setDest(e.target.value)}>
-            {hasFolders ? <option value={FOLDERS}>The folders from the file (one collection each)</option> : null}
+            {hasFolders ? <option value={FOLDERS}>{t.dialog.folders}</option> : null}
             {sourceCollections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value={NEW}>A new collection…</option>
-            <option value={NONE}>No collection (shown under Other sources on Home)</option>
+            <option value={NEW}>{t.dialog.newCollection}</option>
+            <option value={NONE}>{t.dialog.noCollection}</option>
           </SelectInput>
-          {dest === NEW ? <TextInput aria-label="New collection name" placeholder="Name your collection" value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={80} autoFocus /> : null}
+          {dest === NEW ? <TextInput aria-label="New collection name" placeholder={t.dialog.namePlaceholder} value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={80} autoFocus /> : null}
         </Field>
       ) : null}
     </Dialog>

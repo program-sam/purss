@@ -2,6 +2,9 @@ import { ANDROID_APK, desktopDownloadUrl, STORE_LISTINGS } from "@purss/domain";
 import { parseVersion, plainVersion } from "@purss/domain/version";
 import type { AppSource, AppUpdates, AppUpdateState } from "../types.ts";
 import type { KeyValue } from "./live-update.ts";
+import { app } from "@purss/copy/app";
+
+const t = app.platform.appUpdates;
 
 /*
  * New versions of the phone app itself, its native code. The screens update from the server; the app around
@@ -22,10 +25,10 @@ export function sourceOf(o: { platform: string; flavor?: string | null; installe
 /** Where people get a new version, and the address that takes them there when there is one. */
 export function whereToGet(source: AppSource | null): { name: string; url: string | null } {
   switch (source) {
-    case "github": return { name: "GitHub", url: desktopDownloadUrl(ANDROID_APK) };
-    case "play": return { name: "Google Play", url: STORE_LISTINGS.android };
-    case "fdroid": return { name: "F-Droid", url: null };
-    case "appstore": return { name: "the App Store", url: STORE_LISTINGS.ios };
+    case "github": return { name: t.github, url: desktopDownloadUrl(ANDROID_APK) };
+    case "play": return { name: t.googlePlay, url: STORE_LISTINGS.android };
+    case "fdroid": return { name: t.fdroid, url: null };
+    case "appstore": return { name: t.appStore, url: STORE_LISTINGS.ios };
     default: return { name: "", url: null };
   }
 }

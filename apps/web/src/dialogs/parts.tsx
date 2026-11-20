@@ -1,20 +1,23 @@
 import { useState } from "react";
+import { app } from "@purss/copy/app";
 import type { ItemKind, SourceDTO, WorkflowState } from "@purss/domain";
 import { Avatar, Icon, SelectInput, TextInput } from "@purss/ui";
 import { ITEM_KINDS, KIND_LABELS, WORKFLOW_LABELS, WORKFLOW_ORDER } from "../lib/constants.ts";
 import type { DateBasis, KeptChoice, QueryDraft } from "../lib/query-builder.ts";
 import { useWorkspace } from "../state/workspace.tsx";
 
+const t = app.dialogs.parts;
+
 /** Checklist of followed sources. A source may sit in several collections, so ticking adds without moving. */
 export function SourcePicks({ selected, onChange, whereLabel }: { selected: string[]; onChange: (ids: string[]) => void; whereLabel?: (s: SourceDTO) => string }) {
   const ws = useWorkspace();
   const sources = ws.data.sources;
-  if (!sources.length) return <p className="fine">You don't follow any sources yet. Add one first.</p>;
+  if (!sources.length) return <p className="fine">{t.sourcePicks.none}</p>;
   return (
     <div className="picks">
       {sources.map((s) => {
         const on = selected.includes(s.id);
-        const where = whereLabel ? whereLabel(s) : s.collectionIds.length ? `In ${s.collectionIds.map((id) => ws.collectionById.get(id)?.name).filter(Boolean).join(", ")}` : "Not in a collection";
+        const where = whereLabel ? whereLabel(s) : s.collectionIds.length ? t.sourcePicks.inCollections(s.collectionIds.map((id) => ws.collectionById.get(id)?.name).filter(Boolean).join(", ")) : t.sourcePicks.notInCollection;
         return (
           <label key={s.id} className="pick">
             <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))} />
@@ -49,27 +52,27 @@ export function QueryBuilder({ draft, onChange }: { draft: QueryDraft; onChange:
   const [showSources, setShowSources] = useState(draft.sourceIds.length > 0);
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <p className="hint">Items must meet every condition. Leave a condition empty to skip it.</p>
-      <div className="field"><label htmlFor="qb-text">Contains all of these words</label>
-        <TextInput id="qb-text" value={draft.text} onChange={(e) => set({ text: e.target.value })} maxLength={200} placeholder="tide ferry timetable" autoComplete="off" /></div>
+      <p className="hint">{t.queryBuilder.hint}</p>
+      <div className="field"><label htmlFor="qb-text">{t.queryBuilder.text}</label>
+        <TextInput id="qb-text" value={draft.text} onChange={(e) => set({ text: e.target.value })} maxLength={200} placeholder={t.queryBuilder.textPlaceholder} autoComplete="off" /></div>
       <div className="field">
-        <div className="lbl">From these sources</div>
+        <div className="lbl">{t.queryBuilder.fromSources}</div>
         {showSources ? <SourcePicks selected={draft.sourceIds} onChange={(ids) => set({ sourceIds: ids })} /> : (
-          <div><button type="button" className="btn" onClick={() => setShowSources(true)}>Choose sources…</button></div>
+          <div><button type="button" className="btn" onClick={() => setShowSources(true)}>{t.queryBuilder.chooseSources}</button></div>
         )}
       </div>
-      <div className="field"><div className="lbl" id="qb-kind">Type</div>
-        <ChipToggles label="Type" options={ITEM_KINDS.map((k: ItemKind) => ({ value: k, label: KIND_LABELS[k] }))} selected={draft.kinds} onChange={(kinds) => set({ kinds })} /></div>
-      <div className="field"><div className="lbl" id="qb-wf">State</div>
-        <ChipToggles label="State" options={WORKFLOW_ORDER.map((w: WorkflowState) => ({ value: w, label: WORKFLOW_LABELS[w] }))} selected={draft.workflows} onChange={(workflows) => set({ workflows })} /></div>
-      <div className="field"><label htmlFor="qb-kept">Kept in a basket</label>
+      <div className="field"><div className="lbl" id="qb-kind">{t.queryBuilder.type}</div>
+        <ChipToggles label={t.queryBuilder.type} options={ITEM_KINDS.map((k: ItemKind) => ({ value: k, label: KIND_LABELS[k] }))} selected={draft.kinds} onChange={(kinds) => set({ kinds })} /></div>
+      <div className="field"><div className="lbl" id="qb-wf">{t.queryBuilder.state}</div>
+        <ChipToggles label={t.queryBuilder.state} options={WORKFLOW_ORDER.map((w: WorkflowState) => ({ value: w, label: WORKFLOW_LABELS[w] }))} selected={draft.workflows} onChange={(workflows) => set({ workflows })} /></div>
+      <div className="field"><label htmlFor="qb-kept">{t.queryBuilder.kept}</label>
         <SelectInput id="qb-kept" value={draft.kept} onChange={(e) => set({ kept: e.target.value as KeptChoice })}>
-          <option value="any">Either way</option><option value="kept">Only kept items</option><option value="unkept">Only items not kept</option>
+          <option value="any">{t.queryBuilder.keptEither}</option><option value="kept">{t.queryBuilder.keptOnly}</option><option value="unkept">{t.queryBuilder.keptNot}</option>
         </SelectInput></div>
-      <div className="field"><div className="lbl" id="qb-date">Date</div>
+      <div className="field"><div className="lbl" id="qb-date">{t.queryBuilder.date}</div>
         <div className="two" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <SelectInput aria-label="Date to compare" value={draft.dateBasis} onChange={(e) => set({ dateBasis: e.target.value as DateBasis })}>
-            <option value="published">Published</option><option value="discovered">Arrived here</option><option value="kept">Kept</option>
+            <option value="published">{t.queryBuilder.published}</option><option value="discovered">{t.queryBuilder.arrived}</option><option value="kept">{t.queryBuilder.keptDate}</option>
           </SelectInput>
           <TextInput type="date" aria-label="From date" value={draft.from} onChange={(e) => set({ from: e.target.value })} />
           <TextInput type="date" aria-label="Until date" value={draft.to} onChange={(e) => set({ to: e.target.value })} />
@@ -85,7 +88,7 @@ const EMOJI = ["🧭", "📚", "🌙", "⚓", "🏺", "🎧", "🌱", "🔭", "�
 export function EmojiField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="field">
-      <label htmlFor="emoji">Symbol (optional)</label>
+      <label htmlFor="emoji">{t.emojiField.label}</label>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <TextInput id="emoji" value={value} onChange={(e) => onChange(e.target.value.slice(0, 4))} style={{ width: 74, textAlign: "center" }} maxLength={4} autoComplete="off" aria-label="Symbol" />
         <div className="chips" role="group" aria-label="Suggested symbols" style={{ padding: 0, margin: 0, flexWrap: "wrap" }}>

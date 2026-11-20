@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import { useItemActions } from "../state/actions.ts";
 import { Fragment, type MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { SyntheticEvent } from "react";
@@ -45,6 +46,8 @@ import { frameCheckQuery } from "../lib/originals.ts";
 import { platform } from "../platform/index.ts";
 import { WebPane } from "./WebPane.tsx";
 
+const t = app.shell.itemPanel;
+
 /** The reader: sanitised content, honest capture status, state and basket controls. */
 export function ItemPanel({ itemId }: { itemId: string }) {
   const nav = useNav();
@@ -67,14 +70,14 @@ export function ItemPanel({ itemId }: { itemId: string }) {
     return (
       <>
         <div className="panel-bar">
-          <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">Back</span></button>
+          <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{t.back}</span></button>
           <span className="src" />
           <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
         </div>
         <div className="panel-body" id="panel-body">
           {detail.isError ? (
-            <div className="empty"><h2>This item isn't available</h2><p>{messageOf(detail.error)}</p><Button onClick={() => nav.openItem(undefined)}>Close</Button></div>
-          ) : <LoadingBlocks label="Loading the item…"><div className="skel" style={{ height: 24, width: "70%" }} /><div className="skel" style={{ height: 14, marginTop: 14 }} /><div className="skel" style={{ height: 14, width: "85%", marginTop: 14 }} /></LoadingBlocks>}
+            <div className="empty"><h2>{t.unavailable}</h2><p>{messageOf(detail.error)}</p><Button onClick={() => nav.openItem(undefined)}>{t.close}</Button></div>
+          ) : <LoadingBlocks label={t.loadingItem}><div className="skel" style={{ height: 24, width: "70%" }} /><div className="skel" style={{ height: 14, marginTop: 14 }} /><div className="skel" style={{ height: 14, width: "85%", marginTop: 14 }} /></LoadingBlocks>}
         </div>
       </>
     );
@@ -173,7 +176,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   const lenTxt = lengthText(item);
   const published = publishedApart(item);
   const kept = item.basketIds.length > 0;
-  const keptName = item.basketIds.length === 1 ? ws.basketById.get(item.basketIds[0]!)?.name ?? "" : `${item.basketIds.length} baskets`;
+  const keptName = item.basketIds.length === 1 ? ws.basketById.get(item.basketIds[0]!)?.name ?? "" : t.baskets(item.basketIds.length);
   const status = statusButton(item.workflow, item.kind);
   const stateEntries = () => [...ACTIVE_STATES, ...(inBasket ? [] : ["ignored" as const])].map<MenuEntry>((k) => ({
     type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
@@ -187,12 +190,12 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
     </span>
   ) : (
     <button type="button" className={`mbtn st st-${item.workflow}`} aria-haspopup="menu" aria-label={status.aria} onClick={openStates}>
-      {keyed && status.keyed ? <span className="k">State</span> : null}{status.text}<Icon name="chev" size="sm" />
+      {keyed && status.keyed ? <span className="k">{t.state}</span> : null}{status.text}<Icon name="chev" size="sm" />
     </button>
   );
   // Only PURSS's own answer says a copy was kept; until then the panel says so, and never prints a date it does not have.
-  const keptLine = pending ? "Keeping this. Saved on this device until PURSS confirms."
-    : `Kept in ${keptName}.`;
+  const keptLine = pending ? t.keeping
+    : t.keptIn(keptName);
   const summaryOnly = !!detail?.summaryOnly && !media;
   const excerpt = itemExcerpt(item);
   /** The address to frame for `url`, when the server said its page allows it (a browser only); the link's own fragment stays. */
@@ -229,14 +232,14 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
     try {
       await post(`/api/items/${encodeURIComponent(item.id)}/capture/retry`);
       await qc.invalidateQueries({ queryKey: keys.item(item.id) });
-      toast("Trying again to read the page.");
+      toast(t.retrying);
     } catch (err) { toast(messageOf(err), { tone: "error" }); }
   }
 
   return (
     <>
       <div ref={barRef} className={`panel-bar${titled ? " titled" : ""}`}>
-        <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">Back</span></button>
+        <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{t.back}</span></button>
         {source ? (
           <button type="button" className="src" aria-label={`Open source ${source.title}`} onClick={() => nav.go({ t: "s", id: source.id })}>
             <Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={26} /><span className="nm"><bdi>{source.title}</bdi></span>
@@ -248,13 +251,13 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <span className="pb-acts">
             {stateControl(false)}
             <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" aria-label={kept ? `Kept in ${keptName}. Change baskets` : "Keep in a basket"} onClick={(e) => menus.openKeep(item, e.currentTarget)}>
-              <Icon name="bookmark" /><span className="pb-kl">{kept ? "Kept" : "Keep"}</span></button>
+              <Icon name="bookmark" /><span className="pb-kl">{kept ? t.kept : t.keep}</span></button>
           </span>
         ) : null}
         <button type="button" className="ibtn" aria-haspopup="menu" aria-label="More for this item" onClick={(e) => popups.menu(e.currentTarget, [
             ...menus.linkEntries(item),
-            ...(detail?.renamable ? [{ label: "Rename…", icon: "pencil" as const, onSelect: () => setRenaming(true) }] : []),
-          ], "More for this item")}><Icon name="more" /><span className="ml" aria-hidden="true">More</span></button>
+            ...(detail?.renamable ? [{ label: t.rename, icon: "pencil" as const, onSelect: () => setRenaming(true) }] : []),
+          ], "More for this item")}><Icon name="more" /><span className="ml" aria-hidden="true">{t.more}</span></button>
         <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
       </div>
       {/* Under a page from another site the article keeps its place, hidden. */}
@@ -270,49 +273,49 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           {item.author ? <p className="p-by" dir="auto">{displayAuthors(item.author)}</p> : null}
           <p className="p-meta dotted">
             <span>{KIND_LABELS[item.kind]}</span>
-            {lenTxt && !summaryOnly ? <span>{lenTxt}{media ? "" : " read"}</span> : null}
+            {lenTxt && !summaryOnly ? <span>{lenTxt}{media ? "" : t.readSuffix}</span> : null}
             {published ? <>
-              <span>Published <time dateTime={published} title={dateTime(published, tz)}>{dayTime(published, { timeZone: tz })}</time></span>
-              <span>Arrived <time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{dayTime(itemDate(item), { timeZone: tz, sameDayAs: published })}</time></span>
+              <span>{t.published}<time dateTime={published} title={dateTime(published, tz)}>{dayTime(published, { timeZone: tz })}</time></span>
+              <span>{t.arrived}<time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{dayTime(itemDate(item), { timeZone: tz, sameDayAs: published })}</time></span>
             </> : <time dateTime={itemDate(item)} title={dateTime(itemDate(item), tz)}>{shortDate(itemDate(item), Date.now(), tz)}</time>}
             {collections.map((c) => <span key={c.id}><bdi>{c.name}</bdi></span>)}
-            {item.doi ? <span className="nowrap">DOI {item.doi}</span> : null}
+            {item.doi ? <span className="nowrap">{t.doi(item.doi)}</span> : null}
             <DownloadedTag itemId={item.id} />
           </p>
-          {seen ? <p className="fine p-seen">Marked as seen <button type="button" className="link" onClick={() => void actions.undoSeenMarker(seen)}>Undo</button></p> : null}
+          {seen ? <p className="fine p-seen">{t.markedSeen}<button type="button" className="link" onClick={() => void actions.undoSeenMarker(seen)}>{t.undo}</button></p> : null}
         </div>
         {/* Listen or Watch leads: it is what an episode is for, and the file it plays is never the "original". */}
         {detail?.media ? <MediaSection item={{ ...detail, media: detail.media }} /> : null}
         <div className="p-acts" role="group" aria-label="Item actions">
           {stateControl(true)}
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
-            <Icon name="bookmark" />{kept ? <><span className="kin">Kept in</span><span className="k" dir="auto">{keptName}</span></> : "Keep"}<Icon name="chev" size="sm" />
+            <Icon name="bookmark" />{kept ? <><span className="kin">{t.keptInLabel}</span><span className="k" dir="auto">{keptName}</span></> : t.keep}<Icon name="chev" size="sm" />
           </button>
-          {href ? <a className={`mbtn${item.media || detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? `Open on ${embed.platform}` : original?.of === "show" ? "Open the show's website" : video && play ? play.label : "Open original"}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
-          {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">Open the audio<NewTab /><Icon name="ext" size="sm" /></a> : null}
+          {href ? <a className={`mbtn${item.media || detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? t.openOn(embed.platform) : original?.of === "show" ? t.openShowSite : video && play ? play.label : t.openOriginal}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
+          {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">{t.openAudio}<NewTab /><Icon name="ext" size="sm" /></a> : null}
         </div>
         {kept ? <ItemReminder itemId={item.id} /> : null}
-        {markPending ? <p className="fine p-pend" role="status"><Icon name="clock" size="sm" />Not sent yet. Saved on this device. It'll be sent when PURSS is reachable.</p> : null}
+        {markPending ? <p className="fine p-pend" role="status"><Icon name="clock" size="sm" />{t.notSent}</p> : null}
         {!html && !loading && excerpt ? <p className="p-ex" dir="auto" data-inapp="">{splitLinks(excerpt).map((p, i) => (p.href ? <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow">{p.text}</a> : <Fragment key={i}>{p.text}</Fragment>))}</p> : null}
         {!loading && !fromDevice && (detail?.contentOmitted || summaryOnly) ? (
-          <p className="p-warn p-sum" role="note"><Icon name="info" /><span>Summary only — the full article stays on the original site.</span></p>
+          <p className="p-warn p-sum" role="note"><Icon name="info" /><span>{t.summaryOnly}</span></p>
         ) : null}
-        {item.curatorNote ? <p className="p-quote"><b>From {face.curator ?? "the person who shared this"}</b>{item.curatorNote}</p> : null}
-        {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>Full text needs a login. Titles and summaries still arrive.</span></p> : null}
+        {item.curatorNote ? <p className="p-quote"><b>{t.from(face.curator ?? t.curatorFallback)}</b>{item.curatorNote}</p> : null}
+        {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>{t.needsLogin}</span></p> : null}
         {media ? null : <Progress value={item.progress} />}
         {detail ? <DownloadSection item={detail} /> : null}
-        {loading ? <><hr /><LoadingBlocks label="Loading the text…"><div className="skel" style={{ height: 14 }} /><div className="skel" style={{ height: 14, width: "90%", marginTop: 10 }} /><div className="skel" style={{ height: 14, width: "75%", marginTop: 10 }} /></LoadingBlocks></>
+        {loading ? <><hr /><LoadingBlocks label={t.loadingText}><div className="skel" style={{ height: 14 }} /><div className="skel" style={{ height: 14, width: "90%", marginTop: 10 }} /><div className="skel" style={{ height: 14, width: "75%", marginTop: 10 }} /></LoadingBlocks></>
           : html ? <><hr />
             {detail?.changedSinceKept ? (
-              <p className="fine kept-note">{showLatest ? "Showing the latest version from the source." : "The original changed after you kept it. Showing your kept copy."}{" "}
-                <button type="button" className="link" onClick={() => setShowLatest((v) => !v)}>{showLatest ? "Show your kept copy" : "Show the latest version"}</button></p>
+              <p className="fine kept-note">{showLatest ? t.showingLatest : t.originalChanged}{" "}
+                <button type="button" className="link" onClick={() => setShowLatest((v) => !v)}>{showLatest ? t.showKept : t.showLatest}</button></p>
             ) : null}
             {fromDevice ? (
-              <p className="fine kept-note" role="note">The full article, read from the publisher's page on {dateTime(deviceArticle.savedAt, tz)}. It is kept on this device only: your PURSS and your other devices have the summary, and highlights can't be made on it.</p>
+              <p className="fine kept-note" role="note">{t.fromDevice(dateTime(deviceArticle.savedAt, tz))}</p>
             ) : null}
             {partial ? (
               <p className="fine kept-note" role="note">{partial.note}{" "}
-                {detail?.contentHtml ? <button type="button" className="link" onClick={() => setShowPartial((v) => !v)}>{partialShown ? "Show the feed's own text" : "Show what was saved of the page"}</button> : null}</p>
+                {detail?.contentHtml ? <button type="button" className="link" onClick={() => setShowPartial((v) => !v)}>{partialShown ? t.showFeedText : t.showSaved}</button> : null}</p>
             ) : null}
             <div className="prose" dir="auto" data-inapp="" ref={proseRef} dangerouslySetInnerHTML={{ __html: highlighted.html ?? html }} />
             {fromDevice ? null : <ReaderHighlights proseRef={proseRef} ann={ann} textRef={(partialShown ? partial!.ref : latest ? detail?.latestRef : detail?.contentRef) ?? null} />}</> : null}
@@ -322,13 +325,13 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           {detail?.captures.length ? (
             <ul className="caps" aria-label="What was kept">
               {detail.captures.map((c) => (
-                <li key={c.id} className="cap"><Icon name={c.level === "failed" ? "alert" : c.level === "pending" ? "clock" : "check"} size="sm" /><span>{c.label}{c.level === "browser" ? ` on ${shortDate(c.createdAt, Date.now(), tz)}` : ""}{c.note ? `. ${c.note}` : ""}<small> · <time dateTime={c.createdAt}>{dateTime(c.createdAt, tz)}</time></small>
-                  {(c.level === "failed" || c.level === "partial") && href ? <>{" "}<button type="button" className="link" onClick={() => void retryCapture()}>Try again</button></> : null}</span></li>
+                <li key={c.id} className="cap"><Icon name={c.level === "failed" ? "alert" : c.level === "pending" ? "clock" : "check"} size="sm" /><span>{c.label}{c.level === "browser" ? t.capturedOn(shortDate(c.createdAt, Date.now(), tz)) : ""}{c.note ? `. ${c.note}` : ""}<small> · <time dateTime={c.createdAt}>{dateTime(c.createdAt, tz)}</time></small>
+                  {(c.level === "failed" || c.level === "partial") && href ? <>{" "}<button type="button" className="link" onClick={() => void retryCapture()}>{t.tryAgain}</button></> : null}</span></li>
               ))}
             </ul>
           ) : null}
-          {item.basketIds.length ? <p className="fine">{keptLine} The original page may change or disappear; your copy stays as it is.</p>
-            : <p className="fine">Keeping saves the link, title and summary. Baskets that save text also keep the page text. The original page may change or disappear.</p>}
+          {item.basketIds.length ? <p className="fine">{t.keptNote(keptLine)}</p>
+            : <p className="fine">{t.notKept}</p>}
         </section>
       </div>
       {web ? <WebPane url={web} top={barBottom} onClose={() => { setWeb(null); bodyRef.current?.focus({ preventScroll: true }); }} /> : null}

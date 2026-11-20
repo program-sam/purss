@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { app } from "@purss/copy/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { ToastView } from "@purss/ui";
 import type { ToastAction } from "@purss/ui";
@@ -90,13 +91,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       id, message, sticky: !!opts.sticky, actions: (opts.actions ?? []).map((a) => ({ ...a, onSelect: () => { dismiss(); a.onSelect(); } })),
       undo: undoFn ? () => {
         dismiss();
-        Promise.resolve(undoFn()).then(() => show({ id: ++seq.current, message: "Undone.", undo: null, actions: [], sticky: false }),
+        Promise.resolve(undoFn()).then(() => show({ id: ++seq.current, message: app.state.toasts.undone, undo: null, actions: [], sticky: false }),
           (err) => show({ id: ++seq.current, message: messageOf(err), undo: null, actions: [], sticky: false }));
       } : null,
     };
     show(next);
     // The key is named only where a keyboard is likely; on a touch screen the Undo button is the way.
-    say(!undoFn ? message : keyboardLikely() ? `${message}. Press ${onMac() ? "Command" : "Control"} Z to undo.` : `${message}. Undo is available.`);
+    say(!undoFn ? message : keyboardLikely() ? app.state.toasts.pressToUndo(message, onMac()) : app.state.toasts.undoAvailable(message));
     const tone = opts.tone ?? (undoFn ? "success" : "none");
     if (tone === "success") cue("success", { emphasis: "subtle" });
     else if (tone === "error") cue("error");

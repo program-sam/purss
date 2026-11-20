@@ -1,3 +1,5 @@
+import { app } from "@purss/copy/app";
+
 /** Small, pure formatting helpers. Everything takes `now` and a time zone so results are testable. */
 
 const MIN = 60_000, HOUR = 3_600_000, DAY = 86_400_000;
@@ -139,8 +141,8 @@ export function clock(seconds: number): string {
 }
 
 export function bytesLabel(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ["KB", "MB", "GB", "TB"];
+  if (n < 1024) return app.lib.format.bytes.small(n);
+  const units = app.lib.format.bytes.units;
   let v = n / 1024, i = 0;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return `${v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2).replace(/0$/, "")} ${units[i]}`;

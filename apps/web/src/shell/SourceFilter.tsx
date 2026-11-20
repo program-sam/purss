@@ -1,3 +1,4 @@
+import { app } from "@purss/copy/app";
 import type { SourceDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { useNav } from "../nav.ts";
@@ -5,6 +6,8 @@ import type { Place } from "../nav.ts";
 import { useListState } from "../pages/list-state.ts";
 import { usePopups } from "../state/popups.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
+
+const t = app.shell.sourceFilter;
 
 type ListPlace = Exclude<Place, { t: "home" }>;
 
@@ -38,7 +41,7 @@ function SourceList({ place, onClose }: { place: ListPlace; onClose: (restore?: 
   return (
     <div className="srcpick">
       <button type="button" className="mi" role="menuitemradio" aria-checked={on.length === sources.length} onClick={() => { onClose(true); pick([]); }}>
-        <span className="ck">{on.length === sources.length ? <Icon name="check" size="sm" /> : null}</span><span className="nm">All sources</span>
+        <span className="ck">{on.length === sources.length ? <Icon name="check" size="sm" /> : null}</span><span className="nm">{t.all}</span>
       </button>
       <hr className="mhr" />
       {sources.map((s) => (
@@ -47,7 +50,7 @@ function SourceList({ place, onClose }: { place: ListPlace; onClose: (restore?: 
             <span className="ck">{isOn(s.id) ? <Icon name="check" size="sm" /> : null}</span>
             <Avatar hue={s.hue} initials={s.initials} src={s.iconUrl} size={20} /><bdi className="nm">{s.title}</bdi>
           </button>
-          <button type="button" className="mi only" role="menuitem" aria-label={`Only ${s.title}`} onClick={() => { onClose(true); pick([s.id]); }}>Only</button>
+          <button type="button" className="mi only" role="menuitem" aria-label={`Only ${s.title}`} onClick={() => { onClose(true); pick([s.id]); }}>{t.only}</button>
         </div>
       ))}
     </div>
@@ -58,7 +61,7 @@ function SourceList({ place, onClose }: { place: ListPlace; onClose: (restore?: 
 export function SourceFilter({ place, sources }: { place: ListPlace; sources: SourceDTO[] }) {
   const popups = usePopups();
   const { on } = useSourcePick(place, sources);
-  const label = on.length === sources.length || !on.length ? "All sources" : on.length === 1 ? on[0]!.title : `${on.length} of ${sources.length} sources`;
+  const label = on.length === sources.length || !on.length ? t.all : on.length === 1 ? on[0]!.title : t.someOf(on.length, sources.length);
   const one = on.length === 1 ? on[0]! : null;
   return (
     <div className="srcfilter">
