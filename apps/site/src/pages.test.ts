@@ -54,6 +54,14 @@ test("the sign-up and dashboard links go to the app, and the repository links fo
   assert.doesNotMatch(h, /&lt;repository&gt;|<repository>/);
 });
 
+test("every page's header has sign-up for visitors and Go to your PURSS for someone signed in", () => {
+  for (const key of keys) {
+    const nav = /<header class="(?:s|pf)-nav">[\s\S]*?<\/header>/.exec(html(key))?.[0] ?? "";
+    assert.match(nav, /<a class="btn primary s-out" href="\/app\/signup">/, key);
+    assert.match(nav, /<a class="btn primary s-in" href="\/app\/">Go to your PURSS<\/a>/, key);
+  }
+});
+
 test("pictures of PURSS keep their buttons away from assistive technology and the keyboard", () => {
   for (const key of keys) assert.deepEqual(exposedInsidePictures(html(key)), [], key);
   assert.ok((html("index").match(/role="img"/g) ?? []).length >= 1, "the home page shows its Home screen as a picture");

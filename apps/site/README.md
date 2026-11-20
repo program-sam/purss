@@ -32,7 +32,8 @@ Set them in the environment or in `apps/site/.env` (ignored by Git), for example
 
 In hosted mode the API serves `dist` at the root of the PURSS's address, next to the app at
 `/app/`, and answers unknown paths with `404.html` (`apps/api/src/web-routes.ts`). Someone already
-signed in who opens the root goes straight to the app; the Docker image
+signed in sees the website too: the API marks each page it serves them with `data-session` on
+`<html>`, and the header then shows Go to your PURSS instead of Open dashboard and sign-up. The Docker image
 builds it with `SITE_ORIGIN` set to `PURSS_PUBLIC_ORIGIN`. Self-hosted installations have no website:
 their root opens the app.
 

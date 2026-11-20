@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { App, Ctx, Principal } from "./app.ts";
 import { DEFAULT_BODY_LIMIT, HttpError, Router, SIGNED_OUT_PACE, SMALL_BODY_LIMIT, UPLOAD_PACE, accountSender, addressSender, clientAddress, type BodySender, parseCookies, readBody, sendJson, type Req, type RouteOptions } from "./http.ts";
@@ -12,7 +12,7 @@ import { handleOAuth, isOAuthPath } from "./oauth/endpoints.ts";
 import { serveAppAssociation } from "./connect/app-association.ts";
 import { handleBillingPlan } from "./billing.ts";
 import { assertStillUsable } from "./services/deletion.ts";
-import { webRoute } from "./web-routes.ts";
+import { markSignedIn, webRoute } from "./web-routes.ts";
 import { APP_PATH } from "@purss/domain/paths";
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -149,7 +149,7 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
 function serveStatic(app: App, url: URL, signedIn: boolean, res: ServerResponse): void {
   const siteRoot = path.resolve(app.config.siteDist);
   const withSite = app.config.mode === "hosted" && existsSync(path.join(siteRoot, "index.html"));
-  const route = webRoute(url.pathname, { withSite, signedIn });
+  const route = webRoute(url.pathname, { withSite });
   if (route.kind === "redirect") { res.writeHead(302, { location: route.to, "cache-control": "no-store" }).end(); return; }
   if (route.kind === "missing") { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("Not found"); return; }
   const root = path.resolve(route.kind === "app" ? app.config.webDist : siteRoot);
@@ -169,12 +169,15 @@ function serveStatic(app: App, url: URL, signedIn: boolean, res: ServerResponse)
     return;
   }
   const ext = path.extname(file);
+  // A website page differs for someone signed in (its header), so no shared cache may keep it.
+  const sitePage = route.kind === "site" && ext === ".html";
   res.writeHead(status, {
     "content-type": MIME[ext] ?? "application/octet-stream",
     "content-security-policy": CSP,
-    "cache-control": file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache",
+    "cache-control": file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : sitePage ? "private, no-cache" : "no-cache",
   });
-  createReadStream(file).pipe(res);
+  if (sitePage && signedIn) res.end(markSignedIn(readFileSync(file, "utf8")));
+  else createReadStream(file).pipe(res);
 }
 
 /** Internal listener: service token required; only worker routes are mounted here. */

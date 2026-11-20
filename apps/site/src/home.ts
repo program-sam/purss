@@ -225,7 +225,7 @@ const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flat
 export const home = {
   render: (site: Site) => `<style>${css}${COMPARISON_CSS}</style>
 <a class="s-skip" href="#main">Skip to content</a><main class="pf" id="main" tabindex="-1" data-on="1"><div class="pf-sky" aria-hidden="true">${quilt("pf-quilt", 150)}</div>
-<header class="pf-nav"><b>${ic("mark")}PURSS</b><a href="#why">Why</a><a href="#features">What it does</a><a href="#pricing">Pricing</a><a href="#self-host">Host it yourself</a><a href="${links(site).docs}">Docs</a><span><a href="${links(site).dashboard}">Open dashboard</a><a class="btn primary" href="${links(site).signUp}">Create a free account</a></span></header>
+<header class="pf-nav"><b>${ic("mark")}PURSS</b><a href="#why">Why</a><a href="#features">What it does</a><a href="#pricing">Pricing</a><a href="#self-host">Host it yourself</a><a href="${links(site).docs}">Docs</a><span><a class="s-out" href="${links(site).dashboard}">Open dashboard</a><a class="btn primary s-out" href="${links(site).signUp}">Create a free account</a><a class="btn primary s-in" href="${links(site).dashboard}">Go to your PURSS</a></span></header>
 <section class="pf-hero">
 <div><h1 class="pf-h1">Your internet, organized by you.</h1>
 <p class="pf-lead">A reader you fill yourself. Pick the blogs, channels, podcasts and journals; PURSS brings what they post, in order, and nothing else.</p>

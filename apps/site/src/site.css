@@ -29,6 +29,7 @@ a{text-decoration:none}
 .s-nav .brand{font-size:16px}
 .s-home{color:inherit;text-decoration:none;display:inline-flex;border-radius:8px}
 .s-short{display:none}
+html[data-session] .s-out,html:not([data-session]) .s-in{display:none!important}
 .s-menu{display:none;position:relative}
 .s-menu summary{list-style:none;cursor:pointer;border:1px solid var(--line-2);width:40px;height:40px}
 .s-menu summary::-webkit-details-marker{display:none}
