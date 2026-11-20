@@ -21,6 +21,7 @@ and released.
 | `packages/connectors` | Safe fetch, discovery, feed parsing, readable capture, OPML |
 | `packages/freshrss` | GReader client, sync walk, fixed admin commands, engine lifecycle |
 | `packages/ui` | Design tokens and UI primitives |
+| `packages/copy` | Every word people read: one catalog each for the website, the app, the UI kit, the extension, the server and shared text (see its README) |
 | `infra` | Compose files, product image, engine image and its admin helper |
 | `scripts` | Dev runner, engine lifecycle, backup and restore, repository check, allowlist generator, dataset generator (size guard) |
 | `tests/engine` | Contract tests against the pinned FreshRSS container |
@@ -66,6 +67,9 @@ start the API with `PURSS_PUBLIC_ORIGIN=http://localhost:5173` so its origin and
 - **The API is the only database writer.** Other processes go through its internal routes.
 - **Scoped queries.** Product queries filter by the principal's `workspace_id` or `account_id`.
 - **User-facing messages** are plain language; errors are `{ error: { code, message } }`.
+- **Copy lives in `@purss/copy`.** Visible text, emails and messages people read come from the
+  catalog for their audience, never inline strings; ids, logs, operator output and labels only screen
+  readers announce stay in code ([packages/copy](../packages/copy/README.md)).
 - **Secrets, runtime data and downloaded content stay out of Git** (`data/`, `.env`, backups).
 
 ## Testing and acceptance
@@ -172,7 +176,7 @@ These have no automated check; verify them yourself when a change touches them:
 ## Design principles
 
 For anyone changing the interface. The tokens and primitives are in
-[packages/ui](../packages/ui/README.md).
+[packages/ui](../packages/ui/README.md); the wording is in [packages/copy](../packages/copy/README.md).
 
 - **Say it, don't rely on guessing.** Use short action labels (Follow, Keep, Move, Undo) and pair an
   icon with a label when its meaning is not obvious. Every control has an accessible name, visible

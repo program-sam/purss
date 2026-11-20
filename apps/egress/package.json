@@ -5,6 +5,7 @@
   "description": "Egress proxy for the engine and the private feed gateway listener",
   "dependencies": {
     "@purss/connectors": "*",
+    "@purss/copy": "*",
     "@purss/domain": "*"
   }
 }

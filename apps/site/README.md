@@ -3,7 +3,8 @@
 The public website: a home page (`index.html`, built from `src/home.ts`) and the Terms,
 Privacy and Legal notice pages (`terms.html`, `privacy.html`, `legal.html`, from
 `src/legal.ts`). It is static and uses the app's own design tokens, primitives and styles, so
-its picture of PURSS is built from the real app CSS (`src/kit.ts`).
+its picture of PURSS is built from the real app CSS (`src/kit.ts`). All of its text, the Terms,
+Privacy and Legal notice included, is in `packages/copy/src/site/en/`, one file per source file.
 
 ```sh
 npx vite              # in apps/site: http://127.0.0.1:5181
@@ -38,7 +39,7 @@ builds it with `SITE_ORIGIN` set to `PURSS_PUBLIC_ORIGIN`. Self-hosted installat
 their root opens the app.
 
 The site sets no cookies and loads no third-party scripts. Plans, prices and comparison
-figures live in `src/kit.ts`. Store buttons for the browser extension and the phone app come from
+figures live in `src/kit.ts`, their wording in `packages/copy/src/site/en/kit.ts`. Store buttons for the browser extension and the phone app come from
 `packages/domain/src/distribution.ts`, shared with the app's Settings: a store gets a button once its listing
 address is set there, and a card with no listing shows none. The phone card also links the Android APK from the
 latest release; the desktop card has one download button, which a few lines of script point at the visitor's system,

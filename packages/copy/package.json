@@ -1,0 +1,16 @@
+{
+  "name": "@purss/copy",
+  "private": true,
+  "description": "Every word people read in PURSS, one catalog per audience",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./site": "./src/site/en/index.ts",
+    "./app": "./src/app/en/index.ts",
+    "./ui": "./src/ui/en/index.ts",
+    "./extension": "./src/extension/en/index.ts",
+    "./server": "./src/server/en/index.ts",
+    "./common": "./src/common/en/index.ts"
+  },
+  "dependencies": {}
+}

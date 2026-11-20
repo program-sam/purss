@@ -4,6 +4,7 @@
   "description": "Public website for PURSS",
   "type": "module",
   "dependencies": {
+    "@purss/copy": "*",
     "@purss/domain": "*"
   },
   "scripts": {

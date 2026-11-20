@@ -8,5 +8,7 @@
     "./tokens.css": "./src/tokens.css",
     "./primitives.css": "./src/primitives.css"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@purss/copy": "*"
+  }
 }

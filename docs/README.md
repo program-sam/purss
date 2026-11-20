@@ -20,5 +20,5 @@ Component details live next to the code: [API](../apps/api/README.md), [web](../
 [phone apps](../apps/mobile/README.md), [desktop app](../apps/desktop/README.md),
 [website](../apps/site/README.md), [domain](../packages/domain/README.md),
 [connectors](../packages/connectors/README.md), [FreshRSS adapter](../packages/freshrss/README.md),
-[UI](../packages/ui/README.md), [engine operation](../infra/engine/README.md),
+[UI](../packages/ui/README.md), [copy](../packages/copy/README.md), [engine operation](../infra/engine/README.md),
 [Compose packaging](../infra/README.md) and the [acceptance journeys](../tests/acceptance/README.md).
