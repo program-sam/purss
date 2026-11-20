@@ -53,7 +53,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
   async function confirmFromLink(e: FormEvent) {
     e.preventDefault();
     const token = tokenFromLink(link);
-    if (!token) { setError(t.notTheLink); return; }
+    if (!token) { setError(app.words.thatIsnTTheLinkFrom); return; }
     setBusy(true); setError("");
     try {
       await post("/api/email/verify", { token });
@@ -71,7 +71,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
   const waiting = data?.available ? data.pending ?? (data.address && !data.confirmed ? data.address : null) : null;
   return (
     <section className="field" aria-labelledby="sec-e">
-      <div className="lbl" id="sec-e">{t.heading}</div>
+      <div className="lbl" id="sec-e">{app.words.emailAddress}</div>
       {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
       {data && !editing ? (
         <>
@@ -88,7 +88,7 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
           </div>
           {waiting && platform.connection ? (
             <form onSubmit={confirmFromLink} style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <Field label={t.confirmWithLink.label} htmlFor="sec-link" hint={t.confirmWithLink.hint}>
+              <Field label={t.confirmWithLink.label} htmlFor="sec-link" hint={app.words.pasteItFromTheEmail}>
                 <TextInput id="sec-link" value={link} onChange={(e) => setLink(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" inputMode="url" />
               </Field>
               <div><Button type="submit" disabled={busy || !link.trim()}>{t.confirmWithLink.confirm}</Button></div>
@@ -102,8 +102,8 @@ export function AccountEmailSection({ withStepUp }: { withStepUp: (run: () => Pr
             <TextInput id="sec-email" type="email" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" autoFocus maxLength={254} />
           </Field>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="primary" type="submit" disabled={busy || !value.trim()}>{t.newAddress.save}</Button>
-            <Button onClick={() => { setEditing(false); setError(""); }}>{t.newAddress.cancel}</Button>
+            <Button variant="primary" type="submit" disabled={busy || !value.trim()}>{app.words.save}</Button>
+            <Button onClick={() => { setEditing(false); setError(""); }}>{app.words.cancel}</Button>
           </div>
         </form>
       ) : null}

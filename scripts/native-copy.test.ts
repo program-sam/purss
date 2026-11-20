@@ -33,7 +33,7 @@ test("every Android string the app uses is written, and every one written is use
     for (const m of source.matchAll(/R\.string\.([a-z0-9_]+)|@string\/([a-z0-9_]+)/g)) used.add((m[1] ?? m[2])!);
   }
   assert.deepEqual([...used].filter((name) => !defined.has(name)), [], "used but not written");
-  assert.deepEqual(copy.filter((name) => !used.has(name)), [], "written but not used (remove it from packages/copy/src/native/en/android.ts)");
+  assert.deepEqual(copy.filter((name) => !used.has(name)), [], "written but not used (remove it from packages/copy/src/en/native.ts)");
 });
 
 test("an Android text is the catalog's with its values numbered by first appearance and what XML and aapt read specially escaped", () => {

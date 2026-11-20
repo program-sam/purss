@@ -47,9 +47,9 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
   };
   return (
     <section className="field" aria-labelledby="ae-l" id="apps-and-extensions">
-      <div className="lbl" id="ae-l">{t.title}</div>
+      <div className="lbl" id="ae-l">{app.words.appsAndExtensions}</div>
       <ul className="seclist get-apps">
-        <Row icon="ext" title={t.extension.title}>
+        <Row icon="ext" title={app.words.browserExtension}>
           <small>{t.extension.text(DISTRIBUTION.extension.platforms)}</small>
           <Get what="extension" selfHosted={selfHosted} />
         </Row>
@@ -59,16 +59,16 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
           <Get what="mobile" selfHosted={selfHosted} />
         </Row>
         <Row icon="download" title={t.desktop.title} action={platform.desktop ? undefined
-          : <a className="btn" href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer">{t.desktop.download}</a>}>
+          : <a className="btn" href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener noreferrer">{app.words.download}</a>}>
           <small>{platform.desktop ? t.desktop.usingIt : ""}{t.desktop.text}</small>
         </Row>
-        <Row icon="bookmark" title={t.bookmarklets.title} action={<Button onClick={toBookmarklets}>{t.bookmarklets.show}</Button>}>
+        <Row icon="bookmark" title={app.words.bookmarklets} action={<Button onClick={toBookmarklets}>{app.words.show}</Button>}>
           <small>{t.bookmarklets.text}</small>
         </Row>
-        <Row icon="key" title={t.assistants.title} action={<Button onClick={() => onOpen("assistants")}>{t.assistants.open}</Button>}>
+        <Row icon="key" title={app.words.assistants} action={<Button onClick={() => onOpen("assistants")}>{app.words.open}</Button>}>
           <small>{t.assistants.text}</small>
         </Row>
-        <Row icon="item" title={t.eink.title} action={<Button onClick={() => onOpen("general")}>{t.eink.open}</Button>}>
+        <Row icon="item" title={app.words.eInkDisplay} action={<Button onClick={() => onOpen("general")}>{app.words.open}</Button>}>
           <small>{t.eink.text}</small>
         </Row>
       </ul>

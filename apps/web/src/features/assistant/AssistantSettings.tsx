@@ -16,7 +16,7 @@ import { useStepUp } from "../shared/step-up.tsx";
 const assistantKey = ["assistant"] as const;
 const copy = app.assistant.assistantSettings;
 const ACCESS_LABEL: Record<AssistantAccessLevel, string> = copy.access;
-const EXPIRY = [{ value: "30", label: copy.expiry.days30 }, { value: "90", label: copy.expiry.days90 }, { value: "365", label: copy.expiry.year1 }, { value: "never", label: copy.expiry.never }] as const;
+const EXPIRY = [{ value: "30", label: app.words.n30Days }, { value: "90", label: app.words.n90Days }, { value: "365", label: copy.expiry.year1 }, { value: "never", label: copy.expiry.never }] as const;
 
 /** The connection details for a new token, in the forms common assistants accept. */
 function ConnectInstructions({ endpoint, secret, access }: { endpoint: string; secret: string; access: AssistantAccessLevel }) {
@@ -26,11 +26,11 @@ function ConnectInstructions({ endpoint, secret, access }: { endpoint: string; s
     <div className="fx-stack" role="status">
       <Note tone="warn" icon="lock">{copy.connect.shownOnceBefore}{access === "write" ? copy.connect.readAndOrganise : copy.connect.read}{copy.connect.shownOnceAfter}</Note>
       <div className="fx-link"><span className="fx-link-l">{copy.connect.token}</span><code className="fx-url">{secret}</code><CopyButton value={secret} what={copy.connect.token} /></div>
-      <div className="fx-link"><span className="fx-link-l">{copy.connect.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={copy.connect.address} /></div>
+      <div className="fx-link"><span className="fx-link-l">{app.words.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={app.words.address} /></div>
       <p className="fine">{copy.connect.claudeCode}</p>
       <div className="fx-link"><code className="fx-url">{claude}</code><CopyButton value={claude} what={copy.connect.command} /></div>
       <p className="fine">{copy.connect.othersBefore}<code>Authorization: Bearer</code>{copy.connect.othersAfter}</p>
-      <div className="fx-link"><code className="fx-url" style={{ whiteSpace: "pre-wrap" }}>{json}</code><CopyButton value={json} what={copy.connect.settings} /></div>
+      <div className="fx-link"><code className="fx-url" style={{ whiteSpace: "pre-wrap" }}>{json}</code><CopyButton value={json} what={app.words.settings} /></div>
     </div>
   );
 }
@@ -46,10 +46,10 @@ function TokenRow({ t, onRevoke }: { t: AssistantTokenDTO; onRevoke: () => void 
         <small>
           {ACCESS_LABEL[t.access]}{copy.tokenRow.made(shortDate(t.createdAt, Date.now(), tz))}
           {t.expiresAt ? copy.tokenRow.expiry(expired, shortDate(t.expiresAt, Date.now(), tz)) : copy.tokenRow.noExpiry}
-          {t.lastUsedAt ? copy.tokenRow.lastUsed(timeAgo(t.lastUsedAt) || copy.justNow) : copy.tokenRow.notUsed}
+          {t.lastUsedAt ? copy.tokenRow.lastUsed(timeAgo(t.lastUsedAt) || app.words.justNow) : copy.tokenRow.notUsed}
         </small>
       </span>
-      <Button onClick={onRevoke} aria-label={`Revoke ${t.name}`}>{copy.tokenRow.revoke}</Button>
+      <Button onClick={onRevoke} aria-label={`Revoke ${t.name}`}>{app.words.revoke}</Button>
     </li>
   );
 }
@@ -61,9 +61,9 @@ function GrantRow({ g, onRevoke }: { g: AssistantGrantDTO; onRevoke: () => void 
       <Icon name="user" />
       <span className="tx">
         <b>{g.clientName}</b>
-        <small>{copy.grantRow.summary(g.clientHost, ACCESS_LABEL[g.access], shortDate(g.createdAt, Date.now(), tz), timeAgo(g.lastUsedAt) || copy.justNow)}</small>
+        <small>{copy.grantRow.summary(g.clientHost, ACCESS_LABEL[g.access], shortDate(g.createdAt, Date.now(), tz), timeAgo(g.lastUsedAt) || app.words.justNow)}</small>
       </span>
-      <Button onClick={onRevoke} aria-label={`Disconnect ${g.clientName}`}>{copy.grantRow.disconnect}</Button>
+      <Button onClick={onRevoke} aria-label={`Disconnect ${g.clientName}`}>{app.words.disconnect}</Button>
     </li>
   );
 }
@@ -73,7 +73,7 @@ function SignInInstructions({ endpoint }: { endpoint: string }) {
   return (
     <div className="fx-stack">
       <p className="fine">{copy.signIn.hint}</p>
-      <div className="fx-link"><span className="fx-link-l">{copy.signIn.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={copy.signIn.address} /></div>
+      <div className="fx-link"><span className="fx-link-l">{app.words.address}</span><code className="fx-url">{endpoint}</code><CopyButton value={endpoint} what={app.words.address} /></div>
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function AssistantSettings() {
     await act(async () => { await del(`/api/assistant/tokens/${encodeURIComponent(t.id)}`); if (made?.token.id === t.id) setMade(null); toast(copy.revoked(t.name)); });
   }
 
-  if (q.isPending) return <p className="state"><span className="spin" aria-hidden="true" />{copy.loading}</p>;
+  if (q.isPending) return <p className="state"><span className="spin" aria-hidden="true" />{app.words.loading}</p>;
   if (q.isError || !data) return <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p>;
   const insecure = data.endpoint.startsWith("http:") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(data.endpoint);
   return (
@@ -168,7 +168,7 @@ export function AssistantSettings() {
       {data.available && data.enabled && composing ? (
         <form className="field" aria-labelledby="as-n" onSubmit={(e) => { e.preventDefault(); void create(); }} style={{ display: "grid", gap: 10 }}>
           <div className="lbl" id="as-n">{copy.newToken}</div>
-          <label className="fine" htmlFor="as-name">{copy.nameLabel}</label>
+          <label className="fine" htmlFor="as-name">{app.words.nameSoYouRecogniseItLater}</label>
           <TextInput id="as-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={copy.namePlaceholder} autoComplete="off" />
           <label className="fine" htmlFor="as-access">{copy.mayDo}</label>
           <SelectInput id="as-access" value={access} onChange={(e) => setAccess(e.target.value as AssistantAccessLevel)}>
@@ -181,7 +181,7 @@ export function AssistantSettings() {
           </SelectInput>
           <div style={{ display: "flex", gap: 8 }}>
             <Button type="submit" variant="primary" disabled={busy || !name.trim()}>{copy.createToken}</Button>
-            <Button onClick={() => { setComposing(false); setName(""); }} disabled={busy}>{copy.cancel}</Button>
+            <Button onClick={() => { setComposing(false); setName(""); }} disabled={busy}>{app.words.cancel}</Button>
           </div>
           <p className="fine">{copy.confirmItsYou}</p>
         </form>

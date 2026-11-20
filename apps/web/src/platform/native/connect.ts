@@ -17,7 +17,7 @@ export const REDIRECT_URI = "purss://connect";
 /** Whether an answer from /api/connect/info is a PURSS this app can connect to. */
 export function checkInfo(v: unknown): { ok: true; info: ConnectInfo } | { ok: false; message: string } {
   const info = v as Partial<ConnectInfo> | null;
-  if (!info || info.service !== "purss" || !info.connect) return { ok: false, message: t.notAPurss };
+  if (!info || info.service !== "purss" || !info.connect) return { ok: false, message: app.words.thatAddressAnswersButItIsn };
   const mobile = info.connect.clients?.mobile;
   if (!info.connect.codeChallengeMethods?.includes("S256") || !mobile?.redirectUris.includes(REDIRECT_URI) || typeof info.connect.page !== "string") {
     return { ok: false, message: t.cantConnect };

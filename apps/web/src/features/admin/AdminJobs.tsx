@@ -22,13 +22,13 @@ function Row({ job, busy, onAct }: { job: AdminJob; busy: boolean; onAct: (a: "r
     <li className="fx-row wrap fx-job">
       <div className="fx-grow">
         <b><code>{job.kind}</code></b>
-        <span className="fine">{t.summary(job.attempts, timeAgo(job.updatedAt) || t.justNow, job.account ? shortId(job.account) : null)}</span>
+        <span className="fine">{t.summary(job.attempts, timeAgo(job.updatedAt) || app.words.justNow, job.account ? shortId(job.account) : null)}</span>
         {job.lastError ? <span className="fx-err">{job.lastError}</span> : null}
       </div>
       <div className="fx-end">
         <span className={`tag fx-status ${job.status}`}>{STATUS_LABEL[job.status] ?? job.status}</span>
         {canRetry ? <Button disabled={busy} onClick={() => onAct("retry")} aria-label={`Retry ${job.kind}`}>{t.retry}</Button> : null}
-        {canCancel ? <Button disabled={busy} onClick={() => onAct("cancel")} aria-label={`Cancel ${job.kind}`}>{t.cancel}</Button> : null}
+        {canCancel ? <Button disabled={busy} onClick={() => onAct("cancel")} aria-label={`Cancel ${job.kind}`}>{app.words.cancel}</Button> : null}
       </div>
     </li>
   );
@@ -52,7 +52,7 @@ export function AdminJobsPanel() {
   return (
     <div className="fx-stack">
       <Segmented<JobFilter> label="Show jobs" value={filter} onChange={setFilter} buttonStyle={{ height: 30, padding: "0 14px" }}
-        options={[{ value: "failed", label: t.filters.failed }, { value: "queued", label: t.filters.queued }, { value: "leased", label: t.filters.leased }, { value: "all", label: t.filters.all }]} />
+        options={[{ value: "failed", label: app.words.failed }, { value: "queued", label: app.words.waiting }, { value: "leased", label: app.words.running }, { value: "all", label: app.words.recent }]} />
       <p className="fine">{t.redacted}</p>
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what={t.jobsName} onRetry={() => void q.refetch()} /> : null}

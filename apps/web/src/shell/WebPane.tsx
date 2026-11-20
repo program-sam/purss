@@ -28,11 +28,11 @@ export function WebPane({ url, top, onClose }: { url: string; top: number; onClo
       onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
       <div className="web-bar">
         <button ref={closeRef} type="button" className="ibtn web-close" onClick={onClose} aria-label={t.backToArticle} title={t.backToArticleEsc}>
-          <Icon name="back" /><span aria-hidden="true">{t.article}</span>
+          <Icon name="back" /><span aria-hidden="true">{app.words.article}</span>
         </button>
         {view ? (
           <>
-            <IconButton label="Back in this page" title={t.back} onClick={() => view.go("back")}><Icon name="back" size="sm" /></IconButton>
+            <IconButton label="Back in this page" title={app.words.back} onClick={() => view.go("back")}><Icon name="back" size="sm" /></IconButton>
             <IconButton label="Forward in this page" title={t.forward} onClick={() => view.go("forward")}><Icon name="chev" size="sm" /></IconButton>
           </>
         ) : null}
@@ -40,8 +40,8 @@ export function WebPane({ url, top, onClose }: { url: string; top: number; onClo
           {address.secure ? null : <span className="web-plain">{t.notSecure}</span>}
           <bdi className="web-site">{address.site}</bdi><span className="web-rest">{address.rest}</span>
         </span>
-        {shown.loading ? <span className="web-loading" role="status">{t.loading}</span> : null}
-        <IconButton label="Reload the page" title={t.reload} onClick={() => (view ? view.go("reload") : setReloads((n) => n + 1))}><Icon name="reload" size="sm" /></IconButton>
+        {shown.loading ? <span className="web-loading" role="status">{app.words.loading}</span> : null}
+        <IconButton label="Reload the page" title={app.words.reload} onClick={() => (view ? view.go("reload") : setReloads((n) => n + 1))}><Icon name="reload" size="sm" /></IconButton>
         <a className="ibtn" href={shown.url || url} target="_blank" rel="noopener noreferrer" aria-label={view ? t.openInBrowser : t.openInTab} title={view ? t.openInBrowser : t.openInTab}
           onClick={(e) => { if (view) { e.preventDefault(); platform.openExternal(shown.url || url); } }}><Icon name="ext" size="sm" /></a>
       </div>

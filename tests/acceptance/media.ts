@@ -137,10 +137,10 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
-  await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
-  await page.getByRole("button", { name: app.shell.sidebar.addSource }).first().waitFor();
+  await page.getByRole("textbox", { name: app.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(app.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: app.words.signIn, exact: true }).click();
+  await page.getByRole("button", { name: app.words.addSource }).first().waitFor();
 }
 
 async function openEpisode(page: Page, sourceId: string, title: string): Promise<void> {
@@ -209,17 +209,17 @@ async function main(): Promise<void> {
     const panelBox = async (selector: string) => (await page.locator(`aside.panel ${selector}`).first().boundingBox())!;
     assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
     assert.equal(await page.locator("aside.panel .p-acts .mbtn.go").count(), 0, "no other button is made the primary one beside Listen");
-    assert.match((await page.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).getAttribute("href"))!, /^https:\/\/example\.org\/post\/\d+$/, "an episode with a page opens that page as its original");
-    assert.equal(await page.getByRole("link", { name: startsWith(panelCopy.openShowSite) }).count(), 0, "the show's website is only for an episode with no page");
+    assert.match((await page.getByRole("link", { name: startsWith(app.words.openOriginal) }).getAttribute("href"))!, /^https:\/\/example\.org\/post\/\d+$/, "an episode with a page opens that page as its original");
+    assert.equal(await page.getByRole("link", { name: startsWith(app.words.openTheShowSWebsite) }).count(), 0, "the show's website is only for an episode with no page");
     step("Listen leads the panel and an episode with a page keeps Open original for it");
 
     // An episode whose link is its audio file: no original, one link to the file, the show's website instead, a clean byline.
     await openEpisode(page, sourceId, "Tide tables, read aloud");
     const panel = page.locator("aside.panel");
-    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).count(), 0, "the audio file is not offered as the original");
+    assert.equal(await panel.getByRole("link", { name: startsWith(app.words.openOriginal) }).count(), 0, "the audio file is not offered as the original");
     assert.equal(await panel.locator(`a[href="${TIDES}"]`).count(), 1, "the audio file has one link, Open the audio");
     await panel.getByRole("link", { name: startsWith(panelCopy.openAudio) }).waitFor();
-    const site = panel.getByRole("link", { name: startsWith(panelCopy.openShowSite) });
+    const site = panel.getByRole("link", { name: startsWith(app.words.openTheShowSWebsite) });
     assert.equal(await site.getAttribute("href"), SHOW_SITE, "the show's website opens instead");
     assert.equal(await panel.locator(".p-acts .mbtn.go").count(), 0, "the website is not the primary button");
     assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
@@ -233,15 +233,15 @@ async function main(): Promise<void> {
     await tidesRow.waitFor();
     await tidesRow.getByRole("button", { name: /^Actions for/ }).click();
     const menu = page.getByRole("menu");
-    await menu.getByRole("menuitem", { name: menuCopy.openShowSite }).waitFor();
-    assert.equal(await menu.getByRole("menuitem", { name: menuCopy.openOriginal }).count(), 0, "the row's menu does not offer the audio file as the original");
+    await menu.getByRole("menuitem", { name: app.words.openTheShowSWebsite }).waitFor();
+    assert.equal(await menu.getByRole("menuitem", { name: app.words.openOriginal }).count(), 0, "the row's menu does not offer the audio file as the original");
     assert.equal(await menu.getByRole("menuitem", { name: app.lib.copyLink.original }).count(), 0, "there is no original page to copy");
     await page.keyboard.press("Escape");
     step("the row's menu offers the show's website, and no original page to open or copy");
 
     // A show with no website, and an author that is only an address: no original at all and no byline.
     await openEpisode(page, quietId, "Static on the shortwave");
-    assert.equal(await panel.getByRole("link", { name: new RegExp(`${startsWith(panelCopy.openOriginal).source}|${startsWith(panelCopy.openShowSite).source}`) }).count(), 0, "no page and no website: no original button");
+    assert.equal(await panel.getByRole("link", { name: new RegExp(`${startsWith(app.words.openOriginal).source}|${startsWith(app.words.openTheShowSWebsite).source}`) }).count(), 0, "no page and no website: no original button");
     assert.equal(await panel.locator(`a[href="${STATIC}"]`).count(), 1, "the file is still one click away, as Open the audio");
     assert.equal(await panel.locator(".p-by").count(), 0, "an address with no name leaves no byline");
     await panel.getByRole("button", { name: mediaCopy.listen, exact: true }).waitFor();
@@ -251,16 +251,16 @@ async function main(): Promise<void> {
     // neither the panel nor the menus offer the file (and its token) as the original, and the show's website is offered instead.
     await openEpisode(page, membersId, "Members only episode");
     assert.equal((await itemDetail(page, "Members only episode")).media, null, "a private source's file address is withheld");
-    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).count(), 0, "the private file is not offered as the original");
+    assert.equal(await panel.getByRole("link", { name: startsWith(app.words.openOriginal) }).count(), 0, "the private file is not offered as the original");
     assert.equal(await panel.locator('a[href*="token="]').count(), 0, "no link in the panel carries the file's token");
-    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openShowSite) }).getAttribute("href"), MEMBERS_SITE, "the show's website opens instead");
+    assert.equal(await panel.getByRole("link", { name: startsWith(app.words.openTheShowSWebsite) }).getAttribute("href"), MEMBERS_SITE, "the show's website opens instead");
     await page.goto(`${origin}/app/s/${membersId}`);
     const membersRow = page.locator("main .irow", { hasText: "Members only episode" }).first();
     await membersRow.waitFor();
     await membersRow.getByRole("button", { name: /^Actions for/ }).click();
     const membersMenu = page.getByRole("menu");
-    await membersMenu.getByRole("menuitem", { name: menuCopy.openShowSite }).waitFor();
-    assert.equal(await membersMenu.getByRole("menuitem", { name: menuCopy.openOriginal }).count(), 0, "the row's menu does not offer the private file as the original");
+    await membersMenu.getByRole("menuitem", { name: app.words.openTheShowSWebsite }).waitFor();
+    assert.equal(await membersMenu.getByRole("menuitem", { name: app.words.openOriginal }).count(), 0, "the row's menu does not offer the private file as the original");
     assert.equal(await membersMenu.getByRole("menuitem", { name: app.lib.copyLink.original }).count(), 0, "the private file's address is not copied");
     await page.keyboard.press("Escape");
     step("a private source's file link, which names no file, is not offered as the original either");
@@ -305,7 +305,7 @@ async function main(): Promise<void> {
     step("on a laptop the reader and the list end above the player, and the rail runs beside it");
 
     // With the reader open, a laptop's sidebar steps back to its rail, where Home is an icon button.
-    await page.locator("#side").getByRole("button", { name: app.shell.sidebar.home, exact: true }).first().click();
+    await page.locator("#side").getByRole("button", { name: app.words.home, exact: true }).first().click();
     await page.waitForURL(`${origin}/app/`);
     assert.ok(await bar.isVisible(), "the player stays while moving around");
     await besidePlayer("the full sidebar");
@@ -325,7 +325,7 @@ async function main(): Promise<void> {
     await bar.getByRole("button", { name: "Sleep timer" }).click();
     await page.getByRole("menuitemradio", { name: app.player.bar.inMinutes(15) }).click();
     await bar.getByRole("button", { name: "Sleep timer: pauses in 15 min" }).click();
-    await page.getByRole("menuitemradio", { name: app.player.bar.off }).click();
+    await page.getByRole("menuitemradio", { name: app.words.off }).click();
     await bar.getByRole("button", { name: "Sleep timer" }).waitFor();
     step("the sleep timer shows its time left and turns off");
 
@@ -391,7 +391,7 @@ async function main(): Promise<void> {
     await row.waitFor();
     assert.equal(await row.getByRole("button", { name: downloadButton }).count(), 0, "no download button on a row");
     assert.equal(await page.getByRole("button", { name: /Save new episodes/ }).count(), 0, "a source can't save its episodes on the server");
-    await row.getByRole("button", { name: new RegExp(`^${escapeRe(app.lib.constants.toListen)}:`) }).waitFor(); // an episode's one-click button says To listen
+    await row.getByRole("button", { name: new RegExp(`^${escapeRe(app.words.toListen)}:`) }).waitFor(); // an episode's one-click button says To listen
     step("rows and the source page offer no saving or downloading in a browser");
 
     // A phone-sized screen: the bar fits, and the reader, the list, the menu drawer (down to Settings) and
@@ -408,14 +408,14 @@ async function main(): Promise<void> {
     const tabs = await page.getByRole("navigation", { name: "Main" }).boundingBox();
     const played = await bar.boundingBox();
     assert.ok(tabs && played && played.y + played.height <= tabs.y + 0.5, "the player sits above the tab bar");
-    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: app.shell.tabBar.collections }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: app.words.collections }).click();
     await page.locator('.app[data-drawer="open"]').waitFor();
     await clearOfPlayer("the menu drawer", "#side");
     await clearOfPlayer("Settings in the menu", "#side .side-foot .set");
     await page.locator("#side .side-foot .set").click(); // fails if anything covers it
-    await page.getByRole("dialog", { name: app.dialogs.settings.dialog.title }).waitFor();
+    await page.getByRole("dialog", { name: app.words.settings }).waitFor();
     await page.keyboard.press("Escape");
-    await page.getByRole("dialog", { name: app.dialogs.settings.dialog.title }).waitFor({ state: "detached" });
+    await page.getByRole("dialog", { name: app.words.settings }).waitFor({ state: "detached" });
     await page.evaluate(() => localStorage.setItem("purss:display", "eink"));
     await openEpisode(page, sourceId, "Night shipping forecast");
     await page.getByRole("button", { name: startsWith(mediaCopy.listen) }).click();

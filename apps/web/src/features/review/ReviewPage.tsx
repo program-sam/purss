@@ -29,14 +29,14 @@ function AcceptAllDialog({ count, onClose, onDone }: { count: number; onClose: (
   }
   if (result) {
     return (
-      <Dialog title={t.acceptedTitle} size="sm" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{t.done}</Button>}>
-        <p className="hint"><b>{plural(result.matched, t.entry, t.entries)}</b>{t.linked}{result.skipped ? t.leftToDecide(plural(result.skipped, t.entry, t.entries)) : ""}{result.remaining ? t.stillWaiting(result.remaining) : ""}</p>
+      <Dialog title={t.acceptedTitle} size="sm" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{app.words.done}</Button>}>
+        <p className="hint"><b>{plural(result.matched, app.words.entry, app.words.entries)}</b>{t.linked}{result.skipped ? t.leftToDecide(plural(result.skipped, app.words.entry, app.words.entries)) : ""}{result.remaining ? t.stillWaiting(result.remaining) : ""}</p>
       </Dialog>
     );
   }
   return (
     <Dialog title={t.acceptAllTitle} size="sm" onClose={onClose} initialFocus=".dlg-f .btn.primary"
-      footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={busy} onClick={() => void go()}>{t.accept(plural(count, t.match, t.matches))}</Button></>}>
+      footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy} onClick={() => void go()}>{t.accept(plural(count, t.match, t.matches))}</Button></>}>
       <p className="hint">{t.acceptHint}</p>
       <p className="fine">{t.acceptFine}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
@@ -60,12 +60,12 @@ function Entry({ e, busy, onAct, onChoose }: { e: ReconcileEntryDTO; busy: boole
       {e.entry.summary ? <p className="fine">{e.entry.summary}</p> : null}
       <p className="fx-why"><Icon name="info" size="sm" /><span>{e.reason}</span></p>
       {c ? (
-        <p className="fx-cand">{t.youHave}<button type="button" className="link" onClick={() => nav.openItem(c.itemId)}>{c.title}</button>{c.kept ? <span className="tag" style={{ marginLeft: 8 }}><Icon name="basket" />{t.kept}</span> : null}</p>
+        <p className="fx-cand">{t.youHave}<button type="button" className="link" onClick={() => nav.openItem(c.itemId)}>{c.title}</button>{c.kept ? <span className="tag" style={{ marginLeft: 8 }}><Icon name="basket" />{app.words.kept}</span> : null}</p>
       ) : null}
       <div className="fx-acts-row">
         {c ? <Button variant={e.suggestion === "match" ? "primary" : "default"} disabled={busy} onClick={() => onAct("match", c.itemId)}>{t.matchButton}</Button> : <Button disabled={busy} onClick={onChoose}>{t.matchToItem}</Button>}
         <Button variant={!c && e.suggestion === "new" ? "primary" : "default"} disabled={busy} onClick={() => onAct("new")}>{t.addAsNew}</Button>
-        <Button variant="ghost" disabled={busy} onClick={() => onAct("dismiss")}>{t.dismiss}</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => onAct("dismiss")}>{app.words.dismiss}</Button>
         {c ? <button type="button" className="link" onClick={onChoose}>{t.chooseAnother}</button> : null}
       </div>
     </li>
@@ -92,12 +92,12 @@ export function ReviewPage() {
     try {
       await post(`/api/reconcile/${encodeURIComponent(e.id)}`, { action, ...(itemId ? { itemId } : {}) });
       refresh();
-      toast(action === "match" ? t.linkedToast : action === "new" ? t.addedToast : t.dismissedToast);
+      toast(action === "match" ? t.linkedToast : action === "new" ? t.addedToast : app.words.dismissed);
     } catch (err) { toast(messageOf(err), { tone: "error" }); } finally { setBusy(null); }
   }
 
   return (
-    <Page title={t.title} lead={t.lead}>
+    <Page title={app.words.review} lead={t.lead}>
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what={t.listName} onRetry={() => void q.refetch()} /> : null}
       {d && !d.entries.length ? (
@@ -106,7 +106,7 @@ export function ReviewPage() {
       {d?.entries.length ? (
         <>
           <div className="fx-bulk">
-            <p>{t.waiting(plural(d.total, t.entry, t.entries), d.total > d.entries.length ? d.entries.length : null, plural(d.suggestedMatches, t.has, t.have))}</p>
+            <p>{t.waiting(plural(d.total, app.words.entry, app.words.entries), d.total > d.entries.length ? d.entries.length : null, plural(d.suggestedMatches, t.has, t.have))}</p>
             <Button variant="primary" disabled={!d.suggestedMatches} onClick={() => setAcceptAll(true)}>{t.acceptAll}</Button>
           </div>
           <ul className="fx-entries">{d.entries.map((e) => <Entry key={e.id} e={e} busy={busy === e.id} onAct={(a, id) => void act(e, a, id)} onChoose={() => setChoose(e)} />)}</ul>

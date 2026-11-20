@@ -4,7 +4,6 @@ import type { DeviceFiles } from "../../downloads/manager.ts";
 import { desktop } from "./bridge.ts";
 import { app } from "@purss/copy/app";
 
-const t = app.platform.desktopFiles;
 
 /*
  * The desktop app's downloads: real files in `PURSS` inside the folder the person chose,
@@ -25,14 +24,14 @@ function failure(err: unknown): DownloadError {
 export function desktopFiles(mediaBase: string): DeviceFiles {
   return {
     async download(url, name, onProgress, signal) {
-      if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
+      if (signal.aborted) throw new DOMException(app.words.theDownloadWasStopped, "AbortError");
       const id = `dl-${Date.now()}-${nextId++}`;
       const stop = () => { void desktop.cancelDownload(id).catch(() => undefined); };
       signal.addEventListener("abort", stop, { once: true });
       try {
         return await desktop.download(id, url, name, null, (p) => { if (!signal.aborted) onProgress(p.bytes, p.total > 0 ? p.total : null); });
       } catch (err) {
-        if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
+        if (signal.aborted) throw new DOMException(app.words.theDownloadWasStopped, "AbortError");
         throw failure(err);
       } finally {
         signal.removeEventListener("abort", stop);

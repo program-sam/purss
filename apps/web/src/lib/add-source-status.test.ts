@@ -11,7 +11,7 @@ const base = { phase: "paste" as const, searching: false, shows: 0, candidates: 
 test("Add source announces one short line for each step, never the form", () => {
   assert.equal(addSourceStatus({ ...base, phase: "paste" }), "");
   assert.equal(addSourceStatus({ ...base, phase: "single" }), "");
-  assert.equal(addSourceStatus({ ...base, phase: "looking" }), t.looking);
+  assert.equal(addSourceStatus({ ...base, phase: "looking" }), app.words.looking);
   assert.equal(addSourceStatus({ ...base, phase: "shows", searching: true }), t.searching);
   assert.equal(addSourceStatus({ ...base, phase: "shows", shows: 3 }), t.showsFound(plural(3, app.lib.nouns.show)));
   assert.equal(addSourceStatus({ ...base, phase: "shows", shows: 1 }), t.showsFound(plural(1, app.lib.nouns.show)));

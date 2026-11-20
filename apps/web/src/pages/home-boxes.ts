@@ -12,7 +12,7 @@ export const isOtherBox = (c: Pick<CollectionDTO, "id">): boolean => c.id === OT
 /** Sources that are in no collection, shaped like a collection so a Home box can show them. */
 export function otherSourcesBox(loose: readonly SourceDTO[]): CollectionDTO {
   return {
-    id: OTHER_BOX_ID, name: app.pages.homeBoxes.otherSources, emoji: null, mode: "sources", view: "list", position: Number.MAX_SAFE_INTEGER, showOnHome: true,
+    id: OTHER_BOX_ID, name: app.words.otherSources, emoji: null, mode: "sources", view: "list", position: Number.MAX_SAFE_INTEGER, showOnHome: true,
     sourceIds: loose.map((s) => s.id), query: null,
     freshCount: loose.reduce((n, s) => n + s.freshCount, 0), itemCount: loose.reduce((n, s) => n + s.itemCount, 0),
     aiFiltered: false,

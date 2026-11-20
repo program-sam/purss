@@ -38,7 +38,7 @@ export function AiFilterDialog({ scope }: { scope: AiFilterScope }) {
   const settings = useAiSettings();
   const current = useQuery({ queryKey: filterKey(scope), queryFn: () => get<{ filter: AiFilterDTO | null }>(base(scope)), staleTime: 0 });
   if (!name || !settings.data || !current.data) {
-    return <Dialog title={t.dialog.loadingTitle} size="md" onClose={ov.close}>{settings.error || current.error ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(settings.error ?? current.error)}</span></p> : <p className="fine">{t.dialog.loading}</p>}</Dialog>;
+    return <Dialog title={t.dialog.loadingTitle} size="md" onClose={ov.close}>{settings.error || current.error ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(settings.error ?? current.error)}</span></p> : <p className="fine">{app.words.loading}</p>}</Dialog>;
   }
   return <FilterEditor scope={scope} name={name} settings={settings.data} filter={current.data.filter} onDone={(text) => { void qc.invalidateQueries({ queryKey: aiKey }); void qc.invalidateQueries({ queryKey: filterKey(scope) }); refreshWorkspace(qc); ov.close(); toast(text); }} onClose={ov.close} />;
 }
@@ -79,8 +79,8 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
     <Dialog title={t.dialog.forTitle(isolate(name))} size="md" onClose={onClose} initialFocus="#aif-keep"
       footer={<>
         {filter ? <Button variant="danger" disabled={!!busy} onClick={remove} style={{ marginRight: "auto" }}>{t.editor.removeFilter}</Button> : null}
-        <Button onClick={onClose}>{t.editor.cancel}</Button>
-        <Button variant="primary" type="submit" form="aif-form" disabled={!!busy || !ready || !route}>{filter ? t.editor.save : enabled ? t.editor.turnOn : t.editor.save}</Button>
+        <Button onClick={onClose}>{app.words.cancel}</Button>
+        <Button variant="primary" type="submit" form="aif-form" disabled={!!busy || !ready || !route}>{filter ? app.words.save : enabled ? app.words.turnOn : app.words.save}</Button>
       </>}>
       <form id="aif-form" onSubmit={(e) => { e.preventDefault(); void save(); }} style={{ display: "grid", gap: 12 }}>
         <p className="hint">{t.editor.hint(what)}</p>
@@ -106,11 +106,11 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
           </div>
           {preview ? (
             <>
-              <p className="fine" role="status">{t.editor.previewSummary(plural(kept, t.editor.post), plural(preview.posts.length - kept, t.editor.post))}</p>
+              <p className="fine" role="status">{t.editor.previewSummary(plural(kept, app.words.post), plural(preview.posts.length - kept, app.words.post))}</p>
               <ul className="ordlist aif-preview" aria-label="What the filter would do">
                 {preview.posts.map((p) => (
                   <li className={`ordrow${p.dropped ? " aif-dropped" : ""}`} key={p.itemId}>
-                    <span className={`aif-verdict ${p.dropped ? "aif-drop" : "aif-keep"}`}>{p.dropped ? t.editor.drop : t.editor.keep}</span>
+                    <span className={`aif-verdict ${p.dropped ? "aif-drop" : "aif-keep"}`}>{p.dropped ? t.editor.drop : app.words.keep}</span>
                     <span className="nm" dir="auto">{p.title}{"collectionId" in scope && p.sourceTitle ? <span className="fine"> · {p.sourceTitle}</span> : null}</span>
                     <span className="fine aif-pct">{percent(p.keepProbability)}</span>
                   </li>
@@ -120,7 +120,7 @@ function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scop
           ) : null}
         </div>
         <Check checked={enabled} onChange={setEnabled} hint={t.editor.enabledHint}>{t.editor.enabled}</Check>
-        {filter ? <p className="fine">{t.editor.soFar(plural(filter.judgedCount, t.editor.post), filter.droppedCount === 1 ? t.editor.droppedOne : t.editor.droppedMany(filter.droppedCount))}</p> : null}
+        {filter ? <p className="fine">{t.editor.soFar(plural(filter.judgedCount, app.words.post), filter.droppedCount === 1 ? t.editor.droppedOne : t.editor.droppedMany(filter.droppedCount))}</p> : null}
         <p className="fine">{t.editor.privacy(settings.keySource.split(" (")[0]!)}</p>
       </form>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
@@ -133,9 +133,9 @@ export function AiSettingsField() {
   const settings = useAiSettings();
   const s = settings.data;
   return (
-    <fieldset className="field" aria-describedby="ai-hint"><legend className="lbl" style={{ marginBottom: 6 }}>{t.settings.title}</legend>
+    <fieldset className="field" aria-describedby="ai-hint"><legend className="lbl" style={{ marginBottom: 6 }}>{app.words.smartFilters}</legend>
       <p className="fine" id="ai-hint">{t.settings.hint}</p>
-      {!s ? <p className="fine">{settings.error ? messageOf(settings.error) : t.settings.loading}</p> : (
+      {!s ? <p className="fine">{settings.error ? messageOf(settings.error) : app.words.loading}</p> : (
         <>
           {!s.serverKey ? <p className="fine">{s.pro !== null ? t.settings.notAvailableYet : t.settings.notSetUp}</p>
             : s.allowanceUsedUp ? <p className="fine">{s.pro !== null ? t.settings.allowanceUsedPro : t.settings.allowanceUsedAdmin}</p>

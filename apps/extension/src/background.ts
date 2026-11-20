@@ -20,7 +20,7 @@ const settle = new Debouncer<number>(BADGE_DELAY_MS);
 async function mark(tabId: number | undefined, state: "kept" | "none" | "error", title?: string): Promise<void> {
   if (tabId === undefined) return;
   await api.action.setBadgeText({ tabId, text: state === "kept" ? KEPT_MARK : state === "error" ? "!" : "" }).catch(() => undefined);
-  await api.action.setTitle({ tabId, title: title ?? (state === "kept" ? extension.background.keptInYourPurss : extension.background.title) }).catch(() => undefined);
+  await api.action.setTitle({ tabId, title: title ?? (state === "kept" ? extension.background.keptInYourPurss : "PURSS") }).catch(() => undefined);
 }
 
 async function rebuildMenus(): Promise<void> {

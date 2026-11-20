@@ -100,23 +100,23 @@ export function SignInPage() {
     );
   }
   return (
-    <AuthFrame title={t.title} intro={t.intro}>
+    <AuthFrame title={app.words.signIn} intro={t.intro}>
       <div style={{ display: "grid", gap: 14 }}>
         {notice ? <p className="state" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint={t.sharedComputerHint}>{t.sharedComputer}</Check>
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint={app.words.signsOutWhenTheBrowserCloses}>{app.words.thisIsASharedComputer}</Check>
         <form onSubmit={withPassword} style={{ display: "grid", gap: 10 }} aria-label="Sign in with an email address and password">
-          <Field label={t.emailLabel} htmlFor="si-u">
+          <Field label={app.words.emailAddress} htmlFor="si-u">
             <TextInput id="si-u" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus />
           </Field>
-          <Field label={t.passwordLabel} htmlFor="si-p">
+          <Field label={app.words.password} htmlFor="si-p">
             <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
-          <div><Button variant="primary" type="submit" disabled={busy || !email.trim() || !password}>{t.signIn}</Button></div>
+          <div><Button variant="primary" type="submit" disabled={busy || !email.trim() || !password}>{app.words.signIn}</Button></div>
         </form>
         {supported ? (
           <>
-            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? t.waitingForDevice : t.withPasskey}</Button>
+            <Button large disabled={busy} onClick={withPasskey} style={{ width: "100%" }}><Icon name="key" />{waiting ? app.words.waitingForYourDevice : app.words.signInWithAPasskey}</Button>
             <p className="fine" style={{ textAlign: "center", marginTop: -8 }}>{t.passkeyHint}</p>
           </>
         ) : null}
@@ -125,15 +125,15 @@ export function SignInPage() {
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.accountEmail
             ? <>{t.reset.before}<a className="link" href={inApp("/reset-password")}>{t.reset.link}</a></>
-            : session?.installation.mode === "hosted" ? t.resetEmailsUnavailable
+            : session?.installation.mode === "hosted" ? app.words.passwordResetEmailsArenTAvailable
               : session ? t.askAdministrator
                 : null}
         </p>
         {/* With open sign-up an invitation is only ever followed from its email link, which fills in the code. */}
         <p className="fine" style={{ textAlign: "center" }}>
           {session?.installation.signup === "open"
-            ? <>{t.createAccount.before}<a className="link" href={inApp("/signup")}>{t.createAccount.link}</a></>
-            : <>{t.useInvitation.before}<a className="link" href={inApp("/invite")}>{t.useInvitation.link}</a></>}
+            ? <>{app.words.newHereSpaced}<a className="link" href={inApp("/signup")}>{app.words.createAnAccount}</a></>
+            : <>{app.words.newHereSpaced}<a className="link" href={inApp("/invite")}>{t.useInvitation.link}</a></>}
         </p>
       </div>
     </AuthFrame>

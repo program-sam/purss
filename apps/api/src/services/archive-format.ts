@@ -71,7 +71,7 @@ const sourceSchema = z.object({
   id,
   kind: z.enum(["feed", "youtube", "podcast", "publication", "private", "manual"]),
   title: text(300),
-  origin: text(200).default(server.api.archiveFormat.defaultOrigin),
+  origin: text(200).default(server.words.rssFeed),
   siteUrl: text(2000).nullable().default(null),
   feedUrl: text(2000).nullable().default(null),
   isPrivate: z.boolean().default(false),

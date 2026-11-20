@@ -44,7 +44,7 @@ function ExportSection() {
         <p><b>{t.exportSection.leftOut}</b>{t.exportSection.leftOutText}</p>
       </div>
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? t.preparing : t.exportSection.download}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void run()}><Icon name="download" size="sm" />{busy ? app.words.preparing : t.exportSection.download}</Button>
         {busy ? <span className="state" role="status"><span className="spin" aria-hidden="true" />{progress ? t.exportSection.soFar(bytesLabel(progress)) : t.exportSection.starting}</span> : null}
       </div>
       {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
@@ -69,8 +69,8 @@ function KeptLinksSection() {
       <p>{t.keptLinks.text}</p>
       <p className="fine">{t.keptLinks.fine}</p>
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? t.preparing : t.keptLinks.downloadPage}</Button>
-        <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? t.preparing : t.keptLinks.downloadMarkdown}</Button>
+        <Button variant="primary" disabled={busy !== null} onClick={() => void run("html")}><Icon name="download" size="sm" />{busy === "html" ? app.words.preparing : t.keptLinks.downloadPage}</Button>
+        <Button disabled={busy !== null} onClick={() => void run("md")}><Icon name="download" size="sm" />{busy === "md" ? app.words.preparing : t.keptLinks.downloadMarkdown}</Button>
       </div>
       {feedback ? <Outcome ref={result} tone={feedback.tone} text={feedback.text} /> : null}
     </Section>
@@ -126,7 +126,7 @@ function OpmlSection() {
     try {
       const out = await downloadFile("/api/opml", "followed-sources.opml");
       const left = Number(out.headers.get("x-purss-left-out") ?? 0);
-      setFeedback({ tone: "ok", text: t.opmlSection.saved(out.filename, left, plural(left, t.opmlSection.privateSource)) });
+      setFeedback({ tone: "ok", text: t.opmlSection.saved(out.filename, left, plural(left, app.words.privateSource)) });
     } catch (err) { setFeedback({ tone: "problem", text: messageOf(err) }); } finally { setExporting(false); }
   }
   async function chosen(e: ChangeEvent<HTMLInputElement>) {
@@ -134,16 +134,16 @@ function OpmlSection() {
     e.target.value = "";
     if (!file) return;
     setError("");
-    if (file.size > OPML_LIMIT) { setError(t.opmlSection.tooLarge); return; }
+    if (file.size > OPML_LIMIT) { setError(app.words.thatFileIsTooLargeTo); return; }
     setBusy(true);
     try { setStaged({ preview: await post<OpmlPreview>("/api/opml/preview", { opml: await file.text() }), name: file.name }); } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   return (
-    <Section title={t.opmlSection.title} hint={t.opmlSection.hint}>
+    <Section title={app.words.subscriptionListOpml} hint={t.opmlSection.hint}>
       <p>{t.opmlSection.text}</p>
       <p className="fine">{t.opmlSection.fine}</p>
       <div className="fx-acts-row">
-        <Button disabled={exporting} onClick={() => void exportOpml()}><Icon name="download" size="sm" />{exporting ? t.preparing : t.opmlSection.export}</Button>
+        <Button disabled={exporting} onClick={() => void exportOpml()}><Icon name="download" size="sm" />{exporting ? app.words.preparing : t.opmlSection.export}</Button>
         <input ref={input} type="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" hidden onChange={(e) => void chosen(e)} aria-label="Choose an OPML file" />
         <Button disabled={busy} onClick={() => input.current?.click()}><Icon name="plus" size="sm" />{busy ? t.reading : t.opmlSection.importList}</Button>
       </div>
@@ -178,7 +178,7 @@ export function DataPage() {
   const ws = useWorkspace();
   const needs = ws.data.sources.filter((s) => s.health === "reconnect");
   return (
-    <Page title={t.title} lead={t.lead}>
+    <Page title={app.words.yourData} lead={t.lead}>
       <ReconnectSection sources={needs} />
       <ExportSection />
       <KeptLinksSection />

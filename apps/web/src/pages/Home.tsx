@@ -106,7 +106,7 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
   const heading = (
     <>
       {c.emoji ? <span aria-hidden="true">{c.emoji}</span> : null}<span className="t" dir="auto">{c.name}</span>{other ? null : <Icon name="chev" size="sm" className="go" />}
-      {sources.length ? <AvatarStack sources={sources} /> : null}{sources.length ? <span className="one"><Names names={sources.map((x) => x.title)} /></span> : null}<span className="sr">({plural(sources.length || c.itemCount, c.mode === "sources" ? app.lib.nouns.source : app.lib.nouns.item)})</span>
+      {sources.length ? <AvatarStack sources={sources} /> : null}{sources.length ? <span className="one"><Names names={sources.map((x) => x.title)} /></span> : null}<span className="sr">({plural(sources.length || c.itemCount, c.mode === "sources" ? app.words.sourceLower : app.words.item)})</span>
     </>
   );
   return (
@@ -115,13 +115,13 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
         <h2 className="mod-t" id={`mt-${c.id}`}>
           {other ? <span className="mod-plain">{heading}</span> : <button type="button" onClick={() => nav.go({ t: "c", id: c.id })}>{heading}</button>}
         </h2>
-        {shut && c.freshCount ? <span className="mod-fresh"><i className="dot" />{c.freshCount}<span className="sr">{t.newSr}</span></span> : null}
-        <button type="button" className="ibtn" aria-haspopup="menu" aria-label={`Options for ${c.name}`} onClick={(e) => onMenu(c, e.currentTarget)}><Icon name="more" /><span className="ml" aria-hidden="true">{t.more}</span></button>
+        {shut && c.freshCount ? <span className="mod-fresh"><i className="dot" />{c.freshCount}<span className="sr">{app.words.newSpaced}</span></span> : null}
+        <button type="button" className="ibtn" aria-haspopup="menu" aria-label={`Options for ${c.name}`} onClick={(e) => onMenu(c, e.currentTarget)}><Icon name="more" /><span className="ml" aria-hidden="true">{app.words.more}</span></button>
       </header>
       {shut ? null : items.length ? (
         <>
           <ul className="mod-b">{items.map((it) => <ItemRow key={it.id} item={it} />)}</ul>
-          {other ? null : <button type="button" className="mod-all" onClick={() => nav.go({ t: "c", id: c.id })}>{t.open}<bdi>{c.name}</bdi>{c.itemCount ? <span> · {plural(c.itemCount, app.lib.nouns.item)}</span> : null}<Icon name="chev" size="sm" /></button>}
+          {other ? null : <button type="button" className="mod-all" onClick={() => nav.go({ t: "c", id: c.id })}>{t.open}<bdi>{c.name}</bdi>{c.itemCount ? <span> · {plural(c.itemCount, app.words.item)}</span> : null}<Icon name="chev" size="sm" /></button>}
         </>
       ) : pending ? <div className="mod-empty"><span className="skel" style={{ height: 14, width: "60%" }} /></div> : (
         <div className="mod-empty">
@@ -137,10 +137,10 @@ function NoHomeCollections({ inline = false }: { inline?: boolean }) {
   const ws = useWorkspace();
   const overlays = useOverlays();
   const [title, text, action]: [string, string | null, { label: string; open: () => void }] = ws.collections.length
-    ? [t.noCollectionsOnHome, null, { label: t.customiseHome, open: () => overlays.open({ kind: "customise-home" }) }]
+    ? [t.noCollectionsOnHome, null, { label: app.words.customiseHome, open: () => overlays.open({ kind: "customise-home" }) }]
     : ws.looseSources.length
-      ? [t.sourcesNotInCollection, t.putInCollection, { label: t.newCollection, open: () => overlays.open({ kind: "new-collection" }) }]
-      : [t.noCollectionsYet, null, { label: t.addSource, open: () => overlays.open({ kind: "add-source" }) }];
+      ? [t.sourcesNotInCollection, t.putInCollection, { label: app.words.newCollection, open: () => overlays.open({ kind: "new-collection" }) }]
+      : [t.noCollectionsYet, null, { label: app.words.addSource, open: () => overlays.open({ kind: "add-source" }) }];
   if (inline) return <p className="fine">{title}. {text ? `${text} ` : ""}<button type="button" className="link" onClick={action.open}>{action.label}</button></p>;
   return <div className="empty card-like"><h2>{title}</h2>{text ? <p>{text}</p> : null}<Button onClick={action.open}>{action.label}</Button></div>;
 }
@@ -194,10 +194,10 @@ function CollectionsLayout() {
       { label: t.moveDown, icon: "down", disabled: i >= shownIds.length - 1, onSelect: () => move(1) },
       ...(isOtherBox(c) ? [
         { type: "separator" as const },
-        { label: t.hideFromHome, icon: "fold" as const, onSelect: () => void save({ homeOther: false }) },
+        { label: app.words.hideFromHome, icon: "fold" as const, onSelect: () => void save({ homeOther: false }) },
       ] : [
         { type: "separator" as const },
-        { label: t.collectionSettings, icon: "gear" as const, onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
+        { label: app.words.collectionSettings, icon: "gear" as const, onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
       ]),
     ], `Options for ${c.name}`);
   }
@@ -231,13 +231,13 @@ function FeedLayout() {
   const { items, loading, more } = useFeedItems();
   const groups = groupByDay(items, itemDate, c.now, c.timeZone);
   if (loading) return <div className="list" aria-busy="true"><div className="skel-rows" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="skel" style={{ height: 40, margin: 10 }} />)}</div></div>;
-  if (!items.length) return <div className="empty card-like"><h2>{t.nothingToShow}</h2><Button onClick={() => overlays.open({ kind: "add-source" })}>{t.addSource}</Button></div>;
+  if (!items.length) return <div className="empty card-like"><h2>{t.nothingToShow}</h2><Button onClick={() => overlays.open({ kind: "add-source" })}>{app.words.addSource}</Button></div>;
   return (
     <>
       <div className="list">
         {groups.map((g) => <section className="day" key={g.key} aria-label={g.label}><h3>{g.label}</h3><ul>{g.items.map((it) => <ItemRow key={it.id} item={it} />)}</ul></section>)}
       </div>
-      {more ? <div style={{ textAlign: "center", marginTop: 14 }}><Button onClick={more}>{t.showMore}</Button></div> : null}
+      {more ? <div style={{ textAlign: "center", marginTop: 14 }}><Button onClick={more}>{app.words.showMore}</Button></div> : null}
     </>
   );
 }
@@ -264,11 +264,11 @@ function NewLayout() {
     return <div className="list" aria-busy="true"><div className="skel-rows" aria-hidden="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ height: 40, margin: 10 }} />)}</div><p className="sr" role="status">{t.loadingNew}</p></div>;
   }
   const groups = boxes.map((c, i) => ({ c, items: lists[i]?.items ?? [] })).filter((g) => g.items.length);
-  if (!groups.length) return <div className="empty card-like"><h2>{t.nothingNewNow}</h2><p>{t.newMarker}</p><Button onClick={() => void save({ homeLayout: "feed" })}>{t.showRecent}</Button></div>;
+  if (!groups.length) return <div className="empty card-like"><h2>{app.words.nothingNewRightNow}</h2><p>{t.newMarker}</p><Button onClick={() => void save({ homeLayout: "feed" })}>{t.showRecent}</Button></div>;
   return (
     <>
       <div style={{ display: "grid", gap: 16 }}>{groups.map((g) => <NewGroup key={g.c.id} c={g.c} items={g.items} />)}</div>
-      <p className="fine end-of-new">{t.everythingNew}<button type="button" className="link" onClick={() => void actions.clearFresh("all")}>{t.markAllSeen}</button></p>
+      <p className="fine end-of-new">{t.everythingNew}<button type="button" className="link" onClick={() => void actions.clearFresh("all")}>{app.words.markAllAsSeen}</button></p>
     </>
   );
 }
@@ -288,7 +288,7 @@ function Headline({ c, items, pending }: { c: CollectionDTO; items: ItemDTO[]; p
               <span className="m"><bdi>{it.sourceTitle}</bdi>, {timeAgo(itemDate(it), rc.now, rc.timeZone)}{it.workflow !== "new" ? `, ${workflowLabel(it.workflow, it.kind)}` : ""}</span>
             </button>
           </li>
-        )) : <li><p className="fine" style={{ padding: "8px 0" }}>{pending ? t.loading : t.nothingNewYetShort}</p></li>}
+        )) : <li><p className="fine" style={{ padding: "8px 0" }}>{pending ? app.words.loading : t.nothingNewYetShort}</p></li>}
       </ul>
     </div>
   );
@@ -301,10 +301,10 @@ function FrontLayout() {
   const lists = useBoxLists(boxes, "new", HEADLINE_ITEMS);
   return (
     <>
-      <section className="sec" aria-labelledby="fcol"><h2 id="fcol">{t.collections}</h2>
+      <section className="sec" aria-labelledby="fcol"><h2 id="fcol">{app.words.collections}</h2>
         {boxes.length ? <div className="front-cols">{boxes.map((c, i) => <Headline key={c.id} c={c} items={lists[i]!.items} pending={lists[i]!.pending} />)}</div> : <NoHomeCollections inline />}</section>
       {ws.data.baskets.length ? (
-        <section className="sec" aria-labelledby="fbk"><h2 id="fbk">{t.baskets}</h2>
+        <section className="sec" aria-labelledby="fbk"><h2 id="fbk">{app.words.baskets}</h2>
           <div className="shelf">{ws.data.baskets.map((b) => (
             <button key={b.id} type="button" className="bshelf" onClick={() => nav.go({ t: "b", id: b.id })}>
               <b><span dir="auto">{b.name}</span><span>{b.itemCount}</span></b><span>{b.captureMode === "text" ? t.savesText : t.savesLink}</span>
@@ -326,7 +326,7 @@ function ImportListButton() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > OPML_LIMIT) { setError(t.fileTooLarge); return; }
+    if (file.size > OPML_LIMIT) { setError(app.words.thatFileIsTooLargeTo); return; }
     setError("");
     overlays.open({ kind: "opml-file", name: file.name, text: await file.text() });
   }
@@ -350,7 +350,7 @@ export function HomePage() {
   const empty = !ws.data.sources.length && !ws.collections.length && !ws.data.baskets.length;
   return (
     <RowContext.Provider value={value}>
-      <div className="homewash">{QUILT}<div className={`col${narrow}`}><div className="home-top"><h1>{t.title}</h1><button type="button" className="mbtn quietb" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "customise-home" })}><Icon name="gear" />{t.customise}</button></div><HomeBand /></div></div>
+      <div className="homewash">{QUILT}<div className={`col${narrow}`}><div className="home-top"><h1>{app.words.home}</h1><button type="button" className="mbtn quietb" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "customise-home" })}><Icon name="gear" />{t.customise}</button></div><HomeBand /></div></div>
       <div className={`col${narrow} home-body`}>
         <EngineNotice />
         <ReviewNotice />
@@ -361,7 +361,7 @@ export function HomePage() {
             <h2>{t.startTitle}</h2>
             <p>{t.startText}</p>
             <div className="empty-acts">
-              <Button variant="primary" large onClick={() => overlays.open({ kind: "add-source" })}><Icon name="plus" size="sm" />{t.addSource}</Button>
+              <Button variant="primary" large onClick={() => overlays.open({ kind: "add-source" })}><Icon name="plus" size="sm" />{app.words.addSource}</Button>
               <ImportListButton />
             </div>
           </div>

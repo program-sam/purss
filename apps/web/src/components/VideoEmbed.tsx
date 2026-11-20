@@ -45,7 +45,7 @@ export function VideoEmbed({ item, face, embed, autoload = false }: { item: Item
       <iframe
         ref={frame}
         src={embed.src}
-        title={t.frameTitle(embed.platform, embed.post ? t.post : t.player, item.title)}
+        title={t.frameTitle(embed.platform, embed.post ? app.words.post : t.player, item.title)}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
         // The platforms want to know which site plays their video (YouTube refuses to play without it): the origin only.

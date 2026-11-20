@@ -57,7 +57,7 @@ export function HomeBand() {
         <span>{today}</span>
         {o?.since && o.lastVisitAt ? (
           <span className="since"><i className="dot" />{sinceLine(o.since, o.lastVisitAt, { now: Date.now(), timeZone: ws.prefs.timezone, showCounts })}</span>
-        ) : fresh ? <span className="fr"><i className="dot" />{formatCount(fresh)}{t.newIn}{plural(ws.data.sources.length, app.lib.nouns.source)}</span> : o ? <span>{calmLine(o, { visited: !!o.lastVisitAt, items: ws.data.sources.reduce((n, s) => n + s.itemCount, 0), showCounts })}</span> : null}
+        ) : fresh ? <span className="fr"><i className="dot" />{formatCount(fresh)}{t.newIn}{plural(ws.data.sources.length, app.words.sourceLower)}</span> : o ? <span>{calmLine(o, { visited: !!o.lastVisitAt, items: ws.data.sources.reduce((n, s) => n + s.itemCount, 0), showCounts })}</span> : null}
       </p>
       {top.length > 1 ? (
         <p className="since-boxes">
@@ -163,18 +163,18 @@ export function WelcomeRows() {
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
   const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
-    <PutAsideRow key="toread" id="toread" title={t.toRead} row={o?.toRead} keeps={isToRead} type="articles" />,
-    <PutAsideRow key="towatch" id="towatch" title={t.toWatch} row={o?.toWatch} keeps={isToWatch} type="videos" />,
-    <PutAsideRow key="tolisten" id="tolisten" title={t.toListen} row={o?.toListen} keeps={isToListen} type="podcasts" />,
+    <PutAsideRow key="toread" id="toread" title={app.words.toRead} row={o?.toRead} keeps={isToRead} type="articles" />,
+    <PutAsideRow key="towatch" id="towatch" title={app.words.toWatch} row={o?.toWatch} keeps={isToWatch} type="videos" />,
+    <PutAsideRow key="tolisten" id="tolisten" title={app.words.toListen} row={o?.toListen} keeps={isToListen} type="podcasts" />,
     <Attention key="attention" />,
     offerFresh ? (
-      <section key="fresh" className="mod wb wb-fresh" aria-label={t.markAllSeen}>
+      <section key="fresh" className="mod wb wb-fresh" aria-label={app.words.markAllAsSeen}>
         <div className="wb-fresh-in">
           <div>
-            <b>{t.markAllSeen}</b>
-            <p className="fine">{ws.prefs.showCounts ? t.takesOffCount(plural(fresh, app.lib.nouns.item)) : t.takesOffEvery}{t.nothingChanged}</p>
+            <b>{app.words.markAllAsSeen}</b>
+            <p className="fine">{ws.prefs.showCounts ? t.takesOffCount(plural(fresh, app.words.item)) : t.takesOffEvery}{t.nothingChanged}</p>
           </div>
-          <Button onClick={() => void actions.clearFresh("all")}>{t.markAllSeen}</Button>
+          <Button onClick={() => void actions.clearFresh("all")}>{app.words.markAllAsSeen}</Button>
         </div>
       </section>
     ) : null,

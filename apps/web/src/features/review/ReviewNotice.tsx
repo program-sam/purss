@@ -16,7 +16,7 @@ export function ReviewNotice() {
   return (
     <p className="notice" role="status">
       <Icon name="info" />
-      <span>{t.notice(plural(total, t.collectedItem, t.collectedItems), total)}<button type="button" className="link" onClick={() => nav.goPath("/review")}>{t.review}</button></span>
+      <span>{t.notice(plural(total, t.collectedItem, t.collectedItems), total)}<button type="button" className="link" onClick={() => nav.goPath("/review")}>{app.words.review}</button></span>
     </p>
   );
 }

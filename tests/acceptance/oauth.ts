@@ -129,9 +129,9 @@ async function main(): Promise<void> {
     const consent = await page.goto(authorizeUrl(state));
     assert.equal(consent!.headers()["x-frame-options"], "DENY");
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
-    await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
+    await page.getByRole("textbox", { name: app.words.emailAddress }).fill(EMAIL);
+    await page.getByLabel(app.words.password, { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: app.words.signIn, exact: true }).click();
     await page.waitForURL(/\/oauth\/authorize\?/);
     await page.getByText(consentCopy.title("Helpful Assistant")).waitFor();
     await page.getByText(consentCopy.identifiedBy(new URL(clientId).host)).waitFor();
@@ -169,8 +169,8 @@ async function main(): Promise<void> {
     step("refreshing rotates the tokens");
 
     await page.goto(`${origin}/app/`);
-    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
-    await page.getByRole("button", { name: app.dialogs.settings.dialog.tabs.assistants }).click();
+    await page.getByRole("button", { name: app.words.settings }).click();
+    await page.getByRole("button", { name: app.words.assistants }).click();
     await page.getByText(assistantsCopy.connectedAssistants).waitFor();
     await page.getByText("Helpful Assistant").waitFor();
     step("Settings → Assistants lists the connected assistant");
@@ -178,20 +178,20 @@ async function main(): Promise<void> {
     assert.equal((await form(meta.revocation_endpoint, { token: t2.refresh_token, client_id: clientId })).status, 200);
     assert.equal((await mcp(t2.access_token, "tools/list")).status, 401);
     await page.reload();
-    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
-    await page.getByRole("button", { name: app.dialogs.settings.dialog.tabs.assistants }).click();
+    await page.getByRole("button", { name: app.words.settings }).click();
+    await page.getByRole("button", { name: app.words.assistants }).click();
     await page.getByText(assistantsCopy.switchLabel).waitFor();
     assert.equal(await page.getByText("Helpful Assistant").count(), 0);
     step("the assistant revokes its token; MCP refuses it and Settings no longer lists it");
 
-    const tokenName = page.getByLabel(assistantsCopy.nameLabel);
+    const tokenName = page.getByLabel(app.words.nameSoYouRecogniseItLater);
     assert.equal(await tokenName.count(), 0, "the new-token form starts closed");
     if (process.env.PURSS_SHOT_DIR) await page.screenshot({ path: path.join(process.env.PURSS_SHOT_DIR, "tokens-closed.png") });
     await page.getByRole("button", { name: assistantsCopy.newToken }).click();
     await tokenName.waitFor();
     assert.ok(await tokenName.evaluate((el) => el === document.activeElement), "the name field takes focus");
     if (process.env.PURSS_SHOT_DIR) await page.screenshot({ path: path.join(process.env.PURSS_SHOT_DIR, "tokens-open.png") });
-    await page.getByRole("button", { name: assistantsCopy.cancel }).click();
+    await page.getByRole("button", { name: app.words.cancel }).click();
     assert.equal(await tokenName.count(), 0);
     await page.getByRole("button", { name: assistantsCopy.newToken }).waitFor();
     step("the new-token form opens from New token and closes on Cancel");
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
     const declineState = "second-attempt";
     await page.goto(authorizeUrl(declineState));
     await page.getByText(consentCopy.title("Helpful Assistant")).waitFor();
-    await page.getByRole("button", { name: consentCopy.dontAllow }).click();
+    await page.getByRole("button", { name: app.words.donTAllow }).click();
     await waitUntil(() => arrived.some((u) => u.includes(`state=${declineState}`)));
     const declined = new URL(arrived.find((u) => u.includes(`state=${declineState}`))!);
     assert.deepEqual([declined.searchParams.get("error"), declined.searchParams.get("iss"), declined.searchParams.get("code")], ["access_denied", issuer, null]);

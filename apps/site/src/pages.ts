@@ -1,4 +1,4 @@
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { home } from "./home.ts";
 import { PLANS, PLUS, PRO, SELF_HOSTED } from "./kit.ts";
 import { docPage, legalPage } from "./legal.ts";
@@ -10,7 +10,7 @@ import { links, type Site } from "./site.ts";
  */
 type Page = { path: string; title: string; description: string; render: (site: Site) => string; index?: false; ld?: (site: Site) => object[] };
 
-const NAME = copy.pages.name;
+const NAME = "PURSS";
 
 /** Structured data needs full addresses; the app's links may be paths on this site. */
 const abs = (site: Site, url: string) => new URL(url, `${site.origin}/`).href;
@@ -32,7 +32,7 @@ export const PAGES = {
       license: "https://www.gnu.org/licenses/agpl-3.0.html",
       isAccessibleForFree: true,
       sameAs: [links(site).source],
-      publisher: { "@type": "Organization", name: copy.pages.structuredData.publisher, url: "https://github.com/program-sam" },
+      publisher: { "@type": "Organization", name: "Program Sam", url: "https://github.com/program-sam" },
       offers: [
         { "@type": "Offer", name: SELF_HOSTED.name, price: SELF_HOSTED.price, priceCurrency: "EUR", url: links(site).install },
         { "@type": "Offer", name: PLANS.free.name, price: "0", priceCurrency: "EUR", url: abs(site, links(site).signUp) },
@@ -66,7 +66,7 @@ export const PAGES = {
     title: copy.pages.notFound.title(NAME),
     description: copy.pages.notFound.description,
     index: false,
-    render: (site) => docPage(site, copy.pages.notFound.heading, `<p class="s-lead">${copy.pages.notFound.lead.before}<a class="link" href="/">${copy.pages.notFound.lead.home}</a>${copy.pages.notFound.lead.between}<a class="link" href="/#faq">${copy.pages.notFound.lead.faq}</a>${copy.pages.notFound.lead.after}</p>`),
+    render: (site) => docPage(site, copy.pages.notFound.heading, `<p class="s-lead">${copy.pages.notFound.lead.before}<a class="link" href="/">${copy.pages.notFound.lead.home}</a>${copy.pages.notFound.lead.between}<a class="link" href="/#faq">${copy.pages.notFound.lead.faq}</a>${"."}</p>`),
   },
 } satisfies Record<string, Page>;
 

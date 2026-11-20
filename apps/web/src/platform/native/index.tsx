@@ -204,9 +204,9 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
   const transport: Transport = conn
     ? createAppTransport({ origin, token: conn.token, worker, downloaded: (path) => downloads!.answer(path), fetch: (r) => fetch(r), onLost: () => connection?.lost() })
     : {
-      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: t.connectFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
+      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: app.words.connectTheAppFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
       events: () => () => {},
-      picture: () => Promise.reject(new Error(t.connectFirst)),
+      picture: () => Promise.reject(new Error(app.words.connectTheAppFirst)),
     };
 
   const offline: OfflineHost = {

@@ -84,12 +84,12 @@ function useItems(place: ListPlace) {
 function SourceNotes({ s, tz }: { s: SourceDTO; tz: string }) {
   const note = (icon: "key" | "moon" | "pause" | "alert" | "clock" | "link", text: string, warn = false) => <p key={text} className={`note${warn ? " login" : ""}`}><Icon name={icon} /><span>{text}</span></p>;
   const out = [];
-  if (s.health === "login") out.push(note("key", t.needsLogin, true));
+  if (s.health === "login") out.push(note("key", app.words.fullTextNeedsALoginTitles, true));
   if (s.health === "quiet") out.push(note("moon", s.healthText ?? t.quiet));
   if (s.health === "paused") out.push(note("pause", s.pausedUntil ? t.pausedUntil(pausedUntilLine(s.pausedUntil, tz)) : t.paused));
   if (s.health === "error") out.push(<p key="error" className="note login"><Icon name="alert" /><span>{s.healthText ?? t.cantCollect} <RetrySource id={s.id} title={s.title} health={s.health} /></span></p>);
   if (s.health === "reconnect") out.push(note("link", s.healthText ?? t.needsReconnect, true));
-  if (s.health === "pending") out.push(note("clock", t.gettingFirstItems));
+  if (s.health === "pending") out.push(note("clock", app.words.gettingTheFirstItems));
   return <>{out}</>;
 }
 
@@ -105,8 +105,8 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
   const xs = useBreakpoint() === "xs";
   const fresh = freshHere > 0 ? (
     <>
-      <span className="fr"><i className="dot" />{freshHere}{t.newSuffix}</span>
-      <button type="button" className="link" onClick={onClearFresh}>{t.markAllSeen}</button>
+      <span className="fr"><i className="dot" />{freshHere}{app.words.newSpaced}</span>
+      <button type="button" className="link" onClick={onClearFresh}>{app.words.markAllAsSeen}</button>
     </>
   ) : null;
 
@@ -119,13 +119,13 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
         <div className="phead">
           <h1>{c.emoji ? <span aria-hidden="true">{c.emoji} </span> : null}<bdi>{c.name}</bdi></h1>
           <div className="psub">
-            {c.mode === "sources" ? <span className="ring-sky" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><AvatarStack sources={srcs} max={5} /><span>{plural(srcs.length, app.lib.nouns.source)}</span></span>
+            {c.mode === "sources" ? <span className="ring-sky" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><AvatarStack sources={srcs} max={5} /><span>{plural(srcs.length, app.words.sourceLower)}</span></span>
               : <span className="tag">{t.filter}</span>}
-            {c.mode !== "sources" ? <span>{plural(c.itemCount, app.lib.nouns.item)}</span> : null}
+            {c.mode !== "sources" ? <span>{plural(c.itemCount, app.words.item)}</span> : null}
             {c.mode === "query" ? <span>{describeQuery(c.query, { source: (id) => ws.sourceById.get(id)?.title ?? t.aSource })}</span> : null}
             {fresh}
-            <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "c", id: c.id }))}><Icon name="chart" size="sm" />{t.statistics}</button>
-            <button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "collection", targetId: c.id, name: c.name })}><Icon name="link" size="sm" />{t.share}</button>
+            <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "c", id: c.id }))}><Icon name="chart" size="sm" />{app.words.statistics}</button>
+            <button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "collection", targetId: c.id, name: c.name })}><Icon name="link" size="sm" />{app.words.share}</button>
           </div>
           {tools}
         </div>
@@ -177,27 +177,27 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     // What a phone's Manage menu holds besides Notifications, for the hint under the buttons.
-    const manageHolds = [...(s.fullTextAvailable ? [t.saveFullArticles] : []), t.notifications];
+    const manageHolds = [...(s.fullTextAvailable ? [app.words.saveFullArticles] : []), app.words.notifications];
     const collections = s.collectionIds.map((id) => ws.collectionById.get(id)).filter((c) => !!c);
     const notifyEntries: MenuEntry[] = (["default", "on", "muted"] as const).map((v) => ({ type: "radio", label: t.notifyChoice[v], on: s.notify === v, onSelect: () => void setNotify(v) }));
     const pauseEntries: MenuEntry[] = s.paused
-      ? [{ label: t.resume, icon: "pause", onSelect: () => void resume() }]
-      : [{ type: "heading", label: t.pause }, { label: t.forWeek, icon: "pause", onSelect: () => void pause("week") }, { label: t.forMonth, icon: "pause", onSelect: () => void pause("month") }, { label: t.untilResumed, icon: "pause", onSelect: () => void pause("until-resumed") }];
+      ? [{ label: app.words.resumeThisSource, icon: "pause", onSelect: () => void resume() }]
+      : [{ type: "heading", label: app.words.pauseThisSource }, { label: app.words.forAWeek, icon: "pause", onSelect: () => void pause("week") }, { label: app.words.forAMonth, icon: "pause", onSelect: () => void pause("month") }, { label: t.untilResumed, icon: "pause", onSelect: () => void pause("until-resumed") }];
     const manageButton = (
       <button type="button" className="mbtn" aria-haspopup="menu" onClick={(e) => popups.menu(e.currentTarget, [
             // A phone has no room for the setting buttons, so they open from here.
             ...(xs ? [
-              { type: "heading" as const, label: t.notifications }, ...notifyEntries,
-              ...(s.fullTextAvailable ? [{ type: "check" as const, label: t.saveFullArticles, on: s.fullText, onSelect: () => void setFullText(!s.fullText) }] : []),
+              { type: "heading" as const, label: app.words.notifications }, ...notifyEntries,
+              ...(s.fullTextAvailable ? [{ type: "check" as const, label: app.words.saveFullArticles, on: s.fullText, onSelect: () => void setFullText(!s.fullText) }] : []),
               { type: "separator" as const },
             ] : []),
             ...pauseEntries,
-            { label: t.rename, icon: "pencil", onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
-            { label: t.changeCollections, icon: "folder", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
-            { label: t.smartFilter, icon: "filter", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
-            ...(s.privacyChangeable ? [{ type: "check" as const, label: t.keepPrivate, on: isPrivate, onSelect: () => void setPrivate(!isPrivate) }] : []),
+            { label: app.words.rename, icon: "pencil", onSelect: () => overlays.open({ kind: "rename-source", id: s.id }) },
+            { label: app.words.changeCollections, icon: "folder", onSelect: () => overlays.open({ kind: "move-source", id: s.id }) },
+            { label: app.words.smartFilter, icon: "filter", onSelect: () => overlays.open({ kind: "ai-filter", sourceId: s.id }) },
+            ...(s.privacyChangeable ? [{ type: "check" as const, label: app.words.keepThisFeedSLinkPrivate, on: isPrivate, onSelect: () => void setPrivate(!isPrivate) }] : []),
             { type: "separator" },
-            { label: t.unfollow, icon: "trash", danger: true, onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
+            { label: app.words.unfollow, icon: "trash", danger: true, onSelect: () => overlays.open({ kind: "unfollow", id: s.id }) },
           ], `Manage ${s.title}`)}><Icon name="gear" />{t.manage}<Icon name="chev" size="sm" /></button>
     );
     return (
@@ -212,17 +212,17 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
               {s.lastItemAt ? <span>{t.latest(timeAgo(s.lastItemAt, Date.now(), ws.prefs.timezone))}</span> : null}
               {collections.length ? <span>{t.inCollections}<Names names={collections.map((c) => c!.name)} /></span> : null}
               {fresh}
-              <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "s", id: s.id }))}><Icon name="chart" size="sm" />{t.statistics}</button>
+              <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "s", id: s.id }))}><Icon name="chart" size="sm" />{app.words.statistics}</button>
               {xs ? manageButton : null}
             </div>
           </div>
         </div>
         <SourceNotes s={s} tz={ws.prefs.timezone} />
         <div className="srcacts">
-          {xs ? null : <button type="button" className="mbtn" aria-haspopup="menu" onClick={(e) => popups.menu(e.currentTarget, notifyEntries, "Notifications for this source")}><Icon name="bell" />{t.notifications}<span className="val">{notifyValue}</span><Icon name="chev" size="sm" /></button>}
+          {xs ? null : <button type="button" className="mbtn" aria-haspopup="menu" onClick={(e) => popups.menu(e.currentTarget, notifyEntries, "Notifications for this source")}><Icon name="bell" />{app.words.notifications}<span className="val">{notifyValue}</span><Icon name="chev" size="sm" /></button>}
           {s.fullTextAvailable && !xs ? (
             <button type="button" className="mbtn" aria-pressed={s.fullText} title={t.fullArticlesTitle}
-              onClick={() => void setFullText(!s.fullText)}><Icon name="item" />{t.saveFullArticles}<span className="val">{s.fullText ? t.on : t.off}</span><span className={`sw${s.fullText ? " on" : ""}`} aria-hidden="true" /></button>
+              onClick={() => void setFullText(!s.fullText)}><Icon name="item" />{app.words.saveFullArticles}<span className="val">{s.fullText ? app.words.on : app.words.off}</span><span className={`sw${s.fullText ? " on" : ""}`} aria-hidden="true" /></button>
           ) : null}
           {xs ? null : manageButton}
         </div>
@@ -247,7 +247,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
   return (
     <div className="phead">
       <h1 dir="auto">{b.name}</h1>
-      <div className="psub"><span>{plural(b.itemCount, app.lib.nouns.item)}</span>{fresh}<button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "basket", targetId: b.id, name: b.name })}><Icon name="link" size="sm" />{t.share}</button></div>
+      <div className="psub"><span>{plural(b.itemCount, app.words.item)}</span>{fresh}<button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "basket", targetId: b.id, name: b.name })}><Icon name="link" size="sm" />{app.words.share}</button></div>
       <p className="fine">{t.basketNote(b.captureMode === "text")}</p>
       {tools}
     </div>
@@ -267,7 +267,7 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
     try {
       const out = await get<ItemIds>("/api/items/ids", { ...params });
       sel.selectAll(out.ids);
-      if (out.total === null) toast(t.selectedFirst(plural(out.ids.length, app.lib.nouns.item)));
+      if (out.total === null) toast(t.selectedFirst(plural(out.ids.length, app.words.item)));
     } catch (err) { toast(messageOf(err), { tone: "error" }); }
     finally { setGathering(false); }
   };
@@ -276,15 +276,15 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
   return (
     <div className="selbar" role="toolbar" aria-label="Actions for selected items">
       <span className="cnt2" aria-live="polite">{n}{t.selected}</span>
-      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "toread", () => actions.setWorkflow(i, "toread")); }}>{t.toRead}</Button>
-      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "finished", () => actions.setWorkflow(i, "finished")); }}>{t.finished}</Button>
-      {inBasket ? null : <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "ignored", () => actions.setWorkflow(i, "ignored")); }}>{t.ignore}</Button>}
-      <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "keep-in", itemIds: ids() })}>{t.keepIn}</Button>
+      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "toread", () => actions.setWorkflow(i, "toread")); }}>{app.words.toRead}</Button>
+      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "finished", () => actions.setWorkflow(i, "finished")); }}>{app.words.finished}</Button>
+      {inBasket ? null : <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "ignored", () => actions.setWorkflow(i, "ignored")); }}>{app.words.ignore}</Button>}
+      <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "keep-in", itemIds: ids() })}>{app.words.keepIn}</Button>
       <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void actions.clearFreshFor(i); }}>{t.markAsSeen}</Button>
-      <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "delete-items", itemIds: ids() })}>{t.delete}</Button>
+      <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "delete-items", itemIds: ids() })}>{app.words.delete}</Button>
       <span className="sp" />
-      <button type="button" className="link" disabled={gathering} onClick={() => void selectAll()}>{total != null && total > 0 ? t.selectAllCount(total) : t.selectAll}</button>
-      <Button variant="primary" onClick={() => sel.setSelecting(false)}>{t.done}</Button>
+      <button type="button" className="link" disabled={gathering} onClick={() => void selectAll()}>{total != null && total > 0 ? t.selectAllCount(total) : app.words.selectAll}</button>
+      <Button variant="primary" onClick={() => sel.setSelecting(false)}>{app.words.done}</Button>
     </div>
   );
 }
@@ -306,7 +306,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   }
   if (place.t === "c") {
     const c = ws.collectionById.get(place.id);
-    if (c?.mode === "sources" && !hasSources) return <div className="empty card-like"><h2>{t.noSourcesYet}</h2><Button variant="primary" onClick={() => overlays.open({ kind: "add-source", collectionId: place.id })}><Icon name="plus" size="sm" />{t.addSource}</Button></div>;
+    if (c?.mode === "sources" && !hasSources) return <div className="empty card-like"><h2>{t.noSourcesYet}</h2><Button variant="primary" onClick={() => overlays.open({ kind: "add-source", collectionId: place.id })}><Icon name="plus" size="sm" />{app.words.addSource}</Button></div>;
     // What its sources already had when they were followed is Ignored, so a collection of new follows has nothing to show until they post.
     if (c?.mode === "sources") return <div className="empty card-like"><h2>{t.noNewItems}</h2></div>;
   }
@@ -322,7 +322,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   if (place.t === "b") {
     return (
       <div className="empty card-like"><h2>{t.nothingKept}</h2><p>{t.useBookmark}</p>
-        {platform.connection ? null : <p>{t.otherSites.before}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "apps" })}>{t.otherSites.link}</button>{t.otherSites.after}</p>}
+        {platform.connection ? null : <p>{t.otherSites.before}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "apps" })}>{app.words.browserExtensionOrABookmarklet}</button>{"."}</p>}
       </div>
     );
   }
@@ -344,7 +344,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
   const exists = place.t === "c" ? ws.collectionById.has(place.id) : place.t === "s" ? ws.sourceById.has(place.id) : place.t === "r" ? place.id === "toread" : ws.basketById.has(place.id);
   if (!exists) {
     return (
-      <div className="col narrow"><div className="empty card-like" style={{ marginTop: 40 }}><h2>{t.missing(place.t === "c" ? app.lib.nouns.collection : place.t === "s" ? app.lib.nouns.source : app.lib.nouns.basket)}</h2><p>{t.removed}</p><Button onClick={() => nav.go({ t: "home" })}>{t.goHome}</Button></div></div>
+      <div className="col narrow"><div className="empty card-like" style={{ marginTop: 40 }}><h2>{t.missing(place.t === "c" ? app.words.collectionLower : place.t === "s" ? app.words.sourceLower : app.words.basketLower)}</h2><p>{app.words.itMayHaveBeenRemoved}</p><Button onClick={() => nav.go({ t: "home" })}>{app.words.goToHome}</Button></div></div>
     );
   }
   const freshHere = place.t === "c" ? ws.collectionById.get(place.id)!.freshCount : place.t === "s" ? ws.sourceById.get(place.id)!.freshCount : items.filter((i) => i.fresh).length;
@@ -355,7 +355,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
 
   let body;
   if (loadingFirst) body = <div className="list" aria-busy="true">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="skel" style={{ height: 40, margin: 10 }} />)}</div>;
-  else if (q.isError) body = <div className="empty card-like"><h2>{t.loadFailed}</h2><p>{messageOf(q.error)}</p><Button onClick={() => void q.refetch()}>{t.tryAgain}</Button></div>;
+  else if (q.isError) body = <div className="empty card-like"><h2>{t.loadFailed}</h2><p>{messageOf(q.error)}</p><Button onClick={() => void q.refetch()}>{app.words.tryAgain}</Button></div>;
   else if (!items.length) body = (
     <>
       <Empty place={place} ls={ls} hasSources={hasSources} />

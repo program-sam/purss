@@ -47,7 +47,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
         const b = await post<BasketDTO>("/api/baskets", { name: name.trim(), captureMode: mode });
         putBasket(qc, b);
         ov.close();
-        const open = { actions: [{ label: t.form.open, onSelect: () => nav.go({ t: "b", id: b.id }) }] };
+        const open = { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: b.id }) }] };
         if (!keepItemId) {
           refreshWorkspace(qc, { items: false });
           toast(t.form.created(isolate(b.name)), open);
@@ -67,10 +67,10 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
   }
 
   return (
-    <Dialog title={existing ? t.form.titleEdit : t.form.titleNew} size="sm" onClose={ov.close} initialFocus="#bk-name"
-      footer={<><Button onClick={ov.close}>{t.form.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={submit}>{existing ? t.form.saveChanges : t.form.create}</Button></>}>
+    <Dialog title={existing ? t.form.titleEdit : app.words.newBasket} size="sm" onClose={ov.close} initialFocus="#bk-name"
+      footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={submit}>{existing ? app.words.saveChanges : t.form.create}</Button></>}>
       {existing ? null : <p className="fine">{t.form.intro}</p>}
-      <div className="field"><label htmlFor="bk-name">{t.form.name}</label>
+      <div className="field"><label htmlFor="bk-name">{app.words.name}</label>
         <TextInput id="bk-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder={t.form.placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy) void submit(); }} /></div>
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.form.saves}</legend>
@@ -123,9 +123,9 @@ export function BasketDeleteDialog({ id }: { id: string }) {
       {preview.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(preview.error)}</span></p> : null}
       {p ? (
         <div style={{ display: "grid", gap: 10 }}>
-          <p className="hint">{t.delete.removes(plural(p.items, t.delete.item), p.items === 1 ? t.delete.itStays : t.delete.theyStay)}</p>
+          <p className="hint">{t.delete.removes(plural(p.items, app.words.item), p.items === 1 ? t.delete.itStays : t.delete.theyStay)}</p>
           <p className="hint">{p.onlyHere > 0
-            ? <>{t.delete.onlyHere(plural(p.onlyHere, t.delete.item), p.onlyHere === 1 ? t.delete.is : t.delete.are, p.onlyHere === 1 ? t.delete.itStops : t.delete.theyStop)}</>
+            ? <>{t.delete.onlyHere(plural(p.onlyHere, app.words.item), p.onlyHere === 1 ? app.words.is : app.words.are, p.onlyHere === 1 ? t.delete.itStops : t.delete.theyStop)}</>
             : t.delete.allElsewhere}</p>
         </div>
       ) : null}

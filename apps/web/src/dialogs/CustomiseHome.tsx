@@ -16,7 +16,7 @@ const t = app.dialogs.customiseHome;
 type Layout = Preferences["homeLayout"];
 
 const LAYOUTS: { value: Layout; label: string; blurb: string; thumb: ReactNode }[] = [
-  { value: "collections", label: t.layouts.collections.label, blurb: t.layouts.collections.blurb,
+  { value: "collections", label: app.words.collections, blurb: t.layouts.collections.blurb,
     thumb: <div className="thumb t-col">{[0, 1, 2, 3].map((i) => <div key={i}><i /><em /></div>)}</div> },
   { value: "feed", label: t.layouts.feed.label, blurb: t.layouts.feed.blurb,
     thumb: <div className="thumb t-feed"><i className="dh" /><i /><i /><i className="dh" /><i /><i /></div> },
@@ -38,7 +38,7 @@ export function CustomiseHomeDialog() {
   const shown = homeBoxes(ws.homeCollections, ws.looseSources, p);
   const hidden = [
     ...ws.collections.filter((c) => !c.showOnHome),
-    ...(ws.looseSources.length && !p.homeOther ? [{ id: OTHER_BOX_ID, name: t.otherSources, showOnHome: false }] : []),
+    ...(ws.looseSources.length && !p.homeOther ? [{ id: OTHER_BOX_ID, name: app.words.otherSources, showOnHome: false }] : []),
   ];
   const order = [...shown.map((c) => ({ id: c.id, name: c.name, showOnHome: true })), ...hidden.map((c) => ({ id: c.id, name: c.name, showOnHome: false }))];
 
@@ -66,8 +66,8 @@ export function CustomiseHomeDialog() {
   }
 
   return (
-    <Dialog title={t.title} onClose={ov.close} size="lg" initialFocus='input[name="lay"]:checked'
-      footer={<><Button className="lft" onClick={() => void reset()}>{t.reset}</Button><Button variant="primary" onClick={ov.close}>{t.done}</Button></>}>
+    <Dialog title={app.words.customiseHome} onClose={ov.close} size="lg" initialFocus='input[name="lay"]:checked'
+      footer={<><Button className="lft" onClick={() => void reset()}>{t.reset}</Button><Button variant="primary" onClick={ov.close}>{app.words.done}</Button></>}>
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.layout}</legend>
         <div className="lopts four">
           {LAYOUTS.map((l) => (
@@ -90,17 +90,17 @@ export function CustomiseHomeDialog() {
                 </div>
               ))}
             </div>
-          ) : <p className="fine">{t.noCollections}</p>}
+          ) : <p className="fine">{app.words.noCollectionsYet}</p>}
           {ws.looseSources.length ? <p className="fine">{t.otherSourcesNote}</p> : null}
         </fieldset>
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
           <div className="field"><div className="lbl" id="dn">{t.density}</div>
             <Segmented labelledBy="dn" value={p.density} onChange={(v) => void save({ density: v })} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
-              options={[{ value: "comfortable", label: t.comfortable }, { value: "compact", label: t.compact }]} /></div>
+              options={[{ value: "comfortable", label: app.words.comfortable }, { value: "compact", label: app.words.compact }]} /></div>
           <div className="field" style={{ gap: 2 }}>
-            <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{t.showNewMarkers}</Check>
-            <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })}>{t.showCounts}</Check>
-            <p className="fine">{t.settingsNote.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "notifications" })}>{t.settingsNote.link}</button>{t.settingsNote.after}</p>
+            <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{app.words.showNewMarkers}</Check>
+            <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })}>{app.words.showCounts}</Check>
+            <p className="fine">{t.settingsNote.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "notifications" })}>{app.words.settings}</button>{"."}</p>
           </div>
         </div>
       </div>

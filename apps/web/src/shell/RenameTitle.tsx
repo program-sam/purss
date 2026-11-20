@@ -31,8 +31,8 @@ export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: 
       <TextInput value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={300} aria-label="Title" autoFocus dir="auto" autoComplete="off" />
       {error ? <p className="fine" role="alert">{error}</p> : null}
       <div style={{ display: "flex", gap: 8 }}>
-        <Button type="submit" variant="primary" disabled={busy}>{busy ? app.shell.renameTitle.saving : app.shell.renameTitle.save}</Button>
-        <Button type="button" onClick={onDone}>{app.shell.renameTitle.cancel}</Button>
+        <Button type="submit" variant="primary" disabled={busy}>{busy ? app.words.saving : app.shell.renameTitle.save}</Button>
+        <Button type="button" onClick={onDone}>{app.words.cancel}</Button>
       </div>
     </form>
   );

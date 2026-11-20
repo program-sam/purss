@@ -70,7 +70,7 @@ export function ItemReminder({ itemId }: { itemId: string }) {
         <Icon name="cal" size="sm" />
         <span>{t.reminder}<b>{dayLabel(current.remindOn, today).toLowerCase()}</b>{current.note ? <> · <bdi dir="auto">{current.note}</bdi></> : null}</span>
         <button type="button" className="link" onClick={begin}>{t.change}</button>
-        <button type="button" className="link" disabled={busy} onClick={() => void remove()}>{t.remove}</button>
+        <button type="button" className="link" disabled={busy} onClick={() => void remove()}>{app.words.remove}</button>
       </p>
     ) : (
       <div className="p-remind"><button type="button" className="mbtn" onClick={begin}><Icon name="cal" />{t.remindMe}</button></div>
@@ -83,19 +83,19 @@ export function ItemReminder({ itemId }: { itemId: string }) {
           <input className="in" type="date" value={day} min={today} onChange={(e) => setDay(e.target.value)} required />
         </label>
         <span className="rm-q" role="group" aria-label="Quick choices">
-          <button type="button" className="link" onClick={() => setDay(addDays(today, 1))}>{t.tomorrow}</button>
+          <button type="button" className="link" onClick={() => setDay(addDays(today, 1))}>{app.words.tomorrow}</button>
           <button type="button" className="link" onClick={() => setDay(addDays(today, 7))}>{t.inAWeek}</button>
           <button type="button" className="link" onClick={() => setDay(addDays(today, 30))}>{t.inAMonth}</button>
         </span>
       </div>
-      <label className="rm-f">{t.note}
+      <label className="rm-f">{app.words.noteOptional}
         <TextInput value={note} maxLength={REMINDER_NOTE_MAX} onChange={(e) => setNote(e.target.value)} placeholder={t.notePlaceholder} dir="auto" />
       </label>
       {quiet ? <p className="fine">{t.quiet}</p> : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div className="rm-acts">
-        <Button variant="primary" type="submit" disabled={busy || !day}>{busy ? t.saving : t.save}</Button>
-        <Button onClick={() => setEditing(false)}>{t.cancel}</Button>
+        <Button variant="primary" type="submit" disabled={busy || !day}>{busy ? app.words.saving : t.save}</Button>
+        <Button onClick={() => setEditing(false)}>{app.words.cancel}</Button>
       </div>
     </form>
   );

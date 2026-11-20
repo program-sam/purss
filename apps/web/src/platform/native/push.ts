@@ -62,7 +62,7 @@ export class PushController {
 
   /** PURSS's answer, or why the phone can't get notifications from it. */
   async #check(): Promise<{ info: PushInfo } | PushStatus> {
-    if (!this.#d.ready) return { state: "unavailable", detail: PUSH_MESSAGES.unavailable };
+    if (!this.#d.ready) return { state: "unavailable", detail: app.words.thisBuildOfTheAppCan };
     const info = await this.#d.api<PushInfo>("/api/push");
     if (!info.relay) return { state: "unavailable", detail: PUSH_MESSAGES.workspaceOff };
     if (info.relay !== this.#d.relay) return { state: "unavailable", detail: PUSH_MESSAGES.otherRelay };

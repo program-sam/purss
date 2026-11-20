@@ -23,10 +23,10 @@ export function usePasswordFields(email: string | null = null, replacing = false
   const valid = [...password].length >= PASSWORD_MIN && same && !isEmail;
   const fields = (
     <>
-      <Field label={replacing ? t.newPassword : t.password} htmlFor="pw-p" hint={t.minCharacters(PASSWORD_MIN)}>
+      <Field label={replacing ? app.words.newPassword : app.words.password} htmlFor="pw-p" hint={t.minCharacters(PASSWORD_MIN)}>
         <TextInput id="pw-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
       </Field>
-      <Field label={replacing ? t.newPasswordAgain : t.passwordAgain} htmlFor="pw-a">
+      <Field label={replacing ? app.words.newPasswordAgain : t.passwordAgain} htmlFor="pw-a">
         <TextInput id="pw-a" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" aria-invalid={!!again && !same} />
       </Field>
       {again && !same ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>{t.different}</p> : null}
@@ -64,8 +64,8 @@ export function PasswordForm({ email, hasPassword, submitLabel, onDone, onCancel
       {fields}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={busy || !ready}>{busy ? t.saving : submitLabel}</Button>
-        {onCancel ? <Button onClick={onCancel}>{t.cancel}</Button> : null}
+        <Button variant="primary" type="submit" disabled={busy || !ready}>{busy ? app.words.saving : submitLabel}</Button>
+        {onCancel ? <Button onClick={onCancel}>{app.words.cancel}</Button> : null}
       </div>
     </form>
   );

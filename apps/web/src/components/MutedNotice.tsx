@@ -18,7 +18,7 @@ export function MutedNotice({ hidden, atLeast = false, showing }: { hidden: numb
     <p className="fine muted-notice" role="status">
       {showing ? t.showing : t.hidden(hiddenByMuted(hidden, atLeast, formatCount))}{" "}
       <button type="button" className="link" onClick={() => nav.patchSearch({ muted: showing ? undefined : "show" })}>{showing ? t.hideThem : hidden === 1 ? t.showIt : t.showThem}</button>
-      {" · "}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "general" })}>{t.mutedWords}</button>
+      {" · "}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "general" })}>{app.words.mutedWords}</button>
     </p>
   );
 }

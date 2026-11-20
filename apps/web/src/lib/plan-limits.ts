@@ -15,5 +15,5 @@ export function collectionLimitNote(capacity: Capacity | null): string | null {
   if (!capacity?.plan || !c || c.limit === null || c.used < c.limit) return null;
   const t = app.lib.planLimits;
   const more = capacity.plan === "free" && PLAN_LIMITS.plus.collections === null ? t.plusNoLimit : "";
-  return t.collectionLimit(PLAN_LABELS[capacity.plan], plural(c.limit, app.lib.nouns.collection), c.used, more);
+  return t.collectionLimit(PLAN_LABELS[capacity.plan], plural(c.limit, app.words.collectionLower), c.used, more);
 }

@@ -9,5 +9,5 @@ const t = app.downloads.downloadedTag;
  */
 export function DownloadedTag({ itemId }: { itemId: string }) {
   const downloaded = useDownload(itemId).record?.state === "done";
-  return downloaded ? <span className="dl-tag" title={t.title}>{t.label}</span> : null;
+  return downloaded ? <span className="dl-tag" title={t.title}>{app.words.downloaded}</span> : null;
 }

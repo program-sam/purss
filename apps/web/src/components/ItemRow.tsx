@@ -67,7 +67,7 @@ export function TriageActions({ item, tipAt }: { item: ItemDTO; tipAt?: "above" 
       {c.basket ? (
         <button type="button" className="rq ig" data-tip={t.removeFrom(c.basket.name)} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
       ) : (
-        <button type="button" className="rq ig" data-tip={t.ignore} data-tip-at={tipAt} aria-label={`Ignore: ${item.title}`} onClick={() => c.onWorkflow(item, "ignored")}><Icon name="x" /></button>
+        <button type="button" className="rq ig" data-tip={app.words.ignore} data-tip-at={tipAt} aria-label={`Ignore: ${item.title}`} onClick={() => c.onWorkflow(item, "ignored")}><Icon name="x" /></button>
       )}
     </>
   );
@@ -80,7 +80,7 @@ export function RowActions({ item }: { item: ItemDTO }) {
   if (item.workflow === "ignored" && !c.basket) {
     return (
       <span className="racts">
-        <button type="button" className="restore" aria-label={`Restore: ${item.title}`} onClick={() => c.onRestore(item)}>{t.restore}</button>
+        <button type="button" className="restore" aria-label={`Restore: ${item.title}`} onClick={() => c.onRestore(item)}>{app.words.restore}</button>
       </span>
     );
   }

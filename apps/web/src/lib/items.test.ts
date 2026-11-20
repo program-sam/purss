@@ -57,8 +57,8 @@ test("videos and podcasts are told apart from text, and their to-do state has it
   assert.equal(isTimeBased("video"), true);
   assert.equal(isTimeBased("podcast"), true);
   assert.equal(isTimeBased("article"), false);
-  assert.equal(workflowLabel("toread", "video"), app.lib.constants.toWatch);
-  assert.equal(workflowLabel("toread", "podcast"), app.lib.constants.toListen);
+  assert.equal(workflowLabel("toread", "video"), app.words.toWatch);
+  assert.equal(workflowLabel("toread", "podcast"), app.words.toListen);
   assert.equal(workflowLabel("toread", "paper"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("toread"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("finished", "video"), app.lib.constants.workflow.finished);

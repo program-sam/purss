@@ -31,8 +31,8 @@ export function KeepInDialog({ itemIds }: { itemIds: string[] }) {
     ov.close();
   }
   return (
-    <Dialog title={t.keepIn.title} size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>{t.keepIn.cancel}</Button><Button variant="primary" disabled={!chosen.length || busy} onClick={go}>{t.keepIn.keep}</Button></>}>
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.keepIn.legend.before}{plural(itemIds.length, t.keepIn.item)}{t.keepIn.legend.after}</legend>
+    <Dialog title={t.keepIn.title} size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={!chosen.length || busy} onClick={go}>{app.words.keep}</Button></>}>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.keepIn.legend.before}{plural(itemIds.length, app.words.item)}{t.keepIn.legend.after}</legend>
         {ws.data.baskets.length ? (
           <div className="radiolist">
             {ws.data.baskets.map((b) => (
@@ -72,13 +72,13 @@ export function DeleteItemsDialog({ itemIds }: { itemIds: string[] }) {
       refreshWorkspace(qc);
       sel.clear();
       ov.close();
-      toast(t.deleteItems.deleted(plural(out.deleted, t.deleteItems.item), out.releasedBytes ? t.deleteItems.freed(bytesLabel(out.releasedBytes)) : "").trim());
+      toast(t.deleteItems.deleted(plural(out.deleted, app.words.item), out.releasedBytes ? t.deleteItems.freed(bytesLabel(out.releasedBytes)) : "").trim());
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
 
   return (
-    <Dialog title={t.deleteItems.title(plural(itemIds.length, t.deleteItems.item))} size="sm" onClose={ov.close} initialFocus=".dlg-f .btn"
-      footer={<><Button onClick={ov.close}>{t.deleteItems.cancel}</Button><Button variant="danger" disabled={!p || busy || (needsAck && !ack)} onClick={go}>{t.deleteItems.deletePermanently}</Button></>}>
+    <Dialog title={t.deleteItems.title(plural(itemIds.length, app.words.item))} size="sm" onClose={ov.close} initialFocus=".dlg-f .btn"
+      footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="danger" disabled={!p || busy || (needsAck && !ack)} onClick={go}>{t.deleteItems.deletePermanently}</Button></>}>
       {preview.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.deleteItems.checking}</p> : null}
       {preview.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(preview.error)}</span></p> : null}
       {p ? (
@@ -102,9 +102,9 @@ export function DeleteItemsDialog({ itemIds }: { itemIds: string[] }) {
               <Icon name="alert" />
               <span style={{ display: "grid", gap: 6 }}>
                 <b>{t.deleteItems.notesHeading(plural(p.annotatedItems.length, t.deleteItems.hasHave.one, t.deleteItems.hasHave.many))}</b>
-                <span>{t.deleteItems.notesRemoves(plural(notes, t.deleteItems.highlightOrNote.one, t.deleteItems.highlightOrNote.many))}</span>
+                <span>{t.deleteItems.notesRemoves(plural(notes, app.words.highlightOrNote, app.words.highlightsAndNotes))}</span>
                 <ul style={{ margin: 0, paddingLeft: 18, listStyle: "disc", display: "grid", gap: 3 }}>
-                  {p.annotatedItems.slice(0, 8).map((k) => <li key={k.id}><b>{k.title}</b> <span className="fine">{plural(k.annotations, t.deleteItems.highlightOrNote.one, t.deleteItems.highlightOrNote.many)}</span></li>)}
+                  {p.annotatedItems.slice(0, 8).map((k) => <li key={k.id}><b>{k.title}</b> <span className="fine">{plural(k.annotations, app.words.highlightOrNote, app.words.highlightsAndNotes)}</span></li>)}
                   {p.annotatedItems.length > 8 ? <li className="fine">{t.deleteItems.andMore(p.annotatedItems.length - 8)}</li> : null}
                 </ul>
               </span>

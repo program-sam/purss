@@ -23,7 +23,7 @@ export function AdminPage() {
   const [tab, setTab] = useState<Tab>("health");
   const tabs: { value: Tab; label: string }[] = [
     { value: "health", label: copy.tabs.health }, { value: "jobs", label: copy.tabs.jobs }, { value: "audit", label: copy.tabs.audit }, { value: "usage", label: copy.tabs.usage },
-    { value: "accounts", label: copy.tabs.accounts }, { value: "invites", label: copy.tabs.invites }, { value: "assistants", label: copy.tabs.assistants }, { value: "ai", label: copy.tabs.ai }, { value: "reports", label: copy.tabs.reports }, { value: "news", label: copy.tabs.news },
+    { value: "accounts", label: app.words.accounts }, { value: "invites", label: copy.tabs.invites }, { value: "assistants", label: app.words.assistants }, { value: "ai", label: app.words.smartFilters }, { value: "reports", label: copy.tabs.reports }, { value: "news", label: copy.tabs.news },
   ];
   if (!session?.account?.isAdmin) {
     return <div className="col narrow"><div className="empty card-like" style={{ marginTop: 40 }}><h2>{copy.adminsOnlyTitle}</h2><p>{copy.adminsOnlyText}</p></div></div>;
@@ -32,7 +32,7 @@ export function AdminPage() {
     <div className="col narrow fx-admin">
       <div className="fx-admin-head" role="note">
         <Icon name="lock" />
-        <div><h1>{copy.title}</h1><p>{copy.lead}</p></div>
+        <div><h1>{app.words.administration}</h1><p>{copy.lead}</p></div>
       </div>
       <div className="fx-tabs"><Segmented<Tab> label="Administration section" value={tab} onChange={setTab} buttonStyle={{ height: 30, padding: "0 14px" }} options={tabs} /></div>
       <div className="fx-admin-body" role="region" aria-label={tabs.find((t) => t.value === tab)?.label}>

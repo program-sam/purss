@@ -55,8 +55,8 @@ function Settings({ kind, id, share, onSaved, onCancel }: { kind: ShareTarget; i
       ) : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={!ready || busy} onClick={() => void save()}>{share ? t.settings.save : t.settings.nextReview}</Button>
-        <Button onClick={onCancel}>{t.settings.cancel}</Button>
+        <Button variant="primary" disabled={!ready || busy} onClick={() => void save()}>{share ? app.words.save : t.settings.nextReview}</Button>
+        <Button onClick={onCancel}>{app.words.cancel}</Button>
       </div>
     </>
   );
@@ -102,8 +102,8 @@ function Review({ share, onShared, onBack }: { share: ShareDTO; onShared: () => 
       ) : null}
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div className="fx-acts-row">
-        {p.confirmation ? <Button variant="primary" disabled={!ack || busy} onClick={() => void publish()}>{t.review.share}</Button> : null}
-        <Button onClick={onBack}>{t.review.back}</Button>
+        {p.confirmation ? <Button variant="primary" disabled={!ack || busy} onClick={() => void publish()}>{app.words.share}</Button> : null}
+        <Button onClick={onBack}>{app.words.back}</Button>
       </div>
     </>
   );
@@ -142,9 +142,9 @@ function Live({ share, onStep }: { share: ShareDTO; onStep: (s: "settings" | "re
       <p className="fine">{t.live.shownAs}<b dir="auto">{share.curatorName}</b>{share.noteCount ? t.live.publicNote(share.noteCount) : ""}</p>
       {live ? (
         <div className="fx-links">
-          <LinkRow label={t.live.page} url={share.publicUrl} />
-          <LinkRow label={t.live.feed} url={share.feedUrl} />
-          <LinkRow label={t.live.followLink} url={share.followUrl} />
+          <LinkRow label={app.words.page} url={share.publicUrl} />
+          <LinkRow label={app.words.feedCapital} url={share.feedUrl} />
+          <LinkRow label={app.words.followLink} url={share.followUrl} />
         </div>
       ) : null}
       {live ? <p className="fine">{t.live.followLinkHint}</p> : null}
@@ -152,14 +152,14 @@ function Live({ share, onStep }: { share: ShareDTO; onStep: (s: "settings" | "re
       {stopping ? (
         <div className="fx-confirm">
           <p><Icon name="alert" /><span>{t.live.stopNote}{share.status === "published" ? t.live.recallNote : ""}</span></p>
-          <div className="fx-acts-row"><Button variant="danger" disabled={busy} onClick={() => void stop()}>{t.live.stopSharing}</Button><Button onClick={() => setStopping(false)}>{t.live.cancel}</Button></div>
+          <div className="fx-acts-row"><Button variant="danger" disabled={busy} onClick={() => void stop()}>{t.live.stopSharing}</Button><Button onClick={() => setStopping(false)}>{app.words.cancel}</Button></div>
         </div>
       ) : (
         <div className="fx-acts-row">
           {share.status !== "published" && !share.takenDown ? <Button variant="primary" onClick={() => onStep("review")}>{t.live.reviewAndShare}</Button> : <Button onClick={() => onStep("review")}>{t.live.preview}</Button>}
           <Button onClick={() => onStep("notes")}>{t.live.publicNotes}</Button>
           <Button onClick={() => onStep("settings")}>{t.live.settings}</Button>
-          {share.status === "published" && !share.takenDown ? <Button disabled={busy} onClick={() => void pause()}>{t.live.pause}</Button> : null}
+          {share.status === "published" && !share.takenDown ? <Button disabled={busy} onClick={() => void pause()}>{app.words.pause}</Button> : null}
           {!share.takenDown ? <Button onClick={() => setStopping(true)}>{t.live.stopSharingButton}</Button> : null}
         </div>
       )}
@@ -176,7 +176,7 @@ export function ShareDialog({ kind, id, name, onClose }: { kind: ShareTarget; id
   const back = () => { void q.refetch(); setStep("main"); };
   if (step === "notes" && share) return <NotesDialog share={share} onClose={back} />;
   return (
-    <Dialog title={t.title(name)} size={step === "review" ? "lg" : "md"} onClose={onClose} footer={<Button onClick={onClose}>{t.close}</Button>}>
+    <Dialog title={t.title(name)} size={step === "review" ? "lg" : "md"} onClose={onClose} footer={<Button onClick={onClose}>{app.words.close}</Button>}>
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what={t.sharingName} onRetry={() => void q.refetch()} /> : null}
       {q.data && !share && blocked ? <p className="state note"><Icon name="lock" /><span>{blocked}</span></p> : null}

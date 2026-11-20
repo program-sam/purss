@@ -22,7 +22,7 @@ export function AuthFrame({ title, intro, children, footer }: { title: string; i
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="mark" aria-hidden="true"><Icon name="mark" /></span>
             <div style={{ display: "grid", gap: 3 }}>
-              <span className="fine" style={{ fontSize: 12 }}>{t.brand}</span>
+              <span className="fine" style={{ fontSize: 12 }}>{"PURSS"}</span>
               <h1 id="auth-title" className="auth-title" ref={heading} tabIndex={-1}>{title}</h1>
             </div>
           </div>

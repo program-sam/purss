@@ -87,7 +87,7 @@ export function accountExistsMail(to: string, opts: { signIn: string; reset: str
     server.api.mailTemplates.existsIntro(NAME, host(opts.origin)),
     { href: opts.signIn, label: server.api.mailTemplates.existsSignIn },
     server.api.mailTemplates.existsForgot,
-    { href: opts.reset, label: server.api.mailTemplates.existsReset },
+    { href: opts.reset, label: server.words.resetYourPassword },
     server.api.mailTemplates.existsIgnore,
   ]);
 }
@@ -102,7 +102,7 @@ export function verifyMail(to: string, opts: { link: string; hours: number }): M
 }
 
 export function resetMail(to: string, opts: { link: string; minutes: number }): Message {
-  return compose(to, server.api.mailTemplates.resetSubject, [
+  return compose(to, server.words.resetYourPassword, [
     server.api.mailTemplates.resetIntro(NAME),
     { href: opts.link, label: server.api.mailTemplates.resetButton },
     server.api.mailTemplates.resetFooter(opts.minutes),

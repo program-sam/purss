@@ -4,7 +4,7 @@ import { app } from "@purss/copy/app";
 
 /** Feature pages load when first visited, so the everyday PURSS stays small. */
 function Loading() {
-  return <div className="col narrow"><p className="state" role="status" style={{ padding: "40px 0" }}><span className="spin" aria-hidden="true" />{app.featuresRoot.lazy.loading}</p></div>;
+  return <div className="col narrow"><p className="state" role="status" style={{ padding: "40px 0" }}><span className="spin" aria-hidden="true" />{app.words.loading}</p></div>;
 }
 const wrap = (node: ReactNode) => <Suspense fallback={<Loading />}>{node}</Suspense>;
 

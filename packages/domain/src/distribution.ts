@@ -7,7 +7,9 @@
  */
 
 // The catalog file by path, not "@purss/copy/common": the desktop release job runs this file without installing packages.
-import copy from "../../copy/src/common/en/distribution.ts";
+import { common } from "../../copy/src/en/common.ts";
+
+const copy = common.distribution;
 
 export type StoreId = "chrome" | "edge" | "firefox" | "safari" | "android" | "ios";
 

@@ -26,17 +26,17 @@ export function HeaderAccount() {
   if (session?.state !== "signed_in") return null;
   const name = session.account?.displayName;
   const accountEntries = [
-    { label: t.settings, icon: "gear" as const, onSelect: () => overlays.open({ kind: "settings" }) },
+    { label: app.words.settings, icon: "gear" as const, onSelect: () => overlays.open({ kind: "settings" }) },
     { type: "separator" as const },
-    { label: busy ? t.signingOut : t.signOut, disabled: busy, onSelect: () => { void signOut(); } },
+    { label: busy ? t.signingOut : app.words.signOut, disabled: busy, onSelect: () => { void signOut(); } },
   ];
   return (
     <>
       <button type="button" className={`${bp === "xs" ? "ibtn" : "mbtn"} bar-acct`} aria-haspopup="menu" aria-label={name ? `Account menu for ${name}` : "Account menu"}
         onClick={(e) => popups.menu(e.currentTarget, accountEntries, "Account")}>
-        <Icon name="user" />{bp === "xs" ? null : <span dir="auto">{name ?? t.account}</span>}
+        <Icon name="user" />{bp === "xs" ? null : <span dir="auto">{name ?? app.words.account}</span>}
       </button>
-      {session.account?.sharedComputer ? <button type="button" className="mbtn bar-acct" disabled={busy} onClick={() => void signOut()}>{busy ? t.signingOut : t.signOut}</button> : null}
+      {session.account?.sharedComputer ? <button type="button" className="mbtn bar-acct" disabled={busy} onClick={() => void signOut()}>{busy ? t.signingOut : app.words.signOut}</button> : null}
     </>
   );
 }

@@ -97,8 +97,8 @@ const makeStale = () => withDb((db) => {
 let claims: Record<string, unknown> = {};
 
 async function dismissFirstVisit(page: Page): Promise<void> {
-  const later = page.getByRole("button", { name: app.dialogs.firstVisitQuestion.notNow });
-  const add = page.getByRole("button", { name: app.shell.sidebar.addSource }).first();
+  const later = page.getByRole("button", { name: app.words.notNow });
+  const add = page.getByRole("button", { name: app.words.addSource }).first();
   await later.or(add).first().waitFor();
   if (await later.isVisible()) await later.click();
   await add.waitFor();
@@ -148,7 +148,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const style = await button.evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, color: c.color, border: c.borderTopColor }; });
     assert.deepEqual(style, { bg: "rgb(255, 255, 255)", color: "rgb(31, 31, 31)", border: "rgb(116, 119, 117)" }, "Google's light button colours");
     await page.screenshot({ path: path.join(shots, "01-signin.png") });
-    await page.getByRole("link", { name: app.auth.signIn.createAccount.link }).click();
+    await page.getByRole("link", { name: app.words.createAnAccount }).click();
     await page.getByRole("link", { name: continueWithGoogle }).waitFor();
     await page.screenshot({ path: path.join(shots, "02-signup.png") });
     step("sign-in and sign-up pages show Continue with Google, white with the multicolour G");
@@ -197,7 +197,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await page.locator("#toasts").getByText(app.auth.providerConfirm.confirmed(GOOGLE)).waitFor();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: securityCopy.addAPassword }).click();
-    await page.getByLabel(passwordCopy.password, { exact: true }).fill("tidal flats at low water");
+    await page.getByLabel(app.words.password, { exact: true }).fill("tidal flats at low water");
     await page.getByLabel(passwordCopy.passwordAgain).fill("tidal flats at low water");
     await page.getByRole("button", { name: securityCopy.addPassword }).click();
     await page.locator("#toasts").getByText(securityCopy.passwordAdded).waitFor();
@@ -236,7 +236,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     claims = { sub: "google-pat", email: "pat@example.org", email_verified: true, name: "Pat" };
     await phoneBrowser.goto(providerStartUrl(providers[0]!.start, infoRes.connect.page, { challenge: p.challenge, state: p.state, deviceName: "Pixel 8" }));
     await phoneBrowser.getByText(connectCopy.titleMobile).waitFor();
-    assert.equal(await phoneBrowser.getByLabel(connectCopy.nameLabel).inputValue(), "Pixel 8");
+    assert.equal(await phoneBrowser.getByLabel(app.words.nameSoYouRecogniseItLater).inputValue(), "Pixel 8");
     await phoneBrowser.screenshot({ path: path.join(shots, "06-approve-app.png") });
     await phoneBrowser.getByRole("button", { name: connectCopy.connect, exact: true }).click();
     await waitFor("the redirect to the app", async () => navigations.some((u) => u.startsWith(`${REDIRECT_URI}?code=`)), 10_000);

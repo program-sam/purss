@@ -33,16 +33,16 @@ export function AuthorizePage() {
 
   const leave = (to: string, title: string, text: string) => { setPhase({ kind: "leaving", title, text }); window.location.assign(to); };
 
-  if (q.isPending) return <AuthFrame title={t.connectTitle}><p className="state"><span className="spin" aria-hidden="true" />{t.checking}</p></AuthFrame>;
+  if (q.isPending) return <AuthFrame title={t.connectTitle}><p className="state"><span className="spin" aria-hidden="true" />{app.words.checkingTheRequest}</p></AuthFrame>;
   if (phase.kind === "leaving") return <AuthFrame title={phase.title}><p className="hint" role="status">{phase.text}</p></AuthFrame>;
   const req = q.data;
   if (q.isError || !req || req.kind === "error") {
     const message = q.isError ? messageOf(q.error) : req?.kind === "error" ? req.message : "";
     return (
       <AuthFrame title={t.linkBroken}
-        footer={req?.kind === "error" && req.redirectTo ? <Button variant="primary" onClick={() => leave(req.redirectTo!, t.notConnected, t.nothingConnectedClose)}>{t.backToAssistant}</Button> : undefined}>
+        footer={req?.kind === "error" && req.redirectTo ? <Button variant="primary" onClick={() => leave(req.redirectTo!, app.words.notConnected, app.words.nothingWasConnectedYouCanClose)}>{t.backToAssistant}</Button> : undefined}>
         <p className="state note" role="alert"><Icon name="info" /><span>{message}</span></p>
-        <p className="fine">{t.nothingConnected}<a className="link" href="/">{t.goToPurss}</a></p>
+        <p className="fine">{app.words.nothingWasConnectedSpaced}<a className="link" href="/">{app.words.goToYourPurss}</a></p>
       </AuthFrame>
     );
   }
@@ -55,7 +55,7 @@ export function AuthorizePage() {
     setBusy(true); setError("");
     try {
       const out = await stepUp.run(() => post<OAuthApproveResult>("/api/assistant/oauth/approve", { request, access: allowWrite ? "write" : "read" }));
-      if (out) leave(out.redirectTo, t.connected, t.returnToFinish);
+      if (out) leave(out.redirectTo, app.words.connected, t.returnToFinish);
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   async function turnOn() {
@@ -66,7 +66,7 @@ export function AuthorizePage() {
   return (
     <AuthFrame title={t.title(req.clientName)}
       footer={<>
-        <Button disabled={busy} onClick={() => leave(req.declineUrl, t.notConnected, t.nothingConnectedClose)}>{t.dontAllow}</Button>
+        <Button disabled={busy} onClick={() => leave(req.declineUrl, app.words.notConnected, app.words.nothingWasConnectedYouCanClose)}>{app.words.donTAllow}</Button>
         <Button variant="primary" disabled={busy || !ready} onClick={() => void approve()}>{t.allow}</Button>
       </>}>
       {stepUp.dialog}
@@ -78,7 +78,7 @@ export function AuthorizePage() {
           <li><Icon name="link" /><span className="tx"><b>{t.sendsBack(req.redirectHost)}</b><small>{req.loopbackRedirect ? t.loopbackKind : t.redirectKind}</small></span></li>
         </ul>
         {req.loopbackRedirect ? <Note tone="warn" icon="alert">{t.loopbackWarning}</Note> : null}
-        <div className="fine"><b>{t.ableTo}</b> {READ}{allowWrite ? ` ${WRITE}` : ""}</div>
+        <div className="fine"><b>{app.words.itWillBeAbleTo}</b> {READ}{allowWrite ? ` ${WRITE}` : ""}</div>
         {req.access === "write" ? (
           <Check checked={allowWrite} onChange={(on) => setWrite(on)} hint={t.canHint(CHANGES)}>{t.allowChanges}</Check>
         ) : null}

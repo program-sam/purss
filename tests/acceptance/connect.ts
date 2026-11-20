@@ -140,12 +140,12 @@ async function main(): Promise<void> {
     // The extension asks to connect (no return address: it will take a typed code) while signed out.
     await page.goto(connectUrl({ client: "extension", device_name: "Firefox on the laptop" }));
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
-    await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
+    await page.getByRole("textbox", { name: app.words.emailAddress }).fill(EMAIL);
+    await page.getByLabel(app.words.password, { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: app.words.signIn, exact: true }).click();
     await page.waitForURL(/\/connect\?/);
     await page.getByText(connectCopy.titleExtension).waitFor();
-    assert.equal(await page.getByLabel(connectCopy.nameLabel).inputValue(), "Firefox on the laptop");
+    assert.equal(await page.getByLabel(app.words.nameSoYouRecogniseItLater).inputValue(), "Firefox on the laptop");
     step("a signed-out connection request goes through sign-in and comes back to the approval page");
 
     await page.getByRole("button", { name: connectCopy.connect, exact: true }).click();
@@ -197,7 +197,7 @@ async function main(): Promise<void> {
 
     // Settings → Connected apps.
     await page.goto(`${origin}/app/`);
-    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
+    await page.getByRole("button", { name: app.words.settings }).click();
     await page.getByRole("button", { name: tabsCopy.apps }).click();
     await page.getByText("Firefox on the laptop").waitFor();
     await page.getByText("Pixel 8").waitFor();
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
     await page.getByRole("button", { name: tabsCopy.security }).click();
     await page.getByRole("button", { name: addressCopy.changeAddress }).click();
     await page.getByLabel(addressCopy.newAddress.label).fill("reader2@example.test");
-    await page.getByRole("button", { name: addressCopy.newAddress.save, exact: true }).click();
+    await page.getByRole("button", { name: app.words.save, exact: true }).click();
     await page.getByText(securityCopy.confirmItsYou).waitFor();
     await page.getByLabel(stepUpCopy.yourPassword).fill("not the password");
     await page.getByRole("button", { name: stepUpCopy.confirmWithPassword }).click();
@@ -227,12 +227,12 @@ async function main(): Promise<void> {
     // Changing the password takes the current one, whenever the sign-in was.
     await page.getByRole("button", { name: securityCopy.changePassword }).click();
     await page.getByLabel(passwordCopy.currentPassword).fill("not the password");
-    await page.getByLabel(passwordCopy.newPassword, { exact: true }).fill("a brand new long password");
-    await page.getByLabel(passwordCopy.newPasswordAgain).fill("a brand new long password");
-    await page.getByRole("button", { name: securityCopy.saveNewPassword }).click();
+    await page.getByLabel(app.words.newPassword, { exact: true }).fill("a brand new long password");
+    await page.getByLabel(app.words.newPasswordAgain).fill("a brand new long password");
+    await page.getByRole("button", { name: app.words.saveNewPassword }).click();
     await page.getByText(server.api.publicRoute.currentPasswordWrong).waitFor();
     await page.getByLabel(passwordCopy.currentPassword).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: securityCopy.saveNewPassword }).click();
+    await page.getByRole("button", { name: app.words.saveNewPassword }).click();
     await page.locator("#toasts").getByText(securityCopy.passwordChanged).waitFor();
     step("changing the password takes the current one: a wrong one is refused, the right one changes it");
 

@@ -46,11 +46,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const signInCopy = app.auth.signIn;
 const newCollectionCopy = app.dialogs.collections.newCollection;
 const addSourceCopy = app.dialogs.addSource;
-const settingsTitle = app.dialogs.settings.dialog.title;
+const settingsTitle = app.words.settings;
 const yourPlanFree = app.account.planTab.yourPlan(common.plans.free);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** What the Free plan says at 5 of 5 collections: before the form, and under Add source's choice. */
-const NOTE = app.lib.planLimits.collectionLimit(common.plans.free, plural(5, app.lib.nouns.collection), 5, app.lib.planLimits.plusNoLimit);
+const NOTE = app.lib.planLimits.collectionLimit(common.plans.free, plural(5, app.words.collectionLower), 5, app.lib.planLimits.plusNoLimit);
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -83,14 +83,14 @@ function prepare(): string {
 async function signIn(page: Page, email: string): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(email);
-  await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: app.words.emailAddress }).fill(email);
+  await page.getByLabel(app.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: app.words.signIn, exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: app.dialogs.firstVisitQuestion.title });
-  const notNow = firstVisit.getByRole("button", { name: app.dialogs.firstVisitQuestion.notNow, exact: true });
+  const notNow = firstVisit.getByRole("button", { name: app.words.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }
-  await page.getByRole("heading", { name: app.pages.home.title }).waitFor();
+  await page.getByRole("heading", { name: app.words.home }).waitFor();
 }
 
 async function main(): Promise<void> {
@@ -111,9 +111,9 @@ async function main(): Promise<void> {
     await page.route("**/api/collections", (route) => route.request().method() === "POST"
       ? route.fulfill({ status: 403, json: { error: { code: "plan_limit", message: refused } } })
       : route.continue());
-    await page.locator("#side").getByRole("button", { name: app.shell.sidebar.newCollection }).click();
-    const dialog = page.getByRole("dialog", { name: newCollectionCopy.title });
-    await dialog.getByRole("textbox", { name: newCollectionCopy.name }).fill("Fifth");
+    await page.locator("#side").getByRole("button", { name: app.words.newCollection }).click();
+    const dialog = page.getByRole("dialog", { name: app.words.newCollection });
+    await dialog.getByRole("textbox", { name: app.words.name }).fill("Fifth");
     await dialog.getByRole("button", { name: newCollectionCopy.create }).click();
     const alert = dialog.getByRole("alert");
     await alert.waitFor();
@@ -124,31 +124,31 @@ async function main(): Promise<void> {
     step("a refused new collection shows why, and focus is on the message rather than the page");
 
     // ---------- all five made: the limit is said before the form ----------
-    await page.locator("#side").getByRole("button", { name: app.shell.sidebar.newCollection }).click();
-    await dialog.getByRole("textbox", { name: newCollectionCopy.name }).fill("Fifth");
+    await page.locator("#side").getByRole("button", { name: app.words.newCollection }).click();
+    await dialog.getByRole("textbox", { name: app.words.name }).fill("Fifth");
     await dialog.getByRole("button", { name: newCollectionCopy.create }).click();
     await dialog.waitFor({ state: "detached" });
     await page.locator("#side").getByText("Fifth", { exact: true }).waitFor();
-    await page.locator("#side").getByRole("button", { name: app.shell.sidebar.newCollection }).click();
+    await page.locator("#side").getByRole("button", { name: app.words.newCollection }).click();
     await dialog.waitFor();
     assert.equal((await dialog.locator(".dlg-b").innerText()).replace(/\s+/g, " ").trim(), NOTE, "the plan's wording, instead of the form");
     assert.equal(await dialog.getByRole("textbox").count(), 0, "no name to fill in for a collection that can't be made");
-    await dialog.getByRole("button", { name: newCollectionCopy.seePlans }).click();
+    await dialog.getByRole("button", { name: app.words.seePlans }).click();
     await page.getByRole("dialog", { name: settingsTitle }).getByText(yourPlanFree).waitFor();
     await page.keyboard.press("Escape");
     step("at the limit, New collection says so before asking for a name, and links to the plan");
 
     // ---------- Add source ----------
     await page.route("**/api/discover", (route) => route.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
-    await page.getByRole("button", { name: app.shell.sidebar.addSource }).first().click();
+    await page.getByRole("button", { name: app.words.addSource }).first().click();
     await page.getByLabel(addSourceCopy.linkOrName).fill("https://shows.example.test/quiet.xml");
     await page.getByRole("button", { name: addSourceCopy.find, exact: true }).click();
     const choice = page.locator("#as-col");
     await choice.waitFor();
-    assert.equal(await choice.locator("option", { hasText: addSourceCopy.newCollection }).isDisabled(), true, "a new collection can't be chosen");
-    assert.match(await choice.locator("option", { hasText: addSourceCopy.newCollection }).innerText(), new RegExp(escapeRe(addSourceCopy.limitReached.trim())));
-    assert.ok(await page.getByRole("dialog", { name: addSourceCopy.title }).getByText(NOTE).isVisible(), "the plan's words are under the choice");
-    await page.getByRole("dialog", { name: addSourceCopy.title }).getByRole("button", { name: addSourceCopy.seePlans }).click();
+    assert.equal(await choice.locator("option", { hasText: app.words.newCollectionMenu }).isDisabled(), true, "a new collection can't be chosen");
+    assert.match(await choice.locator("option", { hasText: app.words.newCollectionMenu }).innerText(), new RegExp(escapeRe(addSourceCopy.limitReached.trim())));
+    assert.ok(await page.getByRole("dialog", { name: app.words.addSource }).getByText(NOTE).isVisible(), "the plan's words are under the choice");
+    await page.getByRole("dialog", { name: app.words.addSource }).getByRole("button", { name: app.words.seePlans }).click();
     await page.getByRole("dialog", { name: settingsTitle }).getByText(yourPlanFree).waitFor();
     step("at the limit, Add source's New collection… choice is unavailable, with the plan's words and a link under it");
   } finally {

@@ -9,7 +9,7 @@ export type AddSourcePhase = "paste" | "looking" | "found" | "failed" | "shows" 
  */
 export function addSourceStatus(o: { phase: AddSourcePhase; searching: boolean; shows: number; candidates: number; failure: string | null; keeping: boolean }): string {
   const t = app.lib.addSourceStatus;
-  if (o.phase === "looking") return t.looking;
+  if (o.phase === "looking") return app.words.looking;
   if (o.phase === "shows") return o.searching ? t.searching : o.shows ? t.showsFound(plural(o.shows, app.lib.nouns.show)) : t.noShows;
   if (o.phase === "failed") return o.failure ? t.failedWith(o.failure) : t.failed;
   if (o.phase === "found") {

@@ -44,9 +44,9 @@ function PageDialog({ pub, onClose }: { pub: Pub; onClose: () => void }) {
       <Dialog title={t.dialogTitle(pub.title)} size="lg" onClose={onClose}
         footer={
           <>
-            <Button onClick={onClose}>{t.close}</Button>
+            <Button onClick={onClose}>{app.words.close}</Button>
             {pub.takenDown
-              ? <Button variant="primary" disabled={busy} onClick={() => void act("restore")}>{t.restore}</Button>
+              ? <Button variant="primary" disabled={busy} onClick={() => void act("restore")}>{app.words.restore}</Button>
               : <Button variant="danger" disabled={busy || !canTakeDown} onClick={() => void act("takedown")}>{t.takeDown}</Button>}
           </>
         }>
@@ -55,7 +55,7 @@ function PageDialog({ pub, onClose }: { pub: Pub; onClose: () => void }) {
         {q.isError ? <LoadFailed error={q.error} what={t.pageName} onRetry={() => void q.refetch()} /> : null}
         {q.data ? <iframe className="fx-frame" title={t.frameTitle(pub.title)} sandbox="" srcDoc={neutraliseLinks(q.data.html)} /> : null}
         {pub.takenDown
-          ? <p className="fine">{t.takenDownAt(timeAgo(pub.takenDown.at) || t.justNow)}<span dir="auto">{pub.takenDown.reason}</span>{t.restoringNote}</p>
+          ? <p className="fine">{t.takenDownAt(timeAgo(pub.takenDown.at) || app.words.justNow)}<span dir="auto">{pub.takenDown.reason}</span>{t.restoringNote}</p>
           : (
             <Field label={t.reasonLabel} htmlFor="td-reason" hint={t.reasonHint}>
               <textarea id="td-reason" className="in fx-textarea" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -70,19 +70,19 @@ function PageDialog({ pub, onClose }: { pub: Pub; onClose: () => void }) {
 
 function Row({ report, busy, onDismiss, onOpen }: { report: ShareReportDTO; busy: boolean; onDismiss: () => void; onOpen: () => void }) {
   const pub = report.share;
-  const outcome = report.resolution === "taken_down" ? t.outcome.takenDown : report.resolution === "dismissed" ? t.outcome.dismissed : t.outcome.open;
+  const outcome = report.resolution === "taken_down" ? app.words.takenDown : report.resolution === "dismissed" ? app.words.dismissed : app.words.open;
   return (
     <li className="fx-row wrap">
       <div className="fx-grow">
         <b dir="auto">{pub.title}</b>
-        <span className="fine">{t.summary(REPORT_REASON_LABELS[report.reason], timeAgo(report.createdAt) || t.justNow, pub.openReports)}</span>
+        <span className="fine">{t.summary(REPORT_REASON_LABELS[report.reason], timeAgo(report.createdAt) || app.words.justNow, pub.openReports)}</span>
         <span className="fx-pub-note" dir="auto">{report.details}</span>
         {report.contact ? <span className="fine">{t.reporter}<span dir="auto">{report.contact}</span></span> : null}
       </div>
       <div className="fx-end">
         <span className={`tag fx-status ${report.resolution ? "draft" : "failed"}`}>{outcome}</span>
         <Button onClick={onOpen}>{t.viewPage}</Button>
-        {!report.resolution ? <Button disabled={busy} onClick={onDismiss} aria-label={`Dismiss the report about ${pub.title}`}>{t.dismiss}</Button> : null}
+        {!report.resolution ? <Button disabled={busy} onClick={onDismiss} aria-label={`Dismiss the report about ${pub.title}`}>{app.words.dismiss}</Button> : null}
       </div>
     </li>
   );
@@ -108,7 +108,7 @@ export function AdminReportsPanel() {
   return (
     <div className="fx-stack">
       <Segmented<ReportFilter> label="Show reports" value={filter} onChange={setFilter} buttonStyle={{ height: 30, padding: "0 14px" }}
-        options={[{ value: "open", label: t.filters.open }, { value: "taken_down", label: t.filters.takenDown }, { value: "all", label: t.filters.all }]} />
+        options={[{ value: "open", label: app.words.open }, { value: "taken_down", label: app.words.takenDown }, { value: "all", label: app.words.recent }]} />
       <p className="fine">{t.intro}</p>
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what={t.reportsName} onRetry={() => void q.refetch()} /> : null}

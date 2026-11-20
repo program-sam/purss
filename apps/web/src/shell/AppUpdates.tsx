@@ -32,7 +32,7 @@ function describe(state: AppUpdateState, needed: boolean): { kind: "newer" | "ne
       kind: "newer",
       short: t.newerShort(state.newer),
       long: t.newerLong(state.newer, state.installed),
-      action: where.url ? { label: t.download, url: where.url } : null,
+      action: where.url ? { label: app.words.download, url: where.url } : null,
     };
   }
   if (!needed || state.source === "github") return null;
@@ -73,7 +73,7 @@ export function AppUpdateSection() {
   if (!said && !waiting) return null;
   return (
     <section className="field" aria-labelledby="dv-app-version">
-      <div className="lbl" id="dv-app-version">{t.sectionTitle}</div>
+      <div className="lbl" id="dv-app-version">{app.words.newVersionOfTheApp}</div>
       {said ? <>
         <p className="fine">{said.long}</p>
         {said.action ? <div><Button variant="primary" onClick={() => platform.openExternal(said.action!.url)}>{said.kind === "newer" ? t.downloadVersion(u!.state.newer) : said.action.label}</Button></div> : null}

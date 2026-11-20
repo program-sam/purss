@@ -23,7 +23,7 @@ export function MediaSection({ item }: { item: ItemDetail & { media: ItemMedia }
   const from = current && snap.now ? snap.now.from : downloaded?.state === "done" && downloaded.media ? "device" : "publisher";
   const playback = player.positionFor(item.id, item.playback);
   const resume = resumePoint(playback);
-  const word = media.kind === "video" ? t.watch : t.listen;
+  const word = media.kind === "video" ? app.words.watch : t.listen;
   // An episode without its own picture plays with the show's art, as in its row and card.
   const art = itemPicture(item, useFace(item).iconUrl);
 
@@ -37,7 +37,7 @@ export function MediaSection({ item }: { item: ItemDetail & { media: ItemMedia }
       <div className="media-play">
         <Button variant="primary" onClick={play}>
           <Icon name={playing ? "pause" : "play"} size="sm" />
-          {playing ? t.pause : current ? t.continue : resume > 0 ? t.from(word, clock(resume)) : word}
+          {playing ? app.words.pause : current ? app.words.continue : resume > 0 ? t.from(word, clock(resume)) : word}
         </Button>
         <span className="fine">{from === "device" ? t.onDevice : t.streams}</span>
       </div>

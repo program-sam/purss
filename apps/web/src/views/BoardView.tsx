@@ -126,7 +126,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
           ))}
         </div>
       ) : null}
-      {note ? <p className="state note board-note" role="status"><Icon name="info" /><span>{note}</span><button type="button" className="link" onClick={() => setNote(null)}>{t.dismiss}</button></p> : null}
+      {note ? <p className="state note board-note" role="status"><Icon name="info" /><span>{note}</span><button type="button" className="link" onClick={() => setNote(null)}>{app.words.dismiss}</button></p> : null}
       <div className="board" ref={boardRef} role="group" aria-label="Workflow board" onScroll={onScroll}>
         {columns.map((k) => {
           const list = by(k);
@@ -137,7 +137,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
               <section key={k} className={`bcol ign${over === k ? " drop" : ""}${count(k) === 0 ? " is-empty" : ""}`} data-col={k} aria-label={`${label}, ${count(k)}`}
                 onDragOver={(e) => { if (dragId) { e.preventDefault(); setOver(k); } }} onDrop={(e) => { e.preventDefault(); drop(k); }}>
                 <button type="button" className="bcol-h" aria-expanded="false" onClick={() => setIgnOpen(true)}><span>{label}</span><span className="n" aria-label={plural(count(k), "item")}>{count(k)}</span></button>
-                {count(k) ? <button type="button" className="ign-show" onClick={() => setIgnOpen(true)}>{t.showIgnored}<Icon name="chev" size="sm" /></button> : <p className="bcol-empty">{t.nothingHere}</p>}
+                {count(k) ? <button type="button" className="ign-show" onClick={() => setIgnOpen(true)}>{app.words.showIgnoredItems}<Icon name="chev" size="sm" /></button> : <p className="bcol-empty">{t.nothingHere}</p>}
               </section>
             );
           }
@@ -155,7 +155,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
               <ul className="bcards" aria-label={label}>
                 {list.map((it) => <BoardCard key={it.id} item={it} onDragStart={setDragId} onDragEnd={endDrag} />)}
               </ul>
-              {cols[k].hasNextPage ? <button type="button" className="link bcol-more" disabled={cols[k].isFetchingNextPage} onClick={() => void cols[k].fetchNextPage()}>{cols[k].isFetchingNextPage ? t.loading : t.showMore(Math.max(0, count(k) - list.length))}</button> : null}
+              {cols[k].hasNextPage ? <button type="button" className="link bcol-more" disabled={cols[k].isFetchingNextPage} onClick={() => void cols[k].fetchNextPage()}>{cols[k].isFetchingNextPage ? app.words.loading : t.showMore(Math.max(0, count(k) - list.length))}</button> : null}
             </section>
           );
         })}

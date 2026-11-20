@@ -49,26 +49,26 @@ function StartSignup() {
         <div style={{ display: "grid", gap: 14 }}>
           <p className="state" role="status"><Icon name="check" /><span>{t.sentTo(sent)}</span></p>
           <p className="fine">{t.spamHint}</p>
-          <div><button type="button" className="link" onClick={() => setSent(null)}>{t.useDifferentEmail}</button></div>
+          <div><button type="button" className="link" onClick={() => setSent(null)}>{app.words.useADifferentEmailAddress}</button></div>
         </div>
       </AuthFrame>
     );
   }
   return (
     <AuthFrame
-      title={t.createTitle}
+      title={app.words.createYourAccount}
       intro={t.createIntro}
-      footer={<Button variant="primary" type="submit" form="signup-form" disabled={busy || !email.trim()}>{busy ? t.sending : t.sendLink}</Button>}
+      footer={<Button variant="primary" type="submit" form="signup-form" disabled={busy || !email.trim()}>{busy ? app.words.sending : app.words.sendMeTheLink}</Button>}
     >
       <form id="signup-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
         {providers.length ? (
           <>
             {providers.map((p) => <ProviderButton key={p.id} provider={p} href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start${sharedComputer ? "?shared=1" : ""}`} />)}
-            <Check checked={sharedComputer} onChange={setSharedComputer} hint={t.sharedComputerHint}>{t.sharedComputer}</Check>
+            <Check checked={sharedComputer} onChange={setSharedComputer} hint={app.words.signsOutWhenTheBrowserCloses}>{app.words.thisIsASharedComputer}</Check>
             <p className="fine" style={{ textAlign: "center", marginTop: -4 }}>{t.orMakeAccount}</p>
           </>
         ) : null}
-        <Field label={t.emailLabel} htmlFor="auth-email">
+        <Field label={app.words.emailAddress} htmlFor="auth-email">
           <TextInput id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} autoCapitalize="none" autoFocus maxLength={254} />
         </Field>
         {error ? <p id="auth-error" className="state note" role="alert">{error}</p> : null}
@@ -106,16 +106,16 @@ function FinishSignup({ token }: { token: string }) {
   if (account.passkey) return account.passkey;
   if (link.error) {
     return (
-      <AuthFrame title={t.createTitle}>
+      <AuthFrame title={app.words.createYourAccount}>
         <div style={{ display: "grid", gap: 14 }}>
           <p className="state note" role="alert"><Icon name="info" /><span>{link.error}</span></p>
-          <div><a className="btn primary" href={inApp("/signup")}>{t.startAgain}</a></div>
+          <div><a className="btn primary" href={inApp("/signup")}>{app.words.startAgain}</a></div>
         </div>
       </AuthFrame>
     );
   }
   if (link.email === null) {
-    return <AuthFrame title={t.createTitle}><p className="state" role="status"><span className="spin" aria-hidden="true" />{t.checkingLink}</p></AuthFrame>;
+    return <AuthFrame title={app.words.createYourAccount}><p className="state" role="status"><span className="spin" aria-hidden="true" />{t.checkingLink}</p></AuthFrame>;
   }
   return (
     <AuthFrame
@@ -124,14 +124,14 @@ function FinishSignup({ token }: { token: string }) {
       footer={<Button variant="primary" type="submit" form="signup-form" disabled={account.busy || !valid}>{account.busy ? t.creating : t.create}</Button>}
     >
       <form id="signup-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
-        <Field label={t.emailLabel} htmlFor="auth-email">
+        <Field label={app.words.emailAddress} htmlFor="auth-email">
           <TextInput id="auth-email" type="email" value={link.email} readOnly autoComplete="username" />
         </Field>
-        <Field label={t.displayName} htmlFor="auth-name">
+        <Field label={app.words.displayNameOptional} htmlFor="auth-name">
           <TextInput id="auth-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={60} />
         </Field>
         {fields}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint={t.sharedComputerHint}>{t.sharedComputer}</Check>
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint={app.words.signsOutWhenTheBrowserCloses}>{app.words.thisIsASharedComputer}</Check>
         {account.error ? <p id="auth-error" className="state note" role="alert">{account.error}</p> : null}
       </form>
     </AuthFrame>

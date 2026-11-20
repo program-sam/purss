@@ -53,7 +53,7 @@ test("in an app whose page isn't a web address only Odysee is embedded: the othe
     for (const url of ["https://youtu.be/dQw4w9WgXcQ", "https://vimeo.com/76979871", "https://dai.ly/x8j6v5c", "https://www.twitch.tv/videos/1", "https://clips.twitch.tv/c"]) assert.equal(embedFor(url, page), null, `${page.protocol} ${url}`);
     assert.equal(embedFor("https://odysee.com/@Odysee:8/odysee-is-live:5", page)?.platform, platform.odysee, page.protocol);
   }
-  assert.equal(embedFor("https://youtu.be/dQw4w9WgXcQ", { protocol: "http:", hostname: "tauri.localhost" })?.platform, platform.youtube, "the Windows desktop app's page is a web address");
+  assert.equal(embedFor("https://youtu.be/dQw4w9WgXcQ", { protocol: "http:", hostname: "tauri.localhost" })?.platform, "YouTube", "the Windows desktop app's page is a web address");
 });
 
 test("an Instagram post or reel is shown in the post's own embed; its other pages stay links", () => {

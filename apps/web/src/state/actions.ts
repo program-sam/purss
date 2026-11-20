@@ -89,7 +89,7 @@ export function useItemActions() {
       const label = workflowLabel(workflow, before.kind);
       if (how === "set" && before.workflow === workflow) { toast(t.already(label)); return; }
       if (how === "set" && workflow === "ignored") previousWorkflow.set(id, before.workflow);
-      const message = how === "restore" ? t.restoredTo(label) : workflow === "ignored" ? t.ignored : t.marked(label);
+      const message = how === "restore" ? t.restoredTo(label) : workflow === "ignored" ? app.words.ignored : t.marked(label);
       putItem(qc, { ...before, workflow, workflowRevision: before.workflow === workflow ? before.workflowRevision : before.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       const change: Change = { kind: "workflow", itemId: id, from: before.workflow, to: workflow, revision: revision ?? before.revision };
       let out: Outcome;
@@ -173,8 +173,8 @@ export function useItemActions() {
         if (workflow === "ignored") previousWorkflow.set(it.id, it.workflow);
         putItem(qc, { ...it, workflow, workflowRevision: it.workflow === workflow ? it.workflowRevision : it.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
       }
-      const verb = workflow === "ignored" ? t.ignored : t.marked(label);
-      await sendMany(changes, (n) => t.markedFor(verb, plural(n, app.lib.nouns.item)), {
+      const verb = workflow === "ignored" ? app.words.ignored : t.marked(label);
+      await sendMany(changes, (n) => t.markedFor(verb, plural(n, app.words.item)), {
         revert: (c) => { const it = c.kind === "workflow" ? before.get(c.itemId) : undefined; if (it) putItem(qc, it); },
         inverse: (c, revision) => (c.kind === "workflow" ? { kind: "workflow", itemId: c.itemId, from: c.to, to: c.from, revision: revision ?? c.revision } : null),
       });
@@ -251,8 +251,8 @@ export function useItemActions() {
         if (add.length) putItem(qc, { ...it, fresh: false, basketIds: [...it.basketIds, ...add] });
       }
       const names = basketIds.map((b) => ws.basketById.get(b)?.name).filter((n): n is string => !!n);
-      const where = names.length === 1 ? isolate(names[0]!) : plural(names.length, app.lib.nouns.basket);
-      await sendMany(changes, (n) => t.keptIn(plural(n, app.lib.nouns.item), where), {
+      const where = names.length === 1 ? isolate(names[0]!) : plural(names.length, app.words.basketLower);
+      await sendMany(changes, (n) => t.keptIn(plural(n, app.words.item), where), {
         revert: (c) => { const it = c.kind === "keep" ? before.get(c.itemId) : undefined; if (it) putItem(qc, it); },
         inverse: (c) => (c.kind === "keep" ? { kind: "keep", itemId: c.itemId, basketId: c.basketId, on: false } : null),
       });
@@ -269,7 +269,7 @@ export function useItemActions() {
         const out = await post<ClearFreshResult>("/api/items/clear-fresh", { scope });
         refreshWorkspace(qc);
         if (!out.changed || !out.undoToken) { toast(t.nothingNew); return; }
-        toast(t.markedSeen(plural(out.changed, app.lib.nouns.item)), { undoToken: out.undoToken });
+        toast(t.markedSeen(plural(out.changed, app.words.item)), { undoToken: out.undoToken });
       } catch (err) {
         if (err instanceof ApiError && err.code === "offline") needsConnection(); else fail(err);
       }
@@ -285,7 +285,7 @@ export function useItemActions() {
       if (out.status === "sent" && out.result.kind === "clearFresh") {
         refreshWorkspace(qc);
         if (!out.result.changed || !out.result.undoToken) { toast(t.notMarkedNew(ids.length === 1)); return; }
-        toast(t.markedSeen(plural(out.result.changed, app.lib.nouns.item)), { undoToken: out.result.undoToken });
+        toast(t.markedSeen(plural(out.result.changed, app.words.item)), { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
         toast(t.markedSeenLater);
       } else if (out.status === "dropped") {

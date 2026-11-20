@@ -39,11 +39,11 @@ export function VerifyEmailPage() {
         {state === "working" ? <p className="state"><span className="spin" aria-hidden="true" />{t.verify.confirming}</p> : null}
         {state === "done" ? <p className="state"><Icon name="check" /><span>{t.verify.confirmed}</span></p> : null}
         {state === "failed" ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>{t.verify.goToYourPurss}</a></div> : null}
+        {state !== "working" && signedIn ? <div><a className="btn primary" href={inApp("/")}>{app.words.goToYourPurss}</a></div> : null}
         {state !== "working" && !signedIn ? (
           <>
             <p>{t.verify.signInPrompt}</p>
-            <div><a className="btn primary" href={inApp("/signin")}>{t.verify.signIn}</a></div>
+            <div><a className="btn primary" href={inApp("/signin")}>{app.words.signIn}</a></div>
           </>
         ) : null}
       </div>
@@ -85,13 +85,13 @@ export function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={ask} style={{ display: "grid", gap: 14 }}>
-            <Field label={t.reset.emailLabel} htmlFor="rp-id">
+            <Field label={app.words.emailAddress} htmlFor="rp-id">
               <TextInput id="rp-id" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus maxLength={300} />
             </Field>
             {alert}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Button variant="primary" type="submit" disabled={busy || !email.trim()}>{t.reset.sendLink}</Button><a className="link" href={inApp("/signin")}>{t.reset.backToSignIn}</a></div>
             {session?.installation.mode === "hosted"
-              ? session.installation.accountEmail ? null : <p className="fine">{t.reset.resetEmailsUnavailable}</p>
+              ? session.installation.accountEmail ? null : <p className="fine">{app.words.passwordResetEmailsArenTAvailable}</p>
               : session ? <p className="fine">{t.reset.administratorsGetLink}</p> : null}
           </form>
         )}
@@ -103,18 +103,18 @@ export function ResetPasswordPage() {
       {done ? (
         <div style={{ display: "grid", gap: 14 }}>
           <p className="state"><Icon name="check" /><span>{t.reset.changed}</span></p>
-          <div><a className="btn primary" href={inApp("/signin")}>{t.reset.signIn}</a></div>
+          <div><a className="btn primary" href={inApp("/signin")}>{app.words.signIn}</a></div>
         </div>
       ) : (
         <form onSubmit={choose} style={{ display: "grid", gap: 14 }}>
-          <Field label={t.reset.newPasswordLabel} htmlFor="rp-new" hint={t.reset.newPasswordHint}>
+          <Field label={app.words.newPassword} htmlFor="rp-new" hint={t.reset.newPasswordHint}>
             <TextInput id="rp-new" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus />
           </Field>
-          <Field label={t.reset.newPasswordAgainLabel} htmlFor="rp-again">
+          <Field label={app.words.newPasswordAgain} htmlFor="rp-again">
             <TextInput id="rp-again" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" />
           </Field>
           {alert}
-          <div><Button variant="primary" type="submit" disabled={busy || !password || !again}>{t.reset.saveNewPassword}</Button></div>
+          <div><Button variant="primary" type="submit" disabled={busy || !password || !again}>{app.words.saveNewPassword}</Button></div>
         </form>
       )}
     </AuthFrame>

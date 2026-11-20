@@ -5,13 +5,13 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./site": "./src/site/en/index.ts",
-    "./app": "./src/app/en/index.ts",
-    "./ui": "./src/ui/en/index.ts",
-    "./extension": "./src/extension/en/index.ts",
-    "./server": "./src/server/en/index.ts",
-    "./common": "./src/common/en/index.ts",
-    "./native": "./src/native/en/index.ts"
+    "./site": "./src/en/site.ts",
+    "./app": "./src/en/app/index.ts",
+    "./ui": "./src/en/ui.ts",
+    "./extension": "./src/en/extension.ts",
+    "./server": "./src/en/server/index.ts",
+    "./common": "./src/en/common.ts",
+    "./native": "./src/en/native.ts"
   },
   "dependencies": {}
 }

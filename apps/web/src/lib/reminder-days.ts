@@ -38,7 +38,7 @@ export function daysBetween(from: string, to: string): number {
 export function dayLabel(day: string, today: string, locale?: string): string {
   const diff = daysBetween(today, day);
   if (diff === 0) return app.lib.reminderDays.today;
-  if (diff === 1) return app.lib.reminderDays.tomorrow;
+  if (diff === 1) return app.words.tomorrow;
   const [y, m, d] = parts(day);
   const sameYear = y === parts(today)[0];
   return new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));

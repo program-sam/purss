@@ -19,11 +19,11 @@ export function MatchDialog({ entry, onPick, onClose }: { entry: ReconcileEntryD
   const q = useQuery({ ...searchQuery(term), enabled: term.length > 0 });
   const items = q.data?.items ?? [];
   return (
-    <Dialog title={copy.title} size="md" onClose={onClose} initialFocus="#mt-q" footer={<Button onClick={onClose}>{copy.cancel}</Button>}>
+    <Dialog title={copy.title} size="md" onClose={onClose} initialFocus="#mt-q" footer={<Button onClick={onClose}>{app.words.cancel}</Button>}>
       <p className="hint">{copy.findBefore}<b>{entry.entry.title}</b>{copy.findAfter}</p>
       <div className="field"><label htmlFor="mt-q">{copy.searchLabel}</label><TextInput id="mt-q" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" /></div>
       <div aria-live="polite" style={{ display: "grid", gap: 8 }}>
-        {q.isFetching ? <p className="state"><span className="spin" aria-hidden="true" />{copy.searching}</p> : null}
+        {q.isFetching ? <p className="state"><span className="spin" aria-hidden="true" />{app.words.searching}</p> : null}
         {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
         {term && q.data && !items.length ? <p className="fine">{copy.noMatch}</p> : null}
         {items.length ? (

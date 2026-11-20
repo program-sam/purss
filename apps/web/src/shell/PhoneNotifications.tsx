@@ -36,10 +36,10 @@ export function PhoneNotificationsSection() {
   const s = p.status;
   const blocked = s?.state === "unavailable";
   return (
-    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.legend}</legend>
+    <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{app.words.notificationsOnThisPhone}</legend>
       <Check checked={s?.state === "on"} disabled={!s || p.busy || blocked} onChange={(v) => void p.set(v)}
         hint={t.hint}>
-        {t.label}
+        {app.words.notificationsOnThisPhone}
       </Check>
       {s?.detail ? <p className="state note"><Icon name="info" /><span>{s.detail}</span></p> : null}
       {p.error ? <p className="state note" role="alert"><Icon name="info" /><span>{p.error}</span></p> : null}
@@ -58,8 +58,8 @@ export function PhoneNotificationsOffer() {
       <span>{t.offer}</span>
       {p.error ? <span role="alert">{p.error}</span> : null}
       <div className="fx-acts-row">
-        <Button variant="primary" disabled={p.busy} onClick={() => void p.set(true).then((done) => { if (done) dismiss(); })}>{t.turnOn}</Button>
-        <Button onClick={dismiss}>{t.notNow}</Button>
+        <Button variant="primary" disabled={p.busy} onClick={() => void p.set(true).then((done) => { if (done) dismiss(); })}>{app.words.turnOn}</Button>
+        <Button onClick={dismiss}>{app.words.notNow}</Button>
       </div>
     </div>
   );

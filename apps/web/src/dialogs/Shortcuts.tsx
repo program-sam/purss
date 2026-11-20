@@ -10,7 +10,7 @@ const K = ({ children }: { children: string }) => <kbd>{children}</kbd>;
 export function ShortcutsDialog() {
   const ov = useOverlays();
   return (
-    <Dialog title={t.title} size="sm" onClose={ov.close} footer={<Button variant="primary" onClick={ov.close}>{t.done}</Button>}>
+    <Dialog title={app.words.keyboardShortcuts} size="sm" onClose={ov.close} footer={<Button variant="primary" onClick={ov.close}>{app.words.done}</Button>}>
       <h3 className="kg">{t.moveAndOpen.heading}</h3>
       <dl className="keys">
         <dt><K>j</K> <K>k</K></dt><dd>{t.moveAndOpen.next}</dd>
@@ -18,8 +18,8 @@ export function ShortcutsDialog() {
       </dl>
       <h3 className="kg">{t.setState.heading}</h3>
       <dl className="keys">
-        <dt><K>r</K></dt><dd>{t.setState.toRead}</dd>
-        <dt><K>e</K></dt><dd>{t.setState.finished}</dd>
+        <dt><K>r</K></dt><dd>{app.words.toRead}</dd>
+        <dt><K>e</K></dt><dd>{app.words.finished}</dd>
         <dt><K>i</K></dt><dd>{t.setState.ignore}</dd>
         <dt><K>x</K></dt><dd>{t.setState.select}</dd>
       </dl>

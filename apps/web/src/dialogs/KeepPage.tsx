@@ -53,38 +53,38 @@ export function KeepPageDialog({ url: raw, title: initialTitle }: { url: string;
       let basketId = basketChoice;
       let basketName = ws.basketById.get(basketChoice)?.name ?? "";
       if (basketChoice === NEW) {
-        if (!newBasket.trim()) { setError(t.nameBasketFirst); setBusy(false); return; }
+        if (!newBasket.trim()) { setError(app.words.nameTheNewBasketFirst); setBusy(false); return; }
         const b = await post<BasketDTO>("/api/baskets", { name: newBasket.trim(), captureMode: "metadata" });
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url, basketId, ...(title.trim() ? { title: title.trim() } : {}) });
       refreshWorkspace(qc);
       ov.close();
-      toast(keptMessage(out, basketName), { actions: [{ label: t.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
+      toast(keptMessage(out, basketName), { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
-  const footer = <><Button onClick={ov.close}>{t.cancel}</Button><Button variant="primary" disabled={busy || !url} onClick={keep}>{t.keep}</Button></>;
+  const footer = <><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || !url} onClick={keep}>{app.words.keep}</Button></>;
   return (
-    <Dialog title={t.title} onClose={ov.close} footer={footer} initialFocus="#kp-b">
+    <Dialog title={app.words.keepThisPage} onClose={ov.close} footer={footer} initialFocus="#kp-b">
       {!url ? <p className="state note" role="alert"><Icon name="info" /><span>{t.cannotKeep}<b style={{ wordBreak: "break-all" }}>{raw}</b></span></p> : (
         <div style={{ display: "grid", gap: 14 }}>
           <p className="hint" style={{ wordBreak: "break-all" }}>{url}</p>
           <div aria-live="polite">
             {lookup.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.checking}</p> : null}
             {lookup.isError ? <p className="state note"><Icon name="info" /><span>{messageOf(lookup.error)}</span></p> : null}
-            {have?.baskets.length ? <p className="state note"><Icon name="check" /><span>{t.alreadyKeptIn.before}{have.baskets.map((b) => b.name).join(", ")}{t.alreadyKeptIn.after}</span></p>
+            {have?.baskets.length ? <p className="state note"><Icon name="check" /><span>{t.alreadyKeptIn.before}{have.baskets.map((b) => b.name).join(", ")}{"."}</span></p>
               : have ? <p className="fine">{t.alreadyHave}</p> : null}
             {lookup.data?.followedSources.length ? <p className="fine">{t.followedSources.before}{lookup.data.followedSources.map((s) => s.title).join(", ")}{t.followedSources.after}</p> : null}
           </div>
-          <Field label={t.basket} htmlFor="kp-b">
+          <Field label={app.words.basket} htmlFor="kp-b">
             <SelectInput id="kp-b" value={basketChoice} onChange={(e) => setBasketChoice(e.target.value)}>
               {ws.data.baskets.map((b) => <option key={b.id} value={b.id}>{b.name}{have?.baskets.some((x) => x.id === b.id) ? t.alreadyThere : ""}</option>)}
-              <option value={NEW}>{t.newBasket}</option>
+              <option value={NEW}>{app.words.newBasketMenu}</option>
             </SelectInput>
-            {basketChoice === NEW ? <input className="in" placeholder={t.newBasketPlaceholder} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus /> : null}
+            {basketChoice === NEW ? <input className="in" placeholder={app.words.nameYourBasket} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus /> : null}
           </Field>
-          {have ? null : <Field label={t.titleOptional} htmlFor="kp-t"><TextInput id="kp-t" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} autoComplete="off" /></Field>}
+          {have ? null : <Field label={app.words.titleOptional} htmlFor="kp-t"><TextInput id="kp-t" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} autoComplete="off" /></Field>}
           <p className="fine">{t.keepNote}</p>
           {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         </div>

@@ -30,7 +30,7 @@ export function InterfaceUpdateQuestion() {
   const answer = (allow: boolean) => void u.updates.answer(allow);
   return (
     <Dialog title={t.title} size="sm" onClose={() => answer(false)}
-      footer={<><Button onClick={() => answer(false)}>{t.dontAllow}</Button><Button variant="primary" onClick={() => answer(true)}>{t.allow}</Button></>}>
+      footer={<><Button onClick={() => answer(false)}>{app.words.donTAllow}</Button><Button variant="primary" onClick={() => answer(true)}>{t.allow}</Button></>}>
       <p><b style={{ wordBreak: "break-all" }}>{platform.connection.origin}</b>{t.offers}</p>
       <p className="fine">{what()}{t.changeInSettings}</p>
     </Dialog>

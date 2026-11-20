@@ -25,7 +25,7 @@ test("the filter menu offers Type as checks and Length as one choice, and change
   const calls: Record<string, unknown>[] = [];
   const entries = typeLengthEntries(state({ types: ["videos"], length: "long" }), (p) => calls.push(p));
   const labelled = entries.filter((e): e is Extract<MenuEntry, { label: string }> => "label" in e);
-  assert.deepEqual(labelled.map((e) => e.label), [l.typeHeading, l.types.articles, l.types.videos, l.types.podcasts, l.lengthHeading, l.anyLength, l.lengths.short, l.lengths.long]);
+  assert.deepEqual(labelled.map((e) => e.label), [app.words.type, l.types.articles, l.types.videos, l.types.podcasts, app.words.length, l.anyLength, l.lengths.short, l.lengths.long]);
   const pick = (label: string) => (labelled.find((e) => e.label === label) as Extract<MenuEntry, { type: "check" | "radio" }>);
   assert.deepEqual([pick(l.types.videos).on, pick(l.types.articles).on, pick(l.lengths.long).on, pick(l.anyLength).on], [true, false, true, false]);
   pick(l.types.podcasts).onSelect();
@@ -97,5 +97,5 @@ test("the queue page offers the filters that can show something: what is waiting
   assert.equal(filterFor(r, undefined, "active"), "active");
   assert.equal(defaultFilterFor(r, "list", 5), "active");
   assert.equal(filterLabel(r, "active"), c.filters.active);
-  assert.equal(filterLabel(r, "inprogress"), c.filters.inprogress);
+  assert.equal(filterLabel(r, "inprogress"), app.words.inProgress);
 });

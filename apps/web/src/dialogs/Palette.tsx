@@ -50,18 +50,18 @@ export function PaletteDialog({ query }: { query?: string }) {
   const groups = useMemo<Group[]>(() => {
     const go = (p: Place, search?: { item?: string }) => () => { ov.close(); nav.go(p, search); };
     const lower = term.toLowerCase();
-    const places: Result[] = [{ key: "home", label: t.places.home.label, sub: t.places.home.sub, icon: "home", run: go({ t: "home" }) }];
-    ws.collections.forEach((c) => places.push({ key: `c:${c.id}`, label: c.name, sub: t.places.collection, icon: "folder", run: go({ t: "c", id: c.id }) }));
-    ws.data.sources.forEach((s) => places.push({ key: `s:${s.id}`, label: s.title, sub: t.places.source, icon: "rss", run: go({ t: "s", id: s.id }) }));
-    ws.data.baskets.forEach((b) => places.push({ key: `b:${b.id}`, label: b.name, sub: t.places.basket, icon: "basket", run: go({ t: "b", id: b.id }) }));
+    const places: Result[] = [{ key: "home", label: app.words.home, sub: t.places.home.sub, icon: "home", run: go({ t: "home" }) }];
+    ws.collections.forEach((c) => places.push({ key: `c:${c.id}`, label: c.name, sub: app.words.collection, icon: "folder", run: go({ t: "c", id: c.id }) }));
+    ws.data.sources.forEach((s) => places.push({ key: `s:${s.id}`, label: s.title, sub: app.words.source, icon: "rss", run: go({ t: "s", id: s.id }) }));
+    ws.data.baskets.forEach((b) => places.push({ key: `b:${b.id}`, label: b.name, sub: app.words.basket, icon: "basket", run: go({ t: "b", id: b.id }) }));
     const actions: Result[] = [
-      { key: "a:add", label: t.actions.addSource, sub: t.action, icon: "plus", run: () => ov.open({ kind: "add-source" }) },
-      { key: "a:col", label: t.actions.newCollection, sub: t.action, icon: "plus", run: () => ov.open({ kind: "new-collection" }) },
-      { key: "a:bk", label: t.actions.newBasket, sub: t.action, icon: "plus", run: () => ov.open({ kind: "basket-form" }) },
-      { key: "a:home", label: t.actions.customiseHome, sub: t.action, icon: "gear", run: () => ov.open({ kind: "customise-home" }) },
-      { key: "a:set", label: t.actions.settings, sub: t.action, icon: "gear", run: () => ov.open({ kind: "settings" }) },
-      { key: "a:keys", label: t.actions.shortcuts, sub: t.action, icon: "gear", run: () => ov.open({ kind: "shortcuts" }) },
-      { key: "a:apps", label: t.actions.apps, sub: t.action, icon: "ext", run: () => ov.open({ kind: "settings", tab: "apps" }) },
+      { key: "a:add", label: app.words.addSource, sub: t.action, icon: "plus", run: () => ov.open({ kind: "add-source" }) },
+      { key: "a:col", label: app.words.newCollection, sub: t.action, icon: "plus", run: () => ov.open({ kind: "new-collection" }) },
+      { key: "a:bk", label: app.words.newBasket, sub: t.action, icon: "plus", run: () => ov.open({ kind: "basket-form" }) },
+      { key: "a:home", label: app.words.customiseHome, sub: t.action, icon: "gear", run: () => ov.open({ kind: "customise-home" }) },
+      { key: "a:set", label: app.words.settings, sub: t.action, icon: "gear", run: () => ov.open({ kind: "settings" }) },
+      { key: "a:keys", label: app.words.keyboardShortcuts, sub: t.action, icon: "gear", run: () => ov.open({ kind: "shortcuts" }) },
+      { key: "a:apps", label: app.words.appsAndExtensions, sub: t.action, icon: "ext", run: () => ov.open({ kind: "settings", tab: "apps" }) },
     ];
     if (!term) return [{ heading: t.goTo, results: places.slice(0, 1 + ws.collections.length) }, { heading: t.actionsHeading, results: actions }];
     const out: Group[] = [];
@@ -72,7 +72,7 @@ export function PaletteDialog({ query }: { query?: string }) {
         run: go(i.basketIds[0] && !i.sourceId ? { t: "b", id: i.basketIds[0] } : i.sourceId && ws.sourceById.has(i.sourceId) ? { t: "s", id: i.sourceId } : i.basketIds[0] ? { t: "b", id: i.basketIds[0] } : { t: "home" }, { item: i.id }),
       }));
       // Not a result but a way on, last in the list: the arrow keys reach it and Enter asks for more, so the box never closes on the way.
-      if (more) rows.push({ key: "more", label: loadingMore ? t.loadingMore : t.showMore, sub: t.showMoreSub, icon: "plus", run: () => setLimit((l) => Math.min(MOST, l + STEP)) });
+      if (more) rows.push({ key: "more", label: loadingMore ? app.words.loadingMore : t.showMore, sub: t.showMoreSub, icon: "plus", run: () => setLimit((l) => Math.min(MOST, l + STEP)) });
       out.push({ heading: t.itemsHeading, results: rows });
     }
     const where = places.filter((p) => p.label.toLowerCase().includes(lower)).slice(0, 6);
@@ -104,7 +104,7 @@ export function PaletteDialog({ query }: { query?: string }) {
   // "Show more results" is a way on, not a result.
   const found = flat.length - (more ? 1 : 0);
   const count = t.count(found);
-  const spoken = !term ? "" : searching ? t.searching : search.isError ? t.searchFailed : loadingMore ? t.loadingMore : found ? `${count}${more ? t.moreAvailable : ""}` : t.nothing;
+  const spoken = !term ? "" : searching ? app.words.searching : search.isError ? t.searchFailed : loadingMore ? app.words.loadingMore : found ? `${count}${more ? t.moreAvailable : ""}` : t.nothing;
   return (
     <PaletteLayer label="Search" onClose={ov.close}>
       <div className="pal-in">
@@ -131,8 +131,8 @@ export function PaletteDialog({ query }: { query?: string }) {
           </div>
         ))}
         {atMost ? <p className="fine" style={{ padding: "6px 12px" }}>{t.atMost(MOST)}</p> : null}
-        {nothing ? <p className="pal-empty">{t.nothingMatches.before}<span dir="auto">{t.nothingMatches.open}{term}{t.nothingMatches.close}</span>{t.nothingMatches.after}</p> : null}
-        {searching ? <p className="fine" style={{ padding: "6px 12px" }}>{t.searching}</p> : null}
+        {nothing ? <p className="pal-empty">{t.nothingMatches.before}<span dir="auto">{"“"}{term}{"”"}</span>{"."}</p> : null}
+        {searching ? <p className="fine" style={{ padding: "6px 12px" }}>{app.words.searching}</p> : null}
         {search.isError && answered ? <p className="fine" style={{ padding: "6px 12px" }} role="alert">{messageOf(search.error)}</p> : null}
       </div>
       {flat.length ? <div className="pal-foot">{count}{more ? t.soFar : ""}<span className="keys">{t.footer}</span></div> : null}

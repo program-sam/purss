@@ -7,7 +7,7 @@ import { plural } from "./format.ts";
 import { capacityOf, collectionLimitNote } from "./plan-limits.ts";
 
 const t = app.lib.planLimits;
-const collections = (n: number) => plural(n, app.lib.nouns.collection);
+const collections = (n: number) => plural(n, app.words.collectionLower);
 
 const cap = (plan: Capacity["plan"], used: number, limit: number | null): Capacity => ({
   plan, sources: { used: 3, limit: null }, collections: { used, limit }, storage: { used: 0, limit: null },

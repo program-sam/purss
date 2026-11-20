@@ -10,8 +10,8 @@ import { CopyButton } from "../shared/bits.tsx";
 const t = app.connect.bookmarklets;
 
 const BOOKMARKLETS: { kind: BookmarkletKind; name: string; does: string }[] = [
-  { kind: "add", name: t.add.name, does: t.add.does },
-  { kind: "keep", name: t.keep.name, does: t.keep.does },
+  { kind: "add", name: app.words.addAsSource, does: t.add.does },
+  { kind: "keep", name: app.words.keepThisPage, does: t.keep.does },
 ];
 
 /**
@@ -37,7 +37,7 @@ export function Bookmarklets() {
   const origin = platform.publicOrigin();
   return (
     <section className="field" aria-labelledby="bm-l">
-      <div className="lbl" id="bm-l">{t.title}</div>
+      <div className="lbl" id="bm-l">{app.words.bookmarklets}</div>
       <p className="fine">{t.hint}</p>
       <ul className="seclist">
         {BOOKMARKLETS.map((b) => {

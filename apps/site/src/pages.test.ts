@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { PAGES, render, sitemap, type PageKey } from "./pages.ts";
 import { siteFrom } from "./site.ts";
 
@@ -83,7 +83,7 @@ test("pricing is two doors, you run it and we run it, and there is no separate s
   assert.ok(pricing.includes(copy.home.pricing.weRunIt));
   assert.ok(pricing.indexOf("git clone") > pricing.indexOf(copy.home.pricing.youRunIt) && pricing.indexOf("git clone") < pricing.indexOf(copy.home.pricing.weRunIt), "the install commands are in the self-hosting door");
   assert.equal(pricing.match(/class="pk-row"/g)?.length, 4, "your own server and the three hosted plans");
-  assert.ok(h.indexOf(`<a href="#pricing">${copy.home.nav.pricing}</a>`) < h.indexOf(`<a href="#self-host">${copy.home.nav.hostIt}</a>`), "the menu follows the page");
+  assert.ok(h.indexOf(`<a href="#pricing">${copy.words.pricing}</a>`) < h.indexOf(`<a href="#self-host">${copy.words.hostItYourself}</a>`), "the menu follows the page");
 });
 
 test("the app cards describe the apps as they are, the desktop app has one download and one link to the other systems, and building is for developers", () => {
@@ -100,7 +100,7 @@ test("the app cards describe the apps as they are, the desktop app has one downl
 
 test("the mock screens use everyday examples next to the research one", () => {
   const t = text(html("index"));
-  for (const word of [copy.home.picture.posts.cyclePath.source, copy.kit.sidebar.collections.recipes, copy.kit.sidebar.baskets.thesisSources, copy.home.picture.posts.tomatoSauce.source]) assert.ok(t.includes(word), word);
+  for (const word of [copy.home.picture.posts.cyclePath.source, copy.words.recipes, copy.kit.sidebar.baskets.thesisSources, copy.home.picture.posts.tomatoSauce.source]) assert.ok(t.includes(word), word);
   assert.doesNotMatch(t, /\d+ new since yesterday/);
 });
 
@@ -130,5 +130,5 @@ test("the home page is rendered finished, with the switch on and every chosen po
   assert.equal((h.match(/class="pf-m"/g) ?? []).length, 5, "five posts you chose");
   assert.equal((h.match(/class="pf-c junk"/g) ?? []).length, 0, "no ads or suggestions in the finished state");
   assert.equal((h.match(/class="fd"/g) ?? []).length, 2, "two of the five carry the new mark");
-  assert.ok(text(h).includes(copy.kit.actions.signUp));
+  assert.ok(text(h).includes(copy.words.createAFreeAccount));
 });

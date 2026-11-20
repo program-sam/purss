@@ -6,7 +6,6 @@ import { canRetrySource } from "../lib/sources.ts";
 import { retrySource } from "../state/source-actions.ts";
 import { useToasts } from "../state/toasts.tsx";
 
-const t = app.components.retrySource;
 
 /** "Try again" for a source that couldn't be collected. Nothing for any other source. */
 export function RetrySource({ id, title, health }: { id: string; title: string; health: SourceHealth }) {
@@ -16,6 +15,6 @@ export function RetrySource({ id, title, health }: { id: string; title: string; 
   if (!canRetrySource({ health })) return null;
   return (
     <button type="button" className="link retry" disabled={busy} aria-label={`Try again: ${title}`}
-      onClick={async () => { setBusy(true); await retrySource(qc, toast, id, title); setBusy(false); }}>{t.tryAgain}</button>
+      onClick={async () => { setBusy(true); await retrySource(qc, toast, id, title); setBusy(false); }}>{app.words.tryAgain}</button>
   );
 }

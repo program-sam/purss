@@ -49,12 +49,12 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <Dialog title={t.dialogTitle} size="sm" onClose={onClose} initialFocus="#da-confirm"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="danger" disabled={busy || typed.trim() !== word} onClick={() => void remove()}>{busy ? t.deleting : t.deleteAccount}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="danger" disabled={busy || typed.trim() !== word} onClick={() => void remove()}>{busy ? t.deleting : app.words.deleteAccount}</Button></>}>
         <p className="hint">{t.afterSevenDays}</p>
         <p className="fine">{t.signedOutEverywhere}</p>
         <div className="field">
           <p className="fine">{t.copyFirst}</p>
-          <div><Button disabled={exporting} onClick={() => void exportFirst()}><Icon name="download" size="sm" />{exporting ? t.preparing : exported ? t.exportAgain : t.exportFirst}</Button></div>
+          <div><Button disabled={exporting} onClick={() => void exportFirst()}><Icon name="download" size="sm" />{exporting ? app.words.preparing : exported ? t.exportAgain : t.exportFirst}</Button></div>
         </div>
         <Field label={word === "delete" ? t.typeDelete : t.typeName(word)} htmlFor="da-confirm">
           <TextInput id="da-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" />
@@ -72,7 +72,7 @@ export function DeleteAccountSection() {
   const selfHosted = useSession().data?.installation.mode === "self";
   return (
     <section className="field" aria-labelledby="acct-del">
-      <div className="lbl" id="acct-del">{t.section.label}</div>
+      <div className="lbl" id="acct-del">{app.words.deleteAccount}</div>
       <p className="fine">{t.section.hint}{selfHosted ? t.section.lastAdministrator : ""}</p>
       <div><Button variant="danger" onClick={() => setOpen(true)}>{t.section.button}</Button></div>
       {open ? <DeleteAccountDialog onClose={() => setOpen(false)} /> : null}

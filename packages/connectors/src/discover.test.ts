@@ -102,7 +102,7 @@ test("direct feed: preview with title, cadence, three samples, full content and 
   const shaped: Omit<DiscoveryCandidate, "token"> = c; // compile-time contract check
   assert.equal(shaped.title, "Weekly Blog");
   assert.equal(c.kind, "feed");
-  assert.equal(c.origin, copy.labels.rssFeed);
+  assert.equal(c.origin, server.words.rssFeed);
   assert.equal(c.via, copy.labels.postsFeed);
   assert.equal(c.feedUrl, "https://blog.example/feed.xml");
   assert.equal(c.siteUrl, "https://blog.example/");

@@ -24,15 +24,15 @@ export function DownloadsPage() {
   const auto = settings.autoToRead;
 
   return (
-    <Page title={t.title} lead={t.lead}>
+    <Page title={app.words.downloaded} lead={t.lead}>
       <Section title={t.deviceSection} actions={<Button onClick={() => overlays.open({ kind: "settings", tab: "device" })}><Icon name="gear" size="sm" />{t.downloadSettings}</Button>}>
         <Facts items={[
-          { label: t.downloads, value: done.length ? `${plural(done.length, t.item)}, ${bytesLabel(used)}` : t.none },
-          { label: t.automatic, value: auto ? t.automaticOn(settings.wifiOnly, bytesLabel(settings.limitBytes)) : t.automaticOff },
+          { label: t.downloads, value: done.length ? `${plural(done.length, app.words.item)}, ${bytesLabel(used)}` : t.none },
+          { label: app.words.automaticDownloads, value: auto ? t.automaticOn(settings.wifiOnly, bytesLabel(settings.limitBytes)) : app.words.off },
         ]} />
         <p className="fine">{t.copyNote}</p>
       </Section>
-      <Section title={t.itemsSection}>
+      <Section title={app.words.items}>
         {list.length ? (
           <ul className="fx-rows">
             {list.map((r) => (
@@ -42,15 +42,15 @@ export function DownloadsPage() {
                   <span className="fine">
                     {r.sourceTitle ? t.sourcePrefix(r.sourceTitle) : ""}
                     {r.state === "done" ? t.doneLine(bytesLabel(r.bytes), r.media ? r.media.kind : null, r.origin === "auto", timeAgo(r.savedAt))
-                      : r.state === "downloading" ? t.downloading : t.notDownloaded(r.error)}
+                      : r.state === "downloading" ? app.words.downloading : t.notDownloaded(r.error)}
                   </span>
                 </div>
                 <div className="fx-acts">
-                  {r.state === "done" ? <Button onClick={() => nav.openItem(r.itemId)}>{t.open}</Button> : null}
+                  {r.state === "done" ? <Button onClick={() => nav.openItem(r.itemId)}>{app.words.open}</Button> : null}
                   {r.state !== "downloading" ? (
                     <Button aria-label={`Remove the download of ${r.title || "this item"}`} onClick={() => void downloads.remove(r.itemId).then(() => toast(t.removedToast))}><Icon name="trash" size="sm" /></Button>
                   ) : (
-                    <Button onClick={() => void downloads.cancel(r.itemId).then(() => toast(t.stopped))}>{t.stop}</Button>
+                    <Button onClick={() => void downloads.cancel(r.itemId).then(() => toast(app.words.stoppedTheDownloadNothingOfIt))}>{t.stop}</Button>
                   )}
                 </div>
               </li>

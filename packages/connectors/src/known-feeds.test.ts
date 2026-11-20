@@ -176,7 +176,7 @@ test("blog and publishing services map to their known feed paths", () => {
 const PAGE = "https://example.org/";
 const feed = { title: "T", items: [] } as unknown as ParsedFeed;
 const draft = (feedUrl: string, extra: { title?: string; via?: string; origin?: string; note?: string } = {}): DraftCandidate => ({
-  title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? copy.labels.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
+  title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? server.words.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
   ...(extra.note ? { note: extra.note } : {}),
 });
 const deps = (probes: Record<string, KnownProbe>, json?: KnownDeps["json"]): KnownDeps => ({

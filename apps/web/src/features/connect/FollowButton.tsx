@@ -39,7 +39,7 @@ export function FollowButton() {
         <>
           <p className="fine">{copy.looksLike}<a className="fx-follow-btn" href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); platform.openExternal(link); }}>{app.connect.followButton.label}</a></p>
           <div className="fx-link"><span className="fx-link-l">{copy.button}</span><code className="fx-url">{followButtonHtml(link)}</code><CopyButton value={followButtonHtml(link)} what={copy.buttonWhat} /></div>
-          <div className="fx-link"><span className="fx-link-l">{copy.linkOnly}</span><code className="fx-url">{link}</code><CopyButton value={link} what={copy.linkWhat} /></div>
+          <div className="fx-link"><span className="fx-link-l">{copy.linkOnly}</span><code className="fx-url">{link}</code><CopyButton value={link} what={app.words.followLink} /></div>
         </>
       ) : null}
     </section>

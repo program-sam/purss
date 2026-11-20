@@ -62,7 +62,7 @@ async function parseError(res: Response): Promise<ApiError> {
   const retryHeader = res.headers.get("retry-after");
   const retryAfterSeconds = retryHeader && /^\d+$/.test(retryHeader) ? Number(retryHeader) : null;
   if (e?.message) return new ApiError(res.status, e.code ?? "error", e.message, retryAfterSeconds);
-  return new ApiError(res.status, "error", res.status >= 500 ? t.serverTrouble : t.didntWork);
+  return new ApiError(res.status, "error", res.status >= 500 ? app.words.somethingWentWrongOnOurSide : app.words.thatDidnTWorkPleaseTry);
 }
 
 /** Typed JSON request. Mutations carry the CSRF header; a stale token is refreshed and retried once. */
@@ -82,10 +82,10 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retried = 
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new ApiError(0, "offline", t.offline);
+    throw new ApiError(0, "offline", app.words.canTReachPurssRightNow);
   }
   noteAnswer(res.headers);
-  if (opts.live && res.headers.get(OFFLINE_HEADER) !== null) throw new ApiError(0, "offline", t.offline);
+  if (opts.live && res.headers.get(OFFLINE_HEADER) !== null) throw new ApiError(0, "offline", app.words.canTReachPurssRightNow);
   if (res.ok) {
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;

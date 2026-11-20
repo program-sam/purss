@@ -19,7 +19,7 @@ async function failure(res: Response): Promise<ApiError> {
     const body = (await res.json()) as { error?: { code?: string; message?: string } };
     if (body.error?.message) return new ApiError(res.status, body.error.code ?? "error", body.error.message);
   } catch { /* not JSON */ }
-  return new ApiError(res.status, "error", res.status >= 500 ? t.serverFailure : t.didntWork);
+  return new ApiError(res.status, "error", res.status >= 500 ? app.words.somethingWentWrongOnOurSide : app.words.thatDidnTWorkPleaseTry);
 }
 
 /**
@@ -32,7 +32,7 @@ export async function downloadFile(path: string, fallbackName: string, opts: { o
     res = await platform.transport.fetch(path, { headers: { accept: "*/*" }, signal: opts.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new ApiError(0, "offline", t.offline);
+    throw new ApiError(0, "offline", app.words.canTReachPurssRightNow);
   }
   if (!res.ok) throw await failure(res);
   const chunks: Uint8Array<ArrayBuffer>[] = [];

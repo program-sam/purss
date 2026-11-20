@@ -106,7 +106,7 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
         {bp === "xs" && place?.t === "home" ? (
           // On a phone the Home page carries its own title, so the bar names the app instead. The name reads and is cut in its own
           // direction (dir="auto" on the box that holds the ellipsis, not on something inside it), so a name that mixes scripts loses its end, not its middle.
-          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>{t.brand}{who ? <span className="who" dir="auto">{who}</span> : null}</span>
+          <span className="brand crumbs"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>{"PURSS"}{who ? <span className="who" dir="auto">{who}</span> : null}</span>
         ) : bp === "xs" && crumbs.length > 1 ? (
           // A phone has room for one step back and where you are, not the whole trail.
           <nav className="crumbs xs" aria-label="Breadcrumb">
@@ -124,7 +124,7 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
             </ol>
           </nav>
         )}
-        {bp !== "xs" ? <button type="button" className="btn primary bar-add" style={{ height: 32 }} onClick={() => overlays.open({ kind: "add-source", collectionId: place?.t === "c" ? place.id : undefined })}><Icon name="plus" size="sm" />{t.addSource}</button> : null}
+        {bp !== "xs" ? <button type="button" className="btn primary bar-add" style={{ height: 32 }} onClick={() => overlays.open({ kind: "add-source", collectionId: place?.t === "c" ? place.id : undefined })}><Icon name="plus" size="sm" />{app.words.addSource}</button> : null}
       </header> : null}
       {savedCopy || (waiting > 0 && !offline.browserOnline) ? (
         <div className="offline-note" role="status"><Icon name="info" size="sm" />

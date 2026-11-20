@@ -33,15 +33,15 @@ export function AdminAuditPanel() {
             <li key={e.id} className="fx-row">
               <div className="fx-grow">
                 <b>{e.action.replace(/_/g, " ")}</b>
-                <span className="fine">{shortId(e.actor)}{e.target ? ` → ${shortId(e.target)}` : ""} · <time dateTime={e.at} title={e.at}>{timeAgo(e.at) || t.justNow}</time></span>
+                <span className="fine">{shortId(e.actor)}{e.target ? ` → ${shortId(e.target)}` : ""} · <time dateTime={e.at} title={e.at}>{timeAgo(e.at) || app.words.justNow}</time></span>
                 {e.detail ? <span className="fine">{e.detail}</span> : null}
               </div>
-              <div className="fx-end"><span className={`tag fx-status ${e.outcome === "success" ? "ok" : "failed"}`}><Icon name={e.outcome === "success" ? "check" : "alert"} />{e.outcome === "success" ? t.succeeded : t.failed}</span></div>
+              <div className="fx-end"><span className={`tag fx-status ${e.outcome === "success" ? "ok" : "failed"}`}><Icon name={e.outcome === "success" ? "check" : "alert"} />{e.outcome === "success" ? t.succeeded : app.words.failed}</span></div>
             </li>
           ))}
         </ul>
       ) : null}
-      {q.hasNextPage ? <div><Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>{q.isFetchingNextPage ? t.loading : t.showOlder}</Button></div> : null}
+      {q.hasNextPage ? <div><Button disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>{q.isFetchingNextPage ? app.words.loading : t.showOlder}</Button></div> : null}
     </div>
   );
 }

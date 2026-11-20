@@ -31,10 +31,10 @@ export function HealthMark({ source }: { source: SourceDTO }) {
   const map: Partial<Record<SourceDTO["health"], { icon: IconName; label: string; cls?: string }>> = {
     login: { icon: "key", label: t.needsLogin, cls: "login" },
     quiet: { icon: "moon", label: source.healthText ?? t.quiet },
-    paused: { icon: "pause", label: t.paused },
+    paused: { icon: "pause", label: app.words.paused },
     error: { icon: "alert", label: source.healthText ?? t.cantBeChecked, cls: "login" },
     reconnect: { icon: "link", label: source.healthText ?? t.needsReconnecting, cls: "login" },
-    pending: { icon: "clock", label: t.gettingFirstItems },
+    pending: { icon: "clock", label: app.words.gettingTheFirstItems },
   };
   const m = map[source.health];
   if (!m) return null;
@@ -58,7 +58,7 @@ function SourceRow({ s, place }: { s: SourceDTO; place: Place | null }) {
         <span className="sp" />
         {s.aiFiltered ? <FilterMark /> : null}
         <HealthMark source={s} />
-        {s.freshCount ? <span className="cnt" title={t.newCount(formatCount(s.freshCount))}>{formatCount(s.freshCount)}<span className="u">{t.newSuffix}</span></span> : null}
+        {s.freshCount ? <span className="cnt" title={t.newCount(formatCount(s.freshCount))}>{formatCount(s.freshCount)}<span className="u">{app.words.newSpaced}</span></span> : null}
       </button>
     </li>
   );
@@ -90,7 +90,7 @@ function Group({ id, label, sources, collection, place }: { id: string; label: s
           </button>
         ) : <span className="glabel loose">{label}</span>}
         {collection?.aiFiltered ? <FilterMark /> : null}
-        {!open && fresh ? <span className="cnt" title={t.newCount(fresh)}>{fresh}<span className="u">{t.newSuffix}</span></span> : null}
+        {!open && fresh ? <span className="cnt" title={t.newCount(fresh)}>{fresh}<span className="u">{app.words.newSpaced}</span></span> : null}
       </div>
       {open && expandable ? (
         <ul className="srcs">
@@ -141,9 +141,9 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
         <FirstVisitQuestion /><InterfaceUpdateQuestion /><VisitTracker />
         <span className="mark" aria-hidden="true"><Icon name="mark" /></span>
         {onToggle ? <button type="button" className="rbtn" data-fk="tside" data-tip={t.expandSidebar} aria-label={t.expandSidebar} aria-expanded={false} onClick={onToggle}><Icon name="sidebar" /></button> : null}
-        <button type="button" className="rail-add" data-tip={t.addSource} aria-label={t.addSource} data-fk="add" onClick={openAdd}><Icon name="plus" /></button>
-        <button type="button" className={`rbtn${homeHere ? " sel" : ""}`} data-tip={t.home} aria-label={t.home} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" /></button>
-        <button type="button" className={`rbtn${readHere ? " sel" : ""}`} data-tip={t.toRead} aria-label={t.toRead} aria-current={readHere ? "page" : undefined} onClick={() => nav.go({ t: "r", id: "toread" })}><Icon name="item" /></button>
+        <button type="button" className="rail-add" data-tip={app.words.addSource} aria-label={app.words.addSource} data-fk="add" onClick={openAdd}><Icon name="plus" /></button>
+        <button type="button" className={`rbtn${homeHere ? " sel" : ""}`} data-tip={app.words.home} aria-label={app.words.home} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" /></button>
+        <button type="button" className={`rbtn${readHere ? " sel" : ""}`} data-tip={app.words.toRead} aria-label={app.words.toRead} aria-current={readHere ? "page" : undefined} onClick={() => nav.go({ t: "r", id: "toread" })}><Icon name="item" /></button>
         <button type="button" className="rbtn" data-tip={t.searchTip(SEARCH_SPOKEN)} aria-label={`Search, shortcut ${SEARCH_SPOKEN}`} onClick={() => overlays.open({ kind: "palette" })}><Icon name="search" /></button>
         <hr />
         <div className="rail-scroll">
@@ -160,7 +160,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
               </button>
             );
           })}
-          <button type="button" className="rbtn" data-tip={t.newCollection} aria-label={t.newCollection} onClick={() => overlays.open({ kind: "new-collection" })}><Icon name="folder" /></button>
+          <button type="button" className="rbtn" data-tip={app.words.newCollection} aria-label={app.words.newCollection} onClick={() => overlays.open({ kind: "new-collection" })}><Icon name="folder" /></button>
           <hr />
           {ws.data.baskets.map((b) => {
             const sel = place?.t === "b" && place.id === b.id;
@@ -174,7 +174,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
         </div>
         <ActivityIndicator rail />
         {capacity ? <button type="button" className="rbtn" data-tip={capacityLine(capacity)} aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, false)}><CapacityMeter capacity={capacity} /></button> : null}
-        <button type="button" className="rbtn" data-tip={t.settings} aria-label={t.settings} onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" /></button>
+        <button type="button" className="rbtn" data-tip={app.words.settings} aria-label={app.words.settings} onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" /></button>
       </div>
     );
   }
@@ -185,33 +185,33 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
       <div className="side-head">
         {/* A drawer opens under the top bar, which already names the app and who is signed in, so it starts with Add source. */}
         {onToggle ? <>
-          <div className="brand"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>{t.brand}
+          <div className="brand"><span className="mark" aria-hidden="true"><Icon name="mark" /></span>{"PURSS"}
             <button type="button" className="ibtn side-collapse" data-fk="tside" aria-label="Collapse sidebar" aria-expanded={true} onClick={onToggle}><Icon name="sidebar" /></button></div>
           {session?.account?.displayName ? <p className="fine" style={{ margin: "-6px 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.account.displayName}</p> : null}
         </> : null}
         {onClose ? <div className="drawer-close"><button type="button" className="ibtn" aria-label="Close sidebar" onClick={onClose}><Icon name="x" /></button></div> : null}
-        <button type="button" className="btn primary lg" data-fk="add" onClick={openAdd}><Icon name="plus" />{t.addSource}</button>
+        <button type="button" className="btn primary lg" data-fk="add" onClick={openAdd}><Icon name="plus" />{app.words.addSource}</button>
         <div className="side-nav">
-          <button type="button" className={`nav-row${homeHere ? " sel" : ""}`} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" />{t.home}</button>
-          <button type="button" className={`nav-row${readHere ? " sel" : ""}`} aria-current={readHere ? "page" : undefined} onClick={() => nav.go({ t: "r", id: "toread" })}><Icon name="item" />{t.toRead}</button>
-          <button type="button" className="pill-search" aria-label={KEYBOARD ? `Search, shortcut ${SEARCH_SPOKEN}` : "Search"} onClick={() => overlays.open({ kind: "palette" })}><Icon name="search" />{t.search}{KEYBOARD ? <kbd aria-hidden="true">{SEARCH_KEY}</kbd> : null}</button>
+          <button type="button" className={`nav-row${homeHere ? " sel" : ""}`} aria-current={homeHere ? "page" : undefined} onClick={() => nav.go({ t: "home" })}><Icon name="home" />{app.words.home}</button>
+          <button type="button" className={`nav-row${readHere ? " sel" : ""}`} aria-current={readHere ? "page" : undefined} onClick={() => nav.go({ t: "r", id: "toread" })}><Icon name="item" />{app.words.toRead}</button>
+          <button type="button" className="pill-search" aria-label={KEYBOARD ? `Search, shortcut ${SEARCH_SPOKEN}` : "Search"} onClick={() => overlays.open({ kind: "palette" })}><Icon name="search" />{app.words.search}{KEYBOARD ? <kbd aria-hidden="true">{SEARCH_KEY}</kbd> : null}</button>
         </div>
       </div>
       <nav className="side-scroll" aria-label="Collections and baskets">
-        <div className="sec-head"><h2 id="h-col">{t.collections}</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "new-collection" })}><Icon name="plus" size="sm" />{t.newCollection}</button></div>
+        <div className="sec-head"><h2 id="h-col">{app.words.collections}</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "new-collection" })}><Icon name="plus" size="sm" />{app.words.newCollection}</button></div>
         <ul aria-labelledby="h-col">
           {ws.collections.map((c) => <Group key={c.id} id={c.id} label={c.name} collection={c} sources={ws.sourcesOf(c)} place={place} />)}
           {ws.looseSources.length ? <Group id="loose" label={t.looseSources} sources={ws.looseSources} place={place} /> : null}
         </ul>
         {!ws.collections.length && !ws.looseSources.length ? <p className="fine side-empty">{t.collectionsEmpty}</p> : null}
-        <div className="sec-head"><h2 id="h-bk">{t.baskets}</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "basket-form" })}><Icon name="plus" size="sm" />{t.newBasket}</button></div>
+        <div className="sec-head"><h2 id="h-bk">{app.words.baskets}</h2><button type="button" className="quiet" onClick={() => overlays.open({ kind: "basket-form" })}><Icon name="plus" size="sm" />{app.words.newBasket}</button></div>
         <ul aria-labelledby="h-bk">
           {ws.data.baskets.map((b) => {
             const sel = place?.t === "b" && place.id === b.id;
             return (
               <li key={b.id}>
                 <button type="button" data-basket={b.id} className={`bk${sel ? " sel" : ""}`} aria-current={sel ? "page" : undefined} onClick={() => nav.go({ t: "b", id: b.id })}>
-                  <Icon name="basket" /><span className="nm" dir="auto">{b.name}</span><span className="n">{plural(b.itemCount, app.lib.nouns.item)}</span>
+                  <Icon name="basket" /><span className="nm" dir="auto">{b.name}</span><span className="n">{plural(b.itemCount, app.words.item)}</span>
                 </button>
               </li>
             );
@@ -220,7 +220,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
         {!ws.data.baskets.length ? <p className="fine side-empty">{t.basketsEmpty}</p> : null}
         {morePages.length ? (
           <>
-            <div className="sec-head"><h2 id="h-more">{t.more}</h2></div>
+            <div className="sec-head"><h2 id="h-more">{app.words.more}</h2></div>
             <ul aria-labelledby="h-more">
               {morePages.map((p) => <li key={p.path}><button type="button" className={`bk${pathname === p.path ? " sel" : ""}`} aria-current={pathname === p.path ? "page" : undefined} onClick={() => nav.goPath(p.path)}><Icon name={p.nav!.icon} /><span className="nm">{p.nav!.label}</span></button></li>)}
             </ul>
@@ -228,7 +228,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
         ) : null}
         {adminPages.length ? (
           <>
-            <div className="sec-head"><h2 id="h-admin">{t.administration}</h2></div>
+            <div className="sec-head"><h2 id="h-admin">{app.words.administration}</h2></div>
             <ul aria-labelledby="h-admin">
               {adminPages.map((p) => <li key={p.path}><button type="button" className={`bk${pathname === p.path ? " sel" : ""}`} aria-current={pathname === p.path ? "page" : undefined} onClick={() => nav.goPath(p.path)}><Icon name={p.nav!.icon} /><span className="nm">{p.nav!.label}</span></button></li>)}
             </ul>
@@ -238,7 +238,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
       <div className="side-act"><ActivityIndicator /></div>
       <div className="side-foot">
         {capacity ? <button type="button" className="stor" aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, true)}><CapacityMeter capacity={capacity} /><span>{capacityLine(capacity)}</span>{paused ? <Icon name="alert" /> : null}</button> : <span className="stor" />}
-        <button type="button" className="set" onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" />{t.settings}</button>
+        <button type="button" className="set" onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" />{app.words.settings}</button>
       </div>
     </>
   );

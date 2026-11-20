@@ -26,7 +26,7 @@ export function NotificationSettings() {
   const set = (patch: Partial<Preferences["notifications"]>) => void save({ notifications: { ...n, ...patch } });
   const include = (patch: Partial<NotificationInclude>) => set({ include: { ...n.include, ...patch } });
   const chosen = n.include.newItems === "all" ? null : n.include.newItems;
-  const pickable = [...ws.collections.map((c) => ({ id: c.id, name: c.name })), ...(ws.looseSources.length ? [{ id: OTHER_BOX_ID, name: t.otherSources }] : [])];
+  const pickable = [...ws.collections.map((c) => ({ id: c.id, name: c.name })), ...(ws.looseSources.length ? [{ id: OTHER_BOX_ID, name: app.words.otherSources }] : [])];
   const toggleBox = (id: string, on: boolean) => include({ newItems: on ? [...new Set([...(chosen ?? []), id])] : (chosen ?? []).filter((x) => x !== id) });
   const computer = platform.notifier.kind === "computer";
   // Digests and reminders by email need outgoing email on this installation and a confirmed address on the account.
@@ -72,7 +72,7 @@ export function NotificationSettings() {
             <label className="rl"><input type="radio" name="ninc" checked={chosen !== null} onChange={() => include({ newItems: ws.collections.filter((c) => c.showOnHome).map((c) => c.id) })} /><span className="radio" aria-hidden="true" />{t.onlyThese}</label>
           </div>
           {chosen !== null ? (
-            <div className="cols">{pickable.length ? pickable.map((b) => <Check key={b.id} checked={chosen.includes(b.id)} onChange={(v) => toggleBox(b.id, v)}>{b.name}</Check>) : <p className="fine">{t.noCollections}</p>}</div>
+            <div className="cols">{pickable.length ? pickable.map((b) => <Check key={b.id} checked={chosen.includes(b.id)} onChange={(v) => toggleBox(b.id, v)}>{b.name}</Check>) : <p className="fine">{app.words.noCollectionsYet}</p>}</div>
           ) : <p className="fine" style={{ marginLeft: 28 }}>{t.hiddenLeftOut}</p>}
           <Check checked={n.include.problems} onChange={(v) => include({ problems: v })}>{t.problems}</Check>
           <Check checked={n.include.reminders} onChange={(v) => include({ reminders: v })} hint={t.remindersHint}>{t.reminders}</Check>
@@ -83,7 +83,7 @@ export function NotificationSettings() {
       </fieldset>
 
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.whereShow}</legend>
-        {platform.push ? <p className="fine">{t.pushNote.before}<b>{t.pushNote.strong}</b>{t.pushNote.after}</p> : <><div className="radiolist">
+        {platform.push ? <p className="fine">{t.pushNote.before}<b>{app.words.thisDevice}</b>{"."}</p> : <><div className="radiolist">
           {([["inapp", t.modeInapp.label, t.modeInapp.blurb], computer
             ? ["browser", t.modeComputer.label, t.modeComputer.blurb] as const
             : ["browser", t.modeBrowser.label, t.modeBrowser.blurb] as const] as const).map(([v, label, blurb]) => (
@@ -112,13 +112,13 @@ export function NotificationSettings() {
       </fieldset>
 
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.newMarkers}</legend>
-        <div className="field"><label htmlFor="fresh-days">{t.keepNewFor}</label>
+        <div className="field"><label htmlFor="fresh-days">{app.words.keepItemsMarkedNewFor}</label>
           <SelectInput id="fresh-days" value={p.freshDays} onChange={(e) => void save({ freshDays: Number(e.target.value) })}>
             {freshDaysChoices(p.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </SelectInput>
           <p className="fine">{t.markerGoes}</p></div>
-        <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{t.showNewMarkers}</Check>
-        <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })} hint={t.countsHint}>{t.showCounts}</Check>
+        <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{app.words.showNewMarkers}</Check>
+        <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })} hint={t.countsHint}>{app.words.showCounts}</Check>
       </fieldset>
     </div>
   );

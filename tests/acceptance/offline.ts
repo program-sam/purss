@@ -57,10 +57,10 @@ const source = (message: (...values: string[]) => string, ...values: string[]) =
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
 };
 /** "3 items" as the summary counts them. */
-const COUNT = `\\d+ ${esc(savedCopy.item)}s?`;
+const COUNT = `\\d+ ${esc(copy.words.item)}s?`;
 /** "3 items saved, last updated 2 minutes ago." */
 const UPDATED_LINE = new RegExp(source(savedCopy.updated, source(savedCopy.saved, COUNT), ".*"));
-const ADD_SOURCE = new RegExp(`${esc(copy.shell.sidebar.addSource)}|${esc(copy.shell.tabBar.addSource)}`);
+const ADD_SOURCE = new RegExp(`${esc(copy.words.addSource)}|${esc(copy.words.addSource)}`);
 /** The item's state button, whatever state it is in: it starts "State: …". */
 const STATE_BUTTON = new RegExp(`^${esc(copy.lib.statusLabel.menu("\u0000").split("\u0000")[0]!)}`);
 
@@ -123,11 +123,11 @@ function prepare(): { accountId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
-  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: copy.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(copy.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.words.signIn, exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
-  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
+  const notNow = firstVisit.getByRole("button", { name: copy.words.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) {
     await notNow.click();
@@ -139,14 +139,14 @@ async function signIn(page: Page): Promise<void> {
 async function openSettings(page: Page): Promise<void> {
   // The header has a Settings button in the older phone layout. Current phone layouts put it in
   // the account menu; desktop keeps Settings at the foot of the sidebar.
-  const inHeader = page.locator("header").getByRole("button", { name: copy.shell.sidebar.settings });
+  const inHeader = page.locator("header").getByRole("button", { name: copy.words.settings });
   if (await inHeader.isVisible()) await inHeader.click();
   else {
     const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
     if (await account.isVisible()) {
       await account.click();
-      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.auth.headerAccount.settings, exact: true }).click();
-    } else await page.getByRole("button", { name: copy.shell.sidebar.settings }).click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.words.settings, exact: true }).click();
+    } else await page.getByRole("button", { name: copy.words.settings }).click();
   }
   await page.getByRole("dialog").waitFor();
 }
@@ -307,7 +307,7 @@ async function main(): Promise<void> {
     // Highlights: with the pointer (the bar under the selection) and with the keyboard (c comments).
     await page.locator("#panel-in .prose").getByText(/thin layers of silt/).waitFor();
     await selectInArticle(page, "thin layers of silt");
-    await page.getByRole("toolbar", { name: "Selected text" }).getByRole("button", { name: selectionBar.highlight }).click();
+    await page.getByRole("toolbar", { name: "Selected text" }).getByRole("button", { name: copy.words.highlight }).click();
     await page.locator("#toasts").getByText(reader.highlighted).waitFor();
     await page.locator("#panel-in .prose mark.anno", { hasText: "thin layers of silt" }).waitFor();
     await selectInArticle(page, "firm, ribbed, and cold");
@@ -339,7 +339,7 @@ async function main(): Promise<void> {
     await setOfflineReading(page, true);
     await page.getByText(UPDATED_LINE).waitFor({ timeout: 30_000 });
     const summary = await page.getByText(new RegExp(source(savedCopy.saved, COUNT))).first().innerText();
-    assert.match(summary, new RegExp(`^${source(savedCopy.saved, `[1-9]\\d* ${esc(savedCopy.item)}s?`)}`), "the queue was saved");
+    assert.match(summary, new RegExp(`^${source(savedCopy.saved, `[1-9]\\d* ${esc(copy.words.item)}s?`)}`), "the queue was saved");
     await page.getByText(new RegExp(source(settingsCopy.using, ".*"))).waitFor();
     const names = await cacheNames(page);
     assert.ok(names.includes(`purss-api:${accountId}`), "copies live in a cache named for the account");
@@ -425,7 +425,7 @@ async function main(): Promise<void> {
     await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.update()));
     await page.locator("#toasts").getByText(copy.offline.controller.updateReady).waitFor({ timeout: 20_000 });
     const before = await page.evaluate(() => performance.timeOrigin);
-    await page.locator("#toasts").getByRole("button", { name: copy.offline.controller.reload }).click();
+    await page.locator("#toasts").getByRole("button", { name: copy.words.reload }).click();
     await waitFor("the page to reload once", async () => (await page.evaluate(() => performance.timeOrigin)) !== before, 20_000);
     await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     await waitFor("the new worker to take charge", () => hasWorkerControl(page), 10_000);
@@ -471,10 +471,10 @@ async function main(): Promise<void> {
     // Opened offline with nobody signed in and nothing saved, the app says so plainly instead of failing blank.
     await context.setOffline(true);
     await page.reload();
-    await page.getByText(new RegExp(esc(copy.api.client.offline))).waitFor({ timeout: 20_000 });
+    await page.getByText(new RegExp(esc(copy.words.canTReachPurssRightNow))).waitFor({ timeout: 20_000 });
     await context.setOffline(false);
-    await page.getByRole("button", { name: copy.shell.app.tryAgain }).click();
-    await page.getByRole("button", { name: new RegExp(esc(copy.auth.signIn.signIn)) }).first().waitFor();
+    await page.getByRole("button", { name: copy.words.tryAgain }).click();
+    await page.getByRole("button", { name: new RegExp(esc(copy.words.signIn)) }).first().waitFor();
     step("signed out: every saved copy is gone, the app shell stays, and opening it offline says why it can't sign in");
 
     // Run as an installed app, offline reading starts on its own: it is on by default only there.

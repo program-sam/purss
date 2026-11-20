@@ -50,7 +50,7 @@ test("a filter reads in plain words: states by their names, words as all-of, kin
   assert.equal(describeQuery({ field: "workflow", value: ["inprogress", "toread", "finished"] }, names, "en-GB"), t.items([t.marked(t.joinOr([workflow.inprogress, workflow.toread, workflow.finished]))]));
   assert.equal(describeQuery({ field: "text", value: "tide, ferry timetable" }, names, "en-GB"), t.items([t.containingAll(["tide", "ferry", "timetable"])]));
   assert.equal(describeQuery({ field: "text", value: "tide" }, names, "en-GB"), t.items([t.containing("tide")]));
-  assert.equal(describeQuery({ field: "kind", value: ["video", "article"] }, names, "en-GB"), t.items([t.thatAre(t.joinOr([t.kindPlural(kinds.video), t.kindPlural(kinds.article)]))]));
+  assert.equal(describeQuery({ field: "kind", value: ["video", "article"] }, names, "en-GB"), t.items([t.thatAre(t.joinOr([t.kindPlural(kinds.video), t.kindPlural(app.words.article)]))]));
   assert.equal(describeQuery({ field: "kept", value: false }, names, "en-GB"), t.items([t.notKept]));
   assert.equal(describeQuery({ field: "source", value: ["src_a"] }, names, "en-GB"), t.items([t.from(["The Tide Table"])]));
   assert.equal(describeQuery({ field: "date", which: "discovered", from: "2026-01-05", to: "2026-02-01" }, names, "en-GB"), t.items([t.dateRange(t.basis.discovered, "5 Jan 2026", "1 Feb 2026")]));

@@ -12,7 +12,7 @@ export const WORKFLOW_ORDER: readonly WorkflowState[] = ["new", "toread", "inpro
 export const WORKFLOW_LABELS: Record<WorkflowState, string> = app.lib.constants.workflow;
 /** What an item's "to do" state is called: videos are watched and podcasts listened to, everything else is read. */
 export function workflowLabel(workflow: WorkflowState, kind?: ItemKind): string {
-  if (workflow === "toread") return kind === "video" ? app.lib.constants.toWatch : kind === "podcast" ? app.lib.constants.toListen : app.lib.constants.workflow.toread;
+  if (workflow === "toread") return kind === "video" ? app.words.toWatch : kind === "podcast" ? app.words.toListen : app.lib.constants.workflow.toread;
   return WORKFLOW_LABELS[workflow];
 }
 

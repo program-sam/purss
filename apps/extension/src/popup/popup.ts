@@ -36,7 +36,7 @@ async function openTab(url: string): Promise<void> {
 
 function notConnected(message?: string): void {
   show(app, h("div", { class: "pg" },
-    h("h1", {}, extension.popup.notConnected.title),
+    h("h1", {}, "PURSS"),
     message ? h("p", { class: "error", role: "alert" }, message) : null,
     h("p", {}, extension.popup.notConnected.body),
     h("button", { class: "btn primary", type: "button", id: "connect", onclick: () => void api.runtime.openOptionsPage().then(() => window.close()) }, extension.popup.notConnected.connect),
@@ -129,7 +129,7 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
     void setBaskets(baskets);
     if (!baskets.length) {
       show(basketSelect.parentElement!.parentElement!, h("p", { class: "fine" }, extension.popup.noBasket.before,
-        h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}?dialog=basket`) }, extension.popup.noBasket.link), extension.popup.noBasket.after));
+        h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}?dialog=basket`) }, extension.popup.noBasket.link), "."));
     }
     const start = initialBasket(baskets, await getLastBasket());
     show(basketSelect, ...baskets.map((b) => h("option", { value: b.id, ...(b.id === start ? { selected: true } : {}) }, b.name)));

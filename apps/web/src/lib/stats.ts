@@ -30,7 +30,7 @@ export function sparklineLabel(weekly: readonly number[]): string {
 
 /** "56 days", "1 day", "0.4 days"; a dash when there are fewer than two items to measure between. */
 export function gapLabel(days: number | null): string {
-  if (days === null) return app.lib.stats.noGap;
+  if (days === null) return "–";
   return app.lib.stats.gap(days);
 }
 

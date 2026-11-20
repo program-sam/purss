@@ -1,4 +1,4 @@
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 
 /**
  * The download button: the visitor's system, read from the browser's user agent, points the button at that

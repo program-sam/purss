@@ -1,4 +1,4 @@
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { CURRENCIES, currencyName, show, type Money } from "./currency.ts";
 import { links, type Site } from "./site.ts";
 
@@ -60,7 +60,7 @@ export function ic(name: string, cls = ""): string {
   return `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"${fill}>${body}</svg>`;
 }
 
-const brand = (label = copy.kit.brand) =>
+const brand = (label = "PURSS") =>
   `<span class="brand"><span class="mark" aria-hidden="true">${ic("mark")}</span><span class="brand-t">${label}</span></span>`;
 
 export const av = (letters: string, hue: number, size = 24) =>
@@ -70,22 +70,22 @@ export const av = (letters: string, hue: number, size = 24) =>
 
 const SIDEBAR = copy.kit.sidebar;
 const COLLECTIONS = [
-  { n: SIDEBAR.collections.local, c: 9 },
+  { n: copy.words.local, c: 9 },
   { n: SIDEBAR.collections.watch, c: 4 },
   { n: SIDEBAR.collections.listen, c: 2 },
-  { n: SIDEBAR.collections.slowReads, c: 7 },
-  { n: SIDEBAR.collections.recipes, c: 12 },
+  { n: copy.words.slowReads, c: 7 },
+  { n: copy.words.recipes, c: 12 },
 ] as const;
 
 export const quilt = (id = "quilt", size = 96) => `<svg class="quilt" aria-hidden="true"><defs><pattern id="${id}" width="${size}" height="${size}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H${size}M0 0V${size}"/><circle r="${(size / 34).toFixed(1)}"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
 
 /** The app's sidebar, a picture only: the page hides it from assistive technology. */
-export function sidebar(selected: string = SIDEBAR.home): string {
+export function sidebar(selected: string = copy.words.home): string {
   return `<aside class="s-side">
 <div class="side-head">${brand()}<span class="btn primary">${ic("plus")}${SIDEBAR.addSource}</span>
 <span class="pill-search">${ic("search")}${SIDEBAR.search}<kbd>/</kbd></span></div>
 <div class="side-scroll">
-<span class="nav-row ${selected === SIDEBAR.home ? "sel" : ""}">${ic("home")}${SIDEBAR.home}</span>
+<span class="nav-row ${selected === copy.words.home ? "sel" : ""}">${ic("home")}${copy.words.home}</span>
 <div class="sec-head"><div class="s-sh">${SIDEBAR.collectionsTitle}</div></div>
 ${COLLECTIONS.map((c) => `<div class="grow ${selected === c.n ? "sel" : ""}"><span class="chev">${ic("chev")}</span><span class="glabel">${c.n}</span><span class="cnt">${c.c}</span></div>`).join("")}
 
@@ -111,9 +111,9 @@ type Row = "sources" | "collections" | "sharing" | "smart";
 /** A plan's price; `yearly` is shown while the pricing toggle is on yearly billing, `price`/`per` while it is on monthly. */
 const PLAN_TEXT = copy.kit.plans;
 export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; lede: string; has: Partial<Record<Row, string>>; cta: string }> = {
-  free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, lede: PLAN_TEXT.free.lede, has: { sources: "100", collections: "5" }, cta: PLAN_TEXT.free.cta },
+  free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, lede: PLAN_TEXT.free.lede, has: { sources: "100", collections: "5" }, cta: copy.words.createAFreeAccount },
   plus: { name: PLAN_TEXT.plus.name, price: euros(PLUS.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PLUS.year / 12), per: PLAN_TEXT.billedYearly(euros(PLUS.year)) }, eur: PLUS, lede: PLAN_TEXT.plus.lede, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
-  pro: { name: PLAN_TEXT.pro.name, price: euros(PRO.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PRO.year / 12), per: PLAN_TEXT.billedYearly(euros(PRO.year)) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
+  pro: { name: copy.kit.plans.pro.name, price: euros(PRO.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PRO.year / 12), per: PLAN_TEXT.billedYearly(euros(PRO.year)) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
 };
 
 
@@ -159,7 +159,7 @@ function getDesktop(site: Site): string {
 
 const APPS = (site: Site) => [
   ["ext", copy.kit.apps.extension.title, copy.kit.apps.extension.text(DISTRIBUTION.extension.platforms), () => getIt("extension")],
-  ["phone", copy.kit.apps.phone.title, copy.kit.apps.phone.text(DISTRIBUTION.mobile.platforms), () => `<span class="a-stores">${getIt("mobile")}<a class="btn" href="${site.repo}/releases/latest/download/${ANDROID_APK}">${copy.kit.apps.phone.android}</a></span>`],
+  ["phone", copy.kit.apps.phone.title, copy.kit.apps.phone.text(DISTRIBUTION.mobile.platforms), () => `<span class="a-stores">${getIt("mobile")}<a class="btn" href="${site.repo}/releases/latest/download/${ANDROID_APK}">${copy.words.downloadForAndroid}</a></span>`],
   ["laptop", copy.kit.apps.desktop.title, copy.kit.apps.desktop.text, () => getDesktop(site)],
   ["bookmark", copy.kit.apps.bookmarklets.title, copy.kit.apps.bookmarklets.text, () => ""],
   ["key", copy.kit.apps.assistant.title, copy.kit.apps.assistant.text, () => ""],
@@ -191,15 +191,15 @@ export function faq(site: Site): string {
 
 export function footer(site: Site): string {
   const F = copy.kit.footer;
-  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">${F.features}</a><a href="/#apps">${F.apps}</a><a href="/#pricing">${F.pricing}</a><a href="/#self-host">${F.hostIt}</a><a href="${links(site).docs}">${F.docs}</a><a href="${links(site).source}">${F.source}</a><a href="/privacy.html">${F.privacy}</a><a href="/terms.html">${F.terms}</a><a href="/legal.html">${F.legalNotice}</a></nav><span class="fine">${F.credit.before}<a class="link" href="https://github.com/program-sam">${F.credit.operator}</a>${F.credit.middle}<a class="link" href="https://freshrss.org">${F.credit.engine}</a>${F.credit.after}</span></div></footer>`;
+  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">${copy.words.features}</a><a href="/#apps">${copy.words.appsAndExtensions}</a><a href="/#pricing">${copy.words.pricing}</a><a href="/#self-host">${copy.words.hostItYourself}</a><a href="${links(site).docs}">${copy.words.docs}</a><a href="${links(site).source}">${F.source}</a><a href="/privacy.html">${copy.words.privacy}</a><a href="/terms.html">${F.terms}</a><a href="/legal.html">${copy.words.legalNotice}</a></nav><span class="fine">${F.credit.before}<a class="link" href="https://github.com/program-sam">${"Program Sam"}</a>${F.credit.middle}<a class="link" href="https://freshrss.org">${F.credit.engine}</a>${F.credit.after}</span></div></footer>`;
 }
 
 /** The header. A page the server marks `data-session` (signed in) swaps the sign-up buttons for Go to your PURSS. */
-export function nav(site: Site, base = "", cta = copy.kit.actions.signUp, short = copy.kit.actions.signUpShort): string {
+export function nav(site: Site, base = "", cta = copy.words.createAFreeAccount, short = copy.kit.actions.signUpShort): string {
   const to = links(site);
   const N = copy.kit.nav;
   const A = copy.kit.actions;
-  const items = `<a href="${base}#why">${N.why}</a><a href="${base}#features">${N.features}</a><a href="${base}#apps">${N.apps}</a><a href="${base}#pricing">${N.pricing}</a><a href="${base}#self-host">${N.hostIt}</a><a href="${to.docs}">${N.docs}</a>`;
+  const items = `<a href="${base}#why">${copy.words.why}</a><a href="${base}#features">${copy.words.features}</a><a href="${base}#apps">${N.apps}</a><a href="${base}#pricing">${copy.words.pricing}</a><a href="${base}#self-host">${copy.words.hostItYourself}</a><a href="${to.docs}">${copy.words.docs}</a>`;
   return `<header class="s-nav"><div class="s-wrap s-nav-in"><a class="s-home" href="/">${brand()}</a><nav aria-label="Main">${items}</nav><span class="s-nav-cta"><a class="btn ghost s-out" href="${to.dashboard}">${A.dashboard}</a><a class="btn primary s-out" href="${to.signUp}"><span class="s-long">${cta}</span><span class="s-short">${short}</span></a><a class="btn primary s-in" href="${to.dashboard}">${A.signedIn}</a>
 <details class="s-menu"><summary class="ibtn" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary><nav aria-label="Main, small screens">${items}<a class="s-out" href="${to.dashboard}">${A.dashboard}</a></nav></details></span></div></header>`;
 }

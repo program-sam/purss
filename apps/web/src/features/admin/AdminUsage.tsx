@@ -21,12 +21,12 @@ export function AdminUsagePanel() {
   return (
     <div className="fx-stack">
       <p>{t.intro}</p>
-      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void run()}>{busy ? t.checking : t.run}</Button></div>
+      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void run()}>{busy ? app.words.checking : t.run}</Button></div>
       {error ? <Note>{error}</Note> : null}
       {report ? (
         <>
           <p className="state" role="status"><Icon name={report.mismatched ? "alert" : "check"} />
-            {report.mismatched ? t.differs(plural(report.mismatched, t.account), report.accounts.length, report.mismatched) : t.allMatch(plural(report.accounts.length, t.account))}{t.checked(timeAgo(report.checkedAt) || t.justNow)}</p>
+            {report.mismatched ? t.differs(plural(report.mismatched, app.words.accountLower), report.accounts.length, report.mismatched) : t.allMatch(plural(report.accounts.length, app.words.accountLower))}{t.checked(timeAgo(report.checkedAt) || app.words.justNow)}</p>
           <ul className="fx-rows">
             {report.accounts.map((a) => (
               <li key={a.accountId} className="fx-row">

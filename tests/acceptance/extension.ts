@@ -143,9 +143,9 @@ function extensionCopy(publisher: string): string {
 }
 
 async function signIn(page: Page): Promise<void> {
-  await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
-  await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: app.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(app.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: app.words.signIn, exact: true }).click();
 }
 
 async function main(): Promise<void> {
@@ -179,11 +179,11 @@ async function main(): Promise<void> {
     await page.goto(`${origin}/app/?dialog=keep&url=${encodeURIComponent(plain)}&title=1984`);
     await page.waitForURL(/\/signin\?next=/);
     await signIn(page);
-    await page.getByRole("dialog", { name: keepCopy.title }).waitFor();
-    assert.equal(await page.getByLabel(keepCopy.titleOptional).inputValue(), "1984", "a number-like title stays text");
+    await page.getByRole("dialog", { name: app.words.keepThisPage }).waitFor();
+    assert.equal(await page.getByLabel(app.words.titleOptional).inputValue(), "1984", "a number-like title stays text");
     assert.ok(!new URL(page.url()).searchParams.has("url"), "the address is tidied");
-    await page.getByLabel(keepCopy.basket, { exact: true }).selectOption({ label: "Papers" });
-    await page.getByRole("button", { name: keepCopy.keep, exact: true }).click();
+    await page.getByLabel(app.words.basket, { exact: true }).selectOption({ label: "Papers" });
+    await page.getByRole("button", { name: app.words.keep, exact: true }).click();
     await page.locator("#toasts").getByText(keepCopy.kept(keepCopy.nouns.link, "Papers")).waitFor();
     step("a Keep deep link opened while signed out comes back after sign-in, and keeps after confirming");
 
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
     await options.locator("#connect").click();
     const approval = await approvalOpened;
     await approval.getByText(connectCopy.titleExtension).waitFor();
-    assert.equal(await approval.getByLabel(connectCopy.nameLabel).inputValue(), DEVICE);
+    assert.equal(await approval.getByLabel(app.words.nameSoYouRecogniseItLater).inputValue(), DEVICE);
     await approval.getByRole("button", { name: connectCopy.connect, exact: true }).click();
     await options.locator("#connected").waitFor();
     assert.match(await options.locator("#connected").innerText(), words(extension.options.connected.to(origin, DEVICE)));
@@ -264,25 +264,25 @@ async function main(): Promise<void> {
     const addOpened = ctx.waitForEvent("page");
     await popupDo("#add-source", "click");
     const add = await addOpened;
-    await add.getByRole("dialog", { name: addSourceCopy.title }).waitFor();
+    await add.getByRole("dialog", { name: app.words.addSource }).waitFor();
     assert.equal(await add.locator("#as-url").inputValue(), `${publisher.base}/feed.xml`);
     await add.waitForTimeout(1000);
-    for (const looking of [addSourceCopy.looking, app.lib.addSourceStatus.looking]) assert.equal(await add.getByText(looking).count(), 0);
+    for (const looking of [app.words.looking, app.words.looking]) assert.equal(await add.getByText(looking).count(), 0);
     assert.deepEqual(discoverCalls, [], "nothing is looked up until Find");
     step("“Add as a source” opens Add source with the feed filled in, and looks nothing up by itself");
 
     // 7. Settings offers the bookmarklets and lists the extension; the "Add as source" one opens Add source.
-    await add.getByRole("button", { name: addSourceCopy.cancel }).click();
+    await add.getByRole("button", { name: app.words.cancel }).click();
     await add.goto(`${origin}/app/?dialog=apps`);
     await add.getByText(DEVICE).waitFor();
-    const code = await add.getByRole("link", { name: app.connect.bookmarklets.add.name }).getAttribute("href");
+    const code = await add.getByRole("link", { name: app.words.addAsSource }).getAttribute("href");
     assert.ok(code?.startsWith("javascript:"), "a draggable bookmarklet");
     const plainPage = await ctx.newPage();
     await plainPage.goto(plain);
     const fromBookmarklet = ctx.waitForEvent("page");
     await plainPage.evaluate((source) => (0, eval)(source), decodeURIComponent(code!.slice("javascript:".length)));
     const handed = await fromBookmarklet;
-    await handed.getByRole("dialog", { name: addSourceCopy.title }).waitFor();
+    await handed.getByRole("dialog", { name: app.words.addSource }).waitFor();
     assert.equal(await handed.locator("#as-url").inputValue(), plain);
     assert.deepEqual(discoverCalls, []);
     step("Settings offers the bookmarklets; running one opens Add source with the page filled in");

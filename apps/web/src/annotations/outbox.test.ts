@@ -129,5 +129,5 @@ test("unsent writing can be copied out as plain text; removals carry none", () =
       body: { kind: "highlight", quote: { exact: "quoted\ntext", prefix: "", suffix: "" }, position: null, target: null, body: null, updatedAt: "2026-11-01T10:02:00.000Z" } },
   ];
   const t = app.annotations.outbox;
-  assert.equal(outboxAsText(entries), `${t.entry(t.note, "2026-11-01T10:00:00.000Z", "itm_1")}\nA thought\nover two lines\n\n${t.entry(t.highlight, "2026-11-01T10:02:00.000Z", "itm_2")}\n> quoted\n> text`);
+  assert.equal(outboxAsText(entries), `${t.entry(t.note, "2026-11-01T10:00:00.000Z", "itm_1")}\nA thought\nover two lines\n\n${t.entry(app.words.highlight, "2026-11-01T10:02:00.000Z", "itm_2")}\n> quoted\n> text`);
 });

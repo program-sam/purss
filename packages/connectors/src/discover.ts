@@ -261,7 +261,7 @@ function originFor(feed: ParsedFeed): string {
     case "jsonfeed":
       return feedLabels.jsonFeed;
     default:
-      return feedLabels.rssFeed;
+      return server.words.rssFeed;
   }
 }
 
@@ -287,7 +287,7 @@ function sampleTitle(feed: ParsedFeed, index: number): string {
   if (item.title) return item.title.length > 140 ? `${item.title.slice(0, 139)}…` : item.title;
   const text = htmlToText(item.summaryHtml ?? item.contentHtml ?? "", 400);
   if (text) return text.length > 70 ? `${text.slice(0, 69)}…` : text;
-  return server.sources.connectors.discover.untitled;
+  return server.words.untitled;
 }
 
 function newestFirst(feed: ParsedFeed): ParsedFeed {

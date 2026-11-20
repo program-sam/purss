@@ -182,7 +182,7 @@ function SelectionBar({ rect, onHighlight, onComment }: { rect: DOMRect; onHighl
   return createPortal(
     <div ref={ref} className="sel-bar" role="toolbar" aria-label="Selected text" onPointerDown={keep} onMouseDown={keep}
       style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: "hidden" }}>
-      <button type="button" className="btn" aria-keyshortcuts="h" onClick={onHighlight}><Icon name="check" size="sm" />{t.selectionBar.highlight}</button>
+      <button type="button" className="btn" aria-keyshortcuts="h" onClick={onHighlight}><Icon name="check" size="sm" />{app.words.highlight}</button>
       <button type="button" className="btn" aria-keyshortcuts="c" onClick={onComment}>{t.selectionBar.addComment}</button>
     </div>,
     document.body,
@@ -198,8 +198,8 @@ function HighlightDialog({ quote, initial, isNew, onClose, onSave, onRemove }: {
     <Dialog title={isNew ? t.highlightDialog.titleNew : t.highlightDialog.titleEdit} size="sm" onClose={onClose} initialFocus="textarea"
       footer={<>
         {onRemove ? <Button variant="danger" onClick={() => void onRemove()}>{t.highlightDialog.remove}</Button> : null}
-        <Button onClick={onClose}>{t.highlightDialog.cancel}</Button>
-        <Button variant="primary" onClick={() => void onSave(text.trim())}>{isNew ? t.highlightDialog.saveNew : t.highlightDialog.save}</Button>
+        <Button onClick={onClose}>{app.words.cancel}</Button>
+        <Button variant="primary" onClick={() => void onSave(text.trim())}>{isNew ? t.highlightDialog.saveNew : app.words.save}</Button>
       </>}>
       <blockquote className="anno-quote">{short(quote, 600)}</blockquote>
       <label className="lbl" htmlFor={id}>{t.highlightDialog.comment}</label>
@@ -215,7 +215,7 @@ function SyncNote({ a, ann }: { a: ViewAnnotation; ann: Annotations }) {
   return (
     <span className="anno-sync failed" role="alert">
       <Icon name="alert" size="sm" />{t.syncNote.couldntSave}{a.error}
-      <button type="button" className="link" onClick={() => void ann.retry(a.id)}>{t.syncNote.tryAgain}</button>
+      <button type="button" className="link" onClick={() => void ann.retry(a.id)}>{app.words.tryAgain}</button>
       <button type="button" className="link" onClick={() => void ann.discard(a.id)}>{t.syncNote.discard}</button>
     </span>
   );
@@ -258,7 +258,7 @@ export function NotesSection({ ann, detached, hasText, proseRef, tz }: {
             <span>{t.notes.meta(shortDate(n.updatedAt, Date.now(), tz ?? undefined))}</span>
             <SyncNote a={n} ann={ann} />
             <button type="button" className="link" onClick={() => setEditingNote(n.id)}>{t.notes.edit}<span className="sr"> note</span></button>
-            <button type="button" className="link" onClick={() => void removeWithUndo(ann, n, toast)}>{t.notes.remove}<span className="sr"> note</span></button>
+            <button type="button" className="link" onClick={() => void removeWithUndo(ann, n, toast)}>{app.words.remove}<span className="sr"> note</span></button>
           </p>
         </article>
       ))}
@@ -276,7 +276,7 @@ export function NotesSection({ ann, detached, hasText, proseRef, tz }: {
                 {detached.has(h.id) ? <span className="anno-detached"><Icon name="info" size="sm" />{t.notes.notFound}</span> : null}
                 <SyncNote a={h} ann={ann} />
                 {hasText && !detached.has(h.id) ? <button type="button" className="link" onClick={() => show(h.id)}>{t.notes.showInText}</button> : null}
-                <button type="button" className="link" onClick={() => void removeWithUndo(ann, h, toast)}>{t.notes.remove}<span className="sr"> highlight</span></button>
+                <button type="button" className="link" onClick={() => void removeWithUndo(ann, h, toast)}>{app.words.remove}<span className="sr"> highlight</span></button>
               </p>
             </li>
           ))}
@@ -303,7 +303,7 @@ function NoteEditor({ initial, onSave, onCancel }: { initial: string; onSave: (b
         }} />
       <div className="anno-actions">
         <Button variant="primary" disabled={!text.trim()} onClick={save}>{t.noteEditor.save}</Button>
-        <Button onClick={onCancel}>{t.noteEditor.cancel}</Button>
+        <Button onClick={onCancel}>{app.words.cancel}</Button>
       </div>
     </div>
   );

@@ -37,7 +37,7 @@ export function PasskeyStep({ onDone }: { onDone: () => void }) {
       <p className="hint">{t.intro}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" disabled={busy} onClick={add}>{busy ? t.waiting : t.add}</Button>
+        <Button variant="primary" disabled={busy} onClick={add}>{busy ? app.words.waitingForYourDevice : app.words.addAPasskey}</Button>
         <Button disabled={busy} onClick={onDone}>{t.skip}</Button>
       </div>
       <p className="fine">{t.later}</p>

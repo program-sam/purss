@@ -215,14 +215,14 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
       let basketName = ws.basketById.get(basketChoice)?.name ?? "";
       if (basketChoice === UNSET) { setError(t.chooseBasketFirst); setBusy(false); return; }
       if (basketChoice === NEW) {
-        if (!newBasket.trim()) { setError(t.nameBasketFirst); setBusy(false); return; }
+        if (!newBasket.trim()) { setError(app.words.nameTheNewBasketFirst); setBusy(false); return; }
         const b = await post<BasketDTO>("/api/baskets", { name: newBasket.trim(), captureMode: "metadata" });
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url: target, basketId, ...(linkTitle.trim() ? { title: linkTitle.trim() } : {}), ...(readableText ? { readableText: true } : {}) });
       refreshWorkspace(qc);
       ov.close();
-      toast(keptMessage(out, basketName, noun), { actions: [{ label: t.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
+      toast(keptMessage(out, basketName, noun), { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
@@ -232,23 +232,23 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   /** The paste hints give way once something was found, to leave room for the choices. */
   const showHelp = !(phase === "found" && (candidates.length || offer));
   const footer = phase === "single"
-    ? <><Button onClick={() => setPhase(result && !result.ok ? "failed" : "paste")}>{t.back}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(url.trim())}>{t.keepLink}</Button></>
+    ? <><Button onClick={() => setPhase(result && !result.ok ? "failed" : "paste")}>{app.words.back}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(url.trim())}>{app.words.keepLink}</Button></>
     : keeping
-      ? <><Button onClick={ov.close}>{t.cancel}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(keeping.url, "video")}>{t.keepThisVideo}</Button></>
-      : <><Button onClick={ov.close}>{t.cancel}</Button>{phase === "found" ? <Button variant={cand ? "primary" : "default"} disabled={busy || !cand || (!cand.alreadyFollowingSourceId && colChoice === NEW && !newName.trim())} onClick={follow}>{cand?.alreadyFollowingSourceId ? t.openSource : t.follow}</Button> : null}</>;
+      ? <><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || !basketReady} onClick={() => void keepLink(keeping.url, "video")}>{t.keepThisVideo}</Button></>
+      : <><Button onClick={ov.close}>{app.words.cancel}</Button>{phase === "found" ? <Button variant={cand ? "primary" : "default"} disabled={busy || !cand || (!cand.alreadyFollowingSourceId && colChoice === NEW && !newName.trim())} onClick={follow}>{cand?.alreadyFollowingSourceId ? t.openSource : app.words.follow}</Button> : null}</>;
 
   /** The basket to keep into, and the title; shared by keeping one video and keeping one page. */
   const keepFields = (
     <>
-      <Field label={t.keepFields.basket} htmlFor="kl-b">
+      <Field label={app.words.basket} htmlFor="kl-b">
         <SelectInput id="kl-b" value={basketChoice} onChange={(e) => setBasketChoice(e.target.value)}>
           {ws.data.baskets.length ? <option value={UNSET}>{t.keepFields.chooseBasket}</option> : null}
           {ws.data.baskets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          <option value={NEW}>{t.keepFields.newBasket}</option>
+          <option value={NEW}>{app.words.newBasketMenu}</option>
         </SelectInput>
-        {basketChoice === NEW ? <input className="in" placeholder={t.keepFields.newBasketPlaceholder} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus={ws.data.baskets.length > 0} /> : null}
+        {basketChoice === NEW ? <input className="in" placeholder={app.words.nameYourBasket} aria-label="New basket name" value={newBasket} onChange={(e) => setNewBasket(e.target.value)} autoFocus={ws.data.baskets.length > 0} /> : null}
       </Field>
-      <Field label={t.keepFields.title} htmlFor="kl-t" hint={t.keepFields.titleHint}>
+      <Field label={app.words.titleOptional} htmlFor="kl-t" hint={t.keepFields.titleHint}>
         <TextInput id="kl-t" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} maxLength={300} autoComplete="off" placeholder={keeping?.title ?? ""} />
       </Field>
       {keeping?.kind === "video" ? null : (
@@ -259,7 +259,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   );
 
   return (
-    <Dialog title={t.title} onClose={ov.close} footer={footer} initialFocus="#as-url">
+    <Dialog title={app.words.addSource} onClose={ov.close} footer={footer} initialFocus="#as-url">
       {phase !== "single" ? (
         <form className="field" onSubmit={(e) => { if (nameLike) { e.preventDefault(); void searchShows(); } else void look(e); }}>
           <label htmlFor="as-url">{t.linkOrName}</label>
@@ -275,14 +275,14 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
               <p className="fine" id="as-help">{t.help}</p>
               {nameLike ? <p className="fine">{PODCAST_SEARCH_NOTE}</p> : null}
               {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>{t.importOpml}</button></p> : null}
-              {platform.connection ? null : <p className="fine">{t.extension.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>{t.extension.link}</button>{t.extension.after}</p>}
+              {platform.connection ? null : <p className="fine">{t.extension.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>{app.words.browserExtensionOrABookmarklet}</button>{t.extension.after}</p>}
             </>
           ) : null}
         </form>
       ) : null}
       <div className="sr" role="status">{addSourceStatus({ phase, searching, shows: shows.length, candidates: candidates.length, failure: result && !result.ok ? FAIL_TITLE[result.reason] : null, keeping: !!result?.ok && !!result.keep })}</div>
       <div style={{ display: "grid", gap: 16 }}>
-        {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />{t.looking}</p> : null}
+        {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />{app.words.looking}</p> : null}
         {error && phase !== "single" ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         {phase === "failed" && result && !result.ok ? (
           <>
@@ -294,7 +294,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
         {phase === "shows" ? (
           <div className="field" id="as-shows">
             <div className="lbl" id="shw">{searching ? t.searchingDirectory : shows.length ? t.podcastsMatching(url.trim()) : t.showsInDirectory}</div>
-            {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />{t.searching}</p> : null}
+            {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />{app.words.searching}</p> : null}
             {!searching && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>{t.noShows}</span></p> : null}
             {shows.length ? (
               <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -332,14 +332,14 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
             ) : null}
             {!keeping && cand && !cand.alreadyFollowingSourceId ? (
               <>
-                <div className="field"><label htmlFor="as-col">{t.collection}</label>
+                <div className="field"><label htmlFor="as-col">{app.words.collection}</label>
                   <SelectInput id="as-col" value={colChoice} onChange={(e) => setColChoice(e.target.value)}>
                     <option value={LOOSE}>{t.noCollection}</option>
                     {sourceCollections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    <option value={NEW} disabled={!!collectionFull}>{t.newCollection}{collectionFull ? t.limitReached : ""}</option>
+                    <option value={NEW} disabled={!!collectionFull}>{app.words.newCollectionMenu}{collectionFull ? t.limitReached : ""}</option>
                   </SelectInput>
-                  {colChoice === NEW ? <input className="in" placeholder={t.newCollectionPlaceholder} aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
-                  {collectionFull ? <p className="fine">{collectionFull} <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{t.seePlans}</button></p> : null}
+                  {colChoice === NEW ? <input className="in" placeholder={app.words.nameYourCollection} aria-label="New collection name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus /> : null}
+                  {collectionFull ? <p className="fine">{collectionFull} <button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{app.words.seePlans}</button></p> : null}
                   <p className="fine">{colChoice === LOOSE ? t.withoutCollection : t.collectionGroups}</p>
                 </div>
                 <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.postsAlreadyHas}</legend>
@@ -357,10 +357,10 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                   hint={cand.privateWarning
                     ? t.privateKey
                     : t.privateMembers}>
-                  {t.keepPrivate}</Check>}
+                  {app.words.keepThisFeedSLinkPrivate}</Check>}
                 {canFullText ? (
                   <Check checked={fullText} onChange={setFullTextChoice}
-                    hint={t.fullTextHint}>{t.fullText}</Check>
+                    hint={t.fullTextHint}>{app.words.saveFullArticles}</Check>
                 ) : null}
               </>
             ) : null}

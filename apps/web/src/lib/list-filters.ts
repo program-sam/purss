@@ -78,10 +78,10 @@ export function typeLengthEntries(ls: ListState, patch: (p: Pick<ListSearch, "ty
   };
   return [
     { type: "separator" },
-    { type: "heading", label: app.lib.listFilters.typeHeading },
+    { type: "heading", label: app.words.type },
     ...TYPE_ORDER.map<MenuEntry>((t) => ({ type: "check", label: TYPE_LABELS[t], on: ls.types.includes(t), onSelect: () => toggle(t) })),
     { type: "separator" },
-    { type: "heading", label: app.lib.listFilters.lengthHeading },
+    { type: "heading", label: app.words.length },
     { type: "radio", label: app.lib.listFilters.anyLength, on: !ls.length, onSelect: () => patch({ length: undefined }) },
     { type: "radio", label: LENGTH_LABELS.short, on: ls.length === "short", onSelect: () => patch({ length: "short" }) },
     { type: "radio", label: LENGTH_LABELS.long, on: ls.length === "long", onSelect: () => patch({ length: "long" }) },

@@ -29,7 +29,7 @@ export function MutedWordsField() {
   };
   const remove = (w: MutedWord) => void save({ mutedWords: words.filter((x) => x.text !== w.text) });
   return (
-    <fieldset className="field" aria-describedby="mw-hint"><legend className="lbl" style={{ marginBottom: 6 }}>{t.title}</legend>
+    <fieldset className="field" aria-describedby="mw-hint"><legend className="lbl" style={{ marginBottom: 6 }}>{app.words.mutedWords}</legend>
       <p className="fine" id="mw-hint">{t.hint}</p>
       {words.length ? (
         <ul className="ordlist" aria-label="Muted words">

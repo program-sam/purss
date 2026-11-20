@@ -6,7 +6,6 @@ import { useOverlays } from "../state/overlays.tsx";
 import { useWorkspace } from "../state/workspace.tsx";
 import { useCurrentPlace } from "./place.ts";
 
-const t = app.shell.tabBar;
 
 /** Phone navigation at thumb height: Home, everything you follow and keep, Search and Add source. */
 export function TabBar({ drawerOpen, onBrowse }: { drawerOpen: boolean; onBrowse: () => void }) {
@@ -24,10 +23,10 @@ export function TabBar({ drawerOpen, onBrowse }: { drawerOpen: boolean; onBrowse
   );
   return (
     <nav className="tabbar" aria-label="Main">
-      {tab("home", t.home, () => nav.go({ t: "home" }), { current: home })}
-      {tab("folder", t.collections, onBrowse, { expanded: drawerOpen, current: browsing })}
-      {tab("search", t.search, () => overlays.open({ kind: "palette" }))}
-      {tab("plus", t.addSource, () => overlays.open({ kind: "add-source", collectionId: addTo }))}
+      {tab("home", app.words.home, () => nav.go({ t: "home" }), { current: home })}
+      {tab("folder", app.words.collections, onBrowse, { expanded: drawerOpen, current: browsing })}
+      {tab("search", app.words.search, () => overlays.open({ kind: "palette" }))}
+      {tab("plus", app.words.addSource, () => overlays.open({ kind: "add-source", collectionId: addTo }))}
     </nav>
   );
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { desktopOs, pickDesktopDownload } from "./desktop.ts";
 
 test("the visitor's system picks the main download; Android gets the app; iPhones, iPads and the unknown keep the list", () => {
@@ -27,7 +27,7 @@ test("the button gets the visitor's file and the link to other systems appears; 
   assert.deepEqual([mac.main.href, mac.main.textContent, mac.other.hidden], ["mac.dmg", copy.desktop.download.macos, false]);
   const android = page();
   pickDesktopDownload(android.doc, { userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36" });
-  assert.deepEqual([android.main.href, android.main.textContent], ["app.apk", copy.desktop.download.android]);
+  assert.deepEqual([android.main.href, android.main.textContent], ["app.apk", copy.words.downloadForAndroid]);
   const phone = page();
   pickDesktopDownload(phone.doc, { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148" });
   assert.deepEqual([phone.main.href, phone.main.textContent, phone.other.hidden], ["releases", "Download", true]);

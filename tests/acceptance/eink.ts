@@ -45,7 +45,7 @@ const { up, down } = copy.components.pageNav;
 /** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
 /** The sidebar's Add source button, or the tab bar's on a phone. */
-const ADD_SOURCE = new RegExp(`${esc(copy.shell.sidebar.addSource)}|${esc(copy.shell.tabBar.addSource)}`);
+const ADD_SOURCE = new RegExp(`${esc(copy.words.addSource)}|${esc(copy.words.addSource)}`);
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -103,30 +103,30 @@ function prepare(): { sourceId: string; longItemId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
-  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: copy.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(copy.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.words.signIn, exact: true }).click();
   await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
 }
 
 async function openSettings(page: Page): Promise<void> {
   // The older phone layout has a Settings button in the header; current layouts put it in the
   // account menu, with the sidebar as the fallback.
-  const inHeader = page.locator("header").getByRole("button", { name: copy.shell.sidebar.settings, exact: true });
+  const inHeader = page.locator("header").getByRole("button", { name: copy.words.settings, exact: true });
   if (await inHeader.isVisible()) await inHeader.click();
   else {
     const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
     if (await account.isVisible()) {
       await account.click();
-      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.auth.headerAccount.settings, exact: true }).click();
-    } else await page.getByRole("button", { name: copy.shell.sidebar.settings, exact: true }).click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.words.settings, exact: true }).click();
+    } else await page.getByRole("button", { name: copy.words.settings, exact: true }).click();
   }
   await page.getByRole("dialog").waitFor();
 }
-const einkBox = (page: Page) => page.getByRole("checkbox", { name: new RegExp(esc(display.label)) });
+const einkBox = (page: Page) => page.getByRole("checkbox", { name: new RegExp(esc(copy.words.eInkDisplay)) });
 async function setEink(page: Page, on: boolean): Promise<void> {
   await openSettings(page);
-  if ((await einkBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: display.label }).click();
+  if ((await einkBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: copy.words.eInkDisplay }).click();
   assert.equal(await einkBox(page).isChecked(), on);
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });

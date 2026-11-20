@@ -66,7 +66,7 @@ function Suggestions({ suggestions }: { suggestions: DiscoverSuggestion[] }) {
   if (!list.length) {
     return (
       <div className="empty card-like">
-        <h2>{copy.nothingNew}</h2>
+        <h2>{app.words.nothingNewRightNow}</h2>
         <p>{copy.checkBack}</p>
       </div>
     );
@@ -80,8 +80,8 @@ function SharingChoice() {
   const qc = useQueryClient();
   return (
     <Check checked={ws.prefs.discoveryShare} onChange={(v) => { void save({ discoveryShare: v }).then(() => qc.invalidateQueries({ queryKey: fkeys.suggestions })); }}
-      hint={copy.shareHint}>
-      {copy.shareLabel}
+      hint={app.words.purssCountsSourcesFollowedByPeople}>
+      {app.words.shareMySources}
     </Check>
   );
 }
@@ -95,11 +95,11 @@ export function DiscoverPage() {
   const hosted = session?.installation.mode === "hosted";
   const q = useQuery({ ...suggestionsQuery, enabled: hosted });
   if (session && !hosted) {
-    return <Page title={copy.title}><Note>{copy.hostedOnly}</Note></Page>;
+    return <Page title={app.words.discovery}><Note>{copy.hostedOnly}</Note></Page>;
   }
   const lead = copy.lead;
   return (
-    <Page title={copy.title} lead={lead}>
+    <Page title={app.words.discovery} lead={lead}>
       {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what={copy.suggestionsName} onRetry={() => void q.refetch()} /> : !q.data.ready ? (
         <div className="empty card-like">
           <h2>{copy.comingSoon}</h2>
@@ -113,7 +113,7 @@ export function DiscoverPage() {
       ) : (
         <Section title={copy.suggestions}><Suggestions suggestions={q.data.suggestions} /></Section>
       )}
-      <Section title={copy.sharing}><SharingChoice /></Section>
+      <Section title={app.words.sharing}><SharingChoice /></Section>
     </Page>
   );
 }

@@ -1,4 +1,4 @@
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { PLANS, appCards, billingToggle, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
@@ -65,10 +65,10 @@ const JUNK: Junk[] = [
 /** The feed's order: a junk card, a post you chose, and so on. */
 const ORDER: ({ mine: number } | { junk: number })[] = [{ junk: 0 }, { mine: 0 }, { junk: 1 }, { mine: 1 }, { junk: 2 }, { mine: 2 }, { junk: 3 }, { mine: 3 }, { mine: 4 }];
 const BOXES = [
-  { title: copy.home.picture.boxes.local, stack: [["MG", 210]] },
+  { title: copy.words.local, stack: [["MG", 210]] },
   { title: copy.home.picture.boxes.watchListen, stack: [["MB", 18], ["NS", 280]] },
-  { title: copy.home.picture.boxes.slowReads, stack: [["SL", 228]] },
-  { title: copy.home.picture.boxes.recipes, stack: [["KT", 12]] },
+  { title: copy.words.slowReads, stack: [["SL", 228]] },
+  { title: copy.words.recipes, stack: [["KT", 12]] },
 ] as const;
 
 const css = `
@@ -227,16 +227,16 @@ const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flat
 export const home = {
   render: (site: Site) => `<style>${css}${COMPARISON_CSS}</style>
 <a class="s-skip" href="#main">${copy.kit.skipToContent}</a><main class="pf" id="main" tabindex="-1" data-on="1"><div class="pf-sky" aria-hidden="true">${quilt("pf-quilt", 150)}</div>
-<header class="pf-nav"><b>${ic("mark")}${copy.kit.brand}</b><a href="#why">${copy.home.nav.why}</a><a href="#features">${copy.home.nav.whatItDoes}</a><a href="#pricing">${copy.home.nav.pricing}</a><a href="#self-host">${copy.home.nav.hostIt}</a><a href="${links(site).docs}">${copy.home.nav.docs}</a><span><a class="s-out" href="${links(site).dashboard}">${copy.kit.actions.dashboard}</a><a class="btn primary s-out" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn primary s-in" href="${links(site).dashboard}">${copy.kit.actions.signedIn}</a></span></header>
+<header class="pf-nav"><b>${ic("mark")}${"PURSS"}</b><a href="#why">${copy.words.why}</a><a href="#features">${copy.home.nav.whatItDoes}</a><a href="#pricing">${copy.words.pricing}</a><a href="#self-host">${copy.words.hostItYourself}</a><a href="${links(site).docs}">${copy.words.docs}</a><span><a class="s-out" href="${links(site).dashboard}">${copy.kit.actions.dashboard}</a><a class="btn primary s-out" href="${links(site).signUp}">${copy.words.createAFreeAccount}</a><a class="btn primary s-in" href="${links(site).dashboard}">${copy.kit.actions.signedIn}</a></span></header>
 <section class="pf-hero">
 <div><h1 class="pf-h1">${copy.home.hero.heading}</h1>
 <p class="pf-lead">${copy.home.hero.lead}</p>
 <div class="pf-sw"><label class="l0" for="pf-t">${copy.home.hero.switchOff}</label><button class="pf-toggle" id="pf-t" type="button" role="switch" aria-checked="true" aria-label="Show only what you chose"><i>${ic("mark")}</i></button><label class="l1" for="pf-t">${copy.home.hero.switchOn}</label></div>
 <ul class="pf-points">${copy.home.hero.points.map(({ title, text }) => `<li><span class="pt">${ic("check")}</span><span>${title}<small>${text}</small></span></li>`).join("")}</ul>
-<div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn xl" href="#self-host">${ic("server")}${copy.home.hero.hostIt}</a></div></div>
+<div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">${copy.words.createAFreeAccount}</a><a class="btn xl" href="#self-host">${ic("server")}${copy.words.hostItYourself}</a></div></div>
 <div class="pf-stage" role="img" aria-label="${copy.home.picture.labelOn}">
 <div class="s-win pf-win"><div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="u0">${copy.home.picture.addressOff}</span><span class="u1">${copy.home.picture.addressOn}</span></div>
-<div class="pf-bar" aria-hidden="true"><span class="l"><span class="t0">${copy.home.picture.titleOff}</span><span class="t1">${copy.home.picture.titleOn}</span></span><span class="r"><span class="bell">${ic("bell")}</span><span class="vw">${ic("list")}${copy.home.picture.view}</span></span></div>
+<div class="pf-bar" aria-hidden="true"><span class="l"><span class="t0">${copy.home.picture.titleOff}</span><span class="t1">${copy.words.home}</span></span><span class="r"><span class="bell">${ic("bell")}</span><span class="vw">${ic("list")}${copy.home.picture.view}</span></span></div>
 <div class="pf-main" aria-hidden="true">${sidebar()}
 <div class="pf-content"><div class="pf-list"></div>
 <div class="pf-wash"><div class="homewash">${quilt("pf-wash-q")}<div class="col"><div class="s-mh home">${copy.home.picture.greeting}</div><p class="s-wash-sub">${copy.home.picture.sinceLastVisit}</p></div></div></div>
@@ -248,16 +248,16 @@ export const home = {
 
 <section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.label}</span></div></div><div class="mod-b"><h3>${f.heading}</h3><p>${f.text}</p></div></section>`).join("")}</div></section>
 
-<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.home.apps.kicker}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2><p class="s-lead">${copy.home.apps.lead}</p></div>
+<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.words.appsAndExtensions}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2><p class="s-lead">${copy.home.apps.lead}</p></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
-<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.home.pricing.kicker}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
+<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.words.pricing}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
 ${pricingDoors(site)}</div></section>
 
 
 <section class="s-sec" id="faq"><div class="s-wrap"><h2 class="s-h2 s-center" style="margin-bottom:30px">${copy.home.faq.heading}</h2>${faq(site)}</div></section>
 
-<section class="pf-end"><h2 class="pf-h2">${copy.home.end.heading}</h2><div class="s-cta" style="margin-top:22px"><a class="btn primary xl" href="${links(site).signUp}">${copy.kit.actions.signUp}</a><a class="btn xl" href="#self-host">${copy.home.end.hostIt}</a></div></section>
+<section class="pf-end"><h2 class="pf-h2">${copy.home.end.heading}</h2><div class="s-cta" style="margin-top:22px"><a class="btn primary xl" href="${links(site).signUp}">${copy.words.createAFreeAccount}</a><a class="btn xl" href="#self-host">${copy.words.hostItYourself}</a></div></section>
 </main>
 ${footer(site)}`,
   mount: (root: HTMLElement): void => {

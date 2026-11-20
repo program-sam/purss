@@ -46,7 +46,7 @@ function Question() {
 
   return (
     <Dialog title={t.title} size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
-      footer={<><Button onClick={() => done(true)}>{t.notNow}</Button><Button variant="primary" onClick={() => done(false)}>{t.save}</Button></>}>
+      footer={<><Button onClick={() => done(true)}>{app.words.notNow}</Button><Button variant="primary" onClick={() => done(false)}>{app.words.save}</Button></>}>
       <fieldset className="field"><legend className="sr">{t.title}</legend>
         <div className="radiolist">
           {CHOICES.map((v) => (
@@ -75,11 +75,11 @@ function Question() {
       </fieldset>
       {hosted ? <div className="field" style={{ gap: 2 }}>
         <Check checked={discoveryShare} onChange={setDiscoveryShare}
-          hint={t.shareHint}>
-          {t.shareSources}
+          hint={app.words.purssCountsSourcesFollowedByPeople}>
+          {app.words.shareMySources}
         </Check>
       </div> : null}
-      <div className="field"><label htmlFor="fresh-days">{t.keepNewFor}</label>
+      <div className="field"><label htmlFor="fresh-days">{app.words.keepItemsMarkedNewFor}</label>
         <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {freshDaysChoices(ws.data.preferences.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </SelectInput>

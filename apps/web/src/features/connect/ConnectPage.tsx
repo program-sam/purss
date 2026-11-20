@@ -36,12 +36,12 @@ export function ConnectPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (q.isPending) return <AuthFrame title={t.connectApp}><p className="state"><span className="spin" aria-hidden="true" />{t.checking}</p></AuthFrame>;
+  if (q.isPending) return <AuthFrame title={t.connectApp}><p className="state"><span className="spin" aria-hidden="true" />{app.words.checkingTheRequest}</p></AuthFrame>;
   if (q.isError) {
     return (
       <AuthFrame title={t.linkBroken}>
         <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p>
-        <p className="fine">{t.nothingConnected}<a className="link" href="/">{t.goToPurss}</a></p>
+        <p className="fine">{app.words.nothingWasConnectedSpaced}<a className="link" href="/">{app.words.goToYourPurss}</a></p>
       </AuthFrame>
     );
   }
@@ -63,13 +63,13 @@ export function ConnectPage() {
     if (req.declineUrl) window.location.assign(req.declineUrl);
   }
 
-  if (phase.kind === "sent") return <AuthFrame title={t.connected}><p className="hint" role="status">{t.returnToApp}</p></AuthFrame>;
-  if (phase.kind === "declined") return <AuthFrame title={t.notConnected}><p className="hint" role="status">{t.nothingConnectedClose}</p></AuthFrame>;
+  if (phase.kind === "sent") return <AuthFrame title={app.words.connected}><p className="hint" role="status">{t.returnToApp}</p></AuthFrame>;
+  if (phase.kind === "declined") return <AuthFrame title={app.words.notConnected}><p className="hint" role="status">{app.words.nothingWasConnectedYouCanClose}</p></AuthFrame>;
   if (phase.kind === "code") {
     return (
       <AuthFrame title={t.typeCode}>
         <div style={{ display: "grid", gap: 14 }} role="status">
-          <div className="fx-link"><code className="fx-url" style={{ fontSize: 22, letterSpacing: "0.08em" }}>{phase.code}</code><CopyButton value={phase.code} what={t.codeWhat} /></div>
+          <div className="fx-link"><code className="fx-url" style={{ fontSize: 22, letterSpacing: "0.08em" }}>{phase.code}</code><CopyButton value={phase.code} what={app.words.code} /></div>
           <p className="hint">{t.codeWorksOnce(phase.minutes)}</p>
           <Note tone="warn" icon="lock">{t.dontShare}</Note>
         </div>
@@ -86,8 +86,8 @@ export function ConnectPage() {
         <ul className="seclist">
           <li><Icon name={req.client === "extension" ? "ext" : "link"} /><span className="tx"><b>{KIND_LABEL[req.client]}</b><small>{req.redirect ? req.redirect.label : t.getCode}</small></span></li>
         </ul>
-        <p className="fine"><b>{t.ableTo}</b> {CAN_DO[req.client]}</p>
-        <Field label={t.nameLabel} htmlFor="cn-name">
+        <p className="fine"><b>{app.words.itWillBeAbleTo}</b> {CAN_DO[req.client]}</p>
+        <Field label={app.words.nameSoYouRecogniseItLater} htmlFor="cn-name">
           <TextInput id="cn-name" value={deviceName} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" />
         </Field>
         <p className="fine">{t.disconnectAnyTime}</p>

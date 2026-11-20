@@ -40,9 +40,9 @@ export function RenameSourceDialog({ id }: { id: string }) {
   }
   return (
     <Dialog title={t.rename.title} size="sm" onClose={ov.close} initialFocus="#rn-title"
-      footer={<><Button onClick={ov.close}>{t.rename.cancel}</Button><Button variant="primary" type="submit" form="rn-form" disabled={busy || !title.trim()}>{t.rename.save}</Button></>}>
+      footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" type="submit" form="rn-form" disabled={busy || !title.trim()}>{app.words.save}</Button></>}>
       <form id="rn-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-        <Field label={t.rename.name} htmlFor="rn-title" hint={t.rename.hint}>
+        <Field label={app.words.name} htmlFor="rn-title" hint={app.words.onlyYouSeeIt}>
           <TextInput id="rn-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} autoComplete="off" />
         </Field>
       </form>
@@ -79,7 +79,7 @@ export function MoveSourceDialog({ id }: { id: string }) {
   }
 
   return (
-    <Dialog title={t.move.title} size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>{t.move.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{t.move.save}</Button></>}>
+    <Dialog title={t.move.title} size="sm" onClose={ov.close} footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{app.words.save}</Button></>}>
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}><Avatar hue={s.hue} initials={s.initials} src={s.iconUrl} size={20} /> {s.title}</legend>
         {options.length ? (
           <div className="radiolist">
@@ -89,7 +89,7 @@ export function MoveSourceDialog({ id }: { id: string }) {
                 <label key={c.id} className="rl">
                   <input type="checkbox" checked={on} onChange={(e) => setIds(e.target.checked ? [...ids, c.id] : ids.filter((x) => x !== c.id))} />
                   <span className="cb" aria-hidden="true"><Icon name="check" /></span><span>{c.name}</span>
-                  {s.collectionIds.includes(c.id) ? <span className="where">{t.move.current}</span> : null}
+                  {s.collectionIds.includes(c.id) ? <span className="where">{app.words.current}</span> : null}
                 </label>
               );
             })}
@@ -122,13 +122,13 @@ export function UnfollowDialog({ id }: { id: string }) {
       refreshWorkspace(qc);
       ov.close();
       nav.go(s.collectionIds[0] ? { t: "c", id: s.collectionIds[0] } : { t: "home" });
-      toast(`${t.unfollow.unfollowed(isolate(s.title))}${out.deletedItems ? t.unfollow.deletedUnkept(plural(out.deletedItems, t.unfollow.item)) : ""}${out.keptItems ? t.unfollow.keptStay(plural(out.keptItems, t.unfollow.keptItem)) : ""}`);
+      toast(`${t.unfollow.unfollowed(isolate(s.title))}${out.deletedItems ? t.unfollow.deletedUnkept(plural(out.deletedItems, app.words.item)) : ""}${out.keptItems ? t.unfollow.keptStay(plural(out.keptItems, app.words.keptItem)) : ""}`);
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
 
   return (
     <Dialog title={t.unfollow.title(isolate(s.title))} size="sm" onClose={ov.close} initialFocus=".dlg-f .btn"
-      footer={<><Button onClick={ov.close}>{t.unfollow.cancel}</Button><Button variant="danger" disabled={busy} onClick={go}>{t.unfollow.unfollow}</Button></>}>
+      footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="danger" disabled={busy} onClick={go}>{t.unfollow.unfollow}</Button></>}>
       <p className="hint">{t.unfollow.hint}</p>
       <Check checked={deleteUnkept} onChange={setDeleteUnkept} hint={t.unfollow.deleteHint}>{t.unfollow.alsoDelete}</Check>
       <p className="fine">{t.unfollow.followAgain}</p>

@@ -32,7 +32,7 @@ function AppUpdate({ app, update }: { app: DesktopApp; update: DesktopUpdate }) 
   if (update.state === "none") return null;
   return (
     <section className="field" aria-labelledby="dv-app">
-      <div className="lbl" id="dv-app">{t.updateTitle}</div>
+      <div className="lbl" id="dv-app">{copy.words.newVersionOfTheApp}</div>
       {update.state === "downloading" ? <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.downloading(update.version)}</p> : null}
       {update.state === "ready" ? <>
         <p className="fine">{t.ready(update.version)}</p>

@@ -125,7 +125,7 @@ export function embedFor(url: string | null | undefined, page: { protocol: strin
   if (od) return { src: od, platform: app.lib.embeds.platform.odysee };
   if (!page || (page.protocol !== "https:" && page.protocol !== "http:")) return null;
   const yt = youtube(u);
-  if (yt) return { src: yt, platform: app.lib.embeds.platform.youtube };
+  if (yt) return { src: yt, platform: "YouTube" };
   const vm = vimeo(u);
   if (vm) return { src: vm, platform: app.lib.embeds.platform.vimeo };
   const dm = dailymotion(u);

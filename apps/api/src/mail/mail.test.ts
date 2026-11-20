@@ -185,7 +185,7 @@ test("self-hosted with a mail server: an account confirms its address and resets
 
   await b.req("POST", "/api/password-reset", null, { email: address.toUpperCase() });
   await settleMail(b.app);
-  assert.equal(mail.sent.at(-1)!.subject, mailTemplates.resetSubject);
+  assert.equal(mail.sent.at(-1)!.subject, server.words.resetYourPassword);
   const token = tokenIn(mail.sent.at(-1), "/app/reset-password");
   assert.equal((await b.req("POST", "/api/password-reset/confirm", null, { token, password: "a brand new password" })).status, 200);
   assert.equal(await checkPassword(b.app, address, "a brand new password"), user.accountId);
@@ -276,7 +276,7 @@ test("password reset: only to a confirmed address of an ordinary account with a 
   await b.req("POST", "/api/password-reset", null, { email: " Pat@Example.org " });
   await settleMail(b.app);
   assert.equal(mail.sent.length, 2);
-  assert.ok(mail.sent.every((m) => m.to === "pat@example.org" && m.subject === mailTemplates.resetSubject && m.text.includes(mailTemplates.resetIntro(NAME))));
+  assert.ok(mail.sent.every((m) => m.to === "pat@example.org" && m.subject === server.words.resetYourPassword && m.text.includes(mailTemplates.resetIntro(NAME))));
   const stale = tokenIn(mail.sent[0], "/app/reset-password");
   const token = tokenIn(mail.sent[1], "/app/reset-password");
 

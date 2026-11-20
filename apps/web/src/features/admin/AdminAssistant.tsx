@@ -35,7 +35,7 @@ export function AdminAssistantPanel() {
       {error ? <Note>{error}</Note> : null}
       <Check checked={d.enabled} disabled={busy} onChange={(on) => void set(on)}
         hint={t.switchHint}>{t.switchLabel}</Check>
-      <p className="fine">{t.usage(plural(d.accountsEnabled, t.account), plural(d.tokens, t.token), d.oauth ? plural(d.grants, t.connectedAssistant) : null)}</p>
+      <p className="fine">{t.usage(plural(d.accountsEnabled, app.words.accountLower), plural(d.tokens, t.token), d.oauth ? plural(d.grants, t.connectedAssistant) : null)}</p>
     </div>
   );
 }

@@ -31,9 +31,9 @@ function Gone({ place }: { place: StatsPlace }) {
   return (
     <div className="col narrow">
       <div className="empty card-like" style={{ marginTop: 40 }}>
-        <h2>{t.missing(place.t === "c" ? app.lib.nouns.collection : app.lib.nouns.source)}</h2>
-        <p>{t.removed}</p>
-        <Button onClick={() => nav.go({ t: "home" })}>{t.goHome}</Button>
+        <h2>{t.missing(place.t === "c" ? app.words.collectionLower : app.words.sourceLower)}</h2>
+        <p>{app.words.itMayHaveBeenRemoved}</p>
+        <Button onClick={() => nav.go({ t: "home" })}>{app.words.goToHome}</Button>
       </div>
     </div>
   );
@@ -46,7 +46,7 @@ function StatsHead({ place, title, asOf }: { place: StatsPlace; title: string; a
     <div className="phead">
       <h1>{title}</h1>
       <div className="psub">
-        <span className="tag">{t.statistics}</span>
+        <span className="tag">{app.words.statistics}</span>
         {asOf ? <span>{t.asOf}<time dateTime={asOf}>{shortDate(asOf, Date.now(), ws.prefs.timezone)}</time></span> : null}
         <button type="button" className="link" onClick={() => nav.goPath(pathFor(place))}><Icon name="back" size="sm" />{t.backToItems}</button>
       </div>
@@ -60,7 +60,7 @@ function Loading() {
 }
 
 function Failed({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  return <div className="empty card-like"><h2>{t.loadFailed}</h2><p>{messageOf(error)}</p><Button onClick={onRetry}>{t.tryAgain}</Button></div>;
+  return <div className="empty card-like"><h2>{t.loadFailed}</h2><p>{messageOf(error)}</p><Button onClick={onRetry}>{app.words.tryAgain}</Button></div>;
 }
 
 function Item({ label, sub, children }: { label: string; sub?: boolean; children: ReactNode }) {
@@ -74,7 +74,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 function SourceBody({ data }: { data: SourceStatsResponse }) {
   const ws = useWorkspace();
   const s = data.stats;
-  const when = (iso: string | null) => (iso ? <time dateTime={iso}>{shortDate(iso, Date.now(), ws.prefs.timezone)}</time> : t.none);
+  const when = (iso: string | null) => (iso ? <time dateTime={iso}>{shortDate(iso, Date.now(), ws.prefs.timezone)}</time> : "–");
   return (
     <div className="fx-stack">
       <section className="fx-sec">
@@ -87,8 +87,8 @@ function SourceBody({ data }: { data: SourceStatsResponse }) {
       <section className="fx-sec">
         <div className="fx-sec-h"><h2>{t.numbers}</h2></div>
         <div className="fx-sec-b stat-blocks">
-          <Block title={t.blockItems}>
-            <Item label={t.total}>{s.totalItems}</Item>
+          <Block title={app.words.items}>
+            <Item label={app.words.total}>{s.totalItems}</Item>
             <Item label={t.latestItem}>{when(s.lastItemAt)}</Item>
             <Item label={t.longestGap}>{gapLabel(s.longestGapDays)}</Item>
           </Block>
@@ -112,8 +112,8 @@ function SourceBody({ data }: { data: SourceStatsResponse }) {
 
 type Column = { key: StatsSortKey; label: string; numeric: boolean };
 const BASE_COLUMNS: readonly Column[] = [
-  { key: "name", label: t.columnSource, numeric: false },
-  { key: "items", label: t.columnItems, numeric: true },
+  { key: "name", label: app.words.source, numeric: false },
+  { key: "items", label: app.words.items, numeric: true },
   { key: "weekly", label: t.itemsPerWeek, numeric: false },
   { key: "last", label: t.latestItem, numeric: false },
   ...WORKFLOW_ORDER.map((w): Column => ({ key: w, label: WORKFLOW_LABELS[w], numeric: true })),
@@ -129,7 +129,7 @@ function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) 
     <>
       <td className="num">{total}</td>
       <td><span className="stat-week"><Sparkline weekly={stats.weekly} width={96} height={24} /><span className="num">{weeklyAverage(stats.weekly)}</span></span></td>
-      <td>{stats.lastItemAt ? <time dateTime={stats.lastItemAt}>{shortDate(stats.lastItemAt, Date.now(), ws.prefs.timezone)}</time> : t.none}</td>
+      <td>{stats.lastItemAt ? <time dateTime={stats.lastItemAt}>{shortDate(stats.lastItemAt, Date.now(), ws.prefs.timezone)}</time> : "–"}</td>
       {WORKFLOW_ORDER.map((w: WorkflowState) => <td key={w} className="num">{countWithShare(stats.workflow[w], total)}</td>)}
       <td className="num">{countWithShare(stats.opened, total)}</td>
       <td className="num">{countWithShare(stats.kept, total)}</td>
@@ -179,7 +179,7 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
           {rows.map((r) => <tr key={r.sourceId ?? "none"}><SourceCell row={r} /><Cells stats={r.stats} filtered={filtered} /></tr>)}
         </tbody>
         <tfoot>
-          <tr><th scope="row" className="stat-name">{t.totalSources}{plural(data.sources.length, app.lib.nouns.source)}</th><Cells stats={data.totals} filtered={filtered} /></tr>
+          <tr><th scope="row" className="stat-name">{t.totalSources}{plural(data.sources.length, app.words.sourceLower)}</th><Cells stats={data.totals} filtered={filtered} /></tr>
         </tfoot>
       </table>
     </div>

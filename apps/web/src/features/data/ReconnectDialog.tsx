@@ -42,7 +42,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
 
   return (
     <Dialog title={t.title(source.title)} size="md" onClose={onClose} initialFocus="#rc-url"
-      footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={!cand || busy} onClick={() => void reconnect()}>{t.reconnect}</Button></>}>
+      footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={!cand || busy} onClick={() => void reconnect()}>{t.reconnect}</Button></>}>
       <p className="hint">{t.hint}</p>
       <form className="field" onSubmit={(e) => void look(e)}>
         <label htmlFor="rc-url">{t.linkLabel}</label>
@@ -53,7 +53,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
         <p className="fine" id="rc-help">{t.stored}</p>
       </form>
       <div aria-live="polite" style={{ display: "grid", gap: 12 }}>
-        {looking ? <p className="state"><span className="spin" aria-hidden="true" />{t.looking}</p> : null}
+        {looking ? <p className="state"><span className="spin" aria-hidden="true" />{app.words.looking}</p> : null}
         {result && !result.ok ? <p className="state note" role="alert"><Icon name="info" /><span>{result.message}</span></p> : null}
         {cands.length ? (
           <div className="cands" role="radiogroup" aria-label="Feeds found">

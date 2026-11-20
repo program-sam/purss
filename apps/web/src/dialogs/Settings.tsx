@@ -76,7 +76,7 @@ function DisplayField() {
   return (
     <div className="field">
       <Check checked={mode === "eink"} onChange={(v) => setDisplayMode(v ? "eink" : "standard")}
-        hint={t.display.hint}>{t.display.label}</Check>
+        hint={t.display.hint}>{app.words.eInkDisplay}</Check>
     </div>
   );
 }
@@ -110,9 +110,9 @@ function GeneralTab() {
         </div></fieldset>
       <div className="field"><div className="lbl" id="dn2">{t.general.density}</div>
         <Segmented labelledBy="dn2" value={p.density} onChange={(v) => void save({ density: v })} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
-          options={[{ value: "comfortable", label: t.general.comfortable }, { value: "compact", label: t.general.compact }]} /></div>
+          options={[{ value: "comfortable", label: app.words.comfortable }, { value: "compact", label: app.words.compact }]} /></div>
       <section className="set-device" aria-labelledby="set-device-h">
-        <div><h3 id="set-device-h">{t.general.thisDevice}</h3><p className="fine">{t.general.savedHere}</p></div>
+        <div><h3 id="set-device-h">{app.words.thisDevice}</h3><p className="fine">{t.general.savedHere}</p></div>
         <DisplayField />
         <TextSizeField />
         <SoundsField />
@@ -126,17 +126,17 @@ function GeneralTab() {
       {session?.installation.mode === "hosted" ? (
         <div className="field" style={{ gap: 2 }}>
           <Check checked={p.discoveryShare} onChange={(v) => { void save({ discoveryShare: v }).then(() => qc.removeQueries({ queryKey: fkeys.suggestions })); }}
-            hint={t.general.shareHint}>{t.general.shareSources}</Check>
+            hint={app.words.purssCountsSourcesFollowedByPeople}>{app.words.shareMySources}</Check>
         </div>
       ) : null}
       <div className="field"><label htmlFor="tz">{t.general.timeZone}</label>
         <SelectInput id="tz" value={p.timezone} onChange={(e) => void save({ timezone: e.target.value })}>{zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}</SelectInput>
         <p className="fine">{t.general.timeZoneUse}{device && device !== p.timezone ? <button type="button" className="link" onClick={() => void save({ timezone: device })}>{t.general.useDevice(device.replace(/_/g, " "))}</button> : null}</p></div>
-      <div className="field"><div className="lbl" id="more-l">{t.general.more}</div>
+      <div className="field"><div className="lbl" id="more-l">{app.words.more}</div>
         <div role="group" aria-labelledby="more-l" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {hasPage("/settings/data") ? <Button onClick={() => go("/settings/data")}>{t.general.yourData}</Button> : null}
-          <Button onClick={() => go("/sharing")}>{t.general.sharing}</Button>
-          <Button onClick={() => ov.open({ kind: "shortcuts" })}>{t.general.shortcuts}</Button>
+          {hasPage("/settings/data") ? <Button onClick={() => go("/settings/data")}>{app.words.yourData}</Button> : null}
+          <Button onClick={() => go("/sharing")}>{app.words.sharing}</Button>
+          <Button onClick={() => ov.open({ kind: "shortcuts" })}>{app.words.keyboardShortcuts}</Button>
         </div>
       </div>
     </>
@@ -212,7 +212,7 @@ function SecurityTab() {
   }
 
   if (step.kind === "password") {
-    return <PasswordForm email={session?.account?.email ?? null} hasPassword={hadPassword} submitLabel={hadPassword ? t.security.saveNewPassword : t.security.addPassword} onDone={() => { refresh(); setStep({ kind: "main" }); toast(hadPassword ? t.security.passwordChanged : t.security.passwordAdded); }} onCancel={() => setStep({ kind: "main" })} />;
+    return <PasswordForm email={session?.account?.email ?? null} hasPassword={hadPassword} submitLabel={hadPassword ? app.words.saveNewPassword : t.security.addPassword} onDone={() => { refresh(); setStep({ kind: "main" }); toast(hadPassword ? t.security.passwordChanged : t.security.passwordAdded); }} onCancel={() => setStep({ kind: "main" })} />;
   }
   if (step.kind === "stepup") {
     const then = step.then;
@@ -221,7 +221,7 @@ function SecurityTab() {
         <p className="hint">{t.security.confirmItsYou}</p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         <StepUpOptions busy={busy} returnTo="/?dialog=security" confirm={(run) => void finishStepUp(() => run().then(() => undefined), then)} />
-        <div><button type="button" className="link" onClick={() => { setStep({ kind: "main" }); setError(""); }}>{t.security.cancel}</button></div>
+        <div><button type="button" className="link" onClick={() => { setStep({ kind: "main" }); setError(""); }}>{app.words.cancel}</button></div>
       </div>
     );
   }
@@ -233,17 +233,17 @@ function SecurityTab() {
   return (
     <>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      {sec.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.security.loading}</p> : null}
+      {sec.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{app.words.loading}</p> : null}
       {sec.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(sec.error)}</span></p> : null}
       {sec.data ? (
         <>
           <section className="field" aria-labelledby="sec-p">
-            <div className="lbl" id="sec-p">{t.security.password}</div>
+            <div className="lbl" id="sec-p">{app.words.password}</div>
             {password ? (
               <ul className="seclist">
                 <li>
                   <Icon name="user" />
-                  <span className="tx"><b>{t.security.password}</b><small>{session?.account?.email ? t.security.forEmail(session.account.email) : ""}{t.security.added(shortDate(password.createdAt, Date.now(), ws.prefs.timezone))}{password.lastUsedAt ? t.security.lastUsed(timeAgo(password.lastUsedAt)) : ""}</small></span>
+                  <span className="tx"><b>{app.words.password}</b><small>{session?.account?.email ? t.security.forEmail(session.account.email) : ""}{t.security.added(shortDate(password.createdAt, Date.now(), ws.prefs.timezone))}{password.lastUsedAt ? t.security.lastUsed(timeAgo(password.lastUsedAt)) : ""}</small></span>
                 </li>
               </ul>
             ) : null}
@@ -261,14 +261,14 @@ function SecurityTab() {
                   <li key={m.id}>
                     <Icon name="key" />
                     <span className="tx"><b>{methodLabel}</b><small>{customPasskeyLabel}{t.security.added(shortDate(m.createdAt, Date.now(), ws.prefs.timezone))}{m.lastUsedAt ? t.security.lastUsed(timeAgo(m.lastUsedAt)) : ""}</small></span>
-                    <Button onClick={() => void removeMethod(m)} aria-label={`Remove ${methodLabel.toLowerCase()}`}>{t.security.remove}</Button>
+                    <Button onClick={() => void removeMethod(m)} aria-label={`Remove ${methodLabel.toLowerCase()}`}>{app.words.remove}</Button>
                   </li>
                 );
               })}
               {!otherMethods.length ? <li><span className="tx"><small>{t.security.noLinked}</small></span></li> : null}
             </ul>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {passkeysAvailable() ? <Button disabled={busy} onClick={() => void addPasskey()}><Icon name="plus" size="sm" />{t.security.addPasskey}</Button> : null}
+              {passkeysAvailable() ? <Button disabled={busy} onClick={() => void addPasskey()}><Icon name="plus" size="sm" />{app.words.addAPasskey}</Button> : null}
               {providers.map((p) => <Button key={p.id} onClick={() => void linkProvider(p)}>{t.security.link(p.label)}</Button>)}
             </div>
           </section>
@@ -283,7 +283,7 @@ function SecurityTab() {
                 <li key={s.id}>
                   <Icon name="user" />
                   <span className="tx"><b>{shortDevice(s.device)}{s.current ? t.security.thisDevice : ""}</b><small>{t.security.signedIn(shortDate(s.createdAt, Date.now(), ws.prefs.timezone), methodName(s.method), timeAgo(s.lastSeenAt) || t.security.now)}{s.sessionClass === "shared" ? t.security.sharedComputer : ""}</small></span>
-                  {s.current ? null : <Button onClick={() => void revoke(s.id)}>{t.security.signOut}</Button>}
+                  {s.current ? null : <Button onClick={() => void revoke(s.id)}>{app.words.signOut}</Button>}
                 </li>
               ))}
             </ul>
@@ -329,13 +329,13 @@ export function SettingsDialog({ tab: initial }: { tab?: Tab }) {
   // The apps have everything the browser has, plus their own device settings.
   const options: { value: Tab; label: string }[] = [
     { value: "general", label: t.dialog.tabs.general }, { value: "notifications", label: t.dialog.tabs.notifications },
-    ...(platform.connection ? [{ value: "device" as const, label: t.dialog.tabs.device }] : []),
-    { value: "security", label: t.dialog.tabs.security }, { value: "apps", label: t.dialog.tabs.apps }, { value: "assistants", label: t.dialog.tabs.assistants },
-    ...(hosted ? [{ value: "plan" as const, label: t.dialog.tabs.plan }] : []), { value: "account", label: t.dialog.tabs.account },
+    ...(platform.connection ? [{ value: "device" as const, label: app.words.thisDevice }] : []),
+    { value: "security", label: t.dialog.tabs.security }, { value: "apps", label: t.dialog.tabs.apps }, { value: "assistants", label: app.words.assistants },
+    ...(hosted ? [{ value: "plan" as const, label: app.words.plan }] : []), { value: "account", label: app.words.account },
   ];
   const [tab, setTab] = useState<Tab>(initial && options.some((o) => o.value === initial) ? initial : "general");
   return (
-    <Dialog title={t.dialog.title} size="lg" onClose={ov.close} initialFocus="dialog" footer={<><VersionNote /><Button variant="primary" onClick={ov.close}>{t.dialog.done}</Button></>}>
+    <Dialog title={app.words.settings} size="lg" onClose={ov.close} initialFocus="dialog" footer={<><VersionNote /><Button variant="primary" onClick={ov.close}>{app.words.done}</Button></>}>
       <div className="dlg-tabs"><Segmented label="Settings section" value={tab} onChange={setTab} buttonStyle={{ height: 30, padding: "0 14px" }} options={options} /></div>
       {tab === "general" ? <GeneralTab /> : tab === "notifications" ? <NotificationSettings /> : tab === "security" ? <SecurityTab /> : tab === "apps" ? <ConnectedApps onOpen={setTab} /> : tab === "device" ? <DeviceTab /> : tab === "assistants" ? <AssistantSettings /> : tab === "plan" ? <PlanTab /> : <DeleteAccountSection />}
     </Dialog>

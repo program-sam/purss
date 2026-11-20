@@ -14,7 +14,7 @@ import { FollowButton } from "./FollowButton.tsx";
 const t = app.connect.connectedApps;
 
 const devicesKey = ["connected-apps"] as const;
-export const KIND_LABEL: Record<ConnectClientKind, string> = { mobile: t.mobile, extension: t.extension };
+export const KIND_LABEL: Record<ConnectClientKind, string> = { mobile: t.mobile, extension: app.words.browserExtension };
 
 /**
  * Settings → Connected apps: where to get the apps and extensions, the ones connected to this account
@@ -44,8 +44,8 @@ export function ConnectedApps({ onOpen }: { onOpen: (tab: "general" | "assistant
       <p className="hint">{t.hint}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <section className="field" aria-labelledby="ca-l">
-        <div className="lbl" id="ca-l">{t.connected}</div>
-        {q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.loading}</p>
+        <div className="lbl" id="ca-l">{app.words.connected}</div>
+        {q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{app.words.loading}</p>
           : q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : (
             <ul className="seclist">
               {q.data.map((d) => (
@@ -53,9 +53,9 @@ export function ConnectedApps({ onOpen }: { onOpen: (tab: "general" | "assistant
                   <Icon name={d.kind === "extension" ? "ext" : "link"} />
                   <span className="tx">
                     <b>{d.name}</b>
-                    <small>{t.summary(KIND_LABEL[d.kind], shortDate(d.createdAt, Date.now(), tz), timeAgo(d.lastUsedAt) || t.justNow)}</small>
+                    <small>{t.summary(KIND_LABEL[d.kind], shortDate(d.createdAt, Date.now(), tz), timeAgo(d.lastUsedAt) || app.words.justNow)}</small>
                   </span>
-                  <Button disabled={busy} onClick={() => void disconnect(d)} aria-label={`Disconnect ${d.name}`}>{t.disconnect}</Button>
+                  <Button disabled={busy} onClick={() => void disconnect(d)} aria-label={`Disconnect ${d.name}`}>{app.words.disconnect}</Button>
                 </li>
               ))}
               {!q.data.length ? <li><span className="tx"><small>{t.nothing}</small></span></li> : null}

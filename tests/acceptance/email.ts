@@ -41,7 +41,7 @@ const withAny = (message: (value: string) => string) => message("\u0000").split(
 /** The Subject line of a message, whatever product name it carries. */
 const subjectLine = (subject: string) => new RegExp(`^Subject: ${subject}`, "m");
 /** The sidebar's Add source button, or the tab bar's on a phone. */
-const ADD_SOURCE = new RegExp(`${esc(copy.shell.sidebar.addSource)}|${esc(copy.shell.tabBar.addSource)}`);
+const ADD_SOURCE = new RegExp(`${esc(copy.words.addSource)}|${esc(copy.words.addSource)}`);
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -82,13 +82,13 @@ async function mailTo(sink: SmtpSink, to: string, subject: RegExp, nth = 0): Pro
 /** A new account is asked once how it wants to be told about new things; this journey is about something else. */
 async function dismissFirstVisit(page: Page): Promise<void> {
   const first = page.getByRole("dialog", { name: question.title });
-  const later = page.getByRole("button", { name: question.notNow });
+  const later = page.getByRole("button", { name: copy.words.notNow });
   const add = page.getByRole("button", { name: ADD_SOURCE }).first();
   await later.or(add).first().waitFor();
   if (await later.isVisible()) {
-    const share = first.getByRole("checkbox", { name: new RegExp(esc(question.shareSources)) });
+    const share = first.getByRole("checkbox", { name: new RegExp(esc(copy.words.shareMySources)) });
     assert.equal(await share.isChecked(), true, "sharing starts checked on the hosted first question");
-    await first.getByText(question.shareHint, { exact: true }).waitFor();
+    await first.getByText(copy.words.purssCountsSourcesFollowedByPeople, { exact: true }).waitFor();
     await first.getByRole("radio", { name: new RegExp(`^${esc(never.label)}`) }).check();
     await first.getByText(question.digestOff, { exact: true }).waitFor();
     await share.uncheck();
@@ -127,20 +127,20 @@ async function main(sink: SmtpSink): Promise<void> {
 
     // Sign-up starts with the address alone; the account is made when the link in the email is used.
     await page.goto(`${origin}/app/signin`);
-    await page.getByRole("link", { name: auth.signIn.createAccount.link }).click();
-    await page.getByLabel(auth.signup.emailLabel).fill("robin@example.org");
-    await page.getByRole("button", { name: auth.signup.sendLink }).click();
+    await page.getByRole("link", { name: copy.words.createAnAccount }).click();
+    await page.getByLabel(copy.words.emailAddress).fill("robin@example.org");
+    await page.getByRole("button", { name: copy.words.sendMeTheLink }).click();
     await page.getByText(new RegExp(withAny(auth.signup.sentTo))).waitFor();
     const signupMail = await mailTo(sink, "robin@example.org", subjectLine(withAny(mails.signupSubject)));
     assert.equal(sentTo(sink, "robin@example.org").length, 1, "only the sign-up link was sent to the address");
     step("an address alone gets a link, and no account is made yet");
 
     await page.goto(linkIn(signupMail, "/app/signup"));
-    const address = page.getByLabel(auth.signup.emailLabel);
+    const address = page.getByLabel(copy.words.emailAddress);
     assert.equal(await address.inputValue(), "robin@example.org", "the page shows the address the link is for");
     assert.equal(await address.isEditable(), false, "and it can't be changed there");
-    await page.getByLabel(auth.signup.displayName).fill("Robin");
-    await page.getByLabel(auth.passwordForm.password, { exact: true }).fill("tidal flats at low water");
+    await page.getByLabel(copy.words.displayNameOptional).fill("Robin");
+    await page.getByLabel(copy.words.password, { exact: true }).fill("tidal flats at low water");
     await page.getByLabel(auth.passwordForm.passwordAgain).fill("tidal flats at low water");
     await page.getByRole("button", { name: auth.signup.create }).click();
     // Where the browser supports passkeys the account offers one; this journey is about the password.
@@ -152,7 +152,7 @@ async function main(sink: SmtpSink): Promise<void> {
     step("the link finished the account with a password, and Home opened");
 
     await page.goto(`${origin}/app/?dialog=settings`);
-    const notificationSettings = page.getByRole("dialog", { name: copy.dialogs.settings.dialog.title });
+    const notificationSettings = page.getByRole("dialog", { name: copy.words.settings });
     await notificationSettings.waitFor();
     await notificationSettings.getByRole("button", { name: copy.dialogs.settings.dialog.tabs.notifications }).click();
     const neverRadio = notificationSettings.getByRole("radio", { name: new RegExp(esc(never.label)) });
@@ -181,15 +181,15 @@ async function main(sink: SmtpSink): Promise<void> {
       const operatorPage = await operatorContext.newPage();
       currentPage = operatorPage;
       await operatorPage.goto(`${origin}/app/signin`);
-      await operatorPage.getByRole("textbox", { name: auth.signIn.emailLabel }).fill("operator@example.test");
-      await operatorPage.getByLabel(auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-      await operatorPage.getByRole("button", { name: auth.signIn.signIn, exact: true }).click();
+      await operatorPage.getByRole("textbox", { name: copy.words.emailAddress }).fill("operator@example.test");
+      await operatorPage.getByLabel(copy.words.password, { exact: true }).fill(TEST_PASSWORD);
+      await operatorPage.getByRole("button", { name: copy.words.signIn, exact: true }).click();
       const first = operatorPage.getByRole("dialog", { name: question.title });
-      const share = first.getByRole("checkbox", { name: new RegExp(esc(question.shareSources)) });
+      const share = first.getByRole("checkbox", { name: new RegExp(esc(copy.words.shareMySources)) });
       await share.waitFor();
       assert.equal(await share.isChecked(), true, "the hosted choice is checked before saving");
       await share.uncheck();
-      await first.getByRole("button", { name: question.save, exact: true }).click();
+      await first.getByRole("button", { name: copy.words.save, exact: true }).click();
       await first.waitFor({ state: "hidden" });
       const prefs = await operatorPage.evaluate(async () => (await (await fetch("/api/preferences")).json()).discoveryShare as boolean);
       assert.equal(prefs, false, "Save persists the unticked choice");
@@ -206,7 +206,7 @@ async function main(sink: SmtpSink): Promise<void> {
     // A new address takes over only once its link is used; the current one signs in until then.
     await page.getByRole("button", { name: emailSection.changeAddress }).click();
     await page.getByLabel(emailSection.newAddress.label).fill("robin@example.net");
-    await page.getByRole("button", { name: emailSection.newAddress.save, exact: true }).click();
+    await page.getByRole("button", { name: copy.words.save, exact: true }).click();
     await page.getByText(emailSection.waitingToConfirm("robin@example.net", "robin@example.org")).waitFor();
     const verifyMail = await mailTo(sink, "robin@example.net", subjectLine(esc(mails.confirmSubject)));
     await page.goto(linkIn(verifyMail, "/app/verify-email"));
@@ -223,10 +223,10 @@ async function main(sink: SmtpSink): Promise<void> {
     phone.on("pageerror", (e) => errors.push(e.message));
     await phone.goto(linkIn(signupMail, "/app/signup"));
     await phone.getByText(server.api.signup.linkSpent).waitFor();
-    await phone.getByRole("link", { name: auth.signup.startAgain }).click();
+    await phone.getByRole("link", { name: copy.words.startAgain }).click();
     // An address that already has an account gets the same page, and an email that says so.
-    await phone.getByLabel(auth.signup.emailLabel).fill("Robin@Example.net");
-    await phone.getByRole("button", { name: auth.signup.sendLink }).click();
+    await phone.getByLabel(copy.words.emailAddress).fill("Robin@Example.net");
+    await phone.getByRole("button", { name: copy.words.sendMeTheLink }).click();
     await phone.getByText(new RegExp(withAny(auth.signup.sentTo))).waitFor();
     // The mail server is told the address as typed, but for the case of its domain.
     const exists = await mailTo(sink, "Robin@example.net", subjectLine(withAny(mails.existsSubject)));
@@ -236,20 +236,20 @@ async function main(sink: SmtpSink): Promise<void> {
     // The password is forgotten.
     await phone.goto(`${origin}/app/signin`);
     await phone.getByRole("link", { name: auth.signIn.reset.link }).click();
-    await phone.getByLabel(auth.emailLinks.reset.emailLabel).fill("someone-else@example.org");
+    await phone.getByLabel(copy.words.emailAddress).fill("someone-else@example.org");
     await phone.getByRole("button", { name: auth.emailLinks.reset.sendLink }).click();
     await phone.getByText(auth.emailLinks.reset.sent).waitFor();
     await phone.goto(`${origin}/app/reset-password`);
-    await phone.getByLabel(auth.emailLinks.reset.emailLabel).fill("Robin@Example.net");
+    await phone.getByLabel(copy.words.emailAddress).fill("Robin@Example.net");
     await phone.getByRole("button", { name: auth.emailLinks.reset.sendLink }).click();
     await phone.getByText(auth.emailLinks.reset.sent).waitFor();
-    const reset = await mailTo(sink, "robin@example.net", subjectLine(esc(mails.resetSubject)));
+    const reset = await mailTo(sink, "robin@example.net", subjectLine(esc(server.words.resetYourPassword)));
     assert.equal(sentTo(sink, "someone-else@example.org").length, 0, "an unknown address got nothing, and the same answer");
     assert.match(textOf(reset), new RegExp(withAny(mails.resetIntro)));
     await phone.goto(linkIn(reset, "/app/reset-password"));
-    await phone.getByLabel(auth.emailLinks.reset.newPasswordLabel, { exact: true }).fill("salt marsh in winter light");
-    await phone.getByLabel(auth.emailLinks.reset.newPasswordAgainLabel).fill("salt marsh in winter light");
-    await phone.getByRole("button", { name: auth.emailLinks.reset.saveNewPassword }).click();
+    await phone.getByLabel(copy.words.newPassword, { exact: true }).fill("salt marsh in winter light");
+    await phone.getByLabel(copy.words.newPasswordAgain).fill("salt marsh in winter light");
+    await phone.getByRole("button", { name: copy.words.saveNewPassword }).click();
     await phone.getByText(auth.emailLinks.reset.changed).waitFor();
     await mailTo(sink, "robin@example.net", subjectLine(esc(mails.changedSubject)));
     step("a reset link by email set a new password, and the address was told");
@@ -258,13 +258,13 @@ async function main(sink: SmtpSink): Promise<void> {
     await page.waitForURL(/\/signin/);
     step("the browser signed in before the reset was signed out");
 
-    await phone.getByRole("link", { name: auth.emailLinks.reset.signIn }).click();
-    await phone.getByRole("textbox", { name: auth.signIn.emailLabel }).fill("robin@example.net");
-    await phone.getByLabel(auth.signIn.passwordLabel, { exact: true }).fill("tidal flats at low water");
-    await phone.getByRole("button", { name: auth.signIn.signIn, exact: true }).click();
+    await phone.getByRole("link", { name: copy.words.signIn }).click();
+    await phone.getByRole("textbox", { name: copy.words.emailAddress }).fill("robin@example.net");
+    await phone.getByLabel(copy.words.password, { exact: true }).fill("tidal flats at low water");
+    await phone.getByRole("button", { name: copy.words.signIn, exact: true }).click();
     await phone.getByText(server.api.shared.badPassword).waitFor();
-    await phone.getByLabel(auth.signIn.passwordLabel, { exact: true }).fill("salt marsh in winter light");
-    await phone.getByRole("button", { name: auth.signIn.signIn, exact: true }).click();
+    await phone.getByLabel(copy.words.password, { exact: true }).fill("salt marsh in winter light");
+    await phone.getByRole("button", { name: copy.words.signIn, exact: true }).click();
     await phone.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     step("the old password no longer works; the new one does");
 

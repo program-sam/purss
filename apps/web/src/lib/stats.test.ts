@@ -29,7 +29,7 @@ test("average, label and gap are plain numbers", () => {
   assert.equal(weeklyAverage(weekly), 0.2);
   assert.equal(weeklyAverage([]), 0);
   assert.equal(sparklineLabel(weekly), t.sparkline(26, weekly.join(", "), 0.2));
-  assert.deepEqual([gapLabel(null), gapLabel(1), gapLabel(56), gapLabel(0.4)], [t.noGap, t.gap(1), t.gap(56), t.gap(0.4)]);
+  assert.deepEqual([gapLabel(null), gapLabel(1), gapLabel(56), gapLabel(0.4)], ["–", t.gap(1), t.gap(56), t.gap(0.4)]);
 });
 
 test("rows sort by the chosen column and fall back to the name on ties", () => {

@@ -6,7 +6,7 @@ const copy = app.admin.adminModel;
 
 /** "under a minute", "5 min", "3 h", "2 days": how long ago, with no false precision. */
 export function durationLabel(seconds: number | null): string {
-  if (seconds === null) return copy.unknown;
+  if (seconds === null) return app.words.unknown;
   if (seconds < 60) return copy.underAMinute;
   if (seconds < 3600) return copy.minutes(Math.round(seconds / 60));
   if (seconds < 86_400) return copy.hours(Math.round(seconds / 3600));
@@ -16,7 +16,7 @@ export function durationLabel(seconds: number | null): string {
 
 /** A number of bytes, or the honest word when it couldn't be measured. */
 export function bytesOrUnknown(n: number | null): string {
-  return n === null ? copy.unknown : bytesLabel(n);
+  return n === null ? app.words.unknown : bytesLabel(n);
 }
 
 export const ENGINE_LABEL: Record<string, string> = copy.engine;

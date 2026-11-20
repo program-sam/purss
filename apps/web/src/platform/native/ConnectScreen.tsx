@@ -139,7 +139,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     const failed = (message: string) => { setError(message); setPhase(typed ? { kind: "address" } : { kind: "unreachable", origin: n.origin }); };
     try {
       const out = await getJson(`${n.origin}/api/connect/info`);
-      const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? t.notAPurss : t.didntAnswer };
+      const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? app.words.thatAddressAnswersButItIsn : t.didntAnswer };
       if (!checked.ok) { failed(checked.message); return; }
       localStorage.setItem(ADDRESS_KEY, n.origin);
       const ws: Workspace = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info), providers: providersOffered(checked.info) };
@@ -262,14 +262,14 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   const officialHost = officialOrigin ? new URL(officialOrigin).host : "";
   const serverLine = (origin: string) => (
     <p className="fine">
-      {t.serverLine.before}{origin.replace(/^https?:\/\//, "")}{t.serverLine.between}<button type="button" className="link" onClick={() => chooseServer(true)}>{t.serverLine.link}</button>
+      {app.words.connectedToSpaced}{origin.replace(/^https?:\/\//, "")}{" · "}<button type="button" className="link" onClick={() => chooseServer(true)}>{t.serverLine.link}</button>
     </p>
   );
 
   return (
     <>
       <IconSprite />
-      <AuthFrame title={phase.kind === "signin" ? t.titles.signIn : phase.kind === "signup" ? t.titles.createAccount : t.titles.connect}
+      <AuthFrame title={phase.kind === "signin" ? app.words.signIn : phase.kind === "signup" ? app.words.createYourAccount : t.titles.connect}
         intro={phase.kind === "address" || phase.kind === "checking" ? t.addressIntro : undefined}>
         <div style={{ display: "grid", gap: 14 }}>
           {notice ? <p className="state note" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
@@ -280,14 +280,14 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
                 <TextInput id="cn-a" type="url" inputMode="url" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="url" spellCheck={false} autoCapitalize="none" placeholder={t.address.placeholder} />
               </Field>
               {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
-              <div><Button variant="primary" type="submit" disabled={phase.kind === "checking" || !address.trim()}>{phase.kind === "checking" ? t.address.checking : t.address.continue}</Button></div>
+              <div><Button variant="primary" type="submit" disabled={phase.kind === "checking" || !address.trim()}>{phase.kind === "checking" ? app.words.checking : app.words.continue}</Button></div>
               {officialOrigin ? <p className="fine"><button type="button" className="link" disabled={phase.kind === "checking"} onClick={() => chooseServer(false)}>{t.address.useOfficial(officialHost)}</button></p> : null}
             </form>
           ) : phase.kind === "opening" ? (
             <p className="state" role="status"><span className="spin" aria-hidden="true" />{t.opening}</p>
           ) : phase.kind === "unreachable" ? (
             <div style={{ display: "grid", gap: 12 }}>
-              <div><Button variant="primary" onClick={() => void open(phase.origin)}>{t.tryAgain}</Button></div>
+              <div><Button variant="primary" onClick={() => void open(phase.origin)}>{app.words.tryAgain}</Button></div>
               {serverLine(phase.origin)}
             </div>
           ) : phase.kind === "signin" ? (
@@ -307,7 +307,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
               <p className="fine">{t.waiting.steps}</p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {phase.page ? <Button onClick={() => void shell.openBrowser(phase.page)}>{t.waiting.openAgain}</Button> : null}
-                <Button onClick={cancel}>{t.waiting.startAgain}</Button>
+                <Button onClick={cancel}>{app.words.startAgain}</Button>
               </div>
             </div>
           ) : (
@@ -355,8 +355,8 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
         <p className="state" role="status"><Icon name="check" /><span>{t.signupForm.sentTo(sent)}</span></p>
         <p className="fine">{t.signupForm.openLink}</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={onBack}>{t.signupForm.backToSigningIn}</Button>
-          <Button onClick={() => setSent(null)}>{t.signupForm.useDifferentEmail}</Button>
+          <Button variant="primary" onClick={onBack}>{app.words.backToSigningIn}</Button>
+          <Button onClick={() => setSent(null)}>{app.words.useADifferentEmailAddress}</Button>
         </div>
       </div>
     );
@@ -371,11 +371,11 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
         </>
       ) : null}
       {withInvite ? (
-        <Field label={t.signupForm.invitationCode} htmlFor="su-c" hint={t.signupForm.invitationHint}>
+        <Field label={app.words.invitationCode} htmlFor="su-c" hint={t.signupForm.invitationHint}>
           <TextInput id="su-c" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" maxLength={300} />
         </Field>
       ) : null}
-      <Field label={t.signupForm.emailLabel} htmlFor="su-e" hint={withInvite ? t.signupForm.invitedEmailHint : t.signupForm.linkEmailHint}>
+      <Field label={app.words.emailAddress} htmlFor="su-e" hint={withInvite ? app.words.theOneYouWereInvitedWith : t.signupForm.linkEmailHint}>
         <TextInput id="su-e" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={withInvite ? "username" : "email"} spellCheck={false} autoCapitalize="none" maxLength={254} />
       </Field>
       {start !== null ? <p className="fine"><button type="button" className="link" onClick={() => setWithInvite(!withInvite)}>{withInvite ? t.signupForm.withEmailInstead : t.signupForm.haveInvitation}</button></p> : null}
@@ -384,14 +384,14 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
           <Field label={t.signupForm.nameLabel} htmlFor="su-n">
             <TextInput id="su-n" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={60} />
           </Field>
-          <Field label={t.signupForm.passwordLabel} htmlFor="su-p" hint={t.signupForm.minCharacters(passwordMin)}>
+          <Field label={app.words.password} htmlFor="su-p" hint={t.signupForm.minCharacters(passwordMin)}>
             <TextInput id="su-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={256} />
           </Field>
         </>
       ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? t.signupForm.creating : t.signupForm.createAccount) : busy ? t.signupForm.sending : t.signupForm.sendLink}</Button>
-        <Button onClick={onBack} disabled={busy}>{t.signupForm.back}</Button>
+        <Button variant="primary" type="submit" disabled={!ready || busy}>{withInvite ? (busy ? t.signupForm.creating : t.signupForm.createAccount) : busy ? app.words.sending : app.words.sendMeTheLink}</Button>
+        <Button onClick={onBack} disabled={busy}>{app.words.back}</Button>
       </div>
       {withInvite ? <p className="fine">{t.signupForm.passkeyLater}</p> : null}
     </form>
@@ -444,8 +444,8 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         <p className="state note" role="status"><Icon name="alert" /><span>{t.signinForm.deletionDue(new Date(keep.dueAt).toLocaleDateString())}</span></p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" disabled={busy} onClick={() => void keepAccount()}>{busy ? t.signinForm.keeping : t.signinForm.keepAccount}</Button>
-          <Button disabled={busy} onClick={() => { setKeep(null); setPassword(""); }}>{t.signinForm.notNow}</Button>
+          <Button variant="primary" disabled={busy} onClick={() => void keepAccount()}>{busy ? t.signinForm.keeping : app.words.keepMyAccount}</Button>
+          <Button disabled={busy} onClick={() => { setKeep(null); setPassword(""); }}>{app.words.notNow}</Button>
         </div>
       </div>
     );
@@ -475,16 +475,16 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
       <form onSubmit={choosePassword} style={{ display: "grid", gap: 12 }} aria-label="Choose a new password">
         <p className="state" role="status"><Icon name="check" /><span>{t.signinForm.resetSent}</span></p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-        <Field label={t.signinForm.linkLabel} htmlFor="si-l" hint={t.signinForm.linkHint}>
+        <Field label={t.signinForm.linkLabel} htmlFor="si-l" hint={app.words.pasteItFromTheEmail}>
           <TextInput id="si-l" value={link} onChange={(e) => setLink(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="none" inputMode="url" />
         </Field>
-        {link && !token ? <p className="fine" role="alert">{t.signinForm.notTheLink}</p> : null}
-        <Field label={t.signinForm.newPassword} htmlFor="si-np" hint={ws.signup ? t.signinForm.minCharacters(ws.signup.passwordMin) : undefined}>
+        {link && !token ? <p className="fine" role="alert">{app.words.thatIsnTTheLinkFrom}</p> : null}
+        <Field label={app.words.newPassword} htmlFor="si-np" hint={ws.signup ? t.signinForm.minCharacters(ws.signup.passwordMin) : undefined}>
           <TextInput id="si-np" type="password" value={newPassword} onChange={(e) => setNewPasswordText(e.target.value)} autoComplete="new-password" maxLength={256} />
         </Field>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" type="submit" disabled={!token || !newPassword || busy}>{busy ? t.signinForm.saving : t.signinForm.setNewPassword}</Button>
-          <Button onClick={() => go("password")} disabled={busy}>{t.signinForm.backToSigningIn}</Button>
+          <Button variant="primary" type="submit" disabled={!token || !newPassword || busy}>{busy ? app.words.saving : t.signinForm.setNewPassword}</Button>
+          <Button onClick={() => go("password")} disabled={busy}>{app.words.backToSigningIn}</Button>
         </div>
       </form>
     );
@@ -493,25 +493,25 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <p className="state" role="status"><Icon name="check" /><span>{t.signinForm.resetDone}</span></p>
-        <div><Button variant="primary" onClick={() => go("password")}>{t.signinForm.signIn}</Button></div>
+        <div><Button variant="primary" onClick={() => go("password")}>{app.words.signIn}</Button></div>
       </div>
     );
   }
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }} aria-label="Sign in">
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      <Field label={t.signinForm.emailLabel} htmlFor="si-u" hint={mode === "reset" ? t.signinForm.resetHint : undefined}>
+      <Field label={app.words.emailAddress} htmlFor="si-u" hint={mode === "reset" ? t.signinForm.resetHint : undefined}>
         <TextInput id="si-u" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" maxLength={300} />
       </Field>
       {mode === "password" ? (
-        <Field label={t.signinForm.passwordLabel} htmlFor="si-p">
+        <Field label={app.words.password} htmlFor="si-p">
           <TextInput id="si-p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={256} />
         </Field>
       ) : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? t.signinForm.sending : t.signinForm.signingIn) : mode === "reset" ? t.signinForm.sendLink : t.signinForm.signIn}</Button>
+        <Button variant="primary" type="submit" disabled={!ready || busy}>{busy ? (mode === "reset" ? app.words.sending : t.signinForm.signingIn) : mode === "reset" ? t.signinForm.sendLink : app.words.signIn}</Button>
       </div>
-      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />{t.signinForm.withPasskey}</Button></div> : null}
+      {ws.passkeys && mode !== "reset" ? <div><Button disabled={busy} onClick={() => void passkey()}><Icon name="key" />{app.words.signInWithAPasskey}</Button></div> : null}
       {mode !== "reset" ? providers.map((p) => <ProviderButton key={p.id} provider={p} disabled={busy} onClick={() => onProvider(p)} />) : null}
       <p className="fine" style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap" }}>
         {mode !== "password" ? <button type="button" className="link" onClick={() => go("password")}>{t.signinForm.useEmailAndPassword}</button> : null}
@@ -519,7 +519,7 @@ function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLa
         {mode === "reset" ? <button type="button" className="link" onClick={() => go("reset-sent")}>{t.signinForm.haveLink}</button> : null}
         <button type="button" className="link" onClick={onBrowser}>{browserLabel}</button>
       </p>
-      {onSignup ? <p className="fine">{t.signinForm.newHere.before}<button type="button" className="link" onClick={onSignup}>{t.signinForm.newHere.link}</button></p> : null}
+      {onSignup ? <p className="fine">{app.words.newHereSpaced}<button type="button" className="link" onClick={onSignup}>{app.words.createAnAccount}</button></p> : null}
       {server}
     </form>
   );

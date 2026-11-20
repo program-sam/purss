@@ -70,13 +70,13 @@ export function ItemPanel({ itemId }: { itemId: string }) {
     return (
       <>
         <div className="panel-bar">
-          <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{t.back}</span></button>
+          <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{app.words.back}</span></button>
           <span className="src" />
           <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
         </div>
         <div className="panel-body" id="panel-body">
           {detail.isError ? (
-            <div className="empty"><h2>{t.unavailable}</h2><p>{messageOf(detail.error)}</p><Button onClick={() => nav.openItem(undefined)}>{t.close}</Button></div>
+            <div className="empty"><h2>{t.unavailable}</h2><p>{messageOf(detail.error)}</p><Button onClick={() => nav.openItem(undefined)}>{app.words.close}</Button></div>
           ) : <LoadingBlocks label={t.loadingItem}><div className="skel" style={{ height: 24, width: "70%" }} /><div className="skel" style={{ height: 14, marginTop: 14 }} /><div className="skel" style={{ height: 14, width: "85%", marginTop: 14 }} /></LoadingBlocks>}
         </div>
       </>
@@ -190,7 +190,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
     </span>
   ) : (
     <button type="button" className={`mbtn st st-${item.workflow}`} aria-haspopup="menu" aria-label={status.aria} onClick={openStates}>
-      {keyed && status.keyed ? <span className="k">{t.state}</span> : null}{status.text}<Icon name="chev" size="sm" />
+      {keyed && status.keyed ? <span className="k">{app.words.state}</span> : null}{status.text}<Icon name="chev" size="sm" />
     </button>
   );
   // Only PURSS's own answer says a copy was kept; until then the panel says so, and never prints a date it does not have.
@@ -239,7 +239,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
   return (
     <>
       <div ref={barRef} className={`panel-bar${titled ? " titled" : ""}`}>
-        <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{t.back}</span></button>
+        <button type="button" className="ibtn back" aria-label="Back to list" onClick={() => nav.openItem(undefined)}><Icon name="back" /><span className="bl" aria-hidden="true">{app.words.back}</span></button>
         {source ? (
           <button type="button" className="src" aria-label={`Open source ${source.title}`} onClick={() => nav.go({ t: "s", id: source.id })}>
             <Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={26} /><span className="nm"><bdi>{source.title}</bdi></span>
@@ -251,13 +251,13 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <span className="pb-acts">
             {stateControl(false)}
             <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" aria-label={kept ? `Kept in ${keptName}. Change baskets` : "Keep in a basket"} onClick={(e) => menus.openKeep(item, e.currentTarget)}>
-              <Icon name="bookmark" /><span className="pb-kl">{kept ? t.kept : t.keep}</span></button>
+              <Icon name="bookmark" /><span className="pb-kl">{kept ? app.words.kept : app.words.keep}</span></button>
           </span>
         ) : null}
         <button type="button" className="ibtn" aria-haspopup="menu" aria-label="More for this item" onClick={(e) => popups.menu(e.currentTarget, [
             ...menus.linkEntries(item),
-            ...(detail?.renamable ? [{ label: t.rename, icon: "pencil" as const, onSelect: () => setRenaming(true) }] : []),
-          ], "More for this item")}><Icon name="more" /><span className="ml" aria-hidden="true">{t.more}</span></button>
+            ...(detail?.renamable ? [{ label: app.words.rename, icon: "pencil" as const, onSelect: () => setRenaming(true) }] : []),
+          ], "More for this item")}><Icon name="more" /><span className="ml" aria-hidden="true">{app.words.more}</span></button>
         <IconButton label="Close details" data-fk="close" onClick={() => nav.openItem(undefined)}><Icon name="x" /></IconButton>
       </div>
       {/* Under a page from another site the article keeps its place, hidden. */}
@@ -289,9 +289,9 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
         <div className="p-acts" role="group" aria-label="Item actions">
           {stateControl(true)}
           <button type="button" className={`mbtn${kept ? " kept-on" : ""}`} aria-haspopup="menu" onClick={(e) => menus.openKeep(item, e.currentTarget)}>
-            <Icon name="bookmark" />{kept ? <><span className="kin">{t.keptInLabel}</span><span className="k" dir="auto">{keptName}</span></> : t.keep}<Icon name="chev" size="sm" />
+            <Icon name="bookmark" />{kept ? <><span className="kin">{t.keptInLabel}</span><span className="k" dir="auto">{keptName}</span></> : app.words.keep}<Icon name="chev" size="sm" />
           </button>
-          {href ? <a className={`mbtn${item.media || detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? t.openOn(embed.platform) : original?.of === "show" ? t.openShowSite : video && play ? play.label : t.openOriginal}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
+          {href ? <a className={`mbtn${item.media || detail?.captures.some((c) => c.level === "fulltext" || c.level === "browser") || html && html.length > 1500 ? "" : " go"}`} href={href} target="_blank" rel="noopener noreferrer" data-inapp="">{embed ? t.openOn(embed.platform) : original?.of === "show" ? app.words.openTheShowSWebsite : video && play ? play.label : app.words.openOriginal}{originalHere ? null : <NewTab />}<Icon name="ext" size="sm" /></a> : null}
           {audioHref ? <a className="mbtn" href={audioHref} target="_blank" rel="noopener noreferrer">{t.openAudio}<NewTab /><Icon name="ext" size="sm" /></a> : null}
         </div>
         {kept ? <ItemReminder itemId={item.id} /> : null}
@@ -301,7 +301,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
           <p className="p-warn p-sum" role="note"><Icon name="info" /><span>{t.summaryOnly}</span></p>
         ) : null}
         {item.curatorNote ? <p className="p-quote"><b>{t.from(face.curator ?? t.curatorFallback)}</b>{item.curatorNote}</p> : null}
-        {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>{t.needsLogin}</span></p> : null}
+        {source?.health === "login" ? <p className="p-warn"><Icon name="key" /><span>{app.words.fullTextNeedsALoginTitles}</span></p> : null}
         {media ? null : <Progress value={item.progress} />}
         {detail ? <DownloadSection item={detail} /> : null}
         {loading ? <><hr /><LoadingBlocks label={t.loadingText}><div className="skel" style={{ height: 14 }} /><div className="skel" style={{ height: 14, width: "90%", marginTop: 10 }} /><div className="skel" style={{ height: 14, width: "75%", marginTop: 10 }} /></LoadingBlocks></>
@@ -326,7 +326,7 @@ function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDe
             <ul className="caps" aria-label="What was kept">
               {detail.captures.map((c) => (
                 <li key={c.id} className="cap"><Icon name={c.level === "failed" ? "alert" : c.level === "pending" ? "clock" : "check"} size="sm" /><span>{c.label}{c.level === "browser" ? t.capturedOn(shortDate(c.createdAt, Date.now(), tz)) : ""}{c.note ? `. ${c.note}` : ""}<small> · <time dateTime={c.createdAt}>{dateTime(c.createdAt, tz)}</time></small>
-                  {(c.level === "failed" || c.level === "partial") && href ? <>{" "}<button type="button" className="link" onClick={() => void retryCapture()}>{t.tryAgain}</button></> : null}</span></li>
+                  {(c.level === "failed" || c.level === "partial") && href ? <>{" "}<button type="button" className="link" onClick={() => void retryCapture()}>{app.words.tryAgain}</button></> : null}</span></li>
               ))}
             </ul>
           ) : null}

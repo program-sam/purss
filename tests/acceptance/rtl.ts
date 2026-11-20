@@ -100,14 +100,14 @@ function prepare(): void {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
-  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: copy.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(copy.words.password, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.words.signIn, exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
-  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
+  const notNow = firstVisit.getByRole("button", { name: copy.words.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }
-  await page.getByRole("heading", { name: HOME.title }).waitFor();
+  await page.getByRole("heading", { name: copy.words.home }).waitFor();
 }
 
 async function main(): Promise<void> {

@@ -30,20 +30,20 @@ export function SetupPage({ mode = "setup", initialCode = "", initialEmail = "" 
       intro={mode === "setup"
         ? t.setupIntro
         : t.inviteIntro}
-      footer={<Button variant="primary" type="submit" form="setup-form" disabled={account.busy || !valid || !code.trim() || !email.trim()}>{account.busy ? t.checking : t.continue}</Button>}
+      footer={<Button variant="primary" type="submit" form="setup-form" disabled={account.busy || !valid || !code.trim() || !email.trim()}>{account.busy ? app.words.checking : app.words.continue}</Button>}
     >
       <form id="setup-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
-        <Field label={mode === "setup" ? t.setupCode : t.invitationCode} htmlFor="auth-code">
+        <Field label={mode === "setup" ? t.setupCode : app.words.invitationCode} htmlFor="auth-code">
           <TextInput id="auth-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} autoFocus={!initialCode} aria-invalid={!!account.error} aria-describedby={account.error ? "auth-error" : undefined} />
         </Field>
-        <Field label={t.emailLabel} htmlFor="auth-email" hint={mode === "setup" ? undefined : t.invitedEmailHint}>
+        <Field label={app.words.emailAddress} htmlFor="auth-email" hint={mode === "setup" ? undefined : app.words.theOneYouWereInvitedWith}>
           <TextInput id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" spellCheck={false} autoCapitalize="none" autoFocus={!!initialCode && !initialEmail} maxLength={254} />
         </Field>
-        <Field label={t.displayName} htmlFor="auth-name">
+        <Field label={app.words.displayNameOptional} htmlFor="auth-name">
           <TextInput id="auth-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={60} />
         </Field>
         {fields}
-        <Check checked={sharedComputer} onChange={setSharedComputer} hint={t.sharedComputerHint}>{t.sharedComputer}</Check>
+        <Check checked={sharedComputer} onChange={setSharedComputer} hint={app.words.signsOutWhenTheBrowserCloses}>{app.words.thisIsASharedComputer}</Check>
         {account.error ? <p id="auth-error" className="state note" role="alert">{account.error}</p> : null}
       </form>
     </AuthFrame>

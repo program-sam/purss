@@ -35,7 +35,7 @@ export function ActivityPanel({ onClose }: { onClose: () => void }) {
   const now = useNow(30_000);
   const tz = ws.prefs.timezone;
   const a: ActivityDTO | undefined = q.data;
-  if (!a) return <div className="act-pop"><p className="fine">{q.isError ? t.loadFailed : t.loading}</p></div>;
+  if (!a) return <div className="act-pop"><p className="fine">{q.isError ? t.loadFailed : app.words.loading}</p></div>;
   const line = activityLine(a, { now, timeZone: tz });
   const next = nextCheckLine(a, now, tz);
   const open = (id: string) => { onClose(); nav.go({ t: "s", id }); };
@@ -69,7 +69,7 @@ export function ActivityIndicator({ rail = false }: { rail?: boolean }) {
   const now = useNow(30_000);
   if (!ws.data.sources.length) return null;
   const line = q.data ? activityLine(q.data, { now, timeZone: ws.prefs.timezone }) : null;
-  const text = line?.text ?? t.checking;
+  const text = line?.text ?? app.words.checking;
   const open = (anchor: HTMLElement) => popups.panel(anchor, t.title, (close) => <ActivityPanel onClose={() => close()} />, { up: true, className: "act-popup" });
   if (rail) {
     return (

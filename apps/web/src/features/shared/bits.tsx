@@ -33,7 +33,7 @@ export function Section({ title, hint, actions, children, id, tone }: { title: s
   );
 }
 
-export function Loading({ label = t.loading }: { label?: string }) {
+export function Loading({ label = app.words.loading }: { label?: string }) {
   return <p className="state" role="status"><span className="spin" aria-hidden="true" />{label}</p>;
 }
 
@@ -42,7 +42,7 @@ export function LoadFailed({ error, onRetry, what }: { error: unknown; onRetry: 
     <div className="empty card-like" role="alert">
       <h2>{t.loadFailedTitle(what)}</h2>
       <p>{messageOf(error)}</p>
-      <Button onClick={onRetry}>{t.tryAgain}</Button>
+      <Button onClick={onRetry}>{app.words.tryAgain}</Button>
     </div>
   );
 }

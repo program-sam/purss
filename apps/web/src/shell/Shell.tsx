@@ -63,7 +63,7 @@ export function Shell() {
         <div className="empty card-like" style={{ maxWidth: 440 }}>
           <h2>{t.loadFailed}</h2>
           <p>{messageOf(q.error)}</p>
-          <Button variant="primary" onClick={() => void q.refetch()}>{t.tryAgain}</Button>
+          <Button variant="primary" onClick={() => void q.refetch()}>{app.words.tryAgain}</Button>
         </div>
       </Splash>
     );
@@ -141,15 +141,15 @@ function ShellFrame() {
   // Page title: the open item first, then the page it sits on.
   const openItemTitle = useCachedItem(itemId)?.title;
   useEffect(() => {
-    let name: string = t.home;
-    if (place?.t === "c") name = ws.collectionById.get(place.id)?.name ?? t.collection;
-    else if (place?.t === "s") name = ws.sourceById.get(place.id)?.title ?? t.source;
-    else if (place?.t === "b") name = ws.basketById.get(place.id)?.name ?? t.basket;
+    let name: string = app.words.home;
+    if (place?.t === "c") name = ws.collectionById.get(place.id)?.name ?? app.words.collection;
+    else if (place?.t === "s") name = ws.sourceById.get(place.id)?.title ?? app.words.source;
+    else if (place?.t === "b") name = ws.basketById.get(place.id)?.name ?? app.words.basket;
     else if (place?.t === "r") name = TO_READ_TITLE;
     else if (!place) {
       const sp = statsPlaceOf(pathname);
-      if (sp) name = t.statistics(sp.t === "c" ? ws.collectionById.get(sp.id)?.name ?? t.collection : ws.sourceById.get(sp.id)?.title ?? t.source);
-      else name = pageFor(pathname)?.title ?? t.home;
+      if (sp) name = t.statistics(sp.t === "c" ? ws.collectionById.get(sp.id)?.name ?? app.words.collection : ws.sourceById.get(sp.id)?.title ?? app.words.source);
+      else name = pageFor(pathname)?.title ?? app.words.home;
     }
     document.title = t.documentTitle(openItemTitle, name);
   }, [place, pathname, ws, openItemTitle]);

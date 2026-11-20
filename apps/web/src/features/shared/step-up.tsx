@@ -53,7 +53,7 @@ export function StepUpDialog({ onDone, onCancel, returnTo }: { onDone: () => voi
   }
   return (
     <Dialog title={t.dialogTitle} size="sm" onClose={onCancel} initialFocus="#su-pw, #su-first"
-      footer={<Button onClick={onCancel}>{t.cancel}</Button>}>
+      footer={<Button onClick={onCancel}>{app.words.cancel}</Button>}>
       <p className="hint">{t.hint}</p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       <StepUpOptions busy={busy} confirm={(run) => void confirm(run)} returnTo={returnTo} />

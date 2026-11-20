@@ -97,7 +97,7 @@ export function failureText(err: unknown): string {
   }
   const status = (err as { status?: unknown })?.status;
   if (status === 404) return t.itemGone;
-  if ((err as { code?: unknown })?.code === "offline") return t.cantReachPurss;
+  if ((err as { code?: unknown })?.code === "offline") return app.words.canTReachPurssRightNow;
   return t.didntFinish;
 }
 

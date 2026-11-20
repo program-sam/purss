@@ -24,7 +24,7 @@ function Area({ title, state, children }: { title: string; state?: { ok: boolean
 
 /** A time as "3 days ago", with the exact time on hover. */
 function When({ iso }: { iso: string }) {
-  return <time dateTime={iso} title={dateTime(iso)}>{timeAgo(iso) || t.justNow}</time>;
+  return <time dateTime={iso} title={dateTime(iso)}>{timeAgo(iso) || app.words.justNow}</time>;
 }
 
 function BridgedSources({ bridge }: { bridge: AdminBridgeHealth | null }) {
@@ -33,7 +33,7 @@ function BridgedSources({ bridge }: { bridge: AdminBridgeHealth | null }) {
   }
   if (bridge.status !== "ok") {
     return (
-      <Area title={t.bridged.title} state={{ ok: false, text: t.bridged.notAnswering }}>
+      <Area title={t.bridged.title} state={{ ok: false, text: app.words.notAnswering }}>
         <p className="fine">{t.bridged.logUnreadable}</p>
       </Area>
     );
@@ -45,7 +45,7 @@ function BridgedSources({ bridge }: { bridge: AdminBridgeHealth | null }) {
       <div className="fx-scroll">
         <table className="fx-tbl" aria-label={`Bridged services over the last ${bridge.days} days`}>
           <thead>
-            <tr><th scope="col">{t.bridged.servicesCaption.service}</th><th scope="col" className="num">{t.bridged.servicesCaption.success}</th><th scope="col" className="num">{t.bridged.servicesCaption.attempts}</th><th scope="col" className="num">{t.bridged.servicesCaption.ok}</th><th scope="col" className="num">{t.bridged.servicesCaption.empty}</th><th scope="col" className="num">{t.bridged.servicesCaption.failed}</th><th scope="col" className="num">{t.bridged.servicesCaption.fromCache}</th></tr>
+            <tr><th scope="col">{app.words.service}</th><th scope="col" className="num">{t.bridged.servicesCaption.success}</th><th scope="col" className="num">{t.bridged.servicesCaption.attempts}</th><th scope="col" className="num">{t.bridged.servicesCaption.ok}</th><th scope="col" className="num">{t.bridged.servicesCaption.empty}</th><th scope="col" className="num">{app.words.failed}</th><th scope="col" className="num">{t.bridged.servicesCaption.fromCache}</th></tr>
           </thead>
           <tbody>
             {bridge.services.map((s) => (
@@ -67,7 +67,7 @@ function BridgedSources({ bridge }: { bridge: AdminBridgeHealth | null }) {
         <div className="fx-scroll">
           <table className="fx-tbl" aria-label="Bridged sources that are failing">
             <thead>
-              <tr><th scope="col">{t.bridged.failingCaption.service}</th><th scope="col">{t.bridged.failingCaption.source}</th><th scope="col">{t.bridged.failingCaption.whatFailed}</th><th scope="col">{t.bridged.failingCaption.failingSince}</th><th scope="col">{t.bridged.failingCaption.lastWorked}</th></tr>
+              <tr><th scope="col">{app.words.service}</th><th scope="col">{app.words.source}</th><th scope="col">{t.bridged.failingCaption.whatFailed}</th><th scope="col">{t.bridged.failingCaption.failingSince}</th><th scope="col">{t.bridged.failingCaption.lastWorked}</th></tr>
             </thead>
             <tbody>
               {failing.map((f) => (
@@ -122,7 +122,7 @@ function Body({ h }: { h: AdminHealth }) {
     <div className="fx-grid">
       <Area title={t.engine.title} state={{ ok: engineOk, text: engineLabel(h.engine.status) }}>
         <Facts items={[
-          { label: t.engine.lastSync, value: h.engine.lastSyncAt ? timeAgo(h.engine.lastSyncAt) : t.engine.unknown },
+          { label: t.engine.lastSync, value: h.engine.lastSyncAt ? timeAgo(h.engine.lastSyncAt) : app.words.unknown },
           { label: t.engine.behindBy, value: durationLabel(h.engine.lagSeconds) },
           { label: t.engine.version, value: h.engine.version ?? t.engine.notReported },
         ]} />
@@ -130,16 +130,16 @@ function Body({ h }: { h: AdminHealth }) {
       </Area>
       <Area title={t.jobs.title} state={{ ok: h.jobs.failed === 0, text: h.jobs.failed ? `${plural(h.jobs.failed, t.jobs.failedWord)}` : t.jobs.noFailures }}>
         <Facts items={[
-          { label: t.jobs.waiting, value: h.jobs.queued },
-          { label: t.jobs.running, value: h.jobs.leased },
-          { label: t.jobs.failed, value: h.jobs.failed },
+          { label: app.words.waiting, value: h.jobs.queued },
+          { label: app.words.running, value: h.jobs.leased },
+          { label: app.words.failed, value: h.jobs.failed },
           { label: t.jobs.oldestWaiting, value: h.jobs.oldestQueuedSeconds === null ? t.jobs.noneWaiting : durationLabel(h.jobs.oldestQueuedSeconds) },
         ]} />
       </Area>
       <Area title={t.disk.title} state={{ ok: !h.disk.growthPaused, text: h.disk.growthPaused ? t.disk.growthPaused : t.disk.enoughRoom }}>
         <Facts items={[
           { label: t.disk.free, value: bytesOrUnknown(h.disk.freeBytes) },
-          { label: t.disk.total, value: bytesOrUnknown(h.disk.totalBytes) },
+          { label: app.words.total, value: bytesOrUnknown(h.disk.totalBytes) },
           { label: t.disk.reserve, value: bytesOrUnknown(h.disk.reserveBytes) },
         ]} />
         {h.disk.freeBytes === null ? <p className="fine">{t.disk.unmeasured}</p> : null}
@@ -154,16 +154,16 @@ function Body({ h }: { h: AdminHealth }) {
         <Facts items={[
           { label: t.sources.followed, value: h.sources.total },
           { label: t.sources.failing, value: h.sources.failing },
-          { label: t.sources.paused, value: h.sources.paused },
+          { label: app.words.paused, value: h.sources.paused },
         ]} />
       </Area>
-      <Area title={t.egress.title} state={{ ok: egress, text: egress ? t.egress.answering : t.egress.notAnswering }}>
+      <Area title={t.egress.title} state={{ ok: egress, text: egress ? t.egress.answering : app.words.notAnswering }}>
         <Facts items={[
-          { label: t.egress.blocked, value: h.egress.blockedLastHour === null ? t.egress.unknown : h.egress.blockedLastHour },
+          { label: t.egress.blocked, value: h.egress.blockedLastHour === null ? app.words.unknown : h.egress.blockedLastHour },
         ]} />
         {!egress ? <p className="fine">{t.egress.noAnswer}</p> : null}
       </Area>
-      <Area title={t.accounts.title}><Facts items={[{ label: t.accounts.label, value: h.accounts.total }]} /></Area>
+      <Area title={app.words.accounts}><Facts items={[{ label: app.words.accounts, value: h.accounts.total }]} /></Area>
       {h.signupWaitingForMail && !h.mail ? (
         <Area title={t.mail.title} state={{ ok: false, text: t.mail.notSetUp }}>
           <p className="fine">{t.mail.setupNeeded}</p>
@@ -188,8 +188,8 @@ export function AdminHealthPanel() {
   return (
     <div className="fx-stack">
       <div className="fx-acts-row">
-        <Button onClick={() => void q.refetch()} disabled={q.isFetching}><Icon name="clock" size="sm" />{q.isFetching ? t.panel.checking : t.panel.checkAgain}</Button>
-        {q.data ? <span className="fine">{t.panel.checked(timeAgo(new Date(q.dataUpdatedAt).toISOString()) || t.justNow)}</span> : null}
+        <Button onClick={() => void q.refetch()} disabled={q.isFetching}><Icon name="clock" size="sm" />{q.isFetching ? app.words.checking : t.panel.checkAgain}</Button>
+        {q.data ? <span className="fine">{t.panel.checked(timeAgo(new Date(q.dataUpdatedAt).toISOString()) || app.words.justNow)}</span> : null}
       </div>
       {q.isPending ? <Loading /> : null}
       {q.isError ? <LoadFailed error={q.error} what={t.panel.healthCheckName} onRetry={() => void q.refetch()} /> : null}

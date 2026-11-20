@@ -28,7 +28,7 @@ export function ImportDialog({ preview, fileName, onClose }: { preview: ImportPr
 
   if (result) {
     return (
-      <Dialog title={t.finishedTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{t.done}</Button>}>
+      <Dialog title={t.finishedTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{app.words.done}</Button>}>
         <ul className="fx-lines">{resultLines(result).map((l) => <li key={l}>{l}</li>)}</ul>
         {result.reconnectRequired ? <p className="fine">{t.reconnectLater}</p> : null}
       </Dialog>
@@ -39,7 +39,7 @@ export function ImportDialog({ preview, fileName, onClose }: { preview: ImportPr
   const lines = effects(preview.counts);
   return (
     <Dialog title={t.previewTitle} size="md" onClose={onClose} initialFocus=".dlg-f .btn.primary:not([disabled]),.dlg-f .btn"
-      footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={busy || !preview.fits || preview.overPlan !== null} onClick={() => void apply()}>{busy ? t.importing : t.import}</Button></>}>
+      footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || !preview.fits || preview.overPlan !== null} onClick={() => void apply()}>{busy ? t.importing : t.import}</Button></>}>
       <p className="hint"><b style={{ wordBreak: "break-all" }}>{fileName}</b>{t.isExport}</p>
       {rows.length ? (
         <dl className="fx-count-grid" aria-label="What the file holds">

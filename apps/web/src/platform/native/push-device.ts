@@ -54,7 +54,7 @@ export function devicePush(origin: string, setup: PushSetup): { push: PhonePush;
   async function token(): Promise<string> {
     if (setup.debugToken) return Promise.resolve(setup.debugToken);
     const notifications = await pushNotifications();
-    if (!notifications) throw new Error(words.cantReceive);
+    if (!notifications) throw new Error(app.words.thisBuildOfTheAppCan);
     return new Promise((resolve, reject) => {
       let done = false;
       const handles = [

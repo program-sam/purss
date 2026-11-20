@@ -31,7 +31,7 @@ async function ensureParent(name: string): Promise<void> {
 export const deviceFiles: DeviceFiles = {
   /** When `signal` aborts (the file became too large, or downloads were removed) the transfer is stopped and its partial file removed. */
   async download(url, name, onProgress, signal) {
-    if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
+    if (signal.aborted) throw new DOMException(app.words.theDownloadWasStopped, "AbortError");
     const id = name;
     const listener = await PurssDevice.addListener("progress", (p) => {
       if (p.id === id && !signal.aborted) onProgress(p.bytes, p.total > 0 ? p.total : null);
@@ -41,7 +41,7 @@ export const deviceFiles: DeviceFiles = {
     try {
       return (await PurssDevice.download({ id, url, path: name })).bytes;
     } catch (err) {
-      if (signal.aborted) throw new DOMException(t.downloadStopped, "AbortError");
+      if (signal.aborted) throw new DOMException(app.words.theDownloadWasStopped, "AbortError");
       const e = err as { code?: DownloadFailure["code"]; data?: { status?: number }; message?: string };
       throw new DownloadError(e.code === "http" ? e.data?.status ?? 0 : e.code === "too_large" ? -2 : e.code === "insecure" ? -1 : 0, e.message ?? "download failed");
     } finally {

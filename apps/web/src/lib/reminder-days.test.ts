@@ -25,7 +25,7 @@ test("days add and count across month, year and leap days", () => {
 
 test("a day reads as today, tomorrow, or the weekday and date", () => {
   assert.equal(dayLabel("2026-11-06", "2026-11-06", "en-GB"), t.today);
-  assert.equal(dayLabel("2026-11-07", "2026-11-06", "en-GB"), t.tomorrow);
+  assert.equal(dayLabel("2026-11-07", "2026-11-06", "en-GB"), app.words.tomorrow);
   assert.match(dayLabel("2026-11-12", "2026-11-06", "en-GB"), /^Thu,? 12 Nov$/);
   assert.match(dayLabel("2027-01-02", "2026-11-06", "en-GB"), /^Sat,? 2 Jan 2027$/, "another year says so");
 });

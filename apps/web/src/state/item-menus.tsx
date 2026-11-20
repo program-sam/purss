@@ -37,7 +37,7 @@ function KeepList({ itemId, onClose }: { itemId: string; onClose: (restore?: boo
       })}
       {!ws.data.baskets.length ? <p className="fine" style={{ padding: "6px 10px" }}>{t.noBaskets}</p> : null}
       <hr className="mhr" />
-      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(true); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">{t.newBasket}</span></button>
+      <button type="button" className="mi" role="menuitem" onClick={() => { onClose(true); overlays.open({ kind: "basket-form", keepItemId: itemId }); }}><Icon name="plus" /><span className="nm">{app.words.newBasketMenu}</span></button>
     </>
   );
 }
@@ -62,17 +62,17 @@ export function useItemMenus() {
   /** "Open original": the item's own page, or its show's website when its link is only the audio or video file; nothing when there is neither. */
   const originalEntries = useCallback((item: ItemDTO): MenuEntry[] => {
     const original = originalLink(item, item.sourceId ? sourceById.get(item.sourceId) : null);
-    return original ? [{ label: original.of === "show" ? t.openShowSite : t.openOriginal, icon: "ext", onSelect: () => platform.openExternal(original.href) }] : [];
+    return original ? [{ label: original.of === "show" ? app.words.openTheShowSWebsite : app.words.openOriginal, icon: "ext", onSelect: () => platform.openExternal(original.href) }] : [];
   }, [sourceById]);
 
   const common = useCallback((item: ItemDTO, anchor: HTMLElement, basketId: string | null): MenuEntry[] => {
     return [
-      { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? t.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
-      { label: t.mark(workflowLabel("finished", item.kind)), disabled: item.workflow === "finished", hint: item.workflow === "finished" ? t.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
+      { label: workflowLabel("toread", item.kind), disabled: item.workflow === "toread", hint: item.workflow === "toread" ? app.words.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "toread") },
+      { label: t.mark(workflowLabel("finished", item.kind)), disabled: item.workflow === "finished", hint: item.workflow === "finished" ? app.words.current : undefined, onSelect: () => void actions.setWorkflow([item.id], "finished") },
       // Ignoring is for what arrives; an item in a basket was saved on purpose, and Remove from basket takes it out.
-      ...(basketId ? [] : [item.workflow === "ignored" ? { label: t.restore, onSelect: () => void actions.restore(item.id) } : { label: t.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") }]),
+      ...(basketId ? [] : [item.workflow === "ignored" ? { label: app.words.restore, onSelect: () => void actions.restore(item.id) } : { label: app.words.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") }]),
       { type: "separator" },
-      { label: t.keepInMenu, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
+      { label: app.words.keepIn, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
       ...(basketId ? [{ label: t.removeFromBasket, onSelect: () => void actions.keep(item.id, basketId, false) } as MenuEntry] : []),
       { type: "separator" },
       ...originalEntries(item),
@@ -93,9 +93,9 @@ export function useItemMenus() {
     }));
     popups.menu(anchor, [
       { type: "heading", label: t.moveTo }, ...moves,
-      item.workflow === "ignored" ? { label: t.restore, onSelect: () => void actions.restore(item.id) } : { label: t.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") },
+      item.workflow === "ignored" ? { label: app.words.restore, onSelect: () => void actions.restore(item.id) } : { label: app.words.ignore, onSelect: () => void actions.setWorkflow([item.id], "ignored") },
       { type: "separator" },
-      { label: t.keepInMenu, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
+      { label: app.words.keepIn, onSelect: () => setTimeout(() => popups.panel(anchor, "Keep in a basket", (close) => <KeepList itemId={item.id} onClose={close} />, { role: "menu" }), 0) },
       ...originalEntries(item),
       ...linkEntries(item),
       { type: "separator" },

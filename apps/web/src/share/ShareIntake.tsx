@@ -33,9 +33,9 @@ export function SharedDialog({ url, title }: { url: string; title: string }) {
   return (
     <Dialog title={t.dialog.title} onClose={overlays.close} initialFocus="dialog"
       footer={<>
-        <Button onClick={overlays.close}>{t.dialog.cancel}</Button>
-        <Button onClick={() => overlays.open({ kind: "add-source", url })}>{t.dialog.addSource}</Button>
-        <Button variant="primary" onClick={() => overlays.open({ kind: "keep-page", url, title })}>{t.dialog.keepLink}</Button>
+        <Button onClick={overlays.close}>{app.words.cancel}</Button>
+        <Button onClick={() => overlays.open({ kind: "add-source", url })}>{app.words.addAsSource}</Button>
+        <Button variant="primary" onClick={() => overlays.open({ kind: "keep-page", url, title })}>{app.words.keepLink}</Button>
       </>}>
       <div style={{ display: "grid", gap: 10 }}>
         {title ? <p><b>{title}</b></p> : null}

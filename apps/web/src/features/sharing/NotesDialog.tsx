@@ -38,7 +38,7 @@ function NoteEditor({ share, item, onDone, onNotice }: { share: ShareDTO; item: 
       <p className="p-warn" role="note"><Icon name="alert" /><span>{noteWarning(share)}{t.privateStay}</span></p>
       <textarea id={id} className="in fx-textarea" rows={2} maxLength={500} value={text} onChange={(e) => setText(e.target.value)} autoFocus dir="auto" placeholder={t.placeholder} />
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void save()}>{t.save}</Button><Button onClick={onDone}>{t.cancel}</Button></div>
+      <div className="fx-acts-row"><Button variant="primary" disabled={busy} onClick={() => void save()}>{t.save}</Button><Button onClick={onDone}>{app.words.cancel}</Button></div>
     </div>
   );
 }
@@ -51,10 +51,10 @@ export function NotesDialog({ share, onClose }: { share: ShareDTO; onClose: () =
   const [notice, setNotice] = useState("");
   const items = q.data ?? [];
   return (
-    <Dialog title={t.title(share.title)} size="lg" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{t.done}</Button>}>
+    <Dialog title={t.title(share.title)} size="lg" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{app.words.done}</Button>}>
       <p className="hint">{t.addNote}{noteWarning(share)}</p>
       {notice ? <p className="state note" role="status"><Icon name="info" /><span>{notice}</span></p> : null}
-      {q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{t.loading}</p> : null}
+      {q.isPending ? <p className="state"><span className="spin" aria-hidden="true" />{app.words.loading}</p> : null}
       {q.isError ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(q.error)}</span></p> : null}
       {q.data && !items.length ? <p className="state">{t.nothing}</p> : null}
       {items.length ? (

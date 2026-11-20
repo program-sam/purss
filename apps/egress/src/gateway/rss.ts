@@ -71,7 +71,7 @@ export function boundEntry(entry: FeedEntry, limits: { maxEntryBytes: number }):
 
 export function serializeItem(entry: FeedEntry, limited = false): string {
   const parts: string[] = ["<item>"];
-  parts.push(`<title>${escapeXml(entry.title || server.sources.egress.rss.untitled)}</title>`);
+  parts.push(`<title>${escapeXml(entry.title || server.words.untitled)}</title>`);
   if (entry.url) parts.push(`<link>${escapeXml(entry.url)}</link>`);
   parts.push(`<guid isPermaLink="false">${escapeXml(entry.guid)}</guid>`);
   const date = rfc822(entry.publishedAt);

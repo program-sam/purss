@@ -160,7 +160,7 @@ export function PlayerBar() {
           <button type="button" className="player-pill player-sleep" data-on={sleep ? "" : undefined} aria-haspopup="menu"
             aria-label={sleep ? `Sleep timer: pauses in ${sleep} min` : "Sleep timer"} title={t.sleepTimer}
             onClick={(e) => popups.menu(e.currentTarget, [
-              { type: "radio" as const, label: t.off, on: snap.sleepAt === null, onSelect: () => player.setSleepTimer(null) },
+              { type: "radio" as const, label: app.words.off, on: snap.sleepAt === null, onSelect: () => player.setSleepTimer(null) },
               ...SLEEP_MINUTES.map((m) => ({ type: "radio" as const, label: t.inMinutes(m), on: false, onSelect: () => player.setSleepTimer(m) })),
             ], "Pause playback")}>
             <Icon name="moon" size="sm" />{sleep ? <span aria-hidden="true">{sleep}<span className="player-unit">{t.minutes}</span></span> : null}

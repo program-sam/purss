@@ -13,15 +13,15 @@ const idle: ActivityDTO = { checking: false, sourceCount: 0, subscribing: 0, sav
 
 test("the summary band names the last visit and, with counts on, how many are New", () => {
   const since = { total: 412, boxes: [{ id: "a", name: "Essays", count: 300 }, { id: "b", name: "News", count: 112 }] };
-  assert.equal(sinceLine(since, "2026-11-02T12:00:00.000Z", { ...o, showCounts: true }), t.sinceWithCount("3 days ago", "412", t.inPlace(plural(2, nouns.collection))));
-  assert.equal(sinceLine(since, "2026-11-02T12:00:00.000Z", { ...o, showCounts: false }), t.sinceWithoutCount("3 days ago", t.inPlace(plural(2, nouns.collection))));
+  assert.equal(sinceLine(since, "2026-11-02T12:00:00.000Z", { ...o, showCounts: true }), t.sinceWithCount("3 days ago", "412", t.inPlace(plural(2, app.words.collectionLower))));
+  assert.equal(sinceLine(since, "2026-11-02T12:00:00.000Z", { ...o, showCounts: false }), t.sinceWithoutCount("3 days ago", t.inPlace(plural(2, app.words.collectionLower))));
   assert.equal(sinceLine({ total: 1, boxes: [since.boxes[0]!] }, "2026-11-04T12:00:00.000Z", { ...o, showCounts: true }), t.sinceWithCount("yesterday", "1", t.inPlace("Essays")));
 });
 
 test("background activity reads as one calm line", () => {
-  assert.deepEqual(activityLine({ ...idle, subscribing: 2, checking: true }, o), { text: t.settingUp(plural(2, nouns.source)), busy: true, problem: false });
-  assert.equal(activityLine({ ...idle, checking: true, sourceCount: 3 }, o).text, t.checking(plural(3, nouns.source)));
-  assert.equal(activityLine({ ...idle, savingText: 1 }, o).text, t.savingText(plural(1, nouns.item)));
+  assert.deepEqual(activityLine({ ...idle, subscribing: 2, checking: true }, o), { text: t.settingUp(plural(2, app.words.sourceLower)), busy: true, problem: false });
+  assert.equal(activityLine({ ...idle, checking: true, sourceCount: 3 }, o).text, t.checking(plural(3, app.words.sourceLower)));
+  assert.equal(activityLine({ ...idle, savingText: 1 }, o).text, t.savingText(plural(1, app.words.item)));
   assert.deepEqual(activityLine({ ...idle, problem: "x" }, o), { text: t.cantCheck, busy: false, problem: true });
   assert.equal(activityLine({ ...idle, lastCheckedAt: "2026-11-05T11:56:00.000Z" }, o).text, t.upToDateChecked("4 min ago"));
   assert.equal(activityLine(idle, o).text, t.waitingFirstCheck);

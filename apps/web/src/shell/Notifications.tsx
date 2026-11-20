@@ -49,13 +49,13 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="notif">
       <div className="notif-h">
-        <strong>{t.title}</strong>
+        <strong>{app.words.notifications}</strong>
         {unread ? <button type="button" className="link" onClick={() => void markRead("all")}>{t.markAllRead}</button> : null}
       </div>
       {noDigest ? <p className="fine" style={{ padding: "8px 12px 4px" }}>{t.digestOff}</p> : null}
       <PhoneNotificationsOffer />
-      {q.isPending ? <p className="fine" style={{ padding: 12 }}>{t.loading}</p> : null}
-      {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>{t.tryAgain}</Button></p> : null}
+      {q.isPending ? <p className="fine" style={{ padding: 12 }}>{app.words.loading}</p> : null}
+      {q.isError ? <p className="fine" style={{ padding: 12 }}>{messageOf(q.error)} <Button onClick={() => void q.refetch()}>{app.words.tryAgain}</Button></p> : null}
       {q.data && !list.length ? <p className="fine" style={{ padding: "10px 12px 14px" }}>{t.nothingYet}{noDigest ? t.nothingDigestOff : t.nothingDigestOn}</p> : null}
       <ul className="notif-list">
         {list.map((n) => (

@@ -31,7 +31,7 @@ export function OfflineController() {
 
   useEffect(() => {
     void registerWorker();
-    return onUpdateReady(() => toast(t.updateReady, { sticky: true, tone: "none", actions: [{ label: t.reload, onSelect: applyUpdate }] }));
+    return onUpdateReady(() => toast(t.updateReady, { sticky: true, tone: "none", actions: [{ label: app.words.reload, onSelect: applyUpdate }] }));
   }, [toast]);
 
   // Nobody signed in, or the setting off: nothing may stay saved. (usePack tells the worker in the other case.)

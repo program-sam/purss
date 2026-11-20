@@ -71,7 +71,7 @@ export function DeviceTab() {
       ) : null}
       <section className="field" aria-labelledby="dv-ws">
         <div className="lbl" id="dv-ws">{t.connectionHeading}</div>
-        <p className="fine">{t.connectedTo.before}<b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? t.connectedTo.official : ""}{t.connectedTo.after}</p>
+        <p className="fine">{app.words.connectedToSpaced}<b style={{ wordBreak: "break-all" }}>{conn.origin}</b>{isOfficial ? t.connectedTo.official : ""}{t.connectedTo.after}</p>
         {unencrypted ? <p className="p-warn"><Icon name="alert" /><span>{UNENCRYPTED_NOTE}</span></p> : null}
       </section>
 
@@ -83,7 +83,7 @@ export function DeviceTab() {
 
       <PhoneNotificationsSection />
 
-      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.automaticDownloads}</legend>
+      <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{app.words.automaticDownloads}</legend>
         <Check checked={settings.autoToRead} onChange={(v) => set({ autoToRead: v })}>{t.toRead}</Check>
         {computer ? null : <Check checked={settings.wifiOnly} onChange={(v) => set({ wifiOnly: v })} hint={t.wifiOnlyHint}>{t.wifiOnly}</Check>}
         <label className="field" style={{ gap: 4, marginTop: 6 }}><span className="lbl">{t.stopAt}</span>

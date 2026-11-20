@@ -79,7 +79,7 @@ function LoadFailed({ error, reset }: { error: unknown; reset: () => void }) {
       <div className="empty card-like" style={{ maxWidth: 440 }}>
         <h2>{app.shell.app.openFailed}</h2>
         <p>{messageOf(error)}</p>
-        <Button variant="primary" onClick={() => { reset(); void router.invalidate(); }}>{app.shell.app.tryAgain}</Button>
+        <Button variant="primary" onClick={() => { reset(); void router.invalidate(); }}>{app.words.tryAgain}</Button>
       </div>
     </div>
   );
@@ -89,7 +89,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => <><IconSprite /><Outlet /></>,
   errorComponent: LoadFailed,
   notFoundComponent: () => (
-    <div className="splash"><div className="empty card-like" style={{ maxWidth: 440 }}><h2>{app.shell.app.pageMissing}</h2><a className="btn primary" href={inApp("/")}>{app.shell.app.goHome}</a></div></div>
+    <div className="splash"><div className="empty card-like" style={{ maxWidth: 440 }}><h2>{app.shell.app.pageMissing}</h2><a className="btn primary" href={inApp("/")}>{app.words.goToHome}</a></div></div>
   ),
 });
 

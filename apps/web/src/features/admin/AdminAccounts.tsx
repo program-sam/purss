@@ -39,7 +39,7 @@ function AllocationDialog({ account, onClose }: { account: AdminAccountDTO; onCl
   return (
     <>
       <Dialog title={t.allocation.title} size="sm" onClose={onClose} initialFocus="#al-n"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={busy || parsed === undefined || !changed} onClick={() => void save()}>{t.save}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || parsed === undefined || !changed} onClick={() => void save()}>{app.words.save}</Button></>}>
         <p className="hint">{t.allocation.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), bytesLabel(account.usedBytes))}</p>
         <Field label={t.allocation.label} htmlFor="al-n" hint={t.allocation.fieldHint}>
           <div className="fx-inline">
@@ -60,7 +60,7 @@ const limitText = (n: number | null, what: string) => (n === null ? t.plan.unlim
 /** "Free · 37 of 100 sources, 2 of 5 collections" */
 function planLine(c: Capacity): string {
   const part = (used: number, limit: number | null, what: string) => (limit === null ? t.plan.counted(formatCount(used, "en"), what) : t.plan.countedOf(formatCount(used, "en"), formatCount(limit, "en"), what));
-  return `${c.plan ? `${PLAN_LABELS[c.plan]} · ` : ""}${part(c.sources.used, c.sources.limit, t.plan.sources)}, ${part(c.collections.used, c.collections.limit, t.plan.collections)}`;
+  return `${c.plan ? `${PLAN_LABELS[c.plan]} · ` : ""}${part(c.sources.used, c.sources.limit, app.words.sourcesLower)}, ${part(c.collections.used, c.collections.limit, app.words.collectionsLower)}`;
 }
 
 function PlanDialog({ account, onClose }: { account: AdminAccountDTO; onClose: () => void }) {
@@ -83,9 +83,9 @@ function PlanDialog({ account, onClose }: { account: AdminAccountDTO; onClose: (
   return (
     <>
       <Dialog title={t.plan.title} size="sm" onClose={onClose} initialFocus="#pl-s"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={busy || plan === account.plan} onClick={() => void save()}>{t.save}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || plan === account.plan} onClick={() => void save()}>{app.words.save}</Button></>}>
         <p className="hint">{t.plan.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), planLine(account.capacity))}</p>
-        <Field label={t.plan.label} htmlFor="pl-s" hint={t.plan.fieldHint(PLAN_LABELS[plan], limitText(limits.sources, t.plan.sources), limitText(limits.collections, t.plan.collections), planHasSmartFilters(plan))}>
+        <Field label={app.words.plan} htmlFor="pl-s" hint={t.plan.fieldHint(PLAN_LABELS[plan], limitText(limits.sources, app.words.sourcesLower), limitText(limits.collections, app.words.collectionsLower), planHasSmartFilters(plan))}>
           <SelectInput id="pl-s" value={plan} onChange={(e) => setPlan(e.target.value as Plan)}>{PLAN_NAMES.map((n) => <option key={n} value={n}>{PLAN_LABELS[n]}</option>)}</SelectInput>
         </Field>
         {account.isAdmin ? <p className="fine">{t.plan.adminsNoLimits}</p> : null}
@@ -114,7 +114,7 @@ function RoleDialog({ account, onClose }: { account: AdminAccountDTO; onClose: (
   return (
     <>
       <Dialog title={granting ? t.role.makeTitle : t.role.removeTitle} size="sm" onClose={onClose} initialFocus=".dlg-f .btn:last-child"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant={granting ? "primary" : "danger"} disabled={busy} onClick={() => void go()}>{granting ? t.role.makeButton : t.role.removeButton}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant={granting ? "primary" : "danger"} disabled={busy} onClick={() => void go()}>{granting ? t.role.makeButton : t.role.removeButton}</Button></>}>
         <p className="hint">{account.displayName ?? account.email ?? t.accountOf(shortId(account.id))}</p>
         <p className="fine">{granting
           ? t.role.makeNote
@@ -143,7 +143,7 @@ function StatusDialog({ account, onClose }: { account: AdminAccountDTO; onClose:
   return (
     <>
       <Dialog title={suspending ? t.status.suspendTitle : t.status.reactivateTitle} size="sm" onClose={onClose} initialFocus=".dlg-f .btn:last-child"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant={suspending ? "danger" : "primary"} disabled={busy} onClick={() => void go()}>{suspending ? t.status.suspendButton : t.status.reactivateButton}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant={suspending ? "danger" : "primary"} disabled={busy} onClick={() => void go()}>{suspending ? t.status.suspendButton : t.status.reactivateButton}</Button></>}>
         <p className="hint">{account.displayName ?? account.email ?? t.accountOf(shortId(account.id))}</p>
         {suspending
           ? <p className="fine">{t.status.suspendNote}</p>
@@ -172,7 +172,7 @@ function EngineReviewDialog({ account, onClose }: { account: AdminAccountDTO; on
   return (
     <>
       <Dialog title={t.engineReview.title} size="sm" onClose={onClose} initialFocus=".dlg-f .btn:last-child"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="danger" disabled={busy} onClick={() => void go()}>{t.engineReview.button}</Button></>}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="danger" disabled={busy} onClick={() => void go()}>{t.engineReview.button}</Button></>}>
         <p className="hint">{account.displayName ?? account.email ?? t.accountOf(shortId(account.id))}</p>
         <p className="fine">{t.engineReview.noteBefore}<code>data/users</code>{t.engineReview.noteAfter}</p>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
@@ -256,7 +256,7 @@ function InviteDialog({ onClose, hosted, mail }: { onClose: () => void; hosted: 
   const lasts = made ? t.invite.lasts(made.expiresInDays) : "";
   if (made && made.code === null) {
     return (
-      <Dialog title={t.invite.sentTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{t.invite.done}</Button>}>
+      <Dialog title={t.invite.sentTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{app.words.done}</Button>}>
         <p className="state"><Icon name="check" /><span>{t.invite.sentText(address, lasts)}</span></p>
       </Dialog>
     );
@@ -264,21 +264,21 @@ function InviteDialog({ onClose, hosted, mail }: { onClose: () => void; hosted: 
   if (made && made.code !== null) {
     const link = inviteLink(location.origin, made.code, address);
     return (
-      <Dialog title={t.invite.createdTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{t.invite.done}</Button>}>
+      <Dialog title={t.invite.createdTitle} size="md" onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{app.words.done}</Button>}>
         <p className="p-warn"><Icon name="alert" /><span><b>{t.invite.shownOnce}</b>{t.invite.shareIt(lasts, address)}</span></p>
-        <div className="fx-link"><span className="fx-link-l">{t.invite.code}</span><code className="fx-url fx-code">{made.code}</code><CopyButton value={made.code} what={t.invite.codeWhat} /></div>
-        <div className="fx-link"><span className="fx-link-l">{t.invite.link}</span><code className="fx-url">{link}</code><CopyButton value={link} what={t.invite.linkWhat} /></div>
+        <div className="fx-link"><span className="fx-link-l">{app.words.code}</span><code className="fx-url fx-code">{made.code}</code><CopyButton value={made.code} what={app.words.invitationCode} /></div>
+        <div className="fx-link"><span className="fx-link-l">{app.words.link}</span><code className="fx-url">{link}</code><CopyButton value={link} what={t.invite.linkWhat} /></div>
       </Dialog>
     );
   }
   return (
     <>
       <Dialog title={t.invite.title} size="md" onClose={onClose} initialFocus="#iv-email"
-        footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="primary" disabled={busy || parsed === undefined || !validDays || !address} onClick={() => void create()}>{t.invite.createButton}</Button></>}>
-        <Field label={t.invite.emailLabel} htmlFor="iv-email" hint={mail ? t.invite.emailHintMail : t.invite.emailHintLink}>
+        footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || parsed === undefined || !validDays || !address} onClick={() => void create()}>{t.invite.createButton}</Button></>}>
+        <Field label={app.words.emailAddress} htmlFor="iv-email" hint={mail ? t.invite.emailHintMail : t.invite.emailHintLink}>
           <TextInput id="iv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} autoComplete="off" spellCheck={false} autoCapitalize="none" />
         </Field>
-        <Field label={t.invite.noteLabel} htmlFor="iv-note" hint={t.invite.noteHint}>
+        <Field label={app.words.noteOptional} htmlFor="iv-note" hint={app.words.onlyYouSeeIt}>
           <TextInput id="iv-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={120} autoComplete="off" />
         </Field>
         <Field label={t.invite.validFor} htmlFor="iv-days">
@@ -324,8 +324,8 @@ export function AdminInvitesPanel({ hosted, openSignup, mail }: { hosted: boolea
             <li key={i.id} className="fx-row wrap">
               <div className="fx-grow"><b>{i.email ?? i.note ?? t.invites.invitation}</b><span className="fine">{t.invites.detail(i.email && i.note ? i.note : null, shortDate(i.createdAt), i.status === "pending" ? t.invites.expires(shortDate(i.expiresAt)) : i.status === "used" ? t.invites.used(shortDate(i.usedAt!)) : t.invites.expired)}</span></div>
               <div className="fx-end">
-                <span className={`tag fx-status ${i.status === "used" ? "ok" : i.status === "pending" ? "" : "failed"}`}>{i.status === "pending" ? t.invites.waiting : i.status === "used" ? t.invites.usedTag : t.invites.expiredTag}</span>
-                {i.status === "pending" ? <Button onClick={() => void revoke(i.id)}>{t.invites.revoke}</Button> : null}
+                <span className={`tag fx-status ${i.status === "used" ? "ok" : i.status === "pending" ? "" : "failed"}`}>{i.status === "pending" ? app.words.waiting : i.status === "used" ? t.invites.usedTag : t.invites.expiredTag}</span>
+                {i.status === "pending" ? <Button onClick={() => void revoke(i.id)}>{app.words.revoke}</Button> : null}
               </div>
             </li>
           ))}

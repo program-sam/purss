@@ -89,7 +89,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
             <DownloadRing progress={progress} />
             <p>{t.downloading}{progressText(progress)}</p>
           </div>
-          <Button onClick={() => void downloads.cancel(item.id).then(() => toast(t.stopped))}>{t.stop}</Button>
+          <Button onClick={() => void downloads.cancel(item.id).then(() => toast(app.words.stoppedTheDownloadNothingOfIt))}>{t.stop}</Button>
         </div>
       ) : record.state === "failed" ? (
         <div className="media-saved">
@@ -98,8 +98,8 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
             <p><span className="dl-head">{t.notDownloaded}</span> {record.error ?? t.didntFinish}</p>
           </div>
           <div className="fx-acts-row">
-            <Button disabled={busy} onClick={() => void download()}>{t.tryAgain}</Button>
-            <Button disabled={busy} onClick={() => void remove()}>{t.dismiss}</Button>
+            <Button disabled={busy} onClick={() => void download()}>{app.words.tryAgain}</Button>
+            <Button disabled={busy} onClick={() => void remove()}>{app.words.dismiss}</Button>
           </div>
         </div>
       ) : (
@@ -115,7 +115,7 @@ export function DownloadSection({ item }: { item: ItemDetail }) {
           {record.page?.state === "failed" ? (
             <div className="dl-state failed dl-page">
               <Icon name="alert" />
-              <p><span className="dl-head">{t.onlySummary}</span> {record.page.error} <button type="button" className="link" disabled={busy} onClick={() => void again()}>{t.tryAgain}</button></p>
+              <p><span className="dl-head">{t.onlySummary}</span> {record.page.error} <button type="button" className="link" disabled={busy} onClick={() => void again()}>{app.words.tryAgain}</button></p>
             </div>
           ) : null}
         </div>

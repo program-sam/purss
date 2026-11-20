@@ -51,27 +51,27 @@ export function NewCollectionDialog() {
       const c = await post<CollectionDTO>("/api/collections", { name: name.trim(), emoji: emoji.trim() || null, mode, sourceIds: mode === "sources" ? sourceIds : [], query, view: "list" });
       refreshWorkspace(qc);
       ov.close();
-      toast(t.newCollection.created(c.name, mode === "sources" && sourceIds.length ? t.newCollection.withSources(plural(sourceIds.length, t.newCollection.source)) : ""), {
+      toast(t.newCollection.created(c.name, mode === "sources" && sourceIds.length ? t.newCollection.withSources(plural(sourceIds.length, app.words.sourceLower)) : ""), {
         undo: async () => { await del(`/api/collections/${encodeURIComponent(c.id)}`); refreshWorkspace(qc); },
-        actions: [{ label: t.newCollection.open, onSelect: () => nav.go({ t: "c", id: c.id }) }],
+        actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "c", id: c.id }) }],
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
   if (limit) {
     return (
-      <Dialog title={t.newCollection.title} onClose={ov.close} size="md" initialFocus="dialog"
-        footer={<><Button onClick={ov.close}>{t.newCollection.close}</Button><Button variant="primary" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{t.newCollection.seePlans}</Button></>}>
+      <Dialog title={app.words.newCollection} onClose={ov.close} size="md" initialFocus="dialog"
+        footer={<><Button onClick={ov.close}>{app.words.close}</Button><Button variant="primary" onClick={() => ov.open({ kind: "settings", tab: "plan" })}>{app.words.seePlans}</Button></>}>
         <p className="state note"><Icon name="info" /><span>{limit}</span></p>
       </Dialog>
     );
   }
 
   return (
-    <Dialog title={t.newCollection.title} onClose={ov.close} size="md" initialFocus="#nc-name"
-      footer={<><Button onClick={ov.close}>{t.newCollection.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>{t.newCollection.create}</Button></>}>
+    <Dialog title={app.words.newCollection} onClose={ov.close} size="md" initialFocus="#nc-name"
+      footer={<><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={!name.trim() || busy} onClick={create}>{t.newCollection.create}</Button></>}>
       <p className="fine">{t.newCollection.intro}</p>
-      <div className="field"><label htmlFor="nc-name">{t.newCollection.name}</label>
+      <div className="field"><label htmlFor="nc-name">{app.words.name}</label>
         <TextInput id="nc-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" placeholder={t.newCollection.placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !busy && mode !== "query") void create(); }} /></div>
       <EmojiField value={emoji} onChange={setEmoji} />
@@ -149,21 +149,21 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
       footer={confirmDelete ? (
         <><span className="fine lft" style={{ marginRight: "auto", alignSelf: "center" }}>{t.settings.onlyGrouping}</span><Button onClick={() => setConfirmDelete(false)}>{t.settings.keepIt}</Button><Button variant="danger" disabled={busy} onClick={remove}>{t.settings.deleteCollection}</Button></>
       ) : (
-        <><Button className="lft" onClick={() => setConfirmDelete(true)}>{t.settings.delete}</Button><Button onClick={ov.close}>{t.settings.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{t.settings.saveChanges}</Button></>
+        <><Button className="lft" onClick={() => setConfirmDelete(true)}>{app.words.delete}</Button><Button onClick={ov.close}>{app.words.cancel}</Button><Button variant="primary" disabled={busy} onClick={save}>{app.words.saveChanges}</Button></>
       )}>
-      <div className="field"><label htmlFor="cs-name">{t.settings.name}</label><TextInput id="cs-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" /></div>
+      <div className="field"><label htmlFor="cs-name">{app.words.name}</label><TextInput id="cs-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" /></div>
       <EmojiField value={emoji} onChange={setEmoji} />
       <Field label={t.settings.defaultView} htmlFor="cs-view">
         <SelectInput id="cs-view" value={view} onChange={(e) => setView(e.target.value as ViewMode)}>{VIEW_MODES.map((m) => <option key={m} value={m}>{VIEW_LABELS[m]}</option>)}</SelectInput>
       </Field>
       {c.mode === "sources" ? (
-        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.settings.sources}</legend>
+        <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{app.words.sources}</legend>
           <SourcePicks selected={sourceIds} onChange={setSourceIds} />
           <p className="fine">{t.settings.untickedFollowed}</p></fieldset>
       ) : null}
       {c.mode === "query" ? (parsed.editable ? <QueryBuilder draft={draft} onChange={setDraft} />
         : <p className="state note">{t.settings.notEditable}</p>) : null}
-      <Check checked={onHome} onChange={setOnHome}>{t.settings.showOnHome}</Check>
+      <Check checked={onHome} onChange={setOnHome}>{app.words.showOnHome}</Check>
       {error ? <p ref={alertRef} tabIndex={-1} className="state note" role="alert">{error}</p> : null}
     </Dialog>
   );

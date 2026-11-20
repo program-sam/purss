@@ -61,18 +61,18 @@ export function QueryBuilder({ draft, onChange }: { draft: QueryDraft; onChange:
           <div><button type="button" className="btn" onClick={() => setShowSources(true)}>{t.queryBuilder.chooseSources}</button></div>
         )}
       </div>
-      <div className="field"><div className="lbl" id="qb-kind">{t.queryBuilder.type}</div>
-        <ChipToggles label={t.queryBuilder.type} options={ITEM_KINDS.map((k: ItemKind) => ({ value: k, label: KIND_LABELS[k] }))} selected={draft.kinds} onChange={(kinds) => set({ kinds })} /></div>
-      <div className="field"><div className="lbl" id="qb-wf">{t.queryBuilder.state}</div>
-        <ChipToggles label={t.queryBuilder.state} options={WORKFLOW_ORDER.map((w: WorkflowState) => ({ value: w, label: WORKFLOW_LABELS[w] }))} selected={draft.workflows} onChange={(workflows) => set({ workflows })} /></div>
+      <div className="field"><div className="lbl" id="qb-kind">{app.words.type}</div>
+        <ChipToggles label={app.words.type} options={ITEM_KINDS.map((k: ItemKind) => ({ value: k, label: KIND_LABELS[k] }))} selected={draft.kinds} onChange={(kinds) => set({ kinds })} /></div>
+      <div className="field"><div className="lbl" id="qb-wf">{app.words.state}</div>
+        <ChipToggles label={app.words.state} options={WORKFLOW_ORDER.map((w: WorkflowState) => ({ value: w, label: WORKFLOW_LABELS[w] }))} selected={draft.workflows} onChange={(workflows) => set({ workflows })} /></div>
       <div className="field"><label htmlFor="qb-kept">{t.queryBuilder.kept}</label>
         <SelectInput id="qb-kept" value={draft.kept} onChange={(e) => set({ kept: e.target.value as KeptChoice })}>
           <option value="any">{t.queryBuilder.keptEither}</option><option value="kept">{t.queryBuilder.keptOnly}</option><option value="unkept">{t.queryBuilder.keptNot}</option>
         </SelectInput></div>
-      <div className="field"><div className="lbl" id="qb-date">{t.queryBuilder.date}</div>
+      <div className="field"><div className="lbl" id="qb-date">{app.words.date}</div>
         <div className="two" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <SelectInput aria-label="Date to compare" value={draft.dateBasis} onChange={(e) => set({ dateBasis: e.target.value as DateBasis })}>
-            <option value="published">{t.queryBuilder.published}</option><option value="discovered">{t.queryBuilder.arrived}</option><option value="kept">{t.queryBuilder.keptDate}</option>
+            <option value="published">{app.words.published}</option><option value="discovered">{t.queryBuilder.arrived}</option><option value="kept">{app.words.kept}</option>
           </SelectInput>
           <TextInput type="date" aria-label="From date" value={draft.from} onChange={(e) => set({ from: e.target.value })} />
           <TextInput type="date" aria-label="Until date" value={draft.to} onChange={(e) => set({ to: e.target.value })} />

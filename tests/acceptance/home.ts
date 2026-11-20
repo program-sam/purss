@@ -58,7 +58,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // The words the page shows come from the copy catalog, so rewording one never breaks this journey.
 const { workflow, filters, toReadTitle } = copy.lib.constants;
-const { toRead, toWatch, toListen } = copy.pages.welcomeBack;
+const { toRead, toWatch, toListen } = copy.words;
 const listing = copy.pages.listing;
 const itemMenus = copy.state.itemMenus;
 const basketForm = copy.dialogs.baskets.form;
@@ -74,9 +74,9 @@ const source = (message: (...values: string[]) => string, ...values: string[]) =
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
 };
 /** The sidebar's Add source button. */
-const ADD_SOURCE = copy.shell.sidebar.addSource;
+const ADD_SOURCE = copy.words.addSource;
 /** The sidebar's Settings button. */
-const SETTINGS = copy.shell.sidebar.settings;
+const SETTINGS = copy.words.settings;
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -163,15 +163,15 @@ function prepare(): Seed {
 async function signIn(page: Page, o: { shared?: boolean } = {}): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
-  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
-  if (o.shared) await page.getByRole("checkbox", { name: new RegExp(esc(copy.auth.signIn.sharedComputer)) }).check();
-  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  await page.getByRole("textbox", { name: copy.words.emailAddress }).fill(EMAIL);
+  await page.getByLabel(copy.words.password, { exact: true }).fill(TEST_PASSWORD);
+  if (o.shared) await page.getByRole("checkbox", { name: new RegExp(esc(copy.words.thisIsASharedComputer)) }).check();
+  await page.getByRole("button", { name: copy.words.signIn, exact: true }).click();
   const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
-  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
+  const notNow = firstVisit.getByRole("button", { name: copy.words.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }
-  await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+  await page.getByRole("heading", { name: copy.words.home }).waitFor();
 }
 
 const progressOf = (page: Page, id: string) => page.evaluate(async (i) => (await (await fetch(`/api/items/${i}`, { cache: "no-store" })).json()).progress as number, id);
@@ -185,11 +185,11 @@ async function checkAccountMenu(page: Page): Promise<void> {
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu", { name: "Account" });
   await menu.waitFor({ state: "visible" });
-  await menu.getByRole("menuitem", { name: headerAccount.settings, exact: true }).waitFor();
-  const signOut = menu.getByRole("menuitem", { name: headerAccount.signOut, exact: true });
+  await menu.getByRole("menuitem", { name: copy.words.settings, exact: true }).waitFor();
+  const signOut = menu.getByRole("menuitem", { name: copy.words.signOut, exact: true });
   await signOut.waitFor();
   await page.keyboard.press("ArrowDown");
-  await page.waitForFunction((label) => document.activeElement?.textContent?.trim() === label, headerAccount.signOut);
+  await page.waitForFunction((label) => document.activeElement?.textContent?.trim() === label, copy.words.signOut);
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Account menu for Reader");
   assert.equal(await account.evaluate((el) => el === document.activeElement), true, "Escape restores focus to the named account button");
@@ -256,9 +256,9 @@ async function checkCornerRoom(browser: Browser, seed: Seed): Promise<void> {
     });
     const name = (await page.locator(".cbtns .bar-acct").first().getAttribute("aria-label")) ?? "";
     assert.match(name, /Alexandria Papadopoulos-Karamanlis/, `${c.name}: the account button carries the long name`);
-    assert.equal(await page.locator(".cbtns").getByRole("button", { name: headerAccount.signOut, exact: true }).count(), 1, `${c.name}: Sign out is offered on a shared computer`);
+    assert.equal(await page.locator(".cbtns").getByRole("button", { name: copy.words.signOut, exact: true }).count(), 1, `${c.name}: Sign out is offered on a shared computer`);
     // The page's own start: Home.
-    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await page.getByRole("heading", { name: copy.words.home }).waitFor();
     await page.locator(".mod").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: Home's heading and Customise clear of the corner`);
     // A list page: its tools.
@@ -385,7 +385,7 @@ async function main(): Promise<void> {
 
     // ---------- Home ----------
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await page.getByRole("heading", { name: copy.words.home }).waitFor();
     const rowToggle = (name: string) => page.locator(`.wb h2:has(:text(${JSON.stringify(name)})) button`);
     const rowItems = (name: string) => `.wb:has(h2 :text(${JSON.stringify(name)})) .irow`;
     await rowToggle(toRead).waitFor();
@@ -422,19 +422,19 @@ async function main(): Promise<void> {
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
     await page.getByRole("button", { name: /^Filter: / }).click();
-    assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.shell.listTools.showIgnored }).count(), 0, "the queue never holds ignored items, so it does not offer them");
-    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.fresh, filters.toread, filters.inprogress], "the page offers the filters that can show something");
-    await page.getByRole("menuitemradio", { name: filters.inprogress, exact: true }).click();
+    assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.words.showIgnoredItems }).count(), 0, "the queue never holds ignored items, so it does not offer them");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.fresh, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
+    await page.getByRole("menuitemradio", { name: copy.words.inProgress, exact: true }).click();
     await page.waitForURL(/filter=inprogress/);
     await sleep(600);
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast"], "In progress shows what was started, which an episode half heard is");
     await page.getByRole("button", { name: /^Filter: / }).click();
-    await page.getByRole("menuitemradio", { name: filters.toread, exact: true }).click();
+    await page.getByRole("menuitemradio", { name: copy.words.toRead, exact: true }).click();
     await page.waitForURL(/filter=toread/);
     await sleep(600);
     assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), ["Medium note", "Short film"], "To read what was not started");
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await page.getByRole("heading", { name: copy.words.home }).waitFor();
     step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
     // A source followed from now: its back catalogue is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
@@ -455,7 +455,7 @@ async function main(): Promise<void> {
     const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
     assert.equal(held, 3, "the source counts what it holds");
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await page.getByRole("heading", { name: copy.words.home }).waitFor();
     step("a source followed from now has its back catalogue Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
 
     // ---------- muted words, filters ----------
@@ -504,7 +504,7 @@ async function main(): Promise<void> {
     await signIn(reader);
     await reader.getByRole("button", { name: SETTINGS }).first().click();
     await reader.getByRole("dialog").waitFor();
-    await reader.locator("label.chk", { hasText: copy.dialogs.settings.display.label }).click();
+    await reader.locator("label.chk", { hasText: copy.words.eInkDisplay }).click();
     await reader.keyboard.press("Escape");
     await reader.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await reader.locator("main .irow").first().waitFor();
@@ -531,13 +531,13 @@ async function main(): Promise<void> {
     await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     const deskIgnore = deskPage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / });
     await deskIgnore.hover();
-    await deskPage.locator(".tip", { hasText: copy.components.itemRow.ignore }).waitFor();
+    await deskPage.locator(".tip", { hasText: copy.words.ignore }).waitFor();
     await deskPage.mouse.move(0, 0);
     await deskPage.locator(".tip").waitFor({ state: "detached" });
     await deskIgnore.focus();
     await deskPage.keyboard.press("Shift+Tab");
     await deskPage.keyboard.press("Tab");
-    await deskPage.locator(".tip", { hasText: copy.components.itemRow.ignore }).waitFor();
+    await deskPage.locator(".tip", { hasText: copy.words.ignore }).waitFor();
     await desk.close();
     const phone = await browser.newContext({ viewport: { width: 412, height: 900 }, hasTouch: true, isMobile: true });
     const phonePage = await phone.newPage();
@@ -545,12 +545,12 @@ async function main(): Promise<void> {
     await checkAccountMenu(phonePage);
     await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
-    await phonePage.getByText(copy.state.actions.ignored, { exact: true }).waitFor();
+    await phonePage.getByText(copy.words.ignored, { exact: true }).waitFor();
     await sleep(500);
     assert.equal(await phonePage.locator(".tip").count(), 0, "a tap shows no tip next to the button: the undo toast says what happened");
     step("hover and keyboard focus name a row action in a tip; a tap on a phone leaves only the undo toast");
     // The open drawer covers the tab bar, so its foot (capacity and Settings) sits at the drawer's bottom with no gap kept for the bar.
-    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.shell.tabBar.collections }).tap();
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.words.collections }).tap();
     await phonePage.locator(".side-foot .set").waitFor({ state: "visible" });
     await sleep(300);
     const foot = await phonePage.evaluate(() => {
@@ -571,12 +571,12 @@ async function main(): Promise<void> {
     for (let i = 0; i < 3; i++) { await phonePage.keyboard.press("Shift+Tab"); assert.equal(await inDrawer(), true, "Shift+Tab stays in the drawer"); }
     await phonePage.keyboard.press("Escape");
     await phonePage.locator('[data-drawer="open"]').waitFor({ state: "detached" });
-    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.shell.tabBar.collections, "closing the drawer gives focus back to the tab that opened it");
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.words.collections, "closing the drawer gives focus back to the tab that opened it");
     for (const behind of [".stage", ".tabbar"]) assert.equal(await phonePage.locator(behind).evaluate((el) => (el as HTMLElement).inert), false, `${behind} works again`);
-    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.shell.tabBar.collections }).tap();
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.words.collections }).tap();
     await phonePage.getByRole("button", { name: "Close sidebar" }).tap();
     await phonePage.waitForFunction(() => !document.querySelector('[data-drawer="open"]'));
-    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.shell.tabBar.collections, "the drawer's Close button gives focus back the same way");
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.words.collections, "the drawer's Close button gives focus back the same way");
     step("on a phone the open drawer takes focus, shuts the page out, keeps Tab inside, and gives focus back when it closes");
     await phonePage.goto(`${origin}/app/`);
     await phonePage.locator(".bar .brand .who", { hasText: "Reader" }).waitFor({ state: "visible" });
@@ -621,7 +621,7 @@ async function main(): Promise<void> {
 
     // A row on Home marked To read leaves its box for the To read row above (which then shows it): focus goes to a row that stays.
     await stillPage.goto(`${origin}/app/`);
-    await stillPage.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await stillPage.getByRole("heading", { name: copy.words.home }).waitFor();
     await stillPage.locator(`.wb h2:has(:text(${JSON.stringify(toRead)})) button`).click();
     await stillPage.locator(rowItems(toRead)).first().waitFor();
     const boxRow = stillPage.locator(".mod:not(.wb) .irow").filter({ has: stillPage.locator('button.tr[aria-pressed="false"]') }).first();
@@ -647,7 +647,7 @@ async function main(): Promise<void> {
     await stillPage.keyboard.press("Enter");
     await stillPage.locator("#panel-in iframe").waitFor();
     await stillPage.waitForFunction(() => document.activeElement?.tagName === "IFRAME");
-    assert.match(await stillPage.evaluate(() => document.activeElement?.getAttribute("title") ?? ""), new RegExp(esc(copy.components.videoEmbed.frameTitle(copy.lib.embeds.platform.youtube, copy.components.videoEmbed.player, "Escher at work"))), "Play here: focus is on the player, not the page");
+    assert.match(await stillPage.evaluate(() => document.activeElement?.getAttribute("title") ?? ""), new RegExp(esc(copy.components.videoEmbed.frameTitle("YouTube", copy.components.videoEmbed.player, "Escher at work"))), "Play here: focus is on the player, not the page");
     await stillPage.unroute("https://www.youtube-nocookie.com/**");
     step("after Play here focus moves to the player that replaced the button");
     await still.close();
@@ -700,11 +700,11 @@ async function main(): Promise<void> {
     await findPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await row(findPage, "Second essay").click();
     await findPage.locator("#panel-in .p-title", { hasText: "Second essay" }).waitFor();
-    const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: new RegExp(`^${esc(copy.shell.itemPanel.keep)}`) }).first();
+    const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: new RegExp(`^${esc(copy.words.keep)}`) }).first();
     await panelKeep.click();
-    await findPage.getByRole("menuitem", { name: itemMenus.newBasket }).click();
-    const basketDialog = findPage.getByRole("dialog", { name: basketForm.titleNew });
-    await basketDialog.getByRole("textbox", { name: basketForm.name }).fill("Focus basket");
+    await findPage.getByRole("menuitem", { name: copy.words.newBasketMenu }).click();
+    const basketDialog = findPage.getByRole("dialog", { name: copy.words.newBasket });
+    await basketDialog.getByRole("textbox", { name: copy.words.name }).fill("Focus basket");
     await basketDialog.getByRole("button", { name: basketForm.create }).click();
     await basketDialog.waitFor({ state: "detached" });
     await findPage.waitForFunction(() => !!document.activeElement?.closest("#panel-in"));

@@ -1,4 +1,4 @@
-import { site as copy } from "@purss/copy/site";
+import * as copy from "@purss/copy/site";
 import { euros } from "@purss/domain/plans";
 import { footer, nav, PLANS, PLUS, PRO } from "./kit.ts";
 import type { Site } from "./site.ts";
@@ -7,7 +7,7 @@ import type { Site } from "./site.ts";
 export const LEGAL = {
   terms: {
     title: copy.legal.terms.title,
-    updated: copy.legal.terms.updated,
+    updated: copy.words.november2026,
     body: copy.legal.terms.body({ free: PLANS.free.name, plus: PLANS.plus.name, pro: PLANS.pro.name, plusYear: euros(PLUS.year), plusMonth: euros(PLUS.month), proYear: euros(PRO.year), proMonth: euros(PRO.month) }),
   },
   privacy: copy.legal.privacy,

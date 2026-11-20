@@ -7,7 +7,7 @@ const t = app.admin.adminModel;
 const failure = t.bridgeFailure;
 
 test("durations are rounded plainly and unknown stays unknown", () => {
-  assert.equal(durationLabel(null), t.unknown);
+  assert.equal(durationLabel(null), app.words.unknown);
   assert.equal(durationLabel(12), t.underAMinute);
   assert.equal(durationLabel(300), t.minutes(5));
   assert.equal(durationLabel(7200), t.hours(2));
@@ -16,7 +16,7 @@ test("durations are rounded plainly and unknown stays unknown", () => {
 });
 
 test("an unmeasured size says so instead of showing zero", () => {
-  assert.equal(bytesOrUnknown(null), t.unknown);
+  assert.equal(bytesOrUnknown(null), app.words.unknown);
   assert.equal(bytesOrUnknown(0), app.lib.format.bytes.small(0));
   assert.equal(bytesOrUnknown(512), app.lib.format.bytes.small(512));
 });

@@ -23,7 +23,7 @@ export function KeepAccount({ dueAt, onKept, onLeft }: { dueAt: string; onKept: 
     <div style={{ display: "grid", gap: 14 }} role="region" aria-label="Your account is being deleted">
       <p className="p-warn"><Icon name="alert" /><span>{t.beingDeleted(shortDate(dueAt))}</span></p>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
-      <Button variant="primary" large disabled={busy} onClick={() => void keep()} style={{ width: "100%" }}>{t.keep}</Button>
+      <Button variant="primary" large disabled={busy} onClick={() => void keep()} style={{ width: "100%" }}>{app.words.keepMyAccount}</Button>
       <Button disabled={busy} onClick={() => void leave()} style={{ width: "100%" }}>{t.leave}</Button>
       <p className="fine">{t.sharedPagesOff}</p>
     </div>
