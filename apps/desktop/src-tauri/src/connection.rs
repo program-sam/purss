@@ -5,6 +5,7 @@
 //! A credential store can keep a call waiting (a wallet asking to be created or unlocked): each call is given
 //! `WAIT` and then counts as no store, so signing in never hangs.
 
+use crate::copy;
 use std::fs;
 use std::path::PathBuf;
 
@@ -104,10 +105,10 @@ impl ConnectionStore {
         let _one = self.ops.lock().unwrap();
         if self.vault.set(json) {
             // Only once nothing older can be read instead of it: the file, and the suppression of the store's entry.
-            return gone(&self.file).and_then(|_| gone(&self.forgotten)).map_err(|e| format!("The connection couldn't be kept on this computer: {e}"));
+            return gone(&self.file).and_then(|_| gone(&self.forgotten)).map_err(copy::errors::connection_not_kept);
         }
-        write_private(&self.file, json).map_err(|e| format!("The connection couldn't be kept on this computer: {e}"))?;
-        self.suppress().map_err(|e| format!("The connection couldn't be kept on this computer: {e}"))
+        write_private(&self.file, json).map_err(copy::errors::connection_not_kept)?;
+        self.suppress().map_err(copy::errors::connection_not_kept)
     }
 
     /// Remove the connection: the file, and the store's entry. When the store doesn't confirm its entry is gone, the
@@ -121,7 +122,7 @@ impl ConnectionStore {
             let _ = fs::remove_file(&self.forgotten);
             Ok(())
         } else {
-            self.suppress().map_err(|_| "The credential store couldn't remove the connection.".to_string())
+            self.suppress().map_err(|_| copy::errors::CONNECTION_NOT_REMOVED.to_string())
         }
     }
 

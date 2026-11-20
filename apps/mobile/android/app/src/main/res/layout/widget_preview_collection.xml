@@ -44,10 +44,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="MN" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_collection_first_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="The quiet return of the train" />
-                <TextView style="@style/WidgetRowMeta" android:text="Morning News, 12 min. ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_collection_first_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_collection_first_meta" />
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
@@ -57,10 +57,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="CD" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_collection_second_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="How cities are rethinking their streets" />
-                <TextView style="@style/WidgetRowMeta" android:text="City Desk, 2 hr. ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_collection_second_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_collection_second_meta" />
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
@@ -70,10 +70,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="LR" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_collection_third_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="A short history of the paperback" />
-                <TextView style="@style/WidgetRowMeta" android:text="Long Reads, 1 day ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_collection_third_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_collection_third_meta" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

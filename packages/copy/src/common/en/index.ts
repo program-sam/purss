@@ -1,5 +1,8 @@
 /** Copy for text the app and the server share (packages/domain). */
+import distribution from "./distribution.ts";
+
 export const common = {
+  distribution,
   workflow: {
     undecided: "Undecided",
     toRead: "To read",

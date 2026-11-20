@@ -129,7 +129,7 @@ object Panels {
 
     /** A row's source tile: its initials, tinted by the source's hue as in the app (Android 12 and later; a plain tile before). */
     private fun avatar(ctx: Context, v: RemoteViews, id: Int, source: String, look: Look?) {
-        val name = source.ifEmpty { "Saved link" }
+        val name = source.ifEmpty { ctx.getString(R.string.widget_saved_link) }
         v.setTextViewText(id, WidgetLists.initials(name))
         val l = look ?: if (night(ctx)) DARK else LIGHT
         if (android.os.Build.VERSION.SDK_INT < 31) { v.setTextColor(id, if (l.eink) 0xff000000.toInt() else WidgetLists.avatarInk(WidgetLists.hue(name), l.night)); return }

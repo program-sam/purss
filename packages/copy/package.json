@@ -10,7 +10,8 @@
     "./ui": "./src/ui/en/index.ts",
     "./extension": "./src/extension/en/index.ts",
     "./server": "./src/server/en/index.ts",
-    "./common": "./src/common/en/index.ts"
+    "./common": "./src/common/en/index.ts",
+    "./native": "./src/native/en/index.ts"
   },
   "dependencies": {}
 }

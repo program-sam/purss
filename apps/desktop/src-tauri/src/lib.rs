@@ -7,6 +7,7 @@
 //! automatic downloads go on until the person quits from the tray icon.
 
 mod connection;
+mod copy;
 mod files;
 mod incoming;
 mod interfaces;
@@ -119,10 +120,10 @@ async fn credential_store(store: State<'_, ConnectionStore>) -> Result<&'static 
 /// The name your PURSS shows for this computer: its host name and system.
 #[tauri::command]
 fn device_name() -> String {
-    let os = if cfg!(target_os = "macos") { "Mac" } else if cfg!(windows) { "Windows" } else { "Linux" };
+    let os = if cfg!(target_os = "macos") { copy::computer::MAC } else if cfg!(windows) { copy::computer::WINDOWS } else { copy::computer::LINUX };
     let host = gethostname::gethostname().to_string_lossy().trim().to_string();
     let host: String = host.chars().filter(|c| !c.is_control()).take(60).collect();
-    if host.is_empty() { format!("{os} computer") } else { format!("{host} ({os})") }
+    if host.is_empty() { copy::computer::unnamed(os) } else { copy::computer::named(host, os) }
 }
 
 #[tauri::command]
@@ -146,14 +147,14 @@ fn open_external(url: String, app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn save_file(request: Request<'_>, app: AppHandle) -> Result<bool, String> {
     let InvokeBody::Raw(data) = request.body() else { return Err("expected the file's bytes".into()) };
-    let name = request.headers().get("x-purss-name").and_then(|v| v.to_str().ok()).and_then(|v| percent_decode(v)).unwrap_or_else(|| "export".into());
+    let name = request.headers().get("x-purss-name").and_then(|v| v.to_str().ok()).and_then(|v| percent_decode(v)).unwrap_or_else(|| copy::dialog::EXPORT_NAME.into());
     let name: String = name.chars().filter(|c| !c.is_control() && !matches!(c, '/' | '\\' | ':')).take(120).collect();
     let data = data.clone();
     let picked = tauri::async_runtime::spawn_blocking(move || app.dialog().file().set_file_name(&name).blocking_save_file())
         .await
         .map_err(|e| e.to_string())?;
     let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(false) };
-    std::fs::write(path, data).map_err(|e| format!("The file couldn't be saved: {e}"))?;
+    std::fs::write(path, data).map_err(copy::errors::file_not_saved)?;
     Ok(true)
 }
 
@@ -192,7 +193,7 @@ fn show_notification(app: &AppHandle, tag: String, title: String, body: Option<S
     #[cfg(target_os = "linux")]
     std::thread::spawn(move || {
         let mut n = notify_rust::Notification::new();
-        n.appname("PURSS").summary(&title).icon("purss").action("default", "Open");
+        n.appname(copy::app::NAME).summary(&title).icon("purss").action("default", copy::notification::OPEN);
         if let Some(b) = &body {
             n.body(b);
         }
@@ -259,9 +260,9 @@ fn set_badge(count: u32, overlay: Option<Overlay>, app: AppHandle, badge: State<
     }
     if let Some(tray) = app.tray_by_id(MAIN) {
         let tip = match count {
-            0 => "PURSS".to_string(),
-            1 => "PURSS: 1 new item".to_string(),
-            n => format!("PURSS: {n} new items"),
+            0 => copy::tray::tooltip::NONE.to_string(),
+            1 => copy::tray::tooltip::ONE.to_string(),
+            n => copy::tray::tooltip::many(n),
         };
         let _ = tray.set_tooltip(Some(tip));
     }
@@ -337,7 +338,7 @@ async fn files_choose_folder(app: AppHandle, files: State<'_, Arc<Files>>) -> Re
     let start = files.root().ok().and_then(|r| r.parent().map(|p| p.to_path_buf()));
     let dialog = app.clone();
     let picked = tauri::async_runtime::spawn_blocking(move || {
-        let mut d = dialog.dialog().file().set_title("Choose where to keep downloads");
+        let mut d = dialog.dialog().file().set_title(copy::dialog::CHOOSE_DOWNLOADS);
         if let Some(dir) = start {
             d = d.set_directory(dir);
         }
@@ -520,8 +521,8 @@ fn announce_ready(app: &AppHandle, version: &str) {
     show_notification(
         app,
         "app-update".into(),
-        "A new version of PURSS is ready".into(),
-        Some(format!("Version {version} is installed when you restart the app, or when you quit it from the tray.")),
+        copy::notification::UPDATE_READY.into(),
+        Some(copy::notification::update_ready_text(version)),
     );
     if let (Some(tray), Ok(menu)) = (app.tray_by_id(MAIN), tray_menu(app, Some(version))) {
         let _ = tray.set_menu(Some(menu));
@@ -530,11 +531,11 @@ fn announce_ready(app: &AppHandle, version: &str) {
 
 /// The tray's menu; with a downloaded version, *Restart to update* first.
 fn tray_menu<R: Runtime, M: Manager<R>>(app: &M, ready: Option<&str>) -> tauri::Result<Menu<R>> {
-    let open = MenuItem::with_id(app, "open", "Open PURSS", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", copy::tray::OPEN, true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", copy::tray::QUIT, true, None::<&str>)?;
     match ready {
         Some(version) => {
-            let restart = MenuItem::with_id(app, "restart", format!("Restart to update to {version}"), true, None::<&str>)?;
+            let restart = MenuItem::with_id(app, "restart", copy::tray::restart(version), true, None::<&str>)?;
             Menu::with_items(app, &[&restart, &PredefinedMenuItem::separator(app)?, &open, &quit_item])
         }
         None => Menu::with_items(app, &[&open, &quit_item]),
@@ -603,7 +604,8 @@ mod autostart {
         let exe = super::appimage().or_else(|| std::env::current_exe().ok()).ok_or("the app's location is unknown")?;
         let exe = exe.display().to_string().replace('\\', "\\\\").replace('"', "\\\"");
         std::fs::create_dir_all(f.parent().unwrap()).map_err(|e| e.to_string())?;
-        let text = format!("[Desktop Entry]\nType=Application\nName=PURSS\nExec=\"{exe}\" {}\nIcon=purss\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n", super::HIDDEN_ARG);
+        let name = super::copy::app::NAME;
+        let text = format!("[Desktop Entry]\nType=Application\nName={name}\nExec=\"{exe}\" {}\nIcon=purss\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n", super::HIDDEN_ARG);
         std::fs::write(&f, text).map_err(|e| e.to_string())
     }
 }
@@ -734,7 +736,7 @@ pub fn run() {
             app.manage(files);
 
             let menu = tray_menu(app, None)?;
-            let mut tray = TrayIconBuilder::with_id(MAIN).tooltip("PURSS").menu(&menu).show_menu_on_left_click(false);
+            let mut tray = TrayIconBuilder::with_id(MAIN).tooltip(copy::tray::tooltip::NONE).menu(&menu).show_menu_on_left_click(false);
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }

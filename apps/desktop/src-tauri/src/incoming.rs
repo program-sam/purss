@@ -2,6 +2,7 @@
 //! `feed:`, `podcast:` and `pcast:` links) and opened OPML files. Kept until the page asks (what started the app)
 //! and sent to it as an event while it runs; the page decides what each one means.
 
+use crate::copy;
 use serde::Serialize;
 
 use std::sync::Mutex;
@@ -44,11 +45,11 @@ pub fn as_file(arg: &str) -> Option<Incoming> {
     }
     let name = path.file_name()?.to_string_lossy().to_string();
     if meta.len() > MAX_FILE {
-        return Some(Incoming::FileError { name, reason: "That file is too large to be a subscription list.".into() });
+        return Some(Incoming::FileError { name, reason: copy::incoming::FILE_TOO_LARGE.into() });
     }
     Some(match std::fs::read(path) {
         Ok(bytes) => Incoming::File { name, text: String::from_utf8_lossy(&bytes).into_owned() },
-        Err(_) => Incoming::FileError { name, reason: "That file couldn't be read.".into() },
+        Err(_) => Incoming::FileError { name, reason: copy::incoming::FILE_UNREADABLE.into() },
     })
 }
 

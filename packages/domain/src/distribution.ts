@@ -2,9 +2,12 @@
  * Where people get the browser extension, the phone apps and the desktop app: the one
  * place that knows. A store listing is null until the owner publishes there; until then Settings → Connected apps
  * names the stores it isn't in yet and links to the install instructions, and the website shows no store button.
- * Setting a listing's address is all it takes for its store button to appear in both. No dependencies, so the website can
- * import it.
+ * Setting a listing's address is all it takes for its store button to appear in both. No installed dependencies, so the
+ * website can import it.
  */
+
+// The catalog file by path, not "@purss/copy/common": the desktop release job runs this file without installing packages.
+import copy from "../../copy/src/common/en/distribution.ts";
 
 export type StoreId = "chrome" | "edge" | "firefox" | "safari" | "android" | "ios";
 
@@ -18,14 +21,7 @@ export const STORE_LISTINGS: Readonly<Record<StoreId, string | null>> = {
   ios: null,
 };
 
-export const STORE_NAMES: Readonly<Record<StoreId, string>> = {
-  chrome: "Chrome Web Store",
-  edge: "Edge Add-ons",
-  firefox: "Firefox Add-ons",
-  safari: "Mac App Store",
-  android: "Google Play",
-  ios: "App Store",
-};
+export const STORE_NAMES: Readonly<Record<StoreId, string>> = copy.stores;
 
 /**
  * The official PURSS server: what the phone apps and the browser extension connect to unless the
@@ -41,8 +37,8 @@ const doc = (file: string, anchor?: string) => `${SOURCE_URL}/blob/main/${file}$
 export type Distributed = "extension" | "mobile";
 
 export const DISTRIBUTION: Readonly<Record<Distributed, { stores: readonly StoreId[]; platforms: string; install: string }>> = {
-  extension: { stores: ["chrome", "edge", "firefox"], platforms: "Chrome, Edge and Firefox", install: doc("apps/extension/README.md", "try-it-unpacked") },
-  mobile: { stores: ["android"], platforms: "Android", install: doc("apps/mobile/README.md", "build") },
+  extension: { stores: ["chrome", "edge", "firefox"], platforms: copy.platforms.extension, install: doc("apps/extension/README.md", "try-it-unpacked") },
+  mobile: { stores: ["android"], platforms: copy.platforms.mobile, install: doc("apps/mobile/README.md", "build") },
 };
 
 /**
@@ -65,12 +61,12 @@ export type DesktopPackage = {
 };
 
 export const DESKTOP_PACKAGES: readonly DesktopPackage[] = [
-  { file: "PURSS-windows-x64-setup.exe", label: "Windows (64-bit)", os: "windows", updates: ["windows-x86_64-nsis", "windows-x86_64"], made: { folder: "nsis", ending: "-setup.exe" } },
-  { file: "PURSS-macos.dmg", label: "macOS (Apple silicon and Intel)", os: "macos", updates: [], made: { folder: "dmg", ending: ".dmg" } },
-  { file: "PURSS-macos.app.tar.gz", label: "macOS update", updaterOnly: true, os: "macos", updates: ["darwin-aarch64-app", "darwin-x86_64-app", "darwin-aarch64", "darwin-x86_64"], made: { folder: "macos", ending: ".app.tar.gz" } },
-  { file: "PURSS-linux-x86_64.AppImage", label: "Linux AppImage (any distribution)", os: "linux", updates: ["linux-x86_64-appimage", "linux-x86_64"], made: { folder: "appimage", ending: ".AppImage" } },
-  { file: "PURSS-linux-amd64.deb", label: "Linux .deb (Debian, Ubuntu)", os: "linux", updates: ["linux-x86_64-deb"], made: { folder: "deb", ending: ".deb" } },
-  { file: "PURSS-linux-x86_64.rpm", label: "Linux .rpm (Fedora, openSUSE)", os: "linux", updates: ["linux-x86_64-rpm"], made: { folder: "rpm", ending: ".rpm" } },
+  { file: "PURSS-windows-x64-setup.exe", label: copy.desktop.windows, os: "windows", updates: ["windows-x86_64-nsis", "windows-x86_64"], made: { folder: "nsis", ending: "-setup.exe" } },
+  { file: "PURSS-macos.dmg", label: copy.desktop.macos, os: "macos", updates: [], made: { folder: "dmg", ending: ".dmg" } },
+  { file: "PURSS-macos.app.tar.gz", label: copy.desktop.macosUpdate, updaterOnly: true, os: "macos", updates: ["darwin-aarch64-app", "darwin-x86_64-app", "darwin-aarch64", "darwin-x86_64"], made: { folder: "macos", ending: ".app.tar.gz" } },
+  { file: "PURSS-linux-x86_64.AppImage", label: copy.desktop.linuxAppImage, os: "linux", updates: ["linux-x86_64-appimage", "linux-x86_64"], made: { folder: "appimage", ending: ".AppImage" } },
+  { file: "PURSS-linux-amd64.deb", label: copy.desktop.linuxDeb, os: "linux", updates: ["linux-x86_64-deb"], made: { folder: "deb", ending: ".deb" } },
+  { file: "PURSS-linux-x86_64.rpm", label: copy.desktop.linuxRpm, os: "linux", updates: ["linux-x86_64-rpm"], made: { folder: "rpm", ending: ".rpm" } },
 ];
 
 /** The files people download (the macOS update archive is for the updater only). */

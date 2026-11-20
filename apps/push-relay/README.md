@@ -8,7 +8,7 @@ self-hosts needs an account with Google or Apple. How the apps and the PURSS use
 sees, is in [the mobile README](../mobile/README.md#phone-notifications).
 
 Pushes carry **no content**: FCM gets `{"purss":"1"}`, APNs gets a neutral alert ("You have
-something new in your PURSS.") that the app's notification extension replaces with the
+something new in your PURSS.", from `@purss/copy/server`) that the app's notification extension replaces with the
 real text it fetches from the PURSS. There are no user accounts.
 
 Run it with `node apps/push-relay/src/main.ts` (tests: `node --test apps/push-relay/src/*.test.ts`,
@@ -90,7 +90,8 @@ A platform is on when its credentials are named. Whoever publishes the app owns 
 
 ## Deploy
 
-`compose.yaml` builds `Containerfile` (build context: the repository root) and binds
+`compose.yaml` builds `Containerfile` (build context: the repository root; the image holds `apps/push-relay` and
+the text catalog `packages/copy`, linked as `node_modules/@purss/copy`) and binds
 `${PURSS_RELAY_BIND:-127.0.0.1}:8950`. Put an HTTPS reverse proxy in front of it and set
 `PURSS_RELAY_TRUST_PROXY=1` there (the compose file's default). The proxy must append the client's
 address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`,

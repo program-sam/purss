@@ -1,3 +1,4 @@
+import { server } from "@purss/copy/server";
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import { readFileSync } from "node:fs";
 import http2, { type ClientHttp2Session } from "node:http2";
@@ -10,7 +11,7 @@ const JWT_LIFETIME_MS = 30 * 60_000;
 
 /** The neutral text shown if the app's notification extension cannot fetch the real one. */
 const PAYLOAD = JSON.stringify({
-  aps: { alert: { title: "PURSS", body: "You have something new in your PURSS." }, "mutable-content": 1, sound: "default" },
+  aps: { alert: { title: "PURSS", body: server.pushRelay.apnsFallback }, "mutable-content": 1, sound: "default" },
 });
 
 type Attempt = "ok" | "gone" | "bad_token" | "transient";

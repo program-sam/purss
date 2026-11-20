@@ -44,10 +44,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="TM" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_to_listen_first_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="Episode 212: The long game" />
-                <TextView style="@style/WidgetRowMeta" android:text="The Money Hour, 1 day ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_to_listen_first_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_to_listen_first_meta" />
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
@@ -57,10 +57,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="DT" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_to_listen_second_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="Inside the world of mapmakers" />
-                <TextView style="@style/WidgetRowMeta" android:text="Design Talk, 2 days ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_to_listen_second_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_to_listen_second_meta" />
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
@@ -70,10 +70,10 @@
             android:orientation="horizontal"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
-            <TextView style="@style/WidgetAvatar" android:text="MM" />
+            <TextView style="@style/WidgetAvatar" android:text="@string/widget_preview_to_listen_third_avatar" />
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/WidgetRowTitle" android:text="The science of habits" />
-                <TextView style="@style/WidgetRowMeta" android:text="Mind Matters, 4 days ago" />
+                <TextView style="@style/WidgetRowTitle" android:text="@string/widget_preview_to_listen_third_title" />
+                <TextView style="@style/WidgetRowMeta" android:text="@string/widget_preview_to_listen_third_meta" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
