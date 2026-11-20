@@ -339,3 +339,35 @@ test("schema.org ISSNs: a Periodical's, or the one an article is part of; other 
   assert.deepEqual(periodicalIssnsIn("{not json"), []);
   assert.deepEqual(periodicalIssnsIn(JSON.stringify({ "@type": "Periodical", issn: "1874-3501", pad: "x".repeat(300_000) })), []);
 });
+
+test("a journal whose works Crossref files under its other ISSN: the Crossref choice is the ISSN with articles", async () => {
+  const work = "https://api.crossref.org/works/10.1111%2Focea.1";
+  const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
+  const { fetch } = stub({
+    [work]: json(work, { message: { publisher: "Wiley", "container-title": ["Oceania"], "issn-type": [{ type: "electronic", value: "1834-4461" }, { type: "print", value: "0029-8077" }] } }),
+    [feedUrl]: feed(feedUrl, "Wiley: Oceania: Table of Contents"),
+  });
+  // Crossref knows the electronic ISSN but files the works under the print one.
+  const asked: string[] = [];
+  const bridge: BridgeClient = async (t) => {
+    asked.push(t.key);
+    return { status: 200, body: Buffer.from(crossrefWorksToRss(works(t.key === "00298077" ? [ARTICLE] : [], "Oceania"), t.key)) };
+  };
+  const d = ok(await discover("10.1111/ocea.1", { fetch, bridge, now: NOW }));
+  assert.deepEqual(asked, ["18344461", "00298077"], "the electronic first, then the other");
+  assert.deepEqual(d.candidates.map((c) => c.feedUrl), [feedUrl, "bridge:crossref/00298077"]);
+});
+
+test("a journal's own feed found on its page comes before its Crossref choice, which is an alternative", async () => {
+  const pageUrl = "https://journal.example.org/index.php/jx";
+  const ownFeed = "https://journal.example.org/index.php/jx/gateway/plugin/WebFeedGatewayPlugin/rss2";
+  const html = `<html><head><title>Journal X</title><meta name="generator" content="Open Journal Systems 3.4"><link rel="alternate" type="application/rss+xml" href="${ownFeed}"></head><body>x</body></html>`;
+  const search = "https://api.crossref.org/journals?query=Journal%20X&rows=10";
+  const { fetch } = stub({
+    [pageUrl]: fakeResponse(pageUrl, html, "text/html; charset=utf-8"),
+    [ownFeed]: feed(ownFeed, "Journal X"),
+    [search]: json(search, { message: { items: [{ title: "Journal X", publisher: "Society", ISSN: ["1234-5679"], "issn-type": [{ type: "electronic", value: "1234-5679" }] }] } }),
+  });
+  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "12345679": "Journal X" }).bridge, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.alternative ?? false]), [[ownFeed, false], ["bridge:crossref/12345679", true]]);
+});

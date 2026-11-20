@@ -11,7 +11,7 @@ import type { FoundLink } from "./html-links.ts";
 import { cleanPasted, EMAIL_MESSAGE, normalizeInput, withoutCookieBounce, wwwAlternative } from "./input.ts";
 import { crossrefJournalQueryUrl, crossrefWorkUrl, doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, isPublisherHost, journalFeedsFor, journalFromUrl, journalTitle, normalIssn, planFromIssns, planJournal, readCrossrefJournalSearch, readCrossrefWork, resolverUrl } from "./journals.ts";
 import type { CrossrefJournal, Platform } from "./journals.ts";
-import { planKnownFeeds, resolveKnown } from "./known-feeds.ts";
+import { journalNameFromDoi, planKnownFeeds, resolveKnown } from "./known-feeds.ts";
 import type { KnownDeps, KnownFeed, KnownPlan } from "./known-feeds.ts";
 import { bridgeDescriptor, bridgeService, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
 import type { BridgeService, BridgeTarget } from "./bridges.ts";
@@ -716,10 +716,11 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       return false;
     }
     if (feed.needsItems && probe.parsed.items.length === 0) return false;
-    const name = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameLike ? (found.find((f) => f.asked === feed.nameLike)?.c.title ?? null) : null);
+    const name = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameFromDoi ? await journalNameFromDoi(probe.parsed, knownDeps(ctx)) : null) ?? (feed.nameLike ? (found.find((f) => f.asked === feed.nameLike)?.c.title ?? null) : null);
     const own = matches(name);
     const note = [feed.note, own ? null : LINKED_JOURNAL_NOTE].filter(Boolean).join(" ");
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { via: feed.via, origin: feed.origin, ...(name ? { title: name } : {}), ...(note ? { note } : {}) });
+    const shown = name ?? (feed.nameFromDoi ? (feed.origin ?? null) : null);
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { via: feed.via, origin: feed.origin, ...(shown ? { title: shown } : {}), ...(note ? { note } : {}) });
     found.push({ c, parsed: probe.parsed, via: "journal", matches: own, asked: feed.feedUrl, sibling: feed.nameLike, feedNote: feed.note });
     return true;
   };
@@ -961,7 +962,8 @@ async function withRegistry(ctx: Ctx, draft: DiscoveryDraft, pageUrl: string, ma
   const frontSet = new Set(front);
   // Only items whose website really is one of the spellings asked about: the search index can lag behind an edit.
   const own = items.filter((i) => i.websites.some((w) => pageSet.has(w)));
-  const site = items.filter((i) => !own.includes(i) && i.websites.some((w) => frontSet.has(w)));
+  // A publishing platform's front page is not the journal's: its feed (if Wikidata lists one) would be another journal's or the platform's.
+  const site = isPublisherHost(url.hostname.toLowerCase()) || journalFromUrl(url) ? [] : items.filter((i) => !own.includes(i) && i.websites.some((w) => frontSet.has(w)));
   // A journal's ISSNs come from the page's own item only: a publisher's front page is not one journal.
   ctx.journal.issns.push(...own.flatMap((i) => i.issns));
   // The page's own feeds first; the front page's, for a section page, as the whole site's.
@@ -1023,6 +1025,13 @@ const PLATFORM_PUBLISHER: Record<Platform, RegExp | undefined> = {
   // Project MUSE hosts many publishers' journals: an exact, single title match is required instead.
   muse: undefined,
   sciencedirect: /\belsevier\b/i,
+  ieee: /\b(?:ieee|institute of electrical)\b/i,
+  iop: /\b(?:iop|institute of physics)\b/i,
+  acm: /\b(?:acm|association for computing machinery)\b/i,
+  springer: /\bspringer\b/i,
+  mdpi: /\bmdpi\b/i,
+  plos: /\b(?:plos|public library of science)\b/i,
+  frontiers: /\bfrontiers\b/i,
 };
 const DUKE_SLUG = /^[a-z][a-z0-9-]{2,60}$/;
 const DUKE_NOT_JOURNALS = new Set(["books", "journals", "search", "account", "about", "contact", "cart", "series", "authors", "subjects", "news", "sign-in", "my-account", "content", "pb-assets", "rss"]);
@@ -1052,10 +1061,13 @@ async function discoverIssn(ctx: Ctx, issn: string, max: number): Promise<Discov
   return fail(label, "nofeed", server.sources.connectors.discover.journalNoFeed(`${journal.title ?? server.sources.connectors.discover.thatJournal}${journal.publisher ? ` (${journal.publisher})` : ""}`));
 }
 
-/** The journal's ISSN for its Crossref choice: one it was told, else one Crossref finds for the journal's name. */
-async function journalIssn(ctx: Ctx, draft: DiscoveryDraft): Promise<string | null> {
-  const told = ctx.journal.issns.map(normalIssn).find((v): v is string => !!v);
-  if (told) return told;
+/**
+ * The journal's ISSNs for its Crossref choice, the likeliest first (at most two): those it was told, else those Crossref
+ * gives for the journal's name. Crossref files a journal's works under one of its ISSNs, not always the same one.
+ */
+async function journalIssns(ctx: Ctx, draft: DiscoveryDraft): Promise<string[]> {
+  const told = [...new Set(ctx.journal.issns.map(normalIssn).filter((v): v is string => !!v))].slice(0, 2);
+  if (told.length) return told;
   const names = [...ctx.journal.names];
   const platform = ctx.journal.platform;
   if (platform) {
@@ -1077,10 +1089,10 @@ async function journalIssn(ctx: Ctx, draft: DiscoveryDraft): Promise<string | nu
       tried.add(key);
       const search = await knownDeps(ctx).json(crossrefJournalSearchUrl(variant));
       const found: CrossrefJournalRecord | null = search.ok ? findCrossrefJournal(search.data, variant, publisher) : null;
-      if (found) return found.issns[0]!;
+      if (found) return found.issns.slice(0, 2);
     }
   }
-  return null;
+  return [];
 }
 
 async function wileyJournalName(ctx: Ctx, code: string): Promise<string | null> {
@@ -1092,6 +1104,9 @@ async function wileyJournalName(ctx: Ctx, code: string): Promise<string | null> 
     return null;
   }
 }
+
+/** Feeds a journal's page can have that aren't its articles. */
+const NOT_THE_JOURNALS_ARTICLES = new Set([feedLabels.announcementsFeed, feedLabels.commentsFeed, feedLabels.allReplies, feedLabels.wholeSiteFeed]);
 
 /** A journal's own articles (or issues) feed, as opposed to its announcements or a site's other feeds. */
 function isJournalArticlesFeed(c: DraftCandidate): boolean {
@@ -1113,22 +1128,30 @@ async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDra
   if (draft.ok && max <= 1 && draft.candidates.some(isJournalArticlesFeed)) {
     return { ...draft, candidates: draft.candidates.slice(0, Math.max(0, max)) };
   }
-  const issn = await journalIssn(ctx, draft);
-  if (!issn || ctx.signal.aborted) return draft;
-  const answer = await opts.bridge({ service, key: issn }, ctx.signal).catch(() => ({ failed: true }) as const);
-  if ("failed" in answer || answer.status !== 200) return draft;
-  let parsed: ParsedFeed;
-  try {
-    parsed = parseFeed(answer.body, "application/rss+xml");
-  } catch {
-    return draft;
+  // The first ISSN whose works Crossref has; an ISSN with none is kept only when no other has any.
+  let picked: { issn: string; parsed: ParsedFeed } | null = null;
+  for (const issn of await journalIssns(ctx, draft)) {
+    if (ctx.signal.aborted) return draft;
+    const answer = await opts.bridge({ service, key: issn }, ctx.signal).catch(() => ({ failed: true }) as const);
+    if ("failed" in answer || answer.status !== 200) continue;
+    let parsed: ParsedFeed;
+    try {
+      parsed = parseFeed(answer.body, "application/rss+xml");
+    } catch {
+      continue;
+    }
+    if (!picked || (!picked.parsed.items.length && parsed.items.length)) picked = { issn, parsed };
+    if (picked.parsed.items.length) break;
   }
+  if (!picked) return draft;
+  const { issn, parsed } = picked;
   const site = issnPortalUrl(issn);
   const c = { ...buildCandidate(bridgeDescriptor(service.id, issn), parsed, { url: site }, ctx, { origin: service.origin, via: CROSSREF_VIA, note: CROSSREF_NOTE }), siteUrl: site };
   if (!draft.ok) return { ok: true, url: draft.url, candidates: [{ ...c, matchesPage: true }] };
   const others = draft.candidates.slice(0, max - 1);
-  // Without the journal's own articles feed, its articles come first (before its announcements, say), and start out chosen.
-  if (!draft.candidates.some(isJournalArticlesFeed)) return { ...draft, candidates: [{ ...c, matchesPage: true }, ...others] };
+  // Without the journal's own feed, its articles come first (before its announcements, say), and start out chosen. The
+  // journal's own feed is its articles feed on a platform, or a feed the page itself shows to be its own.
+  if (!draft.candidates.some((c) => isJournalArticlesFeed(c) || (c.matchesPage === true && !NOT_THE_JOURNALS_ARTICLES.has(c.via)))) return { ...draft, candidates: [{ ...c, matchesPage: true }, ...others] };
   return { ...draft, candidates: [...others, { ...c, alternative: true }] };
 }
 export const OJS_ANNOUNCEMENTS_NOTE = server.sources.connectors.journals.announcementsNote;

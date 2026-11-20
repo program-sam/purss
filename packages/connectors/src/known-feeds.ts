@@ -2,7 +2,7 @@ import { server } from "@purss/copy/server";
 import type { DraftCandidate } from "./discover.ts";
 import type { ParsedFeed } from "./feed.ts";
 import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed, sameEntries } from "./feed-choice.ts";
-import { planJournal } from "./journals.ts";
+import { crossrefWorkUrl, planJournal, readCrossrefWork } from "./journals.ts";
 import { hostOf as host, isHostOrSub, planServiceFeeds, segmentsOf as segments } from "./services.ts";
 
 const feedLabels = server.sources.connectors.labels;
@@ -43,6 +43,8 @@ export type KnownFeed = {
   note?: string;
   /** Named like the feed at this address in the same plan, when its own title names only the platform. */
   nameLike?: string;
+  /** Named after the journal Crossref files its first entry's DOI under, when its own title says nothing (Springer's "Latest Results"). */
+  nameFromDoi?: boolean;
 };
 
 export type KnownPlan =
@@ -297,6 +299,10 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
     return { failure: { reason: "unsupported", message: APPLE_NO_FEED } };
   }
   const probes = (await Promise.all(plan.feeds.map((f) => deps.probe(f.feedUrl)))).map((probe, i) => counted(plan.feeds[i]!, probe));
+  const doiNames = await Promise.all(plan.feeds.map((f, i) => {
+    const probe = probes[i]!;
+    return f.nameFromDoi && "feedUrl" in probe ? journalNameFromDoi(probe.parsed, deps) : Promise.resolve(null);
+  }));
   const sectionAsked = plan.feeds.some((f) => f.section);
   const sectionAnswered = plan.feeds.some((f, i) => f.section && "feedUrl" in probes[i]!);
   const candidates: DraftCandidate[] = [];
@@ -313,7 +319,7 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
       offered.push(probe.parsed);
       // Judged by what was asked for, not by where the answer ended up (a blog's feed often lives on another host).
       const wholeSite = !feed.section && (sectionAsked || isSiteWideFeed(feed.feedUrl, pageUrl));
-      const title = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? undefined;
+      const title = feed.title ?? feed.retitle?.(probe.parsed.title) ?? doiNames[i] ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? (feed.nameFromDoi ? feed.origin : undefined) ?? undefined;
       const c = deps.candidate(probe.feedUrl, probe.parsed, wholeSite
         ? { title, via: feedLabels.wholeSiteFeed, origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
         : { title, via: feed.via, origin: feed.origin, ...(leadAnswered && feed.alsoNote ? { note: feed.alsoNote } : feed.emptyNote && probe.parsed.items.length === 0 ? { note: feed.emptyNote } : feed.note ? { note: feed.note } : {}) });
@@ -332,4 +338,18 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
   if (candidates.length) return { candidates: plan.firstAnswer ? candidates.slice(0, 1) : candidates };
   if (blocked) return { failure: blocked };
   return trouble.timeout || trouble.busy ? { trouble } : null;
+}
+
+/**
+ * The journal a feed's first entry belongs to, by the DOI in its link, as Crossref names it; null when that can't be told
+ * (the feed's own title is then no name either: callers fall back to what the feed is, "Springer Nature journal").
+ */
+export async function journalNameFromDoi(parsed: ParsedFeed, deps: KnownDeps): Promise<string | null> {
+  const link = parsed.items.find((i) => i.url)?.url ?? "";
+  let path = "";
+  try { path = decodeURIComponent(new URL(link).pathname); } catch { return null; }
+  const doi = /(10\.\d{4,9}\/[^\s?#]+)/.exec(path)?.[1];
+  if (!doi) return null;
+  const record = await deps.json(crossrefWorkUrl(doi));
+  return record.ok ? (readCrossrefWork(record.data)?.title ?? null) : null;
 }

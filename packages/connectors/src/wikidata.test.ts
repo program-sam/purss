@@ -179,3 +179,22 @@ test("Wikidata isn't asked about a page that isn't there, one that wants a passw
     assert.ok(!s.calls.some((u) => u.startsWith("https://www.wikidata.org/")), url);
   }
 });
+
+test("on a publishing platform, the front page's item is not the journal's: its feed isn't offered for a journal page", async () => {
+  const pageUrl = "https://www.tandfonline.com/journals/zzzz20";
+  const { fetch } = stub({
+    [pageUrl]: fakeResponse(pageUrl, "x", "text/html", 403),
+    ...wikidata(pageUrl, { Q1: { websites: ["https://www.tandfonline.com/"], feeds: ["https://www.tandfonline.com/feed/rss/racl20"] } }),
+    "https://www.tandfonline.com/feed/rss/racl20": feed("https://www.tandfonline.com/feed/rss/racl20", "tandf: New Review of Academic Librarianship: Table of Contents"),
+  });
+  const d = await discover(pageUrl, { fetch, now: NOW });
+  assert.ok(!d.ok, JSON.stringify(d));
+  // The same for a journal page on a platform whose own pages are read like any site's (PLOS).
+  const plos = "https://journals.plos.org/plosnone/";
+  const p = stub({
+    [plos]: fakeResponse(plos, "x", "text/html", 503),
+    ...wikidata(plos, { Q2: { websites: ["https://journals.plos.org/"], feeds: ["https://journals.plos.org/odd/all.rss"] } }),
+    "https://journals.plos.org/odd/all.rss": feed("https://journals.plos.org/odd/all.rss", "PLOS"),
+  });
+  assert.ok(!(await discover(plos, { fetch: p.fetch, now: NOW })).ok);
+});

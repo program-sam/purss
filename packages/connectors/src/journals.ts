@@ -16,7 +16,7 @@ const feedLabels = server.sources.connectors.labels;
  * issue) is a choice of its own. Copies are dropped after fetching, by their entries (known-feeds.ts).
  */
 
-export type Platform = "wiley" | "tandf" | "sage" | "uchicago" | "berghahn" | "muse" | "sciencedirect";
+export type Platform = "wiley" | "tandf" | "sage" | "uchicago" | "berghahn" | "muse" | "sciencedirect" | "ieee" | "iop" | "acm" | "springer" | "mdpi" | "plos" | "frontiers";
 
 /** A journal named by a page address: its platform and the code the feed address is made from. */
 export type JournalRef = { platform: Exclude<Platform, "sciencedirect">; id: string } | { platform: "sciencedirect"; slug: string };
@@ -29,6 +29,13 @@ const PUBLISHER: Record<Platform, string> = {
   berghahn: "Berghahn",
   muse: "Project MUSE",
   sciencedirect: "Elsevier",
+  ieee: "IEEE",
+  iop: "IOP Publishing",
+  acm: "ACM",
+  springer: "Springer Nature",
+  mdpi: "MDPI",
+  plos: "PLOS",
+  frontiers: "Frontiers",
 };
 
 /** An ISSN without its hyphen (`15481433`, `0000000X`) when its check digit is right, else null. */
@@ -46,6 +53,9 @@ const SAGE_CODE = /^[a-z][a-z0-9]{1,11}$/i;
 const WILEY_CODE = /^[a-z][a-z0-9]{1,11}$/i;
 const UCHICAGO_CODE = /^[a-z]{1,12}$/i;
 const BERGHAHN_CODE = /^[a-z0-9][a-z0-9-]{0,39}$/i;
+const ACM_CODE = /^[a-z][a-z0-9]{1,15}$/i;
+const SLUG = /^[a-z0-9][a-z0-9-]{1,60}$/;
+const PLOS_SLUG = /^plos[a-z]{2,20}$/;
 const RESERVED_BERGHAHN = new Set(["www", "api", "static", "assets", "cdn", "mail"]);
 
 /** The journal code after `/journal/`, `/journals/`, `/toc/` or `/loi/`, the positions these platforms put it in. */
@@ -89,6 +99,37 @@ export function journalFromUrl(url: URL): JournalRef | null {
     const label = h.slice(0, -".berghahnjournals.com".length);
     return BERGHAHN_CODE.test(label) && !label.includes(".") && !RESERVED_BERGHAHN.has(label) ? { platform: "berghahn", id: label } : null;
   }
+  if (h === "ieeexplore.ieee.org") {
+    // A journal's pages carry its publication number: RecentIssue.jsp?punumber=34, tocresult.jsp?…&punumber=34.
+    const n = url.searchParams.get("punumber") ?? "";
+    return /^\d{1,10}$/.test(n) ? { platform: "ieee", id: n } : null;
+  }
+  if (h === "iopscience.iop.org") {
+    // /journal/<ISSN> and its pages; an article's DOI carries the journal's ISSN too (/article/10.1088/<ISSN>/…).
+    const raw = s[0] === "journal" ? s[1] : s[0] === "article" && s[1] === "10.1088" ? s[2] : undefined;
+    const issn = raw ? normalIssn(raw) : null;
+    return issn ? { platform: "iop", id: `${issn.slice(0, 4)}-${issn.slice(4)}` } : null;
+  }
+  if (h === "dl.acm.org") {
+    const code = codeAfterPrefix(s, ["journal", "toc", "loi"]);
+    return code && ACM_CODE.test(code) ? { platform: "acm", id: code.toLowerCase() } : null;
+  }
+  if (h === "link.springer.com") {
+    const id = s[0] === "journal" ? (s[1] ?? "") : "";
+    return /^\d{1,6}$/.test(id) ? { platform: "springer", id } : null;
+  }
+  if (h === "mdpi.com" || h === "www.mdpi.com") {
+    const slug = s[0] === "journal" ? (s[1] ?? "").toLowerCase() : "";
+    return SLUG.test(slug) ? { platform: "mdpi", id: slug } : null;
+  }
+  if (h === "journals.plos.org") {
+    const slug = (s[0] ?? "").toLowerCase();
+    return PLOS_SLUG.test(slug) ? { platform: "plos", id: slug } : null;
+  }
+  if (h === "frontiersin.org" || h === "www.frontiersin.org") {
+    const slug = s[0] === "journals" ? (s[1] ?? "").toLowerCase() : "";
+    return SLUG.test(slug) ? { platform: "frontiers", id: slug } : null;
+  }
   if (h === "muse.jhu.edu") {
     // /journal/<number>, also under a publisher: /pub/<number>/journal/<number>.
     const at = s[0] === "pub" && /^\d{1,6}$/.test(s[1] ?? "") ? 2 : 0;
@@ -107,15 +148,16 @@ export function journalTitle(feedTitle: string | null | undefined): string | nul
   const t = (feedTitle ?? "")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/^(?:Wiley|tandf|Taylor (?:and|&) Francis|SAGE Publications(?: (?:Ltd|Inc|India Pvt Ltd)\.?)?|SAGE Journals|The University of Chicago Press|ScienceDirect Publication|Project MUSE\s*®?)\s*:\s*/i, "")
+    .replace(/^(?:Wiley|tandf|Taylor (?:and|&) Francis|Association for Computing Machinery|SAGE Publications(?: (?:Ltd|Inc|India Pvt Ltd)\.?)?|SAGE Journals|The University of Chicago Press|ScienceDirect Publication|Project MUSE\s*®?)\s*:\s*/i, "")
     .replace(/\s*:\s*Table of Contents$/i, "")
-    .replace(/\s+-\s+Latest (?:Articles|Issues)$/i, "")
+    .replace(/\s+-\s+(?:Latest (?:Articles|Issues)|latest papers|new TOC)$/i, "")
+    .replace(/\s*\|\s*New and Recent Articles$/i, "")
     .trim();
   // A feed that names only the platform ("Wiley-Online-Library: Table of Contents") says nothing about the journal.
   return t && !PLATFORM_ONLY.test(t) ? t : null;
 }
 
-const PLATFORM_ONLY = /^(?:Wiley-Online-Library|Taylor and Francis|University of Chicago Press|Sage Journals)$/i;
+const PLATFORM_ONLY = /^(?:Wiley-Online-Library|Taylor and Francis|University of Chicago Press|Sage Journals|Table of Contents|Latest Results)$/i;
 
 export const EARLY_NOTE = server.sources.connectors.journals.earlyNote;
 export const ISSUES_NOTE = server.sources.connectors.journals.issuesNote;
@@ -150,6 +192,21 @@ export function journalFeedsFor(ref: Exclude<JournalRef, { platform: "sciencedir
       const main = journalFeed("uchicago", `https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`);
       return [main, alsoFeed(main, `https://www.journals.uchicago.edu/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, feedLabels.earlyArticlesFeed, EARLY_NOTE)];
     }
+    case "ieee":
+      return [journalFeed("ieee", `https://ieeexplore.ieee.org/rss/TOC${ref.id}.XML`)];
+    case "iop":
+      return [journalFeed("iop", `https://iopscience.iop.org/journal/rss/${ref.id}`)];
+    case "acm":
+      return [journalFeed("acm", `https://dl.acm.org/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`)];
+    case "springer":
+      // The feed of a search within the journal; it names itself "Latest Results", so the journal's name comes from Crossref.
+      return [{ ...journalFeed("springer", `https://link.springer.com/search.rss?facet-journal-id=${ref.id}&search-within=Journal&query=`), nameFromDoi: true }];
+    case "mdpi":
+      return [journalFeed("mdpi", `https://www.mdpi.com/rss/journal/${ref.id}`)];
+    case "plos":
+      return [journalFeed("plos", `https://journals.plos.org/${ref.id}/feed/atom`)];
+    case "frontiers":
+      return [journalFeed("frontiers", `https://www.frontiersin.org/journals/${ref.id}/rss`)];
     case "berghahn":
       return [journalFeed("berghahn", `https://www.berghahnjournals.com/journalissuetocrss/journals/${ref.id}/${ref.id}-overview.xml`)];
     case "muse": {
@@ -173,6 +230,12 @@ export function isPublisherHost(h: string): boolean {
     isHostOrSub(h, "tandfonline.com") ||
     h === "journals.sagepub.com" ||
     h === "www.journals.sagepub.com" ||
+    h === "ieeexplore.ieee.org" ||
+    h === "iopscience.iop.org" ||
+    h === "dl.acm.org" ||
+    h === "link.springer.com" ||
+    h === "mdpi.com" ||
+    h === "www.mdpi.com" ||
     isHostOrSub(h, "journals.uchicago.edu") ||
     isHostOrSub(h, "sciencedirect.com") ||
     isHostOrSub(h, "berghahnjournals.com") ||
@@ -235,7 +298,7 @@ function safeDecode(v: string): string {
 /** The DOI in an article address on a platform whose article pages refuse automated readers (`/doi/full/10.1080/…`). */
 export function doiFromArticleUrl(url: URL): string | null {
   const h = hostOf(url);
-  if (!isHostOrSub(h, "onlinelibrary.wiley.com") && !isHostOrSub(h, "tandfonline.com") && !isHostOrSub(h, "journals.uchicago.edu")) return null;
+  if (!isHostOrSub(h, "onlinelibrary.wiley.com") && !isHostOrSub(h, "tandfonline.com") && !isHostOrSub(h, "journals.uchicago.edu") && h !== "journals.sagepub.com" && h !== "www.journals.sagepub.com" && h !== "dl.acm.org") return null;
   const m = /^\/doi\/(?:(?:abs|full|pdf|epdf|pdfdirect|epub|reader|figure|suppl|book)\/)?(10\.\d{4,9}\/[^?#]+)$/i.exec(url.pathname);
   return m ? safeDecode(m[1]!) : null;
 }

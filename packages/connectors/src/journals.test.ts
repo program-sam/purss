@@ -172,6 +172,67 @@ test("journal names: the platform's decoration around the journal's name is drop
   assert.equal(journalTitle("Wiley-Online-Library: Table of Contents"), null, "names only the platform");
   assert.equal(journalTitle(" "), null);
   for (const name of ["SAGE Publications Ltd: Childhood: Table of Contents", "SAGE Publications Inc: Childhood: Table of Contents", "SAGE Publications India Pvt Ltd: Childhood: Table of Contents"]) assert.equal(journalTitle(name), "Childhood", name);
+  assert.equal(journalTitle("IEEE Transactions on Pattern Analysis and Machine Intelligence - new TOC"), "IEEE Transactions on Pattern Analysis and Machine Intelligence");
+  assert.equal(journalTitle("Environmental Research Letters - latest papers"), "Environmental Research Letters");
+  assert.equal(journalTitle("Frontiers in Psychology | New and Recent Articles"), "Frontiers in Psychology");
+  assert.equal(journalTitle("Association for Computing Machinery: ACM Transactions on Database Systems: Table of Contents"), "ACM Transactions on Database Systems");
+  assert.equal(journalTitle("tandf: Table of Contents"), null, "an early-articles feed that names no journal is named like the journal's main feed");
+  assert.equal(journalTitle("Latest Results"), null, "Springer's search feed names no journal");
+});
+
+test("more platforms: IEEE, IOP, ACM, Springer, MDPI, PLOS and Frontiers journal, issue and article pages give the journal's feed", () => {
+  const cases: [string, string][] = [
+    ["https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=34", "https://ieeexplore.ieee.org/rss/TOC34.XML"],
+    ["https://ieeexplore.ieee.org/xpl/tocresult.jsp?isnumber=11000001&punumber=6287639", "https://ieeexplore.ieee.org/rss/TOC6287639.XML"],
+    ["https://iopscience.iop.org/journal/1748-9326", "https://iopscience.iop.org/journal/rss/1748-9326"],
+    ["https://iopscience.iop.org/article/10.1088/1748-9326/aebe4d", "https://iopscience.iop.org/journal/rss/1748-9326"],
+    ["https://dl.acm.org/journal/tods", "https://dl.acm.org/action/showFeed?type=etoc&feed=rss&jc=tods"],
+    ["https://dl.acm.org/toc/csur/current", "https://dl.acm.org/action/showFeed?type=etoc&feed=rss&jc=csur"],
+    ["https://link.springer.com/journal/10853", "https://link.springer.com/search.rss?facet-journal-id=10853&search-within=Journal&query="],
+    ["https://link.springer.com/journal/10551/volumes-and-issues", "https://link.springer.com/search.rss?facet-journal-id=10551&search-within=Journal&query="],
+    ["https://www.mdpi.com/journal/sensors", "https://www.mdpi.com/rss/journal/sensors"],
+    ["https://www.mdpi.com/journal/nutrients/special_issues", "https://www.mdpi.com/rss/journal/nutrients"],
+    ["https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3004123", "https://journals.plos.org/plosbiology/feed/atom"],
+    ["https://journals.plos.org/plosone/", "https://journals.plos.org/plosone/feed/atom"],
+    ["https://www.frontiersin.org/journals/psychology", "https://www.frontiersin.org/journals/psychology/rss"],
+    ["https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2026.1950288/full", "https://www.frontiersin.org/journals/psychology/rss"],
+  ];
+  for (const [page, feed] of cases) assert.deepEqual(mainFeed(page), [feed], page);
+  for (const other of [
+    "https://ieeexplore.ieee.org/document/11426947/", // an article: no publication number
+    "https://iopscience.iop.org/journal/1748-9327", // a wrong check digit
+    "https://link.springer.com/article/10.1007/s10551-026-06529-9",
+    "https://www.mdpi.com/2072-6643/18/22/3854",
+    "https://journals.plos.org/",
+    "https://www.frontiersin.org/journals",
+    "https://www.frontiersin.org/articles/10.3389/fpsyg.2026.1950288/full", // no journal name in the address
+  ]) assert.equal(feedUrls(other), null, other);
+});
+
+test("a Springer journal's search feed is named after the journal its first article belongs to, as Crossref says", async () => {
+  const pageUrl = "https://link.springer.com/journal/10853";
+  const feedUrl = "https://link.springer.com/search.rss?facet-journal-id=10853&search-within=Journal&query=";
+  const work = "https://api.crossref.org/works/10.1007%2Fs10853-026-12345-6";
+  const body = `<?xml version="1.0"?><rss version="2.0"><channel><title>Latest Results</title><link>https://link.springer.com</link><description>x</description><item><title>An article</title><link>https://link.springer.com/article/10.1007/s10853-026-12345-6</link></item></channel></rss>`;
+  const { fetch } = stub({
+    [pageUrl]: forbidden(pageUrl),
+    [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"),
+    [work]: json(work, { message: { publisher: "Springer Science and Business Media LLC", "container-title": ["Journal of Materials Science"], ISSN: ["0022-2461", "1573-4803"] } }),
+  });
+  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Materials Science", feedUrl, "Springer Nature journal"]]);
+  // Linked from a society's page, the journal is named the same way.
+  const society = "https://society.example.org/journal";
+  const linked = stub({
+    [society]: page(society, `<html><head><title>Our journal</title></head><body><a href="${pageUrl}">Journal of Materials Science</a></body></html>`),
+    [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"),
+    [work]: json(work, { message: { publisher: "Springer Science and Business Media LLC", "container-title": ["Journal of Materials Science"], ISSN: ["0022-2461", "1573-4803"] } }),
+  });
+  assert.equal(ok(await discover(society, { fetch: linked.fetch, now: NOW })).candidates[0]!.title, "Journal of Materials Science");
+  // Crossref not answering: named for what it is, never "Latest Results".
+  const down = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"), [work]: fakeResponse(work, "busy", "text/plain", 503) });
+  assert.equal(ok(await discover(pageUrl, { fetch: down.fetch, now: NOW })).candidates[0]!.title, "Springer Nature journal");
+  assert.equal(doiFromArticleUrl(new URL("https://www.journals.sagepub.com/doi/10.1177/09567976261490829")), "10.1177/09567976261490829");
 });
 
 test("DOIs: bare, doi:, doi.org and walled article addresses; nothing else", () => {
