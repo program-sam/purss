@@ -34,6 +34,9 @@
 		7E5B00000000000000000062 /* WidgetLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000051 /* WidgetLists.swift */; };
 		7E5B00000000000000000063 /* PanelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000052 /* PanelChoice.swift */; };
 		7E5B00000000000000000064 /* PanelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000052 /* PanelChoice.swift */; };
+		7E5B00000000000000000071 /* NativeCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000070 /* NativeCopy.swift */; };
+		7E5B00000000000000000072 /* NativeCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000070 /* NativeCopy.swift */; };
+		7E5B00000000000000000073 /* NativeCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000070 /* NativeCopy.swift */; };
 		7E5B00000000000000000065 /* WidgetRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000053 /* WidgetRefresh.swift */; };
 		7E5B00000000000000000008 /* Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7E5B0000000000000000001A /* Widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7E5B00000000000000000066 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000054 /* Assets.xcassets */; };
@@ -111,6 +114,7 @@
 		7E5B00000000000000000017 /* WorkspaceWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceWidget.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000051 /* WidgetLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLists.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000052 /* PanelChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelChoice.swift; sourceTree = "<group>"; };
+		7E5B00000000000000000070 /* NativeCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCopy.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000053 /* WidgetRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefresh.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000054 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7E5B00000000000000000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -224,6 +228,7 @@
 				7E5B00000000000000000017 /* WorkspaceWidget.swift */,
 				7E5B00000000000000000051 /* WidgetLists.swift */,
 				7E5B00000000000000000052 /* PanelChoice.swift */,
+				7E5B00000000000000000070 /* NativeCopy.swift */,
 				7E5B00000000000000000054 /* Assets.xcassets */,
 				7E5B00000000000000000018 /* Info.plist */,
 				7E5B00000000000000000019 /* Widgets.entitlements */,
@@ -426,6 +431,7 @@
 				7E5B00000000000000000006 /* BackgroundTransfers.swift in Sources */,
 				7E5B00000000000000000061 /* WidgetLists.swift in Sources */,
 				7E5B00000000000000000063 /* PanelChoice.swift in Sources */,
+				7E5B00000000000000000071 /* NativeCopy.swift in Sources */,
 				7E5B00000000000000000065 /* WidgetRefresh.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -445,6 +451,7 @@
 				7E5B00000000000000000007 /* WorkspaceWidget.swift in Sources */,
 				7E5B00000000000000000062 /* WidgetLists.swift in Sources */,
 				7E5B00000000000000000064 /* PanelChoice.swift in Sources */,
+				7E5B00000000000000000072 /* NativeCopy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -453,6 +460,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7E5A00000000000000000020 /* NotificationService.swift in Sources */,
+				7E5B00000000000000000073 /* NativeCopy.swift in Sources */,
 				7E5A00000000000000000022 /* PushTarget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

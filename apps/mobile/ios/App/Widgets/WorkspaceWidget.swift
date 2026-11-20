@@ -38,21 +38,21 @@ enum PanelKind {
 
     var heading: String {
         switch self {
-        case .toRead: return "To read"
-        case .toListen: return "To listen"
-        case .new: return "New"
-        case .collection: return "Collection"
-        case .source: return "Source"
+        case .toRead: return NativeCopy.Widget.toRead
+        case .toListen: return NativeCopy.Widget.toListen
+        case .new: return NativeCopy.Widget.new
+        case .collection: return NativeCopy.Widget.collection
+        case .source: return NativeCopy.Widget.source
         }
     }
 
     var about: String {
         switch self {
-        case .toRead: return "The items you marked To read"
-        case .toListen: return "Your To read podcast episodes and the one you're listening to"
-        case .new: return "New items from all your sources"
-        case .collection: return "The newest items of a collection you choose"
-        case .source: return "The newest items of a source you choose"
+        case .toRead: return NativeCopy.Widget.toReadDescription
+        case .toListen: return NativeCopy.Widget.toListenDescription
+        case .new: return NativeCopy.Widget.newDescription
+        case .collection: return NativeCopy.Widget.collectionDescription
+        case .source: return NativeCopy.Widget.sourceDescription
         }
     }
 
@@ -73,27 +73,27 @@ enum PanelKind {
 
     var empty: String {
         switch self {
-        case .toRead: return "Nothing To read."
-        case .toListen: return "Nothing To listen to."
-        case .new: return "Nothing New."
-        case .collection, .source: return "Nothing here yet."
+        case .toRead: return NativeCopy.Widget.nothing
+        case .toListen: return NativeCopy.Widget.nothingToListen
+        case .new: return NativeCopy.Widget.nothingNew
+        case .collection, .source: return NativeCopy.Widget.nothingHere
         }
     }
 
     // A tap can't open the picker on iOS: the widget is edited from its touch-and-hold menu.
     var choose: String {
-        self == .collection ? "Edit this widget to choose a collection." : "Edit this widget to choose a source."
+        self == .collection ? NativeCopy.Ios.Widget.chooseCollection : NativeCopy.Ios.Widget.chooseSource
     }
 
     var gone: String {
         self == .collection
-            ? "This collection is gone. Edit this widget to choose another."
-            : "You don't follow this source any more. Edit this widget to choose another."
+            ? NativeCopy.Ios.Widget.collectionGone
+            : NativeCopy.Ios.Widget.sourceGone
     }
 
-    static let privateSource = "This source is private, so it isn't shown on the home screen. Edit this widget to choose another."
-    static let notConnected = "Open the app to connect it to your PURSS."
-    static let loading = "Loading…"
+    static let privateSource = NativeCopy.Ios.Widget.privateSource
+    static let notConnected = NativeCopy.Widget.notConnected
+    static let loading = NativeCopy.Widget.loading
 }
 
 struct PanelEntry: TimelineEntry {
@@ -151,8 +151,8 @@ struct PanelEntry: TimelineEntry {
     }
 
     static func placeholder(_ panel: PanelKind) -> PanelEntry {
-        let rows = ["A headline that might be here", "Another one, a little longer than the first", "And a third"].enumerated().map { index, title in
-            WidgetLists.Row(id: "placeholder\(index)", title: title, sourceTitle: "Source", at: nil)
+        let rows = [NativeCopy.Ios.Placeholder.first, NativeCopy.Ios.Placeholder.second, NativeCopy.Ios.Placeholder.third].enumerated().map { index, title in
+            WidgetLists.Row(id: "placeholder\(index)", title: title, sourceTitle: NativeCopy.Ios.Placeholder.source, at: nil)
         }
         return PanelEntry(date: Date(), panel: panel, snapshot: WidgetSnapshot(appearance: "system", episode: nil),
                           key: panel.key ?? "placeholder", chosenName: nil, list: WidgetLists.Stored(rows: rows, total: nil, state: "ok", name: nil))
@@ -312,7 +312,7 @@ private struct Palette {
 /// Android's Panels.kt does. A source with no title is a link the person saved by hand.
 private enum SourceFace {
     static func name(_ sourceTitle: String) -> String {
-        sourceTitle.isEmpty ? "Saved link" : sourceTitle
+        sourceTitle.isEmpty ? NativeCopy.Widget.savedLink : sourceTitle
     }
 
     /// What the app's `[^\p{L}\p{N} ]` keeps: letters and numbers.
@@ -392,7 +392,7 @@ private let relativeFormatter: RelativeDateTimeFormatter = {
 /// How long ago, short ("3 hr. ago"); empty for a time that isn't one.
 private func age(_ at: String?, now: Date) -> String {
     guard let at = at, let date = WidgetLists.date(at) else { return "" }
-    if now.timeIntervalSince(date) < 60 { return "now" }
+    if now.timeIntervalSince(date) < 60 { return NativeCopy.Ios.Widget.now }
     return relativeFormatter.localizedString(for: date, relativeTo: now)
 }
 
@@ -469,7 +469,7 @@ private struct RowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(meta.isEmpty ? title : "\(title), \(meta)")
+        .accessibilityLabel(meta.isEmpty ? title : NativeCopy.Widget.row(title: title, meta: meta))
     }
 }
 
@@ -573,7 +573,7 @@ private struct PanelView: View {
 
     @ViewBuilder
     private func episodeBlock(_ episode: WidgetSnapshot.Episode, _ palette: Palette) -> some View {
-        let status = episode.playing ? "Playing" : (episode.positionSeconds > 0 ? "Paused at \(clock(episode.positionSeconds))" : "Paused")
+        let status = episode.playing ? NativeCopy.Widget.playing : (episode.positionSeconds > 0 ? NativeCopy.Widget.pausedAt(time: clock(episode.positionSeconds)) : NativeCopy.Widget.paused)
         let meta = [episode.sourceTitle, status].filter { !$0.isEmpty }.joined(separator: " · ")
         let block = RowView(title: episode.title, meta: meta, palette: palette, avatarName: nil)
         if linksWork, let url = WidgetLinks.item(episode.id) {

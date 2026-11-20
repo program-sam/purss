@@ -83,7 +83,7 @@ class NotificationService: UNNotificationServiceExtension {
         guard let newest = pending.notifications.last else { return }
 
         let more = pending.notifications.count - 1
-        let moreText = "\(more) more in your PURSS"
+        let moreText = NativeCopy.Ios.Notification.more(count: more)
         var body = ""
         if let text = newest.body, !text.isEmpty {
             body = more > 0 ? "\(text)\n\(moreText)" : text

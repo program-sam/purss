@@ -26,14 +26,14 @@ enum PanelChoiceId {
 /// A collection a widget can show. An empty `name` means the choices file no longer lists it.
 @available(iOS 17.0, *)
 struct CollectionChoice: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Collection"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Collection"  // copy: ios.panelChoice.collection
     static var defaultQuery = CollectionChoiceQuery()
 
     var id: String
     var name: String
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name.isEmpty ? "Unavailable" : name)")
+        DisplayRepresentation(title: "\(name.isEmpty ? NativeCopy.Ios.PanelChoice.unavailable : name)")
     }
 }
 
@@ -57,24 +57,24 @@ struct CollectionChoiceQuery: EntityQuery {
 /// The Collection widget's setting. Not offered to Shortcuts: it only configures the widget.
 @available(iOS 17.0, *)
 struct CollectionIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Collection"
+    static var title: LocalizedStringResource = "Collection"  // copy: ios.panelChoice.collection
     static var isDiscoverable: Bool = false
 
-    @Parameter(title: "Collection")
+    @Parameter(title: "Collection")  // copy: ios.panelChoice.collection
     var collection: CollectionChoice?
 }
 
 /// A followed source a widget can show (never a private one). An empty `name` means the choices file no longer lists it.
 @available(iOS 17.0, *)
 struct SourceChoice: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Source"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Source"  // copy: ios.panelChoice.source
     static var defaultQuery = SourceChoiceQuery()
 
     var id: String
     var name: String
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name.isEmpty ? "Unavailable" : name)")
+        DisplayRepresentation(title: "\(name.isEmpty ? NativeCopy.Ios.PanelChoice.unavailable : name)")
     }
 }
 
@@ -98,9 +98,9 @@ struct SourceChoiceQuery: EntityQuery {
 /// The Source widget's setting.
 @available(iOS 17.0, *)
 struct SourceIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Source"
+    static var title: LocalizedStringResource = "Source"  // copy: ios.panelChoice.source
     static var isDiscoverable: Bool = false
 
-    @Parameter(title: "Source")
+    @Parameter(title: "Source")  // copy: ios.panelChoice.source
     var source: SourceChoice?
 }

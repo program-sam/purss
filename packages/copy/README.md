@@ -12,7 +12,7 @@ text inline.
 | `@purss/copy/extension` | the browser extension | `src/extension/en/` |
 | `@purss/copy/server` | what the server sends to people: API errors, emails, public pages, source messages, the push relay's fallback notification | `src/server/en/` |
 | `@purss/copy/common` | text the app and the server share (`packages/domain`), including the store and download names in `distribution.ts` | `src/common/en/` |
-| `@purss/copy/native` | the Android app's string resources and the desktop app's Rust code | `src/native/en/` |
+| `@purss/copy/native` | the Android app's string resources, the iOS widgets' and notification extension's Swift, and the desktop app's Rust code | `src/native/en/` |
 
 The catalogs are split by audience so the website, the app and the extension each bundle only
 their own text. English is the only language; its files sit under `en/`.
@@ -51,7 +51,7 @@ visible text inline.
 
 ## Native shells
 
-Android resources and Rust code can't import TypeScript, so `scripts/native-copy.ts` writes their
+Android resources, Swift and Rust code can't import TypeScript, so `scripts/native-copy.ts` writes their
 files from `@purss/copy/native`. After changing a text there, run `npm run copy:native`; the
 generated files are committed, start with a note saying where to edit, and are never edited by
 hand. A test (`scripts/native-copy.test.ts`, part of `npm test`) fails when one is out of date, and
@@ -62,6 +62,14 @@ doesn't use.
   `push.channelName` is `@string/push_channel_name`. The `widget` and `widgetPreview` groups are written to
   `values/widget_strings.xml`, the others to `values/strings.xml`; `values/app_identifiers.xml` (the
   application id and URL scheme, which are not text) is edited by hand.
+- **Both phones' widgets** (`src/native/en/widget.ts`): Android writes them to `values/widget_strings.xml` as
+  `widget_…`, iOS reads them as `NativeCopy.Widget`.
+- **iOS** (`src/native/en/ios.ts`, and `widget.ts`): `apps/mobile/ios/App/Widgets/NativeCopy.swift`, compiled into the
+  app, the widgets and the notification extension; a group becomes a nested enum, a plain text a constant
+  (`NativeCopy.Widget.loading`) and a text with values a function (`NativeCopy.Ios.Notification.more(count:)`). The
+  widget settings' App Intent names have to be written out where they are declared, because Xcode reads them while
+  building: in `PanelChoice.swift` a line ending in `// copy: ios.panelChoice.source` gets that text written into its
+  string by the same script.
 - **Desktop** (`src/native/en/desktop.ts`): a group becomes a module of `apps/desktop/src-tauri/src/copy.rs`, a
   plain text a constant (`copy::tray::OPEN`) and a text with values a function (`copy::tray::restart(version)`).
 - Unlike the other catalogs, this one holds plain strings and no functions. A `{name}` (lower-case letters and
@@ -81,7 +89,4 @@ operators, and labels only screen readers announce stay where they are used. So 
   failed download itself from the error code);
 - the desktop installer's own metadata (`apps/desktop/src-tauri/tauri.conf.json`'s window title, short
   description and file type names);
-- the iOS app: its text is written in Swift (the widgets' headings, descriptions, empty messages and
-  *Untitled* in `Widgets/`, the notification extension's "more in your PURSS", and `CFBundleDisplayName`
-  in the four `Info.plist` files). The Xcode project lists every file, so a generated Swift file needs
-  adding to its targets on a Mac first.
+- the iOS app's name (`CFBundleDisplayName` in the four `Info.plist` files).
