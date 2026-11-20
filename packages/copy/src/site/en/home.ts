@@ -75,11 +75,6 @@ export default {
     },
     chargedInEuros: " a month, charged in euros",
   },
-  compare: {
-    kicker: "Compare",
-    heading: "The only one of the five you can run yourself.",
-    lead: "Hosted by us or on your own server, it's the same app, and one export moves you between them.",
-  },
   faq: { heading: "Questions" },
   end: { heading: "Make the internet yours again.", hostIt: "Host it yourself" },
 };

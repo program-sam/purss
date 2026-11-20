@@ -72,7 +72,7 @@ html[data-session] .s-out,html:not([data-session]) .s-in{display:none!important}
 .s-feat p{color:var(--ink-2);font-weight:600;font-size:15px}
 
 /* Plans */
-/* Billing toggle: the yearly/monthly radios show the matching prices on the plan cards and in the comparison table. */
+/* Billing toggle: the yearly/monthly radios show the matching prices on the plan cards. */
 .s-bill-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 20px;margin-top:28px}
 .s-cur{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--ink-2)}
 .s-cur[hidden]{display:none}
@@ -86,28 +86,6 @@ html[data-session] .s-out,html:not([data-session]) .s-in{display:none!important}
 body:has(#bill-year:checked) .bill-m,body:has(#bill-month:checked) .bill-y{display:none!important}
 
 /* Comparison */
-.s-compare{border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
-.s-compare table{width:100%;border-collapse:collapse;font-size:15px}
-.s-compare thead th{padding:14px 18px;text-align:left;font-size:13px;font-weight:800;color:var(--ink-2);background:linear-gradient(var(--mod-top),var(--mod-bot));border-bottom:1px solid var(--mod-bd)}
-.s-compare tbody th,.s-compare td{padding:16px 18px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;font-weight:600;color:var(--ink-2)}
-.s-compare tbody tr:last-child>*{border-bottom:0}
-.s-compare tbody th{font-weight:800;color:var(--ink);white-space:nowrap}
-.s-compare td b{display:block;color:var(--ink);font-weight:800}
-.s-compare td small{display:block;color:var(--ink-3);font-weight:600;font-size:13px}
-.s-compare tr.s-us>*{background:var(--tint);color:var(--ink);font-weight:700}
-.s-compare tr.s-us th{box-shadow:inset 3px 0 0 var(--accent-line)}
-.s-compare tr.s-us .ic{color:var(--ok);stroke-width:3;vertical-align:-2px;margin-right:6px}
-.s-src{margin-top:10px}
-@media (max-width:900px){
-  .s-compare thead{display:none}
-  .s-compare table,.s-compare tbody,.s-compare tr,.s-compare tbody th,.s-compare td{display:block}
-  .s-compare tr{padding:14px 16px;border-bottom:1px solid var(--line)}
-  .s-compare tbody tr:last-child{border-bottom:0}
-  .s-compare tbody th{padding:0 0 8px;border:0;font-size:16px;box-shadow:none!important}
-  .s-compare td{display:grid;grid-template-columns:108px minmax(0,1fr);gap:10px;padding:5px 0;border:0}
-  .s-compare td::before{content:attr(data-l);font-size:12.5px;font-weight:800;color:var(--ink-3)}
-  .s-compare tr.s-us{background:var(--tint);box-shadow:inset 3px 0 0 var(--accent-line)}
-}
 
 /* FAQ */
 .s-faq{display:grid;gap:10px;max-width:780px;margin:0 auto}
@@ -202,10 +180,6 @@ main:focus{outline:none}
 .a-list li{text-wrap:pretty}
 /* Cards demo: on tablets and up, one complete row of videos. */
 
-/* Add source mock on small phones. */
-@media (max-width:420px){
-  .s-compare td{grid-template-columns:minmax(0,1fr);gap:2px;padding:6px 0}
-}
 
 
 .s-term .cmd{display:block;padding-left:2ch;text-indent:-2ch}
@@ -216,7 +190,6 @@ main:focus{outline:none}
 .s-term .ok{padding-left:2ch;text-indent:-2ch}
 @media (min-width:2000px){.s-wrap{max-width:1500px}}
 @media (max-width:480px){.s-nav-cta .btn.primary{min-height:40px}.s-menu summary{height:40px}}
-.s-src{max-width:90ch;margin-left:auto;margin-right:auto}
 /* Legal pages */
 .s-doc{padding:56px 0 80px}
 .s-doc article{max-width:720px;margin:0 auto}

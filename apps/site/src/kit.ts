@@ -1,5 +1,5 @@
 import { site as copy } from "@purss/copy/site";
-import { CURRENCIES, ECB, currencyName, show, type Money } from "./currency.ts";
+import { CURRENCIES, currencyName, show, type Money } from "./currency.ts";
 import { links, type Site } from "./site.ts";
 
 /**
@@ -117,48 +117,20 @@ export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eu
 };
 
 
-/** Yearly or monthly billing for the plan cards and the comparison table; CSS shows the matching prices, so it works without scripts. */
+/** Yearly or monthly billing for the plan cards; CSS shows the matching prices, so it works without scripts. */
 export function billingToggle(): string {
   const B = copy.kit.billing;
   const opt = (id: string, label: string, checked = false) => `<input type="radio" name="billing" id="${id}" class="sr"${checked ? " checked" : ""}><label for="${id}">${label}</label>`;
   return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", `${B.yearly} <span class="s-save">${B.save(Math.round(100 - (100 * PLUS.year) / (12 * PLUS.month)))}</span>`, true)}${opt("bill-month", B.monthly)}</fieldset>${currencyPicker()}</div>`;
 }
 
-/**
- * Competitor rows: list prices shown to EU visitors in November 2026, per billing period, in the currency each lists.
- * Feedly offers Pro+ only billed annually (€12.18 a month, before a first-year discount). Check again before changing
- * the footnote's date.
- */
-const RIVAL_TEXT = copy.kit.compare.rivals;
-const RIVALS: { name: string; selfHost: string; year: Money; month: Money; tier: string; plus?: Money; freeTier: string }[] = [
-  { ...RIVAL_TEXT.feedly, year: { amount: 6.99, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" }, plus: { amount: 12.18, cur: "EUR" } },
-  { ...RIVAL_TEXT.inoreader, year: { amount: 6.67, cur: "EUR" }, month: { amount: 8.99, cur: "EUR" } },
-  { ...RIVAL_TEXT.readwise, year: { amount: 9.99, cur: "USD" }, month: { amount: 12.99, cur: "USD" } },
-  { ...RIVAL_TEXT.instapaper, year: { amount: 5, cur: "USD" }, month: { amount: 5.99, cur: "USD" } },
-];
-
 /** A price the visitor's currency script can rewrite; `approx` prices are ours, shown converted only outside the euro. */
 export const money = (m: Money, suffix = "", approx = false) =>
   `<span data-money="${m.amount} ${m.cur}"${approx ? " data-approx" : ""}${suffix ? ` data-suffix="${suffix}"` : ""}>${approx ? "" : show(m, "EUR") + suffix}</span>`;
 
-const OURS = { year: { amount: PLUS.year / 12, cur: "EUR" }, month: { amount: PLUS.month, cur: "EUR" } } as const;
-
 /** Show prices in another currency; hidden until the script runs, since only the script can convert. */
 export function currencyPicker(): string {
   return `<div class="s-cur" hidden><label for="currency">${copy.kit.billing.showPricesIn}</label><select id="currency">${CURRENCIES.map((c) => `<option value="${c}">${currencyName(c)}</option>`).join("")}</select></div>`;
-}
-
-export function compareTable(): string {
-  const C = copy.kit.compare;
-  const cell = (label: string, v: string, cls = "") => `<td data-l="${label}"${cls ? ` class="${cls}"` : ""}><span>${v}</span></td>`;
-  const head = (period: string) => C.paid(period);
-  const period = (k: "year" | "month") => `<th scope="col" class="bill-${k[0]}">${head(k === "year" ? C.yearly : C.monthly)}</th>`;
-  const us = (k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${C.us.price(euros(OURS[k].amount))}</b><small>${money(OURS[k], C.us.perMonthApprox, true)}${k === "year" ? C.us.perYear(euros(PLUS.year)) : ""}${C.us.plan}</small>`, `bill-${k[0]}`);
-  const them = (r: (typeof RIVALS)[number], k: "year" | "month") => cell(head(k === "year" ? C.yearly : C.monthly), `<b>${money(r[k], C.perMonth)}</b><small>${r.tier}${k === "year" && r.plus ? `${C.proPlus}${money(r.plus)}` : ""}</small>`, `bill-${k[0]}`);
-  return `<div class="s-compare"><table><thead><tr><th scope="col"><span class="sr">Product</span></th><th scope="col">${C.selfHostColumn}</th>${period("year")}${period("month")}<th scope="col">${C.freeTierColumn}</th></tr></thead><tbody>
-<tr class="s-us"><th scope="row">${C.us.name}</th>${cell(C.selfHostColumn, `${ic("check")}${C.us.selfHost}`)}${us("year")}${us("month")}${cell(C.freeTierColumn, C.us.freeTier)}</tr>
-${RIVALS.map((r) => `<tr><th scope="row">${r.name}</th>${cell(C.selfHostColumn, r.selfHost)}${them(r, "year")}${them(r, "month")}${cell(C.freeTierColumn, r.freeTier)}</tr>`).join("")}
-</tbody></table></div><p class="fine s-src">${C.footnote(ECB.label)}<a class="link" href="https://feedly.com/i/pro">${C.sources.feedly}</a>, <a class="link" href="https://www.inoreader.com/pricing">${C.sources.inoreader}</a>, <a class="link" href="https://readwise.io/pricing">${C.sources.readwise}</a>, <a class="link" href="https://www.instapaper.com/premium">${C.sources.instapaper}</a>, <a class="link" href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">${C.sources.ecb}</a>.</p>`;
 }
 
 // ---------- Apps and extensions ----------

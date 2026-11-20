@@ -1,5 +1,5 @@
 import { site as copy } from "@purss/copy/site";
-import { PLANS, appCards, billingToggle, compareTable, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
+import { PLANS, appCards, billingToggle, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
 
@@ -254,7 +254,6 @@ export const home = {
 <section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.home.pricing.kicker}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
 ${pricingDoors(site)}</div></section>
 
-<section class="s-sec s-tint"><div class="s-wrap"><div class="s-center" style="margin-bottom:34px"><span class="s-kicker">${copy.home.compare.kicker}</span><h2 class="s-h2" style="margin-top:10px">${copy.home.compare.heading}</h2><p class="s-lead" style="margin-top:12px">${copy.home.compare.lead}</p></div>${compareTable()}</div></section>
 
 <section class="s-sec" id="faq"><div class="s-wrap"><h2 class="s-h2 s-center" style="margin-bottom:30px">${copy.home.faq.heading}</h2>${faq(site)}</div></section>
 

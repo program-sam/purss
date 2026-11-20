@@ -43,32 +43,6 @@ export default {
     monthly: "Monthly",
     showPricesIn: "Show prices in",
   },
-  compare: {
-    selfHostColumn: "Host it yourself",
-    freeTierColumn: "Free tier",
-    paid: (period: string) => `Paid plan, billed ${period}`,
-    yearly: "yearly",
-    monthly: "monthly",
-    perMonth: " / month",
-    us: {
-      name: "PURSS",
-      selfHost: "Yes, free and unlimited",
-      freeTier: "Self-hosted: unlimited.<br>Hosted: 100&nbsp;sources · 5&nbsp;collections",
-      perMonthApprox: " / month · ",
-      price: (amount: string) => `${amount} / month`,
-      perYear: (year: string) => `${year} a year · `,
-      plan: "Plus: 1,000 sources · unlimited collections",
-    },
-    proPlus: "; Pro+ ",
-    rivals: {
-      feedly: { name: "Feedly", selfHost: "No", tier: "Pro", freeTier: "100 feeds · 3 folders" },
-      inoreader: { name: "Inoreader", selfHost: "No", tier: "Pro", freeTier: "150 feeds" },
-      readwise: { name: "Readwise Reader", selfHost: "No", tier: "Full Readwise", freeTier: "None; 30-day trial" },
-      instapaper: { name: "Instapaper", selfHost: "No", tier: "Premium; read later only, no feeds", freeTier: "Saving and reading; 5 notes a month" },
-    },
-    footnote: (ecbDate: string) => `We charge in euros, including VAT. Competitor prices as listed in the EU in November 2026: Feedly and Inoreader in euros (Inoreader adds VAT on top), Readwise and Instapaper in US dollars. Amounts marked ≈ are converted at the European Central Bank rate of ${ecbDate}; local prices and taxes can differ. Sources: `,
-    sources: { feedly: "Feedly", inoreader: "Inoreader", readwise: "Readwise", instapaper: "Instapaper", ecb: "ECB" },
-  },
   apps: {
     extension: {
       title: "Browser extension",
