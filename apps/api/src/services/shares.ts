@@ -12,6 +12,7 @@ import { PRODUCT_NAME, pageShell, productHome, publicLink } from "./public-pages
 import { escapeHtml, escapeXml, plainText, uuidFrom } from "./text-safety.ts";
 import type { SqlParam } from "../db/database.ts";
 import { server } from "@purss/copy/server";
+import { shownTitle } from "./content.ts";
 
 /*
  * Sharing: a basket or a collection can be shared as a public page and an Atom feed of its own
@@ -150,7 +151,7 @@ export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" 
     out.push({
       itemId: r.id, ownLink: r.source_kind === "manual" || r.source_kind === null,
       publicId: `urn:uuid:${uuidFrom(`share:${share.id}:${r.id}`, sha)}`,
-      title: plainText(r.title, 200) || "(untitled)", url: href, summary: plainText(r.excerpt, 280) || null, note: r.note,
+      title: plainText(shownTitle(r.title), 200) || server.api.shared.untitled, url: href, summary: plainText(r.excerpt, 280) || null, note: r.note,
       sourceTitle: r.source_kind === "manual" ? null : plainText(r.source_title, 120) || null, publishedAt: r.published_at, addedAt: r.discovered_at,
     });
     if (out.length >= limit) break;

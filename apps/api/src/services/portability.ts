@@ -16,7 +16,7 @@ import { HttpError, addSeconds, badRequest, conflict, notFound, nowIso } from ".
 import { randomToken, removeSecret, writeSecret } from "../secrets.ts";
 import { enqueue } from "./jobs.ts";
 import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allocation } from "./storage.ts";
-import { contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
+import { NO_TITLE, contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
 import { indexText, versionBytes } from "./items.ts";
 import { markMembershipChanged } from "./state.ts";
 import { linkKey, urlKey } from "./url-key.ts";
@@ -330,7 +330,7 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
     const vUrl = item.urlRedacted ? null : safeAddress(v.url);
     const summaryHtml = sanitize(v.summaryHtml);
     const contentHtml = sanitize(v.contentHtml);
-    const title = v.title.trim() || item.title.trim() || "(untitled)";
+    const title = v.title.trim() || item.title.trim() || NO_TITLE;
     return {
       archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash: contentHash(title, vUrl, summaryHtml, contentHtml), createdAt: ISO_FALLBACK(v.createdAt, createdAt),
       bytes: versionBytes({ title, url: vUrl, author: item.author, summaryHtml, contentHtml, imageUrl, enclosures, publishedAt }),
@@ -987,7 +987,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
         // This installation's news comes from here, not from the engine: the next maintenance tick brings its newest posts (services/news.ts).
         app.db.run("UPDATE sources SET followed = 1, health = 'ok', health_text = NULL, created_at = ? WHERE id = ?", now, d.id);
       } else if (d.refollow && d.feedUrl) {
-        app.db.run("UPDATE sources SET followed = 1, health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", d.id);
+        app.db.run("UPDATE sources SET followed = 1, health = 'pending', health_text = NULL WHERE id = ?", d.id);
         subscribe(d.id, d.feedUrl, d.src.title);
       }
       continue;
@@ -998,7 +998,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const createdAt = ISO_FALLBACK(s.createdAt, now);
     const lastItemAt = s.lastItemAt ? ISO_FALLBACK(s.lastItemAt, "") || null : null;
     if (d.mode === "manual") {
-      app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', 'Saved links', 'Kept by hand', ?, 'ok', ?)", d.id, p.accountId, ws, s.hue, createdAt);
+      app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, ws, server.api.shared.savedLinks, server.api.portability.keptByHand, s.hue, createdAt);
     } else if (d.mode === "reconnect" || (d.mode === "unfollowed" && d.feedUrl === null)) {
       const reconnect = d.mode === "reconnect";
       app.db.run(
@@ -1014,7 +1014,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         d.id, p.accountId, ws, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
         s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }) ? 1 : 0,
-        follow ? "pending" : "ok", follow ? server.api.shared.gettingFirstItems : null, lastItemAt, createdAt);
+        follow ? "pending" : "ok", null, lastItemAt, createdAt);
       if (follow) subscribe(d.id, d.feedUrl!, s.title);
     }
     result.created.sources++;
@@ -1064,7 +1064,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
       `INSERT INTO items (id, number, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
          published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      d.id, keptNumbers.get(d.id) ?? null, p.accountId, ws, d.sourceId, d.sourceId, pr.kind, it.title.trim() || "(untitled)", pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
+      d.id, keptNumbers.get(d.id) ?? null, p.accountId, ws, d.sourceId, d.sourceId, pr.kind, it.title.trim() || NO_TITLE, pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
       it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.listedAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
     for (const v of pr.versions) {
       app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1169,8 +1169,8 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
 
   const summaryLine = server.api.portability.importSummary(result.created.items, result.created.keptPins) + (result.reconnectRequired ? server.api.portability.reconnectSuffix(result.reconnectRequired) : "");
-  app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', 'Import finished', ?, ?, ?)",
-    newId("ntf"), ws, summaryLine, `import:${token}`, now);
+  app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)",
+    newId("ntf"), ws, server.api.portability.importFinished, summaryLine, `import:${token}`, now);
   return result;
 }
 
@@ -1188,7 +1188,7 @@ export function reconnectSource(app: App, p: Principal, sourceId: string, discov
   writeSecret(app.config.secretsDir, `source-urls/${s.id}`, candidate.feedUrl);
   try {
     app.db.tx(() => {
-      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = 'Getting the first items…', site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.workspaceId, candidate.feedUrl), s.id);
+      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = NULL, site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.workspaceId, candidate.feedUrl), s.id);
       enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: s.id, feedUrl: `secret:source-urls/${s.id}`, title: s.title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${s.id}` });
     });
     dropCandidate(discoveryToken);

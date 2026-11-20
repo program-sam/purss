@@ -143,7 +143,7 @@ export function parseOpml(input: string | Uint8Array): OpmlParse {
       const parsedTarget = parseTarget(xmlUrl.trim());
       const target = parsedTarget.ok && isForbiddenLiteralHost(parsedTarget.url.hostname) ? ({ ok: false, reason: "blocked", message: "private address" } as const) : parsedTarget;
       if (!target.ok) {
-        skip(target.reason === "blocked" ? "internal-address" : /username or password/.test(target.message) ? "has-login" : "not-a-web-address");
+        skip(target.reason === "blocked" ? "internal-address" : target.message === server.sources.connectors.address.hasLogin ? "has-login" : "not-a-web-address");
       } else {
         const key = target.url.href;
         if (seen.has(key)) skip("duplicate");

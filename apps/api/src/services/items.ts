@@ -8,7 +8,7 @@ import type { z } from "zod";
 import { admitObject } from "./storage.ts";
 import { itemCounts } from "./counts.ts";
 import type { CellFilter } from "./counts.ts";
-import { contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
+import { NO_TITLE, contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { getPlayback, itemLinkIsMedia, itemMedia } from "./media.ts";
 import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
@@ -64,7 +64,7 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
     `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
        read_minutes, doi, curator_note, published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
      VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || "(untitled)", n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
+    id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || NO_TITLE, n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
     n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, n.listedAt ?? n.publishedAt ?? n.discoveredAt, versionId,
     JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
@@ -109,7 +109,7 @@ export function indexText(app: App, seq: number, t: { title: string; excerpt: st
 
 // ---------- listing ----------
 
-export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Saved link') AS source_title, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
+export const ITEM_COLUMNS = `i.id, i.number, i.source_id, s.title AS source_title, s.kind AS source_kind, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
   i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
@@ -117,7 +117,7 @@ export const ITEM_COLUMNS = `i.id, i.number, i.source_id, COALESCE(s.title, 'Sav
   (SELECT g.id FROM item_images g WHERE g.item_id = i.id AND g.url = i.image_url) AS image_kept`;
 
 export type ItemRow = {
-  id: string; number: number; source_id: string | null; source_title: string; kind: string; title: string; url: string | null; author: string | null;
+  id: string; number: number; source_id: string | null; source_title: string | null; source_kind: string | null; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
   published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
@@ -133,7 +133,7 @@ export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   const linkIsMedia = itemLinkIsMedia(r.url, r.enclosures);
   return {
     // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
-    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title, kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
+    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.savedLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: shownImage(r), durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,

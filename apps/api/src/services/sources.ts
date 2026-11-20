@@ -46,9 +46,10 @@ function healthOf(r: SourceRow): { health: SourceHealth; text: string | null } {
     const until = r.paused_until ? new Date(r.paused_until).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
     return { health: "paused", text: until ? server.api.sources.pausedUntilNote(until) : server.api.sources.pausedNote };
   }
+  // A source waiting for its first items, or one whose feed had nothing in it yet (see applySyncBatch), stores no text: its state says it.
+  if (r.health === "pending") return { health: "pending", text: server.api.shared.gettingFirstItems };
   if (r.health !== "ok" && r.health !== "quiet") return { health: r.health, text: r.health_text };
-  // The engine looked at the feed and it had nothing in it yet (see applySyncBatch).
-  if (r.health === "quiet" && !r.last_item_at) return { health: "quiet", text: r.health_text ?? NO_POSTS_YET };
+  if (r.health === "quiet" && !r.last_item_at) return { health: "quiet", text: NO_POSTS_YET };
   const last = r.last_item_at ?? r.last_success_at;
   if (last) {
     const days = Math.floor((Date.now() - Date.parse(last)) / 86_400_000);
@@ -196,7 +197,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
              health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ? WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", isNews ? null : server.api.shared.gettingFirstItems, nowIso(), viaGateway ? 1 : 0, id,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", null, nowIso(), viaGateway ? 1 : 0, id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
@@ -204,7 +205,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
           `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
-          isNews ? "ok" : "pending", isNews ? null : server.api.shared.gettingFirstItems, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
+          isNews ? "ok" : "pending", null, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
@@ -243,19 +244,20 @@ export function onSubscribed(app: App, sourceId: string, streamId: string, evide
   // A source that was waiting on a retry is following now; its first items are on the way.
   app.db.run(
     `UPDATE sources SET engine_stream_id = ?, subscribed_at = COALESCE(subscribed_at, ?), health = CASE WHEN health = 'error' THEN 'pending' ELSE health END,
-       health_text = CASE WHEN health = 'error' THEN 'Getting the first items…' ELSE health_text END, via_gateway = CASE WHEN ? THEN 1 ELSE via_gateway END WHERE id = ?`,
+       health_text = CASE WHEN health = 'error' THEN NULL ELSE health_text END, via_gateway = CASE WHEN ? THEN 1 ELSE via_gateway END WHERE id = ?`,
     streamId, nowIso(), evidence.viaGateway === true ? 1 : 0, sourceId);
   if (evidence.empty === true) {
-    app.db.run("UPDATE sources SET health = 'quiet', health_text = ? WHERE id = ? AND health = 'pending' AND NOT EXISTS (SELECT 1 FROM items WHERE items.source_id = sources.id)", NO_POSTS_YET, sourceId);
+    app.db.run("UPDATE sources SET health = 'quiet', health_text = NULL WHERE id = ? AND health = 'pending' AND NOT EXISTS (SELECT 1 FROM items WHERE items.source_id = sources.id)", sourceId);
   }
   if (eu) enqueue(app, "engine.sync", { engineUserId: eu.id }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `sync:${eu.id}`, runAfter: addSeconds(5) });
   emit(app, s.account_id, { type: "source", sourceId });
 }
 
 /** The engine couldn't follow the feed: the source says why, whether or not it will be asked again by itself. */
-export function onSubscribeFailed(app: App, sourceId: string, message: string): void {
+/** `reason`: why it failed, as the job reported it; the retry through the feed gateway is chosen by it (failures.ts), never by the words. */
+export function onSubscribeFailed(app: App, sourceId: string, message: string, reason: string | null = null): void {
   const s = app.db.get<{ account_id: string }>("SELECT account_id FROM sources WHERE id = ?", sourceId);
-  app.db.run("UPDATE sources SET health = 'error', health_text = ? WHERE id = ?", message, sourceId);
+  app.db.run("UPDATE sources SET health = 'error', health_text = ?, health_reason = ? WHERE id = ?", message, reason, sourceId);
   if (s) emit(app, s.account_id, { type: "source", sourceId });
 }
 
@@ -273,7 +275,7 @@ export function retrySource(app: App, p: Principal, id: string): SourceDTO {
   const feedUrl = s.is_private ? `secret:source-urls/${id}` : s.feed_url;
   if (!feedUrl) throw badRequest(server.api.sources.linkMissing, "link_missing");
   app.db.tx(() => {
-    app.db.run("UPDATE sources SET health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
+    app.db.run("UPDATE sources SET health = 'pending', health_text = NULL WHERE id = ?", id);
     // The same key re-arms the finished job; one still waiting for its next try is brought forward.
     const jobId = enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl, title: s.title, ...(s.via_gateway ? { trim: true } : {}) }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     app.db.run("UPDATE jobs SET run_after = ?, updated_at = ? WHERE id = ? AND status = 'queued' AND run_after > ?", nowIso(), nowIso(), jobId, nowIso());

@@ -45,12 +45,9 @@ export function displayAuthors(author: string | null): string | null {
   return names.join(", ");
 }
 
-/** The titles the server gives the source that holds links kept by hand (and the one an item with no source shows). */
-const MANUAL_SOURCE_TITLES = new Set(["Saved links", "Saved link"]);
-
 /** The site a link kept by hand comes from ("example.org"), which is what it shows instead of "Saved links"; null for any other item. */
-export function manualSiteName(item: Pick<ItemDTO, "sourceTitle" | "url">): string | null {
-  if (!MANUAL_SOURCE_TITLES.has(item.sourceTitle) || !item.url) return null;
+export function manualSiteName(item: Pick<ItemDTO, "keptByHand" | "url">): string | null {
+  if (!item.keptByHand || !item.url) return null;
   try { return new URL(item.url).hostname.replace(/^www\./i, "") || null; } catch { return null; }
 }
 

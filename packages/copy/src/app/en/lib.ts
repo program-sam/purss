@@ -121,6 +121,8 @@ export default {
   listFilters: {
     types: { articles: "Articles", videos: "Videos", podcasts: "Podcasts" },
     lengths: { short: "Short (up to 5 min)", long: "Long (over 5 min)" },
+    /** The same choices in the summary of an active filter. */
+    lengthsBrief: { short: "Short", long: "Long" },
     typeHeading: "Type",
     lengthHeading: "Length",
     anyLength: "Any length",

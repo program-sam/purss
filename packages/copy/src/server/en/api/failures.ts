@@ -13,6 +13,4 @@ export default {
   notAFeed: "The address answers, but not with a feed we can read. It may be in a format we don't support.",
   couldNotFollow: "The collection engine couldn't follow this feed. Try again later or check the link.",
   pageNotCaptured: "The page couldn't be captured. Its details and feed content are still kept.",
-  feedTooLarge: "The feed is too large to follow.",
-  notAFeedOrTooLarge: "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.",
 };

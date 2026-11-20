@@ -80,14 +80,14 @@ export function subscribeGaveUpText(reason: FailureReason | undefined): string {
 export function settleFailedJob(app: App, job: { kind: string; payload: Record<string, unknown> }, outcome: { finalFailure: boolean }, reason?: FailureReason): void {
   const { payload } = job;
   if (outcome.finalFailure) {
-    if (job.kind === "engine.subscribe") onSubscribeFailed(app, String(payload.sourceId), subscribeGaveUpText(reason));
+    if (job.kind === "engine.subscribe") onSubscribeFailed(app, String(payload.sourceId), subscribeGaveUpText(reason), reason ?? null);
     if (job.kind === "engine.provision") app.db.run("UPDATE engine_users SET status = 'error' WHERE id = ?", String(payload.engineUserId));
     if (job.kind === "source.icon") failIconCheck(app, String(payload.sourceId));
     if (job.kind === "filter.judge") failJudging(app, payload);
     if (job.kind === "capture.fulltext") failCapture(app, String(payload.captureId), server.api.failures.pageNotCaptured);
   } else if (job.kind === "engine.subscribe") {
     const text = subscribeRetryText(reason);
-    if (text) onSubscribeFailed(app, String(payload.sourceId), text);
+    if (text) onSubscribeFailed(app, String(payload.sourceId), text, reason ?? null);
   }
   if (job.kind === "engine.sync") {
     // The job keeps the technical error. Runs that fail for good are counted so the next run waits longer each time
@@ -113,10 +113,10 @@ export function retryOverloadedSubscribes(app: App): void {
     `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, eu.id AS eu
      FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
      WHERE s.followed = 1 AND s.kind <> 'manual' AND s.builtin IS NULL AND s.via_gateway = 0 AND s.health = 'error' AND s.engine_stream_id IS NULL
-       AND s.health_text IN (?, ?)
+       AND s.health_reason = 'unavailable'
        AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'subscribe:' || s.id AND j.status IN ('queued', 'leased'))
        AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'gateway-retry:' || s.id)
-     LIMIT 50`, subscribeRetryText("unavailable"), subscribeGaveUpText("unavailable"));
+     LIMIT 50`);
   for (const s of rows) {
     const feedUrl = s.is_private ? `secret:source-urls/${s.id}` : s.feed_url;
     if (!feedUrl || feedUrl.startsWith("bridge:")) continue;
@@ -135,8 +135,9 @@ export function retryOverloadedSubscribes(app: App): void {
  * ever stored or shown now (a big feed is followed through the gateway; one that can't be followed says what any other failure says),
  * so a source still carrying either is brought up to date: its text becomes what the same failure says now.
  */
-const EARLIER_TOO_LARGE_TEXT = server.api.failures.feedTooLarge;
-const EARLIER_NOT_A_FEED_TEXT = server.api.failures.notAFeedOrTooLarge;
+// Not copy: these are the exact texts earlier versions wrote, and they never change.
+export const EARLIER_TOO_LARGE_TEXT = "The feed is too large to follow.";
+export const EARLIER_NOT_A_FEED_TEXT = "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
 
 /**
  * Sources that failed with the earlier size message get the plain message and one more subscription through the feed gateway (`trim`),
@@ -161,7 +162,7 @@ export function retryEarlierSizeFailures(app: App): void {
     const retry = tooLarge && s.retryable === 1 && s.waiting === 0 && !!feedUrl && !feedUrl.startsWith("bridge:");
     try {
       app.db.tx(() => {
-        app.db.run("UPDATE sources SET health_text = ? WHERE id = ? AND health = 'error' AND health_text = ?", subscribeGaveUpText(tooLarge ? undefined : "not_a_feed"), s.id, s.health_text);
+        app.db.run("UPDATE sources SET health_text = ?, health_reason = ? WHERE id = ? AND health = 'error' AND health_text = ?", subscribeGaveUpText(tooLarge ? undefined : "not_a_feed"), tooLarge ? null : "not_a_feed", s.id, s.health_text);
         if (retry) enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title, trim: true }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
       });
     } catch (err) {

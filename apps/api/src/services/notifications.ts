@@ -12,6 +12,7 @@ import { boxesBySource } from "./home.ts";
 import { settledCopy } from "./capture-state.ts";
 import type { BoxLink } from "./home.ts";
 import { server } from "@purss/copy/server";
+import { shownTitle } from "./content.ts";
 
 /*
  * Notifications. One place decides who is told what, when:
@@ -123,8 +124,8 @@ export function digestFor(app: App, workspaceId: string, window: DigestWindow): 
       `SELECT i.id, i.number, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
        WHERE i.workspace_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND st.workflow <> 'ignored'
        ORDER BY i.discovered_at DESC LIMIT ?`, workspaceId, r.source_id, window.from, window.to, TEASERS);
-    const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => t.title) : [];
-    const teasers = newest.map((t) => ({ id: t.id, number: t.number, title: t.title, source: r.source_title, at: t.discovered_at }));
+    const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => shownTitle(t.title)) : [];
+    const teasers = newest.map((t) => ({ id: t.id, number: t.number, title: shownTitle(t.title), source: r.source_title, at: t.discovered_at }));
     for (const b of mine) {
       const box = boxes.get(b.id) ?? { id: b.id, name: b.name, count: 0, titles: [], teasers: [] };
       box.count += r.n;

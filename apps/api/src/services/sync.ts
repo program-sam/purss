@@ -4,7 +4,7 @@ import type { App } from "../app.ts";
 import { emit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
 import { admitObject, markPaused, releaseObject, StorageFull } from "./storage.ts";
-import { contentHash, detectKind, excerpt, findDoi, sanitize, toText } from "./content.ts";
+import { NO_TITLE, contentHash, detectKind, excerpt, findDoi, sanitize, toText } from "./content.ts";
 import { insertItem, reindex, versionBytes } from "./items.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { notifyArrivals } from "./notifications.ts";
@@ -249,7 +249,7 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
     workspaceId: eu.workspace_id,
     sourceId: source.id,
     kind,
-    title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || "(untitled)",
+    title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
     url: entry.url,
     author: entry.author,
     summaryHtml: entry.summaryHtml,
@@ -288,7 +288,7 @@ export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "worksp
   const summaryHtml = keepText ? held!.summary_html : sanitize(entry.summaryHtml);
   const contentHtml = keepText ? held!.content_html : sanitize(entry.contentHtml);
   const contentOmitted = entry.contentOmitted && !keepText ? 1 : 0;
-  const title = entry.title.trim() || "(untitled)";
+  const title = entry.title.trim() || NO_TITLE;
   const hash = contentHash(title, entry.url, summaryHtml, contentHtml);
   if (hash === cur.content_hash) return false;
   const versionId = newId("ver");

@@ -8,6 +8,9 @@ import { badRequest, notFound, nowIso } from "../http.ts";
 import { cleanBrowserHtml, queueCapture, saveBrowserCapture } from "./captures.ts";
 import { markPaused, StorageFull } from "./storage.ts";
 import { hueFor } from "./content.ts";
+
+/** The colour of the source that holds links kept by hand, from a fixed seed (not copy) so a new name never changes it. */
+const MANUAL_SOURCE_HUE = hueFor("Saved links");
 import { getItem, insertItem, reindex } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
@@ -49,6 +52,15 @@ function findByKey(app: App, p: Principal, key: string): { id: string } | undefi
      LIMIT 1`, p.workspaceId, key);
 }
 
+/**
+ * The source that holds links kept by hand is named from the catalog when it is made; at start, every one takes the catalog's
+ * current name and origin (its items follow through the sources_title_changed trigger), so a reworded name reaches PURSSes made before.
+ */
+export function nameManualSources(app: App): void {
+  const name = server.api.shared.savedLinks, origin = server.api.portability.keptByHand;
+  app.db.run("UPDATE sources SET title = ?, origin = ? WHERE kind = 'manual' AND (title IS NOT ? OR origin IS NOT ?)", name, origin, name, origin);
+}
+
 /** The PURSS's item for an address: the one it already has, or a new saved link. Inside the caller's transaction. */
 function itemForLink(app: App, p: Principal, url: URL, title: string | undefined, meta: LinkMetadata | null = null): { id: string; existing: boolean } {
   const key = urlKey(url.href);
@@ -57,8 +69,8 @@ function itemForLink(app: App, p: Principal, url: URL, title: string | undefined
   let src = app.db.get<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND kind = 'manual'", p.workspaceId);
   if (!src) {
     const id = newId("src");
-    app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', 'Saved links', 'Kept by hand', ?, 'ok', ?)",
-      id, p.accountId, p.workspaceId, hueFor("Saved links"), nowIso());
+    app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', ?, ?, ?, 'ok', ?)",
+      id, p.accountId, p.workspaceId, server.api.shared.savedLinks, server.api.portability.keptByHand, MANUAL_SOURCE_HUE, nowIso());
     src = { id };
   }
   const item = insertItem(app, {

@@ -14,15 +14,16 @@ export const POSTS: Noun = server.sources.connectors.cadence.post;
 export const EPISODES: Noun = server.sources.connectors.cadence.episode;
 export const VIDEOS: Noun = server.sources.connectors.cadence.video;
 
-function agoText(days: number): string {
-  if (days < 1) return server.sources.connectors.cadence.lessThanADayAgo;
+/** How long ago, without "ago": "3 days", "about a year". */
+function spanText(days: number): string {
+  if (days < 1) return server.sources.connectors.cadence.lessThanADay;
   if (days < 45) {
     const d = Math.round(days);
-    return d === 1 ? server.sources.connectors.cadence.oneDayAgo : server.sources.connectors.cadence.daysAgo(d);
+    return d === 1 ? server.sources.connectors.cadence.oneDay : server.sources.connectors.cadence.days(d);
   }
-  if (days < 365) return server.sources.connectors.cadence.monthsAgo(Math.round(days / 30));
+  if (days < 365) return server.sources.connectors.cadence.months(Math.round(days / 30));
   const years = Math.round((days / 365) * 10) / 10;
-  return years < 1.5 ? server.sources.connectors.cadence.aboutAYearAgo : server.sources.connectors.cadence.aboutYearsAgo(Math.round(years));
+  return years < 1.5 ? server.sources.connectors.cadence.aboutOneYear : server.sources.connectors.cadence.aboutYears(Math.round(years));
 }
 
 /** Windows (days) tried from the shortest, so a busy feed is read over its recent days and a quiet one over months. */
@@ -61,11 +62,11 @@ export function cadenceText(items: FeedItem[], noun: Noun, now: Date): string | 
     .sort((a, b) => b - a)
     .slice(0, 50);
   if (items.length === 0) return server.sources.connectors.cadence.noneYet(noun.many);
-  if (times.length < 2) return times.length === 1 ? server.sources.connectors.cadence.latest(noun.one, agoText((now.getTime() - times[0]!) / DAY)) : null;
+  if (times.length < 2) return times.length === 1 ? server.sources.connectors.cadence.latest(noun.one, server.sources.connectors.cadence.ago(spanText((now.getTime() - times[0]!) / DAY))) : null;
   const newest = times[0]!;
   const staleDays = (now.getTime() - newest) / DAY;
-  if (staleDays > 180) return server.sources.connectors.cadence.noNewFor(noun.many, agoText(staleDays).replace(" ago", ""));
-  if (times.length < 3) return server.sources.connectors.cadence.latest(noun.one, agoText(staleDays));
+  if (staleDays > 180) return server.sources.connectors.cadence.noNewFor(noun.many, spanText(staleDays));
+  if (times.length < 3) return server.sources.connectors.cadence.latest(noun.one, server.sources.connectors.cadence.ago(spanText(staleDays)));
   let perDay = recentRate(times, now.getTime());
   if (perDay === null) {
     // No recent rhythm to read. The whole sample says how often it posted over its span, a long silence
@@ -74,7 +75,7 @@ export function cadenceText(items: FeedItem[], noun: Noun, now: Date): string | 
     const recent = times.slice(0, 20);
     const spanDays = Math.max((newest - recent[recent.length - 1]!) / DAY, 0.5);
     perDay = (recent.length - 1) / Math.max(spanDays, staleDays);
-    if (perDay * 30.4 < 0.9 && staleDays < 30) return server.sources.connectors.cadence.latest(noun.one, agoText(staleDays));
+    if (perDay * 30.4 < 0.9 && staleDays < 30) return server.sources.connectors.cadence.latest(noun.one, server.sources.connectors.cadence.ago(spanText(staleDays)));
   }
   if (perDay >= 1.5) return server.sources.connectors.cadence.aboutADay(plural(Math.round(perDay), noun));
   const perWeek = perDay * 7;

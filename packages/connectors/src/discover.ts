@@ -931,7 +931,7 @@ export const WIKIDATA_NOTE = server.sources.connectors.discover.wikidataNote;
 function registryMayHelp(draft: Failure): boolean {
   if (draft.reason === "nofeed") return draft.message === NO_FEED_MESSAGE;
   if (draft.reason !== "unreachable") return false;
-  return [403, 429].some((status) => draft.message === failFromStatus(draft.url, status)!.message) || draft.message === BUSY_MESSAGE || /\(error 5\d\d\)/.test(draft.message);
+  return [403, 429].some((status) => draft.message === failFromStatus(draft.url, status)!.message) || draft.message === BUSY_MESSAGE || Array.from({ length: 100 }, (_, i) => 500 + i).some((status) => draft.message === failFromStatus(draft.url, status)!.message);
 }
 /** Feeds Wikidata lists that are tried. */
 const MAX_REGISTRY_FEEDS = 4;

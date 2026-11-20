@@ -227,6 +227,8 @@ export type ItemDTO = {
   number: number;
   sourceId: string | null; // null for manual keeps
   sourceTitle: string;
+  /** A link kept by hand, not an item a followed source brought: lists show the site it is from instead of its source. */
+  keptByHand: boolean;
   kind: ItemKind;
   title: string;
   url: string | null;

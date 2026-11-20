@@ -90,7 +90,7 @@ export function typeLengthEntries(ls: ListState, patch: (p: Pick<ListSearch, "ty
 
 /** What the type and length choices add to the filter button, for example "Videos, Short"; empty when none is chosen. */
 export function typeLengthSummary(ls: ListState): string {
-  const parts = [ls.types.map((t) => TYPE_LABELS[t]).join(", "), ls.length ? LENGTH_LABELS[ls.length].split(" (")[0]! : ""].filter(Boolean);
+  const parts = [ls.types.map((t) => TYPE_LABELS[t]).join(", "), ls.length ? app.lib.listFilters.lengthsBrief[ls.length] : ""].filter(Boolean);
   return parts.join(", ");
 }
 

@@ -31,6 +31,8 @@ export default {
   labelFulltext: "Full text saved",
   newsFrom: (name: string) => `News from this ${name}`,
   savedLinks: "Saved links",
+  /** Shown for an item that has no title. */
+  untitled: "(untitled)",
   notConnectedYet: "Your PURSS isn't connected to the collection engine yet. Try again in a minute.",
   gettingFirstItems: "Getting the first items…",
   lookupExpired: "That preview has expired. Please look up the link again.",

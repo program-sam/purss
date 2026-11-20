@@ -1,5 +1,6 @@
 // Server copy: apps/api/src/services/portability.ts
 export default {
+  importFinished: "Import finished",
   exportRunning: "An export is already running for your account. Please wait for it to finish.",
   privateSourcesExported: (count: number) => `${count} private ${count === 1 ? "source was" : "sources were"} exported as ${count === 1 ? "a reference" : "references"} without ${count === 1 ? "its" : "their"} link; reconnect ${count === 1 ? "it" : "them"} after importing.`,
   capturesNotIncluded: (count: number) => `${count} readable-text ${count === 1 ? "capture was" : "captures were"} still in progress and ${count === 1 ? "is" : "are"} not included.`,

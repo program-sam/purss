@@ -5,7 +5,7 @@ import type { SyncEntry } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { HttpError, badRequest, conflict, notFound, nowIso } from "../http.ts";
-import { detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.ts";
+import { NO_TITLE, detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.ts";
 import { insertItem } from "./items.ts";
 import { server } from "@purss/copy/server";
 
@@ -107,7 +107,7 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
     const created = insertItem(app, {
       accountId: p.accountId, workspaceId: p.workspaceId, sourceId: source.id,
       kind: detectKind({ sourceKind: source.kind, url: entry.url, doi, enclosures: entry.enclosures }),
-      title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || "(untitled)",
+      title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
       url: entry.url, author: entry.author, summaryHtml: entry.summaryHtml, contentHtml: entry.contentHtml, imageUrl: entry.imageUrl,
       durationSeconds: null, doi, curatorNote: null, publishedAt: entry.publishedAt, discoveredAt: entry.crawledAt, enclosures: entry.enclosures,
       fresh: false, // history coming back from a restored engine is not "new since you last looked"

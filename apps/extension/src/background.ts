@@ -1,6 +1,6 @@
 import { extension } from "@purss/copy/extension";
 import { deepLink, isWebPage } from "./lib/address.ts";
-import { signedOut, workspace } from "./lib/api.ts";
+import { signedOut, workspace, WorkspaceError } from "./lib/api.ts";
 import { BADGE_DELAY_MS, Debouncer, KEPT_MARK, KeptCache, mayLookUp } from "./lib/badge.ts";
 import { ext } from "./lib/browser.ts";
 import type { Tab } from "./lib/browser.ts";
@@ -73,7 +73,8 @@ api.contextMenus?.onClicked.addListener((info, tab) => void (async () => {
   } catch (err) {
     if (signedOut(err)) await forgetConnection();
     await mark(tab?.id, "error", err instanceof Error ? err.message : extension.background.couldntKeep);
-    if (err instanceof Error && /basket/i.test(err.message)) await refreshBaskets();
+    // Keeping answers not_found only for a basket that is gone: the list is read again.
+    if (err instanceof WorkspaceError && err.code === "not_found") await refreshBaskets();
   }
 })());
 

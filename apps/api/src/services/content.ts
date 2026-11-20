@@ -162,7 +162,14 @@ const embedLabelled = (text: string): string => (text.includes("[contains") ? te
 /** Tags that are only text in an excerpt (the excerpt is plain text, so any real tag is one a feed escaped). */
 const EXCERPT_TAG = /<\/?(?:p|div|span|br|hr|a|b|strong|i|em|u|s|ul|ol|li|h[1-6]|blockquote|figure|figcaption|img|table|thead|tbody|tr|td|th|small|sub|sup|abbr|cite|q|mark|time)(?:\s[^<>]*)?\/?>/gi;
 const TITLE_TAG = /<\/?(?:i|b|em|strong|sup|sub|span|small|u|s|mark|abbr|cite|q|code)(?:\s[^<>]*)?>/gi;
+/** What is stored as the title of an item that has none: a marker, not copy, shown as the catalog's words (shownTitle). */
+export const NO_TITLE = "(untitled)";
+
+/** A stored title as people see it: the marker for no title becomes the catalog's words. */
+export const shownTitle = (title: string): string => (title === NO_TITLE ? server.api.shared.untitled : title);
+
 export function displayTitle(title: string): string {
+  if (title === NO_TITLE) return server.api.shared.untitled;
   return decodeCharRefs(embedLabelled(title).replace(TITLE_TAG, "")).replace(/\s+/g, " ").trim() || title;
 }
 
