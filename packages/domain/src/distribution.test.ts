@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { common } from "@purss/copy/common";
 import { APPS_GUIDE_URL, DISTRIBUTION, SOURCE_URL, STORE_LISTINGS, STORE_NAMES, publishedStores } from "./distribution.ts";
 import type { StoreId } from "./distribution.ts";
 
@@ -29,7 +30,7 @@ test("store listings are https addresses or not published, and only published on
   const none = Object.fromEntries(Object.keys(STORE_LISTINGS).map((id) => [id, null])) as Record<StoreId, string | null>;
   const firefoxOnly = { ...none, firefox: "https://addons.mozilla.org/firefox/addon/x/" };
   assert.deepEqual(publishedStores("extension", none), []);
-  assert.deepEqual(publishedStores("extension", firefoxOnly), [{ id: "firefox", name: "Firefox Add-ons", url: "https://addons.mozilla.org/firefox/addon/x/" }], "setting one address is enough for its button");
+  assert.deepEqual(publishedStores("extension", firefoxOnly), [{ id: "firefox", name: common.distribution.stores.firefox, url: "https://addons.mozilla.org/firefox/addon/x/" }], "setting one address is enough for its button");
   assert.deepEqual(publishedStores("mobile", firefoxOnly), []);
   for (const id of [...DISTRIBUTION.extension.stores, ...DISTRIBUTION.mobile.stores]) assert.ok(id in STORE_LISTINGS, `${id} is a known store`);
   assert.deepEqual([...DISTRIBUTION.extension.stores, ...DISTRIBUTION.mobile.stores].filter((id) => id === "safari" || id === "ios"), [], "Apple's stores are parked: their code stays, they aren't offered");

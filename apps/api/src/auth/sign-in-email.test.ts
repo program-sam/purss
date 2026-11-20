@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import type { DeletionBoot } from "../deletion-testing.ts";
 import { checkPassword, writePassword } from "./passwords.ts";
@@ -10,7 +11,7 @@ import { checkPassword, writePassword } from "./passwords.ts";
  * for a wrong password.
  */
 
-const BAD = "That email address and password don't match.";
+const BAD = server.api.shared.badPassword;
 let n = 0;
 /** A different caller address every time, so the per-network-address limit never gets in the way of the per-email one. */
 const from = () => ({ "x-forwarded-for": `10.9.${Math.floor(++n / 250)}.${n % 250}` });

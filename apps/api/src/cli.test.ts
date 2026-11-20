@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -152,7 +153,7 @@ test("create-invite prints a one-time code that a hosted installation accepts", 
   const bad = (await run(app, ["create-invite", "alex@example.org", "--days", "99"], { PURSS_MODE: "hosted" }));
   assert.equal(bad.code, 2);
   const taken = app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", p.accountId)!.email;
-  assert.match((await run(app, ["create-invite", taken], { PURSS_MODE: "hosted" })).err, /already exists/);
+  assert.ok((await run(app, ["create-invite", taken], { PURSS_MODE: "hosted" })).err.includes(copy.api.accounts.emailInUse));
   const r = (await run(app, ["create-invite", "alex@example.org", "--note", "for Alex", "--allocation", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
   assert.equal(r.code, 0);
   assert.match(r.out, /for alex@example\.org/);

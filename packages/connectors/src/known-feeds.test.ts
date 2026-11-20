@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import type { DraftCandidate } from "./discover.ts";
 import { APPLE_NO_FEED, planKnownFeeds, resolveKnown } from "./known-feeds.ts";
 import type { KnownDeps, KnownPlan, KnownProbe } from "./known-feeds.ts";
 import type { ParsedFeed } from "./feed.ts";
+
+const copy = server.sources.connectors;
 
 const plan = (u: string) => planKnownFeeds(new URL(u));
 const feedUrls = (u: string): string[] | null => {
@@ -39,7 +42,7 @@ test("GitHub: a user or organisation page offers its public activity; site pages
   for (const u of ["https://github.com/torvalds", "https://github.com/torvalds/", "https://github.com/torvalds?tab=repositories", "https://www.github.com/vercel"]) {
     const p = plan(u);
     assert.ok(p && "feeds" in p, u);
-    assert.deepEqual(p.feeds.map((f) => [f.feedUrl, f.title, f.via, f.origin]), [[`https://github.com/${/torvalds/.test(u) ? "torvalds" : "vercel"}.atom`, `${/torvalds/.test(u) ? "torvalds" : "vercel"} activity`, "Activity feed", "GitHub activity"]], u);
+    assert.deepEqual(p.feeds.map((f) => [f.feedUrl, f.title, f.via, f.origin]), [[`https://github.com/${/torvalds/.test(u) ? "torvalds" : "vercel"}.atom`, copy.known.activity(/torvalds/.test(u) ? "torvalds" : "vercel"), copy.labels.activityFeed, copy.known.githubActivity]], u);
   }
   for (const u of ["https://github.com/about", "https://github.com/settings", "https://github.com/search?q=x", "https://github.com/explore", "https://github.com/features", "https://github.com/pricing", "https://github.com/login", "https://github.com/torvalds.atom", "https://github.com/-bad", "https://github.com/"]) {
     assert.equal(plan(u), null, u);
@@ -52,23 +55,23 @@ const only = (u: string) => {
 };
 
 test("Steam, arXiv, Dailymotion, Odysee, DeviantArt, Behance: a profile or page address becomes the service's feed address", () => {
-  assert.deepEqual(only("https://store.steampowered.com/app/730/CounterStrike_2/"), [["https://store.steampowered.com/feeds/news/app/730/", "CounterStrike 2 news", "Posts feed", "Steam news"]]);
-  assert.deepEqual(only("https://store.steampowered.com/app/730"), [["https://store.steampowered.com/feeds/news/app/730/", "Steam app 730 news", "Posts feed", "Steam news"]]);
-  assert.deepEqual(only("https://arxiv.org/list/cs.LG/recent"), [["https://rss.arxiv.org/rss/cs.LG", null, "Posts feed", "arXiv listing"]]);
-  assert.deepEqual(only("https://arxiv.org/list/quant-ph/new"), [["https://rss.arxiv.org/rss/quant-ph", null, "Posts feed", "arXiv listing"]]);
-  assert.deepEqual(only("https://arxiv.org/list/cs/25"), [["https://rss.arxiv.org/rss/cs", null, "Posts feed", "arXiv listing"]]);
-  assert.deepEqual(only("https://www.dailymotion.com/dailymotion"), [["https://www.dailymotion.com/rss/user/dailymotion", "dailymotion on Dailymotion", "Channel feed", "Dailymotion channel"]]);
-  assert.deepEqual(only("https://odysee.com/@veritasium:f"), [["https://odysee.com/$/rss/@veritasium:f", null, "Channel feed", "Odysee channel"]]);
-  assert.deepEqual(only("https://odysee.com/@Odysee%3A8/some-video:3"), [["https://odysee.com/$/rss/@Odysee:8", null, "Channel feed", "Odysee channel"]]);
-  assert.deepEqual(only("https://www.deviantart.com/spyed"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, "Gallery feed", "DeviantArt gallery"]]);
-  assert.deepEqual(only("https://www.deviantart.com/spyed/gallery"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, "Gallery feed", "DeviantArt gallery"]]);
-  assert.deepEqual(only("https://www.deviantart.com/spyed/gallery/all"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, "Gallery feed", "DeviantArt gallery"]]);
-  assert.deepEqual(only("https://www.behance.net/behance"), [["https://www.behance.net/feeds/user?username=behance", null, "Projects feed", "Behance projects"]]);
-  assert.deepEqual(only("https://behance.net/adamthompson/"), [["https://www.behance.net/feeds/user?username=adamthompson", null, "Projects feed", "Behance projects"]]);
+  assert.deepEqual(only("https://store.steampowered.com/app/730/CounterStrike_2/"), [["https://store.steampowered.com/feeds/news/app/730/", copy.services.steamNews("CounterStrike 2"), copy.labels.postsFeed, copy.services.steamOrigin]]);
+  assert.deepEqual(only("https://store.steampowered.com/app/730"), [["https://store.steampowered.com/feeds/news/app/730/", copy.services.steamNews(copy.services.steamApp("730")), copy.labels.postsFeed, copy.services.steamOrigin]]);
+  assert.deepEqual(only("https://arxiv.org/list/cs.LG/recent"), [["https://rss.arxiv.org/rss/cs.LG", null, copy.labels.postsFeed, copy.services.arxivOrigin]]);
+  assert.deepEqual(only("https://arxiv.org/list/quant-ph/new"), [["https://rss.arxiv.org/rss/quant-ph", null, copy.labels.postsFeed, copy.services.arxivOrigin]]);
+  assert.deepEqual(only("https://arxiv.org/list/cs/25"), [["https://rss.arxiv.org/rss/cs", null, copy.labels.postsFeed, copy.services.arxivOrigin]]);
+  assert.deepEqual(only("https://www.dailymotion.com/dailymotion"), [["https://www.dailymotion.com/rss/user/dailymotion", copy.services.dailymotionTitle("dailymotion"), copy.labels.channelFeed, copy.services.dailymotionOrigin]]);
+  assert.deepEqual(only("https://odysee.com/@veritasium:f"), [["https://odysee.com/$/rss/@veritasium:f", null, copy.labels.channelFeed, copy.services.odyseeOrigin]]);
+  assert.deepEqual(only("https://odysee.com/@Odysee%3A8/some-video:3"), [["https://odysee.com/$/rss/@Odysee:8", null, copy.labels.channelFeed, copy.services.odyseeOrigin]]);
+  assert.deepEqual(only("https://www.deviantart.com/spyed"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, copy.labels.galleryFeed, copy.services.deviantartOrigin]]);
+  assert.deepEqual(only("https://www.deviantart.com/spyed/gallery"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, copy.labels.galleryFeed, copy.services.deviantartOrigin]]);
+  assert.deepEqual(only("https://www.deviantart.com/spyed/gallery/all"), [["https://backend.deviantart.com/rss.xml?q=gallery:spyed", null, copy.labels.galleryFeed, copy.services.deviantartOrigin]]);
+  assert.deepEqual(only("https://www.behance.net/behance"), [["https://www.behance.net/feeds/user?username=behance", null, copy.labels.projectsFeed, copy.services.behanceOrigin]]);
+  assert.deepEqual(only("https://behance.net/adamthompson/"), [["https://www.behance.net/feeds/user?username=adamthompson", null, copy.labels.projectsFeed, copy.services.behanceOrigin]]);
 });
 
 test("NOS: its front, news and sport pages and their sections become the feeds on feeds.nos.nl, and nothing else on nos.nl is claimed", () => {
-  const feed = (name: string, title: string) => [[`https://feeds.nos.nl/${name}`, title, "Posts feed", "NOS"]];
+  const feed = (name: string, title: string) => [[`https://feeds.nos.nl/${name}`, title, copy.labels.postsFeed, "NOS"]];
   for (const u of ["https://nos.nl/", "https://nos.nl", "https://www.nos.nl/", "https://nos.nl/nieuws", "https://nos.nl/nieuws/", "https://nos.nl/nieuws/laatste"]) assert.deepEqual(only(u), feed("nosnieuwsalgemeen", "NOS Nieuws"), u);
   for (const u of ["https://nos.nl/sport", "https://nos.nl/sport/laatste"]) assert.deepEqual(only(u), feed("nossportalgemeen", "NOS Sport"), u);
   assert.deepEqual(only("https://nos.nl/sport/voetbal"), feed("nosvoetbal", "NOS Voetbal"));
@@ -93,11 +96,11 @@ test("those services' site pages, other pages and bare names are not turned into
 });
 
 test("PeerTube: an account or channel page on any domain becomes that instance's feed for it; other /c/ and /a/ pages are not claimed", () => {
-  assert.deepEqual(only("https://framatube.org/a/framasoft/video-channels"), [["https://framatube.org/feeds/videos.xml?accountName=framasoft", null, "Channel feed", "PeerTube account feed"]]);
-  assert.deepEqual(only("https://framatube.org/a/framasoft"), [["https://framatube.org/feeds/videos.xml?accountName=framasoft", null, "Channel feed", "PeerTube account feed"]]);
-  assert.deepEqual(only("https://video.blender.org/c/blender_open_movies/videos"), [["https://video.blender.org/feeds/videos.xml?videoChannelName=blender_open_movies", null, "Channel feed", "PeerTube channel feed"]]);
-  assert.deepEqual(only("https://peertube.example.net:8443/c/Some.Chan"), [["https://peertube.example.net:8443/feeds/videos.xml?videoChannelName=Some.Chan", null, "Channel feed", "PeerTube channel feed"]]);
-  assert.deepEqual(only("https://tilvids.com/c/news@other.example/video-playlists"), [["https://tilvids.com/feeds/videos.xml?videoChannelName=news%40other.example", null, "Channel feed", "PeerTube channel feed"]]);
+  assert.deepEqual(only("https://framatube.org/a/framasoft/video-channels"), [["https://framatube.org/feeds/videos.xml?accountName=framasoft", null, copy.labels.channelFeed, copy.services.peertubeAccountOrigin]]);
+  assert.deepEqual(only("https://framatube.org/a/framasoft"), [["https://framatube.org/feeds/videos.xml?accountName=framasoft", null, copy.labels.channelFeed, copy.services.peertubeAccountOrigin]]);
+  assert.deepEqual(only("https://video.blender.org/c/blender_open_movies/videos"), [["https://video.blender.org/feeds/videos.xml?videoChannelName=blender_open_movies", null, copy.labels.channelFeed, copy.services.peertubeChannelOrigin]]);
+  assert.deepEqual(only("https://peertube.example.net:8443/c/Some.Chan"), [["https://peertube.example.net:8443/feeds/videos.xml?videoChannelName=Some.Chan", null, copy.labels.channelFeed, copy.services.peertubeChannelOrigin]]);
+  assert.deepEqual(only("https://tilvids.com/c/news@other.example/video-playlists"), [["https://tilvids.com/feeds/videos.xml?videoChannelName=news%40other.example", null, copy.labels.channelFeed, copy.services.peertubeChannelOrigin]]);
   for (const u of ["https://meta.discourse.org/c/support/9", "https://example.com/c/", "https://example.com/a/", "https://example.com/a/x/y/z", "https://example.com/c/x/9", "https://example.com/blog/c/x", "https://example.com/feeds/videos.xml?accountName=x", "https://mastodon.social/@someone"]) {
     assert.equal(plan(u), null, u);
   }
@@ -122,7 +125,7 @@ test("a feed counts only if it is the one asked for: PeerTube's generator, a gal
   const arxivUrl = arxiv.feeds[0]!.feedUrl;
   const sunday = await resolveKnown(arxiv, deps({ [arxivUrl]: { feedUrl: arxivUrl, parsed: withGenerator(null, 0) } }), PAGE);
   assert.ok(sunday && "candidates" in sunday);
-  assert.match(sunday.candidates[0]!.note ?? "", /weekends/);
+  assert.equal(sunday.candidates[0]!.note, copy.services.arxivEmptyNote);
   const monday = await resolveKnown(arxiv, deps({ [arxivUrl]: { feedUrl: arxivUrl, parsed: withGenerator(null, 4) } }), PAGE);
   assert.ok(monday && "candidates" in monday);
   assert.equal(monday.candidates[0]!.note, undefined, "the note is only for an empty day");
@@ -173,14 +176,14 @@ test("blog and publishing services map to their known feed paths", () => {
 const PAGE = "https://example.org/";
 const feed = { title: "T", items: [] } as unknown as ParsedFeed;
 const draft = (feedUrl: string, extra: { title?: string; via?: string; origin?: string; note?: string } = {}): DraftCandidate => ({
-  title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? "RSS feed", via: extra.via ?? "Posts feed", feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
+  title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? copy.labels.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
   ...(extra.note ? { note: extra.note } : {}),
 });
 const deps = (probes: Record<string, KnownProbe>, json?: KnownDeps["json"]): KnownDeps => ({
   probe: async (u) => probes[u] ?? { failed: null, inconclusive: false },
   json: json ?? (async () => ({ ok: false, reason: "unreachable", message: "no" })),
   candidate: (u, _p, extra) => draft(u, extra),
-  unverified: (f, service) => ({ ...draft(f.feedUrl, { title: f.title ?? service }), note: `${service} didn't send recent posts just now. Following will keep trying.` }),
+  unverified: (f, service) => ({ ...draft(f.feedUrl, { title: f.title ?? service }), note: copy.discover.serviceNoRecentPosts(service) }),
 });
 
 test("a busy service still gets its feed offered; a missing one falls through to ordinary discovery", async () => {
@@ -189,7 +192,7 @@ test("a busy service still gets its feed offered; a missing one falls through to
   const busy = await resolveKnown(p, deps({ [url]: { failed: { reason: "unreachable", message: "busy" }, inconclusive: true } }), PAGE);
   assert.ok(busy && "candidates" in busy);
   assert.equal(busy.candidates[0]!.title, "r/modeltrains");
-  assert.match(busy.candidates[0]!.note ?? "", /keep trying/);
+  assert.equal(busy.candidates[0]!.note, copy.discover.serviceNoRecentPosts("Reddit"));
   const missing = await resolveKnown(p, deps({ [url]: { failed: { reason: "unreachable", message: "404" }, inconclusive: false } }), PAGE);
   assert.equal(missing, null);
   const blocked = await resolveKnown(p, deps({ [url]: { failed: { reason: "blocked", message: "private" }, inconclusive: false } }), PAGE);
@@ -215,7 +218,7 @@ test("Apple Podcasts: the lookup's feed address is fetched like any feed; no pub
   assert.deepEqual(seen, ["https://itunes.apple.com/lookup?id=1234567890&entity=podcast&country=nl"]);
   assert.ok(ok && "candidates" in ok);
   assert.equal(ok.candidates[0]!.feedUrl, "https://feeds.example.net/show.xml");
-  assert.equal(ok.candidates[0]!.via, "Podcast feed");
+  assert.equal(ok.candidates[0]!.via, copy.labels.podcastFeed);
   const none = await resolveKnown(p, deps({}, async () => ({ ok: true, data: { resultCount: 1, results: [{ collectionName: "x" }] } })), PAGE);
   assert.deepEqual(none, { failure: { reason: "unsupported", message: APPLE_NO_FEED } });
   const javascript = await resolveKnown(p, deps({}, async () => ({ ok: true, data: { results: [{ feedUrl: "javascript:alert(1)" }] } })), PAGE);

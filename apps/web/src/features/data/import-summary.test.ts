@@ -1,21 +1,25 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ImportResult } from "@purss/domain";
+import { app } from "@purss/copy/app";
+import { plural } from "../../lib/format.ts";
 import { effects, inFile, resultLines } from "./import-summary.ts";
+
+const t = app.data.importSummary;
 
 test("only what the file holds is listed", () => {
   assert.deepEqual(inFile({ sources: 2, items: 10, baskets: 0, keptItems: 3, annotations: 4, itemReminders: 2 }),
-    [{ label: "Sources", n: 2 }, { label: "Items", n: 10 }, { label: "Kept in baskets", n: 3 }, { label: "Your highlights and notes", n: 4 }, { label: "Your reminders", n: 2 }]);
+    [{ label: t.inFile.sources, n: 2 }, { label: t.inFile.items, n: 10 }, { label: t.inFile.keptItems, n: 3 }, { label: t.inFile.annotations, n: 4 }, { label: t.inFile.itemReminders, n: 2 }]);
   assert.deepEqual(inFile({}), []);
 });
 
 test("effects say what will happen, singular and plural", () => {
   assert.deepEqual(effects({ newItems: 1, existingItems: 2, sourcesToFollow: 1, sourcesToReconnect: 2, shares: 1 }), [
-    "1 item will be added.",
-    "2 items are already here and won't be added again.",
-    "1 source will be followed again.",
-    "2 private sources will need reconnecting, because their link wasn't in the file.",
-    "Sharing settings of 1 basket or collection will come in switched off. Nothing is shared.",
+    t.willBeAdded(plural(1, t.item)),
+    t.alreadyHere(plural(2, t.item), 2),
+    t.willBeFollowed(plural(1, t.source)),
+    t.willNeedReconnecting(plural(2, t.privateSource), 2),
+    t.sharingSwitchedOff(plural(1, t.basketOrCollection, t.basketsAndCollections)),
   ]);
   assert.deepEqual(effects({}), []);
 });
@@ -26,15 +30,15 @@ test("the result names what was added, what stayed and what needs the person", (
     alreadyPresent: { items: 3, sources: 0 }, following: 1, reconnectRequired: 1,
   };
   assert.deepEqual(resultLines(r), [
-    "Added 4 items, 1 source, 1 basket, sharing settings for 1 basket or collection, switched off.",
-    "2 kept items put back in baskets.",
-    "1 saved text copy restored.",
-    "2 reminders of yours restored.",
-    "5 highlights and notes of yours restored.",
-    "Already here and left as they were: 3 items.",
-    "1 source followed again. New items arrive after the next check.",
-    "1 private source needs reconnecting.",
+    t.added([plural(4, t.item), plural(1, t.source), plural(1, t.basket), t.madeShares(plural(1, t.basketOrCollection, t.basketsAndCollections))].join(", ")),
+    t.keptPins(plural(2, t.keptItem)),
+    t.capturesRestored(plural(1, t.savedTextCopy, t.savedTextCopies)),
+    t.remindersRestored(plural(2, t.reminder)),
+    t.annotationsRestored(plural(5, t.highlightOrNote, t.highlightsAndNotes)),
+    t.alreadyPresent(plural(3, t.item)),
+    t.followingAgain(plural(1, t.source)),
+    t.reconnectRequired(plural(1, t.privateSource), 1),
   ]);
   const empty: ImportResult = { created: { sources: 0, collections: 0, baskets: 0, items: 0, keptPins: 0, captures: 0, shares: 0, annotations: 0, reminders: 0 }, alreadyPresent: { items: 0, sources: 0 }, following: 0, reconnectRequired: 0 };
-  assert.deepEqual(resultLines(empty), ["Nothing new was added."]);
+  assert.deepEqual(resultLines(empty), [t.nothingNew]);
 });

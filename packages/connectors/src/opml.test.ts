@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { decodeBody, isFeedKind, parseContentType, sniffContent } from "./content-type.ts";
 import { generateOpml, parseOpml, OPML_MAX_OUTLINES } from "./opml.ts";
 import { looksPrivateUrl, privateUrlReason, redactUrl } from "./privacy.ts";
+
+const copy = server.sources.connectors;
 
 const SUBS = [
   { title: "Maya & Co. <Notes>", feedUrl: "https://maya.example/feed.xml", siteUrl: "https://maya.example/", folder: "Gardens" },
@@ -46,7 +49,7 @@ test("OPML round trip: export then import returns the same subscriptions and fol
   const out = generateOpml(SUBS.slice(0, 3));
   const parsed = parseOpml(out.xml);
   assert.ok(parsed.ok);
-  assert.equal(parsed.title, "Subscriptions");
+  assert.equal(parsed.title, copy.opml.title);
   assert.deepEqual(
     parsed.outlines.map((o) => [o.title, o.feedUrl, o.siteUrl, o.folder]),
     [

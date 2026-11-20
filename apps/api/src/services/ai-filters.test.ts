@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
+import { server as copy } from "@purss/copy/server";
 import type { AddressInfo } from "node:net";
 import { askJevEach, JevError, jevConfigFromEnv, jevKeyFingerprint } from "@purss/connectors";
 import type { AiJudgeInput } from "@purss/domain";
@@ -134,7 +135,7 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
   const noKey = await b.api("POST", `/api/sources/${source}/ai-filter/preview`, { keep: "sediment research" });
   assert.equal(noKey.status, 409);
   assert.equal(noKey.json.error.code, "ai_unavailable");
-  assert.equal(noKey.json.error.message, "This PURSS hasn't set up Smart filters yet. Ask its administrator.");
+  assert.equal(noKey.json.error.message, copy.api.aiFilters.notSetUp);
 
   await b.setServerKey("server-key-1234");
   const settings = (await b.api("GET", "/api/ai")).json;
@@ -158,7 +159,7 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
   assert.equal(dropped.fresh, 0, "Ignored is no longer New, as when the person ignores it");
   assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'new' AND to_state = 'ignored'", dropped.id), "the change is in the workflow log");
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.mark_read'"), "and mirrored to the engine as read, like the person's own");
-  assert.deepEqual(arrivals(b.app, b.owner.workspaceId), ["New from Delta Notes"], "only the kept post is announced");
+  assert.deepEqual(arrivals(b.app, b.owner.workspaceId), [copy.api.notifications.newFrom("Delta Notes")], "only the kept post is announced");
 
   // What Jev was sent: the post's text and the person's words, with the server's key.
   const sent = b.jev.seen.at(-1)!;
@@ -322,7 +323,7 @@ test("a key Jev refuses: posts stay as they are and are announced, the key is ma
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Off-topic post", "feed/1")]));
   await runJudging(b);
   assert.equal(post(b.app, b.owner.workspaceId, "Off-topic post").workflow, "new");
-  assert.deepEqual(arrivals(b.app, b.owner.workspaceId), ["New from Delta Notes"], "announced as if there were no filter");
+  assert.deepEqual(arrivals(b.app, b.owner.workspaceId), [copy.api.notifications.newFrom("Delta Notes")], "announced as if there were no filter");
   assert.equal((await b.api("GET", "/api/ai")).json.ready, false);
   assert.deepEqual((await b.api("GET", "/api/admin/ai", undefined, b.adminSession)).json.key, { hint: "1234", rejected: true });
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Second post", "feed/1")]));
@@ -386,7 +387,7 @@ test("hosted: Pro uses the server key an administrator set, until the week's all
   assert.equal(capped.allowanceUsedUp, true);
   assert.equal(capped.ready, false, "the allowance is used up: filters wait");
   const waiting = await b.api("POST", `/api/sources/${source}/ai-filter/preview`, { keep: "sediment" });
-  assert.equal(waiting.json.error.message, "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday.");
+  assert.equal(waiting.json.error.message, copy.api.aiFilters.allowanceUsedHosted);
   assert.doesNotMatch(JSON.stringify(capped) + waiting.text, /token/i, "people never see tokens");
   // A new week starts afresh: last week's use doesn't count.
   b.app.db.run("UPDATE ai_usage SET week = ? WHERE account_id = ?", usageWeek(new Date(Date.now() - 7 * 86_400_000)), b.owner.accountId);

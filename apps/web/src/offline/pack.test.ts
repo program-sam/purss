@@ -7,7 +7,7 @@ let n = 0;
 function item(over: Partial<ItemDTO> & { workflow: WorkflowState }): ItemDTO {
   n++;
   return {
-    id: over.id ?? `itm_${n}`, number: 1, sourceId: "src_1", sourceTitle: "A source", kind: "article", title: `Item ${n}`, url: null, author: null, excerpt: null, imageUrl: null,
+    id: over.id ?? `itm_${n}`, number: 1, sourceId: "src_1", sourceTitle: "A source", keptByHand: false, kind: "article", title: `Item ${n}`, url: null, author: null, excerpt: null, imageUrl: null,
     durationSeconds: null, readMinutes: null, doi: null, publishedAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(), discoveredAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(), listedAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(),
     revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, fresh: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };

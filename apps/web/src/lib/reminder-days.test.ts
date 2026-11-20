@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { addDays, dayIn, dayLabel, daysBetween } from "./reminder-days.ts";
+
+const t = app.lib.reminderDays;
 
 test("a day is the calendar date the person's own zone has, not the UTC one", () => {
   const instant = new Date(Date.UTC(2026, 10, 6, 23, 30)); // 23:30 UTC on the 6th
@@ -21,8 +24,8 @@ test("days add and count across month, year and leap days", () => {
 });
 
 test("a day reads as today, tomorrow, or the weekday and date", () => {
-  assert.equal(dayLabel("2026-11-06", "2026-11-06", "en-GB"), "Today");
-  assert.equal(dayLabel("2026-11-07", "2026-11-06", "en-GB"), "Tomorrow");
+  assert.equal(dayLabel("2026-11-06", "2026-11-06", "en-GB"), t.today);
+  assert.equal(dayLabel("2026-11-07", "2026-11-06", "en-GB"), t.tomorrow);
   assert.match(dayLabel("2026-11-12", "2026-11-06", "en-GB"), /^Thu,? 12 Nov$/);
   assert.match(dayLabel("2027-01-02", "2026-11-06", "en-GB"), /^Sat,? 2 Jan 2027$/, "another year says so");
 });

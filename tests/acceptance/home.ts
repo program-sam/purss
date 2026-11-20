@@ -27,6 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import type { Browser, Page } from "@playwright/test";
+import { app as copy } from "@purss/copy/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -54,6 +55,28 @@ const env: NodeJS.ProcessEnv = {
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+const { workflow, filters, toReadTitle } = copy.lib.constants;
+const { toRead, toWatch, toListen } = copy.pages.welcomeBack;
+const listing = copy.pages.listing;
+const itemMenus = copy.state.itemMenus;
+const basketForm = copy.dialogs.baskets.form;
+const headerAccount = copy.auth.headerAccount;
+const pageNav = copy.components.pageNav;
+const palette = copy.dialogs.palette;
+const addSourceCopy = copy.dialogs.addSource;
+/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+const source = (message: (...values: string[]) => string, ...values: string[]) => {
+  const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
+  return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
+};
+/** The sidebar's Add source button. */
+const ADD_SOURCE = copy.shell.sidebar.addSource;
+/** The sidebar's Settings button. */
+const SETTINGS = copy.shell.sidebar.settings;
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -140,15 +163,15 @@ function prepare(): Seed {
 async function signIn(page: Page, o: { shared?: boolean } = {}): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  if (o.shared) await page.getByRole("checkbox", { name: /This is a shared computer/ }).check();
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
-  const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
+  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
+  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  if (o.shared) await page.getByRole("checkbox", { name: new RegExp(esc(copy.auth.signIn.sharedComputer)) }).check();
+  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
+  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }
-  await page.getByRole("heading", { name: "Home" }).waitFor();
+  await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
 }
 
 const progressOf = (page: Page, id: string) => page.evaluate(async (i) => (await (await fetch(`/api/items/${i}`, { cache: "no-store" })).json()).progress as number, id);
@@ -162,11 +185,11 @@ async function checkAccountMenu(page: Page): Promise<void> {
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu", { name: "Account" });
   await menu.waitFor({ state: "visible" });
-  await menu.getByRole("menuitem", { name: "Settings", exact: true }).waitFor();
-  const signOut = menu.getByRole("menuitem", { name: "Sign out", exact: true });
+  await menu.getByRole("menuitem", { name: headerAccount.settings, exact: true }).waitFor();
+  const signOut = menu.getByRole("menuitem", { name: headerAccount.signOut, exact: true });
   await signOut.waitFor();
   await page.keyboard.press("ArrowDown");
-  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Sign out");
+  await page.waitForFunction((label) => document.activeElement?.textContent?.trim() === label, headerAccount.signOut);
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Account menu for Reader");
   assert.equal(await account.evaluate((el) => el === document.activeElement), true, "Escape restores focus to the named account button");
@@ -233,9 +256,9 @@ async function checkCornerRoom(browser: Browser, seed: Seed): Promise<void> {
     });
     const name = (await page.locator(".cbtns .bar-acct").first().getAttribute("aria-label")) ?? "";
     assert.match(name, /Alexandria Papadopoulos-Karamanlis/, `${c.name}: the account button carries the long name`);
-    assert.equal(await page.locator(".cbtns").getByRole("button", { name: "Sign out", exact: true }).count(), 1, `${c.name}: Sign out is offered on a shared computer`);
+    assert.equal(await page.locator(".cbtns").getByRole("button", { name: headerAccount.signOut, exact: true }).count(), 1, `${c.name}: Sign out is offered on a shared computer`);
     // The page's own start: Home.
-    await page.getByRole("heading", { name: "Home" }).waitFor();
+    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
     await page.locator(".mod").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: Home's heading and Customise clear of the corner`);
     // A list page: its tools.
@@ -281,9 +304,9 @@ async function main(): Promise<void> {
     await page.locator("main .irow").first().waitFor();
     // A collection with new items opens on them; opened items stop being new, so read from everything.
     const show = page.locator("main").getByRole("button", { name: /^Filter: / }).first();
-    assert.equal(await show.getAttribute("aria-label"), "Filter: New", "a collection with new items opens on New");
+    assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.fresh}`, "a collection with new items opens on New");
     await show.click();
-    await page.getByRole("menuitemradio", { name: "All", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: filters.active, exact: true }).click();
     await page.waitForURL(/filter=active/);
 
     const long = seed.ids["Long essay"]!;
@@ -362,68 +385,69 @@ async function main(): Promise<void> {
 
     // ---------- Home ----------
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: "Home" }).waitFor();
-    const rowToggle = (name: string) => page.locator(`.wb h2:has(:text('${name}')) button`);
-    await rowToggle("To read").waitFor();
-    assert.equal(await rowToggle("To read").getAttribute("aria-expanded"), "false", "To read starts closed");
+    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    const rowToggle = (name: string) => page.locator(`.wb h2:has(:text(${JSON.stringify(name)})) button`);
+    const rowItems = (name: string) => `.wb:has(h2 :text(${JSON.stringify(name)})) .irow`;
+    await rowToggle(toRead).waitFor();
+    assert.equal(await rowToggle(toRead).getAttribute("aria-expanded"), "false", "To read starts closed");
     assert.equal(await page.locator(".wb .irow").count(), 0, "a closed row shows no items");
-    await rowToggle("To read").click();
+    await rowToggle(toRead).click();
     await page.reload();
-    await page.locator(".wb:has(h2 :text('To read')) .irow").first().waitFor();
-    assert.equal(await rowToggle("To read").getAttribute("aria-expanded"), "true", "a row the user opened stays open");
+    await page.locator(rowItems(toRead)).first().waitFor();
+    assert.equal(await rowToggle(toRead).getAttribute("aria-expanded"), "true", "a row the user opened stays open");
     step("Home's To read starts closed; once opened it stays open");
     assert.equal(await page.locator(".ccard").count(), 0, "Home has no Continue row");
-    const toRead = await homeTitles(page, ".wb:has(h2 :text('To read')) .irow .title");
-    assert.deepEqual(toRead, ["Night forecast", "Medium note"], "To read lists what was started first, then what was put aside");
-    assert.deepEqual(await page.locator(".wb:has(h2 :text('To read')) .irow .wf").evaluateAll((els) => els.map((e) => e.textContent)), ["In progress", "To read"], "each row says whether it was started");
+    const queued = await homeTitles(page, `${rowItems(toRead)} .title`);
+    assert.deepEqual(queued, ["Night forecast", "Medium note"], "To read lists what was started first, then what was put aside");
+    assert.deepEqual(await page.locator(`${rowItems(toRead)} .wf`).evaluateAll((els) => els.map((e) => e.textContent)), [workflow.inprogress, workflow.toread], "each row says whether it was started");
     const boxes = await homeTitles(page, ".mod:not(.wb) .irow .title");
-    for (const title of toRead) assert.ok(!boxes.includes(title), `${title} was put aside or started, so it is not in the boxes`);
+    for (const title of queued) assert.ok(!boxes.includes(title), `${title} was put aside or started, so it is not in the boxes`);
     for (const title of ["Night forecast", "Crackle on long wave", "Numbers stations"]) assert.ok(!boxes.includes(title), `${title} (a collection hidden on Home) is not on Home`);
     step("To read lists what was started, then what was put aside, from any collection; the boxes list only Undecided items");
 
     // To read is articles; a video put aside is in To watch, and a row with nothing in it (To listen) is not there.
-    assert.deepEqual(toRead, ["Night forecast", "Medium note"], "a video is not in To read");
-    await rowToggle("To watch").waitFor();
-    assert.equal(await rowToggle("To watch").getAttribute("aria-expanded"), "false", "To watch starts closed like the other rows");
+    assert.deepEqual(queued, ["Night forecast", "Medium note"], "a video is not in To read");
+    await rowToggle(toWatch).waitFor();
+    assert.equal(await rowToggle(toWatch).getAttribute("aria-expanded"), "false", "To watch starts closed like the other rows");
     assert.ok(!(await homeTitles(page, ".mod:not(.wb) .irow .title")).includes("Short film"), "the boxes list only Undecided items: a video put aside is not there, with its row closed");
-    await rowToggle("To watch").click();
-    await page.locator(".wb:has(h2 :text('To watch')) .irow").first().waitFor();
-    assert.deepEqual(await homeTitles(page, ".wb:has(h2 :text('To watch')) .irow .title"), ["Short film"], "To watch lists the video put aside");
-    assert.equal(await rowToggle("To listen").count(), 0, "no podcast was put aside: no To listen row");
+    await rowToggle(toWatch).click();
+    await page.locator(rowItems(toWatch)).first().waitFor();
+    assert.deepEqual(await homeTitles(page, `${rowItems(toWatch)} .title`), ["Short film"], "To watch lists the video put aside");
+    assert.equal(await rowToggle(toListen).count(), 0, "no podcast was put aside: no To listen row");
     step("a video put aside is in its own To watch row; a row with nothing in it is not shown");
 
     // The page behind "Show all" and the sidebar's To read: the same queue, with its In progress filter showing what was started.
     await page.goto(`${origin}/app/r/toread`);
-    await page.getByRole("heading", { name: "To read, watch and listen" }).waitFor();
+    await page.getByRole("heading", { name: toReadTitle }).waitFor();
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
     await page.getByRole("button", { name: /^Filter: / }).click();
-    assert.equal(await page.getByRole("menuitemcheckbox", { name: "Show ignored items" }).count(), 0, "the queue never holds ignored items, so it does not offer them");
-    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), ["All", "New", "To read", "In progress"], "the page offers the filters that can show something");
-    await page.getByRole("menuitemradio", { name: "In progress", exact: true }).click();
+    assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.shell.listTools.showIgnored }).count(), 0, "the queue never holds ignored items, so it does not offer them");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.fresh, filters.toread, filters.inprogress], "the page offers the filters that can show something");
+    await page.getByRole("menuitemradio", { name: filters.inprogress, exact: true }).click();
     await page.waitForURL(/filter=inprogress/);
     await sleep(600);
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast"], "In progress shows what was started, which an episode half heard is");
     await page.getByRole("button", { name: /^Filter: / }).click();
-    await page.getByRole("menuitemradio", { name: "To read", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: filters.toread, exact: true }).click();
     await page.waitForURL(/filter=toread/);
     await sleep(600);
     assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), ["Medium note", "Short film"], "To read what was not started");
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: "Home" }).waitFor();
+    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
     step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
     // A source followed from now: its back catalogue is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
     const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
     const onHome = await homeTitles(page, "main .irow .title");
     for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (back catalogue of a source followed from now) is not on Home`);
-    assert.match(await page.locator(".home-sum").innerText(), /new in|Since your last visit/, "Home still says what is New");
+    assert.match(await page.locator(".home-sum").innerText(), new RegExp(`${esc(copy.pages.welcomeBack.newIn.trim())}|${source(copy.lib.returning.sinceWithCount, ".*", ".*", ".*")}`), "Home still says what is New");
     await page.goto(`${origin}/app/s/${seed.almanac}`);
-    await page.getByRole("heading", { name: "No new items for now" }).waitFor();
+    await page.getByRole("heading", { name: listing.noNewItems }).waitFor();
     assert.equal(await page.locator("main .irow").count(), 0, "the source's own page hides what is Ignored, like every list");
-    assert.match(await page.locator("main").innerText(), /Ignored items are hidden\.\s*Show ignored/, "and says so, with the way to see it, when everything the source has is Ignored");
-    assert.equal(await page.getByText("Nothing here yet").count(), 0, "it does not say there is nothing");
-    await page.getByRole("button", { name: "Show ignored" }).click();
+    assert.match(await page.locator("main").innerText(), new RegExp(`${esc(listing.ignoredHidden.trim())}\\s*${esc(listing.showIgnored)}`), "and says so, with the way to see it, when everything the source has is Ignored");
+    assert.equal(await page.getByText(listing.nothingHere).count(), 0, "it does not say there is nothing");
+    await page.getByRole("button", { name: listing.showIgnored }).click();
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "Show ignored has all of it");
     const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
@@ -431,29 +455,29 @@ async function main(): Promise<void> {
     const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
     assert.equal(held, 3, "the source counts what it holds");
     await page.goto(`${origin}/app/`);
-    await page.getByRole("heading", { name: "Home" }).waitFor();
+    await page.getByRole("heading", { name: copy.pages.home.title }).waitFor();
     step("a source followed from now has its back catalogue Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
 
     // ---------- muted words, filters ----------
-    await page.getByRole("button", { name: "Settings" }).first().click();
+    await page.getByRole("button", { name: SETTINGS }).first().click();
     await page.getByRole("dialog").waitFor();
-    await page.getByLabel("Word or phrase").fill("football");
-    await page.getByLabel("How long").selectOption("week");
-    await page.getByRole("button", { name: "Mute", exact: true }).click();
+    await page.getByLabel(copy.dialogs.mutedWords.wordLabel).fill("football");
+    await page.getByLabel(copy.dialogs.mutedWords.howLong).selectOption("week");
+    await page.getByRole("button", { name: copy.dialogs.mutedWords.mute, exact: true }).click();
     await page.locator('ul[aria-label="Muted words"] li').waitFor();
     await page.keyboard.press("Escape");
     await page.goto(`${origin}/app/c/${seed.radio}?filter=active`);
     await page.locator(".muted-notice").waitFor();
-    assert.match(await page.locator(".muted-notice").innerText(), /3 items hidden by muted words/);
+    assert.match(await page.locator(".muted-notice").innerText(), new RegExp(esc(copy.lib.mutedWords.hidden(3, "3", false))));
     assert.equal(await page.locator("main .irow").count(), 0, "the items stay out of the list");
-    await page.getByRole("button", { name: "Show them" }).click();
+    await page.getByRole("button", { name: copy.components.mutedNotice.showThem }).click();
     await page.locator("main .irow").first().waitFor();
     assert.equal(await page.locator("main .irow").count(), 3, "and come back when asked");
     step("a muted word saved in Settings leaves matching items out of a list, with a count and a way to show them");
 
     await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await page.locator("main .irow").first().waitFor();
-    await page.getByRole("button", { name: "Sources: All sources" }).click();
+    await page.getByRole("button", { name: `Sources: ${copy.shell.sourceFilter.all}` }).click();
     await page.getByRole("menuitemcheckbox", { name: /Busy Wire/ }).click();
     await page.waitForURL(/[?&](without|source)=/); // whichever list is shorter: the sources left out, or the ones still on
     await page.getByRole("menuitemcheckbox", { name: /Busy Wire/, checked: false }).waitFor(); // the list stays open
@@ -462,10 +486,10 @@ async function main(): Promise<void> {
     const without = await homeTitles(page, "main .irow .title");
     assert.ok(without.length >= 3 && without.every((t) => !t.startsWith("Wire story")), `switching Busy Wire off leaves that source out (${without.join(", ")})`);
     await page.getByRole("button", { name: /^Sources: / }).click();
-    await page.getByRole("menuitemradio", { name: "All sources" }).click();
+    await page.getByRole("menuitemradio", { name: copy.shell.sourceFilter.all }).click();
     await page.waitForURL((u) => !/[?&](without|source)=/.test(u.search));
     await page.getByRole("button", { name: /^Filter:/ }).click();
-    await page.getByRole("menuitemradio", { name: "Short (up to 5 min)" }).click();
+    await page.getByRole("menuitemradio", { name: copy.lib.listFilters.lengths.short }).click();
     await page.waitForURL(/length=short/);
     await sleep(1200);
     const short = await homeTitles(page, "main .irow .title");
@@ -478,16 +502,16 @@ async function main(): Promise<void> {
     const eink = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const reader = await eink.newPage();
     await signIn(reader);
-    await reader.getByRole("button", { name: "Settings" }).first().click();
+    await reader.getByRole("button", { name: SETTINGS }).first().click();
     await reader.getByRole("dialog").waitFor();
-    await reader.locator("label.chk", { hasText: "E-ink display" }).click();
+    await reader.locator("label.chk", { hasText: copy.dialogs.settings.display.label }).click();
     await reader.keyboard.press("Escape");
     await reader.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await reader.locator("main .irow").first().waitFor();
     await openItem(reader, "Medium note");
     const medium2 = seed.ids["Medium note"]!;
     const before2 = await progressOf(reader, medium2);
-    const down = reader.getByRole("group", { name: "Page through the article" }).getByRole("button", { name: "Page down" });
+    const down = reader.getByRole("group", { name: "Page through the article" }).getByRole("button", { name: pageNav.down });
     await down.focus();
     for (let i = 0; i < 3; i++) { await reader.keyboard.press("Enter"); await sleep(150); }
     await sleep(2800);
@@ -507,13 +531,13 @@ async function main(): Promise<void> {
     await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     const deskIgnore = deskPage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / });
     await deskIgnore.hover();
-    await deskPage.locator(".tip", { hasText: "Ignore" }).waitFor();
+    await deskPage.locator(".tip", { hasText: copy.components.itemRow.ignore }).waitFor();
     await deskPage.mouse.move(0, 0);
     await deskPage.locator(".tip").waitFor({ state: "detached" });
     await deskIgnore.focus();
     await deskPage.keyboard.press("Shift+Tab");
     await deskPage.keyboard.press("Tab");
-    await deskPage.locator(".tip", { hasText: "Ignore" }).waitFor();
+    await deskPage.locator(".tip", { hasText: copy.components.itemRow.ignore }).waitFor();
     await desk.close();
     const phone = await browser.newContext({ viewport: { width: 412, height: 900 }, hasTouch: true, isMobile: true });
     const phonePage = await phone.newPage();
@@ -521,12 +545,12 @@ async function main(): Promise<void> {
     await checkAccountMenu(phonePage);
     await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
-    await phonePage.getByText("Ignored", { exact: true }).waitFor();
+    await phonePage.getByText(copy.state.actions.ignored, { exact: true }).waitFor();
     await sleep(500);
     assert.equal(await phonePage.locator(".tip").count(), 0, "a tap shows no tip next to the button: the undo toast says what happened");
     step("hover and keyboard focus name a row action in a tip; a tap on a phone leaves only the undo toast");
     // The open drawer covers the tab bar, so its foot (capacity and Settings) sits at the drawer's bottom with no gap kept for the bar.
-    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Collections" }).tap();
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.shell.tabBar.collections }).tap();
     await phonePage.locator(".side-foot .set").waitFor({ state: "visible" });
     await sleep(300);
     const foot = await phonePage.evaluate(() => {
@@ -547,12 +571,12 @@ async function main(): Promise<void> {
     for (let i = 0; i < 3; i++) { await phonePage.keyboard.press("Shift+Tab"); assert.equal(await inDrawer(), true, "Shift+Tab stays in the drawer"); }
     await phonePage.keyboard.press("Escape");
     await phonePage.locator('[data-drawer="open"]').waitFor({ state: "detached" });
-    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), "Collections", "closing the drawer gives focus back to the tab that opened it");
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.shell.tabBar.collections, "closing the drawer gives focus back to the tab that opened it");
     for (const behind of [".stage", ".tabbar"]) assert.equal(await phonePage.locator(behind).evaluate((el) => (el as HTMLElement).inert), false, `${behind} works again`);
-    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Collections" }).tap();
+    await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.shell.tabBar.collections }).tap();
     await phonePage.getByRole("button", { name: "Close sidebar" }).tap();
     await phonePage.waitForFunction(() => !document.querySelector('[data-drawer="open"]'));
-    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), "Collections", "the drawer's Close button gives focus back the same way");
+    assert.equal(await phonePage.evaluate(() => (document.activeElement?.textContent ?? "").trim()), copy.shell.tabBar.collections, "the drawer's Close button gives focus back the same way");
     step("on a phone the open drawer takes focus, shuts the page out, keeps Tab inside, and gives focus back when it closes");
     await phonePage.goto(`${origin}/app/`);
     await phonePage.locator(".bar .brand .who", { hasText: "Reader" }).waitFor({ state: "visible" });
@@ -597,19 +621,19 @@ async function main(): Promise<void> {
 
     // A row on Home marked To read leaves its box for the To read row above (which then shows it): focus goes to a row that stays.
     await stillPage.goto(`${origin}/app/`);
-    await stillPage.getByRole("heading", { name: "Home" }).waitFor();
-    await stillPage.locator(".wb h2:has(:text('To read')) button").click();
-    await stillPage.locator(".wb:has(h2 :text('To read')) .irow").first().waitFor();
+    await stillPage.getByRole("heading", { name: copy.pages.home.title }).waitFor();
+    await stillPage.locator(`.wb h2:has(:text(${JSON.stringify(toRead)})) button`).click();
+    await stillPage.locator(rowItems(toRead)).first().waitFor();
     const boxRow = stillPage.locator(".mod:not(.wb) .irow").filter({ has: stillPage.locator('button.tr[aria-pressed="false"]') }).first();
     const movedTitle = (await boxRow.locator(".title").innerText()).trim();
-    await boxRow.getByRole("button", { name: `To read: ${movedTitle}`, exact: true }).focus();
+    await boxRow.getByRole("button", { name: `${workflow.toread}: ${movedTitle}`, exact: true }).focus();
     await stillPage.keyboard.press("Enter");
     await stillPage.waitForFunction((t) => ![...document.querySelectorAll(".mod:not(.wb) .irow .title")].some((e) => e.textContent?.trim() === t), movedTitle);
     const afterHome = await activeRow();
     assert.equal(afterHome.inMain, true, `To read on "${movedTitle}" in a Home box: focus is not on the page`);
     assert.equal(afterHome.inRow, true, "it is on a row that stays");
-    await stillPage.waitForFunction((t) => [...document.querySelectorAll(".wb")].filter((w) => w.querySelector("h2")?.textContent?.includes("To read"))
-      .some((w) => [...w.querySelectorAll(".irow .title")].some((e) => (e.textContent ?? "").trim().replace(/^New\.\s*/, "") === t)), movedTitle, { timeout: 5000 })
+    await stillPage.waitForFunction(([t, row]) => [...document.querySelectorAll(".wb")].filter((w) => w.querySelector("h2")?.textContent?.includes(row))
+      .some((w) => [...w.querySelectorAll(".irow .title")].some((e) => (e.textContent ?? "").trim().replace(/^New\.\s*/, "") === t)), [movedTitle, toRead] as const, { timeout: 5000 })
       .catch(() => assert.fail(`"${movedTitle}" did not appear in the To read row above`));
     step("a Home row marked To read leaves its box for the To read row above and focus goes to a row that stays");
 
@@ -623,7 +647,7 @@ async function main(): Promise<void> {
     await stillPage.keyboard.press("Enter");
     await stillPage.locator("#panel-in iframe").waitFor();
     await stillPage.waitForFunction(() => document.activeElement?.tagName === "IFRAME");
-    assert.match(await stillPage.evaluate(() => document.activeElement?.getAttribute("title") ?? ""), /YouTube player: Escher at work/, "Play here: focus is on the player, not the page");
+    assert.match(await stillPage.evaluate(() => document.activeElement?.getAttribute("title") ?? ""), new RegExp(esc(copy.components.videoEmbed.frameTitle(copy.lib.embeds.platform.youtube, copy.components.videoEmbed.player, "Escher at work"))), "Play here: focus is on the player, not the page");
     await stillPage.unroute("https://www.youtube-nocookie.com/**");
     step("after Play here focus moves to the player that replaced the button");
     await still.close();
@@ -635,15 +659,15 @@ async function main(): Promise<void> {
     await findPage.keyboard.press("Control+k");
     const searchBox = findPage.getByRole("combobox");
     await searchBox.fill("wire");
-    await findPage.getByRole("option", { name: /Show more results/ }).waitFor();
+    await findPage.getByRole("option", { name: new RegExp(esc(palette.showMore)) }).waitFor();
     assert.equal(await findPage.locator('.pal-list [role="option"][id^="po"]', { hasText: "Wire story" }).count(), 8, "the first answer is eight items");
-    assert.match(await findPage.locator(".pal-foot").innerText(), /results so far/, "the footer says there are more");
+    assert.match(await findPage.locator(".pal-foot").innerText(), new RegExp(`${esc(palette.count(7)).replace("7", "\\d+")}${esc(palette.soFar)}`), "the footer says there are more");
     for (let i = 0; i < 8; i++) await findPage.keyboard.press("ArrowDown");
-    assert.equal(await findPage.getByRole("option", { name: /Show more results/ }).getAttribute("aria-selected"), "true", "the arrow keys reach Show more results");
+    assert.equal(await findPage.getByRole("option", { name: new RegExp(esc(palette.showMore)) }).getAttribute("aria-selected"), "true", "the arrow keys reach Show more results");
     await findPage.keyboard.press("Enter");
     await findPage.waitForFunction(() => [...document.querySelectorAll('.pal-list [role="option"]')].filter((o) => o.textContent?.includes("Wire story")).length === 14);
     assert.equal(await findPage.locator('.pal-list [role="option"]', { hasText: "Wire story" }).count(), 14, "Enter loads the rest of the matches");
-    assert.equal(await findPage.getByRole("option", { name: /Show more results/ }).count(), 0, "and there is nothing more to ask for");
+    assert.equal(await findPage.getByRole("option", { name: new RegExp(esc(palette.showMore)) }).count(), 0, "and there is nothing more to ask for");
     assert.equal(await findPage.evaluate(() => document.activeElement?.id), "pq", "the search box keeps focus");
     assert.equal(await findPage.getByRole("option", { name: /Wire story/ }).nth(8).getAttribute("aria-selected"), "true", "the highlight is on the first item that was added");
     step("search's Show more results is reached by the arrow keys, loads the rest by Enter, and leaves focus in the search box");
@@ -652,17 +676,18 @@ async function main(): Promise<void> {
     // ---------- focus after a download, and after choosing a show in Add source ----------
     await findPage.goto(`${origin}/app/settings/data`);
     const download = findPage.waitForEvent("download");
-    await findPage.getByRole("button", { name: "Download export" }).click();
+    await findPage.getByRole("button", { name: copy.data.dataPage.exportSection.download }).click();
     await download;
-    await findPage.getByText(/^Saved purss-export/).waitFor();
+    const savedExport = new RegExp(source(copy.data.dataPage.exportSection.saved, "purss-export\\S*", ".*"));
+    await findPage.getByText(new RegExp(`^${savedExport.source}`)).waitFor();
     assert.notEqual(await findPage.evaluate(() => document.activeElement === document.body), true, "after the export is saved focus is not on the page");
-    assert.match(await findPage.evaluate(() => document.activeElement?.textContent ?? ""), /Saved purss-export/, "it is on what was saved, which is read out");
+    assert.match(await findPage.evaluate(() => document.activeElement?.textContent ?? ""), savedExport, "it is on what was saved, which is read out");
     await findPage.route("**/api/discover/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
     await findPage.route("**/api/discover", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
     await findPage.goto(`${origin}/app/`);
-    await findPage.getByRole("button", { name: "Add source" }).first().click();
-    await findPage.getByLabel("Link or podcast name").fill("quiet harbour");
-    await findPage.getByRole("button", { name: "Search podcasts" }).click();
+    await findPage.getByRole("button", { name: ADD_SOURCE }).first().click();
+    await findPage.getByLabel(addSourceCopy.linkOrName).fill("quiet harbour");
+    await findPage.getByRole("button", { name: addSourceCopy.searchPodcasts }).click();
     await findPage.getByRole("button", { name: /Quiet Harbour Radio/ }).click();
     await findPage.getByRole("radio", { name: /Quiet Harbour Radio/ }).waitFor();
     assert.equal(await findPage.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "choosing a show puts focus on the feed that was found");
@@ -675,12 +700,12 @@ async function main(): Promise<void> {
     await findPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
     await row(findPage, "Second essay").click();
     await findPage.locator("#panel-in .p-title", { hasText: "Second essay" }).waitFor();
-    const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: /^Keep/ }).first();
+    const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: new RegExp(`^${esc(copy.shell.itemPanel.keep)}`) }).first();
     await panelKeep.click();
-    await findPage.getByRole("menuitem", { name: "New basket…" }).click();
-    const basketDialog = findPage.getByRole("dialog", { name: "New basket" });
-    await basketDialog.getByRole("textbox", { name: "Name" }).fill("Focus basket");
-    await basketDialog.getByRole("button", { name: "Create basket" }).click();
+    await findPage.getByRole("menuitem", { name: itemMenus.newBasket }).click();
+    const basketDialog = findPage.getByRole("dialog", { name: basketForm.titleNew });
+    await basketDialog.getByRole("textbox", { name: basketForm.name }).fill("Focus basket");
+    await basketDialog.getByRole("button", { name: basketForm.create }).click();
     await basketDialog.waitFor({ state: "detached" });
     await findPage.waitForFunction(() => !!document.activeElement?.closest("#panel-in"));
     assert.equal(await findPage.evaluate(() => document.activeElement?.tagName), "BUTTON", "after the basket is made focus is back on the reader's Keep button");

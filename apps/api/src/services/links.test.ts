@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket } from "./collections.ts";
-import { keepLink, lookupUrl, underSite } from "./links.ts";
+import { keepLink, lookupUrl, nameManualSources, underSite } from "./links.ts";
+import { getItem } from "./items.ts";
 
 /** Tests here don't ask pages about themselves. */
 const noLookup = async () => null;
@@ -82,7 +84,7 @@ test("lookup reports the item, its baskets and state, and followed sources whose
 
   // Another account with the same page and site sees only its own.
   assert.deepEqual(lookupUrl(app, other, "https://blog.example/notes/1"), { item: null, followedSources: [] });
-  assert.throws(() => lookupUrl(app, owner, "ftp://blog.example/x"), /Only web addresses/);
+  assert.throws(() => lookupUrl(app, owner, "ftp://blog.example/x"), { message: server.api.links.onlyWebAddressesKept });
 });
 
 test("keeping cannot reach another account's items or baskets", async (t) => {
@@ -94,8 +96,8 @@ test("keeping cannot reach another account's items or baskets", async (t) => {
   const out = (await keepLink(app, owner, { url: "https://example.org/a", basketId: mine }, noLookup));
   assert.equal(out.existing, false, "their copy isn't found");
   assert.notEqual(out.itemId, theirItem);
-  await assert.rejects(keepLink(app, owner, { url: "https://example.org/a", basketId: theirs }, noLookup), /doesn't exist or isn't yours/);
-  await assert.rejects(keepLink(app, owner, { url: "https://example.org/b", basketId: theirs }, noLookup), /doesn't exist or isn't yours/);
+  await assert.rejects(keepLink(app, owner, { url: "https://example.org/a", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
+  await assert.rejects(keepLink(app, owner, { url: "https://example.org/b", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND url_key = 'example.org/b'", owner.workspaceId), 0, "a refused keep leaves nothing behind");
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM basket_items WHERE basket_id = ?", theirs), 1);
 });
@@ -120,4 +122,24 @@ test("a site address matches pages under its path only", () => {
   assert.ok(!underSite(page, "https://sub.example.org/"));
   assert.ok(!underSite(page, "not a url"));
   assert.ok(!underSite(new URL("https://www.youtube.com/watch?v=1"), "https://www.youtube.com/channel/UC123"), "a channel doesn't claim every video");
+});
+
+test("a link kept by hand is marked so, and its source takes the catalog's name at start, whatever an earlier version stored", async (t) => {
+  const { app, owner, cleanup } = setup();
+  t.after(cleanup);
+  const src = makeSource(app, owner, "Sediment Letters", "feed/1");
+  applySyncBatch(app, owner.engineUserId, batch([entry("feed/1", { url: "http://example.org/post/7", title: "Tidal flats" })]));
+  const feedItem = app.db.get<{ id: string }>("SELECT id FROM items WHERE source_id = ?", src)!.id;
+  const basket = createBasket(app, owner, { name: "Reading", captureMode: "metadata" }).id;
+  const kept = (await keepLink(app, owner, { url: "https://example.org/other", basketId: basket, title: "Other" }, noLookup)).itemId;
+  assert.deepEqual([getItem(app, owner, kept).keptByHand, getItem(app, owner, feedItem).keptByHand], [true, false]);
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks);
+
+  app.db.run("UPDATE sources SET title = 'Old name', origin = 'Old origin' WHERE kind = 'manual'");
+  assert.equal(getItem(app, owner, kept).sourceTitle, "Old name");
+  nameManualSources(app);
+  assert.deepEqual({ ...app.db.get<{ title: string; origin: string }>("SELECT title, origin FROM sources WHERE kind = 'manual'")! }, { title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand });
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks, "its items follow");
+  assert.equal(app.db.get<{ source_title: string }>("SELECT source_title FROM items WHERE id = ?", kept)!.source_title, server.api.shared.savedLinks, "and sort under the new name");
+  assert.equal(getItem(app, owner, feedItem).sourceTitle, "Sediment Letters", "other sources keep theirs");
 });

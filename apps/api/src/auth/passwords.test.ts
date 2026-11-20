@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { SESSION_COOKIE } from "./accounts.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
@@ -75,7 +76,7 @@ test("changing the password takes the current one, however recent the sign-in, t
   assert.equal(info.json.account.hasPassword, true);
 
   const security = await b.req("GET", "/api/account/security", s);
-  assert.deepEqual(security.json.methods.map((m: { kind: string; label: string | null }) => [m.kind, m.label]), [["password", "Password"]]);
+  assert.deepEqual(security.json.methods.map((m: { kind: string; label: string | null }) => [m.kind, m.label]), [["password", server.api.passkeys.passwordLabel]]);
   assert.equal(security.json.sessions.find((x: { current: boolean }) => x.current).method, "password");
 });
 
@@ -146,7 +147,7 @@ test("the password can be changed but never removed, while a passkey can be remo
   const refused = await b.req("DELETE", `/api/account/methods/${password}`, s);
   assert.equal(refused.status, 409);
   assert.equal(refused.json.error.code, "password_required");
-  assert.match(refused.json.error.message, /changed but not removed/);
+  assert.equal(refused.json.error.message, server.api.passkeys.passwordRequired);
   assert.ok(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = ?", password), "the password is still there");
 
   const stale = signIn(b.app, b.owner.accountId, { authAgeSeconds: 3600 });

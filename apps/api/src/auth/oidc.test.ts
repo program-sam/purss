@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
 import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
@@ -14,12 +15,17 @@ import type { OidcCaller, OidcPurpose } from "./oidc.ts";
 import { addSeconds, consumeRateLimit, HttpError, nowIso } from "../http.ts";
 import { createDeviceToken, DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
 import { sha256 } from "../secrets.ts";
+import { escapeRegExp, inHtml } from "../copy-testing.ts";
 import type { App } from "../app.ts";
 
 /*
  * External sign-in (OpenID Connect) against a local issuer: the real openid-client flow (code + PKCE + state + nonce), the
  * account a provider can create, and "confirm it's you" with a provider.
  */
+
+const { publicRoute } = server.api;
+/** The link back to the app on the page that hands over the code: the catalog's markup around any purss://connect address. */
+const GO_BACK_LINK = new RegExp(escapeRegExp(publicRoute.goBackLink("\u0000")).replace("\u0000", String.raw`purss://connect\?[^"]+`));
 
 const HOSTED = { PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_TRUST_PROXY: "1", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" };
 
@@ -208,7 +214,7 @@ test("an address another account has, confirmed or not, is neither linked nor du
   for (const [sub, email] of [["u1", "bo@example.org"], ["u2", "BO@EXAMPLE.ORG"], ["u3", "ana@example.org"]] as const) {
     setClaims({ sub, email, email_verified: true });
     await assert.rejects(finishOidc(app, "mock", await authorize(await startOidc(app, "mock", "signin", null, `b-${sub}`)), caller(`b-${sub}`)),
-      (e: unknown) => e instanceof HttpError && e.code === "email_in_use" && /email address and password/.test(e.message) && /connect Mock ID in Settings → Security/.test(e.message));
+      (e: unknown) => e instanceof HttpError && e.code === "email_in_use" && e.message === server.api.accounts.emailInUseConnectProvider("Mock ID"));
   }
   assert.equal(accountCount(app), before, "no second account");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc'")!.n, 0, "and nothing linked");
@@ -643,7 +649,7 @@ test("over HTTP: starting step-up needs the right session; an app confirms throu
     const html = await page.text();
     const href = /<meta http-equiv="refresh" content="0;url=(purss:\/\/connect\?[^"]+)">/.exec(html)?.[1];
     assert.ok(href, "the page goes back to the app");
-    assert.match(html, /<a href="purss:\/\/connect\?[^"]+">Go back to the PURSS app<\/a>/, "and offers the link if the browser doesn't follow it");
+    assert.match(html, GO_BACK_LINK, "and offers the link if the browser doesn't follow it");
     const back = new URL(href.replaceAll("&amp;", "&"));
     assert.deepEqual([back.protocol, back.host, back.searchParams.get("state"), back.searchParams.get("iss"), back.searchParams.get("link_code")], ["purss:", "connect", pair.state, b.app.config.publicOrigin, null]);
     return back.searchParams.get(param)!;
@@ -684,7 +690,7 @@ test("over HTTP: starting step-up needs the right session; an app confirms throu
   const replay = await open(ticket.json.url);
   assert.equal(replay.status, 400, "the ticket was spent");
   assert.match(replay.headers.get("content-type") ?? "", /text\/html/);
-  assert.match(await replay.text(), /Go back to the PURSS app/);
+  assert.ok((await replay.text()).includes(publicRoute.appErrorBack));
   // Linking from an app needs recent authentication at the start, like the browser's link.
   b.app.db.run("UPDATE device_tokens SET auth_at = ? WHERE account_id = ?", addSeconds(-3600), accountId);
   assert.equal((await asApp("POST", "/api/auth/oidc/mock/ticket", { purpose: "link", ...proof })).json.error.code, "step_up");
@@ -848,7 +854,7 @@ test("a provider can be removed only while a password remains; a passkey isn't a
   const refused = await remove(oidc.id);
   assert.equal(refused.status, 409);
   assert.equal(refused.json.error.code, "last_method");
-  assert.match(refused.json.error.message, /Add a password first/);
+  assert.equal(refused.json.error.message, server.api.passkeys.lastMethod);
   assert.ok(b.app.db.get("SELECT 1 FROM sign_in_methods WHERE id = ?", oidc.id));
   // The passkey can, while the provider that is still set up here remains; a provider that isn't set up any more is no way in.
   b.app.db.run("DELETE FROM sign_in_methods WHERE id = ?", oidc.id);
@@ -876,8 +882,8 @@ test("a refusal in a flow an app started is a plain page that leads back to the 
   assert.equal(fromApp.answer!.status, 409);
   assert.match(fromApp.answer!.headers.get("content-type") ?? "", /text\/html/);
   const page = await fromApp.answer!.text();
-  assert.match(page, /An account with this email address already exists/);
-  assert.match(page, /Go back to the PURSS app/);
+  assert.ok(page.includes(inHtml(server.api.accounts.emailInUseConnectProvider("Mock ID"))));
+  assert.ok(page.includes(publicRoute.appErrorBack));
   assert.equal(fromApp.answer!.headers.get("location"), null, "no redirect to the web sign-in page");
   // The browser extension, a web sign-in, a link: the web page says it.
   for (const query of [connect("extension"), "", "?next=%2Fconnect%3Fclient%3Dmobilefake"]) {
@@ -891,7 +897,7 @@ test("a refusal in a flow an app started is a plain page that leads back to the 
   b.app.db.run("UPDATE accounts SET status = 'suspended' WHERE display_name = 'Suspended'");
   const suspendedApp = await browse(b, { authorize }, connect("mobile"));
   assert.equal(suspendedApp.answer!.status, 403);
-  assert.match(await suspendedApp.answer!.text(), /suspended[\s\S]*Go back to the PURSS app/);
+  assert.match(await suspendedApp.answer!.text(), new RegExp(`${escapeRegExp(inHtml(server.api.shared.suspendedHosted))}[\\s\\S]*${escapeRegExp(publicRoute.appErrorBack)}`));
   assert.equal((await browse(b, { authorize }, "")).answer!.headers.get("location"), "/app/signin?error=suspended&provider=mock");
 
   // An app's ticket: a spent one, and an identity that isn't the account's, say so as pages too.
@@ -906,14 +912,14 @@ test("a refusal in a flow an app started is a plain page that leads back to the 
   const started = await open(first);
   assert.equal(started.status, 302);
   assert.equal((await open(first)).status, 400);
-  assert.match(await (await open(first)).text(), /<h1[^>]*>That didn&#39;t work<\/h1>[\s\S]*Go back to the PURSS app/);
+  assert.match(await (await open(first)).text(), new RegExp(`<h1[^>]*>${escapeRegExp(inHtml(publicRoute.appErrorTitle))}</h1>[\\s\\S]*${escapeRegExp(publicRoute.appErrorBack)}`));
 
   setClaims({ sub: "someone-else", email: "else@example.org", email_verified: true, auth_time: authNow() });
   const second = await open(await ticket());
   const callback = await authorize(second.headers.get("location")!);
   const wrong = await fetch(b.base + callback.pathname + callback.search, { redirect: "manual", headers: { cookie: setCookie(second, "purss_oidc")!.pair, "x-forwarded-for": freshAddress() } });
   assert.equal(wrong.status, 403);
-  assert.match(await wrong.text(), /isn&#39;t the one connected[\s\S]*Go back to the PURSS app/);
+  assert.match(await wrong.text(), new RegExp(`${escapeRegExp(inHtml(server.api.oidc.wrongProviderAccount("Mock ID")))}[\\s\\S]*${escapeRegExp(publicRoute.appErrorBack)}`));
 });
 
 test("an app's link ends on a page that sends the code to purss://connect, and links only when the app redeems it", async (t) => {
@@ -937,7 +943,7 @@ test("an app's link ends on a page that sends the code to purss://connect, and l
   assert.ok(href, "the page goes back to the app");
   const back = new URL(href.replaceAll("&amp;", "&"));
   assert.deepEqual([back.protocol, back.host, back.searchParams.get("state"), back.searchParams.get("iss")], ["purss:", "connect", pair.state, b.app.config.publicOrigin]);
-  assert.match(html, /<a href="purss:\/\/connect\?[^"]+">Go back to the PURSS app<\/a>/, "and offers the link if the browser doesn't follow it");
+  assert.match(html, GO_BACK_LINK, "and offers the link if the browser doesn't follow it");
   const code = back.searchParams.get("link_code")!;
   assert.equal(oidcRows(b.app, "g-app-link"), 0, "the browser linked nothing");
 

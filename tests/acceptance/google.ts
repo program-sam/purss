@@ -16,6 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OAuth2Server } from "oauth2-mock-server";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
+import { app } from "@purss/copy/app";
+import { server } from "@purss/copy/server";
 import { claim, createAccount, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
@@ -29,6 +31,21 @@ const dataDir = path.join(work, "data");
 const shots = path.join(repo, ".output/google-signin");
 mkdirSync(shots, { recursive: true });
 const step = (s: string) => console.log(`✓ ${s}`);
+// The words people read come from the catalogs, so rewording one cannot break this journey. "Google" is the label the operator
+// gives the provider in PURSS_OIDC (below).
+const GOOGLE = "Google";
+const continueWithGoogle = app.auth.providerButton.continueWith(GOOGLE);
+const connectCopy = app.connect.connectPage;
+const securityCopy = app.dialogs.settings.security;
+const stepUpCopy = app.sharedFeatures.stepUp;
+const passwordCopy = app.auth.passwordForm;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The words of a catalog entry that holds HTML (the link back to the app), without its tags. */
+const textOf = (html: string) => html.replace(/<[^>]*>/g, "");
+/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+const OPEN = "\uE000";
+const pattern = (s: string) => new RegExp(escapeRe(s).replaceAll(OPEN, ".+?"));
+const goBackText = textOf(server.api.publicRoute.goBackLink(""));
 
 async function freePort(): Promise<number> {
   const srv = createServer();
@@ -80,8 +97,8 @@ const makeStale = () => withDb((db) => {
 let claims: Record<string, unknown> = {};
 
 async function dismissFirstVisit(page: Page): Promise<void> {
-  const later = page.getByRole("button", { name: "Not now" });
-  const add = page.getByRole("button", { name: "Add source" }).first();
+  const later = page.getByRole("button", { name: app.dialogs.firstVisitQuestion.notNow });
+  const add = page.getByRole("button", { name: app.shell.sidebar.addSource }).first();
   await later.or(add).first().waitFor();
   if (await later.isVisible()) await later.click();
   await add.waitFor();
@@ -95,7 +112,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     ...process.env, PURSS_DATA_DIR: dataDir, PURSS_PORT: String(PORT), PURSS_INTERNAL_PORT: String(await freePort()), PURSS_PUBLIC_ORIGIN: origin,
     PURSS_WEB_DIST: path.join(repo, "apps/web/dist"), PURSS_DISK_RESERVE_BYTES: "0", PURSS_MODE: "hosted", PURSS_SIGNUP: "open",
     PURSS_SMTP_HOST: "127.0.0.1", PURSS_SMTP_PORT: String(smtpPort), PURSS_SMTP_SECURITY: "none", PURSS_MAIL_FROM: "PURSS <ws@example.org>",
-    PURSS_OIDC: JSON.stringify([{ id: "google", label: "Google", issuer: google.issuer.url, clientId: "purss-acceptance", clientSecret: "not-a-secret", stepUp: "choose-account" }]),
+    PURSS_OIDC: JSON.stringify([{ id: "google", label: GOOGLE, issuer: google.issuer.url, clientId: "purss-acceptance", clientSecret: "not-a-secret", stepUp: "choose-account" }]),
   };
   // The operator's account, and Dana, who already has an account with a confirmed email address.
   const prepared = createApp(loadConfig(env));
@@ -124,21 +141,21 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     // ---- the buttons
     const page = await newPage();
     await page.goto(`${origin}/app/signin`);
-    const button = page.getByRole("link", { name: "Continue with Google" });
+    const button = page.getByRole("link", { name: continueWithGoogle });
     await button.waitFor();
     assert.equal(await button.locator("svg.gsi-mark").count(), 1, "Google's own G, drawn inline");
     assert.equal(await page.locator("img").count(), 0, "no remote image");
     const style = await button.evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, color: c.color, border: c.borderTopColor }; });
     assert.deepEqual(style, { bg: "rgb(255, 255, 255)", color: "rgb(31, 31, 31)", border: "rgb(116, 119, 117)" }, "Google's light button colours");
     await page.screenshot({ path: path.join(shots, "01-signin.png") });
-    await page.getByRole("link", { name: "create an account" }).click();
-    await page.getByRole("link", { name: "Continue with Google" }).waitFor();
+    await page.getByRole("link", { name: app.auth.signIn.createAccount.link }).click();
+    await page.getByRole("link", { name: continueWithGoogle }).waitFor();
     await page.screenshot({ path: path.join(shots, "02-signup.png") });
     step("sign-in and sign-up pages show Continue with Google, white with the multicolour G");
 
     // ---- make an account with Google
     claims = { sub: "google-ana", email: "Ana@Example.org", email_verified: true, name: "Ana Reader" };
-    await page.getByRole("link", { name: "Continue with Google" }).click();
+    await page.getByRole("link", { name: continueWithGoogle }).click();
     await page.waitForURL(`${origin}/app/`);
     await dismissFirstVisit(page);
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), accounts + 1);
@@ -146,8 +163,8 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
 
     await page.goto(`${origin}/app/?dialog=security`);
     const security = page.getByRole("dialog");
-    await security.getByText("Google", { exact: true }).waitFor();
-    await security.getByRole("button", { name: "Add a password" }).waitFor();
+    await security.getByText(GOOGLE, { exact: true }).waitFor();
+    await security.getByRole("button", { name: securityCopy.addAPassword }).waitFor();
     assert.equal(await security.getByRole("button", { name: "Remove google" }).count(), 1, "the provider can be removed (the server refuses the last way in)");
     await page.screenshot({ path: path.join(shots, "03-security.png") });
     const ana = withDb((db) => db.prepare("SELECT display_name, email, email_verified_at FROM accounts WHERE email = 'Ana@Example.org'").get() as { display_name: string; email: string; email_verified_at: string | null });
@@ -155,13 +172,13 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     assert.ok(ana.email_verified_at, "the address came confirmed");
     assert.equal(count(ANA_PASSWORDS), 0, "no password was made with the account");
     await security.getByRole("button", { name: "Remove google" }).click();
-    await security.getByText("This is your last way to sign in. Add a password first.").waitFor();
+    await security.getByText(server.api.passkeys.lastMethod).waitFor();
     step("Settings → Security lists Google as the way in; removing the last way in is refused");
 
     // ---- sign out and in again with Google
-    await security.getByRole("button", { name: "Sign out of this browser" }).click();
+    await security.getByRole("button", { name: securityCopy.signOutBrowser }).click();
     await page.waitForURL(/\/signin/);
-    await page.getByRole("link", { name: "Continue with Google" }).click();
+    await page.getByRole("link", { name: continueWithGoogle }).click();
     await page.waitForURL(`${origin}/app/`);
     await dismissFirstVisit(page);
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), accounts + 1, "the same account, not another");
@@ -170,21 +187,21 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     // ---- confirm it's you with Google: a sign-in older than the step-up window, no password, no passkey
     makeStale();
     await page.goto(`${origin}/app/?dialog=security`);
-    await page.getByRole("dialog").getByRole("button", { name: "Add a password" }).click();
-    await page.getByText("For your safety, confirm it's you before this change.").waitFor();
-    assert.equal(await page.getByLabel("Your password").count(), 0, "no password to type");
-    await page.getByRole("button", { name: "Confirm with Google" }).waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: securityCopy.addAPassword }).click();
+    await page.getByText(securityCopy.confirmItsYou).waitFor();
+    assert.equal(await page.getByLabel(stepUpCopy.yourPassword).count(), 0, "no password to type");
+    await page.getByRole("button", { name: stepUpCopy.confirmWithProvider(GOOGLE) }).waitFor();
     await page.screenshot({ path: path.join(shots, "04-confirm-with-google.png") });
-    await page.getByRole("button", { name: "Confirm with Google" }).click();
+    await page.getByRole("button", { name: stepUpCopy.confirmWithProvider(GOOGLE) }).click();
     await page.waitForURL(/\/app\/\?dialog=security/);
-    await page.locator("#toasts").getByText("Confirmed with Google.").waitFor();
+    await page.locator("#toasts").getByText(app.auth.providerConfirm.confirmed(GOOGLE)).waitFor();
     const dialog = page.getByRole("dialog");
-    await dialog.getByRole("button", { name: "Add a password" }).click();
-    await page.getByLabel("Password", { exact: true }).fill("tidal flats at low water");
-    await page.getByLabel("Password again").fill("tidal flats at low water");
-    await page.getByRole("button", { name: "Add password" }).click();
-    await page.locator("#toasts").getByText("Password added").waitFor();
-    await dialog.getByText(/For Ana@Example\.org · Added/).waitFor();
+    await dialog.getByRole("button", { name: securityCopy.addAPassword }).click();
+    await page.getByLabel(passwordCopy.password, { exact: true }).fill("tidal flats at low water");
+    await page.getByLabel(passwordCopy.passwordAgain).fill("tidal flats at low water");
+    await page.getByRole("button", { name: securityCopy.addPassword }).click();
+    await page.locator("#toasts").getByText(securityCopy.passwordAdded).waitFor();
+    await dialog.getByText(pattern(securityCopy.forEmail("Ana@Example.org") + securityCopy.added(OPEN))).waitFor();
     assert.equal(count(ANA_PASSWORDS), 1);
     step("Confirm with Google refreshed the sign-in and the account added a password");
 
@@ -193,23 +210,23 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     claims = { sub: "google-dana", email: "DANA@example.org", email_verified: true, name: "Dana Again" };
     const before = count("SELECT COUNT(*) n FROM accounts");
     await stranger.goto(`${origin}/app/signin`);
-    await stranger.getByRole("link", { name: "Continue with Google" }).click();
+    await stranger.getByRole("link", { name: continueWithGoogle }).click();
     const refusal = stranger.getByRole("alert");
-    await refusal.getByText("An account with this email address already exists. Sign in with your email address and password, then connect Google in Settings → Security.").waitFor();
+    await refusal.getByText(app.auth.oidcErrors.emailInUse(GOOGLE)).waitFor();
     await stranger.screenshot({ path: path.join(shots, "05-email-in-use.png") });
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), before, "no second account");
     assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana'"), 0, "and nothing linked");
     // An address the provider doesn't vouch for makes nothing either.
     claims = { sub: "google-new", email: "new@example.org", email_verified: false, name: "New" };
-    await stranger.getByRole("link", { name: "Continue with Google" }).click();
-    await stranger.getByText("didn't give PURSS a verified email address").waitFor();
+    await stranger.getByRole("link", { name: continueWithGoogle }).click();
+    await stranger.getByText(app.auth.oidcErrors.emailUnverified(GOOGLE)).waitFor();
     assert.equal(count("SELECT COUNT(*) n FROM accounts"), before);
     step("an existing email, or one Google doesn't vouch for, is refused: nothing linked, nothing made");
 
     // ---- the phone app's browser path
     const infoRes = await (await fetch(`${origin}/api/connect/info`)).json();
     const providers = providersOffered(infoRes);
-    assert.deepEqual(providers, [{ id: "google", label: "Google", start: `${origin}/api/auth/oidc/google/start` }]);
+    assert.deepEqual(providers, [{ id: "google", label: GOOGLE, start: `${origin}/api/auth/oidc/google/start` }]);
     const phoneBrowser = await newPage({ width: 412, height: 915 });
     const navigations: string[] = [];
     const cdp: CDPSession = await phoneBrowser.context().newCDPSession(phoneBrowser);
@@ -218,10 +235,10 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const p = await pkce();
     claims = { sub: "google-pat", email: "pat@example.org", email_verified: true, name: "Pat" };
     await phoneBrowser.goto(providerStartUrl(providers[0]!.start, infoRes.connect.page, { challenge: p.challenge, state: p.state, deviceName: "Pixel 8" }));
-    await phoneBrowser.getByText("Connect the PURSS app?").waitFor();
-    assert.equal(await phoneBrowser.getByLabel("Name, so you recognise it later").inputValue(), "Pixel 8");
+    await phoneBrowser.getByText(connectCopy.titleMobile).waitFor();
+    assert.equal(await phoneBrowser.getByLabel(connectCopy.nameLabel).inputValue(), "Pixel 8");
     await phoneBrowser.screenshot({ path: path.join(shots, "06-approve-app.png") });
-    await phoneBrowser.getByRole("button", { name: "Connect", exact: true }).click();
+    await phoneBrowser.getByRole("button", { name: connectCopy.connect, exact: true }).click();
     await waitFor("the redirect to the app", async () => navigations.some((u) => u.startsWith(`${REDIRECT_URI}?code=`)), 10_000);
     const back = readCallback(navigations.find((u) => u.startsWith(`${REDIRECT_URI}?code=`))!, { state: p.state, issuer: origin });
     assert.equal(back.kind, "code");
@@ -243,7 +260,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const confirmTicket = await (await asApp("POST", "/api/auth/oidc/google/ticket", { purpose: "stepup", codeChallenge: confirm.challenge, state: confirm.state })).json() as { url: string };
     const systemBrowser = await newPage({ width: 412, height: 915 });
     await systemBrowser.goto(confirmTicket.url);
-    const backToApp = systemBrowser.getByRole("link", { name: "Go back to the PURSS app" });
+    const backToApp = systemBrowser.getByRole("link", { name: goBackText });
     await backToApp.waitFor();
     await systemBrowser.screenshot({ path: path.join(shots, "07-app-confirm-page.png") });
     assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, false, "whoever finished it in the browser confirmed nothing");
@@ -259,7 +276,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const second = await pkce();
     const secondTicket = await (await asApp("POST", "/api/auth/oidc/google/ticket", { purpose: "stepup", codeChallenge: second.challenge, state: second.state })).json() as { url: string };
     await systemBrowser.goto(secondTicket.url);
-    const second2 = readAppCode((await systemBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, "confirm", { state: second.state, issuer: origin });
+    const second2 = readAppCode((await systemBrowser.getByRole("link", { name: goBackText }).getAttribute("href"))!, "confirm", { state: second.state, issuer: origin });
     assert.equal(second2.kind, "code");
     assert.equal((await redeemConfirm((second2 as { code: string }).code, second.verifier)).status, 200);
     assert.equal(((await (await asApp("GET", "/api/account/security")).json()) as { recentAuth: boolean }).recentAuth, true, "the app that asked is confirmed");
@@ -270,9 +287,9 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const again = await pkce();
     claims = { sub: "google-dana-refused", email: "dana@example.org", email_verified: true, name: "Dana Refused" };
     await refusedApp.goto(providerStartUrl(providers[0]!.start, infoRes.connect.page, { challenge: again.challenge, state: again.state, deviceName: "Pixel 8" }));
-    await refusedApp.getByRole("heading", { name: "That didn't work" }).waitFor();
-    await refusedApp.getByText("An account with this email address already exists.").waitFor();
-    await refusedApp.getByText("Go back to the PURSS app").waitFor();
+    await refusedApp.getByRole("heading", { name: server.api.publicRoute.appErrorTitle }).waitFor();
+    await refusedApp.getByText(server.api.accounts.emailInUseConnectProvider(GOOGLE)).waitFor();
+    await refusedApp.getByText(server.api.publicRoute.appErrorBack).waitFor();
     await refusedApp.screenshot({ path: path.join(shots, "08-app-refused.png") });
     step("a refusal in the app's browser is a plain page that says why and leads back to the app");
 
@@ -288,7 +305,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     claims = { sub: "google-dana-work", email: "dana.work@example.org", email_verified: true, name: "Dana Work" };
     const linkBrowser = await newPage({ width: 412, height: 915 });
     await linkBrowser.goto(linkTicket.url);
-    const goBack = linkBrowser.getByRole("link", { name: "Go back to the PURSS app" });
+    const goBack = linkBrowser.getByRole("link", { name: goBackText });
     await goBack.waitFor();
     await linkBrowser.screenshot({ path: path.join(shots, "09-app-link-page.png") });
     assert.equal(count("SELECT COUNT(*) n FROM sign_in_methods WHERE kind = 'oidc' AND subject = 'google-dana-work'"), 0, "the browser linked nothing");
@@ -301,7 +318,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     const retry = await pkce();
     const retryTicket = await (await asDana("POST", "/api/auth/oidc/google/ticket", { purpose: "link", codeChallenge: retry.challenge, state: retry.state })).json() as { url: string };
     await linkBrowser.goto(retryTicket.url);
-    const code = readAppCode((await linkBrowser.getByRole("link", { name: "Go back to the PURSS app" }).getAttribute("href"))!, "link", { state: retry.state, issuer: origin });
+    const code = readAppCode((await linkBrowser.getByRole("link", { name: goBackText }).getAttribute("href"))!, "link", { state: retry.state, issuer: origin });
     assert.equal(code.kind, "code");
     const redeemed = await asDana("POST", "/api/auth/oidc/google/link", { code: (code as { code: string }).code, codeVerifier: retry.verifier });
     assert.equal(redeemed.status, 200);

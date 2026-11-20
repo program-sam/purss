@@ -3,10 +3,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { after, before, describe, test } from "node:test";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { server } from "@purss/copy/server";
 import { APNS_TOKEN, call, FCM_TOKEN, SCOPE, sha256, startHarness, type Harness } from "./testing.ts";
 
 const EXPECTED_APNS = {
-  aps: { alert: { title: "PURSS", body: "You have something new in your PURSS." }, "mutable-content": 1, sound: "default" },
+  aps: { alert: { title: "PURSS", body: server.pushRelay.apnsFallback }, "mutable-content": 1, sound: "default" },
 };
 
 async function register(h: Harness, platform: "fcm" | "apns", token: string, scope = SCOPE, headers: Record<string, string> = {}) {

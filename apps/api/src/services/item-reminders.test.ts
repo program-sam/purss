@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import type { App, Principal } from "../app.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import type { Library, TestSession } from "../features-testing.ts";
@@ -120,23 +121,23 @@ test("titles and notes stay out of the bell unless titles are on, and never for 
   const day = new Date("2026-11-12T08:00:00.000Z");
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-12", note: "Secret errand" }, NOW);
   runItemReminders(app, p.workspaceId, p.accountId, day);
-  assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]), [["A reminder you set is due", null]]);
+  assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]), [[copy.api.shared.reminderSubjectOne, null]]);
   // With titles on: the title and the note.
   setPreferences(app, p.workspaceId, { notifications: { previews: true } });
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-13", note: "Secret errand" }, day);
   runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T08:00:00.000Z"));
-  assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]).at(-1), ["Reminder: Tidal flats (corrected)", "Secret errand"]);
+  assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]).at(-1), [copy.api.itemReminders.reminderTitle("Tidal flats (corrected)"), "Secret errand"]);
   // A private source's item says nothing about itself even then.
   setItemReminder(app, p, lib.privateItemId, { remindOn: "2026-11-14", note: "Private errand" }, new Date("2026-11-13T09:00:00.000Z"));
   runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-14T08:00:00.000Z"));
   const last = notes(app, p).at(-1)!;
-  assert.deepEqual([last.title, last.body], ["A reminder you set is due", null]);
+  assert.deepEqual([last.title, last.body], [copy.api.shared.reminderSubjectOne, null]);
   // Several on one day become one line with a count.
   setItemReminder(app, p, lib.keptIds[0]!, { remindOn: "2026-11-15", note: null }, new Date("2026-11-14T09:00:00.000Z"));
   setItemReminder(app, p, lib.keptIds[1]!, { remindOn: "2026-11-15", note: null }, new Date("2026-11-14T09:00:00.000Z"));
   assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-15T08:00:00.000Z")), 2);
   const group = notes(app, p).at(-1)!;
-  assert.deepEqual([group.title, group.body, group.item_id], ["2 reminders you set are due", null, null]);
+  assert.deepEqual([group.title, group.body, group.item_id], [copy.api.shared.reminderSubjectMany(2), null, null]);
 });
 
 test("Never still tells about due reminders; Reminders off does not tell later", (t) => {

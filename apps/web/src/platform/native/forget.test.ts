@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { forgetDevice } from "./forget.ts";
 import type { ForgetDeps } from "./forget.ts";
+
+const copy = app.platform.forget;
 
 function fakes(over: Partial<ForgetDeps> = {}) {
   const done: string[] = [];
@@ -27,7 +30,7 @@ test("a lost connection keeps the unsent highlights and notes and says so", asyn
   assert.ok(t.done.indexOf("background") < t.done.indexOf("downloads"), "the background job is stopped before the downloads are removed, so a transfer can't move files back in");
   assert.ok(t.done.lastIndexOf("background") > t.done.indexOf("downloads"), "and again after, so nothing told it meanwhile outlives the wipe");
   assert.equal(out.stuck, false);
-  assert.match(out.notice, /Your 3 unsent highlights and notes stay on this device and are sent when you connect again with the same account/);
+  assert.equal(out.notice, copy.lost(copy.unsentKept(3)));
 });
 
 test("disconnecting, which the person confirmed, removes the outbox too", async () => {
@@ -35,7 +38,7 @@ test("disconnecting, which the person confirmed, removes the outbox too", async 
     const t = fakes();
     const out = await forgetDevice(t.deps, reason);
     assert.ok(t.done.includes("outbox"), reason);
-    assert.doesNotMatch(out.notice, /unsent/);
+    assert.equal(out.notice, reason === "disconnected" ? copy.disconnected : copy.unreachable, reason);
   }
 });
 
@@ -43,8 +46,7 @@ test("when secure storage won't let go of the connection, the result says so ins
   const t = fakes({ forgetConnection: async () => { throw new Error("keystore"); }, unsent: async () => 1 });
   const out = await forgetDevice(t.deps, "lost");
   assert.equal(out.stuck, true);
-  assert.match(out.notice, /old connection couldn't be removed/);
-  assert.match(out.notice, /Your unsent highlight or note stays/);
+  assert.equal(out.notice, copy.lost(copy.unsentKept(1)) + copy.stuck);
   assert.ok(t.done.includes("copies"), "the rest is still removed");
 });
 

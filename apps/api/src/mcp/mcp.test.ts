@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
@@ -91,7 +92,7 @@ test("hosted assistant access errors don't expose installation wiring", async (t
   t.after(b.close);
   const result = await b.api("PUT", "/api/assistant", { enabled: true });
   assert.equal(result.json.error.code, "assistant_unavailable");
-  assert.equal(result.json.error.message, "Assistant access isn't available yet.");
+  assert.equal(result.json.error.message, server.api.assistant.notAvailableYet);
 });
 
 test("tokens stop working when revoked, expired or when the account is suspended", async (t) => {
@@ -130,7 +131,7 @@ test("legacy clients: initialize, then tools/list and tools/call; a read-only to
 
   const writeAttempt = await callTool(b, token, "set_item_state", { itemIds: ["itm_x"], state: "finished" });
   assert.equal(writeAttempt.json.result.isError, true);
-  assert.match(writeAttempt.json.result.content[0].text, /can only read/);
+  assert.equal(writeAttempt.json.result.content[0].text, server.api.mcpTools.readOnlyToken);
   const unknown = await callTool(b, token, "delete_everything");
   assert.equal(unknown.json.error.code, -32602);
   const bad = await callTool(b, token, "search_items", { query: "" });

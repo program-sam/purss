@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { server } from "@purss/copy/server";
 import { assessCapture, isNoticeOnly, partialReasonText } from "./capture-quality.ts";
 
 // The first three are invented text shaped like real captures: a journal paper that came out as its reference list,
@@ -149,7 +150,7 @@ test("a short piece about cookies is a piece, not a cookie page", () => {
 });
 
 test("every reason has words the reader can show", () => {
-  for (const reason of ["gated", "references", "short"] as const) assert.match(partialReasonText(reason), /^Only part of the page could be saved: /);
+  for (const reason of ["gated", "references", "short"] as const) assert.equal(partialReasonText(reason), server.sources.connectors.captureQuality[reason]);
 });
 
 // The next two are what was saved for real: a GOV.UK service's cookie banner in place of a vacancy, and a BBC page built with

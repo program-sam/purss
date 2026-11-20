@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { extension } from "@purss/copy/extension";
 import { challengeFor, cleanTypedCode, connectPageUrl, deviceNameFor, randomVerifier, readRedirect } from "./connect.ts";
 
 test("the PKCE challenge is S256 of the verifier (RFC 7636 appendix B), and verifiers are fresh and well-formed", async () => {
@@ -40,10 +41,10 @@ test("typed codes and device names", () => {
     safari: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
     firefoxAndroid: "Mozilla/5.0 (Android 15; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0",
   };
-  assert.equal(deviceNameFor(ua.chrome), "Chrome on Linux");
-  assert.equal(deviceNameFor(ua.edge), "Edge on Windows");
-  assert.equal(deviceNameFor(ua.firefox), "Firefox on macOS");
-  assert.equal(deviceNameFor(ua.safari), "Safari on iOS");
-  assert.equal(deviceNameFor(ua.firefoxAndroid), "Firefox on Android");
+  assert.equal(deviceNameFor(ua.chrome), extension.connect.deviceName("Chrome", "Linux"));
+  assert.equal(deviceNameFor(ua.edge), extension.connect.deviceName("Edge", "Windows"));
+  assert.equal(deviceNameFor(ua.firefox), extension.connect.deviceName("Firefox", "macOS"));
+  assert.equal(deviceNameFor(ua.safari), extension.connect.deviceName("Safari", "iOS"));
+  assert.equal(deviceNameFor(ua.firefoxAndroid), extension.connect.deviceName("Firefox", "Android"));
   assert.equal(deviceNameFor("curl/8"), "Browser");
 });

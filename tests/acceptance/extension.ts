@@ -18,6 +18,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
+import { app } from "@purss/copy/app";
+import { extension } from "@purss/copy/extension";
+import { server } from "@purss/copy/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -52,6 +55,23 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
+// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// code and data: ids, the toolbar's check mark, the basket names and page titles the journey makes up.
+const signInCopy = app.auth.signIn;
+const connectCopy = app.connect.connectPage;
+const keepCopy = app.dialogs.keepPage;
+const addSourceCopy = app.dialogs.addSource;
+const popupCopy = extension.popup;
+/** The name the extension suggests for this browser (the options page and the approval page start from it). */
+const DEVICE = extension.connect.deviceName("Chrome", "Linux");
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The words of a catalog entry, to be found anywhere in what the popup shows. */
+const words = (s: string) => new RegExp(escapeRe(s));
+/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+const OPEN = "\uE000";
+const pattern = (s: string, open = ".+?") => new RegExp(escapeRe(s).replaceAll(OPEN, open));
+/** How the popup joins what happened into one line (the extension's own wording is in the catalog, the full stops are its). */
+const line = (...parts: string[]) => parts.join(". ").replace(/\.\./g, ".");
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -123,9 +143,9 @@ function extensionCopy(publisher: string): string {
 }
 
 async function signIn(page: Page): Promise<void> {
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
+  await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
 }
 
 async function main(): Promise<void> {
@@ -159,12 +179,12 @@ async function main(): Promise<void> {
     await page.goto(`${origin}/app/?dialog=keep&url=${encodeURIComponent(plain)}&title=1984`);
     await page.waitForURL(/\/signin\?next=/);
     await signIn(page);
-    await page.getByRole("dialog", { name: "Keep this page" }).waitFor();
-    assert.equal(await page.getByLabel("Title (optional)").inputValue(), "1984", "a number-like title stays text");
+    await page.getByRole("dialog", { name: keepCopy.title }).waitFor();
+    assert.equal(await page.getByLabel(keepCopy.titleOptional).inputValue(), "1984", "a number-like title stays text");
     assert.ok(!new URL(page.url()).searchParams.has("url"), "the address is tidied");
-    await page.getByLabel("Basket", { exact: true }).selectOption({ label: "Papers" });
-    await page.getByRole("button", { name: "Keep", exact: true }).click();
-    await page.locator("#toasts").getByText("Kept the link in Papers").waitFor();
+    await page.getByLabel(keepCopy.basket, { exact: true }).selectOption({ label: "Papers" });
+    await page.getByRole("button", { name: keepCopy.keep, exact: true }).click();
+    await page.locator("#toasts").getByText(keepCopy.kept(keepCopy.nouns.link, "Papers")).waitFor();
     step("a Keep deep link opened while signed out comes back after sign-in, and keeps after confirming");
 
     // 2. Connect the extension from its options page: launchWebAuthFlow opens the approval page.
@@ -172,18 +192,18 @@ async function main(): Promise<void> {
     options.on("pageerror", (e) => errors.push(`options: ${e.message}`));
     await options.goto(`chrome-extension://${extId}/options/options.html`);
     // The official server is preselected; another one is a small "Change server" away.
-    await options.locator("#server").getByText(`Server: ${new URL(OFFICIAL_WORKSPACE_ORIGIN).host}`).waitFor();
+    await options.locator("#server").getByText(extension.options.connect.server(new URL(OFFICIAL_WORKSPACE_ORIGIN).host)).waitFor();
     assert.ok(!(await options.locator("#address").isVisible()), "no address field until the person changes server");
     await options.locator("#change-server").click();
     await options.locator("#address").fill(origin.replace("http://", ""));
     const approvalOpened = ctx.waitForEvent("page");
     await options.locator("#connect").click();
     const approval = await approvalOpened;
-    await approval.getByText("Connect the browser extension?").waitFor();
-    assert.match(await approval.getByLabel("Name, so you recognise it later").inputValue(), /^Chrome on Linux$/);
-    await approval.getByRole("button", { name: "Connect", exact: true }).click();
+    await approval.getByText(connectCopy.titleExtension).waitFor();
+    assert.equal(await approval.getByLabel(connectCopy.nameLabel).inputValue(), DEVICE);
+    await approval.getByRole("button", { name: connectCopy.connect, exact: true }).click();
     await options.locator("#connected").waitFor();
-    assert.match(await options.locator("#connected").innerText(), new RegExp(`Connected to ${origin}`));
+    assert.match(await options.locator("#connected").innerText(), words(extension.options.connected.to(origin, DEVICE)));
     step("the official server is preselected; the extension connects to another through launchWebAuthFlow, the approval page and PKCE");
 
     // Helpers that drive the toolbar popup: it is opened by the extension itself on the active tab and
@@ -208,23 +228,23 @@ async function main(): Promise<void> {
     const post = await ctx.newPage();
     await post.goto(`${publisher.base}/blog/storm-layers`);
     await openPopup(post);
-    await waitText("the page's status", "#status", /Not in your PURSS yet/);
-    await waitText("the feed offer", "#add-source", /Follow “Quiet Harbour”/);
+    await waitText("the page's status", "#status", words(popupCopy.status.notYet));
+    await waitText("the feed offer", "#add-source", words(popupCopy.offers.followFeedTitled("Quiet Harbour")));
     await popupDo("#basket", "select:Read later");
-    assert.equal(await popupText("#keep"), "Keep in Read later");
+    assert.equal(await popupText("#keep"), popupCopy.keepButton.keepIn("Read later"));
     await popupDo("#keep-text", "check");
     await popupDo("#keep", "click");
-    await waitText("the result", "#result", /Kept in Read later\. Its text was saved as your browser shows it\./);
-    await waitText("the new status", "#status", /Kept in Read later/);
+    await waitText("the result", "#result", words(line(popupCopy.kept.keptIn("Read later"), popupCopy.kept.textSaved)));
+    await waitText("the new status", "#status", words(popupCopy.status.keptIn("Read later")));
     step("the popup offers the post's feed and keeps the page with the text as the browser shows it");
 
     // 4. Opened again on the same page, it says so at once, and so does the toolbar button.
     await openPopup(post);
-    await waitText("the kept status", "#status", /✓ Kept in Read later/);
-    assert.equal(await popupText("#keep"), "Keep its text", "keeping the text is remembered; the page is already in the basket");
+    await waitText("the kept status", "#status", words(`✓ ${popupCopy.status.keptIn("Read later")}`));
+    assert.equal(await popupText("#keep"), popupCopy.keepButton.keepText, "keeping the text is remembered; the page is already in the basket");
     const tabId = await sw.evaluate(async (url) => (await chrome.tabs.query({ url }))[0]?.id, `${publisher.base}/blog/storm-layers`);
     assert.equal(await sw.evaluate((id) => chrome.action.getBadgeText({ tabId: id }), tabId), "✓");
-    await waitText("the replace hint", "#keep-text-hint", /Replaces the text kept from your browser on/);
+    await waitText("the replace hint", "#keep-text-hint", pattern(popupCopy.textHint.replaces(OPEN)));
     step("an already-kept page shows as kept in the popup and on the toolbar button");
 
     // 5. PURSS shows the text, labelled as captured in the browser.
@@ -232,8 +252,8 @@ async function main(): Promise<void> {
     await popupDo("#open-item", "click");
     const item = await itemOpened;
     await item.waitForURL(/\/b\/[^?]+\?item=/);
-    await item.getByText(/Saved from your browser on (?:\d+ [A-Z][a-z]+|[A-Z][a-z]+ \d+)/).waitFor(); // the date in the browser's own format
-    await item.getByText("as your browser showed it", { exact: false }).waitFor();
+    await item.getByText(pattern(server.api.items.labelBrowser + app.shell.itemPanel.capturedOn(OPEN), "(?:\\d+ [A-Z][a-z]+|[A-Z][a-z]+ \\d+)")).waitFor(); // the date in the browser's own format
+    await item.getByText(server.api.items.browserCaptureNote, { exact: false }).waitFor();
     await item.locator(".prose").getByText("record of storms", { exact: false }).first().waitFor();
     assert.equal(await item.locator(".prose").getByText("Copyright").count(), 0, "only the readable part");
     step("PURSS shows the kept text, labelled “Saved from your browser” with its date");
@@ -244,25 +264,25 @@ async function main(): Promise<void> {
     const addOpened = ctx.waitForEvent("page");
     await popupDo("#add-source", "click");
     const add = await addOpened;
-    await add.getByRole("dialog", { name: "Add source" }).waitFor();
+    await add.getByRole("dialog", { name: addSourceCopy.title }).waitFor();
     assert.equal(await add.locator("#as-url").inputValue(), `${publisher.base}/feed.xml`);
     await add.waitForTimeout(1000);
-    assert.equal(await add.getByText("Looking…").count(), 0);
+    for (const looking of [addSourceCopy.looking, app.lib.addSourceStatus.looking]) assert.equal(await add.getByText(looking).count(), 0);
     assert.deepEqual(discoverCalls, [], "nothing is looked up until Find");
     step("“Add as a source” opens Add source with the feed filled in, and looks nothing up by itself");
 
     // 7. Settings offers the bookmarklets and lists the extension; the "Add as source" one opens Add source.
-    await add.getByRole("button", { name: "Cancel" }).click();
+    await add.getByRole("button", { name: addSourceCopy.cancel }).click();
     await add.goto(`${origin}/app/?dialog=apps`);
-    await add.getByText("Chrome on Linux").waitFor();
-    const code = await add.getByRole("link", { name: "Add as source" }).getAttribute("href");
+    await add.getByText(DEVICE).waitFor();
+    const code = await add.getByRole("link", { name: app.connect.bookmarklets.add.name }).getAttribute("href");
     assert.ok(code?.startsWith("javascript:"), "a draggable bookmarklet");
     const plainPage = await ctx.newPage();
     await plainPage.goto(plain);
     const fromBookmarklet = ctx.waitForEvent("page");
     await plainPage.evaluate((source) => (0, eval)(source), decodeURIComponent(code!.slice("javascript:".length)));
     const handed = await fromBookmarklet;
-    await handed.getByRole("dialog", { name: "Add source" }).waitFor();
+    await handed.getByRole("dialog", { name: addSourceCopy.title }).waitFor();
     assert.equal(await handed.locator("#as-url").inputValue(), plain);
     assert.deepEqual(discoverCalls, []);
     step("Settings offers the bookmarklets; running one opens Add source with the page filled in");
@@ -273,9 +293,9 @@ async function main(): Promise<void> {
     await options.locator("#address").waitFor();
     assert.equal(await options.locator("#address").inputValue(), origin, "the chosen server is remembered");
     await openPopup(post);
-    await waitText("the connect prompt", "#connect", /Connect/);
+    await waitText("the connect prompt", "#connect", words(popupCopy.notConnected.connect));
     await add.goto(`${origin}/app/?dialog=apps`);
-    await add.getByText("Nothing connected.", { exact: false }).waitFor();
+    await add.getByText(app.connect.connectedApps.nothing, { exact: false }).waitFor();
     step("disconnecting revokes the extension's token and the popup asks to connect again");
 
     assert.deepEqual(errors, [], "no uncaught page errors");

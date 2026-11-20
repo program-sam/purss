@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
+import { app } from "@purss/copy/app";
 import { cleanArticleHtml, decodePage, readablePage } from "./readable-page.ts";
 
 const parser = new DOMParser() as unknown as globalThis.DOMParser;
@@ -32,7 +33,7 @@ test("a page's article is found and cleaned; a page without one says so", async 
   assert.doesNotMatch(out.html, /track\(\)|<script/);
   assert.match(out.html, /href="https:\/\/pub\.example\/next"/);
   const empty = await readablePage("<html><body><div id=app></div><script>render()</script></body></html>", URL_, parser);
-  assert.deepEqual(empty, { ok: false, message: "No readable article was found on the publisher's page. It may need JavaScript or a login." });
+  assert.deepEqual(empty, { ok: false, message: app.downloads.readablePage.noArticle });
 });
 
 test("a page is read in the character set it declares, UTF-8 otherwise", () => {

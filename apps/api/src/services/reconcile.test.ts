@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { reconcile } from "./storage.ts";
@@ -36,7 +37,7 @@ test("the review queue shows candidates, with matches suggested only when clear"
   const by = (title: string) => list.entries.find((e) => e.entry.title === title)!;
   assert.equal(by("First").suggestion, "match");
   assert.equal(by("First").candidate?.title, "First");
-  assert.match(by("First").reason, /original ID/);
+  assert.equal(by("First").reason, copy.api.reconcile.sameOriginalId);
   assert.equal(by("Brand new").suggestion, "new");
   assert.equal(by("Brand new").candidate, null);
   assert.equal(by("Twin C").suggestion, "review", "two existing items share this link, so it needs a human");

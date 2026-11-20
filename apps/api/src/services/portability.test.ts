@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { server } from "@purss/copy/server";
 import { newId } from "@purss/domain";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
@@ -18,6 +19,8 @@ import { setShareNote } from "./shares.ts";
 import { HttpError } from "../http.ts";
 import { deleteAnnotation, putAnnotation } from "./annotations.ts";
 import { setItemReminder } from "./item-reminders.ts";
+
+const { archiveFormat, portability } = server.api;
 
 type Owner = Principal & { engineUserId: string };
 
@@ -63,7 +66,7 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   assert.equal(doc.format, "purss-workspace-export");
   assert.equal(doc.schemaVersion, 1);
   assert.ok(!("savedQueries" in doc), "saved searches no longer exist, so an export has no section for them");
-  assert.ok(doc.omitted.length >= 5 && doc.omitted.some((o: string) => /private source/i.test(o)), "an omitted section explains the exclusions");
+  assert.ok(doc.omitted.length >= 5 && doc.omitted.includes(archiveFormat.privateLinksLeftOut), "an omitted section explains the exclusions");
 
   const priv = doc.sources.find((s: any) => s.id === lib.privateSource);
   assert.deepEqual([priv.isPrivate, priv.reconnectRequired, priv.feedUrl, priv.siteUrl, priv.kind], [true, true, null, null, "private"]);
@@ -141,13 +144,13 @@ test("damaged, cut-short, foreign and newer archives are rejected with plain mes
   const { doc, text } = await exportDoc(app, p);
   const edited = structuredClone(doc);
   edited.items[0].title = "Edited after export";
-  assert.throws(() => parseArchive(edited), /damaged/);
+  assert.throws(() => parseArchive(edited), { message: archiveFormat.damagedSection("items") });
   const noManifest = structuredClone(doc);
   delete noManifest.manifest;
-  assert.throws(() => parseArchive(noManifest), /incomplete/);
-  assert.throws(() => parseArchive({ ...doc, schemaVersion: 2 }), /newer version/);
-  assert.throws(() => parseArchive({ ...doc, format: "something-else" }), /isn't a PURSS export/);
-  assert.throws(() => parseArchive(null), /isn't a PURSS export/);
+  assert.throws(() => parseArchive(noManifest), { message: archiveFormat.incomplete });
+  assert.throws(() => parseArchive({ ...doc, schemaVersion: 2 }), { message: archiveFormat.newerVersion });
+  assert.throws(() => parseArchive({ ...doc, format: "something-else" }), { message: archiveFormat.notExport });
+  assert.throws(() => parseArchive(null), { message: archiveFormat.notExport });
   assert.throws(() => JSON.parse(text.slice(0, text.length - 20)));
   const { app: other, cleanup: c2 } = makeTestApp();
   t.after(c2);
@@ -226,7 +229,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(JSON.parse(subs[0]!.payload).engineUserId, pb.engineUserId);
   const privSource = b.db.get<{ id: string; feed_url: string | null; paused: number; health: string; health_text: string; is_private: number }>("SELECT * FROM sources WHERE title = 'Secret Garden'")!;
   assert.deepEqual([privSource.feed_url, privSource.paused, privSource.health, privSource.is_private], [null, 1, "reconnect", 1]);
-  assert.match(privSource.health_text, /Reconnect required/);
+  assert.equal(privSource.health_text, portability.reconnectNote);
   const pubSource = b.db.get<{ health: string; engine_stream_id: string | null }>("SELECT health, engine_stream_id FROM sources WHERE title = 'Sediment Letters'")!;
   assert.deepEqual([pubSource.health, pubSource.engine_stream_id], ["pending", null]);
 
@@ -290,7 +293,7 @@ test("an older export with hand-picked collections imports without them, says so
   });
   const preview = stageImport(b, pb, legacy);
   assert.equal(preview.counts.collections, 1, "only the restorable collection is counted");
-  assert.ok(preview.conflicts.some((c) => /2 hand-picked collections weren't restored/.test(c) && /basket/.test(c)), preview.conflicts.join(" | "));
+  assert.ok(preview.conflicts.includes(portability.handPickedNotRestored(2)), preview.conflicts.join(" | "));
   const result = applyImport(b, pb, preview.token);
   assert.equal(result.created.collections, 1);
   assert.equal(result.created.items, 4, "the items themselves still come across");
@@ -316,7 +319,7 @@ test("an older export with saved searches imports without them, says so, and kee
   ];
 
   const preview = stageImport(b, pb, withSavedSearches(two));
-  assert.ok(preview.conflicts.some((c) => /2 saved searches weren't restored/.test(c) && /no longer exist/.test(c)), preview.conflicts.join(" | "));
+  assert.ok(preview.conflicts.includes(portability.savedSearchesNotRestored(2)), preview.conflicts.join(" | "));
   assert.ok(!("savedQueries" in preview.counts), "saved searches are not counted as something that will be imported");
   const result = applyImport(b, pb, preview.token);
   assert.ok(!("savedQueries" in result.created));
@@ -324,9 +327,9 @@ test("an older export with saved searches imports without them, says so, and kee
   assert.equal(reconcile(b, pb.accountId).difference, 0);
 
   const one = stageImport(b, pb, withSavedSearches(two.slice(0, 1)));
-  assert.ok(one.conflicts.some((c) => /1 saved search wasn't restored/.test(c)), one.conflicts.join(" | "));
+  assert.ok(one.conflicts.includes(portability.savedSearchesNotRestored(1)), one.conflicts.join(" | "));
   const none = stageImport(b, pb, doc);
-  assert.ok(!none.conflicts.some((c) => /saved search/.test(c)), "a current export has nothing to skip");
+  assert.ok(![portability.savedSearchesNotRestored(1), portability.savedSearchesNotRestored(2)].some((c) => none.conflicts.includes(c)), "a current export has nothing to skip");
 });
 
 test("an older export that marked back catalogue with `backlog` imports its untouched items as Ignored, and nothing keeps the mark", async (t) => {
@@ -471,9 +474,9 @@ test("import into an occupied PURSS reconciles by source and link, merges basket
   const versionBefore = getItem(b, pb, existing.id).stateVersion;
 
   const preview = stageImport(b, pb, doc);
-  assert.ok(preview.conflicts.some((c) => /already in your PURSS/.test(c) && /1 item/.test(c)), preview.conflicts.join(" | "));
-  assert.ok(preview.conflicts.some((c) => /basket named “Reading” already exists/.test(c)));
-  assert.ok(preview.conflicts.some((c) => /1 source is already in your PURSS/.test(c)));
+  assert.ok(preview.conflicts.includes(portability.itemsAlreadyHere(1)), preview.conflicts.join(" | "));
+  assert.ok(preview.conflicts.includes(portability.basketExists("Reading")));
+  assert.ok(preview.conflicts.includes(portability.sourcesAlreadyHere(1)));
   assert.equal(preview.counts.newItems, 3);
   const result = applyImport(b, pb, preview.token);
 

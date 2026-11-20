@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { adminHealth } from "./admin.ts";
 
@@ -23,7 +24,7 @@ test("the engine reads as not syncing when no sync has succeeded for many interv
   lastSync(app, p.engineUserId, new Date(NOW - 4 * 86_400_000).toISOString());
   const stale = (await adminHealth(app, NOW)).engine;
   assert.equal(stale.status, "stalled", "four days without a sync is not running, even with no error recorded");
-  assert.match(stale.message ?? "", /engine and the worker/);
+  assert.equal(stale.message, server.api.admin.syncStalled);
 
   const newcomer = makeOwner(app);
   app.db.run("UPDATE engine_users SET status = 'pending' WHERE id = ?", newcomer.engineUserId);

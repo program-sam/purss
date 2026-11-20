@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import { signIn } from "../features-testing.ts";
 import { HttpError } from "../http.ts";
@@ -108,7 +109,7 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   assert.equal(b.app.db.get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", queued)!.status, "queued", "but they aren't cancelled either");
   const retry = await b.api(as, "POST", `/api/admin/jobs/${failed}/retry`);
   assert.equal(retry.status, 409, "an administrator can't restart them");
-  assert.match(retry.json.error.message, /being deleted/);
+  assert.equal(retry.json.error.message, server.api.admin.jobAccountUnavailable);
 
   for (const patch of [{ status: "suspended" }, { status: "active" }, { isAdmin: true }, { allocationBytes: 1_000_000 }]) {
     const out = await b.api(as, "PATCH", `/api/admin/accounts/${pat.accountId}`, patch);

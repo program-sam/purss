@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { BUSY_MESSAGE, COMMENTS_ONLY_MESSAGE, discover, MISSING_HOST_MESSAGE, TIMEOUT_MESSAGE } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { EMAIL_MESSAGE, NAME_MESSAGE, normalizeInput, wwwAlternative } from "./input.ts";
 import { noFeedMessage } from "./platforms.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
+
+const copy = server.sources.connectors;
 
 const NOW = () => new Date("2026-11-03T12:00:00Z");
 const WEEKLY = ["Mon, 02 Nov 2026 10:00:00 GMT", "Mon, 26 Oct 2026 10:00:00 GMT", "Mon, 19 Oct 2026 10:00:00 GMT", "Mon, 12 Oct 2026 10:00:00 GMT", "Mon, 05 Oct 2026 10:00:00 GMT"];
@@ -72,7 +75,7 @@ test("Reddit: r/x and u/x are followed through /.rss and named r/x and u/x", asy
   assert.equal(c.length, 1);
   assert.equal(c[0]!.title, "r/modeltrains", "not the subreddit's tagline");
   assert.equal(c[0]!.feedUrl, sub);
-  assert.equal(c[0]!.via, "Posts feed");
+  assert.equal(c[0]!.via, copy.labels.postsFeed);
   assert.deepEqual(calls, [sub], "only the feed was asked for");
   const user = "https://www.reddit.com/user/spez/.rss";
   const u = ok(await discover("reddit.com/u/spez", { fetch: stub({ [user]: feedRes(user, atom("overview for spez"), "application/atom+xml") }).fetch, now: NOW })).candidates[0]!;
@@ -85,7 +88,7 @@ test("Reddit limiting requests does not turn into 'nothing to follow'", async ()
   const c = ok(await discover("https://www.reddit.com/r/modeltrains/", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.title, "r/modeltrains");
   assert.equal(c.feedUrl, sub);
-  assert.match(c.note ?? "", /Reddit didn't send recent posts just now\. Following will keep trying\./);
+  assert.equal(c.note, copy.discover.serviceNoRecentPosts("Reddit"));
   assert.deepEqual(c.samples, []);
 });
 
@@ -96,16 +99,16 @@ test("GitHub: a repository link offers Releases and Tags", async () => {
   const { fetch } = stub({ [rel]: feedRes(rel, atom("Release notes from ripgrep"), "application/atom+xml"), [tags]: feedRes(tags, atom("Tags from ripgrep", "v1-rc"), "application/atom+xml") });
   const d = ok(await discover("https://github.com/BurntSushi/ripgrep", { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.feedUrl]), [
-    ["BurntSushi/ripgrep releases", "Releases feed", rel],
-    ["BurntSushi/ripgrep tags", "Tags feed", tags],
+    [copy.known.releases("BurntSushi/ripgrep"), copy.labels.releasesFeed, rel],
+    [copy.known.tags("BurntSushi/ripgrep"), copy.labels.tagsFeed, tags],
   ]);
   // Every tag a release: the two feeds list the same entries, so they are one choice.
   const same = stub({ [rel]: feedRes(rel, atom("Release notes from ripgrep"), "application/atom+xml"), [tags]: feedRes(tags, atom("Tags from ripgrep"), "application/atom+xml") });
-  assert.deepEqual(ok(await discover("https://github.com/BurntSushi/ripgrep", { fetch: same.fetch, now: NOW })).candidates.map((c) => c.via), ["Releases feed"]);
+  assert.deepEqual(ok(await discover("https://github.com/BurntSushi/ripgrep", { fetch: same.fetch, now: NOW })).candidates.map((c) => c.via), [copy.labels.releasesFeed]);
   // A repository that does not exist is the ordinary 404, in plain words.
   const missing = await discover("https://github.com/nobody/nothing-here", { fetch: stub({}).fetch, now: NOW });
   assert.ok(!missing.ok);
-  assert.match(missing.message, /couldn't find anything at that address/);
+  assert.equal(missing.message, copy.discover.notFoundAt(404));
 });
 
 test("Apple Podcasts: the iTunes lookup supplies the feed, and the feed goes through the same fetcher", async () => {
@@ -122,7 +125,7 @@ test("Apple Podcasts: the iTunes lookup supplies the feed, and the feed goes thr
   // A show with no public feed (or an unusable one) is explained.
   const hidden = await discover("https://podcasts.apple.com/nl/podcast/de-show/id1234567890", { fetch: stub({ [lookup]: fakeResponse(lookup, JSON.stringify({ resultCount: 1, results: [{}] }), "application/json") }).fetch, now: NOW });
   assert.ok(!hidden.ok);
-  assert.match(hidden.message, /Apple Podcasts doesn't list a public feed/);
+  assert.equal(hidden.message, copy.known.appleNoFeed);
   // The address the lookup names is checked like any other: a private one is refused, not fetched.
   const evil = { ...stub({ [lookup]: fakeResponse(lookup, JSON.stringify({ results: [{ feedUrl: "http://127.0.0.1/feed" }] }), "application/json") }) };
   const { safeFetch } = await import("./safe-fetch.ts");
@@ -163,9 +166,7 @@ test("a probe that times out is never reported as 'nothing to follow'", async ()
   assert.ok(!d.ok);
   assert.equal(d.reason, "timeout");
   assert.equal(d.message, TIMEOUT_MESSAGE);
-  assert.doesNotMatch(d.message, /couldn't find a feed|Nothing to follow/i);
-  // The message does not put the blame on the site.
-  assert.match(d.message, /may be slow or PURSS busy/);
+  assert.notEqual(d.message, copy.discover.noFeed);
   // A site that is limiting requests is not 'no feed' either.
   const limiting: FetchFn = async (url, o) => (url === "https://plain.example/" ? slow.fetch(url, o) : fakeResponse(url, "slow down", "text/html", 429));
   const b = await discover("https://plain.example/", { fetch: limiting, now: NOW });
@@ -188,7 +189,7 @@ test("the first request timing out says the same kind of thing", async () => {
 });
 
 test("a host that does not resolve says it does not exist", async () => {
-  const gone = (): SafeFetchResult => ({ ok: false, reason: "unreachable", message: "We couldn't find that website. Check the spelling of the address.", detail: "dns ENOTFOUND" });
+  const gone = (): SafeFetchResult => ({ ok: false, reason: "unreachable", message: copy.fetch.notFound, detail: "dns ENOTFOUND" });
   const d = await discover("https://no-such-label.example/", { fetch: async () => gone(), now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "unreachable");
@@ -213,17 +214,17 @@ test("an email address and a name each say what they are and what to paste inste
     const d = await discover(input, { fetch: stub({}).fetch });
     assert.ok(!d.ok && d.reason === "invalid" && d.message === EMAIL_MESSAGE, input);
   }
-  assert.match(EMAIL_MESSAGE, /^That's an email address\. Newsletters that only arrive by email can't be followed here yet; many have a web page with a feed — paste that\.$/);
+  assert.equal(EMAIL_MESSAGE, copy.input.email);
   for (const input of ["Veritasium", "linus tech tips", "Mr. Beast", "the verge"]) {
     const n = normalizeInput(input);
     assert.ok(!n.ok, input);
     assert.equal(n.message, NAME_MESSAGE, input);
   }
-  assert.equal(NAME_MESSAGE, "Paste a link. To follow a YouTube channel, open it in YouTube and copy its address.");
+  assert.equal(NAME_MESSAGE, copy.input.name);
   // Not names: addresses, two addresses, @handles, and the host names that must stay refused as private.
   assert.ok(normalizeInput("example.com").ok);
-  assert.equal((normalizeInput("https://a.example https://b.example") as { message: string }).message, "That doesn't look like a single web address. Paste just one address.");
-  assert.match((normalizeInput("@somebody") as { message: string }).message, /Paste the full web address/);
+  assert.equal((normalizeInput("https://a.example https://b.example") as { message: string }).message, copy.input.notSingle);
+  assert.equal((normalizeInput("@somebody") as { message: string }).message, copy.input.bareHandle);
   const local = normalizeInput("localhost");
   assert.ok(!local.ok && local.reason === "blocked");
 });
@@ -239,7 +240,7 @@ test("a section page uses the section's own feed before any guess at the whole s
     "https://news.example/rss": feedRes("https://news.example/rss", rss("The News", WEEKLY, "https://news.example")),
   });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.via]), [[own, "Section feed"]]);
+  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.via]), [[own, copy.labels.sectionFeed]]);
   assert.ok(!calls.includes("https://news.example/rss") && !calls.includes("https://news.example/feed"), "the site root was not probed");
 });
 
@@ -249,18 +250,18 @@ test("a site-wide feed found for a section page is never picked silently: it say
   const { fetch } = stub({ [pageUrl]: page(pageUrl, BARE), [whole]: feedRes(whole, rss("The News", WEEKLY, "https://news.example")) });
   const c = ok(await discover(pageUrl, { fetch, now: NOW })).candidates;
   assert.equal(c.length, 1);
-  assert.equal(c[0]!.via, "Whole site feed");
-  assert.match(c[0]!.note ?? "", /whole site/);
+  assert.equal(c[0]!.via, copy.labels.wholeSiteFeed);
+  assert.equal(c[0]!.note, copy.feedChoice.wholeSiteNote);
   // The section's advertised feed did not answer: the whole-site feed says why it is what is offered.
   const html = `<html><head><link rel="alternate" type="application/rss+xml" title="France" href="/world/france/rss"></head><body></body></html>`;
   const timing: FetchFn = async (url, o) => (url === "https://news.example/world/france/rss" ? fakeFailure("timeout") : stub({ [pageUrl]: page(pageUrl, html), [whole]: feedRes(whole, rss("The News", WEEKLY, "https://news.example")) }).fetch(url, o));
   const t = ok(await discover(pageUrl, { fetch: timing, now: NOW })).candidates[0]!;
-  assert.equal(t.via, "Whole site feed");
-  assert.match(t.note ?? "", /didn't answer, so this is the whole site's feed/);
+  assert.equal(t.via, copy.labels.wholeSiteFeed);
+  assert.equal(t.note, copy.feedChoice.wholeSiteFallbackNote);
   // On the front page the same feed is simply the site's feed.
   const front = "https://news.example/";
   const f = ok(await discover(front, { fetch: stub({ [front]: page(front, BARE), [whole]: feedRes(whole, rss("The News", WEEKLY, "https://news.example")) }).fetch, now: NOW })).candidates[0]!;
-  assert.equal(f.via, "Posts feed");
+  assert.equal(f.via, copy.labels.postsFeed);
   assert.equal(f.note, undefined);
 });
 
@@ -269,7 +270,7 @@ test("a site-wide feed that answers from another host than the page's is still t
   const html = `<html><head><link rel="alternate" type="application/rss+xml" title="Blog" href="/feed/"></head><body></body></html>`;
   const { fetch } = stub({ [pageUrl]: page(pageUrl, html), "https://en.blog.example/feed/": feedRes("https://example.net/blog/feed/", rss("Blog", WEEKLY, "https://example.net/blog")) });
   const c = ok(await discover(pageUrl, { fetch, now: NOW })).candidates;
-  assert.deepEqual(c.map((x) => [x.via, x.feedUrl]), [["Whole site feed", "https://example.net/blog/feed/"]]);
+  assert.deepEqual(c.map((x) => [x.via, x.feedUrl]), [[copy.labels.wholeSiteFeed, "https://example.net/blog/feed/"]]);
 });
 
 test("a page that lists the site's feeds is followed one step, and the feeds are named after the site", async () => {
@@ -345,19 +346,19 @@ test("comment feeds are not offered next to a posts feed, and a page whose only 
   const both = `<html><head><link rel="alternate" type="application/rss+xml" title="Comments for Blog" href="/comments/feed/"><link rel="alternate" type="application/rss+xml" title="Blog" href="/feed/"></head></html>`;
   const routes = { "https://blog.example/feed/": feedRes("https://blog.example/feed/", rss("Blog")), "https://blog.example/comments/feed/": feedRes("https://blog.example/comments/feed/", rss("Comments for Blog", WEEKLY.slice(0, 2))) };
   const c = ok(await discover(home, { fetch: stub({ [home]: page(home, both), ...routes }).fetch, now: NOW })).candidates;
-  assert.deepEqual(c.map((x) => x.via), ["Posts feed"]);
+  assert.deepEqual(c.map((x) => x.via), [copy.labels.postsFeed]);
   // LitHub: the page advertises only a comments feed (that of its front page); the posts feed is at the usual address.
   const only = `<html><head><link rel="alternate" type="application/rss+xml" title="Literary Hub &raquo; Literary Hub Home Comments Feed" href="/home-page/feed/"></head></html>`;
   const lit = { "https://blog.example/home-page/feed/": feedRes("https://blog.example/home-page/feed/", rss("Literary Hub Home Comments", WEEKLY.slice(0, 2))), "https://blog.example/feed": feedRes("https://blog.example/feed", rss("Blog")) };
   const found = ok(await discover(home, { fetch: stub({ [home]: page(home, only), ...lit }).fetch, now: NOW })).candidates;
-  assert.deepEqual(found.map((x) => [x.via, x.feedUrl]), [["Posts feed", "https://blog.example/feed"]], "the comments feed is not offered, the posts feed is");
+  assert.deepEqual(found.map((x) => [x.via, x.feedUrl]), [[copy.labels.postsFeed, "https://blog.example/feed"]], "the comments feed is not offered, the posts feed is");
   // Nothing else to find: the answer is that there are only comments, not a comments feed passed off as the site's posts.
   const none = await discover(home, { fetch: stub({ [home]: page(home, only), "https://blog.example/home-page/feed/": lit["https://blog.example/home-page/feed/"] }).fetch, now: NOW });
   assert.ok(!none.ok);
   assert.deepEqual([none.reason, none.message], ["nofeed", COMMENTS_ONLY_MESSAGE]);
   // Pasted as an address of its own, a comments feed is followed, and labelled.
   const direct = ok(await discover("https://blog.example/home-page/feed/", { fetch: stub(lit).fetch, now: NOW })).candidates;
-  assert.deepEqual(direct.map((x) => [x.via, x.feedUrl]), [["Comments feed", "https://blog.example/home-page/feed/"]]);
+  assert.deepEqual(direct.map((x) => [x.via, x.feedUrl]), [[copy.labels.commentsFeed, "https://blog.example/home-page/feed/"]]);
 });
 
 test("a link to an empty \"Subscribe\" feed is the site's sign-up, not its posts: the search goes on; one the page advertises as its own, or a feed with posts, stays", async () => {
@@ -410,10 +411,10 @@ test("a Discourse forum offers its latest topics first, and says the posts feed 
   });
   const c = ok(await discover(home, { fetch, now: NOW })).candidates;
   assert.deepEqual(c.map((x) => [x.via, x.feedUrl]), [
-    ["Latest topics", "https://forum.example/latest.rss"],
-    ["All replies", "https://forum.example/posts.rss"],
+    [copy.labels.latestTopics, "https://forum.example/latest.rss"],
+    [copy.labels.allReplies, "https://forum.example/posts.rss"],
   ]);
-  assert.match(c[1]!.note ?? "", /every reply/);
+  assert.equal(c[1]!.note, copy.discover.allRepliesNote);
 });
 
 // ---------- F48: a single video ----------
@@ -429,7 +430,7 @@ test("a YouTube video link offers to keep the video, with its title, channel and
   const d = ok(await discover("https://youtu.be/dQw4w9WgXcQ?si=abc", { fetch, now: NOW, retryDelayMs: 0 }));
   assert.deepEqual(d.keep, { url: watch, kind: "video", title: "A Very Good Video", siteName: "YouTube", author: "The Channel", imageUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" });
   assert.equal(d.candidates[0]!.feedUrl, feedUrl);
-  assert.match(d.candidates[0]!.via, /Related channel/);
+  assert.equal(d.candidates[0]!.via, copy.labels.relatedChannelConfirm);
   // The video can be kept even when its channel's feed cannot be found.
   const noChannel = stub({ [oembed]: fakeResponse(oembed, JSON.stringify({ title: "Orphan", author_name: "Someone" }), "application/json") });
   const k = ok(await discover("https://www.youtube.com/watch?v=dQw4w9WgXcQ", { fetch: noChannel.fetch, now: NOW, retryDelayMs: 0 }));
@@ -447,9 +448,9 @@ test("a category page of a known blog service offers the category's own feed fir
   const whole = "https://writer.wordpress.com/feed/";
   const { fetch, calls } = stub({ [category]: feedRes(category, rss("Science – Writer", WEEKLY, "https://writer.wordpress.com")), [whole]: feedRes(whole, rss("Writer", WEEKLY.slice(0, 4), "https://writer.wordpress.com")) });
   const c = ok(await discover("https://writer.wordpress.com/category/science/", { fetch, now: NOW })).candidates;
-  assert.deepEqual(c.map((x) => [x.via, x.feedUrl]), [["Section feed", category], ["Whole site feed", whole]]);
+  assert.deepEqual(c.map((x) => [x.via, x.feedUrl]), [[copy.labels.sectionFeed, category], [copy.labels.wholeSiteFeed, whole]]);
   assert.equal(c[0]!.note, undefined);
-  assert.match(c[1]!.note ?? "", /whole site, not just this page or section/);
+  assert.equal(c[1]!.note, copy.feedChoice.wholeSiteNote);
   assert.deepEqual([...calls].sort(), [category, whole].sort(), "only the two feeds were asked for");
 
   // The blog's feeds live on another host than its pages (WordPress.com and Blogger blogs often do): same answer.
@@ -458,24 +459,24 @@ test("a category page of a known blog service offers the category's own feed fir
     [whole]: feedRes("https://blog.example.net/feed/", rss("Writer", WEEKLY.slice(0, 4), "https://blog.example.net")),
   });
   const m = ok(await discover("https://writer.wordpress.com/category/science/", { fetch: moved.fetch, now: NOW })).candidates;
-  assert.deepEqual(m.map((x) => x.via), ["Section feed", "Whole site feed"]);
+  assert.deepEqual(m.map((x) => x.via), [copy.labels.sectionFeed, copy.labels.wholeSiteFeed]);
 
   // The category has no feed of its own: only the blog's remains, and it says it is the whole blog and why.
   const only = stub({ [whole]: feedRes(whole, rss("Writer", WEEKLY, "https://writer.wordpress.com")) });
   const w = ok(await discover("https://writer.wordpress.com/category/science/", { fetch: only.fetch, now: NOW })).candidates;
-  assert.deepEqual(w.map((x) => x.via), ["Whole site feed"]);
-  assert.match(w[0]!.note ?? "", /didn't answer, so this is the whole site's feed/);
+  assert.deepEqual(w.map((x) => x.via), [copy.labels.wholeSiteFeed]);
+  assert.equal(w[0]!.note, copy.feedChoice.wholeSiteFallbackNote);
 
   // A tag page and a post page are not the front page either; the front page is simply the blog's feed.
   const t = ok(await discover("https://writer.wordpress.com/2026/01/a-post/", { fetch: only.fetch, now: NOW })).candidates;
-  assert.deepEqual(t.map((x) => x.via), ["Whole site feed"]);
+  assert.deepEqual(t.map((x) => x.via), [copy.labels.wholeSiteFeed]);
   const front = ok(await discover("https://writer.wordpress.com/", { fetch: only.fetch, now: NOW })).candidates;
-  assert.deepEqual([front[0]!.via, front[0]!.note], ["Posts feed", undefined]);
+  assert.deepEqual([front[0]!.via, front[0]!.note], [copy.labels.postsFeed, undefined]);
   // A Blogger label page works the same way.
   const label = "https://buzz.blogspot.com/feeds/posts/default/-/Tips";
   const base = "https://buzz.blogspot.com/feeds/posts/default";
   const b = ok(await discover("https://buzz.blogspot.com/search/label/Tips", { fetch: stub({ [label]: feedRes(label, rss("Tips", WEEKLY, "https://buzz.blogspot.com/tips")), [base]: feedRes(base, rss("Buzz", WEEKLY, "https://buzz.blogspot.com")) }).fetch, now: NOW })).candidates;
-  assert.deepEqual(b.map((x) => x.via), ["Section feed", "Whole site feed"]);
+  assert.deepEqual(b.map((x) => x.via), [copy.labels.sectionFeed, copy.labels.wholeSiteFeed]);
 });
 
 test("a known service's feeds timing out are not 'nothing to follow' when the page has nothing else either", async () => {
@@ -518,12 +519,12 @@ test("a series page whose show is a podcast offers the podcast feed first and pr
     [articles]: feedRes(articles, rss("Football Weekly | The Guardian", WEEKLY, GUARDIAN_PAGE)),
   });
   const d = ok(await discover(GUARDIAN_PAGE, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.kind, c.via, c.matchesPage]), [["podcast", "Podcast feed", true], ["feed", "Posts feed", false]]);
-  assert.match(d.candidates[1]!.note ?? "", /without the audio/);
+  assert.deepEqual(d.candidates.map((c) => [c.kind, c.via, c.matchesPage]), [["podcast", copy.labels.podcastFeed, true], ["feed", copy.labels.postsFeed, false]]);
+  assert.equal(d.candidates[1]!.note, copy.known.guardianPodcastNote);
   // A series that is no podcast has no podcast.xml: the articles are offered alone, as before.
   const only = stub({ [articles]: feedRes(articles, rss("Football Weekly | The Guardian", WEEKLY, GUARDIAN_PAGE)) });
   const a = ok(await discover(GUARDIAN_PAGE, { fetch: only.fetch, now: NOW }));
-  assert.deepEqual(a.candidates.map((c) => c.via), ["Posts feed"]);
+  assert.deepEqual(a.candidates.map((c) => c.via), [copy.labels.postsFeed]);
   assert.equal(a.candidates[0]!.matchesPage, undefined);
 });
 
@@ -583,21 +584,21 @@ test("a front page that failed (500) or refused (403) still gets the site's usua
     const { fetch } = stub({ "https://comic.example/": fakeResponse("https://comic.example/", "<html>broken</html>", "text/html", status), [feed]: feedRes(feed, rss("Comic", WEEKLY, "https://comic.example"), "application/xml") });
     const d = ok(await discover("https://comic.example/", { fetch, now: NOW }));
     assert.equal(d.candidates[0]!.feedUrl, feed, String(status));
-    assert.match(d.candidates[0]!.note ?? "", new RegExp(`front page didn't open \\(error ${status}\\)`));
+    assert.ok(d.candidates[0]!.note?.includes(copy.discover.didntOpen(copy.discover.frontPage, status)), String(d.candidates[0]!.note));
   }
   // A page inside the site that fails says "that page", not "front page".
   const inner = stub({ "https://comic.example/strip/12": fakeResponse("https://comic.example/strip/12", "<html>broken</html>", "text/html", 500), "https://comic.example/rss": feedRes("https://comic.example/rss", rss("Comic", WEEKLY, "https://comic.example")) });
   const i = ok(await discover("https://comic.example/strip/12", { fetch: inner.fetch, now: NOW }));
-  assert.match(i.candidates[0]!.note ?? "", /^That page didn't open \(error 500\), but this feed does\. This is the feed for the whole site/, "and the whole-site note stays");
+  assert.equal(i.candidates[0]!.note, `${copy.discover.didntOpen(copy.discover.thatPage, 500)} ${copy.feedChoice.wholeSiteNote}`, "and the whole-site note stays");
   // Nothing found at the usual addresses either: the answer is the front page's own, as before.
   const none = stub({ "https://comic.example/": fakeResponse("https://comic.example/", "<html>broken</html>", "text/html", 500) });
   const d = await discover("https://comic.example/", { fetch: none.fetch, now: NOW });
   assert.ok(!d.ok);
-  assert.match(d.message, /having problems right now \(error 500\)/);
+  assert.equal(d.message, copy.discover.siteProblems(500));
   // A page that is not found is a typing mistake, not a reason to look around the site.
   const gone = stub({ "https://comic.example/": fakeResponse("https://comic.example/", "nope", "text/html", 404), "https://comic.example/feed": feedRes("https://comic.example/feed", rss("Comic")) });
   const g = await discover("https://comic.example/", { fetch: gone.fetch, now: NOW });
-  assert.ok(!g.ok && /error 404/.test(g.message));
+  assert.ok(!g.ok && g.message === copy.discover.notFoundAt(404));
   assert.deepEqual(gone.calls, ["https://comic.example/"], "nothing else was asked for");
 });
 
@@ -659,7 +660,7 @@ test("probing a site's usual addresses stops each wave at its first batch when t
   const { fetch, calls } = elsewhereStub(fakeResponse("https://wall.example/", "<html>no</html>", "text/html", 403));
   const d = await discover("https://wall.example/", { fetch, now: NOW });
   assert.ok(!d.ok);
-  assert.match(d.message, /403/);
+  assert.equal(d.message, copy.discover.refused);
   assert.equal(calls.filter(atSite).length, 1 + 1 + 3 + 3, "the page, its www. form (which also leads elsewhere), then one batch of the usual addresses and one of the second wave, and no more");
   assert.equal(calls.filter((c) => !atSite(c)).length, 1, "and, with nothing found, one question to Wikidata");
   // The same for a page that opened but has no feed.
@@ -716,8 +717,9 @@ test("redirects count toward the cap, and a lookup that hit the cap says so inst
   assert.ok(!d.ok);
   assert.ok(calls.length <= 4, `${calls.length} fetches: the redirects used the cap up`);
   assert.equal(d.reason, "nofeed");
-  assert.match(d.message, /stopped looking/i);
-  assert.doesNotMatch(d.message, /took too long|busy/i);
+  assert.equal(d.message, copy.discover.cap);
+  assert.notEqual(d.message, copy.discover.timeout);
+  assert.notEqual(d.message, copy.discover.busy);
 });
 
 // ---------- a bare host that refuses, fails or does not answer ----------
@@ -754,12 +756,12 @@ test("when www. fails too, or is no better, the answer is the bare host's own, a
   const both = stub({ "https://spab.example/": challenge("https://spab.example/"), "https://www.spab.example/": challenge("https://www.spab.example/") });
   const d = await discover("https://spab.example/", { fetch: both.fetch, now: NOW });
   assert.ok(!d.ok);
-  assert.match(d.message, /refused to show us the page \(error 403\)/);
+  assert.equal(d.message, copy.discover.refused);
   assert.ok(both.calls.includes("https://spab.example/feed"), "the usual addresses of the bare host are tried after www. was");
   // www. does not exist: nothing changes for the person.
   const missing = stub({ "https://spab.example/": challenge("https://spab.example/") });
   const m = await discover("https://spab.example/", { fetch: async (url) => (url.includes("//www.") ? { ok: false, reason: "unreachable", message: "x", detail: "dns ENOTFOUND" } : missing.fetch(url)), now: NOW });
-  assert.ok(!m.ok && /error 403/.test(m.message));
+  assert.ok(!m.ok && m.message === copy.discover.refused);
   // A www. that opens but has no feed says so, rather than the bare host's 403.
   const none = stub({ "https://spab.example/": challenge("https://spab.example/"), "https://www.spab.example/": page("https://www.spab.example/", BARE) });
   const n = await discover("https://spab.example/", { fetch: none.fetch, now: NOW });
@@ -767,7 +769,7 @@ test("when www. fails too, or is no better, the answer is the bare host's own, a
   // A www. that sends people to another site (a login, a parked page) is not the site's own page.
   const away = elsewhereStub(challenge("https://wall.example/"));
   const a = await discover("https://wall.example/", { fetch: away.fetch, now: NOW });
-  assert.ok(!a.ok && /error 403/.test(a.message));
+  assert.ok(!a.ok && a.message === copy.discover.refused);
 });
 
 test("what is no trouble of the host is not retried: a page that is not found, a site asking for slowness, a host that works", async () => {

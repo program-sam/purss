@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
+import { app } from "@purss/copy/app";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -47,6 +48,17 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "listener@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
+// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// what the app keeps in code: the labels only screen readers announce (the player's buttons and slider, a row's "Actions for").
+const signInCopy = app.auth.signIn;
+const mediaCopy = app.player.media;
+const panelCopy = app.shell.itemPanel;
+const menuCopy = app.state.itemMenus;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A name that starts with the catalog's words. */
+const startsWith = (s: string) => new RegExp(`^${escapeRe(s)}`);
+/** What a button that offers or shows a download to this device is called, on a row or in the panel. */
+const downloadButton = new RegExp([app.downloads.downloadSection.download, app.downloads.downloadSection.downloading, ...Object.values(app.components.itemRow.downloadTips)].map(escapeRe).join("|"));
 
 /** A 30-second silent WAV: every browser can play it, and it is long enough to pause partway. */
 function silentWav(seconds = 30, rate = 8000): Buffer {
@@ -125,10 +137,10 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.getByRole("button", { name: "Add source" }).first().waitFor();
+  await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
+  await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
+  await page.getByRole("button", { name: app.shell.sidebar.addSource }).first().waitFor();
 }
 
 async function openEpisode(page: Page, sourceId: string, title: string): Promise<void> {
@@ -186,9 +198,9 @@ async function main(): Promise<void> {
     await signIn(page);
 
     await openEpisode(page, sourceId, "Night shipping forecast");
-    await page.getByText(/Streams from the publisher's site/).waitFor();
+    await page.getByText(mediaCopy.streams).waitFor();
     assert.equal(await page.getByText(/Save on the server|Saved on the server|Remove saved copy|saved copy/i).count(), 0, "nothing offers to keep the file on the server");
-    assert.equal(await page.getByRole("button", { name: /^Download/ }).count(), 0, "a browser has no device downloads, so no download button");
+    assert.equal(await page.getByRole("button", { name: downloadButton }).count(), 0, "a browser has no device downloads, so no download button");
     const media = (await itemDetail(page, "Night shipping forecast")).media;
     assert.deepEqual(media, { url: FORECAST, kind: "audio", type: "audio/wav", length: WAV.length }, "the item reports the publisher's file and nothing about a server copy");
     step("the reader offers to play the publisher's file and nothing to save or download it");
@@ -197,21 +209,21 @@ async function main(): Promise<void> {
     const panelBox = async (selector: string) => (await page.locator(`aside.panel ${selector}`).first().boundingBox())!;
     assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
     assert.equal(await page.locator("aside.panel .p-acts .mbtn.go").count(), 0, "no other button is made the primary one beside Listen");
-    assert.match((await page.getByRole("link", { name: /^Open original/ }).getAttribute("href"))!, /^https:\/\/example\.org\/post\/\d+$/, "an episode with a page opens that page as its original");
-    assert.equal(await page.getByRole("link", { name: /^Open the show's website/ }).count(), 0, "the show's website is only for an episode with no page");
+    assert.match((await page.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).getAttribute("href"))!, /^https:\/\/example\.org\/post\/\d+$/, "an episode with a page opens that page as its original");
+    assert.equal(await page.getByRole("link", { name: startsWith(panelCopy.openShowSite) }).count(), 0, "the show's website is only for an episode with no page");
     step("Listen leads the panel and an episode with a page keeps Open original for it");
 
     // An episode whose link is its audio file: no original, one link to the file, the show's website instead, a clean byline.
     await openEpisode(page, sourceId, "Tide tables, read aloud");
     const panel = page.locator("aside.panel");
-    assert.equal(await panel.getByRole("link", { name: /^Open original/ }).count(), 0, "the audio file is not offered as the original");
+    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).count(), 0, "the audio file is not offered as the original");
     assert.equal(await panel.locator(`a[href="${TIDES}"]`).count(), 1, "the audio file has one link, Open the audio");
-    await panel.getByRole("link", { name: /^Open the audio/ }).waitFor();
-    const site = panel.getByRole("link", { name: /^Open the show's website/ });
+    await panel.getByRole("link", { name: startsWith(panelCopy.openAudio) }).waitFor();
+    const site = panel.getByRole("link", { name: startsWith(panelCopy.openShowSite) });
     assert.equal(await site.getAttribute("href"), SHOW_SITE, "the show's website opens instead");
     assert.equal(await panel.locator(".p-acts .mbtn.go").count(), 0, "the website is not the primary button");
     assert.ok((await panelBox(".media-box")).y < (await panelBox(".p-acts")).y, "Listen comes before the State and Keep row");
-    await panel.getByRole("button", { name: "Listen", exact: true }).waitFor();
+    await panel.getByRole("button", { name: mediaCopy.listen, exact: true }).waitFor();
     assert.equal((await panel.locator(".p-by").textContent())?.trim(), "Slow Radio, Mara Venn", "the byline has the names without the e-mail address");
     step("an episode whose link is its audio file offers Listen, Open the audio, the show's website and a name-only byline");
 
@@ -221,43 +233,43 @@ async function main(): Promise<void> {
     await tidesRow.waitFor();
     await tidesRow.getByRole("button", { name: /^Actions for/ }).click();
     const menu = page.getByRole("menu");
-    await menu.getByRole("menuitem", { name: "Open the show's website" }).waitFor();
-    assert.equal(await menu.getByRole("menuitem", { name: "Open original" }).count(), 0, "the row's menu does not offer the audio file as the original");
-    assert.equal(await menu.getByRole("menuitem", { name: "Copy link to the original" }).count(), 0, "there is no original page to copy");
+    await menu.getByRole("menuitem", { name: menuCopy.openShowSite }).waitFor();
+    assert.equal(await menu.getByRole("menuitem", { name: menuCopy.openOriginal }).count(), 0, "the row's menu does not offer the audio file as the original");
+    assert.equal(await menu.getByRole("menuitem", { name: app.lib.copyLink.original }).count(), 0, "there is no original page to copy");
     await page.keyboard.press("Escape");
     step("the row's menu offers the show's website, and no original page to open or copy");
 
     // A show with no website, and an author that is only an address: no original at all and no byline.
     await openEpisode(page, quietId, "Static on the shortwave");
-    assert.equal(await panel.getByRole("link", { name: /^Open original|^Open the show's website/ }).count(), 0, "no page and no website: no original button");
+    assert.equal(await panel.getByRole("link", { name: new RegExp(`${startsWith(panelCopy.openOriginal).source}|${startsWith(panelCopy.openShowSite).source}`) }).count(), 0, "no page and no website: no original button");
     assert.equal(await panel.locator(`a[href="${STATIC}"]`).count(), 1, "the file is still one click away, as Open the audio");
     assert.equal(await panel.locator(".p-by").count(), 0, "an address with no name leaves no byline");
-    await panel.getByRole("button", { name: "Listen", exact: true }).waitFor();
+    await panel.getByRole("button", { name: mediaCopy.listen, exact: true }).waitFor();
     step("an episode with neither a page nor a website has no original button, and a bare address is no byline");
 
     // A private source's episode whose link is its file, an address that names no file: the server says so, though it withholds the file's address, so
     // neither the panel nor the menus offer the file (and its token) as the original, and the show's website is offered instead.
     await openEpisode(page, membersId, "Members only episode");
     assert.equal((await itemDetail(page, "Members only episode")).media, null, "a private source's file address is withheld");
-    assert.equal(await panel.getByRole("link", { name: /^Open original/ }).count(), 0, "the private file is not offered as the original");
+    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openOriginal) }).count(), 0, "the private file is not offered as the original");
     assert.equal(await panel.locator('a[href*="token="]').count(), 0, "no link in the panel carries the file's token");
-    assert.equal(await panel.getByRole("link", { name: /^Open the show's website/ }).getAttribute("href"), MEMBERS_SITE, "the show's website opens instead");
+    assert.equal(await panel.getByRole("link", { name: startsWith(panelCopy.openShowSite) }).getAttribute("href"), MEMBERS_SITE, "the show's website opens instead");
     await page.goto(`${origin}/app/s/${membersId}`);
     const membersRow = page.locator("main .irow", { hasText: "Members only episode" }).first();
     await membersRow.waitFor();
     await membersRow.getByRole("button", { name: /^Actions for/ }).click();
     const membersMenu = page.getByRole("menu");
-    await membersMenu.getByRole("menuitem", { name: "Open the show's website" }).waitFor();
-    assert.equal(await membersMenu.getByRole("menuitem", { name: "Open original" }).count(), 0, "the row's menu does not offer the private file as the original");
-    assert.equal(await membersMenu.getByRole("menuitem", { name: "Copy link to the original" }).count(), 0, "the private file's address is not copied");
+    await membersMenu.getByRole("menuitem", { name: menuCopy.openShowSite }).waitFor();
+    assert.equal(await membersMenu.getByRole("menuitem", { name: menuCopy.openOriginal }).count(), 0, "the row's menu does not offer the private file as the original");
+    assert.equal(await membersMenu.getByRole("menuitem", { name: app.lib.copyLink.original }).count(), 0, "the private file's address is not copied");
     await page.keyboard.press("Escape");
     step("a private source's file link, which names no file, is not offered as the original either");
     await openEpisode(page, sourceId, "Night shipping forecast");
-    await page.getByText(/Streams from the publisher's site/).waitFor();
+    await page.getByText(mediaCopy.streams).waitFor();
 
-    await page.getByRole("button", { name: "Listen", exact: true }).click();
+    await page.getByRole("button", { name: mediaCopy.listen, exact: true }).click();
     const bar = page.getByRole("region", { name: "Player" });
-    await bar.getByText("Streaming from the publisher").waitFor();
+    await bar.getByText(app.player.source.publisher).waitFor();
     await waitFor("playback to move", async () => Number(await bar.getByRole("slider", { name: "Position" }).inputValue()) >= 2, 15_000);
     step("the publisher's file plays in the mini-player");
 
@@ -293,7 +305,7 @@ async function main(): Promise<void> {
     step("on a laptop the reader and the list end above the player, and the rail runs beside it");
 
     // With the reader open, a laptop's sidebar steps back to its rail, where Home is an icon button.
-    await page.locator("#side").getByRole("button", { name: "Home", exact: true }).first().click();
+    await page.locator("#side").getByRole("button", { name: app.shell.sidebar.home, exact: true }).first().click();
     await page.waitForURL(`${origin}/app/`);
     assert.ok(await bar.isVisible(), "the player stays while moving around");
     await besidePlayer("the full sidebar");
@@ -311,9 +323,9 @@ async function main(): Promise<void> {
     step("speed changed and remembered on this device");
 
     await bar.getByRole("button", { name: "Sleep timer" }).click();
-    await page.getByRole("menuitemradio", { name: "In 15 minutes" }).click();
+    await page.getByRole("menuitemradio", { name: app.player.bar.inMinutes(15) }).click();
     await bar.getByRole("button", { name: "Sleep timer: pauses in 15 min" }).click();
-    await page.getByRole("menuitemradio", { name: "Off" }).click();
+    await page.getByRole("menuitemradio", { name: app.player.bar.off }).click();
     await bar.getByRole("button", { name: "Sleep timer" }).waitFor();
     step("the sleep timer shows its time left and turns off");
 
@@ -331,14 +343,14 @@ async function main(): Promise<void> {
 
     await page.reload();
     await openEpisode(page, sourceId, "Night shipping forecast");
-    await page.getByRole("button", { name: /^Listen from \d:\d\d$/ }).waitFor();
+    await page.getByRole("button", { name: new RegExp(`^${escapeRe(mediaCopy.from(mediaCopy.listen, "\uE000")).replace("\uE000", "\\d:\\d\\d")}$`) }).waitFor();
     step("after a reload the episode offers to resume where it stopped");
 
     await openEpisode(page, sourceId, "Crackle on the long wave");
-    await page.getByText(/Streams from the publisher's site/).waitFor();
-    await page.getByRole("button", { name: "Listen", exact: true }).click();
-    await bar.getByText("Streaming from the publisher").waitFor();
-    await bar.getByText(/publisher's file couldn't be played here/).waitFor({ timeout: 20_000 });
+    await page.getByText(mediaCopy.streams).waitFor();
+    await page.getByRole("button", { name: mediaCopy.listen, exact: true }).click();
+    await bar.getByText(app.player.source.publisher).waitFor();
+    await bar.getByText(app.player.errors.publisherFailed).waitFor({ timeout: 20_000 });
     await bar.getByRole("button", { name: "Close the player" }).click();
     await bar.waitFor({ state: "detached" });
     step("an unreachable publisher file says so plainly");
@@ -348,7 +360,7 @@ async function main(): Promise<void> {
     const toasts = page.locator("#toasts");
     await openEpisode(page, sourceId, "Long wave serial");
     assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new");
-    await page.getByRole("button", { name: "Listen", exact: true }).click();
+    await page.getByRole("button", { name: mediaCopy.listen, exact: true }).click();
     const slider = bar.getByRole("slider", { name: "Position" });
     await waitFor("playback to move", async () => Number(await slider.inputValue()) >= 2, 15_000);
     await slider.focus();
@@ -370,23 +382,23 @@ async function main(): Promise<void> {
     await bar.waitFor({ state: "detached" });
     await page.reload();
     await openEpisode(page, sourceId, "Long wave serial");
-    await page.getByRole("button", { name: "State: Finished. Change state" }).waitFor();
+    await page.getByRole("button", { name: app.lib.statusLabel.menu(app.lib.constants.workflow.finished) }).waitFor();
     step("playing into its end finishes it, and it is still Finished after a reload");
 
     // Rows and the source page offer no download or saving in a browser.
     await page.goto(`${origin}/app/s/${sourceId}`);
     const row = page.locator("main .irow", { hasText: "Night shipping forecast" }).first();
     await row.waitFor();
-    assert.equal(await row.getByRole("button", { name: /Download/ }).count(), 0, "no download button on a row");
+    assert.equal(await row.getByRole("button", { name: downloadButton }).count(), 0, "no download button on a row");
     assert.equal(await page.getByRole("button", { name: /Save new episodes/ }).count(), 0, "a source can't save its episodes on the server");
-    await row.getByRole("button", { name: /^To listen:/ }).waitFor(); // an episode's one-click button says To listen
+    await row.getByRole("button", { name: new RegExp(`^${escapeRe(app.lib.constants.toListen)}:`) }).waitFor(); // an episode's one-click button says To listen
     step("rows and the source page offer no saving or downloading in a browser");
 
     // A phone-sized screen: the bar fits, and the reader, the list, the menu drawer (down to Settings) and
     // the e-ink page buttons all end above it, with the tab bar below it.
     await page.setViewportSize({ width: 390, height: 844 });
     await openEpisode(page, sourceId, "Night shipping forecast");
-    await page.getByRole("button", { name: /^Listen/ }).click();
+    await page.getByRole("button", { name: startsWith(mediaCopy.listen) }).click();
     const box = await bar.boundingBox();
     assert.ok(box && box.width <= 390 && box.y + box.height <= 844, "the player fits a phone screen");
     await clearOfPlayer("the reader", "aside.panel");
@@ -396,17 +408,17 @@ async function main(): Promise<void> {
     const tabs = await page.getByRole("navigation", { name: "Main" }).boundingBox();
     const played = await bar.boundingBox();
     assert.ok(tabs && played && played.y + played.height <= tabs.y + 0.5, "the player sits above the tab bar");
-    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Collections" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: app.shell.tabBar.collections }).click();
     await page.locator('.app[data-drawer="open"]').waitFor();
     await clearOfPlayer("the menu drawer", "#side");
     await clearOfPlayer("Settings in the menu", "#side .side-foot .set");
     await page.locator("#side .side-foot .set").click(); // fails if anything covers it
-    await page.getByRole("dialog", { name: "Settings" }).waitFor();
+    await page.getByRole("dialog", { name: app.dialogs.settings.dialog.title }).waitFor();
     await page.keyboard.press("Escape");
-    await page.getByRole("dialog", { name: "Settings" }).waitFor({ state: "detached" });
+    await page.getByRole("dialog", { name: app.dialogs.settings.dialog.title }).waitFor({ state: "detached" });
     await page.evaluate(() => localStorage.setItem("purss:display", "eink"));
     await openEpisode(page, sourceId, "Night shipping forecast");
-    await page.getByRole("button", { name: /^Listen/ }).click();
+    await page.getByRole("button", { name: startsWith(mediaCopy.listen) }).click();
     await page.keyboard.press("Escape");
     await page.locator("aside.panel").waitFor({ state: "hidden" });
     await clearOfPlayer("the e-ink page buttons", ".stage > .pagenav");

@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, isYouTube, itemDate, itemExcerpt, itemPicture, lengthText, matchesFilter, newMarkerCleared, originalLink, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
-  id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
+  id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
   durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null,
 };
@@ -36,7 +37,7 @@ test("an item's date is its time in lists; the publisher's date is shown apart o
 });
 
 test("length text: minutes for reading, a clock for video", () => {
-  assert.equal(lengthText(base), "4 min");
+  assert.equal(lengthText(base), app.lib.items.minutes(4));
   assert.equal(lengthText({ ...base, kind: "video", durationSeconds: 1122 }), "18:42");
   assert.equal(lengthText({ ...base, readMinutes: null }), "");
 });
@@ -56,12 +57,12 @@ test("videos and podcasts are told apart from text, and their to-do state has it
   assert.equal(isTimeBased("video"), true);
   assert.equal(isTimeBased("podcast"), true);
   assert.equal(isTimeBased("article"), false);
-  assert.equal(workflowLabel("toread", "video"), "To watch");
-  assert.equal(workflowLabel("toread", "podcast"), "To listen");
-  assert.equal(workflowLabel("toread", "paper"), "To read");
-  assert.equal(workflowLabel("toread"), "To read");
-  assert.equal(workflowLabel("finished", "video"), "Finished");
-  assert.equal(workflowLabel("new", "podcast"), "Undecided");
+  assert.equal(workflowLabel("toread", "video"), app.lib.constants.toWatch);
+  assert.equal(workflowLabel("toread", "podcast"), app.lib.constants.toListen);
+  assert.equal(workflowLabel("toread", "paper"), app.lib.constants.workflow.toread);
+  assert.equal(workflowLabel("toread"), app.lib.constants.workflow.toread);
+  assert.equal(workflowLabel("finished", "video"), app.lib.constants.workflow.finished);
+  assert.equal(workflowLabel("new", "podcast"), app.lib.constants.workflow.new);
 });
 
 test("a change that took the New marker away is told apart from one that left it", () => {

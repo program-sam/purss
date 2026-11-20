@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AnnotationDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { MemoryOutboxStore, Outbox, mergeView, outboxAsText } from "./outbox.ts";
 import type { OutboxEntry, SendOutcome } from "./outbox.ts";
 
@@ -127,5 +128,6 @@ test("unsent writing can be copied out as plain text; removals carry none", () =
     { accountId: "acc_a", itemId: "itm_2", annotationId: "ann_3", at: "2026-11-01T10:02:00.000Z", op: "put", status: "failed",
       body: { kind: "highlight", quote: { exact: "quoted\ntext", prefix: "", suffix: "" }, position: null, target: null, body: null, updatedAt: "2026-11-01T10:02:00.000Z" } },
   ];
-  assert.equal(outboxAsText(entries), "Note · 2026-11-01T10:00:00.000Z · item itm_1\nA thought\nover two lines\n\nHighlight · 2026-11-01T10:02:00.000Z · item itm_2\n> quoted\n> text");
+  const t = app.annotations.outbox;
+  assert.equal(outboxAsText(entries), `${t.entry(t.note, "2026-11-01T10:00:00.000Z", "itm_1")}\nA thought\nover two lines\n\n${t.entry(t.highlight, "2026-11-01T10:02:00.000Z", "itm_2")}\n> quoted\n> text`);
 });

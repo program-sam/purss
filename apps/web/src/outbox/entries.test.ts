@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { backoffSeconds, classify, judgeConflict, notChangedMessage, overlayItem, removedFromBasket, scopeOf } from "./entries.ts";
 import type { Entry } from "./entries.ts";
 
 const item: ItemDTO = {
-  id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
+  id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
   durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: ["bkt_1"], curatorNote: null, media: null, annotatedAt: null,
 };
@@ -85,9 +86,11 @@ test("failures are told apart by what to do next", () => {
   assert.equal(classify({ status: 400, code: "bad_request", message: "" }), "rejected");
 });
 
+const t = app.outbox.entries;
+
 test("waits grow and then settle at five minutes; the person is told plainly what was not changed", () => {
   assert.deepEqual([1, 2, 3, 4, 5, 9].map(backoffSeconds), [2, 5, 15, 60, 300, 300]);
-  assert.equal(notChangedMessage("conflict", ""), "Not changed: this item was changed on another device.");
-  assert.equal(notChangedMessage("rejected", "That item wasn't found."), "Not changed. That item wasn't found.");
-  assert.equal(notChangedMessage("rejected", ""), "Not changed. PURSS couldn't apply it.");
+  assert.equal(notChangedMessage("conflict", ""), t.conflict);
+  assert.equal(notChangedMessage("rejected", "That item wasn't found."), t.rejected("That item wasn't found."));
+  assert.equal(notChangedMessage("rejected", ""), t.couldntApply);
 });

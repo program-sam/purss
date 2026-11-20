@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +21,11 @@ import { openDatabase } from "../db/database.ts";
 import type { Message } from "./mailer.ts";
 import { invitationMail, resetMail, verifyMail } from "./templates.ts";
 import { startSmtpSink, textOf } from "./testing.ts";
+import { inHtml } from "../copy-testing.ts";
+
+const { mailTemplates } = server.api;
+/** The product name every message is written for (the templates' own constant). */
+const NAME = "PURSS";
 
 const MAIL = { PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" };
 const HOSTED = { PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", ...MAIL };
@@ -97,11 +103,11 @@ test("the real SMTP path: a message reaches a mail server, and the log keeps no 
   assert.equal(sink.received.length, 1);
   const m = sink.received[0]!;
   assert.deepEqual(m.to, ["<Alex@example.org>"]);
-  assert.match(m.data, /^Subject: You're invited to PURSS/m);
+  assert.ok(m.data.split(/\r?\n/).includes(`Subject: ${mailTemplates.invitationSubject(NAME)}`), "the subject");
   assert.match(m.data, /Content-Type: text\/html/);
   const text = textOf(m);
   assert.ok(text.includes(link), "the link is in the message");
-  assert.match(text, /ends in 7 days/);
+  assert.ok(text.includes(mailTemplates.invitationFooter(7)), "the invitation says how long it works");
   // A refused recipient fails that message only; the server is still fine.
   assert.equal(await sendMail(app, "test", null, { to: "nobody@example.org", subject: "x", text: "x", html: "x" }), false);
   assert.equal(mailHealth(app)!.status, "ok");
@@ -140,7 +146,7 @@ test("hosted open sign-up stays closed until the mail server check succeeds, and
   await settleMail(b.app);
   assert.equal(mail.sent.length, 1);
   assert.equal(mail.sent[0]!.to, "ana@example.org");
-  assert.equal(mail.sent[0]!.subject, "Finish creating your PURSS account");
+  assert.equal(mail.sent[0]!.subject, mailTemplates.signupSubject(NAME));
   assert.equal(mail.sent[0]!.from, "PURSS <ws@example.org>");
   const token = tokenIn(mail.sent[0], "/app/signup");
   assert.ok(!JSON.stringify(b.app.db.all("SELECT * FROM signup_requests")).includes(token), "only a hash of the link is stored");
@@ -179,7 +185,7 @@ test("self-hosted with a mail server: an account confirms its address and resets
 
   await b.req("POST", "/api/password-reset", null, { email: address.toUpperCase() });
   await settleMail(b.app);
-  assert.equal(mail.sent.at(-1)!.subject, "Reset your password");
+  assert.equal(mail.sent.at(-1)!.subject, mailTemplates.resetSubject);
   const token = tokenIn(mail.sent.at(-1), "/app/reset-password");
   assert.equal((await b.req("POST", "/api/password-reset/confirm", null, { token, password: "a brand new password" })).status, 200);
   assert.equal(await checkPassword(b.app, address, "a brand new password"), user.accountId);
@@ -199,7 +205,7 @@ test("a new address needs a recent sign-in and takes effect only once confirmed;
   const set = await b.req("PUT", "/api/account/email", fresh, { email: "new@example.org" });
   assert.deepEqual(set.json, { available: true, address: "me@example.org", confirmed: true, pending: "new@example.org" }, "the current address stays until the new one is confirmed");
   await settleMail(b.app);
-  assert.deepEqual(mail.sent.map((m) => [m.to, m.subject]), [["new@example.org", "Confirm your email address"]], "nothing to the old address yet");
+  assert.deepEqual(mail.sent.map((m) => [m.to, m.subject]), [["new@example.org", mailTemplates.confirmSubject]], "nothing to the old address yet");
   const first = tokenIn(mail.sent.at(-1), "/app/verify-email");
   assert.equal((await b.req("POST", "/api/account/email/resend", fresh)).status, 200);
   await settleMail(b.app);
@@ -214,7 +220,7 @@ test("a new address needs a recent sign-in and takes effect only once confirmed;
   assert.equal(await checkPassword(b.app, "NEW@example.org", "correct horse battery staple"), user.accountId);
   await settleMail(b.app);
   const notice = mail.sent.find((m) => m.to === "me@example.org")!;
-  assert.equal(notice.subject, "Your email address was changed");
+  assert.equal(notice.subject, mailTemplates.emailChangedSubject);
   assert.match(notice.text, /n•••@example\.org/);
   assert.ok(!notice.text.includes("new@example.org"), "the old address isn't told the new one in full");
 
@@ -270,7 +276,7 @@ test("password reset: only to a confirmed address of an ordinary account with a 
   await b.req("POST", "/api/password-reset", null, { email: " Pat@Example.org " });
   await settleMail(b.app);
   assert.equal(mail.sent.length, 2);
-  assert.ok(mail.sent.every((m) => m.to === "pat@example.org" && m.subject === "Reset your password" && /account with this email address/.test(m.text)));
+  assert.ok(mail.sent.every((m) => m.to === "pat@example.org" && m.subject === mailTemplates.resetSubject && m.text.includes(mailTemplates.resetIntro(NAME))));
   const stale = tokenIn(mail.sent[0], "/app/reset-password");
   const token = tokenIn(mail.sent[1], "/app/reset-password");
 
@@ -289,7 +295,7 @@ test("password reset: only to a confirmed address of an ordinary account with a 
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM assistant_tokens WHERE account_id = ?", pat.accountId)!.n, 0, "assistant tokens revoked");
   assert.equal((await b.req("POST", "/api/password-reset/confirm", null, { token, password: "another new password" })).status, 400, "the link works once");
   await settleMail(b.app);
-  assert.equal(mail.sent.at(-1)!.subject, "Your password was changed");
+  assert.equal(mail.sent.at(-1)!.subject, mailTemplates.changedSubject);
   assert.ok(b.app.db.get("SELECT 1 FROM audit_events WHERE action = 'password_reset' AND target = ?", pat.accountId));
 });
 
@@ -398,9 +404,9 @@ test("templates escape what they show and carry the same words in text and HTML"
   const m = resetMail("a@example.org", { link: "https://ws.example.org/reset-password?token=a<b>&c", minutes: 60 });
   assert.ok(!m.html.includes("<b>"));
   assert.ok(m.html.includes("token=a&lt;b&gt;&amp;c"));
-  assert.match(m.text, /works once, for 60 minutes/);
-  assert.match(m.html, /works once, for 60 minutes/);
-  assert.match(verifyMail("a@example.org", { link: "https://x", hours: 48 }).text, /48 hours/);
+  assert.ok(m.text.includes(mailTemplates.resetFooter(60)));
+  assert.ok(m.html.includes(inHtml(mailTemplates.resetFooter(60))));
+  assert.ok(verifyMail("a@example.org", { link: "https://x", hours: 48 }).text.includes(mailTemplates.confirmFooter(48)));
   assert.equal(maskAddress("someone@Mail.Example.org"), "s•••@mail.example.org");
   assert.equal(maskAddress("broken"), "•••");
 });
@@ -467,7 +473,7 @@ test("CLI: test-email sends through the configured server and says plainly when 
   const sent = await run(["test-email", "me@example.org"], env);
   assert.equal(sent.code, 0, sent.err);
   assert.equal(sink.received.length, 1);
-  assert.match(textOf(sink.received[0]!), /Outgoing email works/);
+  assert.ok(textOf(sink.received[0]!).includes(mailTemplates.testBody(NAME, new URL(loadConfig({ PURSS_DATA_DIR: app.config.dataDir, ...env }).publicOrigin).host)), "the test message");
   assert.ok(app.db.get("SELECT 1 FROM audit_events WHERE action = 'cli_test_email'"));
   assert.match((await run(["status"], env)).out, /Outgoing email: 127\.0\.0\.1:\d+ \(none\), from PURSS <ws@example\.org>/);
   const unreachable = await run(["test-email", "me@example.org"], { ...env, PURSS_SMTP_PORT: "1" });

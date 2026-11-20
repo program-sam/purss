@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { server as copy } from "@purss/copy/server";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { OpmlImportRequest } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -10,6 +11,8 @@ import { writeSecret } from "../secrets.ts";
 import { createCollection, listCollections } from "./collections.ts";
 import { dismissOpmlImport, getOpmlImport, listOpmlImports, runOpmlImports, startOpmlImport, stopOpmlImport } from "./opml-import.ts";
 import { listSources } from "./sources.ts";
+
+const { http, opmlImport, plans, shared } = copy.api;
 
 const candidate = (feedUrl: string, title: string, over: Record<string, unknown> = {}) => ({
   title, kind: "feed" as const, origin: "RSS feed", via: "Posts feed", feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, privateWarning: null, alreadyFollowingSourceId: null, ...over,
@@ -76,10 +79,10 @@ test("feeds already followed, several feeds at one address and a second list whi
     [many]: found(many, candidate("https://many.example/a.xml", "A"), candidate("https://many.example/b.xml", "B")),
   });
   const first = startOpmlImport(app, p, request(feeds(["Existing", existing], ["Many", many])));
-  assert.throws(() => startOpmlImport(app, p, request(feeds(["x", "https://x.example/"]))), /already being followed/, "one list at a time");
+  assert.throws(() => startOpmlImport(app, p, request(feeds(["x", "https://x.example/"]))), { message: opmlImport.listAlreadyRunning }, "one list at a time");
   await wait(app, d);
   const done = getOpmlImport(app, p, first.id);
-  assert.deepEqual(done.entries!.map((e) => [e.state, e.message]), [["already", null], ["failed", "More than one feed was found there. Add it from Add source to choose the right one."]]);
+  assert.deepEqual(done.entries!.map((e) => [e.state, e.message]), [["already", null], ["failed", opmlImport.moreThanOneFeed]]);
   // Once it is over, another can start.
   assert.doesNotThrow(() => startOpmlImport(app, p, request(feeds(["x", "https://x.example/"]))));
 });
@@ -169,14 +172,14 @@ test("lists belong to their account; invalid input is refused", async (t) => {
   const { app, p } = setup(t);
   const q = makeOwner(app, { admin: false });
   const list = startOpmlImport(app, p, request(feeds(["A", "https://a.example/f"])));
-  assert.throws(() => getOpmlImport(app, q, list.id), /That import/);
-  assert.throws(() => stopOpmlImport(app, q, list.id), /That import/);
+  assert.throws(() => getOpmlImport(app, q, list.id), { message: http.notFound(opmlImport.thatImport) });
+  assert.throws(() => stopOpmlImport(app, q, list.id), { message: http.notFound(opmlImport.thatImport) });
   assert.deepEqual(listOpmlImports(app, q), []);
-  assert.throws(() => dismissOpmlImport(app, p, list.id), /Stop the list first/);
+  assert.throws(() => dismissOpmlImport(app, p, list.id), { message: opmlImport.stopListFirst });
   stopOpmlImport(app, p, list.id);
-  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "ftp://nope.example/"]))), /web address/);
-  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "https://x.example/"]), { kind: "collection", id: "col_missing" })), /That collection/);
-  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "https://x.example/"]), { kind: "new", name: "  " })), /Name the new collection/);
+  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "ftp://nope.example/"]))), { message: opmlImport.noWebAddress });
+  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "https://x.example/"]), { kind: "collection", id: "col_missing" })), { message: http.notFound(shared.thatCollection) });
+  assert.throws(() => startOpmlImport(app, q, request(feeds(["x", "https://x.example/"]), { kind: "new", name: "  " })), { message: opmlImport.nameNewCollection });
 });
 
 test("a private link with its key in the path never enters the database either", async (t) => {
@@ -365,7 +368,7 @@ test("the plan's limit is checked before each follow: what fits is followed, the
   const out = getOpmlImport(app, p, list.id);
   assert.deepEqual([out.status, out.followed, out.failed], ["done", 1, 2]);
   assert.deepEqual(out.entries!.map((e) => e.state), ["followed", "failed", "failed"]);
-  assert.match(out.entries![1]!.message ?? "", /Your plan allows 100 sources/);
+  assert.equal(out.entries![1]!.message, plans.sourcesLimit("100", plans.plusAllowsMore));
   assert.deepEqual(d.asked, [urls[0]], "the refused ones were not even looked up");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE kind <> 'manual' AND followed = 1")!.n, 100);
 });
@@ -401,7 +404,7 @@ test("a folder's collection is made together with its first follow: a follow the
   const full = startOpmlImport(app2, p2, request(feeds(["C", u, "Brand new folder"]), { kind: "folders" }));
   await wait(app2, answerEach([u]));
   const out = getOpmlImport(app2, p2, full.id);
-  assert.match(out.entries![0]!.message ?? "", /allows 5 collections/);
+  assert.equal(out.entries![0]!.message, plans.collectionsLimit("5", plans.plusAllowsMore));
   assert.equal(app2.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE kind <> 'manual'")!.n, 0);
   assert.equal(listCollections(app2, p2).length, 5);
 });

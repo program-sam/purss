@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { server as copy } from "@purss/copy/server";
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";
@@ -208,7 +209,7 @@ test("the approval page refuses bad requests and never sends a code to an unknow
   assert.ok(checkRedirect("extension", `${CHROME_REDIRECT}cb`));
   assert.ok(checkRedirect("extension", "https://0123456789abcdef0123456789abcdef01234567.extensions.allizom.org/"));
   assert.equal(cleanDeviceName("mobile", "  My\u0000 phone\u202e\n  "), "My phone");
-  assert.equal(cleanDeviceName("extension", "\u200b"), "Browser extension");
+  assert.equal(cleanDeviceName("extension", "\u200b"), copy.api.connectClients.defaultDeviceExtension);
   assert.equal(cleanDeviceName("mobile", "x".repeat(200)).length, 80);
 });
 
@@ -241,12 +242,12 @@ test("the phone app is a full sign-in: an administrator, confirm-it's-you like a
 
   // A connection with no recent sign-in recorded has to confirm first.
   b.app.db.run("UPDATE device_tokens SET auth_at = NULL");
-  assert.throws(() => requireRecentAuth(resolveDeviceToken(b.app, token)!.principal), /confirm it's you/);
+  assert.throws(() => requireRecentAuth(resolveDeviceToken(b.app, token)!.principal), { message: copy.api.shared.confirmItsYouAgain });
 
   // The extension is never an administrator or a recent sign-in.
   const ext = resolveDeviceToken(b.app, await connect(b, "extension"))!;
   assert.equal(ext.principal.isAdmin, false);
-  assert.throws(() => requireRecentAuth(ext.principal), /confirm it's you/);
+  assert.throws(() => requireRecentAuth(ext.principal), { message: copy.api.shared.confirmItsYouAgain });
 });
 
 test("a device token can't reach a browser-only route through another spelling of its path", async (t) => {
@@ -514,7 +515,7 @@ test("an account can connect at most 20 apps", async (t) => {
   for (let i = 0; i < MAX_DEVICES; i++) createDeviceToken(b.app, b.owner.accountId, "mobile", `Phone ${i}`);
   const r = await call(b.app, b.server.base, "POST", "/api/connect/approve", b.session, requestParams("mobile", "purss://connect"));
   assert.deepEqual([r.status, r.json.error.code], [409, "too_many_devices"]);
-  assert.throws(() => createDeviceToken(b.app, b.owner.accountId, "mobile", "One more"), /up to 20/);
+  assert.throws(() => createDeviceToken(b.app, b.owner.accountId, "mobile", "One more"), { message: copy.api.devices.tooManyDevices(MAX_DEVICES) });
 });
 
 test("the code exchange is rate-limited per address", async (t) => {
@@ -643,7 +644,7 @@ test("open sign-up from the app starts by email, like the browser, and the link 
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("access-control-allow-origin"), "capacitor://localhost", "the app may call it before it is connected");
   await settleMail(app);
-  assert.deepEqual(sent, [{ to: "first@example.org", subject: "Finish creating your PURSS account" }]);
+  assert.deepEqual(sent, [{ to: "first@example.org", subject: copy.api.mailTemplates.signupSubject("PURSS") }]);
   assert.equal(app.db.get("SELECT 1 FROM accounts WHERE email = 'first@example.org'"), undefined, "no account until the link is used");
 });
 

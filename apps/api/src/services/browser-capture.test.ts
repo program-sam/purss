@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import { BROWSER_CAPTURE_MAX_CHARS, browserCaptureSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
@@ -42,8 +43,8 @@ test("a page kept with its browser text becomes one item with a sanitized, label
 
   const detail = getItemDetail(app, owner, out.itemId);
   const label = detail.captures.find((c) => c.id === cap!.id)!;
-  assert.deepEqual([label.level, label.label], ["browser", "Saved from your browser"]);
-  assert.match(label.note!, /as your browser showed it/);
+  assert.deepEqual([label.level, label.label], ["browser", copy.api.items.labelBrowser]);
+  assert.equal(label.note, copy.api.items.browserCaptureNote);
   assert.deepEqual(detail.contentRef, { kind: "capture", id: cap!.id }, "the reader shows the captured text");
   assert.match(detail.contentHtml!, /quarter moons/);
 
@@ -105,13 +106,13 @@ test("when the text doesn't fit, the link is still kept and an earlier capture s
   const huge = `<p>${"word ".repeat(40_000)}</p>`;
   const again = keepWithBrowserCapture(app, owner, { url: PAGE, basketId: basket, html: huge });
   assert.deepEqual([again.textSaved, again.textReplaced], [false, false]);
-  assert.match(again.textNote!, /text captured earlier is kept/);
+  assert.equal(again.textNote, copy.api.captures.notEnoughStorageNewText);
   assert.match(captureRows(app, small.itemId)[0]!.text, /Short text that fits/);
   assert.equal(reconcile(app, owner.accountId).difference, 0);
 
   const other = keepWithBrowserCapture(app, owner, { url: "https://quiet.example/other", basketId: basket, html: huge });
   assert.deepEqual([other.existing, other.textSaved], [false, false]);
-  assert.match(other.textNote!, /only the link was kept/);
+  assert.equal(other.textNote, copy.api.captures.notEnoughStorageLinkOnly);
   assert.equal(one<{ n: number }>(app, "SELECT COUNT(*) AS n FROM basket_items WHERE item_id = ?", other.itemId)!.n, 1, "the link is kept");
   assert.equal(captureRows(app, other.itemId).length, 0);
   assert.equal(one<{ r: string | null }>(app, "SELECT paused_reason AS r FROM storage_accounts WHERE account_id = ?", owner.accountId)?.r ?? null, null, "an optional copy doesn't pause new items");

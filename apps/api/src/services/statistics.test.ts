@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { STATS_WEEKS } from "@purss/domain";
 import type { WorkflowState } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -293,7 +294,7 @@ test("the log travels in the export and imports idempotently; older files withou
   assert.throws(() => parseArchive(tampered), /damaged/);
   const orphanManifest = structuredClone(doc);
   delete orphanManifest.stateLog;
-  assert.throws(() => parseArchive(orphanManifest), /missing its "stateLog" section/);
+  assert.throws(() => parseArchive(orphanManifest), { message: server.api.archiveFormat.missingSection("stateLog") });
 
   applyImport(b.app, pb, stageImport(b.app, pb, doc).token);
   assert.deepEqual(historyOf(b.app, titleX).map((r) => [r.from_state, r.to_state, r.at]), doc.stateLog.filter((l: any) => l.itemId === x).map((l: any) => [l.from, l.to, l.at]));

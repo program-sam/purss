@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { coreName, isDiscourse, isGenericTitle, isSiteWideFeed, linkMatchesPage, nameFeed, orderByVia, probeLandedOnName, rankByPage, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, tidyFeedName, withoutCommentFeeds } from "./feed-choice.ts";
+
+const copy = server.sources.connectors;
 
 test("a feed that calls itself 'Feed' or 'Nieuws' is named after the site", () => {
   const host = "rtvutrecht.nl";
@@ -47,11 +50,11 @@ test("sections: which pages are one, where their own feed would be, and what cou
 
 test("comment feeds are dropped when anything else exists; the order puts posts first", () => {
   const c = (via: string) => ({ via });
-  assert.deepEqual(withoutCommentFeeds([c("Posts feed"), c("Comments feed")]).map((x) => x.via), ["Posts feed"]);
-  assert.deepEqual(withoutCommentFeeds([c("Comments feed")]).map((x) => x.via), ["Comments feed"]);
+  assert.deepEqual(withoutCommentFeeds([c(copy.labels.postsFeed), c(copy.labels.commentsFeed)]).map((x) => x.via), [copy.labels.postsFeed]);
+  assert.deepEqual(withoutCommentFeeds([c(copy.labels.commentsFeed)]).map((x) => x.via), [copy.labels.commentsFeed]);
   assert.deepEqual(
-    orderByVia([c("Comments feed"), c("Whole site feed"), c("Section feed"), c("All replies"), c("Posts feed"), c("Latest topics")]).map((x) => x.via),
-    ["Latest topics", "Posts feed", "Section feed", "Whole site feed", "All replies", "Comments feed"],
+    orderByVia([c(copy.labels.commentsFeed), c(copy.labels.wholeSiteFeed), c(copy.labels.sectionFeed), c(copy.labels.allReplies), c(copy.labels.postsFeed), c(copy.labels.latestTopics)]).map((x) => x.via),
+    [copy.labels.latestTopics, copy.labels.postsFeed, copy.labels.sectionFeed, copy.labels.wholeSiteFeed, copy.labels.allReplies, copy.labels.commentsFeed],
   );
   assert.ok(isDiscourse(`<meta name="generator" content="Discourse 3.3.0.beta3 - https://github.com/discourse/discourse">`));
   assert.ok(isDiscourse(`<meta content="Discourse 3" name="generator">`));
@@ -69,8 +72,8 @@ test("machine titles lose the machine words: RSS and version tags, 'Subscribe vi
     ["Subscribe via RSS", ""],
     ["Subscribe to Nature", "Nature"],
     ["RSS feed for Kottke", "Kottke"],
-    ["Release notes from node", "node releases"],
-    ["Tags from sqlite", "sqlite tags"],
+    ["Release notes from node", copy.feedChoice.repoFeed("node", copy.feedChoice.releases)],
+    ["Tags from sqlite", copy.feedChoice.repoFeed("sqlite", copy.feedChoice.tags)],
   ] as const) assert.equal(tidyFeedName(raw), tidy, raw);
   // Names that merely contain the words, or end in them as part of the name, stay as they are.
   for (const keep of ["The Atom", "Atom Heart Mother", "Feed Me", "RSS Is Dead", "Release Notes", "Reader"]) assert.equal(tidyFeedName(keep), keep, keep);
@@ -81,7 +84,7 @@ test("machine titles lose the machine words: RSS and version tags, 'Subscribe vi
   assert.equal(nameFeed({ feedTitle: "Subscribe via RSS", siteName: "Dan's Blog", host }), "Dan's Blog");
   assert.equal(nameFeed({ feedTitle: "Subscribe via RSS", linkTitle: "Dan's Blog", siteName: null, host }), "Dan's Blog");
   assert.equal(nameFeed({ feedTitle: "Subscribe via RSS", siteName: null, host }), host);
-  assert.equal(nameFeed({ feedTitle: "Release notes from node", siteName: "GitHub", host: "github.com" }), "node releases");
+  assert.equal(nameFeed({ feedTitle: "Release notes from node", siteName: "GitHub", host: "github.com" }), copy.feedChoice.repoFeed("node", copy.feedChoice.releases));
 });
 
 test("a section's feed that is named after the site alone is named after the section too", () => {

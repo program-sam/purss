@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { Outbox } from "./outbox.ts";
 import type { Deps, Outcome, Sender } from "./outbox.ts";
 import { scopeOf } from "./entries.ts";
@@ -14,7 +15,7 @@ const conflict: Fail = { status: 409, code: "conflict", message: "This item chan
 
 function dto(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = [], workflowRevision = 0, playbackWorkflowSessionId: string | null = null): ItemDTO {
   return {
-    id, number: 1, sourceId: "src_a", sourceTitle: "S", kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
+    id, number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
     doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }
@@ -193,7 +194,7 @@ test("an item that went new, finished, new elsewhere is not 'unchanged': the sta
   const { outbox } = make(fake);
   const out = await outbox.submit(workflow("a", "new", "toread", 5));
   assert.equal(out.status, "dropped");
-  assert.equal(out.status === "dropped" ? out.message : "", "Not changed: this item was changed on another device.");
+  assert.equal(out.status === "dropped" ? out.message : "", app.outbox.entries.conflict);
   assert.deepEqual(fake.log, ["workflow a toread @5", "get a"], "resent once with its own revision, then the item was read; no second try");
   assert.equal(fake.items.get("a")!.workflow, "new");
 });
@@ -237,7 +238,7 @@ test("a workflow change is dropped, with a plain message, if the workflow change
   const { outbox, store } = make(fake);
   const out = await outbox.submit(workflow("a", "new", "toread", 5));
   assert.equal(out.status, "dropped");
-  assert.equal(out.status === "dropped" ? out.message : "", "Not changed: this item was changed on another device.");
+  assert.equal(out.status === "dropped" ? out.message : "", app.outbox.entries.conflict);
   assert.equal(out.status === "dropped" ? out.reason : "", "conflict");
   assert.equal(fake.items.get("a")!.workflow, "finished", "the other device's choice stands");
   assert.deepEqual(await store.load(scopeOf("https://purss.test", "acc_1")), []);
@@ -276,7 +277,7 @@ test("keep and un-keep are repeated safely and a refusal is reported once, with 
   assert.equal((await outbox.submit({ kind: "keep", itemId: "a", basketId: "bkt_1", on: false })).status, "sent");
   assert.equal((await outbox.submit({ kind: "keep", itemId: "gone", basketId: "bkt_1", on: true })).status, "dropped");
   const last = seen[seen.length - 1]!;
-  assert.equal(last.status === "dropped" ? last.message : "", "Not changed. That item wasn't found.");
+  assert.equal(last.status === "dropped" ? last.message : "", app.outbox.entries.rejected("That item wasn't found."));
   assert.equal(outbox.pendingCount(), 0);
 });
 

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { bootDeletion, setCookie } from "../deletion-testing.ts";
 import { OPERATOR_EMAIL, makeOperator } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
@@ -9,6 +10,8 @@ import { checkPassword } from "./passwords.ts";
 /* Open sign-up starts with the address: the account is made only with the link that was emailed there. */
 
 const HOSTED = { PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_TRUST_PROXY: "1", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" };
+const SIGNUP_SUBJECT = server.api.mailTemplates.signupSubject("PURSS");
+const EXISTS_SUBJECT = server.api.mailTemplates.existsSubject("PURSS");
 const PASSWORD = "tidal flats at low water";
 let n = 0;
 
@@ -23,10 +26,10 @@ async function boot(env: Record<string, string> = HOSTED) {
   const start = (email: string) => b.api(null, "POST", "/api/signup/start", { email }, from());
   const finish = (body: Record<string, unknown>) => b.api(null, "POST", "/api/signup", { password: PASSWORD, ...body }, from());
   const accounts = () => b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE email IS NOT 'operator@example.test'")!.n;
-  const mail = async (subject: RegExp) => { await settleMail(b.app); return sent.filter((m) => subject.test(m.subject)); };
+  const mail = async (subject: string) => { await settleMail(b.app); return sent.filter((m) => m.subject === subject); };
   /** The token in the newest "finish creating your account" message to `to`. */
   const linkFor = async (to: string) => {
-    const m = (await mail(/^Finish creating/)).filter((x) => x.to === to).at(-1);
+    const m = (await mail(SIGNUP_SUBJECT)).filter((x) => x.to === to).at(-1);
     return m ? decodeURIComponent(/\/signup\?token=([^\s"&]+)/.exec(m.text)![1]!) : null;
   };
   const signedIn = async (reply: Awaited<ReturnType<typeof finish>>) => {
@@ -77,7 +80,7 @@ test("an address that has an account gets a note instead of a link, and the answ
   assert.equal((await finish({ token: await linkFor("ana1@example.org") })).status, 200);
   const again = await start("ANA1@example.org");
   assert.deepEqual([again.status, again.json], [200, { ok: true }], "the same answer as for a new address");
-  const notes = await mail(/^You already have/);
+  const notes = await mail(EXISTS_SUBJECT);
   assert.deepEqual(notes.map((m) => m.to), ["ANA1@example.org"]);
   assert.match(notes[0]!.text, /\/reset-password/, "with a way to reset the password");
   assert.equal(await linkFor("ANA1@example.org"), null, "and no link that could make a second account");
@@ -127,7 +130,7 @@ test("one address is sent at most three sign-up messages an hour", async (t) => 
   const { b, start, mail } = await boot();
   t.after(b.close);
   for (let i = 0; i < 5; i++) assert.deepEqual((await start("flood@example.org")).json, { ok: true });
-  assert.equal((await mail(/^Finish creating/)).length, 3);
+  assert.equal((await mail(SIGNUP_SUBJECT)).length, 3);
 });
 
 test("where sign-up is closed, starting it is refused and nothing is sent", async (t) => {

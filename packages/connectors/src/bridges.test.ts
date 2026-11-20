@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { BRIDGE_SERVICES, bridgeDescriptor, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
 import { discover } from "./discover.ts";
 import { parseFeed } from "./feed.ts";
 import type { BridgeClient } from "./discover.ts";
+
+const copy = server.sources.connectors;
 
 const target = (url: string) => {
   const t = bridgeTargetForPage(new URL(url));
@@ -122,7 +125,7 @@ test("with a bridge, a page address becomes a source previewed through the route
   const c = r.candidates[0]!;
   assert.equal(c.feedUrl, "bridge:telegram/durov");
   assert.equal(c.siteUrl, "https://t.me/durov");
-  assert.equal(c.origin, "Telegram channel");
+  assert.equal(c.origin, copy.bridges.telegram);
   assert.equal(c.title, "Durov's Channel");
   assert.equal(c.samples[0]!.title, "Hello");
   assert.ok(c.note);
@@ -132,14 +135,14 @@ test("with a bridge, a page address becomes a source previewed through the route
 
 test("without a bridge, those services keep the honest no-feed answer, and a descriptor can't be followed", async () => {
   const r = await discover("https://t.me/durov");
-  assert.ok(!r.ok && r.reason === "unsupported" && /Telegram doesn't publish feeds/.test(r.message));
+  assert.ok(!r.ok && r.reason === "unsupported" && r.message === copy.platforms.noFeed("Telegram"));
   const d = await discover("bridge:telegram/durov");
   assert.ok(!d.ok && d.reason === "unsupported");
 });
 
 test("a failing router is a plain 'try again', never an empty source", async () => {
   const r = await discover("https://www.twitch.tv/shroud", { bridge: async () => ({ status: 503, body: Buffer.from("x") }) });
-  assert.ok(!r.ok && r.reason === "unreachable" && /Twitch/.test(r.message));
+  assert.ok(!r.ok && r.reason === "unreachable" && r.message === copy.discover.bridgeNoPostsCheck("Twitch", "shroud"));
   const t = await discover("https://www.twitch.tv/shroud", { bridge: async () => ({ failed: true }) });
   assert.ok(!t.ok && t.reason === "unreachable");
 });

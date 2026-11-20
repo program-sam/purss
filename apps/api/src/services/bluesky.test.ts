@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import type { SafeFetchOptions, SafeFetchResult } from "@purss/connectors";
 import { fakeFailure, fakeResponse } from "../../../../packages/connectors/src/testing.ts";
+import { inHtml } from "../copy-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { lookUpBlueskyPictures, MAX_TRIES } from "./bluesky.ts";
 import { getItemDetail, listItems } from "./items.ts";
@@ -65,9 +67,10 @@ test("the placeholder Bluesky's feed puts where a post has a quote or attachment
   ]));
   const [one, two] = listItems(app, p, { scope: `source:${src}`, sort: "oldest" }).items;
   assert.ok(!JSON.stringify([one, two]).includes("contains quote post"), "the upstream wording is not shown");
-  assert.equal(one!.title, "SF folks, join us tonight! [quote or attachment: open the post to see it]");
-  assert.equal(two!.title, "[quote or attachment: open the post to see it]");
-  assert.match(getItemDetail(app, p, one!.id).contentHtml ?? "", /quote or attachment: open the post to see it/);
+  const { embedLabel } = server.api.content;
+  assert.equal(one!.title, `SF folks, join us tonight! ${embedLabel}`);
+  assert.equal(two!.title, embedLabel);
+  assert.ok((getItemDetail(app, p, one!.id).contentHtml ?? "").includes(inHtml(embedLabel)));
 });
 
 test("the picture of a post is asked of Bluesky once the post is here, and set only where the item has none", async (t) => {

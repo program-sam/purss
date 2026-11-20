@@ -1097,3 +1097,35 @@ test("072 drops stored_objects.is_current and its triggers, keeps every ledger r
     db.close();
   }
 });
+
+test("073 gives sources that failed because the site didn't answer their reason code, and drops the stored words of waiting and empty sources", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "073")) {
+      db.tx(() => db.exec(readFileSync(path.join(DIR, file), "utf8")));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF");
+    const add = (id: string, health: string, text: string | null) => db.run(
+      "INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, health_text, created_at) VALUES (?, 'acc_1', 'ws_1', 'feed', 'T', 'RSS feed', ?, ?, '2026-01-01T00:00:00.000Z')", id, health, text);
+    add("src_retrying", "error", "The site isn't answering right now; we'll keep trying.");
+    add("src_gaveup", "error", "The site didn't answer, so this source couldn't be set up. Try again later.");
+    add("src_other", "error", "That address doesn't have a feed any more.");
+    add("src_waiting", "pending", "Getting the first items…");
+    add("src_empty", "quiet", "No posts yet. Still following; new posts will appear here.");
+    add("src_ok", "ok", null);
+    assert.equal(migrate(db), files.filter((f) => f >= "073").length);
+    assert.deepEqual(db.all("SELECT id, health_text IS NOT NULL AS has_text, health_reason FROM sources ORDER BY id").map((r) => ({ ...r })), [
+      { id: "src_empty", has_text: 0, health_reason: null },
+      { id: "src_gaveup", has_text: 1, health_reason: "unavailable" },
+      { id: "src_ok", has_text: 0, health_reason: null },
+      { id: "src_other", has_text: 1, health_reason: null },
+      { id: "src_retrying", has_text: 1, health_reason: "unavailable" },
+      { id: "src_waiting", has_text: 0, health_reason: null },
+    ]);
+  } finally {
+    db.close();
+  }
+});

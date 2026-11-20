@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { noFeedMessage, noFeedPlatform } from "./platforms.ts";
 
 const U = (s: string) => new URL(s);
@@ -34,9 +35,9 @@ test("platforms that publish no feeds are named, with the same plain message", (
     const p = noFeedPlatform(U(url));
     assert.ok(p, url);
     assert.equal(p.name, name, url);
-    assert.equal(p.message, `${name} doesn't publish feeds, so it can't be followed here. If this creator also posts on YouTube, a blog or a newsletter, follow that instead.`, url);
+    assert.equal(p.message, server.sources.connectors.platforms.noFeed(name), url);
   }
-  assert.equal(noFeedMessage("Instagram"), "Instagram doesn't publish feeds, so it can't be followed here. If this creator also posts on YouTube, a blog or a newsletter, follow that instead.");
+  assert.equal(noFeedMessage("Instagram"), server.sources.connectors.platforms.noFeed("Instagram"));
 });
 
 test("look-alike hosts, a platform's own blog and feed addresses are not refused by name", () => {

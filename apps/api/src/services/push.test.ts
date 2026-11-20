@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { server as copy } from "@purss/copy/server";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -112,13 +113,13 @@ test("a new notification wakes the phone by handle only; the phone then fetches 
     const first = await b.fetchPending(token);
     assert.equal(first.status, 200);
     assert.equal(first.json.notifications.length, 1);
-    assert.deepEqual({ ...first.json.notifications[0], id: "x" }, { id: "x", title: "New from Tidal Notes", body: null, itemId: null, sourceId: b.src });
+    assert.deepEqual({ ...first.json.notifications[0], id: "x" }, { id: "x", title: copy.api.notifications.newFrom("Tidal Notes"), body: null, itemId: null, sourceId: b.src });
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "handed once");
 
     b.arrive(2); // within the hour: the same notification grows
     const grown = await b.fetchPending(token);
     assert.equal(grown.json.notifications.length, 1);
-    assert.equal(grown.json.notifications[0]!.title, "3 new from Tidal Notes");
+    assert.equal(grown.json.notifications[0]!.title, copy.api.notifications.newCountFrom(3, "Tidal Notes"));
     assert.equal(grown.json.notifications[0]!.id, first.json.notifications[0]!.id, "the phone replaces the one it shows");
   } finally { await stop(); await b.close(); }
 });
@@ -163,12 +164,12 @@ test("bodies follow 'Show item titles in notifications'; read notices aren't han
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "read in the bell already");
 
     setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "off" } });
-    b.app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('reminder', ?, 'reminder', 'A reminder you set is due', 'reminder:test', ?)", b.owner.workspaceId, new Date(Date.now() + 2000).toISOString());
+    b.app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('reminder', ?, 'reminder', ?, 'reminder:test', ?)", b.owner.workspaceId, copy.api.shared.reminderSubjectOne, new Date(Date.now() + 2000).toISOString());
     assert.equal(await wakePhones(b.app, b.owner.accountId), null, "a successful wake needs no retry");
     assert.equal(b.relay.requests.length, 1, "the reminder wakes the phone under Never");
     const reminder = (await b.fetchPending(token)).json.notifications;
     assert.equal(reminder.length, 1, "Never leaves reminders available to the phone");
-    assert.equal(reminder[0]!.title, "A reminder you set is due");
+    assert.equal(reminder[0]!.title, copy.api.shared.reminderSubjectOne);
   } finally { await b.close(); }
 });
 

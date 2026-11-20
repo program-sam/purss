@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { EMBED_ORIGINS, embedFor } from "./embeds.ts";
 
+const platform = app.lib.embeds.platform;
 const https = { protocol: "https:", hostname: "purss.example" };
 
 test("YouTube video pages play in YouTube's no-cookie player, from where a link starts", () => {
@@ -49,13 +51,13 @@ test("Twitch is told the page's host name, and is left as a link where it would 
 test("in an app whose page isn't a web address only Odysee is embedded: the other players refuse to play there", () => {
   for (const page of [{ protocol: "tauri:", hostname: "localhost" }, { protocol: "capacitor:", hostname: "localhost" }]) {
     for (const url of ["https://youtu.be/dQw4w9WgXcQ", "https://vimeo.com/76979871", "https://dai.ly/x8j6v5c", "https://www.twitch.tv/videos/1", "https://clips.twitch.tv/c"]) assert.equal(embedFor(url, page), null, `${page.protocol} ${url}`);
-    assert.equal(embedFor("https://odysee.com/@Odysee:8/odysee-is-live:5", page)?.platform, "Odysee", page.protocol);
+    assert.equal(embedFor("https://odysee.com/@Odysee:8/odysee-is-live:5", page)?.platform, platform.odysee, page.protocol);
   }
-  assert.equal(embedFor("https://youtu.be/dQw4w9WgXcQ", { protocol: "http:", hostname: "tauri.localhost" })?.platform, "YouTube", "the Windows desktop app's page is a web address");
+  assert.equal(embedFor("https://youtu.be/dQw4w9WgXcQ", { protocol: "http:", hostname: "tauri.localhost" })?.platform, platform.youtube, "the Windows desktop app's page is a web address");
 });
 
 test("an Instagram post or reel is shown in the post's own embed; its other pages stay links", () => {
-  assert.deepEqual(embedFor("https://www.instagram.com/p/DfxGoxTl16O/", https), { src: "https://www.instagram.com/p/DfxGoxTl16O/embed/", platform: "Instagram", post: true });
+  assert.deepEqual(embedFor("https://www.instagram.com/p/DfxGoxTl16O/", https), { src: "https://www.instagram.com/p/DfxGoxTl16O/embed/", platform: platform.instagram, post: true });
   assert.equal(embedFor("https://instagram.com/reel/DfxGoxTl16O/?igsh=x", https)?.src, "https://www.instagram.com/p/DfxGoxTl16O/embed/");
   for (const notPost of ["https://www.instagram.com/natgeo/", "https://www.instagram.com/p/DfxGoxTl16O/media", "https://www.instagram.com/p/a%22b/", "https://instagram.com.evil.example/p/DfxGoxTl16O/"]) assert.equal(embedFor(notPost, https), null, notPost);
   assert.equal(embedFor("https://www.instagram.com/p/DfxGoxTl16O/", { protocol: "tauri:", hostname: "localhost" }), null, "untried in the apps whose page isn't a web address");

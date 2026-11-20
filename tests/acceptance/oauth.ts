@@ -17,6 +17,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
+import { app } from "@purss/copy/app";
+import { server } from "@purss/copy/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode, setInstallation } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -47,6 +49,11 @@ const env: Record<string, string> = {
   PURSS_ASSISTANT_OAUTH: "on",
 };
 const EMAIL = "reader@example.test";
+// The words people read come from the catalogs, so rewording one cannot break this journey.
+const signInCopy = app.auth.signIn;
+const consentCopy = app.assistant.authorizePage;
+const assistantsCopy = app.assistant.assistantSettings;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const step = (s: string) => console.log(`✓ ${s}`);
 const b64url = (b: Buffer) => b.toString("base64url");
 
@@ -122,20 +129,20 @@ async function main(): Promise<void> {
     const consent = await page.goto(authorizeUrl(state));
     assert.equal(consent!.headers()["x-frame-options"], "DENY");
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
+    await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
     await page.waitForURL(/\/oauth\/authorize\?/);
-    await page.getByText("Let Helpful Assistant use your PURSS?").waitFor();
-    await page.getByText(`Identified by ${new URL(clientId).host}`).waitFor();
-    await page.getByText(`Sends you back to ${new URL(callback).host}`).waitFor();
+    await page.getByText(consentCopy.title("Helpful Assistant")).waitFor();
+    await page.getByText(consentCopy.identifiedBy(new URL(clientId).host)).waitFor();
+    await page.getByText(consentCopy.sendsBack(new URL(callback).host)).waitFor();
     step("signed out, the person goes through sign-in and lands on the consent page naming the assistant, its host and where it returns");
 
-    assert.ok(await page.getByRole("button", { name: "Allow", exact: true }).isDisabled(), "nothing can be allowed while the account's switch is off");
-    await page.getByRole("button", { name: "Turn it on" }).click();
-    await page.getByRole("button", { name: "Allow", exact: true }).and(page.locator(":enabled")).waitFor();
-    assert.equal(await page.getByRole("checkbox", { name: /Allow the assistant to make changes in your PURSS/ }).isChecked(), false, "changes stay off until the person ticks it");
-    await page.getByRole("button", { name: "Allow", exact: true }).click();
+    assert.ok(await page.getByRole("button", { name: consentCopy.allow, exact: true }).isDisabled(), "nothing can be allowed while the account's switch is off");
+    await page.getByRole("button", { name: consentCopy.turnOn }).click();
+    await page.getByRole("button", { name: consentCopy.allow, exact: true }).and(page.locator(":enabled")).waitFor();
+    assert.equal(await page.getByRole("checkbox", { name: new RegExp(escapeRe(consentCopy.allowChanges)) }).isChecked(), false, "changes stay off until the person ticks it");
+    await page.getByRole("button", { name: consentCopy.allow, exact: true }).click();
     await waitUntil(() => arrived.length > 0);
     const back = new URL(arrived[0]!);
     assert.deepEqual([back.searchParams.get("state"), back.searchParams.get("iss")], [state, issuer]);
@@ -162,47 +169,47 @@ async function main(): Promise<void> {
     step("refreshing rotates the tokens");
 
     await page.goto(`${origin}/app/`);
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Assistants" }).click();
-    await page.getByText("Connected assistants").waitFor();
+    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
+    await page.getByRole("button", { name: app.dialogs.settings.dialog.tabs.assistants }).click();
+    await page.getByText(assistantsCopy.connectedAssistants).waitFor();
     await page.getByText("Helpful Assistant").waitFor();
     step("Settings → Assistants lists the connected assistant");
 
     assert.equal((await form(meta.revocation_endpoint, { token: t2.refresh_token, client_id: clientId })).status, 200);
     assert.equal((await mcp(t2.access_token, "tools/list")).status, 401);
     await page.reload();
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Assistants" }).click();
-    await page.getByText("Let assistants use my PURSS").waitFor();
+    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
+    await page.getByRole("button", { name: app.dialogs.settings.dialog.tabs.assistants }).click();
+    await page.getByText(assistantsCopy.switchLabel).waitFor();
     assert.equal(await page.getByText("Helpful Assistant").count(), 0);
     step("the assistant revokes its token; MCP refuses it and Settings no longer lists it");
 
-    const tokenName = page.getByLabel("Name, so you recognise it later");
+    const tokenName = page.getByLabel(assistantsCopy.nameLabel);
     assert.equal(await tokenName.count(), 0, "the new-token form starts closed");
     if (process.env.PURSS_SHOT_DIR) await page.screenshot({ path: path.join(process.env.PURSS_SHOT_DIR, "tokens-closed.png") });
-    await page.getByRole("button", { name: "New token" }).click();
+    await page.getByRole("button", { name: assistantsCopy.newToken }).click();
     await tokenName.waitFor();
     assert.ok(await tokenName.evaluate((el) => el === document.activeElement), "the name field takes focus");
     if (process.env.PURSS_SHOT_DIR) await page.screenshot({ path: path.join(process.env.PURSS_SHOT_DIR, "tokens-open.png") });
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: assistantsCopy.cancel }).click();
     assert.equal(await tokenName.count(), 0);
-    await page.getByRole("button", { name: "New token" }).waitFor();
+    await page.getByRole("button", { name: assistantsCopy.newToken }).waitFor();
     step("the new-token form opens from New token and closes on Cancel");
 
     const declineState = "second-attempt";
     await page.goto(authorizeUrl(declineState));
-    await page.getByText("Let Helpful Assistant use your PURSS?").waitFor();
-    await page.getByRole("button", { name: "Don't allow" }).click();
+    await page.getByText(consentCopy.title("Helpful Assistant")).waitFor();
+    await page.getByRole("button", { name: consentCopy.dontAllow }).click();
     await waitUntil(() => arrived.some((u) => u.includes(`state=${declineState}`)));
     const declined = new URL(arrived.find((u) => u.includes(`state=${declineState}`))!);
     assert.deepEqual([declined.searchParams.get("error"), declined.searchParams.get("iss"), declined.searchParams.get("code")], ["access_denied", issuer, null]);
     await page.goto(authorizeUrl("third").replace(encodeURIComponent(callback), encodeURIComponent("https://evil.example/callback")));
-    await page.getByText("This sign-in link doesn't work").waitFor();
+    await page.getByText(consentCopy.linkBroken).waitFor();
     assert.ok(!arrived.some((u) => u.includes("evil.example")));
     const before = arrived.length;
     await page.goto(`${authorizeUrl("fourth")}&state=fifth`);
-    await page.getByText("This sign-in link doesn't work").waitFor();
-    await page.getByText("gives “state” more than once").waitFor();
+    await page.getByText(consentCopy.linkBroken).waitFor();
+    await page.getByText(server.api.oauthAuthorize.repeatedParameter("state")).waitFor();
     assert.equal(arrived.length, before, "nothing went back to the assistant");
     step("declining sends access_denied back; a foreign return address or a repeated parameter is stopped on the page");
 

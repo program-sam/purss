@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -21,6 +22,9 @@ const kottke = fixture("kottke-members.txt");
 // What was saved, and called the full text, for a GOV.UK vacancy (its cookie banner) and a BBC Sounds page (its menus).
 const govukBanner = fixture("govuk-cookie-banner.txt").trim();
 const bbcMenus = fixture("bbc-sounds-menus.txt").trim();
+
+const { items, notifications, shared } = server.api;
+const { captureQuality } = server.sources.connectors;
 
 type Owner = Principal & { engineUserId: string };
 
@@ -54,8 +58,8 @@ test("a capture that is a subscription page is kept but not called the full text
   const detail = getItemDetail(app, p, itemId);
   const level = detail.captures.find((c) => c.id === captureId)!;
   assert.equal(level.level, "partial");
-  assert.doesNotMatch(level.label, /Full text/);
-  assert.equal(level.note, "Only part of the page could be saved: it looks like a sign-in, subscription, consent or menu page.");
+  assert.equal(level.label, items.labelPartial);
+  assert.equal(level.note, captureQuality.gated);
   assert.match(detail.contentHtml!, /manifestante/, "the reader opens on the feed's own text");
   assert.doesNotMatch(detail.contentHtml!, /Abonnez-vous/);
   assert.equal(detail.partialCopy?.reason, "gated");
@@ -89,7 +93,7 @@ test("a cookie banner or a page of menus that arrives as a readable copy is only
     const detail = getItemDetail(app, p, itemId);
     const level = detail.captures.find((c) => c.id === captureId)!;
     assert.equal(level.level, "partial");
-    assert.doesNotMatch(level.label, /Full text|Text saved/i);
+    assert.equal(level.label, items.labelPartial);
     assert.match(detail.contentHtml!, new RegExp(feed.slice(0, 12)), "the reader opens on the feed's own text");
     assert.equal(detail.captures.some((c) => c.level === "fulltext"), false);
     assert.equal(detail.summaryOnly, true, "and it is not called the article");
@@ -103,7 +107,7 @@ test("a full capture is the article: shown first, labelled so, and it sets the r
   const { itemId } = capture(app, p, src, "A summary.", text);
   const detail = getItemDetail(app, p, itemId);
   assert.equal(detail.captures.at(-1)!.level, "fulltext");
-  assert.equal(detail.captures.at(-1)!.label, "Full text saved");
+  assert.equal(detail.captures.at(-1)!.label, shared.labelFulltext);
   assert.match(detail.contentHtml!, /erosion of a river bank/);
   assert.equal(detail.partialCopy, null);
   assert.ok(detail.readMinutes && detail.readMinutes >= 2, "reading time follows the article");
@@ -337,12 +341,12 @@ test("a try that is no better is recorded, so the item is still listed and told 
   assert.equal(reservations(app), room, "the room held for the try is given back");
   const detail = getItemDetail(app, p, itemId);
   const tried = detail.captures.find((c) => c.level === "failed")!;
-  assert.equal(tried.label, "Tried again, nothing better");
-  assert.match(tried.note!, /^The page still gave only part of its text: it looks like a sign-in, subscription, consent or menu page\. The copy saved earlier stays\.$/);
+  assert.equal(tried.label, items.triedAgainNothingBetter);
+  assert.equal(tried.note, items.stillPartial(captureQuality.gated.split(": ").slice(1).join(": ")));
   assert.equal(detail.partialCopy?.reason, "short", "the copy it had is still what the toggle shows");
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [itemId], "still listed as failed to improve");
   runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 1000));
-  assert.equal(app.db.all("SELECT 1 FROM notifications WHERE title LIKE 'Couldn''t save the text of 1 item%'").length, 1, "and told about");
+  assert.equal(app.db.all("SELECT 1 FROM notifications WHERE title = ?", notifications.captureFailedFromSource(1, "Journal")).length, 1, "and told about");
 
   // Trying again once more replaces that record with the new attempt, and a better page ends it.
   assert.deepEqual(retryCapture(app, p, itemId), { queued: true });

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { site as copy } from "@purss/copy/site";
 import { PAGES, render, sitemap, type PageKey } from "./pages.ts";
 import { siteFrom } from "./site.ts";
 
 const site = siteFrom({});
+/** Text as it stands in a page's source, ready for a regular expression. */
+const literally = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const keys = Object.keys(PAGES) as PageKey[];
 const html = (key: PageKey, s = site) => render(s, key);
 const text = (h: string) => h.replace(/<style>[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
@@ -58,7 +61,7 @@ test("every page's header has sign-up for visitors and Go to your PURSS for some
   for (const key of keys) {
     const nav = /<header class="(?:s|pf)-nav">[\s\S]*?<\/header>/.exec(html(key))?.[0] ?? "";
     assert.match(nav, /<a class="btn primary s-out" href="\/app\/signup">/, key);
-    assert.match(nav, /<a class="btn primary s-in" href="\/app\/">Go to your PURSS<\/a>/, key);
+    assert.ok(nav.includes(`<a class="btn primary s-in" href="/app/">${copy.kit.actions.signedIn}</a>`), key);
   }
 });
 
@@ -76,11 +79,11 @@ test("pricing is two doors, you run it and we run it, and there is no separate s
   assert.ok(at("apps") < at("pricing") && at("pricing") < at("self-host") && at("self-host") < at("faq"));
   assert.equal(h.match(/<section class="pf-sec" id="self-host"/g), null);
   const pricing = h.slice(at("pricing"), at("faq"));
-  assert.match(pricing, /You run it/);
-  assert.match(pricing, /We run it/);
-  assert.ok(pricing.indexOf("git clone") > pricing.indexOf("You run it") && pricing.indexOf("git clone") < pricing.indexOf("We run it"), "the install commands are in the self-hosting door");
+  assert.ok(pricing.includes(copy.home.pricing.youRunIt));
+  assert.ok(pricing.includes(copy.home.pricing.weRunIt));
+  assert.ok(pricing.indexOf("git clone") > pricing.indexOf(copy.home.pricing.youRunIt) && pricing.indexOf("git clone") < pricing.indexOf(copy.home.pricing.weRunIt), "the install commands are in the self-hosting door");
   assert.equal(pricing.match(/class="pk-row"/g)?.length, 4, "your own server and the three hosted plans");
-  assert.ok(h.indexOf('<a href="#pricing">Pricing</a>') < h.indexOf('<a href="#self-host">Host it yourself</a>'), "the menu follows the page");
+  assert.ok(h.indexOf(`<a href="#pricing">${copy.home.nav.pricing}</a>`) < h.indexOf(`<a href="#self-host">${copy.home.nav.hostIt}</a>`), "the menu follows the page");
 });
 
 test("the app cards describe the apps as they are, the desktop app has one download and one link to the other systems, and building is for developers", () => {
@@ -89,24 +92,22 @@ test("the app cards describe the apps as they are, the desktop app has one downl
   assert.doesNotMatch(t, /Coming to the (app|browser) stores|Until then|Not in the stores yet|Not signed by/);
   const desktop = h.slice(h.indexOf('class="a-desktop"'), h.indexOf("</div>", h.indexOf('class="a-desktop"')));
   assert.equal(desktop.match(/<a /g)?.length, 2, "one button and one link");
-  assert.match(desktop, /data-desktop-other hidden href="[^"]+\/releases\/latest">Other systems</);
+  assert.match(desktop, new RegExp(`data-desktop-other hidden href="[^"]+/releases/latest">${literally(copy.kit.apps.desktop.otherSystems)}<`));
   const host = h.slice(h.indexOf('id="self-host"'), h.indexOf('id="faq"'));
-  assert.match(host, /build the phone app/);
-  assert.match(host, /load the browser extension/);
+  assert.ok(host.includes(copy.kit.terminal.developers.phone));
+  assert.ok(host.includes(copy.kit.terminal.developers.extension));
 });
 
 test("the mock screens use everyday examples next to the research one", () => {
   const t = text(html("index"));
-  for (const word of ["Millbrook Gazette", "Recipes", "Thesis sources", "Kitchen Table"]) assert.ok(t.includes(word), word);
+  for (const word of [copy.home.picture.posts.cyclePath.source, copy.kit.sidebar.collections.recipes, copy.kit.sidebar.baskets.thesisSources, copy.home.picture.posts.tomatoSauce.source]) assert.ok(t.includes(word), word);
   assert.doesNotMatch(t, /\d+ new since yesterday/);
 });
 
-test("the questions people looked for are answered", () => {
+test("every question in the catalog is answered on the home page", () => {
   const h = html("index");
   const questions = [...h.matchAll(/<summary>(.*?)<svg/g)].map((m) => m[1] ?? "");
-  for (const topic of [/other languages/, /reminded/, /share something/, /keep pictures/, /without a connection/, /borrowed or shared computer/, /Who runs/, /accessible/, /phone app or a browser extension/]) {
-    assert.ok(questions.some((q) => topic.test(q)), String(topic));
-  }
+  assert.deepEqual(questions, copy.kit.faq.map((f) => f.question));
   // The service keeps no episode files and the site shows no storage amounts.
   assert.doesNotMatch(text(h), /saved on the server|save [^.]{0,30} on the server|\d+ MB (of|for)\b|\d+ GB of storage|counted in your storage/);
   assert.match(h, /href="https:\/\/github\.com\/program-sam\/purss\/issues"/);
@@ -129,5 +130,5 @@ test("the home page is rendered finished, with the switch on and every chosen po
   assert.equal((h.match(/class="pf-m"/g) ?? []).length, 5, "five posts you chose");
   assert.equal((h.match(/class="pf-c junk"/g) ?? []).length, 0, "no ads or suggestions in the finished state");
   assert.equal((h.match(/class="fd"/g) ?? []).length, 2, "two of the five carry the new mark");
-  assert.match(text(h), /Create a free account/);
+  assert.ok(text(h).includes(copy.kit.actions.signUp));
 });

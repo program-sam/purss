@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { hiddenByMuted, muteUntil, mutedNoticeShown, withMutedWord } from "./muted-words.ts";
+
+const t = app.lib.mutedWords;
 
 test("a word mutes for a week, a month or until removed", () => {
   const now = new Date("2026-11-06T10:00:00.000Z");
@@ -15,11 +18,11 @@ test("adding a word again, in any case, replaces it rather than listing it twice
 });
 
 test("the notice says how many items muted words left out, and 'at least' when only part of a long list was counted", () => {
-  assert.equal(hiddenByMuted(1, false), "1 item hidden by muted words");
-  assert.equal(hiddenByMuted(3, false), "3 items hidden by muted words");
-  assert.equal(hiddenByMuted(1200, false), "1,200 items hidden by muted words");
-  assert.equal(hiddenByMuted(12, true), "At least 12 items hidden by muted words");
-  assert.equal(hiddenByMuted(0, true), "Items further down may be hidden by muted words", "none among those counted, but the count stopped early");
+  assert.equal(hiddenByMuted(1, false), t.hidden(1, "1", false));
+  assert.equal(hiddenByMuted(3, false), t.hidden(3, "3", false));
+  assert.equal(hiddenByMuted(1200, false), t.hidden(1200, "1,200", false));
+  assert.equal(hiddenByMuted(12, true), t.hidden(12, "12", true));
+  assert.equal(hiddenByMuted(0, true), t.furtherDown, "none among those counted, but the count stopped early");
 });
 
 test("the notice stays whenever items were left out, may have been, or are being shown", () => {

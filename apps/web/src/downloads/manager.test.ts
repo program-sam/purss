@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { DeviceConnection as Connection, DownloadPlanRequest, ItemDetail } from "@purss/domain";
 import { chooseDownloads, downloadCandidate, expectedBytes, MAX_DOWNLOAD_BYTES, mediaToDownload } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import type { BackgroundState } from "./background.ts";
 import { DownloadError, DownloadManager, MAX_TRIES } from "./manager.ts";
@@ -9,6 +10,7 @@ import type { DeviceFiles, KeyValue, ManagerDeps } from "./manager.ts";
 import type { DownloadProgress } from "./types.ts";
 
 const MB = 1024 * 1024;
+const copy = app.downloads.manager;
 
 class MemoryFiles implements DeviceFiles {
   readonly files = new Map<string, { bytes: number; text?: string; url?: string }>();
@@ -55,7 +57,7 @@ class MemoryKv implements KeyValue {
 
 function detail(id: string, over: Partial<ItemDetail> = {}): ItemDetail {
   return {
-    id, number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", kind: "podcast", title: `Episode ${id}`, url: `https://pub.example/${id}`, author: null, excerpt: null, imageUrl: null,
+    id, number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", keptByHand: false, kind: "podcast", title: `Episode ${id}`, url: `https://pub.example/${id}`, author: null, excerpt: null, imageUrl: null,
     durationSeconds: 600, readMinutes: null, doi: null, publishedAt: "2026-11-01T00:00:00Z", discoveredAt: "2026-11-01T00:00:00Z", listedAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, fresh: false,
     progress: 0, opened: false, basketIds: [], curatorNote: null, annotatedAt: null,
     media: { url: `https://cdn.pub.example/${id}.mp3?size=${20 * MB}`, kind: "audio", type: "audio/mpeg", length: 20 * MB },
@@ -193,8 +195,8 @@ test("a page that can't be had leaves the download with the summary and says why
   const pages = ["itm_1", "itm_2", "itm_3"].map((id) => t.m.get(id)!);
   assert.ok(pages.every((r) => r.state === "done"), "still downloaded, with the summary");
   assert.deepEqual(pages.map((r) => r.page), [
-    { state: "failed", error: "The publisher's page isn't there any more." },
-    { state: "failed", error: "The publisher's page is too large to read." },
+    { state: "failed", error: copy.pageGone },
+    { state: "failed", error: copy.pageTooLarge },
     { state: "failed", error: "No readable article was found." },
   ]);
   assert.ok(!t.files.names().some((n) => n.endsWith("page.html") || n.endsWith("article.json")), "nothing of the pages is left");
@@ -222,17 +224,17 @@ test("failures leave nothing behind and say why in plain words", async () => {
   t.files.fail = new DownloadError(404, "nope");
   await t.m.download("itm_1");
   assert.equal(t.m.get("itm_1")!.state, "failed");
-  assert.match(t.m.get("itm_1")!.error!, /isn't available there any more/);
+  assert.equal(t.m.get("itm_1")!.error, copy.fileGone);
   assert.deepEqual(t.files.names(), []);
   assert.equal(t.m.usage(), 0);
   t.files.fail = null;
   t.items.set("itm_2", detail("itm_2", { media: { ...detail("x").media!, url: "http://plain.example/a.mp3" } }));
   await t.m.download("itm_2");
-  assert.match(t.m.get("itm_2")!.error!, /secure connection/, "a publisher's file only over https");
+  assert.equal(t.m.get("itm_2")!.error, copy.notSecure, "a publisher's file only over https");
   await t.m.download("itm_1");
   assert.equal(t.m.get("itm_1")!.state, "done", "trying again works");
   await t.m.download("itm_9");
-  assert.match(t.m.get("itm_9")!.error!, /isn't in your PURSS/);
+  assert.equal(t.m.get("itm_9")!.error, copy.itemGone);
 });
 
 /** The app closed and opened again: a new manager over the same storage and files. */
@@ -291,7 +293,7 @@ test("a download the connection cuts off waits to go on, and shows as failed aft
   assert.equal(t.m.get("itm_1")!.state, "downloading", `still waiting after ${MAX_TRIES - 1} lost transfers`);
   await t.m.sync();
   assert.equal(t.m.get("itm_1")!.state, "failed");
-  assert.match(t.m.get("itm_1")!.error!, /Check your connection/);
+  assert.equal(t.m.get("itm_1")!.error, copy.stoppedEarly);
   assert.equal(t.m.queued("itm_1"), false);
   assert.equal(t.files.downloads.length, MAX_TRIES);
 });
@@ -370,7 +372,7 @@ test("an automatic download that turns out bigger than declared stops once it ou
   await t.m.sync();
   assert.equal(t.files.received, 40 * MB, "stopped at the first progress past the 30 MB left, not at the end");
   assert.equal(t.m.get("itm_1")!.state, "failed");
-  assert.match(t.m.get("itm_1")!.error!, /bigger than the space left/);
+  assert.equal(t.m.get("itm_1")!.error, copy.tooLargeAuto);
   assert.ok(!t.files.names().some((n) => n.includes("itm_1")));
   await t.m.download("itm_1");
   assert.equal(t.m.get("itm_1")!.state, "done", "a download you ask for goes ahead");
@@ -381,7 +383,7 @@ test("a file declared larger than allowed isn't fetched, and one the server decl
   t.items.set("itm_1", detail("itm_1", { media: { ...detail("x").media!, length: MAX_DOWNLOAD_BYTES + 1 } }));
   await t.m.download("itm_1");
   assert.deepEqual(t.files.downloads, []);
-  assert.match(t.m.get("itm_1")!.error!, /over 4 GB/);
+  assert.equal(t.m.get("itm_1")!.error, copy.tooLarge(Math.round(MAX_DOWNLOAD_BYTES / 1024 ** 3)));
   t.items.set("itm_2", detail("itm_2", { media: { ...detail("x").media!, url: `https://cdn.pub.example/a.mp3?size=${80 * MB}`, length: null } }));
   t.m.updateSettings({ limitBytes: 50 * MB });
   t.files.declareSize = true;
@@ -518,7 +520,7 @@ test("what the background job downloaded while the app was closed is adopted: do
   assert.equal((await (await t.m.answer("/api/items/itm_2"))!.json() as ItemDetail).title, "Episode itm_2");
   assert.equal(t.m.usage(), t.m.get("itm_1")!.bytes + 20 * MB + 1000, "counts toward the device's total");
   assert.equal(t.m.get("itm_3")!.state, "failed");
-  assert.match(t.m.get("itm_3")!.error!, /bigger than the space left/);
+  assert.equal(t.m.get("itm_3")!.error, copy.tooLargeAuto);
   assert.equal(t.m.get("itm_4"), undefined);
   assert.equal(t.m.get("itm_5"), undefined, "a record pointing outside its own folder is refused");
   assert.ok(!t.files.names().some((n) => n.startsWith("acc_1/itm_4/") || n.startsWith("acc_1/itm_5/")), "unfinished and damaged folders are swept");

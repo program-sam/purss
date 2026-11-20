@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -21,6 +22,9 @@ import { CHALLENGE, VERIFIER, startClientSite } from "./testing.ts";
 import type { ClientSite } from "./testing.ts";
 
 const HOSTED_CALLBACK = "/api/mcp/auth_callback";
+const { oauthAuthorize, oauthClients } = server.api;
+/** How a refusal to read an assistant's details starts, whatever the reason that follows. */
+const couldNotReadPrefix = (clientId: string) => oauthClients.couldNotRead(new URL(clientId).host, "\u0000").split("\u0000")[0]!;
 
 async function boot(env: Record<string, string> = { PURSS_ASSISTANT_OAUTH: "on" }) {
   // A built page to serve, so the consent page's response headers can be checked.
@@ -216,7 +220,7 @@ test("a read-only grant behaves exactly like a read-only token", async (t) => {
   assert.deepEqual(tools, TOOLS.filter((x) => x.access === "read").map((x) => x.name));
   const write = await mcp(b, tokens.access_token, "tools/call", { name: "create_basket", arguments: { name: "x" } });
   assert.equal(write.json.result.isError, true);
-  assert.match(write.json.result.content[0].text, /can only read/);
+  assert.equal(write.json.result.content[0].text, server.api.mcpTools.readOnlyToken);
   // Asking again on refresh for what was never allowed doesn't widen it.
   const again = await refresh(b, tokens.refresh_token, { scope: "read write" });
   assert.equal(again.json.scope, "read");
@@ -275,7 +279,7 @@ test("an authorization request that repeats a protocol parameter is refused on t
     const s = await raw(extra);
     assert.equal(s.status, 200, s.text);
     assert.deepEqual([s.json.kind, s.json.redirectTo], ["error", null], extra);
-    assert.match(s.json.message, /more than once/, extra);
+    assert.equal(s.json.message, oauthAuthorize.repeatedParameter(extra.split("=")[0]!), extra);
   }
   assert.equal(b.site.hits("/oauth/client.json"), 0, "nothing was fetched for a repeated request");
   // Parameters this server doesn't use are ignored, repeated or not; the summary carries exactly what was read.
@@ -705,47 +709,48 @@ test("client metadata documents: fetched safely, validated, cached; private addr
   await ask(fresh);
   assert.equal(b.site.hits("/fresh.json"), 2);
 
-  const refused = async (clientId: string, pattern: RegExp) => {
+  const refused = async (clientId: string, reason: string | RegExp) => {
     const s = await ask(clientId);
     assert.deepEqual([s.kind, s.redirectTo], ["error", null], clientId);
-    assert.match(s.message, pattern, clientId);
+    if (typeof reason === "string") assert.ok(s.message.includes(reason), `${clientId}: ${s.message}`);
+    else assert.match(s.message, reason, clientId);
   };
   // Private and special-use addresses are never fetched (safeFetch's rules).
-  await refused("https://internal.example/client.json", /isn't on the public internet/);
-  await refused("https://169.254.169.254/latest/meta-data", /isn't on the public internet/);
-  await refused("https://[::1]/client.json", /isn't on the public internet/);
+  await refused("https://internal.example/client.json", oauthClients.notPublic);
+  await refused("https://169.254.169.254/latest/meta-data", oauthClients.notPublic);
+  await refused("https://[::1]/client.json", oauthClients.notPublic);
   // Not an https URL with a path, or not in normal form.
   for (const id of ["http://assistant.example/client.json", `${b.site.origin()}/`, `${b.site.origin()}`, `${b.site.origin()}/a/../client.json`, `${b.site.origin()}/client.json#x`, `${b.site.origin().toUpperCase()}/client.json`]) {
-    await refused(id, /client_id/);
+    await refused(id, oauthClients.noUsableClientId);
   }
   // Oversized (5 kB), redirected, non-200, invalid JSON, wrong client_id inside, secrets: refused, and failures aren't cached.
   b.site.route("/big.json", (_req, res) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ client_id: `${b.site.origin()}/big.json`, redirect_uris: [b.redirect], pad: "x".repeat(6000) })));
-  await refused(`${b.site.origin()}/big.json`, /larger than 5 kB/);
+  await refused(`${b.site.origin()}/big.json`, oauthClients.tooLarge);
   b.site.route("/moved.json", (_req, res) => res.writeHead(302, { location: `${b.site.origin()}/oauth/client.json` }).end());
   await refused(`${b.site.origin()}/moved.json`, /redirect/i);
   b.site.route("/gone.json", (_req, res) => res.writeHead(404).end());
-  await refused(`${b.site.origin()}/gone.json`, /status 404/);
-  await refused(`${b.site.origin()}/gone.json`, /status 404/);
+  await refused(`${b.site.origin()}/gone.json`, oauthClients.answeredWithStatus(new URL(b.site.origin()).host, 404));
+  await refused(`${b.site.origin()}/gone.json`, oauthClients.answeredWithStatus(new URL(b.site.origin()).host, 404));
   assert.equal(b.site.hits("/gone.json"), 2, "failures are not cached");
   b.site.route("/html.json", (_req, res) => res.writeHead(200).end("<html>"));
-  await refused(`${b.site.origin()}/html.json`, /valid JSON/);
+  await refused(`${b.site.origin()}/html.json`, oauthClients.notJson);
   b.site.route("/liar.json", (_req, res) => res.writeHead(200).end(JSON.stringify({ client_id: b.clientId, redirect_uris: [b.redirect] })));
-  await refused(`${b.site.origin()}/liar.json`, /doesn't match/);
-  await refused(b.site.document("/secret.json", { redirect_uris: [b.redirect], client_secret: "s" }), /secret/);
-  await refused(b.site.document("/jwt.json", { redirect_uris: [b.redirect], token_endpoint_auth_method: "private_key_jwt" }), /without a secret/);
-  await refused(b.site.document("/noredirect.json", { redirect_uris: ["cursor://cb", "http://lan.example/cb"] }), /no usable return addresses/);
+  await refused(`${b.site.origin()}/liar.json`, oauthClients.clientIdMismatch);
+  await refused(b.site.document("/secret.json", { redirect_uris: [b.redirect], client_secret: "s" }), oauthClients.containsSecret);
+  await refused(b.site.document("/jwt.json", { redirect_uris: [b.redirect], token_endpoint_auth_method: "private_key_jwt" }), oauthClients.onlyPublicClients);
+  await refused(b.site.document("/noredirect.json", { redirect_uris: ["cursor://cb", "http://lan.example/cb"] }), oauthClients.noReturnAddressesHttps);
 
   // Slow: the site accepts the connection and never answers.
   const started = Date.now();
   b.site.route("/slow.json", () => { /* never answers */ });
-  await refused(`${b.site.origin()}/slow.json`, /too long/);
+  await refused(`${b.site.origin()}/slow.json`, oauthClients.tookTooLong);
   assert.ok(Date.now() - started < 9000, "bounded by the fetch's time limits");
 
   // Names are cleaned, and the host is what the page shows next to them.
   const named = await ask(b.site.document("/named.json", { client_name: "Claude\u202e\u0007 official   assistant", redirect_uris: [b.redirect] }));
   assert.deepEqual([named.clientName, named.clientHost], ["Claude official assistant", new URL(b.clientId).host]);
   // A document must name the client (the MCP profile requires client_name); the host is still shown beside it.
-  await refused(b.site.document("/unnamed.json", { redirect_uris: [b.redirect] }), /don't name the assistant/);
+  await refused(b.site.document("/unnamed.json", { redirect_uris: [b.redirect] }), oauthClients.noAssistantName);
   // A loopback-only client (a program on this computer) is flagged for a warning.
   const local = b.site.document("/local.json", { client_name: "Local", redirect_uris: ["http://localhost/callback"] });
   const localAsk = (await summary(b, authorizeParams(b, { client_id: local, redirect_uri: "http://localhost:51234/callback" }))).json;
@@ -759,7 +764,8 @@ test("without the test hooks, loopback and private addresses are refused before 
     for (const id of ["https://127.0.0.1/client.json", "https://localhost/client.json", "https://10.1.2.3/client.json", "https://[fd00::1]/client.json"]) {
       const r = await resolveClient(id, owner.accountId);
       assert.equal(r.ok, false, id);
-      assert.match((r as { message: string }).message, /public internet|couldn't read/, id);
+      const message = (r as { message: string }).message;
+      assert.ok(message.includes(oauthClients.notPublic) || message.startsWith(couldNotReadPrefix(id)), `${id}: ${message}`);
     }
   } finally {
     cleanup();
@@ -784,7 +790,7 @@ test("client metadata rules on their own", () => {
   for (const client_name of [undefined, "", "   ", "\u202e\u0007", 7, ["Claude"], null]) {
     const r = doc({ client_name, redirect_uris: ["https://a.example/cb"] });
     assert.equal(r.ok, false, JSON.stringify(client_name));
-    assert.match((r as { message: string }).message, /don't name the assistant/);
+    assert.ok((r as { message: string }).message.includes(oauthClients.noAssistantName));
   }
 });
 
@@ -792,10 +798,11 @@ test("client authentication in the metadata document: the methods it declares mu
   const id = "https://assistant.example/client.json";
   const doc = (d: Record<string, unknown>) => parseDocument(id, JSON.stringify({ client_id: id, client_name: "A", redirect_uris: ["https://assistant.example/cb"], ...d }));
   const ok = (d: Record<string, unknown>) => assert.equal(doc(d).ok, true, JSON.stringify(d));
-  const refused = (d: Record<string, unknown>, pattern: RegExp) => {
+  const refused = (d: Record<string, unknown>, ...reasons: string[]) => {
     const r = doc(d);
     assert.equal(r.ok, false, JSON.stringify(d));
-    assert.match((r as { message: string }).message, pattern, JSON.stringify(d));
+    const message = (r as { message: string }).message;
+    assert.ok(reasons.some((reason) => message.includes(reason)), `${JSON.stringify(d)}: ${message}`);
   };
   ok({});
   ok({ token_endpoint_auth_method: "none" });
@@ -807,14 +814,14 @@ test("client authentication in the metadata document: the methods it declares mu
     { token_endpoint_auth_method: "private_key_jwt" },
     { token_endpoint_auth_methods_supported: ["private_key_jwt"] },
     { token_endpoint_auth_methods_supported: [] },
-  ]) refused(d, /without a secret/);
+  ]) refused(d, oauthClients.onlyPublicClients);
   for (const d of [
     { token_endpoint_auth_method: "none", token_endpoint_auth_methods_supported: ["private_key_jwt"] },
     { token_endpoint_auth_method: "private_key_jwt", token_endpoint_auth_methods_supported: ["none"] },
     { token_endpoint_auth_methods_supported: "none" },
     { token_endpoint_auth_methods_supported: ["none", 7] },
     { token_endpoint_auth_method: ["none"] },
-  ]) refused(d, /authentication methods don't agree|aren't a list/);
+  ]) refused(d, oauthClients.authMethodsDisagree, oauthClients.authMethodsNotList);
   // CIMD §4.1: a shared-secret method is not allowed in either property, even next to "none".
   for (const method of ["client_secret_basic", "client_secret_post", "client_secret_jwt"]) {
     for (const d of [
@@ -824,7 +831,7 @@ test("client authentication in the metadata document: the methods it declares mu
       { token_endpoint_auth_methods_supported: ["none", method] },
       { token_endpoint_auth_method: "none", token_endpoint_auth_methods_supported: ["none", method] },
       { token_endpoint_auth_method: method, token_endpoint_auth_methods_supported: [method, "none"] },
-    ]) refused(d, /client secret/);
+    ]) refused(d, oauthClients.clientSecretMethod);
   }
 });
 

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import type { AddressInfo } from "node:net";
 import type { App, Principal } from "../app.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -12,9 +13,11 @@ import { tick } from "../main.ts";
 import { enqueue, leaseJobs } from "../services/jobs.ts";
 import { recordSyncSuccess } from "../services/sync.ts";
 import { getSource, NO_POSTS_YET, retrySource } from "../services/sources.ts";
-import { SUBSCRIBE_RETRY_BACKOFF_SECONDS, subscribeGaveUpText, syncDelaySeconds, syncFailureText } from "../services/failures.ts";
+import { EARLIER_NOT_A_FEED_TEXT, EARLIER_TOO_LARGE_TEXT, SUBSCRIBE_RETRY_BACKOFF_SECONDS, subscribeGaveUpText, syncDelaySeconds, syncFailureText } from "../services/failures.ts";
 import { addSeconds } from "../http.ts";
 import { quickAddFailure } from "@purss/freshrss";
+
+const { failures } = copy.api;
 
 async function boot() {
   const { app, cleanup } = makeTestApp();
@@ -84,8 +87,8 @@ test("a sync that fails for good tells the person why on Home and waits longer e
   const home = await call(b.app, b.pubBase, "GET", "/api/bootstrap", b.session);
   assert.equal(home.status, 200);
   assert.equal(home.json.engine.status, "unavailable");
-  assert.match(home.json.engine.message, /couldn't be saved/, "Home's engine notice says an update couldn't be saved");
-  assert.doesNotMatch(home.json.engine.message, /too large|too big/, "and says nothing about sizes");
+  assert.equal(home.json.engine.message, failures.heldBackNotSaved, "Home's engine notice says an update couldn't be saved");
+  assert.ok(![EARLIER_TOO_LARGE_TEXT, EARLIER_NOT_A_FEED_TEXT].includes(home.json.engine.message), "and says nothing about sizes");
 
   // The maintenance tick leaves a failing sync alone until its wait is over.
   const queuedSync = () => b.app.db.get("SELECT 1 FROM jobs WHERE idempotency_key = ? AND status = 'queued'", `sync:${b.owner.engineUserId}`);
@@ -115,7 +118,7 @@ test("a sync that fails for good tells the person why on Home and waits longer e
   ago(3600 - 5);
   tick(b.app);
   assert.equal(queuedSync(), undefined, "an hour is the longest wait");
-  assert.match(checkpoint(b.app, b.owner.engineUserId)!.last_error!, /couldn't work out/, "an unclassified failure still has words");
+  assert.equal(checkpoint(b.app, b.owner.engineUserId)!.last_error, failures.heldBackUnknown, "an unclassified failure still has words");
 
   recordSyncSuccess(b.app, b.owner.engineUserId);
   const after = checkpoint(b.app, b.owner.engineUserId)!;
@@ -161,7 +164,7 @@ test("a site that limits requests is retried after 1, 5 and 30 minutes, says so,
     const next = row(job.id);
     assert.equal(next.status, "queued");
     assert.ok(Math.abs(Date.parse(next.run_after) - (before + wait * 1000)) < 5000, `waits ${wait} s before the retry`);
-    assert.deepEqual([getSource(b.app, b.owner, id).health, getSource(b.app, b.owner, id).healthText], ["error", "The site is limiting requests; we'll keep trying."]);
+    assert.deepEqual([getSource(b.app, b.owner, id).health, getSource(b.app, b.owner, id).healthText], ["error", failures.siteLimiting]);
     b.app.db.run("UPDATE jobs SET run_after = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), job.id); // the wait passes
   }
   const last = leaseOne(b.app, "engine.subscribe");
@@ -201,13 +204,13 @@ test("a retry brings a waiting retry forward, and only failed sources can be ret
 test("the source says what went wrong when the engine can't follow it for good", async (t) => {
   const b = await boot();
   t.after(b.close);
-  const cases: Array<[string, boolean, RegExp]> = [
-    ["not_found", false, /no feed at that address/],
-    ["refused", false, /refused/],
-    ["too_large", false, /couldn't follow this feed/],
-    ["not_a_feed", false, /not with a feed we can read/],
-    ["unavailable", true, /didn't answer/],
-    ["other", false, /couldn't follow this feed/],
+  const cases: Array<[string, boolean, string]> = [
+    ["not_found", false, failures.noFeedAnyMore],
+    ["refused", false, failures.siteRefused],
+    ["too_large", false, failures.couldNotFollow],
+    ["not_a_feed", false, failures.notAFeed],
+    ["unavailable", true, failures.siteDidNotAnswer],
+    ["other", false, failures.couldNotFollow],
   ];
   for (const [reason, retryable, text] of cases) {
     const id = pendingSource(b.app, b.owner);
@@ -217,7 +220,7 @@ test("the source says what went wrong when the engine can't follow it for good",
     await b.post(`/internal/jobs/${job.id}/fail`, { leaseId: job.leaseId, error: "x", retryable, reason });
     const s = getSource(b.app, b.owner, id);
     assert.equal(s.health, "error", reason);
-    assert.match(s.healthText!, text, reason);
+    assert.equal(s.healthText, text, reason);
   }
 });
 
@@ -236,7 +239,7 @@ test("a site that answers 503 at follow time is retried after 1, 5 and 30 minute
     assert.equal(row(job.id).status, "queued");
     assert.ok(Math.abs(Date.parse(row(job.id).run_after) - (before + wait * 1000)) < 5000, `waits ${wait} s, not seconds`);
     const s = getSource(b.app, b.owner, id);
-    assert.deepEqual([s.health, s.healthText], ["error", "The site isn't answering right now; we'll keep trying."]);
+    assert.deepEqual([s.health, s.healthText], ["error", failures.siteNotAnswering]);
     b.app.db.run("UPDATE jobs SET run_after = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), job.id); // the wait passes
   }
   const last = leaseOne(b.app, "engine.subscribe");
@@ -267,7 +270,7 @@ test("a sync that uses up its attempts through expired leases shows an error and
   assert.equal(queued(), undefined, "the maintenance tick that found it did not queue it again at once");
   const home = await call(b.app, b.pubBase, "GET", "/api/bootstrap", b.session);
   assert.equal(home.json.engine.status, "unavailable");
-  assert.match(home.json.engine.message, /problem we couldn't work out/);
+  assert.equal(home.json.engine.message, failures.heldBackUnknown);
 
   // Each further failure waits longer: 5 minutes after the second.
   b.app.db.run("UPDATE sync_checkpoints SET last_attempt_at = ? WHERE engine_user_id = ?", addSeconds(-(b.app.config.syncIntervalSeconds + 10)), b.owner.engineUserId);

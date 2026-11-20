@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { bytesLabel, clock, dateFormat, dateTime, dayKey, dayTime, dayLabel, formatCount, groupByDay, interfaceLocale, plural, shortDate, timeAgo } from "./format.ts";
 
+const bytes = app.lib.format.bytes;
 const NOW = Date.parse("2026-11-03T09:00:00Z");
 
 test("timeAgo steps from minutes to dates", () => {
@@ -66,9 +68,9 @@ test("other-year dates show the year", () => {
 test("clock and bytes", () => {
   assert.equal(clock(65), "1:05");
   assert.equal(clock(3723), "1:02:03");
-  assert.equal(bytesLabel(500), "500 B");
-  assert.equal(bytesLabel(1536), "1.5 KB");
-  assert.equal(bytesLabel(1_800_000_000), "1.68 GB");
+  assert.equal(bytesLabel(500), bytes.small(500));
+  assert.equal(bytesLabel(1536), `1.5 ${bytes.units[0]}`);
+  assert.equal(bytesLabel(1_800_000_000), `1.68 ${bytes.units[2]}`);
 });
 
 test("counts carry the language's thousands separator, in plain counts and plurals", () => {

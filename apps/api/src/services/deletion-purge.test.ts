@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { newId } from "@purss/domain";
@@ -305,7 +306,7 @@ test("a user missing after an unconfirmed attempt waits for an administrator, wh
   assert.equal((await b.worker(`/internal/deletions/${m.engineUserId}/review`, { jobId: second.id, leaseId: second.leaseId })).status, 200);
   const job = b.app.db.get<{ status: string; last_error: string }>("SELECT status, last_error FROM jobs WHERE id = ?", second.id)!;
   assert.equal(job.status, "failed");
-  assert.match(job.last_error, /Confirm the engine user's data was removed/);
+  assert.equal(job.last_error, server.api.deletion.engineReview);
   assert.ok(b.app.db.get("SELECT 1 FROM accounts WHERE id = ?", m.accountId), "the account isn't finalized");
 
   const as = signIn(b.app, admin.accountId);

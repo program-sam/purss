@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ANDROID_APK, desktopDownloadUrl } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { CHECK_EVERY_MS, createAppUpdates, isNewer, manifestVersion, sourceOf, whereToGet } from "./app-updates.ts";
 import type { AppSource } from "../types.ts";
+
+const t = app.platform.appUpdates;
 
 test("sourceOf: where the app came from decides where its new versions come from", () => {
   assert.equal(sourceOf({ platform: "ios" }), "appstore");
@@ -17,7 +20,7 @@ test("sourceOf: where the app came from decides where its new versions come from
 });
 
 test("whereToGet: the APK's fixed address; the stores only once listed", () => {
-  assert.deepEqual(whereToGet("github"), { name: "GitHub", url: desktopDownloadUrl(ANDROID_APK) });
+  assert.deepEqual(whereToGet("github"), { name: t.github, url: desktopDownloadUrl(ANDROID_APK) });
   assert.equal(whereToGet("fdroid").url, null, "the F-Droid client updates it");
   assert.equal(whereToGet(null).name, "");
 });

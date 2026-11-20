@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { EMPTY_DRAFT, describeQuery, draftToQuery, excludesWorkflow, queryToDraft } from "./query-builder.ts";
+
+const t = app.lib.queryBuilder;
+const workflow = app.lib.constants.workflow;
+const kinds = app.lib.constants.kinds;
 
 test("an empty draft is rejected with a plain message", () => {
   const r = draftToQuery(EMPTY_DRAFT);
@@ -41,32 +46,33 @@ test("filters the builder cannot express are not editable, never rewritten", () 
 const names = { source: (id: string) => (id === "src_a" ? "The Tide Table" : "A source") };
 
 test("a filter reads in plain words: states by their names, words as all-of, kinds as plurals", () => {
-  assert.equal(describeQuery({ field: "workflow", value: ["new", "toread"] }, names, "en-GB"), "Items marked Undecided or To read.");
-  assert.equal(describeQuery({ field: "workflow", value: ["inprogress", "toread", "finished"] }, names, "en-GB"), "Items marked In progress, To read or Finished.");
-  assert.equal(describeQuery({ field: "text", value: "tide, ferry timetable" }, names, "en-GB"), "Items containing all of these words: tide, ferry, timetable.");
-  assert.equal(describeQuery({ field: "text", value: "tide" }, names, "en-GB"), "Items containing “tide”.");
-  assert.equal(describeQuery({ field: "kind", value: ["video", "article"] }, names, "en-GB"), "Items that are videos or articles.");
-  assert.equal(describeQuery({ field: "kept", value: false }, names, "en-GB"), "Items not kept.");
-  assert.equal(describeQuery({ field: "source", value: ["src_a"] }, names, "en-GB"), "Items from The Tide Table.");
-  assert.equal(describeQuery({ field: "date", which: "discovered", from: "2026-01-05", to: "2026-02-01" }, names, "en-GB"), "Items arrived 5 Jan 2026 to 1 Feb 2026.");
-  assert.equal(describeQuery({ field: "date", which: "published", from: "2026-01-05" }, names, "en-GB"), "Items published from 5 Jan 2026.");
-  assert.equal(describeQuery({ all: [{ field: "text", value: "a" }, { field: "workflow", value: ["toread"] }] }, names, "en-GB"), "Items containing “a”, marked To read.");
-  assert.equal(describeQuery({ any: [{ field: "text", value: "a" }, { field: "text", value: "b" }] }, names), "A custom filter.");
-  assert.equal(describeQuery(null, names), "Everything.");
+  assert.equal(describeQuery({ field: "workflow", value: ["new", "toread"] }, names, "en-GB"), t.items([t.marked(t.joinOr([workflow.new, workflow.toread]))]));
+  assert.equal(describeQuery({ field: "workflow", value: ["inprogress", "toread", "finished"] }, names, "en-GB"), t.items([t.marked(t.joinOr([workflow.inprogress, workflow.toread, workflow.finished]))]));
+  assert.equal(describeQuery({ field: "text", value: "tide, ferry timetable" }, names, "en-GB"), t.items([t.containingAll(["tide", "ferry", "timetable"])]));
+  assert.equal(describeQuery({ field: "text", value: "tide" }, names, "en-GB"), t.items([t.containing("tide")]));
+  assert.equal(describeQuery({ field: "kind", value: ["video", "article"] }, names, "en-GB"), t.items([t.thatAre(t.joinOr([t.kindPlural(kinds.video), t.kindPlural(kinds.article)]))]));
+  assert.equal(describeQuery({ field: "kept", value: false }, names, "en-GB"), t.items([t.notKept]));
+  assert.equal(describeQuery({ field: "source", value: ["src_a"] }, names, "en-GB"), t.items([t.from(["The Tide Table"])]));
+  assert.equal(describeQuery({ field: "date", which: "discovered", from: "2026-01-05", to: "2026-02-01" }, names, "en-GB"), t.items([t.dateRange(t.basis.discovered, "5 Jan 2026", "1 Feb 2026")]));
+  assert.equal(describeQuery({ field: "date", which: "published", from: "2026-01-05" }, names, "en-GB"), t.items([t.dateFrom(t.basis.published, "5 Jan 2026")]));
+  assert.equal(describeQuery({ all: [{ field: "text", value: "a" }, { field: "workflow", value: ["toread"] }] }, names, "en-GB"), t.items([t.containing("a"), t.marked(t.joinOr([workflow.toread]))]));
+  assert.equal(describeQuery({ any: [{ field: "text", value: "a" }, { field: "text", value: "b" }] }, names), t.custom);
+  assert.equal(describeQuery(null, names), t.everything);
 });
 
 test("the filter heading never shows a stored state name", () => {
   for (const w of ["new", "toread", "inprogress", "finished", "ignored"] as const) {
     const text = describeQuery({ field: "workflow", value: [w] }, names, "en-GB");
-    assert.doesNotMatch(text, /\b(new|toread|inprogress)\b/, text);
+    assert.equal(text, t.items([t.marked(t.joinOr([workflow[w]]))]), w);
+    assert.notEqual(workflow[w], w, "the state is named by its label");
   }
 });
 
 test("a collection's own filter can leave a state out, and says why", () => {
   const onlyToRead: Parameters<typeof excludesWorkflow>[0] = { mode: "query", query: { field: "workflow", value: ["toread"] } };
-  assert.equal(excludesWorkflow(onlyToRead, "finished"), "this collection only shows items marked To read");
+  assert.equal(excludesWorkflow(onlyToRead, "finished"), t.onlyShowsMarked(t.joinOr([workflow.toread])));
   assert.equal(excludesWorkflow(onlyToRead, "toread"), null);
-  assert.equal(excludesWorkflow({ mode: "query", query: { field: "workflow", value: ["new", "toread"] } }, "ignored"), "this collection only shows items marked Undecided or To read");
+  assert.equal(excludesWorkflow({ mode: "query", query: { field: "workflow", value: ["new", "toread"] } }, "ignored"), t.onlyShowsMarked(t.joinOr([workflow.new, workflow.toread])));
   assert.equal(excludesWorkflow({ mode: "query", query: { field: "text", value: "tide" } }, "finished"), null);
   assert.equal(excludesWorkflow({ mode: "sources", query: null }, "finished"), null);
   assert.equal(excludesWorkflow({ mode: "query", query: { any: [{ field: "text", value: "a" }, { field: "text", value: "b" }] } }, "finished"), null, "a filter the builder cannot read is left alone");

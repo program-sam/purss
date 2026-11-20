@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { bridgeService, parseBridgeDescriptor } from "./bridges.ts";
 import { crossrefWorksToRss, crossrefWorksUrl, findCrossrefJournal, issnFromInput, issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 import { CROSSREF_NOTE, CROSSREF_VIA, discover } from "./discover.ts";
@@ -62,7 +63,7 @@ test("a Crossref record without an online day is dated by its registration; one 
 });
 
 test("an ISSN with no works is named by its ISSN; an answer that isn't a list of works is an error, never an empty feed", () => {
-  assert.equal(parseFeed(Buffer.from(crossrefWorksToRss({ message: { items: [] } }, "15348687")), "application/rss+xml").title, "ISSN 1534-8687");
+  assert.equal(parseFeed(Buffer.from(crossrefWorksToRss({ message: { items: [] } }, "15348687")), "application/rss+xml").title, server.sources.connectors.crossref.issnTitle("1534-8687"));
   assert.throws(() => crossrefWorksToRss({ message: { error: "x" } }, "15348687"));
   assert.equal(crossrefWorksUrl("15348687"), "https://api.crossref.org/journals/1534-8687/works?sort=created&order=desc&rows=40&select=DOI,title,subtitle,author,abstract,created,published-online,type,container-title");
 });

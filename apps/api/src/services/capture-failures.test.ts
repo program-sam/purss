@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -13,6 +14,8 @@ import { holdCandidate } from "./discovery-cache.ts";
 import { followSchema } from "@purss/domain";
 import { completeCapture, failCapture, queueCapture, retryCapture } from "./captures.ts";
 import { keepLink } from "./links.ts";
+
+const { notifications } = server.api;
 
 type Owner = Principal & { engineUserId: string };
 
@@ -63,7 +66,7 @@ test("a source's failed texts are one named notification for the day that counts
   runProblemCheck(app, p.workspaceId, p.accountId, NOW);
 
   const rows = bell(app, p);
-  assert.deepEqual(rows.map((n) => n.title).sort(), ["Couldn't save the text of 2 items from A family blog", "Couldn't save the text of 3 items from r/Genealogy"],
+  assert.deepEqual(rows.map((n) => n.title).sort(), [notifications.captureFailedFromSource(2, "A family blog"), notifications.captureFailedFromSource(3, "r/Genealogy")],
     "one row per source, named, counting the five different items once each");
   const bySource = new Map(rows.map((n) => [n.sourceId, n]));
   assert.equal(bySource.get(reddit)!.listFilter, "capture-failed");
@@ -84,7 +87,7 @@ test("Never still announces readable text that failed to save", (t) => {
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
   failed(app, p, item!, minutes(-5));
   assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, NOW), 1);
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Journal"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
 });
 
 test("a later failure the same day grows that day's notification and makes it unread; the next day is a new row", (t) => {
@@ -95,17 +98,17 @@ test("a later failure the same day grows that day's notification and makes it un
   const [a, b, c] = items(app, p, src, "feed/1", 3);
   failed(app, p, a!, minutes(-60));
   runProblemCheck(app, p.workspaceId, p.accountId, minutes(-50));
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Journal"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
   app.db.run("UPDATE notifications SET read_at = ?", NOW.toISOString());
 
   failed(app, p, b!, minutes(-30));
   runProblemCheck(app, p.workspaceId, p.accountId, minutes(-20));
-  assert.deepEqual(bell(app, p).map((n) => [n.title, n.read]), [["Couldn't save the text of 2 items from Journal", false]], "the same row, grown and unread again");
+  assert.deepEqual(bell(app, p).map((n) => [n.title, n.read]), [[notifications.captureFailedFromSource(2, "Journal"), false]], "the same row, grown and unread again");
 
   const tomorrow = new Date(NOW.getTime() + 24 * 3_600_000);
   failed(app, p, c!, new Date(tomorrow.getTime() - 60_000));
   runProblemCheck(app, p.workspaceId, p.accountId, tomorrow);
-  assert.deepEqual(bell(app, p).map((n) => n.title).sort(), ["Couldn't save the text of 1 item from Journal", "Couldn't save the text of 2 items from Journal"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title).sort(), [notifications.captureFailedFromSource(1, "Journal"), notifications.captureFailedFromSource(2, "Journal")]);
 });
 
 test("only where the person turned text saving on: a source with full articles, or a basket that keeps text", (t) => {
@@ -123,7 +126,7 @@ test("only where the person turned text saving on: a source with full articles, 
 
   failed(app, p, inTextBasket!, minutes(-5));
   runProblemCheck(app, p.workspaceId, p.accountId, NOW);
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Plain"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Plain")]);
 
   // Turned off again, a new failure on an item no text basket holds is not news.
   app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", plain);
@@ -131,7 +134,7 @@ test("only where the person turned text saving on: a source with full articles, 
   app.db.run("UPDATE sources SET full_text = 0 WHERE id = ?", plain);
   failed(app, p, fresh!, minutes(-1));
   runProblemCheck(app, p.workspaceId, p.accountId, minutes(1));
-  assert.equal(bell(app, p)[0]!.title, "Couldn't save the text of 1 item from Plain");
+  assert.equal(bell(app, p)[0]!.title, notifications.captureFailedFromSource(1, "Plain"));
 });
 
 test("an item that has a copy by now, or a muted source, is not news; kept links have no source to name", (t) => {
@@ -144,7 +147,7 @@ test("an item that has a copy by now, or a muted source, is not news; kept links
   app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at, completed_at) VALUES ('cap_ok', ?, ?, 'fulltext', 'done', ?, ?)", p.workspaceId, recovered!, minutes(-5).toISOString(), minutes(-5).toISOString());
   failed(app, p, stillFailed!, minutes(-10));
   runProblemCheck(app, p.workspaceId, p.accountId, NOW);
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Journal"], "the item that now has its text is left out");
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")], "the item that now has its text is left out");
   assert.deepEqual(listItems(app, p, { scope: "all", capture: "failed" }).items.map((i) => i.id), [stillFailed], "and is not in the filtered list either");
 
   const noisy = makeSource(app, p, "Noisy", "feed/noisy");
@@ -166,7 +169,7 @@ test("a kept link has no feed to open: its notification names the basket and ope
   failed(app, p, b!, minutes(-4));
   runProblemCheck(app, p.workspaceId, p.accountId, NOW);
   const row = bell(app, p).find((n) => n.listFilter === "capture-failed")!;
-  assert.equal(row.title, "Couldn't save the text of 2 kept links in Pages");
+  assert.equal(row.title, notifications.captureFailedInBasket(2, true, "Pages"));
   assert.equal(row.sourceId, null, "the Saved links source is not a page of its own");
   assert.equal(row.basketId, pages);
   assert.deepEqual(listItems(app, p, { scope: `basket:${row.basketId}`, capture: "failed" }).items.map((i) => i.id).sort(), [a, b].sort());
@@ -181,7 +184,7 @@ test("a kept link has no feed to open: its notification names the basket and ope
   failed(app, p, c!, minutes(-3));
   runProblemCheck(app, p.workspaceId, p.accountId, minutes(1));
   const unfollowed = bell(app, p).find((n) => n.basketId === more)!;
-  assert.equal(unfollowed.title, "Couldn't save the text of 1 kept item in More");
+  assert.equal(unfollowed.title, notifications.captureFailedInBasket(1, false, "More"));
   assert.equal(unfollowed.sourceId, null);
 });
 
@@ -201,7 +204,7 @@ test("a readable copy asked for on one link counts, in a basket that keeps only 
   await keepLink(app, p, { url: "https://plain.example/b", basketId: details }, async () => null);
   failed(app, p, b!, minutes(-5));
   runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 60_000));
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Plain"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Plain")]);
 });
 
 test("a link of a private source is not fetched for its readable text, however it is kept", async (t) => {
@@ -214,7 +217,7 @@ test("a link of a private source is not fetched for its readable text, however i
   const kept = await keepLink(app, p, { url: "https://secret.example/post/1", basketId: basket, readableText: true }, async () => null);
   assert.equal(kept.itemId, item);
   assert.equal(kept.captureQueued, false);
-  assert.match(kept.captureNote ?? "", /private sources/);
+  assert.equal(kept.captureNote, server.api.links.noPrivateCopies);
   assert.equal(app.db.get("SELECT 1 FROM captures WHERE item_id = ?", item), undefined, "no copy was made");
   assert.equal(app.db.get("SELECT 1 FROM jobs WHERE kind = 'capture.fulltext'"), undefined, "and nothing is queued for the worker");
   assert.ok(app.db.get("SELECT 1 FROM basket_items WHERE item_id = ?", item), "the link itself is kept");
@@ -258,7 +261,7 @@ test("a try again that fails after a partial copy is told about and listed, like
   app.db.tx(() => failCapture(app, again, "The page couldn't be captured."));
 
   runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 1000));
-  assert.deepEqual(bell(app, p).map((n) => n.title), ["Couldn't save the text of 1 item from Journal"]);
+  assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [item]);
   // An item that only has a partial copy, and nothing failed, is neither.
   const other = createBasket(app, p, { name: "More", captureMode: "text" }).id;

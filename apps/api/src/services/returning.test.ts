@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { server } from "@purss/copy/server";
 import { Database } from "../db/database.ts";
 import { OTHER_BOX_ID, newId } from "@purss/domain";
 import type { Preferences, SyncEntry } from "@purss/domain";
@@ -25,6 +26,7 @@ import { homeOverview, touchVisit } from "./home.ts";
 import { expireFreshMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
 import { activityFor } from "./activity.ts";
 
+const { activity, notifications, mailTemplates, shared, sources } = server.api;
 const DAY = 86_400_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const ahead = (ms: number) => new Date(Date.now() + ms).toISOString();
@@ -71,7 +73,7 @@ test("a source's back catalogue is not New and tells no one; what comes after is
   assert.equal(fresh(app, byUrl(old)), false, "published before the follow");
   assert.equal(fresh(app, byUrl(undated)), false, "undated entries on the first sync were already there");
   assert.equal(fresh(app, byUrl(newer)), true, "published after the follow");
-  assert.deepEqual(notes(app).map((n) => n.title), ["New from Old podcast"], "one notification, for the one New item");
+  assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Old podcast")], "one notification, for the one New item");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
   assert.equal(settled(app, src), null, "this walk began before anything said the source was ready: the next one settles it");
 
@@ -127,7 +129,7 @@ test("a feed that starts empty is settled too: its first genuinely new undated e
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 0);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
-  assert.deepEqual(notes(app).map((n) => n.title), ["New from Slow start"]);
+  assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Slow start")]);
 });
 
 test("a walk that ended before a source was ready does not settle it, and the boundary is kept in the database", (t) => {
@@ -524,7 +526,7 @@ test("Home lists of scopes that are not a set of sources keep Home's filter and 
   assert.deepEqual(listItems(app, p, { scope: "toread", filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
   const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
   assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
-  assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), /doesn't exist/);
+  assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), { message: server.api.http.notFound(shared.thatCollection) });
 });
 
 // ---------- F34 pause for a while ----------
@@ -540,7 +542,7 @@ test("pausing for a week or a month ends by itself; pausing until resumed does n
   const f = patchSource(app, p, forever, { paused: true });
   assert.equal(w.paused, true);
   assert.ok(Math.abs(Date.parse(w.pausedUntil!) - (Date.now() + 7 * DAY)) < 5000);
-  assert.match(w.healthText!, /Paused until/);
+  assert.equal(w.healthText, sources.pausedUntilNote(new Date(w.pausedUntil!).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })));
   assert.equal(f.pausedUntil, null);
 
   assert.equal(resumePausedSources(app, new Date(Date.now() + 3 * DAY)), 0);
@@ -570,10 +572,10 @@ test("a 'Notify me' source's arrivals within the hour share one notification tha
   const chatty = makeSource(app, p, "Chatty", "feed/1");
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", chatty);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
-  assert.deepEqual(notes(app).map((n) => n.title), ["New from Chatty"]);
+  assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Chatty")]);
   app.db.run("UPDATE notifications SET read_at = ?", nowIso());
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
-  assert.deepEqual(notes(app).map((n) => [n.title, n.read_at]), [["3 new from Chatty", null]], "one notification, unread again");
+  assert.deepEqual(notes(app).map((n) => [n.title, n.read_at]), [[notifications.newCountFrom(3, "Chatty"), null]], "one notification, unread again");
   // An hour later it starts a new one.
   app.db.run("UPDATE notifications SET created_at = ?", ago(61 * 60_000));
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
@@ -610,8 +612,8 @@ test("with a daily digest, arrivals wait and one digest counts what is still New
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-04T07:00:00.000Z")), false, "before 08:00 nothing is due");
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T08:05:00.000Z")), true);
   const [digest] = notes(app);
-  assert.equal(digest!.title, "Your daily digest: 4 new in 2 collections");
-  assert.equal(digest!.body, "Reading: 3 new\nOther sources: 1 new", "no titles while previews are off; hidden and muted left out");
+  assert.equal(digest!.title, notifications.digestTitle("daily", 4, notifications.collections(2)));
+  assert.equal(digest!.body, [notifications.digestLine("Reading", 3, ""), notifications.digestLine(shared.otherSources, 1, "")].join("\n"), "no titles while previews are off; hidden and muted left out");
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T09:00:00.000Z")), false, "one per day");
   assert.equal(notes(app).length, 1);
 
@@ -716,7 +718,7 @@ test("a weekly digest is made once, on or after its day", (t) => {
   addItem(app, p, src, { discoveredAt: "2026-11-01T10:00:00.000Z" });
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-01T12:00:00.000Z")), false, "Sunday: Monday has not come");
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T12:00:00.000Z")), true, "Thursday: Monday's digest, late, still comes");
-  assert.match(notes(app)[0]!.title, /^Your weekly digest: 1 new in/);
+  assert.equal(notes(app)[0]!.title, notifications.digestTitle("weekly", 1, notifications.yourOtherSources));
   assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-06T12:00:00.000Z")), false);
 });
 
@@ -750,15 +752,15 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   await week(3, "2026-10-26");
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.to, "me@example.org");
-  assert.equal(sent[0]!.subject, "Your weekly digest: 2 new in 1 collection");
+  assert.equal(sent[0]!.subject, notifications.digestTitle("weekly", 2, notifications.collections(1)));
   assert.match(sent[0]!.text, /^Reading: 2 new$/m);
   assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/"), "the link to Home is a line of its own");
   assert.ok(sent[0]!.text.split("\n").includes("https://ws.example.org/app/?dialog=notifications"), "and so is the link to the setting that stops them");
   const openId = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'Open post 3'")!.id;
-  assert.match(sent[0]!.text, /^- Open post 3 \(Open · 2 hours ago\)$/m);
+  assert.ok(sent[0]!.text.split("\n").includes(`- Open post 3 (Open · ${notifications.hoursAgo(2)})`));
   assert.ok(sent[0]!.text.split("\n").includes(`  https://ws.example.org/app/i/${app.db.get<{ number: number }>("SELECT number FROM items WHERE id = ?", openId)!.number}`), "each teaser links to its item");
   assert.match(sent[0]!.html, /Open post 3/);
-  assert.match(sent[0]!.html, /1 more in Reading/, "the private item is counted, not shown");
+  assert.ok(sent[0]!.html.includes(mailTemplates.digestMoreIn(1, "Reading")), "the private item is counted, not shown");
   assert.ok(!/Patron/.test(sent[0]!.text) && !/Patron/.test(sent[0]!.html), "a private source's titles never go by email");
   assert.ok(!/post/.test(notes(app).at(-1)!.body ?? ""), "the bell's digest has no titles while titles are off");
 
@@ -823,7 +825,7 @@ test("a source that stops working is told about once for that failure, however o
   const at = (min: number) => new Date(Date.UTC(2026, 10, 5, 10, 0) + min * 60_000);
   app.db.run("UPDATE sources SET health = 'error', health_text = 'The site refused us.' WHERE id = ?", src);
   assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(0)), 1);
-  assert.deepEqual(notes(app).map((n) => [n.kind, n.title, n.body]), [["source", "Broken isn't working", "The site refused us."]]);
+  assert.deepEqual(notes(app).map((n) => [n.kind, n.title, n.body]), [["source", notifications.sourceNotWorking("Broken"), "The site refused us."]]);
   for (let i = 1; i <= 50; i++) runProblemCheck(app, p.workspaceId, p.accountId, at(i * 5));
   assert.equal(notes(app).length, 1, "every five minutes for four hours: still one");
   // Pruning (or deleting) the notification does not make it come back.
@@ -859,7 +861,7 @@ test("a failed text save is told about once; a new attempt that fails is told ab
   failure("cap2", new Date(now.getTime() - 120_000).toISOString());
   failure("old", new Date(now.getTime() - 3 * DAY).toISOString());
   assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, now), 1);
-  assert.deepEqual(notes(app).map((n) => n.title), ["Couldn't save the text of 1 item from S"], "two attempts on one item are one item; the one from three days ago is not news");
+  assert.deepEqual(notes(app).map((n) => n.title), [notifications.captureFailedFromSource(1, "S")], "two attempts on one item are one item; the one from three days ago is not news");
   for (let i = 1; i <= 30; i++) runProblemCheck(app, p.workspaceId, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
   app.db.run("DELETE FROM notifications");
   for (let i = 31; i <= 40; i++) runProblemCheck(app, p.workspaceId, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
@@ -872,7 +874,7 @@ test("a failed text save is told about once; a new attempt that fails is told ab
   assert.equal(notes(app).length, 0, "pending is not a failure");
   app.db.run("UPDATE captures SET status = 'failed', completed_at = ? WHERE id = 'cap1'", new Date(later.getTime() - 500).toISOString());
   runProblemCheck(app, p.workspaceId, p.accountId, later);
-  assert.deepEqual(notes(app).map((n) => n.title), ["Couldn't save the text of 1 item from S"]);
+  assert.deepEqual(notes(app).map((n) => n.title), [notifications.captureFailedFromSource(1, "S")]);
 
   setPreferences(app, p.workspaceId, { notifications: { include: { captures: false } } });
   failure("cap3", new Date(later.getTime() + 1000).toISOString());
@@ -951,7 +953,7 @@ test("only a source set to 'Notify me' tells as items arrive, with a digest or w
   assert.deepEqual(notes(app).map((n) => n.source_id), [loud]);
   setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
-  assert.deepEqual(notes(app).map((n) => [n.source_id, n.title]), [[loud, "2 new from Loud"]]);
+  assert.deepEqual(notes(app).map((n) => [n.source_id, n.title]), [[loud, notifications.newCountFrom(2, "Loud")]]);
 });
 
 // ---------- the pass, and tenant isolation ----------
@@ -985,7 +987,7 @@ test("a PURSS's Home, digest and activity never include another's", (t) => {
   changeState(app, other, secret, { workflow: "toread", expectedRevision: 0 });
   app.db.run("UPDATE workspaces SET last_visit_at = ? WHERE id = ?", ago(DAY), p.workspaceId);
   const o = homeOverview(app, p);
-  assert.deepEqual(o.since!.boxes.map((b) => b.name), ["Other sources"]);
+  assert.deepEqual(o.since!.boxes.map((b) => b.name), [shared.otherSources]);
   assert.equal(o.since!.total, 1);
   assert.equal(o.toRead.total, 0);
   assert.deepEqual(listItems(app, p, { scope: "home", filter: "new", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
@@ -1018,8 +1020,8 @@ test("activity: checking, setting up, saving text, what arrived and what went wr
   assert.deepEqual([fine.arrived, fine.note], [2, null]);
   assert.equal(busy.sources.find((s) => s.id === bad)!.note, "The site refused us.");
   assert.equal(busy.sources.find((s) => s.id === bad)!.lastCheckedAt, null);
-  assert.ok(busy.events.some((e) => e.kind === "arrived" && e.text === "2 new items from Fine"));
-  assert.ok(busy.events.some((e) => e.kind === "problem" && e.text.startsWith("Bad:")));
+  assert.ok(busy.events.some((e) => e.kind === "arrived" && e.text === activity.arrived(2, "Fine")));
+  assert.ok(busy.events.some((e) => e.kind === "problem" && e.text === activity.sourceProblem("Bad", "The site refused us.")));
 });
 
 // ---------- queries stay on their indexes ----------

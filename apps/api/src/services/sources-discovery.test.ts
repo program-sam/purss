@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { SafeFetchResult } from "@purss/connectors";
+import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { keepLink } from "./links.ts";
@@ -119,5 +120,5 @@ test("podcast search: Apple's directory answers with shows, and a failure says s
   assert.deepEqual(ok.hits.map((h) => [h.name, h.author, h.artworkUrl]), [["Football Weekly", "The Guardian", "https://is1.example/100.jpg"]]);
   const down = await searchPodcastDirectory("football weekly", { fetch: async (url) => fakeResponse(url, "oops", "text/html", 503) });
   assert.ok(!down.ok);
-  assert.match(down.message, /Apple's podcast directory/);
+  assert.ok(down.message.includes(server.sources.connectors.podcastSearch.directory));
 });

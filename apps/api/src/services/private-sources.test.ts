@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { server } from "@purss/copy/server";
 import { newId } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -17,6 +18,7 @@ import { writeSecret } from "../secrets.ts";
 import { reconnectSource } from "./portability.ts";
 
 const SECRET = "https://feeds.example/private/3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c/feed.xml";
+const { sources } = server.api;
 const base = { collectionId: null, newCollectionName: null, fullText: false };
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
@@ -57,9 +59,9 @@ test("a followed source's link can be kept private afterwards, and shown again o
   assert.equal(presentCandidates(app, p, [draft(link)])[0]!.alreadyFollowingSourceId, id, "still found again by its fingerprint");
 
   // The feed can't be reached: nothing changes.
-  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: false, url, reason: "unreachable", message: "down" })), /stays private/);
+  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: false, url, reason: "unreachable", message: "down" })), { message: sources.feedUnreachable });
   // A feed found there that isn't this link is not taken for it.
-  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: true, url, candidates: [{ ...draft("https://journals.example/other.xml"), privateWarning: null, alreadyFollowingSourceId: null }] })), /stays private/);
+  await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: true, url, candidates: [{ ...draft("https://journals.example/other.xml"), privateWarning: null, alreadyFollowingSourceId: null }] })), { message: sources.feedUnreachable });
   assert.equal(row().is_private, 1);
 
   let looked = "";
@@ -87,7 +89,7 @@ test("changing a link's privacy keeps waiting subscriptions working and stops wh
   assert.equal(subscribeLink(), `secret:source-urls/${followed}`);
   const found = async (url: string) => ({ ok: true as const, url, candidates: [{ ...draft(url), privateWarning: null, alreadyFollowingSourceId: null }] });
   app.db.run("UPDATE jobs SET status = 'leased' WHERE kind = 'engine.subscribe'");
-  await assert.rejects(setSourcePrivacy(app, p, followed, false, found), /still being set up/, "not while a worker holds the link's file");
+  await assert.rejects(setSourcePrivacy(app, p, followed, false, found), { message: sources.stillSettingUp }, "not while a worker holds the link's file");
   app.db.run("UPDATE jobs SET status = 'queued' WHERE kind = 'engine.subscribe'");
   await setSourcePrivacy(app, p, followed, false, found);
   assert.equal(subscribeLink(), SECRET);
@@ -133,13 +135,13 @@ test("a source without a link of its own, or whose link was lost, can't change i
   const lost = makeSource(app, p, "Lost link", "feed/lost", { kind: "private", isPrivate: true });
   app.db.run("UPDATE sources SET health = 'reconnect' WHERE id = ?", lost);
   assert.equal(getSource(app, p, lost).privacyChangeable, false);
-  await assert.rejects(setSourcePrivacy(app, p, lost, false, () => assert.fail("nothing to look up")), /Reconnect it first/);
+  await assert.rejects(setSourcePrivacy(app, p, lost, false, () => assert.fail("nothing to look up")), { message: sources.needsLinkAgain });
   const bridged = makeSource(app, p, "Bridged", "feed/bridged");
   app.db.run("UPDATE sources SET feed_url = 'bridge:telegram/durov' WHERE id = ?", bridged);
   assert.equal(getSource(app, p, bridged).privacyChangeable, false);
-  await assert.rejects(setSourcePrivacy(app, p, bridged, true), /no link of its own/);
+  await assert.rejects(setSourcePrivacy(app, p, bridged, true), { message: sources.noOwnLink });
   const q = makeOwner(app, { admin: false });
-  await assert.rejects(setSourcePrivacy(app, q, makeSource(app, p, "Theirs", "feed/theirs"), true), /not found|That source/i, "another account's source");
+  await assert.rejects(setSourcePrivacy(app, q, makeSource(app, p, "Theirs", "feed/theirs"), true), { message: server.api.http.notFound(server.api.shared.thatSource) }, "another account's source");
 });
 
 test("a private link's file goes when following fails after it was written; nothing is left for a deletion to miss", (t) => {

@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { MenuEntry } from "@purss/ui";
+import { app } from "@purss/copy/app";
 import { defaultFilterFor, filterChoices, filterFor, filterLabel, filterParam, isNarrowed, listFilters, typeLengthEntries, typeLengthSummary, typesParam } from "./list-filters.ts";
 import type { ListState } from "../pages/list-state.ts";
+
+const l = app.lib.listFilters;
+const c = app.lib.constants;
+const shortLabel = (length: "short" | "long") => l.lengths[length].split(" (")[0]!;
 
 const state = (over: Partial<ListState> = {}): ListState => ({
   scope: "all", view: "list", modes: ["list"], filter: "active", defaultFilter: "active", sort: "newest", source: undefined, without: undefined, types: [], length: undefined, showMuted: false, captureFailed: false, itemId: undefined, ...over,
@@ -20,21 +25,21 @@ test("the filter menu offers Type as checks and Length as one choice, and change
   const calls: Record<string, unknown>[] = [];
   const entries = typeLengthEntries(state({ types: ["videos"], length: "long" }), (p) => calls.push(p));
   const labelled = entries.filter((e): e is Extract<MenuEntry, { label: string }> => "label" in e);
-  assert.deepEqual(labelled.map((e) => e.label), ["Type", "Articles", "Videos", "Podcasts", "Length", "Any length", "Short (up to 5 min)", "Long (over 5 min)"]);
+  assert.deepEqual(labelled.map((e) => e.label), [l.typeHeading, l.types.articles, l.types.videos, l.types.podcasts, l.lengthHeading, l.anyLength, l.lengths.short, l.lengths.long]);
   const pick = (label: string) => (labelled.find((e) => e.label === label) as Extract<MenuEntry, { type: "check" | "radio" }>);
-  assert.deepEqual([pick("Videos").on, pick("Articles").on, pick("Long (over 5 min)").on, pick("Any length").on], [true, false, true, false]);
-  pick("Podcasts").onSelect();
-  pick("Videos").onSelect();
-  pick("Short (up to 5 min)").onSelect();
-  pick("Any length").onSelect();
+  assert.deepEqual([pick(l.types.videos).on, pick(l.types.articles).on, pick(l.lengths.long).on, pick(l.anyLength).on], [true, false, true, false]);
+  pick(l.types.podcasts).onSelect();
+  pick(l.types.videos).onSelect();
+  pick(l.lengths.short).onSelect();
+  pick(l.anyLength).onSelect();
   assert.deepEqual(calls, [{ type: "videos,podcasts" }, { type: undefined }, { length: "short" }, { length: undefined }]);
 });
 
 test("the filter button says which type and length are chosen", () => {
   assert.equal(typeLengthSummary(state()), "");
-  assert.equal(typeLengthSummary(state({ types: ["videos", "podcasts"] })), "Videos, Podcasts");
-  assert.equal(typeLengthSummary(state({ types: ["videos"], length: "short" })), "Videos, Short");
-  assert.equal(typeLengthSummary(state({ length: "long" })), "Long");
+  assert.equal(typeLengthSummary(state({ types: ["videos", "podcasts"] })), `${l.types.videos}, ${l.types.podcasts}`);
+  assert.equal(typeLengthSummary(state({ types: ["videos"], length: "short" })), `${l.types.videos}, ${shortLabel("short")}`);
+  assert.equal(typeLengthSummary(state({ length: "long" })), shortLabel("long"));
 });
 
 test("the types in an address are read in one fixed order, and anything else is dropped", () => {
@@ -68,11 +73,11 @@ test("a basket has no Ignored: it shows everything kept in it, ignored or not", 
   assert.equal(filterFor(b, "toread", "all"), "toread");
   assert.ok(!filterChoices(b).includes("ignored"));
   assert.ok(!filterChoices(b).includes("active"));
-  assert.equal(filterLabel(b, "all"), "All");
+  assert.equal(filterLabel(b, "all"), c.filters.active);
   const s = { t: "s", id: "src_1" } as const;
   assert.equal(filterFor(s, "ignored", "active"), "ignored");
   assert.ok(filterChoices(s).includes("ignored"));
-  assert.equal(filterLabel(s, "all"), "All + ignored");
+  assert.equal(filterLabel(s, "all"), c.filters.all);
 });
 
 test("a chosen filter stays in the address unless it is the page's default", () => {
@@ -91,6 +96,6 @@ test("the queue page offers the filters that can show something: what is waiting
   assert.equal(filterFor(r, "all", "active"), "active");
   assert.equal(filterFor(r, undefined, "active"), "active");
   assert.equal(defaultFilterFor(r, "list", 5), "active");
-  assert.equal(filterLabel(r, "active"), "All");
-  assert.equal(filterLabel(r, "inprogress"), "In progress");
+  assert.equal(filterLabel(r, "active"), c.filters.active);
+  assert.equal(filterLabel(r, "inprogress"), c.filters.inprogress);
 });

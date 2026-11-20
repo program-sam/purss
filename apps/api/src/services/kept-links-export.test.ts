@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
+import { escapeRegExp, inHtml } from "../copy-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { listItems } from "./items.ts";
@@ -9,6 +11,10 @@ import { keepItem } from "./state.ts";
 import { applySyncBatch } from "./sync.ts";
 
 const NOW = new Date("2026-11-05T10:00:00Z");
+const { keptLinksExport } = server.api;
+/** The catalog's "kept <date>" and "published <date>" as the page and the list write them, for a regular expression (the kept date is the day the test ran). */
+const KEPT = escapeRegExp(inHtml(keptLinksExport.kept("\u0000"))).replace("\u0000", String.raw`\d{4}-\d{2}-\d{2}`);
+const PUBLISHED = escapeRegExp(inHtml(keptLinksExport.published("2026-10-01")));
 
 async function fixture() {
   const { app, cleanup } = makeTestApp();
@@ -35,14 +41,14 @@ test("the HTML list names every basket, links each kept item to its original and
   const html = [...keptLinksChunks(app, p, "html", NOW)].join("");
   assert.match(html, /^<!doctype html>/);
   assert.match(html, /<meta charset="utf-8">/);
-  assert.match(html, /<h1>Kept links<\/h1>/);
-  assert.match(html, /Exported 2026-11-05\. The links go to the original pages, which may change or disappear\. What you kept is also saved in your PURSS\./);
+  assert.ok(html.includes(`<h1>${keptLinksExport.heading}</h1>`));
+  assert.ok(html.includes(`${keptLinksExport.exported("2026-11-05")} ${inHtml(keptLinksExport.note)}`));
   assert.match(html, /<h2 dir="auto">To read &lt;later&gt;<\/h2>/, "basket names are escaped");
-  assert.match(html, /<a dir="auto" href="https:\/\/example\.org\/tides\?a=1&amp;b=2" rel="noopener noreferrer">Tides &amp; currents<\/a> <span class="meta" dir="auto">Quiet Harbour, A\. Writer · published 2026-10-01 · kept \d{4}-\d{2}-\d{2}<\/span>/);
+  assert.match(html, new RegExp(String.raw`<a dir="auto" href="https://example\.org/tides\?a=1&amp;b=2" rel="noopener noreferrer">Tides &amp; currents</a> <span class="meta" dir="auto">Quiet Harbour, A\. Writer · ${PUBLISHED} · ${KEPT}</span>`));
   assert.match(html, /<a dir="auto" href="https:\/\/example\.org\/sea%20\(1\)" rel="noopener noreferrer">مقال عن البحر<\/a>/, "Arabic titles keep their direction");
-  assert.match(html, />An essay<\/a> <span class="meta" dir="auto">Example Times · kept \d{4}-\d{2}-\d{2}/);
+  assert.match(html, new RegExp(String.raw`>An essay</a> <span class="meta" dir="auto">Example Times · ${KEPT}`));
   assert.match(html, />Hand-titled<\/a>/);
-  assert.match(html, /<h2 dir="auto">Empty one<\/h2>\n<p class="meta">Nothing kept here yet\.<\/p>/);
+  assert.ok(html.includes(`<h2 dir="auto">Empty one</h2>\n${keptLinksExport.nothingKeptHtml}`));
   assert.doesNotMatch(html, /Unkept|<script|javascript:/);
   assert.equal((html.match(/<ul>/g) ?? []).length, 1);
   assert.equal((html.match(/<\/ul>/g) ?? []).length, 1);
@@ -64,11 +70,11 @@ test("the Markdown list has the same content, escaped for Markdown", async (t) =
   const { app, p, cleanup } = await fixture();
   t.after(cleanup);
   const md = [...keptLinksChunks(app, p, "md", NOW)].join("");
-  assert.match(md, /^# Kept links\n\nExported 2026-11-05\. /);
+  assert.ok(md.startsWith(`# ${keptLinksExport.heading}\n\n${keptLinksExport.exported("2026-11-05")} `));
   assert.match(md, /\n## To read \\<later\\>\n\n/);
-  assert.match(md, /- \[Tides & currents\]\(https:\/\/example\.org\/tides\?a=1&b=2\) — Quiet Harbour, A\. Writer, published 2026-10-01, kept \d{4}-\d{2}-\d{2}\n/);
+  assert.match(md, new RegExp(String.raw`- \[Tides & currents\]\(https://example\.org/tides\?a=1&b=2\) — Quiet Harbour, A\. Writer, ${escapeRegExp(keptLinksExport.published("2026-10-01"))}, ${escapeRegExp(keptLinksExport.kept("\u0000")).replace("\u0000", String.raw`\d{4}-\d{2}-\d{2}`)}\n`));
   assert.match(md, /\(https:\/\/example\.org\/sea%20%281%29\)/, "spaces and parentheses cannot end the link early");
-  assert.match(md, /\n## Empty one\n\n_Nothing kept here yet\._\n/);
+  assert.ok(md.includes(`\n## Empty one\n\n${keptLinksExport.nothingKeptMarkdown}`));
   assert.doesNotMatch(md, /Unkept/);
 });
 

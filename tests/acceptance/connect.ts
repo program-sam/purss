@@ -16,6 +16,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
+import { app } from "@purss/copy/app";
+import { server } from "@purss/copy/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -49,6 +51,14 @@ const env: NodeJS.ProcessEnv = {
   PURSS_DISK_RESERVE_BYTES: "0",
 };
 const EMAIL = "reader@example.test";
+// The words people read come from the catalogs, so rewording one cannot break this journey.
+const signInCopy = app.auth.signIn;
+const connectCopy = app.connect.connectPage;
+const tabsCopy = app.dialogs.settings.dialog.tabs;
+const addressCopy = app.auth.accountEmailSection;
+const securityCopy = app.dialogs.settings.security;
+const stepUpCopy = app.sharedFeatures.stepUp;
+const passwordCopy = app.auth.passwordForm;
 const step = (s: string) => console.log(`✓ ${s}`);
 // RFC 7636 appendix B.
 const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -130,16 +140,16 @@ async function main(): Promise<void> {
     // The extension asks to connect (no return address: it will take a typed code) while signed out.
     await page.goto(connectUrl({ client: "extension", device_name: "Firefox on the laptop" }));
     await page.waitForURL(/\/signin\?next=/);
-    await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: signInCopy.emailLabel }).fill(EMAIL);
+    await page.getByLabel(signInCopy.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: signInCopy.signIn, exact: true }).click();
     await page.waitForURL(/\/connect\?/);
-    await page.getByText("Connect the browser extension?").waitFor();
-    assert.equal(await page.getByLabel("Name, so you recognise it later").inputValue(), "Firefox on the laptop");
+    await page.getByText(connectCopy.titleExtension).waitFor();
+    assert.equal(await page.getByLabel(connectCopy.nameLabel).inputValue(), "Firefox on the laptop");
     step("a signed-out connection request goes through sign-in and comes back to the approval page");
 
-    await page.getByRole("button", { name: "Connect", exact: true }).click();
-    await page.getByText("Type this code into the app").waitFor();
+    await page.getByRole("button", { name: connectCopy.connect, exact: true }).click();
+    await page.getByText(connectCopy.typeCode).waitFor();
     const code = (await page.locator("code.fx-url").first().innerText()).trim();
     assert.match(code, /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/);
     const extOrigin = "moz-extension://8c1f3c3a-1111-2222-3333-444455556666";
@@ -166,8 +176,8 @@ async function main(): Promise<void> {
 
     // The phone app: approve, and the page hands the code to purss://connect.
     await page.goto(connectUrl({ client: "mobile", redirect_uri: "purss://connect", state: "98765432109876543210", device_name: "Pixel 8" }));
-    await page.getByText("Connect the PURSS app?").waitFor();
-    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    await page.getByText(connectCopy.titleMobile).waitFor();
+    await page.getByRole("button", { name: connectCopy.connect, exact: true }).click();
     await waitFor("the redirect to the app", async () => navigations.some((u) => u.startsWith("purss://connect?code=")), 10_000);
     const back = new URL(navigations.find((u) => u.startsWith("purss://connect?code="))!);
     assert.equal(back.searchParams.get("state"), "98765432109876543210", "a numeric state comes back exactly as sent");
@@ -178,22 +188,22 @@ async function main(): Promise<void> {
     step("the phone app's request is approved, its code arrives at purss://connect, and its token reads the PURSS");
 
     await page.goto(connectUrl({ client: "mobile", redirect_uri: "purss://connect", state: "phone-state-2" }));
-    await page.getByRole("button", { name: "Don't connect" }).click();
+    await page.getByRole("button", { name: connectCopy.dontConnect }).click();
     await waitFor("the refusal to reach the app", async () => navigations.some((u) => u.includes("error=access_denied") && u.includes("state=phone-state-2")), 10_000);
     await page.goto(connectUrl({ client: "mobile", redirect_uri: "https://evil.example/cb", state: "phone-state-3" }));
-    await page.getByText("This connection link doesn't work").waitFor();
+    await page.getByText(connectCopy.linkBroken).waitFor();
     assert.ok(!navigations.some((u) => u.startsWith("https://evil.example")), "never sent anywhere else");
     step("declining tells the app; a request with a foreign return address is refused on the page");
 
     // Settings → Connected apps.
     await page.goto(`${origin}/app/`);
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Connected apps" }).click();
+    await page.getByRole("button", { name: app.shell.sidebar.settings }).click();
+    await page.getByRole("button", { name: tabsCopy.apps }).click();
     await page.getByText("Firefox on the laptop").waitFor();
     await page.getByText("Pixel 8").waitFor();
     page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Disconnect Firefox on the laptop" }).click();
-    await page.locator("#toasts").getByText("Disconnected Firefox on the laptop").waitFor();
+    await page.locator("#toasts").getByText(app.connect.connectedApps.disconnected("Firefox on the laptop")).waitFor();
     assert.equal((await ext("GET", "/api/baskets")).status, 401);
     assert.equal((await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${phoneToken}` } })).status, 200, "the other app stays connected");
     step("Settings lists both apps; disconnecting the extension stops its token at once");
@@ -201,29 +211,29 @@ async function main(): Promise<void> {
     // A sign-in older than the step-up window (made so here) asks to confirm it's you before the address can change.
     const db = new DatabaseSync(path.join(dataDir, "product.db"), { timeout: 5000 });
     try { db.prepare("UPDATE sessions SET auth_at = ?").run(new Date(Date.now() - 11 * 60_000).toISOString()); } finally { db.close(); }
-    await page.getByRole("button", { name: "Security" }).click();
-    await page.getByRole("button", { name: "Change address" }).click();
-    await page.getByLabel("New email address").fill("reader2@example.test");
-    await page.getByRole("button", { name: "Save", exact: true }).click();
-    await page.getByText("For your safety, confirm it's you before this change.").waitFor();
-    await page.getByLabel("Your password").fill("not the password");
-    await page.getByRole("button", { name: "Confirm with password" }).click();
-    await page.getByText("That password isn't right.").waitFor();
-    await page.getByLabel("Your password").fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: "Confirm with password" }).click();
-    await page.locator("#toasts").getByText("Email address saved").waitFor();
+    await page.getByRole("button", { name: tabsCopy.security }).click();
+    await page.getByRole("button", { name: addressCopy.changeAddress }).click();
+    await page.getByLabel(addressCopy.newAddress.label).fill("reader2@example.test");
+    await page.getByRole("button", { name: addressCopy.newAddress.save, exact: true }).click();
+    await page.getByText(securityCopy.confirmItsYou).waitFor();
+    await page.getByLabel(stepUpCopy.yourPassword).fill("not the password");
+    await page.getByRole("button", { name: stepUpCopy.confirmWithPassword }).click();
+    await page.getByText(server.api.publicRoute.passwordWrong).waitFor();
+    await page.getByLabel(stepUpCopy.yourPassword).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: stepUpCopy.confirmWithPassword }).click();
+    await page.locator("#toasts").getByText(addressCopy.toasts.saved).waitFor();
     step("an older sign-in asks to confirm it's you before the address can change; the password does, and a wrong one does not");
 
     // Changing the password takes the current one, whenever the sign-in was.
-    await page.getByRole("button", { name: "Change password" }).click();
-    await page.getByLabel("Current password").fill("not the password");
-    await page.getByLabel("New password", { exact: true }).fill("a brand new long password");
-    await page.getByLabel("New password again").fill("a brand new long password");
-    await page.getByRole("button", { name: "Save new password" }).click();
-    await page.getByText("Your current password isn't right.").waitFor();
-    await page.getByLabel("Current password").fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: "Save new password" }).click();
-    await page.locator("#toasts").getByText("Password changed").waitFor();
+    await page.getByRole("button", { name: securityCopy.changePassword }).click();
+    await page.getByLabel(passwordCopy.currentPassword).fill("not the password");
+    await page.getByLabel(passwordCopy.newPassword, { exact: true }).fill("a brand new long password");
+    await page.getByLabel(passwordCopy.newPasswordAgain).fill("a brand new long password");
+    await page.getByRole("button", { name: securityCopy.saveNewPassword }).click();
+    await page.getByText(server.api.publicRoute.currentPasswordWrong).waitFor();
+    await page.getByLabel(passwordCopy.currentPassword).fill(TEST_PASSWORD);
+    await page.getByRole("button", { name: securityCopy.saveNewPassword }).click();
+    await page.locator("#toasts").getByText(securityCopy.passwordChanged).waitFor();
     step("changing the password takes the current one: a wrong one is refused, the right one changes it");
 
     assert.deepEqual(errors, [], "no uncaught page errors");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { crossrefWorksToRss } from "./crossref.ts";
 import { discover, WIKIDATA_NOTE } from "./discover.ts";
 import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
@@ -7,6 +8,8 @@ import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
 import { addressVariants, readWikidataEntities, readWikidataSearch, wikidataEntitiesUrl, wikidataSearchUrl } from "./wikidata.ts";
+
+const copy = server.sources.connectors;
 
 const NOW = () => new Date("2026-11-18T12:00:00Z");
 
@@ -94,7 +97,7 @@ test("a section page: the front page's item gives the whole site's feed, labelle
     "https://news.example.org/all.rss": feed("https://news.example.org/all.rss", "Everything"),
   });
   const d = ok(await discover(section, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.via, c.note, c.matchesPage]), [["https://news.example.org/all.rss", "Whole site feed", `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}`, false]]);
+  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.via, c.note, c.matchesPage]), [["https://news.example.org/all.rss", copy.labels.wholeSiteFeed, `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}`, false]]);
 });
 
 test("an item the search found whose website isn't the page's (an index that lags behind an edit) is ignored", async () => {

@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/copy/app";
 import { badgeLabel, overlaySize, wantsOverlay } from "./badge-overlay.ts";
 
 test("the overlay says the count up to 99, then 99+", () => {
   assert.equal(badgeLabel(1), "1");
   assert.equal(badgeLabel(99), "99");
-  assert.equal(badgeLabel(100), "99+");
+  assert.equal(badgeLabel(100), app.platform.badgeOverlay.overflow);
 });
 
 test("the overlay's pixels follow the screen's scale within what the app accepts (16 to 64)", () => {

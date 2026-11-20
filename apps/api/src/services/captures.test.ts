@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -40,7 +41,7 @@ test("trying again needs a failed copy, a page, and an item that is yours", (t) 
   assert.throws(() => retryCapture(app, p, a!.id), (err: unknown) => err instanceof HttpError && err.status === 400, "nothing failed here");
   const cap = (id: string) => app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?)", `cap_${id}`, p.workspaceId, id, new Date().toISOString());
   cap(b!.id);
-  assert.throws(() => retryCapture(app, p, b!.id), (err: unknown) => err instanceof HttpError && /no page/.test(err.message));
+  assert.throws(() => retryCapture(app, p, b!.id), (err: unknown) => err instanceof HttpError && err.message === copy.api.captures.noPageToRead);
   const other = makeOwner(app, { admin: false });
   assert.throws(() => retryCapture(app, other, a!.id), (err: unknown) => err instanceof HttpError && err.status === 404);
 });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { discover } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { normalizeInput } from "./input.ts";
@@ -8,6 +9,8 @@ import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
 import { blueskyTitle, classifySocialInput } from "./social.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
+
+const copy = server.sources.connectors;
 
 /*
  * Fixtures recorded on 2026-11-05 from mastodon.social (@Mastodon: WebFinger, the profile page's
@@ -87,7 +90,7 @@ test("social inputs are recognised; websites, e-mail-like junk and bare names ar
 test("a bare @name still explains what to paste, now naming social handles too", () => {
   const n = normalizeInput("@somebody");
   assert.ok(!n.ok);
-  assert.match(n.message, /@name@mastodon\.social/);
+  assert.equal(n.message, copy.input.bareHandle);
 });
 
 test("a Mastodon handle: WebFinger, then the profile page, then the feed it advertises, labelled with honest limits", async () => {
@@ -100,16 +103,14 @@ test("a Mastodon handle: WebFinger, then the profile page, then the feed it adve
   const c = d.candidates[0]!;
   assert.equal(c.title, "Mastodon");
   assert.equal(c.kind, "feed");
-  assert.equal(c.origin, "Mastodon account");
-  assert.equal(c.via, "Posts feed");
+  assert.equal(c.origin, copy.social.mastodonAccount);
+  assert.equal(c.via, copy.labels.postsFeed);
   assert.equal(c.feedUrl, "https://mastodon.social/@Mastodon.rss");
   assert.equal(c.siteUrl, "https://mastodon.social/@Mastodon");
   assert.equal(c.samples.length, 3);
   assert.match(c.samples[0]!.title, /^We didn’t want to require you/, "untitled posts preview their text");
   assert.equal(c.samples[0]!.publishedAt, "2026-10-19T09:59:05.000Z");
-  assert.match(c.note ?? "", /Public posts only/);
-  assert.match(c.note ?? "", /Boosts and replies aren't included/);
-  assert.match(c.note ?? "", /deletes stays in your PURSS/);
+  assert.equal(c.note, copy.social.mastodonNote);
   assert.equal(c.privateWarning, null);
 });
 
@@ -117,8 +118,8 @@ test("a Mastodon profile address pasted directly is recognised from the page, wi
   const { fetch, calls } = stub(mastodonRoutes());
   const d = ok(await discover("https://mastodon.social/@Mastodon", { fetch, now: NOW }));
   assert.deepEqual(calls.map((c) => c.url), ["https://mastodon.social/@Mastodon", "https://mastodon.social/@Mastodon.rss"]);
-  assert.equal(d.candidates[0]!.origin, "Mastodon account");
-  assert.match(d.candidates[0]!.note ?? "", /Boosts/);
+  assert.equal(d.candidates[0]!.origin, copy.social.mastodonAccount);
+  assert.equal(d.candidates[0]!.note, copy.social.mastodonNote);
 });
 
 test("another fediverse server is labelled generically, with only the limits every such feed shares", async () => {
@@ -127,9 +128,9 @@ test("another fediverse server is labelled generically, with only the limits eve
   routes["https://mastodon.social/@Mastodon.rss"] = fakeResponse("https://mastodon.social/@Mastodon.rss", rss, "application/rss+xml");
   const { fetch } = stub(routes);
   const c = ok(await discover("@Mastodon@mastodon.social", { fetch, now: NOW })).candidates[0]!;
-  assert.equal(c.origin, "Fediverse account");
-  assert.doesNotMatch(c.note ?? "", /Boosts/);
-  assert.match(c.note ?? "", /Public posts only/);
+  assert.equal(c.origin, copy.social.fediverseAccount);
+  assert.equal(c.note, copy.social.fediverseNote);
+  assert.notEqual(c.note, copy.social.mastodonNote, "it makes none of Mastodon's promises about what is left out");
 });
 
 test("fediverse failures say what happened, and never fall back to scraping", async () => {
@@ -137,7 +138,7 @@ test("fediverse failures say what happened, and never fall back to scraping", as
   let s = stub({});
   let f = failed(await discover("@nobody@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
-  assert.match(f.message, /couldn't find @nobody@mastodon\.social/);
+  assert.equal(f.message, copy.discover.handleNotFound("@nobody@mastodon.social"));
   assert.equal(s.calls.length, 1);
 
   // A server that isn't one: WebFinger answers with a web page.
@@ -157,7 +158,7 @@ test("fediverse failures say what happened, and never fall back to scraping", as
   s = stub(routes);
   f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
-  assert.match(f.message, /doesn't offer a public feed/);
+  assert.equal(f.message, copy.discover.fediverseNoFeed);
   assert.deepEqual(s.calls.map((c) => c.url), [WF_URL, "https://mastodon.social/@Mastodon"], "no guessing at other addresses");
 
   // A profile link that isn't a web address is ignored.
@@ -178,7 +179,7 @@ test("a post on a fediverse server explains to paste the profile instead", async
   const { fetch, calls } = stub({ [post]: fakeResponse(post, html, "text/html") });
   const f = failed(await discover(post, { fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
-  assert.match(f.message, /paste the account's profile address/);
+  assert.equal(f.message, copy.discover.fediverseNotProfile);
   assert.equal(calls.length, 1, "no probing of the server's paths");
 });
 
@@ -226,7 +227,7 @@ test("the fediverse path runs through safeFetch: a handle's domain redirecting t
     const d = ok(await discover("@ann@social.example", { fetch: local, now: NOW }));
     assert.equal(d.candidates[0]!.title, "Ann");
     assert.equal(d.candidates[0]!.feedUrl, `http://server.example:${server.port}/@ann.rss`);
-    assert.equal(d.candidates[0]!.origin, "Mastodon account");
+    assert.equal(d.candidates[0]!.origin, copy.social.mastodonAccount);
     const evil = failed(await discover(`http://server.example:${server.port}/@evil`, { fetch: local, now: NOW }));
     assert.equal(evil.reason, "blocked", "an advertised feed on an internal address is refused");
   } finally {
@@ -242,15 +243,14 @@ test("a Bluesky handle resolves through bsky.app to the DID feed, which outlives
     const c = d.candidates[0]!;
     assert.equal(c.feedUrl, BSKY_FEED, input);
     assert.equal(c.title, "Bluesky");
-    assert.equal(c.origin, "Bluesky account");
+    assert.equal(c.origin, copy.social.blueskyAccount);
     assert.equal(c.kind, "feed");
-    assert.equal(c.via, "Posts feed");
+    assert.equal(c.via, copy.labels.postsFeed);
     assert.equal(c.siteUrl, "https://bsky.app/profile/bsky.app");
     assert.equal(c.samples.length, 3);
     assert.match(c.samples[0]!.title, /^We're seeing 200%/);
     assert.equal(c.samples[0]!.publishedAt, "2026-11-04T04:03:00.000Z", "Bluesky's date format without a weekday is read");
-    assert.match(c.note ?? "", /Reposts and replies aren't included/);
-    assert.match(c.note ?? "", /deletes stays in your PURSS/);
+    assert.equal(c.note, copy.social.blueskyNote);
   }
   // A DID needs no redirect; a *.bsky.social host is a handle, not a website.
   let s = stub({ [BSKY_FEED]: fakeResponse(BSKY_FEED, BLUESKY_RSS, "application/xml") });
@@ -263,11 +263,11 @@ test("a Bluesky handle resolves through bsky.app to the DID feed, which outlives
 test("a Bluesky post offers its author to confirm; custom feeds and lists say why they can't be followed", async () => {
   const { fetch } = stub({ "https://bsky.app/profile/bsky.app/rss": bskyRedirect });
   const c = ok(await discover("https://bsky.app/profile/bsky.app/post/3mzhhvhjfwk22", { fetch, now: NOW })).candidates[0]!;
-  assert.equal(c.via, "Related account — confirm");
+  assert.equal(c.via, copy.labels.relatedAccountConfirm);
   const none = stub({});
   const f = failed(await discover("https://bsky.app/profile/bsky.app/feed/whats-hot", { fetch: none.fetch, now: NOW }));
   assert.equal(f.reason, "unsupported");
-  assert.match(f.message, /custom feeds and lists/);
+  assert.equal(f.message, copy.social.blueskyNoFeed);
   assert.equal(none.calls.length, 0);
 });
 
@@ -276,11 +276,11 @@ test("Bluesky refusals: an account hidden from signed-out people, an unknown han
   let s = stub({ [url]: fakeResponse(url, "account does not allow public views", "text/plain", 403) });
   let f = failed(await discover("@hidden.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
-  assert.match(f.message, /asks apps not to show its posts/);
+  assert.equal(f.message, copy.discover.blueskyHidden);
   s = stub({});
   f = failed(await discover("@missing.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
-  assert.match(f.message, /couldn't find @missing\.bsky\.social on Bluesky/);
+  assert.equal(f.message, copy.discover.blueskyNotFound("@missing.bsky.social"));
   const bad = "https://bsky.app/profile/bad.bsky.social/rss";
   s = stub({ [bad]: fakeResponse(bad, "not a valid handle", "text/plain", 400) });
   f = failed(await discover("@bad.bsky.social", { fetch: s.fetch, now: NOW }));
@@ -291,6 +291,6 @@ test("Bluesky feed titles become the account's display name", () => {
   assert.equal(blueskyTitle("@bsky.app - Bluesky", "bsky.app"), "Bluesky");
   assert.equal(blueskyTitle("@ann.example.org", "ann.example.org"), "@ann.example.org");
   assert.equal(blueskyTitle(null, "ann.example.org"), "@ann.example.org");
-  assert.equal(blueskyTitle(null, BSKY_DID), "Bluesky account");
+  assert.equal(blueskyTitle(null, BSKY_DID), copy.social.blueskyAccount);
 });
 

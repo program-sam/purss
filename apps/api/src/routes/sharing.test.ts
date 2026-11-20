@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDocument } from "htmlparser2";
+import { server as copy } from "@purss/copy/server";
+import { appUrl } from "@purss/domain";
+import { inHtml } from "../copy-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import { basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection } from "../services/collections.ts";
@@ -13,6 +16,8 @@ import { extraRouters } from "./index.ts";
 import { applySyncBatch } from "../services/sync.ts";
 import { limitPublicRead, resetPublicReadLimit } from "../services/shares.ts";
 import { HttpError } from "../http.ts";
+
+const { shares, sharingRoute, publicPages } = copy.api;
 
 async function boot(env: Record<string, string> = {}) {
   const { app, cleanup } = makeTestApp(env);
@@ -36,6 +41,24 @@ const textOf = (node: any): string => (node.children ?? []).map((c: any) => (c.t
 const ID_SHAPE = /\b(?:itm|shr|wsp|acc|src|bsk|col|ver|cap|obj|ntf|job|usr|ext)_[0-9a-z]{20,}\b/;
 
 type Boot = Awaited<ReturnType<typeof boot>>;
+
+/** Where a hosted installation sends visitors to learn what PURSS is (a self-hosted one has no such place). */
+const homeOf = (b: Boot) => b.app.config.mode === "hosted" ? `${b.app.config.publicOrigin}/` : null;
+
+/** What a shared page says around its list of items, as the catalog's template writes it: the markup before the list and after it. */
+function around(b: Boot, page: Record<string, any>) {
+  const home = homeOf(b);
+  const [before, after] = shares.pageBody(inHtml(page.title), inHtml(page.curatorName), page.description ? `<p class="about">${inHtml(page.description)}</p>` : "", inHtml(page.followUrl), inHtml(page.feedUrl), "\u0000",
+    home ? shares.madeWith(inHtml(home), "PURSS") : "", inHtml(`${page.publicUrl}/report`)).split("\u0000") as [string, string];
+  return { before, after };
+}
+
+/** The follow page's body as the catalog writes it for `feed`, called `name`, and credited to `by` when it is a page shared from this installation. */
+function followBody(b: Boot, feed: string, name: string, by: string | null) {
+  const home = homeOf(b);
+  return publicPages.followBody(inHtml(name), by === null ? "" : publicPages.sharedBy(inHtml(by)), "PURSS", inHtml(feed), inHtml(`${appUrl("/")}?dialog=add&url=${encodeURIComponent(feed)}`),
+    home ? publicPages.newToProduct("PURSS", inHtml(home)) : "");
+}
 
 /** Set up sharing for a basket or collection and share it through the real review and confirmation. */
 async function share(b: Boot, kind: "basket" | "collection", id: string, extra: Record<string, unknown> = {}, s: TestSession | null = b.session) {
@@ -83,15 +106,15 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   const preview = (await b.api("GET", `/api/shares/${draft.id}/preview`)).json;
   assert.deepEqual(preview.blockers, []);
   assert.equal(preview.itemCount, 2, "the kept items, minus the one from a private source");
-  assert.ok(preview.warnings.some((w: string) => /Everything you keep in “Later” shows on the page/.test(w)));
-  assert.ok(preview.warnings.some((w: string) => /1 link you saved yourself/.test(w)), "links saved by hand are pointed out");
-  assert.match(preview.confirmation.statement, /keeps showing what you add/);
+  assert.ok(preview.warnings.includes(shares.basketShows("Later")));
+  assert.ok(preview.warnings.includes(shares.ownLinksPublic(1)), "links saved by hand are pointed out");
+  assert.equal(preview.confirmation.statement, shares.statementIntro + shares.statementNotListed + shares.statementOutro);
   assert.ok(!preview.html.includes("Private note") && !preview.html.includes("token="), "private-source items never show");
 
   // A settings change after the review voids the confirmation; the items are live, so new ones don't.
   await b.api("PUT", `/api/shares/for/basket/${lib.baskets.later}`, { curatorName: "Sam", description: "Things about <sediment> & silt." });
   const stale = await b.api("POST", `/api/shares/${draft.id}/publish`, { confirmToken: preview.confirmation.token });
-  assert.match(stale.json.error.message, /changed since you reviewed/);
+  assert.equal(stale.json.error.message, shares.settingsChanged);
   const again = (await b.api("GET", `/api/shares/${draft.id}/preview`)).json;
   keepItem(b.app, b.owner, lib.itemIds[2]!, lib.baskets.later);
   const shared = await b.api("POST", `/api/shares/${draft.id}/publish`, { confirmToken: again.confirmation.token });
@@ -105,7 +128,8 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   assert.match(page.headers.get("content-security-policy")!, /default-src 'none'/);
   assert.ok(!/<script/i.test(page.text) && page.text.includes("&lt;script&gt;alert(1)&lt;/script&gt; Second post"));
   assert.ok(page.text.includes("Third post"), "what was kept after the review shows: the page is live");
-  assert.ok(page.text.includes("My own find") && page.text.includes("Shared by Sam"));
+  const { before: pageStart, after: pageEnd } = around(b, shared.json);
+  assert.ok(page.text.includes("My own find") && page.text.includes(pageStart) && page.text.includes(pageEnd), "the page is the catalog's page around its items, shared by the chosen name");
   assert.ok(!ID_SHAPE.test(page.text), `no internal identifiers: ${page.text.match(ID_SHAPE)?.[0]}`);
   for (const absent of ["Real Name", "real@example.com", "Private note", "Reading", "workflow"]) assert.ok(!page.text.includes(absent), `page must not include ${absent}`);
 
@@ -132,7 +156,7 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   b.app.db.run("UPDATE sources SET is_private = 0 WHERE id = ?", lib.publicSource);
 
   // Pause ends it at once; sharing again asks for the review again; stopping removes the address.
-  assert.match((await b.api("POST", `/api/shares/${draft.id}/pause`)).json.notice, /can't be recalled/);
+  assert.equal((await b.api("POST", `/api/shares/${draft.id}/pause`)).json.notice, shares.revocationNotice);
   assert.equal((await b.anon(`/p/${draft.slug}`)).status, 404);
   assert.equal((await b.anon(`/p/${draft.slug}/feed.atom`)).status, 404);
   assert.ok((await b.api("GET", `/api/shares/${draft.id}/preview`)).json.confirmation, "sharing again needs the review again");
@@ -153,12 +177,12 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   const shared = await share(b, "collection", letters.id);
   const page = (await b.anon(`/p/${shared.slug}`)).text;
   assert.ok(page.includes("Second post") && page.includes("Third post") && !page.includes("Private note"));
-  assert.ok(shared.preview.warnings.some((w: string) => /New items from its sources show/.test(w)));
+  assert.ok(shared.preview.warnings.includes(shares.newItemsShow));
 
   // Rules on reading state make a filter unshareable, and switch off one that was shared.
   const toRead = col({ name: "To read soon", query: { all: [{ field: "workflow", value: ["toread"] }] } });
   const blocked = (await b.api("GET", `/api/shares/for/collection/${toRead.id}`)).json;
-  assert.match(blocked.blocked, /uses your reading state/);
+  assert.equal(blocked.blocked, shares.usesReadingState);
   const words = col({ name: "Mud", query: { all: [{ field: "text", value: "secretword" }] } });
   const mud = await share(b, "collection", words.id);
   b.app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify({ all: [{ field: "fresh", value: true }] }), words.id);
@@ -173,7 +197,7 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   // Rules on baskets are allowed, and the review says the page shows what is kept.
   const kept = col({ name: "Kept letters", query: { all: [{ field: "basket", value: [lib.baskets.reading] }] } });
   const k = await share(b, "collection", kept.id);
-  assert.ok(k.preview.warnings.some((w: string) => /rules use your baskets/.test(w)));
+  assert.ok(k.preview.warnings.includes(shares.collectionUsesBaskets));
 
   // Deleting a collection that is shared removes its page.
   deleteCollection(b.app, b.owner, letters.id);
@@ -189,7 +213,7 @@ test("on hosted installations sharing is part of Plus: Free can't share, and a p
   const lib = seedLibrary(b.app, member);
   b.app.db.run("UPDATE accounts SET plan = 'free' WHERE id = ?", member.accountId);
   const free = (await b.api("GET", `/api/shares/for/basket/${lib.baskets.later}`, undefined, s)).json;
-  assert.match(free.blocked, /part of Plus/);
+  assert.equal(free.blocked, shares.plusOnly);
   const refused = await b.api("PUT", `/api/shares/for/basket/${lib.baskets.later}`, { curatorName: "Kim" }, s);
   assert.equal(refused.status, 403);
   assert.equal(refused.json.error.code, "plan_sharing");
@@ -198,12 +222,12 @@ test("on hosted installations sharing is part of Plus: Free can't share, and a p
   const shared = await share(b, "basket", lib.baskets.later, {}, s);
   const page = await b.anon(`/p/${shared.slug}`);
   assert.equal(page.status, 200);
-  assert.ok(page.text.includes(`Made with <a href="${b.app.config.publicOrigin}/">PURSS</a>`), "hosted pages lead visitors to the product");
-  assert.ok(page.text.includes(`>Follow</a><a class="feed" href="${shared.feedUrl}">Feed</a>`), "one small Follow button, with the feed beside it");
+  const { before, after } = around(b, shared);
+  assert.ok(after.includes(shares.madeWith(`${b.app.config.publicOrigin}/`, "PURSS")), "hosted pages lead visitors to the product");
+  assert.ok(page.text.includes(before) && page.text.includes(after), "one small Follow button, with the feed beside it, and the way to report the page");
   assert.ok(page.text.includes(`href="${shared.followUrl.replace(/&/g, "&amp;")}"`));
-  assert.ok(page.text.includes(`href="${shared.publicUrl}/report">Report this page</a>`));
   const follow = await b.anon(path(shared.followUrl));
-  assert.ok(follow.text.includes("<h1>Follow Later</h1>") && follow.text.includes("Shared by Mara"), "its own pages are named on the follow page");
+  assert.ok(follow.text.includes(followBody(b, shared.feedUrl, "Later", "Mara")), "its own pages are named on the follow page");
   assert.ok(follow.text.includes('<link rel="alternate" type="application/atom+xml" title="Later"'), "and announced as the Atom feeds they are");
 
   b.app.db.run("UPDATE accounts SET plan = 'free' WHERE id = ?", member.accountId);
@@ -211,7 +235,7 @@ test("on hosted installations sharing is part of Plus: Free can't share, and a p
   const mine = (await b.api("GET", "/api/shares", undefined, s)).json[0];
   assert.equal(mine.problem, "plan");
   assert.equal(mine.status, "published");
-  assert.ok((await b.anon(path(shared.followUrl))).text.includes("<h1>Follow localhost"), "a page that doesn't show isn't named");
+  assert.ok((await b.anon(path(shared.followUrl))).text.includes(followBody(b, shared.feedUrl, new URL(shared.feedUrl).host, null)), "a page that doesn't show isn't named");
 });
 
 test("a self-hosted page has no product link, but can still be followed and reported", async (t) => {
@@ -220,8 +244,9 @@ test("a self-hosted page has no product link, but can still be followed and repo
   const lib = seedLibrary(b.app, b.owner);
   const shared = await share(b, "basket", lib.baskets.later);
   const page = await b.anon(`/p/${shared.slug}`);
-  assert.ok(!page.text.includes("Made with"));
-  assert.ok(page.text.includes(">Follow</a>") && page.text.includes("Report this page"));
+  const { before, after } = around(b, shared);
+  assert.ok(!page.text.includes(shares.madeWith(`${b.app.config.publicOrigin}/`, "PURSS")));
+  assert.ok(page.text.includes(before) && page.text.includes(after), "the Follow button and the way to report it, without the product link");
 });
 
 test("a public note shows on the page and in the feed, changes live, and the person is told it is public", async (t) => {
@@ -235,7 +260,7 @@ test("a public note shows on the page and in the feed, changes live, and the per
   assert.equal(noted.json.note, "Read the <b>second</b> half. Really.", "one line of plain text");
   assert.equal(noted.json.notice, null, "not public yet");
   const preview = (await b.api("GET", `/api/shares/${draft.id}/preview`)).json;
-  assert.ok(preview.warnings.some((w: string) => /1 public note you wrote/.test(w)), "the review points out the note");
+  assert.ok(preview.warnings.includes(shares.publicNotesShow(1)), "the review points out the note");
   await b.api("POST", `/api/shares/${draft.id}/publish`, { confirmToken: preview.confirmation.token });
 
   const page = await b.anon(`/p/${draft.slug}`);
@@ -246,7 +271,7 @@ test("a public note shows on the page and in the feed, changes live, and the per
   assert.ok(textOf(content).startsWith("<p><b>Mara &lt;M&gt;:</b> Read the &lt;b&gt;second&lt;/b&gt; half. Really.</p>"));
 
   const live = await b.api("PUT", `/api/shares/${draft.id}/items/${lib.itemIds[1]}/note`, { note: "" });
-  assert.match(live.json.notice, /public, so the note shows/);
+  assert.equal(live.json.notice, shares.notePublic);
   assert.equal(live.json.note, null);
   assert.ok(!(await b.anon(`/p/${draft.slug}`)).text.includes('class="note"'));
   assert.equal((await b.api("PUT", `/api/shares/${draft.id}/items/${lib.itemIds[0]}/note`, { note: "x" })).status, 404, "only items the page shows");
@@ -258,20 +283,20 @@ test("search engines list a page only when the person chose it, with a separate 
   t.after(b.close);
   const lib = seedLibrary(b.app, b.owner);
   const hidden = await share(b, "basket", lib.baskets.later);
-  assert.match(hidden.preview.confirmation.statement, /asked not to index/);
+  assert.equal(hidden.preview.confirmation.statement, shares.statementIntro + shares.statementNotListed + shares.statementOutro);
   const page = await b.anon(`/p/${hidden.slug}`);
   assert.equal(page.headers.get("x-robots-tag"), "noindex, nofollow");
   assert.match(page.text, /<meta name="robots" content="noindex, nofollow">/);
   const refused = await b.api("PUT", `/api/shares/for/basket/${lib.baskets.later}`, { curatorName: "Mara", listed: true });
   assert.equal(refused.json.error.code, "confirm");
-  assert.match(refused.json.error.message, /Search engines may list this page/);
+  assert.equal(refused.json.error.message, shares.listingStatement);
   assert.equal((await b.api("PUT", `/api/shares/for/basket/${lib.baskets.later}`, { curatorName: "Mara", listed: true, confirmListed: true })).json.listed, true);
   const listed = await b.anon(`/p/${hidden.slug}`);
   assert.equal(listed.headers.get("x-robots-tag"), null);
   assert.ok(!listed.text.includes('name="robots"') && listed.text.includes('rel="noopener noreferrer nofollow"'), "links stay nofollow, so pages are no use for link spam");
   assert.equal((await b.anon(`/p/${hidden.slug}/feed.atom`)).headers.get("x-robots-tag"), "noindex, nofollow", "the feed is never for search results");
   const chosen = await share(b, "basket", lib.baskets.reading, { listed: true });
-  assert.match(chosen.preview.confirmation.statement, /chose to let search engines list it/);
+  assert.equal(chosen.preview.confirmation.statement, shares.statementIntro + shares.statementListed + shares.statementOutro);
 });
 
 test("the follow page accepts plain feed addresses only, never runs scripts, and opens Add source in this PURSS", async (t) => {
@@ -283,7 +308,7 @@ test("the follow page accepts plain feed addresses only, never runs scripts, and
   assert.equal(page.headers.get("x-robots-tag"), "noindex, nofollow");
   assert.match(page.headers.get("content-security-policy")!, /default-src 'none'.*form-action 'none'/);
   assert.ok(!/<script/i.test(page.text));
-  assert.ok(page.text.includes("<h1>Follow blog.example</h1>"));
+  assert.ok(page.text.includes(followBody(b, new URL(feed).href, "blog.example", null)));
   assert.ok(page.text.includes(`<link rel="alternate" type="application/rss+xml" title="blog.example" href="https://blog.example/feed.xml?lang=en&amp;x=%3Cy%3E">`), "a reader given the follow link finds the feed");
   // The Follow button maker gets its link from the same check.
   const owner = await b.api("GET", `/api/follow-link?url=${encodeURIComponent(feed)}`);
@@ -325,7 +350,7 @@ test("anyone can report a public page; administrators review it, take it down wi
   // Invalid reports keep what was typed and say why; nothing is stored.
   const noReason = await report(b, pub.slug, { reason: "boring", details: "This copies my photo essay without asking.", contact: "me@example.net" });
   assert.equal(noReason.status, 400);
-  assert.match(noReason.text, /choose what&#39;s wrong/);
+  assert.ok(noReason.text.includes(inHtml(shares.chooseWhatsWrong)));
   assert.ok(noReason.text.includes("This copies my photo essay without asking.") && noReason.text.includes('value="me@example.net"'));
   assert.equal((await report(b, pub.slug, { reason: "copyright", details: "bad" })).status, 400);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM share_reports")!.n, 0);
@@ -337,14 +362,14 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM share_reports")!.n, 0);
   const sent = await report(b, pub.slug, { reason: "copyright", details: "The second link copies my <photo> essay.", contact: "me@example.net" });
   assert.equal(sent.status, 200);
-  assert.match(sent.text, /Thank you/);
+  assert.ok(sent.text.includes(sharingRoute.reportThanksBody(inHtml("Dubious picks"), pub.slug)));
   const row = b.app.db.get<Record<string, unknown>>("SELECT * FROM share_reports")!;
   assert.equal(row.details, "The second link copies my <photo> essay.");
   assert.ok(!JSON.stringify(row).includes("198.51.100.7"), "the reporter's address isn't kept");
   // Every administrator gets one bell entry per page per day, however many reports arrive; the owner gets none.
   await report(b, pub.slug, { reason: "spam", details: "Also it is spam, honestly." }, "198.51.100.8");
   const adminBell = b.app.db.all<{ title: string }>("SELECT title FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", b.owner.workspaceId);
-  assert.deepEqual(adminBell.map((n) => n.title), ["A shared page was reported: Dubious picks"]);
+  assert.deepEqual(adminBell.map((n) => n.title), [shares.reportedTitle("Dubious picks")]);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", member.workspaceId)!.n, 0);
 
   // Five reports an hour from one address; then a polite refusal.
@@ -387,7 +412,7 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.equal(mine.status, "paused");
   assert.deepEqual(mine.takenDown && mine.takenDown.reason, "Copies a photographer's work.");
   const ownerPreview = (await asMember("GET", `/api/shares/${pub.id}/preview`)).json;
-  assert.match(ownerPreview.blockers[0], /took this page down/);
+  assert.equal(ownerPreview.blockers[0], shares.takenDownHosted);
   assert.equal(ownerPreview.confirmation, null);
   const refused = await asMember("POST", `/api/shares/${pub.id}/publish`, { confirmToken: preview.confirmation.token });
   assert.equal(refused.status, 403);
@@ -395,7 +420,7 @@ test("anyone can report a public page; administrators review it, take it down wi
   const { confirmToken } = basketDeletePreview(b.app, member, lib.baskets.later);
   assert.throws(() => deleteBasket(b.app, member, lib.baskets.later, confirmToken), (e: unknown) => e instanceof HttpError && e.code === "taken_down", "nor can its basket be deleted to get rid of it");
   const told = b.app.db.get<{ title: string; body: string }>("SELECT title, body FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-takedown:%'", member.workspaceId)!;
-  assert.match(told.title, /was taken down/);
+  assert.equal(told.title, shares.takenDownTitle("Dubious picks"));
   assert.match(told.body, /Copies a photographer's work\./);
 
   // Restoring lets the owner publish again after a fresh review; it doesn't publish by itself.

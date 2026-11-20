@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server as copy } from "@purss/copy/server";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { makeOwner, makeTestApp, testPassword } from "../testing.ts";
@@ -174,14 +175,14 @@ test("hosted accounts: minimal metadata, allocation changes, suspension, and the
   // Nobody can suspend themselves, and the last active administrator is protected even from a caller that isn't that account.
   const own = await b.as(s).patch(`/api/admin/accounts/${b.admin.accountId}`, { status: "suspended" });
   assert.equal(own.status, 409);
-  assert.match(own.json.error.message, /own account/);
-  assert.throws(() => updateAccount(b.app, { ...b.admin, accountId: "acc_someone_else" }, b.admin.accountId, { status: "suspended" }), (e: unknown) => e instanceof HttpError && e.status === 409 && /last active administrator/.test(e.message));
+  assert.equal(own.json.error.message, copy.api.admin.cannotSuspendSelf);
+  assert.throws(() => updateAccount(b.app, { ...b.admin, accountId: "acc_someone_else" }, b.admin.accountId, { status: "suspended" }), (e: unknown) => e instanceof HttpError && e.status === 409 && e.message === copy.api.admin.lastAdministratorFirst);
   assert.equal(b.app.db.get("SELECT status FROM accounts WHERE id = ?", b.admin.accountId)!.status, "active");
   // With two administrators one may suspend the other, and the survivor is then protected.
   const second = makeOwner(b.app, { admin: true });
   const secondSession = signIn(b.app, second.accountId);
   assert.equal((await b.as(secondSession).patch(`/api/admin/accounts/${b.admin.accountId}`, { status: "suspended" })).status, 200);
-  assert.throws(() => updateAccount(b.app, { ...b.admin, accountId: "acc_someone_else" }, second.accountId, { status: "suspended" }), (e: unknown) => e instanceof HttpError && /last active administrator/.test(e.message));
+  assert.throws(() => updateAccount(b.app, { ...b.admin, accountId: "acc_someone_else" }, second.accountId, { status: "suspended" }), (e: unknown) => e instanceof HttpError && e.message === copy.api.admin.lastAdministratorFirst);
   assert.ok(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'admin_account_update' AND outcome = 'failure'")!.n >= 3, "refusals are audited too");
 });
 
@@ -224,7 +225,7 @@ test("health is an aggregate: engine, jobs, disk, database, sources and a tolera
   assert.equal(degraded.status, "unavailable");
   assert.equal(degraded.lastSyncAt, "2026-11-01T00:00:00.000Z");
   assert.ok(degraded.lagSeconds > 0);
-  assert.match(degraded.message, /syncing/);
+  assert.equal(degraded.message, copy.api.admin.syncFailing(1, 1));
 });
 
 test("health still answers when the egress service is unreachable or refuses", async (t) => {

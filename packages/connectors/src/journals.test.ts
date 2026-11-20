@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { discover, LINKED_JOURNAL_NOTE, OJS_ANNOUNCEMENTS_NOTE } from "./discover.ts";
 import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
@@ -8,6 +9,8 @@ import { crossrefJournalSearchUrl } from "./crossref.ts";
 import { planKnownFeeds } from "./known-feeds.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
+
+const copy = server.sources.connectors;
 
 const NOW = () => new Date("2026-11-14T12:00:00Z");
 const feedUrls = (u: string): string[] | null => {
@@ -104,7 +107,7 @@ test("SAGE journal pages refuse the page fetch but offer their RSS 1.0 table-of-
   assert.equal(journalFromUrl(new URL("https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd")), null, "the feed itself is not mistaken for a journal page");
   const { fetch, calls } = stub({ [feedUrl]: rdfFeed(feedUrl, "SAGE Publications Ltd: Childhood: Table of Contents") });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Childhood", feedUrl, "Articles feed", "SAGE journal"]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Childhood", feedUrl, copy.labels.articlesFeed, copy.journals.origin("SAGE")]]);
   assert.deepEqual(calls.map((c) => c.url), [feedUrl], "derive and check the feed directly; don't fetch the page's 403 or guess generic paths");
 });
 
@@ -116,7 +119,7 @@ test("a SAGE journal whose eTOC feed is unavailable doesn't guess at generic sit
     [feedUrl]: fakeResponse(feedUrl, "Not found", "text/plain", 404),
   });
   const d = await discover(pageUrl, { fetch, now: NOW });
-  assert.ok(!d.ok && d.reason === "unreachable" && d.message.includes("403"), JSON.stringify(d));
+  assert.ok(!d.ok && d.reason === "unreachable" && d.message === copy.discover.refused, JSON.stringify(d));
   assert.deepEqual(calls.map((c) => c.url).filter((u) => !u.startsWith("https://www.wikidata.org/")), [feedUrl, pageUrl, "https://www.journals.sagepub.com/home/chd"]);
 });
 
@@ -266,7 +269,7 @@ test("a walled Wiley journal page: the journal's feed, named after the journal, 
   const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
   const { fetch, calls } = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: feed(feedUrl, "Wiley: Oceania: Table of Contents") });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Oceania", feedUrl, "Articles feed", "Wiley journal"]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Oceania", feedUrl, copy.labels.articlesFeed, copy.journals.origin("Wiley")]]);
   assert.deepEqual(calls.map((c) => c.url), [feedUrl, "https://onlinelibrary.wiley.com/action/showFeed?jc=18344461&type=axatoc&feed=rss"]);
 });
 
@@ -293,8 +296,8 @@ test("a society's page for its journal: the journal's feed on the publisher's pl
   });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.matchesPage, c.note ?? null]), [
-    ["Social Anthropology/Anthropologie sociale", "Articles feed", true, null],
-    ["Society", "Whole site feed", true, WHOLE_SITE_NOTE],
+    ["Social Anthropology/Anthropologie sociale", copy.labels.articlesFeed, true, null],
+    ["Society", copy.labels.wholeSiteFeed, true, WHOLE_SITE_NOTE],
   ]);
   assert.equal(calls.filter((c) => c.url === journalFeed).length, 1, "two links to one journal: one probe");
 });
@@ -341,7 +344,7 @@ test("a DOI whose journal has no feed rule: its doi.org page is asked for as a w
   const d = await discover("10.1080/00187259.2026.2739223", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "nofeed");
-  assert.match(d.message, /Human Organization \(Informa UK Limited\).*journal's own page/);
+  assert.equal(d.message, copy.discover.articleInJournal("Human Organization (Informa UK Limited)"));
   assert.ok(calls.some((c) => c.url === resolver && c.accept?.startsWith("text/html")));
 });
 
@@ -370,7 +373,7 @@ test("a ScienceDirect journal: Crossref's one exact match gives the print ISSN i
     [feedUrl]: feed(feedUrl, ""),
   });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Anthropological Archaeology", feedUrl, "Elsevier journal"]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Anthropological Archaeology", feedUrl, copy.journals.origin("Elsevier")]]);
 });
 
 test("Duke University Press: its walled pages get a message saying how to find the feed", async () => {
@@ -434,7 +437,7 @@ test("a DOI whose journal feed times out and whose page is busy: a retryable ans
   const b = await discover("10.1111/aman.70137", { fetch: busy.fetch, now: NOW });
   assert.ok(!b.ok);
   assert.equal(b.reason, "unreachable");
-  assert.doesNotMatch(b.message, /can't be found/);
+  assert.notEqual(b.message, copy.discover.articleInJournal("Human Organization (Informa UK Limited)"));
 });
 
 test("a journal the page links to and whose ISSN its metadata states is the page's own, once, and comes before journals it only links to", async () => {
@@ -480,8 +483,8 @@ test("a journal with articles online that aren't in an issue yet: both feeds, ea
   });
   const d = ok(await discover(wileyPage, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [
-    ["American Anthropologist", "Articles feed", null],
-    ["American Anthropologist", "Early articles feed", EARLY_NOTE],
+    ["American Anthropologist", copy.labels.articlesFeed, null],
+    ["American Anthropologist", copy.labels.earlyArticlesFeed, EARLY_NOTE],
   ]);
 });
 
@@ -493,7 +496,7 @@ test("a journal's second feed with the same articles as its main feed, or with n
       [WILEY_EARLY]: fakeResponse(WILEY_EARLY, early, "application/rss+xml"),
     });
     const d = ok(await discover(wileyPage, { fetch, now: NOW }));
-    assert.deepEqual(d.candidates.map((c) => c.via), ["Articles feed"]);
+    assert.deepEqual(d.candidates.map((c) => c.via), [copy.labels.articlesFeed]);
   }
 });
 
@@ -503,7 +506,7 @@ test("a subset is a choice of its own: an early-articles feed whose articles the
     [WILEY_EARLY]: fakeResponse(WILEY_EARLY, rss("Wiley-Online-Library: Table of Contents", "https://onlinelibrary.wiley.com/doi/", [2, 3]), "application/rss+xml"),
   });
   const d = ok(await discover(wileyPage, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => c.via), ["Articles feed", "Early articles feed"]);
+  assert.deepEqual(d.candidates.map((c) => c.via), [copy.labels.articlesFeed, copy.labels.earlyArticlesFeed]);
 });
 
 test("a page's feeds in two formats with the same entries are one choice; feeds with the same name and newest entry but other entries are two", async () => {
@@ -533,7 +536,7 @@ test("an Open Journal Systems journal: its announcements are offered next to its
     [news]: fakeResponse(news, rss("The Journal: Announcements", "https://ojs.example/index.php/j/announcement/view/"), "application/rss+xml"),
   });
   const d = ok(await discover(pageUrl, { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["The Journal", "Posts feed", null], ["The Journal: Announcements", "Announcements feed", OJS_ANNOUNCEMENTS_NOTE]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["The Journal", copy.labels.postsFeed, null], ["The Journal: Announcements", copy.labels.announcementsFeed, OJS_ANNOUNCEMENTS_NOTE]]);
 });
 
 test("Project MUSE: a journal's articles and its issues, two feeds with nothing in common", async () => {
@@ -544,7 +547,7 @@ test("Project MUSE: a journal's articles and its issues, two feeds with nothing 
     [issues]: fakeResponse(issues, rss("Project MUSE®: Anthropological Quarterly - Latest Issues", "https://muse.jhu.edu/issue/"), "application/rss+xml"),
   });
   const d = ok(await discover("https://muse.jhu.edu/journal/10", { fetch, now: NOW }));
-  assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["Anthropological Quarterly", "Articles feed", null], ["Anthropological Quarterly", "Issues feed", ISSUES_NOTE]]);
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["Anthropological Quarterly", copy.labels.articlesFeed, null], ["Anthropological Quarterly", copy.labels.issuesFeed, ISSUES_NOTE]]);
 });
 
 test("an MDPI journal page: the journal's own feed, chosen, and MDPI's feed of all its journals after it, labelled as the whole site's", async () => {

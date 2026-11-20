@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { newId } from "@purss/domain";
+import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -9,6 +10,8 @@ import { keepItem } from "./state.ts";
 import { setPreferences } from "./preferences.ts";
 import { addDays, isAnniversary, listReminders, reminderAction, remindersForToday, runReminderPass } from "./reminders.ts";
 import { HttpError } from "../http.ts";
+
+const { reminders, shared } = server.api;
 
 function setup() {
   const { app, cleanup } = makeTestApp();
@@ -40,7 +43,7 @@ test("anniversary: earlier years on this month and day only", (t) => {
   assert.deepEqual(titles, ["One year ago", "Two years ago"]);
   const r = listReminders(app, p, NOW)[0]!;
   assert.equal(r.basketName, "Keepers");
-  assert.equal(r.captureLabel, "Saved details (title, link and summary)");
+  assert.equal(r.captureLabel, shared.labelMetadata);
   assert.equal(r.sourceTitle, "Sediment Letters");
 });
 
@@ -112,7 +115,7 @@ test("a reminder is created once, survives restarts, and one notification is mad
   runReminderPass(app, NOW);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'reminder'")!.n, 1);
   const n = app.db.get<{ title: string; body: string | null }>("SELECT title, body FROM notifications WHERE kind = 'reminder'")!;
-  assert.equal(n.title, "On this day: 1 thing you kept");
+  assert.equal(n.title, reminders.onThisDayOne);
   assert.equal(n.body, null, "no titles in the notification unless previews are on");
   // Next day, a new date, a new notification (nothing is kept on Nov 4 so there is no reminder).
   assert.equal(listReminders(app, p, new Date("2026-11-04T12:00:00.000Z")).length, 0);
@@ -155,9 +158,9 @@ test("capture label reflects what was actually kept, and no network is involved"
   const id = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'With feed content'")!.id;
   keepItem(app, p, id, basket);
   app.db.run("UPDATE basket_items SET kept_at = '2024-11-03T10:00:00.000Z' WHERE item_id = ?", id);
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Saved the feed's text");
+  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, shared.labelFeed);
   app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'done', ?)", newId("cap"), p.workspaceId, id, "2024-11-03T10:05:00.000Z");
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, "Full text saved");
+  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, shared.labelFulltext);
 });
 
 test("date arithmetic helper rolls over months and years", () => {

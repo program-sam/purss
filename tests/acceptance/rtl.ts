@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { app as copy } from "@purss/copy/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -43,6 +44,8 @@ const EMAIL = "dalia@example.test";
 const NAME = "داليا Dalia Lekhal";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+const HOME = copy.pages.home;
 /** What some publishers send: every word of a paragraph joined to the next with a no-break space. */
 const joined = (text: string) => text.replaceAll(" ", "&nbsp;");
 const EPISODE = "الإجهاض وأحاديث مؤجلة - سلام";
@@ -97,14 +100,14 @@ function prepare(): void {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
-  const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
+  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
+  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
+  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) { await notNow.click(); await firstVisit.waitFor({ state: "hidden" }); }
-  await page.getByRole("heading", { name: "Home" }).waitFor();
+  await page.getByRole("heading", { name: HOME.title }).waitFor();
 }
 
 async function main(): Promise<void> {
@@ -142,8 +145,8 @@ async function main(): Promise<void> {
     step("a collection box names its sources in order, each separator right after the name before it, mixed scripts included");
 
     // ---------- the Front page ----------
-    await page.getByRole("button", { name: "Customise" }).click();
-    await page.locator("label.lopt", { hasText: "Front page" }).click();
+    await page.getByRole("button", { name: HOME.customise }).click();
+    await page.locator("label.lopt", { hasText: copy.dialogs.customiseHome.layouts.front.label }).click();
     await page.locator('input[name="lay"][value="front"]').waitFor({ state: "attached" });
     await page.waitForFunction(() => (document.querySelector('input[name="lay"][value="front"]') as HTMLInputElement | null)?.checked === true);
     await page.keyboard.press("Escape");

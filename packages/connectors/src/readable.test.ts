@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { server } from "@purss/copy/server";
 import { fetchPictures } from "./pictures.ts";
 import { assessCapture } from "./capture-quality.ts";
 import { captureReadable, captureReadableWith } from "./readable.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
+
+const copy = server.sources.connectors;
 
 const PARA = "The committee spent the autumn reviewing how small gardens cope with heavy rain, and found that mulch, soil structure and patience matter more than any gadget. ";
 const ARTICLE = (extra = "") => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Why mulch matters | Garden Notes</title>
@@ -52,7 +55,7 @@ test("the production entry point has the documented signature and refuses privat
     const r = await captureReadable(`${server.url}/a`);
     assert.ok(!r.ok);
     assert.equal(r.reason, "blocked");
-    assert.match(r.message, /private|internal/i);
+    assert.ok([copy.address.thisComputer, copy.address.private].includes(r.message), r.message);
     const aborted = await captureReadable("https://example.com/", { signal: AbortSignal.abort() });
     assert.ok(!aborted.ok);
     assert.equal(aborted.reason, "aborted");
@@ -178,14 +181,14 @@ test("a vacancy page that has no more text than its banner is not saved as the b
   const r = await captureOf(page("govuk-vacancy-closed.html"));
   assert.ok(!r.ok, "the banner is not the copy");
   assert.equal(r.reason, "noarticle");
-  assert.match(r.message, /enough readable text/, "it is the page that had too little, not a copy of the banner");
+  assert.equal(r.message, copy.readable.notEnoughText, "it is the page that had too little, not a copy of the banner");
 });
 
 test("a page that gives only its menus gives no copy, and says so", async () => {
   const r = await captureOf(page("bbc-sounds.html"));
   assert.ok(!r.ok, "the menus are not a readable copy");
   assert.equal(r.reason, "noarticle");
-  assert.match(r.message, /only a cookie notice or its menus/);
+  assert.equal(r.message, copy.readable.noticeOnly);
 });
 
 test("a consent screen with nothing else on it gives no copy", async () => {
@@ -194,7 +197,7 @@ test("a consent screen with nothing else on it gives no copy", async () => {
     <p>Accept all cookies</p><p>Reject all cookies</p><p>Manage cookie preferences</p></div></div></body></html>`;
   const r = await captureOf(wall);
   assert.ok(!r.ok);
-  assert.match(r.message, /only a cookie notice or its menus/);
+  assert.equal(r.message, copy.readable.noticeOnly);
 });
 
 test("consent banners in front of a normal article leave the article whole, whatever the tool that put them there", async () => {

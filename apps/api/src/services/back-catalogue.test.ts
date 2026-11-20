@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import type { ItemListQuery, SyncEntry } from "@purss/domain";
 import { newId } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
@@ -26,6 +27,7 @@ import { searchItems } from "./search.ts";
  * marks the posts of the 7 days before as New. Ignored is the person's to change like any state: nothing else marks these posts.
  */
 
+const { notifications } = server.api;
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -146,10 +148,10 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
   assert.equal(home.fresh, 1);
   assert.equal(itemCounts(app, p.workspaceId).items(src), back.length + 1, "the counts keep the whole of it for the source's page");
   assert.equal(itemCounts(app, p.workspaceId).sum([src], (w) => w === "ignored"), back.length);
-  assert.deepEqual(notes(app), ["New from Old podcast"], "and it tells no one: only the post that is new does");
+  assert.deepEqual(notes(app), [notifications.newFrom("Old podcast")], "and it tells no one: only the post that is new does");
   const activity = activityFor(app, p);
   assert.equal(activity.sources.find((s) => s.id === src)!.arrived, 1, "the activity panel does not report it as arrived today");
-  assert.deepEqual(activity.events.filter((e) => e.kind === "arrived").map((e) => e.text), ["1 new item from Old podcast"]);
+  assert.deepEqual(activity.events.filter((e) => e.kind === "arrived").map((e) => e.text), [server.api.activity.arrived(1, "Old podcast")]);
 });
 
 test("with the last week, the posts of the 7 days before the follow are New and the older ones are left out", (t) => {
@@ -182,7 +184,7 @@ test("with the last week, the posts of the 7 days before the follow are New and 
   const home = homeOverview(app, p);
   assert.deepEqual([home.fresh, home.unread], [2, 0]);
   // New like the rest: they are told once, with the others, and later posts are New as ever.
-  assert.deepEqual(notes(app), ["2 new from Weekly"]);
+  assert.deepEqual(notes(app), [notifications.newCountFrom(2, "Weekly")]);
   walk(app, p);
   const later = entry("feed/1", { publishedAt: ago(40 * DAY) });
   walk(app, p, [later]);

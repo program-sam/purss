@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DiscoveryCandidate } from "@purss/domain";
+import { server } from "@purss/copy/server";
+import { app } from "@purss/copy/app";
 import { cadenceText, EPISODES, POSTS } from "./cadence.ts";
 import { YOUTUBE_REFUSED } from "./discover.ts";
 import { discover, previewsAsFeed } from "./discover.ts";
@@ -12,6 +14,8 @@ import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
 import { channelIdFromHtml, classifyYoutubeUrl, YOUTUBE_SLOW } from "./youtube.ts";
+
+const copy = server.sources.connectors;
 
 const NOW = () => new Date("2026-11-03T12:00:00Z");
 
@@ -98,11 +102,11 @@ test("direct feed: preview with title, cadence, three samples, full content and 
   const shaped: Omit<DiscoveryCandidate, "token"> = c; // compile-time contract check
   assert.equal(shaped.title, "Weekly Blog");
   assert.equal(c.kind, "feed");
-  assert.equal(c.origin, "RSS feed");
-  assert.equal(c.via, "Posts feed");
+  assert.equal(c.origin, copy.labels.rssFeed);
+  assert.equal(c.via, copy.labels.postsFeed);
   assert.equal(c.feedUrl, "https://blog.example/feed.xml");
   assert.equal(c.siteUrl, "https://blog.example/");
-  assert.equal(c.cadence, "about 1 post a week");
+  assert.equal(c.cadence, copy.cadence.aboutAWeek(`1 ${POSTS.one}`));
   assert.equal(c.samples.length, 3);
   assert.deepEqual(c.samples[0], { title: "Weekly Blog 1", publishedAt: "2026-11-02T10:00:00.000Z" });
   assert.equal(c.summariesOnly, false);
@@ -149,15 +153,15 @@ test("website with several alternates: labels, ordering and de-duplication of th
   assert.deepEqual(
     d.candidates.map((c) => [c.title, c.via, c.kind]),
     [
-      ["Site Blog", "Posts feed", "feed"],
-      ["The Podcast", "Podcast feed", "podcast"],
-      ["Site Blog: Gardening", "Section feed", "feed"],
+      ["Site Blog", copy.labels.postsFeed, "feed"],
+      ["The Podcast", copy.labels.podcastFeed, "podcast"],
+      ["Site Blog: Gardening", copy.labels.sectionFeed, "feed"],
     ],
     "the comments feed is left out when posts feeds exist",
   );
   assert.equal(d.url, "https://site.example/");
-  assert.equal(d.candidates[1]!.origin, "Podcast feed");
-  assert.equal(d.candidates[1]!.cadence, "Latest episode 1 day ago");
+  assert.equal(d.candidates[1]!.origin, copy.labels.podcastFeed);
+  assert.equal(d.candidates[1]!.cadence, copy.cadence.latest(EPISODES.one, copy.cadence.ago(copy.cadence.oneDay)));
 });
 
 test("an RSS link in the page body is found when the head advertises nothing", async () => {
@@ -190,7 +194,7 @@ test("a page with no feed at all answers 'nofeed' with a next step", async () =>
   const d = await discover("none.example", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "nofeed");
-  assert.match(d.message, /couldn't find a feed/i);
+  assert.equal(d.message, copy.discover.noFeed);
 });
 
 test("https is tried first and plain http is the fallback; a failed https attempt does not hide a working http site", async () => {
@@ -225,20 +229,20 @@ test("credential-like feed URLs raise a private warning; ordinary ones do not", 
     "https://members.example/feed?page=2": fakeResponse("https://members.example/feed?page=2", feed, "application/rss+xml"),
   });
   const a = okDraft(await discover(secret, { fetch, now: NOW })).candidates[0]!;
-  assert.match(a.privateWarning ?? "", /private access key/);
+  assert.equal(a.privateWarning, copy.privacy.warning);
   const b = okDraft(await discover("https://members.example/u/3f9a1c7e5b2d4f8a9c0e1d2b3a4f5e6d/feed.xml", { fetch, now: NOW })).candidates[0]!;
-  assert.match(b.privateWarning ?? "", /private/);
+  assert.equal(b.privateWarning, copy.privacy.warning);
   const c = okDraft(await discover("https://members.example/feed?page=2", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.privateWarning, null);
 });
 
 test("failure modes map to the contract reasons with plain messages", async () => {
   const cases: [string, SafeFetchResult, string][] = [
-    ["blocked", fakeFailure("blocked", "That address points to a private or internal network, so it can't be followed."), "blocked"],
+    ["blocked", fakeFailure("blocked", copy.address.private), "blocked"],
     ["timeout", fakeFailure("timeout"), "timeout"],
     ["toolarge", fakeFailure("toolarge"), "toolarge"],
     ["unreachable", fakeFailure("unreachable", "We couldn't find that website."), "unreachable"],
-    ["invalid", fakeFailure("invalid", "That website sent a response we couldn't read."), "invalid"],
+    ["invalid", fakeFailure("invalid", copy.fetch.unreadableResponse), "invalid"],
     ["aborted", fakeFailure("aborted"), "timeout"],
     ["404", fakeResponse("https://x.example/", "nope", "text/html", 404), "unreachable"],
     ["403", fakeResponse("https://x.example/", "nope", "text/html", 403), "unreachable"],
@@ -266,22 +270,22 @@ test("an empty feed is a preview with an honest note, not a failure", async () =
   const { fetch } = stub({ "https://quiet.example/feed": fakeResponse("https://quiet.example/feed", '<rss version="2.0"><channel><title>Quiet</title><link>https://quiet.example</link></channel></rss>', "application/rss+xml") });
   const c = okDraft(await discover("https://quiet.example/feed", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.samples.length, 0);
-  assert.equal(c.cadence, "No posts yet");
+  assert.equal(c.cadence, copy.cadence.noneYet(POSTS.many));
 });
 
 test("cadence wording from sample dates", () => {
   const mk = (...dates: string[]): FeedItem[] => dates.map((d) => ({ guid: null, url: null, title: "t", author: null, publishedAt: d, summaryHtml: null, contentHtml: null, imageUrl: null, enclosures: [], durationSeconds: null, videoId: null }));
   const now = new Date("2026-11-03T12:00:00Z");
-  assert.equal(cadenceText(mk("2026-11-02T00:00:00Z", "2026-10-30T00:00:00Z", "2026-10-26T00:00:00Z", "2026-10-23T00:00:00Z"), POSTS, now), "about 2 posts a week");
-  assert.equal(cadenceText(mk("2026-11-03T08:00:00Z", "2026-11-03T04:00:00Z", "2026-11-02T20:00:00Z", "2026-11-02T16:00:00Z", "2026-11-02T12:00:00Z"), POSTS, now), "about 5 posts a day");
-  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z", "2026-09-20T00:00:00Z", "2026-08-21T00:00:00Z"), POSTS, now), "about 1 post a month");
-  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z", "2026-09-20T00:00:00Z"), POSTS, now), "Latest post 15 days ago");
-  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z"), EPISODES, now), "Latest episode 15 days ago");
-  assert.match(cadenceText(mk("2023-01-02T00:00:00Z", "2022-12-02T00:00:00Z", "2022-11-02T00:00:00Z"), POSTS, now)!, /^No new posts for about 4 years/);
-  assert.equal(cadenceText([], POSTS, now), "No posts yet");
+  assert.equal(cadenceText(mk("2026-11-02T00:00:00Z", "2026-10-30T00:00:00Z", "2026-10-26T00:00:00Z", "2026-10-23T00:00:00Z"), POSTS, now), copy.cadence.aboutAWeek(`2 ${POSTS.many}`));
+  assert.equal(cadenceText(mk("2026-11-03T08:00:00Z", "2026-11-03T04:00:00Z", "2026-11-02T20:00:00Z", "2026-11-02T16:00:00Z", "2026-11-02T12:00:00Z"), POSTS, now), copy.cadence.aboutADay(`5 ${POSTS.many}`));
+  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z", "2026-09-20T00:00:00Z", "2026-08-21T00:00:00Z"), POSTS, now), copy.cadence.aboutAMonth(`1 ${POSTS.one}`));
+  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z", "2026-09-20T00:00:00Z"), POSTS, now), copy.cadence.latest(POSTS.one, copy.cadence.ago(copy.cadence.days(15))));
+  assert.equal(cadenceText(mk("2026-10-20T00:00:00Z"), EPISODES, now), copy.cadence.latest(EPISODES.one, copy.cadence.ago(copy.cadence.days(15))));
+  assert.equal(cadenceText(mk("2023-01-02T00:00:00Z", "2022-12-02T00:00:00Z", "2022-11-02T00:00:00Z"), POSTS, now), copy.cadence.noNewFor(POSTS.many, copy.cadence.aboutYears(4)));
+  assert.equal(cadenceText([], POSTS, now), copy.cadence.noneYet(POSTS.many));
   assert.equal(cadenceText([{ ...mk("2026-10-20T00:00:00Z")[0]!, publishedAt: null }], POSTS, now), null);
   // a burst followed by silence reports the current rhythm, not the burst
-  assert.equal(cadenceText(mk("2026-08-01T00:00:00Z", "2026-07-31T00:00:00Z", "2026-07-30T00:00:00Z", "2026-07-29T00:00:00Z"), POSTS, now), "about 1 post a month");
+  assert.equal(cadenceText(mk("2026-08-01T00:00:00Z", "2026-07-31T00:00:00Z", "2026-07-30T00:00:00Z", "2026-07-29T00:00:00Z"), POSTS, now), copy.cadence.aboutAMonth(`1 ${POSTS.one}`));
 });
 
 // ---------- end to end through the real safeFetch against a local server ----------
@@ -358,12 +362,12 @@ test("YouTube: /channel/UC… resolves directly to the official feed and never c
     assert.equal(d.candidates.length, 1, input);
     const c = d.candidates[0]!;
     assert.equal(c.kind, "youtube");
-    assert.equal(c.origin, "YouTube channel feed");
-    assert.equal(c.via, "Channel feed");
+    assert.equal(c.origin, copy.labels.youtubeChannelFeed);
+    assert.equal(c.via, copy.labels.channelFeed);
     assert.equal(c.title, "Shed Channel");
     assert.equal(c.feedUrl, `https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`);
     assert.equal(c.samples.length, 3);
-    assert.equal(c.cadence, "about 1 video a week");
+    assert.equal(c.cadence, copy.cadence.aboutAWeek(`1 ${copy.cadence.video.one}`));
     assert.equal(c.summariesOnly, false);
     assert.equal(c.privateWarning, null, "a channel id is not a credential");
   }
@@ -375,7 +379,7 @@ test("YouTube: @handle, /c/ and /user/ pages resolve the channel id from the pag
   for (const input of ["https://www.youtube.com/@shedlife", "https://www.youtube.com/@shedlife/videos", "youtube.com/@shedlife", "https://www.youtube.com/c/ShedLife", "https://www.youtube.com/user/shedman"]) {
     const d = okDraft(await discover(input, { fetch, now: NOW }));
     assert.equal(d.candidates[0]!.feedUrl, `https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`, input);
-    assert.equal(d.candidates[0]!.via, "Channel feed", input);
+    assert.equal(d.candidates[0]!.via, copy.labels.channelFeed, input);
   }
 });
 
@@ -384,47 +388,45 @@ test("YouTube: unknown handle, consent wall, no channel and ambiguous pages give
   const ghost = await discover("https://www.youtube.com/@ghost", { fetch });
   assert.ok(!ghost.ok);
   assert.equal(ghost.reason, "nofeed");
-  assert.match(ghost.message, /no page for the handle @ghost/i);
-  assert.doesNotMatch(ghost.message, /no channel/i, "a 404 for a handle is not proof that the channel does not exist");
-  assert.match(ghost.message, /video|channel\/UC/i, "it says what to paste instead");
+  assert.equal(ghost.message, copy.youtube.noPage(copy.youtube.theHandle("@ghost")));
   const consent = await discover("https://www.youtube.com/@consent", { fetch });
   assert.ok(!consent.ok);
-  assert.match(consent.message, /cookie consent/i);
+  assert.equal(consent.message, copy.youtube.cookieConsent);
   const mystery = await discover("https://www.youtube.com/@mystery", { fetch });
   assert.ok(!mystery.ok);
   assert.equal(mystery.reason, "unsupported");
   const both = await discover("https://www.youtube.com/@both", { fetch });
   assert.ok(!both.ok);
-  assert.match(both.message, /more than one channel/i);
+  assert.equal(both.message, copy.youtube.severalChannels);
 });
 
 test("YouTube: a video resolves to its uploader as a related channel to confirm", async () => {
   const { fetch } = youtubeStub();
   const d = okDraft(await discover("https://www.youtube.com/watch?v=dQw4w9WgXcQ", { fetch, now: NOW }));
   assert.equal(d.candidates.length, 1);
-  assert.equal(d.candidates[0]!.via, "Related channel — confirm");
+  assert.equal(d.candidates[0]!.via, copy.labels.relatedChannelConfirm);
   assert.equal(d.candidates[0]!.feedUrl, `https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`);
   for (const input of ["https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/shorts/dQw4w9WgXcQ", "https://www.youtube.com/live/dQw4w9WgXcQ?feature=share"]) {
     const x = okDraft(await discover(input, { fetch, now: NOW }));
-    assert.equal(x.candidates[0]!.via, "Related channel — confirm", input);
+    assert.equal(x.candidates[0]!.via, copy.labels.relatedChannelConfirm, input);
   }
   // oEmbed unavailable: fall back to the watch page
   const fallback = okDraft(await discover("https://www.youtube.com/watch?v=privateVid1", { fetch, now: NOW }));
   assert.equal(fallback.candidates[0]!.feedUrl, `https://www.youtube.com/feeds/videos.xml?channel_id=${CH2}`);
-  assert.equal(fallback.candidates[0]!.via, "Related channel — confirm");
+  assert.equal(fallback.candidates[0]!.via, copy.labels.relatedChannelConfirm);
 });
 
 test("YouTube: playlists use the official playlist feed and are labelled as playlists; unsupported lists say why", async () => {
   const { fetch } = youtubeStub();
   const d = okDraft(await discover("https://www.youtube.com/playlist?list=PLaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", { fetch, now: NOW }));
   const c = d.candidates[0]!;
-  assert.equal(c.via, "Playlist feed");
-  assert.equal(c.origin, "YouTube playlist feed");
+  assert.equal(c.via, copy.labels.playlistFeed);
+  assert.equal(c.origin, copy.labels.youtubePlaylistFeed);
   assert.equal(c.title, "Shed builds");
   assert.equal(c.kind, "youtube");
   // a video inside a playlist offers both the related channel and the playlist
   const both = okDraft(await discover("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", { fetch, now: NOW }));
-  assert.deepEqual(both.candidates.map((x) => x.via), ["Related channel — confirm", "Playlist feed"]);
+  assert.deepEqual(both.candidates.map((x) => x.via), [copy.labels.relatedChannelConfirm, copy.labels.playlistFeed]);
   for (const bad of ["https://www.youtube.com/playlist?list=RDdQw4w9WgXcQ", "https://www.youtube.com/playlist?list=WL", "https://www.youtube.com/", "https://www.youtube.com/feed/subscriptions", "https://www.youtube.com/results?search_query=x", "https://www.youtube.com/channel/notachannel"]) {
     const x = await discover(bad, { fetch });
     assert.ok(!x.ok, bad);
@@ -436,24 +438,24 @@ test("YouTube feed addresses pasted directly are still YouTube sources", async (
   const { fetch } = youtubeStub();
   const d = okDraft(await discover(`https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`, { fetch, now: NOW }));
   assert.equal(d.candidates[0]!.kind, "youtube");
-  assert.equal(d.candidates[0]!.via, "Channel feed");
+  assert.equal(d.candidates[0]!.via, copy.labels.channelFeed);
 });
 
 test("YouTube: a page that did not answer in time is asked once more, so the first lookup of a channel does not fail for a stall", async () => {
   const { fetch, calls } = youtubeStub();
   let tries = 0;
-  const stalls: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" && ++tries === 1 ? fakeFailure("timeout", "That website took too long to answer.") : fetch(url, o));
+  const stalls: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" && ++tries === 1 ? fakeFailure("timeout", copy.fetch.slowAnswer) : fetch(url, o));
   const d = okDraft(await discover("https://www.youtube.com/@shedlife", { fetch: stalls, now: NOW }));
   assert.equal(d.candidates[0]!.feedUrl, `https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`);
   assert.equal(tries, 2, "the page was asked for twice");
   assert.equal(calls.filter((u) => u.includes("videos.xml")).length, 1, "the feed once");
   // A connection cut off in the middle is asked again too; a refusal is not.
   let cuts = 0;
-  const cut: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" && ++cuts === 1 ? { ok: false, reason: "unreachable", message: "The connection to that website was interrupted.", detail: "ECONNRESET https://www.youtube.com/@shedlife" } : fetch(url, o));
+  const cut: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" && ++cuts === 1 ? { ok: false, reason: "unreachable", message: copy.fetch.interrupted, detail: "ECONNRESET https://www.youtube.com/@shedlife" } : fetch(url, o));
   okDraft(await discover("https://www.youtube.com/@shedlife", { fetch: cut, now: NOW }));
   assert.equal(cuts, 2);
   let refusals = 0;
-  const refused: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" ? (refusals++, { ok: false, reason: "unreachable", message: "That website refused the connection.", detail: "ECONNREFUSED https://www.youtube.com/@shedlife" }) : fetch(url, o));
+  const refused: FetchFn = async (url, o) => (url === "https://www.youtube.com/@shedlife" ? (refusals++, { ok: false, reason: "unreachable", message: copy.fetch.refused, detail: "ECONNREFUSED https://www.youtube.com/@shedlife" }) : fetch(url, o));
   assert.ok(!(await discover("https://www.youtube.com/@shedlife", { fetch: refused, now: NOW })).ok);
   assert.equal(refusals, 1);
   // A video link: its oEmbed answer stalls once too.
@@ -466,7 +468,7 @@ test("YouTube: a page that did not answer in time is asked once more, so the fir
 
 test("YouTube: slowness is called slowness, in the words of a timeout and not of an unreachable site", async () => {
   const { fetch } = youtubeStub();
-  const never: FetchFn = async (url, o) => (url.startsWith("https://www.youtube.com/@") ? fakeFailure("timeout", "That website took too long to answer.") : fetch(url, o));
+  const never: FetchFn = async (url, o) => (url.startsWith("https://www.youtube.com/@") ? fakeFailure("timeout", copy.fetch.slowAnswer) : fetch(url, o));
   const page = await discover("https://www.youtube.com/@shedlife", { fetch: never, now: NOW });
   assert.ok(!page.ok);
   assert.equal(page.reason, "timeout");
@@ -478,7 +480,7 @@ test("YouTube: slowness is called slowness, in the words of a timeout and not of
   // A feed that stalls on a channel the page named: the channel is known, so it is offered with a note, as for any unreachable feed.
   const feedStall: FetchFn = async (url, o) => (url.includes("videos.xml") ? fakeFailure("timeout") : fetch(url, o));
   const offered = okDraft(await discover("https://www.youtube.com/@shedlife", { fetch: feedStall, now: NOW, retryDelayMs: 1 }));
-  assert.match(offered.candidates[0]!.note ?? "", /Following will keep trying/);
+  assert.equal(offered.candidates[0]!.note, copy.discover.youtubeNoRecentVideos);
   // A feed address alone has no channel name to offer, so a stalled feed there is the slowness message, not "YouTube refuses cloud servers".
   const direct = await discover(`https://www.youtube.com/feeds/videos.xml?channel_id=${CH}`, { fetch: feedStall, now: NOW, retryDelayMs: 1 });
   assert.ok(!direct.ok);
@@ -515,7 +517,7 @@ test("a feed far larger than the preview limit is still previewed from its start
     assert.equal(c.title, "Long Running Show");
     assert.equal(c.kind, "podcast");
     assert.equal(c.samples[0]!.title, "Episode 20000");
-    assert.equal(c.cadence, "about 1 episode a week");
+    assert.equal(c.cadence, copy.cadence.aboutAWeek(`1 ${EPISODES.one}`));
   } finally {
     await server.close();
   }
@@ -577,7 +579,7 @@ test("YouTube's flaky feed: retried, then the known channel is still offered wit
   const d2 = okDraft(await discover("https://www.youtube.com/@cloudblocked", { fetch: refusing, now: NOW, retryDelayMs: 0 }));
   assert.equal(d2.candidates[0]!.feedUrl, feedUrl);
   assert.equal(d2.candidates[0]!.title, "@cloudblocked");
-  assert.match(d2.candidates[0]!.note ?? "", /keep trying/);
+  assert.equal(d2.candidates[0]!.note, copy.discover.youtubeNoRecentVideos);
   // A pasted feed address with no channel to fall back on gets an honest message.
   const d3 = await discover(feedUrl, { fetch: refusing, now: NOW, retryDelayMs: 0 });
   assert.equal(d3.ok, false);
@@ -622,20 +624,20 @@ const EMPTY_ARXIV = '<?xml version="1.0"?><rss version="2.0"><channel><title>cs.
 
 type Service = { name: string; input: string; feedUrl: string; body: string; type?: string; title: string; via: string; origin: string };
 const SERVICES: Service[] = [
-  { name: "GitHub user", input: "https://github.com/torvalds", feedUrl: "https://github.com/torvalds.atom", body: ghAtom("GitHub Public Timeline Feed"), type: "application/atom+xml", title: "torvalds activity", via: "Activity feed", origin: "GitHub activity" },
-  { name: "GitHub organisation", input: "github.com/vercel/", feedUrl: "https://github.com/vercel.atom", body: ghAtom("GitHub Public Timeline Feed"), type: "application/atom+xml", title: "vercel activity", via: "Activity feed", origin: "GitHub activity" },
-  { name: "Steam game", input: "https://store.steampowered.com/app/730/CounterStrike_2/", feedUrl: "https://store.steampowered.com/feeds/news/app/730/", body: rssWithDates("730 RSS Feed", WEEKLY, { link: "https://store.steampowered.com" }), type: "text/xml; charset=UTF-8", title: "CounterStrike 2 news", via: "Posts feed", origin: "Steam news" },
-  { name: "arXiv listing", input: "https://arxiv.org/list/cs.LG/recent", feedUrl: "https://rss.arxiv.org/rss/cs.LG", body: rssWithDates("cs.LG updates on arXiv.org", WEEKLY, { link: "https://arxiv.org" }), title: "cs.LG updates on arXiv.org", via: "Posts feed", origin: "arXiv listing" },
-  { name: "Dailymotion channel", input: "https://www.dailymotion.com/dailymotion", feedUrl: "https://www.dailymotion.com/rss/user/dailymotion", body: rssWithDates("dailymotion - Most recent videos - Dailymotion", WEEKLY, { link: "https://www.dailymotion.com" }), type: "text/xml; charset=utf-8", title: "dailymotion on Dailymotion", via: "Channel feed", origin: "Dailymotion channel" },
-  { name: "Odysee channel", input: "https://odysee.com/@veritasium:f", feedUrl: "https://odysee.com/$/rss/@veritasium:f", body: rssWithDates("Veritasium on Odysee", WEEKLY, { link: "https://odysee.com" }), type: "application/xml", title: "Veritasium on Odysee", via: "Channel feed", origin: "Odysee channel" },
-  { name: "DeviantArt profile", input: "https://www.deviantart.com/spyed", feedUrl: "https://backend.deviantart.com/rss.xml?q=gallery:spyed", body: rssWithDates("DeviantArt: spyed's gallery", WEEKLY, { link: "https://www.deviantart.com" }), type: "text/xml; charset=utf-8", title: "DeviantArt: spyed's gallery", via: "Gallery feed", origin: "DeviantArt gallery" },
-  { name: "DeviantArt gallery", input: "https://www.deviantart.com/spyed/gallery", feedUrl: "https://backend.deviantart.com/rss.xml?q=gallery:spyed", body: rssWithDates("DeviantArt: spyed's gallery", WEEKLY, { link: "https://www.deviantart.com" }), title: "DeviantArt: spyed's gallery", via: "Gallery feed", origin: "DeviantArt gallery" },
-  { name: "PeerTube account", input: "https://framatube.org/a/framasoft/video-channels", feedUrl: "https://framatube.org/feeds/videos.xml?accountName=framasoft", body: peertubeRss("Framasoft"), type: "application/xml; charset=utf-8", title: "Framasoft", via: "Channel feed", origin: "PeerTube account feed" },
-  { name: "PeerTube channel", input: "https://video.blender.org/c/blender_open_movies/videos", feedUrl: "https://video.blender.org/feeds/videos.xml?videoChannelName=blender_open_movies", body: peertubeRss("Blender Open Movies", "video.blender.org"), type: "application/xml; charset=utf-8", title: "Blender Open Movies", via: "Channel feed", origin: "PeerTube channel feed" },
-  { name: "NOS news page", input: "https://nos.nl/nieuws", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: "Posts feed", origin: "NOS" },
-  { name: "NOS front page", input: "https://nos.nl/", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: "Posts feed", origin: "NOS" },
-  { name: "NOS football page", input: "https://nos.nl/sport/voetbal", feedUrl: "https://feeds.nos.nl/nosvoetbal", body: rssWithDates("NOS Voetbal", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Voetbal", via: "Posts feed", origin: "NOS" },
-  { name: "Behance profile", input: "https://www.behance.net/behance", feedUrl: "https://www.behance.net/feeds/user?username=behance", body: rssWithDates("Behance Team", WEEKLY, { link: "https://www.behance.net" }), type: 'application/rss+xml; charset="utf-8"', title: "Behance Team", via: "Projects feed", origin: "Behance projects" },
+  { name: "GitHub user", input: "https://github.com/torvalds", feedUrl: "https://github.com/torvalds.atom", body: ghAtom("GitHub Public Timeline Feed"), type: "application/atom+xml", title: copy.known.activity("torvalds"), via: copy.labels.activityFeed, origin: copy.known.githubActivity },
+  { name: "GitHub organisation", input: "github.com/vercel/", feedUrl: "https://github.com/vercel.atom", body: ghAtom("GitHub Public Timeline Feed"), type: "application/atom+xml", title: copy.known.activity("vercel"), via: copy.labels.activityFeed, origin: copy.known.githubActivity },
+  { name: "Steam game", input: "https://store.steampowered.com/app/730/CounterStrike_2/", feedUrl: "https://store.steampowered.com/feeds/news/app/730/", body: rssWithDates("730 RSS Feed", WEEKLY, { link: "https://store.steampowered.com" }), type: "text/xml; charset=UTF-8", title: copy.services.steamNews("CounterStrike 2"), via: copy.labels.postsFeed, origin: copy.services.steamOrigin },
+  { name: "arXiv listing", input: "https://arxiv.org/list/cs.LG/recent", feedUrl: "https://rss.arxiv.org/rss/cs.LG", body: rssWithDates("cs.LG updates on arXiv.org", WEEKLY, { link: "https://arxiv.org" }), title: "cs.LG updates on arXiv.org", via: copy.labels.postsFeed, origin: copy.services.arxivOrigin },
+  { name: "Dailymotion channel", input: "https://www.dailymotion.com/dailymotion", feedUrl: "https://www.dailymotion.com/rss/user/dailymotion", body: rssWithDates("dailymotion - Most recent videos - Dailymotion", WEEKLY, { link: "https://www.dailymotion.com" }), type: "text/xml; charset=utf-8", title: copy.services.dailymotionTitle("dailymotion"), via: copy.labels.channelFeed, origin: copy.services.dailymotionOrigin },
+  { name: "Odysee channel", input: "https://odysee.com/@veritasium:f", feedUrl: "https://odysee.com/$/rss/@veritasium:f", body: rssWithDates("Veritasium on Odysee", WEEKLY, { link: "https://odysee.com" }), type: "application/xml", title: "Veritasium on Odysee", via: copy.labels.channelFeed, origin: copy.services.odyseeOrigin },
+  { name: "DeviantArt profile", input: "https://www.deviantart.com/spyed", feedUrl: "https://backend.deviantart.com/rss.xml?q=gallery:spyed", body: rssWithDates("DeviantArt: spyed's gallery", WEEKLY, { link: "https://www.deviantart.com" }), type: "text/xml; charset=utf-8", title: "DeviantArt: spyed's gallery", via: copy.labels.galleryFeed, origin: copy.services.deviantartOrigin },
+  { name: "DeviantArt gallery", input: "https://www.deviantart.com/spyed/gallery", feedUrl: "https://backend.deviantart.com/rss.xml?q=gallery:spyed", body: rssWithDates("DeviantArt: spyed's gallery", WEEKLY, { link: "https://www.deviantart.com" }), title: "DeviantArt: spyed's gallery", via: copy.labels.galleryFeed, origin: copy.services.deviantartOrigin },
+  { name: "PeerTube account", input: "https://framatube.org/a/framasoft/video-channels", feedUrl: "https://framatube.org/feeds/videos.xml?accountName=framasoft", body: peertubeRss("Framasoft"), type: "application/xml; charset=utf-8", title: "Framasoft", via: copy.labels.channelFeed, origin: copy.services.peertubeAccountOrigin },
+  { name: "PeerTube channel", input: "https://video.blender.org/c/blender_open_movies/videos", feedUrl: "https://video.blender.org/feeds/videos.xml?videoChannelName=blender_open_movies", body: peertubeRss("Blender Open Movies", "video.blender.org"), type: "application/xml; charset=utf-8", title: "Blender Open Movies", via: copy.labels.channelFeed, origin: copy.services.peertubeChannelOrigin },
+  { name: "NOS news page", input: "https://nos.nl/nieuws", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: copy.labels.postsFeed, origin: "NOS" },
+  { name: "NOS front page", input: "https://nos.nl/", feedUrl: "https://feeds.nos.nl/nosnieuwsalgemeen", body: rssWithDates("NOS Nieuws", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Nieuws", via: copy.labels.postsFeed, origin: "NOS" },
+  { name: "NOS football page", input: "https://nos.nl/sport/voetbal", feedUrl: "https://feeds.nos.nl/nosvoetbal", body: rssWithDates("NOS Voetbal", WEEKLY, { link: "https://nos.nl" }), type: "text/xml; charset=utf-8", title: "NOS Voetbal", via: copy.labels.postsFeed, origin: "NOS" },
+  { name: "Behance profile", input: "https://www.behance.net/behance", feedUrl: "https://www.behance.net/feeds/user?username=behance", body: rssWithDates("Behance Team", WEEKLY, { link: "https://www.behance.net" }), type: 'application/rss+xml; charset="utf-8"', title: "Behance Team", via: copy.labels.projectsFeed, origin: copy.services.behanceOrigin },
 ];
 
 test("a profile or page address of a service with a native feed is followed through that feed, with the normal preview and no page request", async () => {
@@ -658,7 +660,7 @@ test("an arXiv listing's feed that is empty (weekends) is still followed, and sa
   const c = okDraft(await discover("https://arxiv.org/list/cs.LG/new", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.feedUrl, feed);
   assert.deepEqual(c.samples, []);
-  assert.match(c.note ?? "", /weekdays.*empty at weekends/);
+  assert.equal(c.note, copy.services.arxivEmptyNote);
   // On a weekday the same feed has entries and no note.
   const full = stub({ [feed]: fakeResponse(feed, rssWithDates("cs.LG updates on arXiv.org", WEEKLY.slice(0, 2)), "application/rss+xml") });
   const weekday = okDraft(await discover("https://arxiv.org/list/cs.LG/new", { fetch: full.fetch, now: NOW })).candidates[0]!;
@@ -683,9 +685,9 @@ test("PeerTube on a domain of its own: found by the address shape, asked for its
   });
   try {
     const account = okDraft(await discover(`${server.url}/a/alice/video-channels`, { testAllowAddress: allowLoopback, now: NOW })).candidates[0]!;
-    assert.deepEqual([account.title, account.via, account.origin, account.feedUrl], ["Alice", "Channel feed", "PeerTube account feed", `${server.url}/feeds/videos.xml?accountName=alice`]);
+    assert.deepEqual([account.title, account.via, account.origin, account.feedUrl], ["Alice", copy.labels.channelFeed, copy.services.peertubeAccountOrigin, `${server.url}/feeds/videos.xml?accountName=alice`]);
     const channel = okDraft(await discover(`${server.url}/c/alice_channel/videos`, { testAllowAddress: allowLoopback, now: NOW })).candidates[0]!;
-    assert.deepEqual([channel.title, channel.origin, channel.feedUrl], ["Alice's channel", "PeerTube channel feed", `${server.url}/feeds/videos.xml?videoChannelName=alice_channel`]);
+    assert.deepEqual([channel.title, channel.origin, channel.feedUrl], ["Alice's channel", copy.services.peertubeChannelOrigin, `${server.url}/feeds/videos.xml?videoChannelName=alice_channel`]);
     assert.deepEqual(server.requests.map((r) => r.url), ["/feeds/videos.xml?accountName=alice", "/feeds/videos.xml?videoChannelName=alice_channel"], "the pages themselves were never asked for");
   } finally {
     await server.close();
@@ -701,7 +703,7 @@ test("when the resolved feed doesn't validate, the address goes through ordinary
     const d = await discover(svc.input, { fetch: none.fetch, now: NOW });
     assert.ok(!d.ok, svc.name);
     assert.equal(d.reason, "nofeed", svc.name);
-    assert.match(d.message, /couldn't find a feed/i, svc.name);
+    assert.equal(d.message, copy.discover.noFeed, svc.name);
     assert.equal(none.calls[0], svc.feedUrl, `${svc.name} tried the service's feed first`);
     assert.ok(none.calls.length > 1 && none.calls[1]!.startsWith("http"), `${svc.name} then looked at the page`);
     // A page that advertises a feed of its own still gets it found the ordinary way.
@@ -766,7 +768,7 @@ test("Hashnode: a profile page is not turned into a guessed blog address, since 
   const { fetch, calls } = stub({ [page]: fakeResponse(page, "<html><head><title>Someone</title></head><body>Hi</body></html>", "text/html"), [company]: fakeResponse(company, rssWithDates("The foreword by Hashnode", WEEKLY, { link: "https://hashnode.com/blog" }), "application/rss+xml") });
   const c = okDraft(await discover(page, { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.feedUrl, company);
-  assert.equal(c.via, "Whole site feed");
+  assert.equal(c.via, copy.labels.wholeSiteFeed);
   assert.equal(c.note, WHOLE_SITE_NOTE);
   assert.ok(calls.every((u) => !u.includes("hashnode.dev")), "no personal blog was guessed");
 });
@@ -827,7 +829,7 @@ test("a PeerTube page that offers only its instance's feed calls it the whole si
   });
   const c = okDraft(await discover(`${origin}/a/framasoft/video-channels`, { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.feedUrl, instance);
-  assert.equal(c.via, "Whole site feed");
+  assert.equal(c.via, copy.labels.wholeSiteFeed);
   assert.equal(c.note, WHOLE_SITE_NOTE);
   // A feed that names an account or channel in its query is that one's, not the whole instance's.
   const own = `${origin}/feeds/videos.xml?videoChannelId=7`;
@@ -836,7 +838,7 @@ test("a PeerTube page that offers only its instance's feed calls it the whole si
     [own]: fakeResponse(own, peertubeRss("Channel", "peer.example"), "application/xml"),
   });
   const d = okDraft(await discover(`${origin}/w/abc`, { fetch: withOwn.fetch, now: NOW })).candidates[0]!;
-  assert.notEqual(d.via, "Whole site feed");
+  assert.notEqual(d.via, copy.labels.wholeSiteFeed);
 });
 
 test("previewsAsFeed: a feed served without a Content-Type is a feed, a page or a broken body is not, and a refused address is never fetched", async () => {

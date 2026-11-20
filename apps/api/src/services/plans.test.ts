@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { server } from "@purss/copy/server";
 import { newId, PLAN_LIMITS } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
@@ -12,6 +13,7 @@ import { followSource, unfollowSource } from "./sources.ts";
 import { updateAccount } from "./admin.ts";
 import { OPTIONAL_SECTION_NAMES, SECTION_NAMES, sha256Hex } from "./archive-format.ts";
 
+const { plans } = server.api;
 const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
 const hosted = () => makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://workspace.example" });
 
@@ -128,7 +130,7 @@ test("an import that would follow more sources or add more collections than the 
   const p = makeOwner(app, { admin: false });
   fill(app, p, 80);
   const preview = stageImport(app, p, doc);
-  assert.match(preview.overPlan ?? "", /allows 100 sources/);
+  assert.equal(preview.overPlan, plans.sourcesLimit("100", plans.plusAllowsMore));
   assert.throws(() => applyImport(app, p, preview.token), refused("plan_limit"));
   assert.equal(capacity(app, p.accountId).sources.used, 80, "nothing was imported");
 
@@ -136,7 +138,7 @@ test("an import that would follow more sources or add more collections than the 
   collection(app, p, "Mine too");
   app.db.run("DELETE FROM sources WHERE account_id = ? AND title LIKE 'Source 1%'", p.accountId);
   const again = stageImport(app, p, doc);
-  assert.match(again.overPlan ?? "", /allows 5 collections/, "now the sources fit, but 2 + 4 collections don't");
+  assert.equal(again.overPlan, plans.collectionsLimit("5", plans.plusAllowsMore), "now the sources fit, but 2 + 4 collections don't");
 });
 
 test("an administrator is unlimited while they are one, whatever plan they keep for afterwards", (t) => {

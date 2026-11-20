@@ -1,20 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { app } from "@purss/copy/app";
 import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, inviteLink, missLabel, parseAllocation, shortId, splitAllocation } from "./admin-model.ts";
 
+const t = app.admin.adminModel;
+const failure = t.bridgeFailure;
+
 test("durations are rounded plainly and unknown stays unknown", () => {
-  assert.equal(durationLabel(null), "Unknown");
-  assert.equal(durationLabel(12), "under a minute");
-  assert.equal(durationLabel(300), "5 min");
-  assert.equal(durationLabel(7200), "2 h");
-  assert.equal(durationLabel(86_400), "1 day");
-  assert.equal(durationLabel(3 * 86_400), "3 days");
+  assert.equal(durationLabel(null), t.unknown);
+  assert.equal(durationLabel(12), t.underAMinute);
+  assert.equal(durationLabel(300), t.minutes(5));
+  assert.equal(durationLabel(7200), t.hours(2));
+  assert.equal(durationLabel(86_400), t.days(1));
+  assert.equal(durationLabel(3 * 86_400), t.days(3));
 });
 
 test("an unmeasured size says so instead of showing zero", () => {
-  assert.equal(bytesOrUnknown(null), "Unknown");
-  assert.equal(bytesOrUnknown(0), "0 B");
-  assert.equal(bytesOrUnknown(512), "512 B");
+  assert.equal(bytesOrUnknown(null), t.unknown);
+  assert.equal(bytesOrUnknown(0), app.lib.format.bytes.small(0));
+  assert.equal(bytesOrUnknown(512), app.lib.format.bytes.small(512));
 });
 
 test("allocations: blank is no limit, numbers use binary units, nonsense is rejected", () => {
@@ -39,10 +43,10 @@ test("an existing allocation is shown in the unit that reads best", () => {
 });
 
 test("ids are shortened, the system actor is named, engine states have words", () => {
-  assert.equal(shortId(null), "System");
+  assert.equal(shortId(null), t.system);
   assert.equal(shortId("acc_0123456789abcdef"), "…abcdef");
   assert.equal(shortId("short"), "short");
-  assert.equal(engineLabel("degraded"), "Partly failing");
+  assert.equal(engineLabel("degraded"), t.engine.degraded);
   assert.equal(engineLabel("odd"), "odd");
 });
 
@@ -51,20 +55,20 @@ test("the invitation link carries the code and the address it is for in the addr
 });
 
 test("a bridged source's failure is told in plain words, and an unknown one is not made up", () => {
-  assert.equal(bridgeFailureText("timeout"), "The service took too long to answer.");
-  assert.equal(bridgeFailureText("unreachable"), "The bridge couldn't reach the service.");
-  assert.equal(bridgeFailureText("too_large"), "The answer was too big to use.");
-  assert.equal(bridgeFailureText("parse_error"), "The answer couldn't be read.");
-  assert.equal(bridgeFailureText("no_ids"), "Its posts had no usable address.");
-  assert.equal(bridgeFailureText("http_404"), "The service says that page doesn't exist.");
-  assert.equal(bridgeFailureText("http_403"), "The service refused the request.");
-  assert.equal(bridgeFailureText("http_429"), "The service is limiting requests.");
-  assert.equal(bridgeFailureText("http_503"), "The bridge or the service had an error (503).");
-  assert.equal(bridgeFailureText("http_418"), "The service answered with error 418.");
-  for (const other of ["unknown", "http_", "http_5000", "", "something_new"]) assert.equal(bridgeFailureText(other), "It failed, and no more is known.", other);
+  assert.equal(bridgeFailureText("timeout"), failure.timeout);
+  assert.equal(bridgeFailureText("unreachable"), failure.unreachable);
+  assert.equal(bridgeFailureText("too_large"), failure.tooLarge);
+  assert.equal(bridgeFailureText("parse_error"), failure.parseError);
+  assert.equal(bridgeFailureText("no_ids"), failure.noIds);
+  assert.equal(bridgeFailureText("http_404"), failure.notFound);
+  assert.equal(bridgeFailureText("http_403"), failure.refused);
+  assert.equal(bridgeFailureText("http_429"), failure.limiting);
+  assert.equal(bridgeFailureText("http_503"), failure.serverError("503"));
+  assert.equal(bridgeFailureText("http_418"), failure.otherError("418"));
+  for (const other of ["unknown", "http_", "http_5000", "", "something_new"]) assert.equal(bridgeFailureText(other), failure.unknown, other);
 });
 
 test("the reasons a lookup of a site failed are short labels, and a new reason shows as it is", () => {
-  assert.deepEqual(["nofeed", "unsupported", "unreachable", "timeout"].map(missLabel), ["No feed found", "Can't be followed", "Couldn't be reached", "Took too long"]);
+  assert.deepEqual(["nofeed", "unsupported", "unreachable", "timeout"].map(missLabel), [t.miss.nofeed, t.miss.unsupported, t.miss.unreachable, t.miss.timeout]);
   assert.equal(missLabel("new_reason"), "new_reason");
 });

@@ -2,14 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { server } from "@purss/copy/server";
 import { newId } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { generateOpml } from "./opml.ts";
-import { retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
-import { checkEmptyFeeds, followSource, getSource, onSubscribed, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
+import { EARLIER_NOT_A_FEED_TEXT, EARLIER_TOO_LARGE_TEXT, retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
+import { checkEmptyFeeds, followSource, getSource, onSubscribeFailed, onSubscribed, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
 
+const { failures } = server.api;
 const BIG = "https://feeds.simplecast.com/54nAGcIl";
 const base = { collectionId: null, newCollectionName: null, fullText: false };
 const draft = (feedUrl: string, over: Record<string, unknown> = {}) => ({ feedUrl, siteUrl: "https://www.nytimes.com/the-daily", title: "The Daily", kind: "podcast" as const, origin: "Podcast feed", via: "Podcast feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null, ...over });
@@ -111,18 +113,21 @@ test("sources the engine failed on with its own overload are subscribed once mor
   const subscribed = follow("https://feeds.example/d.xml");
   const alreadyGateway = follow("https://feeds.example/e.xml", { large: true });
   const stillQueued = follow("https://feeds.example/f.xml");
-  const fail = (id: string, text: string | null) => app.db.run("UPDATE sources SET health = 'error', health_text = ? WHERE id = ?", text, id);
+  // As the job failure records it: the words, and the reason the retry is chosen by.
+  const fail = (id: string, reason: Parameters<typeof subscribeGaveUpText>[0], retrying = false) => onSubscribeFailed(app, id, retrying ? subscribeRetryText(reason)! : subscribeGaveUpText(reason), reason ?? null);
   const settle = () => app.db.run("UPDATE jobs SET status = 'failed'");
   settle();
-  fail(gaveUp, subscribeGaveUpText("unavailable"));
-  fail(waiting, subscribeRetryText("unavailable"));
-  fail(privateOne, subscribeGaveUpText("unavailable"));
-  fail(notFound, subscribeGaveUpText("not_found"));
-  fail(subscribed, subscribeGaveUpText("unavailable"));
+  fail(gaveUp, "unavailable");
+  fail(waiting, "unavailable", true);
+  fail(privateOne, "unavailable");
+  fail(notFound, "not_found");
+  fail(subscribed, "unavailable");
   app.db.run("UPDATE sources SET engine_stream_id = 'feed/1' WHERE id = ?", subscribed);
-  fail(alreadyGateway, subscribeGaveUpText("unavailable"));
-  fail(stillQueued, subscribeRetryText("unavailable"));
+  fail(alreadyGateway, "unavailable");
+  fail(stillQueued, "unavailable", true);
   app.db.run("UPDATE jobs SET status = 'queued' WHERE idempotency_key = ?", `subscribe:${stillQueued}`);
+  // The reason chooses, not the words: a source whose text reads differently is still taken up.
+  app.db.run("UPDATE sources SET health_text = 'Other words' WHERE id = ?", waiting);
   const before = jobs(app).length;
   retryOverloadedSubscribes(app);
   const added = jobs(app).slice(before);
@@ -146,8 +151,8 @@ test("sources an earlier version gave up on for a feed's size are reworded and t
   t.after(cleanup);
   const p = makeOwner(app);
   const follow = (url: string, over: Record<string, unknown> = {}, owner: Principal = p) => followSource(app, owner, { ...base, token: hold(owner, url, over) }).id;
-  const earlier = "The feed is too large to follow.";
-  const earlierNotAFeed = "The address answers, but not with a feed we can read. It may be too large or in a format we don't support.";
+  const earlier = EARLIER_TOO_LARGE_TEXT;
+  const earlierNotAFeed = EARLIER_NOT_A_FEED_TEXT;
   const plain = subscribeGaveUpText(undefined);
   const unmarked = follow("https://feeds.example/a.xml");
   const marked = follow("https://feeds.example/b.xml", { large: true }); // the gateway itself had been refused
@@ -213,14 +218,16 @@ test("a big feed that can't be followed never says anything about its size, and 
   const p = makeOwner(app);
   const s = followSource(app, p, { ...base, token: hold(p, BIG, { large: true }) });
   settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: s.id } }, { finalFailure: true }, "too_large");
-  assert.deepEqual([getSource(app, p, s.id).health, getSource(app, p, s.id).healthText], ["error", "The collection engine couldn't follow this feed. Try again later or check the link."]);
+  assert.deepEqual([getSource(app, p, s.id).health, getSource(app, p, s.id).healthText], ["error", failures.couldNotFollow]);
   for (const reason of ["too_large", "not_a_feed", "other", undefined] as const) {
     const t2 = followSource(app, p, { ...base, token: hold(p, `https://example.org/${reason}.xml`) });
     settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: t2.id } }, { finalFailure: true }, reason);
-    assert.doesNotMatch(getSource(app, p, t2.id).healthText!, /large|big|size/i, String(reason));
+    const said = getSource(app, p, t2.id).healthText;
+    assert.equal(said, reason === "not_a_feed" ? failures.notAFeed : failures.couldNotFollow, String(reason));
+    assert.ok(said !== EARLIER_TOO_LARGE_TEXT && said !== EARLIER_NOT_A_FEED_TEXT, `${String(reason)}: nothing about the size`);
   }
   // The same engine failure that is a real outage still says so.
   const o = followSource(app, p, { ...base, token: hold(p, "https://example.org/other.xml") });
   settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: o.id } }, { finalFailure: false }, "unavailable");
-  assert.equal(getSource(app, p, o.id).healthText, "The site isn't answering right now; we'll keep trying.");
+  assert.equal(getSource(app, p, o.id).healthText, failures.siteNotAnswering);
 });

@@ -6,9 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { brotliCompressSync, constants, deflateSync, gzipSync } from "node:zlib";
+import { server } from "@purss/copy/server";
 import { boundLookup, HARD_STREAM_BYTES, resolveDestination, safeFetch, USER_AGENT } from "./safe-fetch.ts";
 import type { Resolver } from "./safe-fetch.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
+
+const copy = server.sources.connectors;
 
 const neverResolve: Resolver = async () => {
   throw new Error("DNS must not be consulted for this input");
@@ -65,7 +68,7 @@ test("non-web schemes, credentials and service ports are refused", async () => {
     assert.equal(result.ok, false, url);
     if (!result.ok) {
       assert.equal(result.reason, "invalid", url);
-      assert.match(result.message, /username or password/);
+      assert.equal(result.message, copy.address.hasLogin);
     }
   }
   for (const url of ["http://example.com:22/", "https://example.com:6379/", "http://example.com:25/"]) {
@@ -601,7 +604,7 @@ test("HTTPS certificates are verified; a trusted local CA works for tests only t
       const untrusted = await safeFetch(`https://tls.example:${port}/`, { resolver: async () => ["127.0.0.1"], testAllowAddress: allowLoopback });
       assert.ok(!untrusted.ok);
       assert.equal(untrusted.reason, "unreachable");
-      assert.match(untrusted.message, /certificate/i);
+      assert.equal(untrusted.message, copy.fetch.badCertificate);
       const trusted = await safeFetch(`https://tls.example:${port}/`, { resolver: async () => ["127.0.0.1"], testAllowAddress: allowLoopback, testTlsCa: cert });
       assert.ok(trusted.ok, JSON.stringify(trusted));
       assert.equal(trusted.response.body.toString(), "secure");

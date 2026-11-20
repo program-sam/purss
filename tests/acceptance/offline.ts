@@ -16,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
+import { app as copy } from "@purss/copy/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -41,6 +42,27 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
+
+// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+const { workflow } = copy.lib.constants;
+const { highlightDialog, notes: noteCopy, noteEditor, syncNote, reader, selectionBar } = copy.annotations;
+const settingsCopy = copy.offline.settings;
+const savedCopy = copy.offline.summary;
+const tabs = copy.dialogs.settings.dialog.tabs;
+/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+const source = (message: (...values: string[]) => string, ...values: string[]) => {
+  const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
+  return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
+};
+/** "3 items" as the summary counts them. */
+const COUNT = `\\d+ ${esc(savedCopy.item)}s?`;
+/** "3 items saved, last updated 2 minutes ago." */
+const UPDATED_LINE = new RegExp(source(savedCopy.updated, source(savedCopy.saved, COUNT), ".*"));
+const ADD_SOURCE = new RegExp(`${esc(copy.shell.sidebar.addSource)}|${esc(copy.shell.tabBar.addSource)}`);
+/** The item's state button, whatever state it is in: it starts "State: …". */
+const STATE_BUTTON = new RegExp(`^${esc(copy.lib.statusLabel.menu("\u0000").split("\u0000")[0]!)}`);
 
 let api: ChildProcess | null = null;
 function startApi(): void {
@@ -101,37 +123,37 @@ function prepare(): { accountId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
-  const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
+  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
+  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
+  const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
   await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await notNow.isVisible().catch(() => false)) {
     await notNow.click();
     await firstVisit.waitFor({ state: "hidden" });
   }
-  await page.getByRole("button", { name: "Add source" }).first().waitFor();
+  await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
 }
 
 async function openSettings(page: Page): Promise<void> {
   // The header has a Settings button in the older phone layout. Current phone layouts put it in
   // the account menu; desktop keeps Settings at the foot of the sidebar.
-  const inHeader = page.locator("header").getByRole("button", { name: "Settings" });
+  const inHeader = page.locator("header").getByRole("button", { name: copy.shell.sidebar.settings });
   if (await inHeader.isVisible()) await inHeader.click();
   else {
     const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
     if (await account.isVisible()) {
       await account.click();
-      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Settings", exact: true }).click();
-    } else await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.auth.headerAccount.settings, exact: true }).click();
+    } else await page.getByRole("button", { name: copy.shell.sidebar.settings }).click();
   }
   await page.getByRole("dialog").waitFor();
 }
-const offlineBox = (page: Page) => page.getByRole("checkbox", { name: /Offline reading on this device/ });
+const offlineBox = (page: Page) => page.getByRole("checkbox", { name: new RegExp(esc(settingsCopy.enabled)) });
 /** The checkbox itself is drawn by a styled box on top of it, so a person (and this journey) clicks its label. */
 async function setOfflineReading(page: Page, on: boolean): Promise<void> {
-  if ((await offlineBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: "Offline reading on this device" }).click();
+  if ((await offlineBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: settingsCopy.enabled }).click();
   assert.equal(await offlineBox(page).isChecked(), on);
 }
 
@@ -264,9 +286,9 @@ async function main(): Promise<void> {
     await tidalRow(page).first().click();
     await page.waitForURL(/item=/);
     await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
-    await page.getByRole("button", { name: /^State: / }).click();
-    await page.getByRole("menuitemradio", { name: "To read" }).click();
-    await page.locator("#toasts").getByText("Marked To read").waitFor();
+    await page.getByRole("button", { name: STATE_BUTTON }).click();
+    await page.getByRole("menuitemradio", { name: workflow.toread }).click();
+    await page.locator("#toasts").getByText(copy.state.actions.marked(workflow.toread)).waitFor();
     step("opened “Tidal flats and sediment” and marked it To read");
 
     // The item's short link (Copy your private link to this item): nothing is saved on this device yet, so the PURSS is asked.
@@ -277,7 +299,7 @@ async function main(): Promise<void> {
     await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
     assert.equal(new URL(page.url()).searchParams.get("item"), itemId, "the short link became the item's address over Home");
     await page.goto(`${origin}/app/i/999999`);
-    await page.getByText("That page isn't here").waitFor();
+    await page.getByText(copy.shell.app.pageMissing).waitFor();
     await page.goto(`${origin}/app/?item=${itemId}`);
     await page.locator("#panel-in .p-title", { hasText: "Tidal flats and sediment" }).waitFor();
     step(`the item's short link /app/i/${itemNumber} opens it; a number no item has says the page isn't here`);
@@ -285,24 +307,24 @@ async function main(): Promise<void> {
     // Highlights: with the pointer (the bar under the selection) and with the keyboard (c comments).
     await page.locator("#panel-in .prose").getByText(/thin layers of silt/).waitFor();
     await selectInArticle(page, "thin layers of silt");
-    await page.getByRole("toolbar", { name: "Selected text" }).getByRole("button", { name: "Highlight" }).click();
-    await page.locator("#toasts").getByText("Highlighted").waitFor();
+    await page.getByRole("toolbar", { name: "Selected text" }).getByRole("button", { name: selectionBar.highlight }).click();
+    await page.locator("#toasts").getByText(reader.highlighted).waitFor();
     await page.locator("#panel-in .prose mark.anno", { hasText: "thin layers of silt" }).waitFor();
     await selectInArticle(page, "firm, ribbed, and cold");
     await page.keyboard.press("c");
-    const comment = page.getByRole("dialog", { name: "Add a comment" });
-    await comment.getByLabel("Comment").fill("Compare with the winter survey");
-    await comment.getByRole("button", { name: "Save highlight" }).click();
-    await page.locator("#toasts").getByText("Highlighted with your comment").waitFor();
+    const comment = page.getByRole("dialog", { name: highlightDialog.titleNew });
+    await comment.getByLabel(highlightDialog.comment).fill("Compare with the winter survey");
+    await comment.getByRole("button", { name: highlightDialog.saveNew }).click();
+    await page.locator("#toasts").getByText(reader.highlightedWithComment).waitFor();
     await waitFor("both highlights to reach the server", async () => (await annotationsOf(page, itemId)).length === 2, 10_000);
     // Pressing a highlight opens it; Enter on it does the same.
     await page.locator("#panel-in .prose mark[data-anno-start]", { hasText: "firm, ribbed" }).click();
-    await page.getByRole("dialog", { name: "Your highlight" }).getByLabel("Comment").waitFor();
-    assert.equal(await page.getByRole("dialog", { name: "Your highlight" }).getByLabel("Comment").inputValue(), "Compare with the winter survey");
+    await page.getByRole("dialog", { name: highlightDialog.titleEdit }).getByLabel(highlightDialog.comment).waitFor();
+    assert.equal(await page.getByRole("dialog", { name: highlightDialog.titleEdit }).getByLabel(highlightDialog.comment).inputValue(), "Compare with the winter survey");
     await page.keyboard.press("Escape");
     await page.locator("#panel-in .prose mark[data-anno-start]", { hasText: "thin layers" }).focus();
     await page.keyboard.press("Enter");
-    await page.getByRole("dialog", { name: "Your highlight" }).waitFor();
+    await page.getByRole("dialog", { name: highlightDialog.titleEdit }).waitFor();
     await page.keyboard.press("Escape");
     const found = await page.evaluate(async () => (await (await fetch("/api/search?q=winter%20survey")).json()).items.map((i: { title: string }) => i.title));
     assert.ok(found.includes("Tidal flats and sediment"), "search finds the item by the comment");
@@ -313,12 +335,12 @@ async function main(): Promise<void> {
     const box = offlineBox(page);
     await box.waitFor();
     assert.equal(await box.isChecked(), false, "offline reading is off in an ordinary browser tab");
-    await page.getByText("Remove offline copies").waitFor({ state: "detached", timeout: 1000 });
+    await page.getByText(settingsCopy.remove).waitFor({ state: "detached", timeout: 1000 });
     await setOfflineReading(page, true);
-    await page.getByText(/\d+ items? saved, last updated/).waitFor({ timeout: 30_000 });
-    const summary = await page.getByText(/\d+ items? saved/).first().innerText();
-    assert.match(summary, /^[1-9]\d* items? saved/, "the queue was saved");
-    await page.getByText(/Using .* of this device's browser storage/).waitFor();
+    await page.getByText(UPDATED_LINE).waitFor({ timeout: 30_000 });
+    const summary = await page.getByText(new RegExp(source(savedCopy.saved, COUNT))).first().innerText();
+    assert.match(summary, new RegExp(`^${source(savedCopy.saved, `[1-9]\\d* ${esc(savedCopy.item)}s?`)}`), "the queue was saved");
+    await page.getByText(new RegExp(source(settingsCopy.using, ".*"))).waitFor();
     const names = await cacheNames(page);
     assert.ok(names.includes(`purss-api:${accountId}`), "copies live in a cache named for the account");
     const saved = await page.evaluate(async (name) => (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname + new URL(r.url).search), `purss-api:${accountId}`);
@@ -333,8 +355,8 @@ async function main(): Promise<void> {
     // Offline: reload, read.
     await context.setOffline(true);
     await page.reload();
-    await page.getByRole("button", { name: "Add source" }).first().waitFor({ timeout: 20_000 });
-    await page.getByText("Offline · showing what this device saved").waitFor();
+    await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor({ timeout: 20_000 });
+    await page.getByText(copy.shell.header.offlineSaved).waitFor();
     const served = await page.evaluate(async () => { const r = await fetch("/api/bootstrap"); return { status: r.status, savedAt: r.headers.get("x-purss-offline") }; });
     assert.equal(served.status, 200);
     assert.match(served.savedAt ?? "", /^\d{4}-\d\d-\d\dT/, "the worker answered from this device's copy and said when it was saved");
@@ -358,28 +380,28 @@ async function main(): Promise<void> {
     step("opened the item's short link offline: the app found the saved item by its number");
 
     // A note written offline waits on the device, survives a reload, and is sent when the connection returns.
-    await page.getByRole("button", { name: "Add a note" }).click();
+    await page.getByRole("button", { name: noteCopy.addNote }).click();
     await page.getByLabel("Note", { exact: true }).fill("Written on the train, offline");
-    await page.getByRole("button", { name: "Save note" }).click();
+    await page.getByRole("button", { name: noteEditor.save }).click();
     await page.locator("#panel-in").getByText("Written on the train, offline").waitFor();
-    await page.locator("#panel-in").getByText("Waiting to sync", { exact: true }).waitFor();
-    await page.locator("#panel-in").getByText(/1 change is waiting to sync/).waitFor();
+    await page.locator("#panel-in").getByText(syncNote.waiting, { exact: true }).waitFor();
+    await page.locator("#panel-in").getByText(new RegExp(esc(noteCopy.waiting(1)))).waitFor();
     assert.equal(await outboxEntries(page), 1, "kept in this device's outbox");
     await page.reload();
     await page.locator("#panel-in").getByText("Written on the train, offline").waitFor({ timeout: 20_000 });
-    await page.locator("#panel-in").getByText("Waiting to sync", { exact: true }).waitFor();
+    await page.locator("#panel-in").getByText(syncNote.waiting, { exact: true }).waitFor();
     step("wrote a note offline: it shows as waiting to sync, and is still there after reloading offline");
 
     // A change made offline is kept on this device and sent once the PURSS can be reached.
-    await page.getByRole("button", { name: /^State: / }).click();
-    await page.getByRole("menuitemradio", { name: "Finished" }).click();
-    await page.locator("#toasts").getByText(/Not sent yet/).first().waitFor();
+    await page.getByRole("button", { name: STATE_BUTTON }).click();
+    await page.getByRole("menuitemradio", { name: workflow.finished }).click();
+    await page.locator("#toasts").getByText(new RegExp(esc(copy.state.actions.notSent))).first().waitFor();
     await page.locator("#panel-in .p-pend").waitFor();
     step("changing it offline keeps the change on this device, marked as not sent yet");
 
     // Back online: the notice goes away and the change goes out.
     await context.setOffline(false);
-    await page.getByText("Offline · showing what this device saved").waitFor({ state: "detached", timeout: 20_000 });
+    await page.getByText(copy.shell.header.offlineSaved).waitFor({ state: "detached", timeout: 20_000 });
     await page.locator("#panel-in .p-pend").waitFor({ state: "detached", timeout: 20_000 });
     const sent = await page.evaluate(async () => {
       const r = await fetch("/api/items?scope=all&filter=all&limit=200", { credentials: "same-origin" });
@@ -387,25 +409,25 @@ async function main(): Promise<void> {
       return body.items.find((i) => i.title.includes("Tidal flats and sediment"))?.workflow ?? null;
     });
     assert.equal(sent, "finished", "the change made offline reached the PURSS");
-    await page.locator("#panel-in").getByText("Waiting to sync", { exact: true }).waitFor({ state: "detached", timeout: 30_000 });
+    await page.locator("#panel-in").getByText(syncNote.waiting, { exact: true }).waitFor({ state: "detached", timeout: 30_000 });
     assert.equal(await outboxEntries(page), 0, "the annotation outbox is empty once sent");
     const notes = (await annotationsOf(page, itemId)).filter((a) => a.kind === "note").map((a) => a.body);
     assert.deepEqual(notes, ["Written on the train, offline"], "the server has the note written offline");
     // Back to To read, so the offline copy still has something to keep in the steps below.
-    await page.getByRole("button", { name: /^State: / }).click();
-    await page.getByRole("menuitemradio", { name: "To read" }).click();
-    await page.locator("#toasts").getByText("Marked To read").waitFor();
+    await page.getByRole("button", { name: STATE_BUTTON }).click();
+    await page.getByRole("menuitemradio", { name: workflow.toread }).click();
+    await page.locator("#toasts").getByText(copy.state.actions.marked(workflow.toread)).waitFor();
     step("back online: the notice goes away, and the change and the note made offline are sent");
 
     // A new build waits, then switches on request.
     await page.goBack().catch(() => undefined);
     appendFileSync(path.join(webDist, "sw.js"), "\n/* next build */\n");
     await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.update()));
-    await page.locator("#toasts").getByText("A new version is ready").waitFor({ timeout: 20_000 });
+    await page.locator("#toasts").getByText(copy.offline.controller.updateReady).waitFor({ timeout: 20_000 });
     const before = await page.evaluate(() => performance.timeOrigin);
-    await page.locator("#toasts").getByRole("button", { name: "Reload" }).click();
+    await page.locator("#toasts").getByRole("button", { name: copy.offline.controller.reload }).click();
     await waitFor("the page to reload once", async () => (await page.evaluate(() => performance.timeOrigin)) !== before, 20_000);
-    await page.getByRole("button", { name: "Add source" }).first().waitFor();
+    await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     await waitFor("the new worker to take charge", () => hasWorkerControl(page), 10_000);
     step("a new version waits behind a toast, and Reload switches to it");
 
@@ -415,30 +437,30 @@ async function main(): Promise<void> {
     await waitFor("the copies to be removed", async () => (await cacheNames(page)).filter((n) => n.startsWith("purss-api:")).length === 0, 10_000);
     assert.ok((await cacheNames(page)).some((n) => n.startsWith("purss-shell:")), "the app shell stays");
     await setOfflineReading(page, true);
-    await page.getByText(/\d+ items? saved, last updated/).waitFor({ timeout: 30_000 });
-    await page.getByRole("button", { name: "Remove offline copies" }).click();
-    await page.locator("#toasts").getByText(/Removed the offline copies/).waitFor();
+    await page.getByText(UPDATED_LINE).waitFor({ timeout: 30_000 });
+    await page.getByRole("button", { name: settingsCopy.remove }).click();
+    await page.locator("#toasts").getByText(new RegExp(esc(settingsCopy.removed))).waitFor();
     assert.equal(await offlineBox(page).isChecked(), false, "removing the copies also turns offline reading off");
     assert.deepEqual((await cacheNames(page)).filter((n) => n.startsWith("purss-api:")), []);
     await setOfflineReading(page, true);
-    await page.getByText(/\d+ items? saved, last updated/).waitFor({ timeout: 30_000 });
+    await page.getByText(UPDATED_LINE).waitFor({ timeout: 30_000 });
     step("turning offline reading off or removing the copies wipes them; turning it on saves again");
 
     // A note the server can't take yet waits; signing out warns about it and deletes it with the other copies.
     await page.keyboard.press("Escape");
     await context.route("**/api/items/*/annotations/*", (route) => (route.request().method() === "PUT" ? route.fulfill({ status: 503, body: "" }) : route.continue()));
     await tidalRow(page).first().click();
-    await page.getByRole("button", { name: "Add a note" }).click();
+    await page.getByRole("button", { name: noteCopy.addNote }).click();
     await page.getByLabel("Note", { exact: true }).fill("Never reaches the server");
-    await page.getByRole("button", { name: "Save note" }).click();
-    await page.locator("#panel-in").getByText("Waiting to sync", { exact: true }).waitFor();
+    await page.getByRole("button", { name: noteEditor.save }).click();
+    await page.locator("#panel-in").getByText(syncNote.waiting, { exact: true }).waitFor();
     assert.equal(await outboxEntries(page), 1);
     await openSettings(page);
 
     // Sign out: nothing personal stays on the device.
-    await page.getByRole("tab", { name: "Security" }).or(page.getByRole("button", { name: "Security" })).first().click();
-    await page.getByText(/1 highlight or note hasn't synced yet/).waitFor();
-    await page.getByRole("button", { name: "Sign out of this browser" }).click();
+    await page.getByRole("tab", { name: tabs.security }).or(page.getByRole("button", { name: tabs.security })).first().click();
+    await page.getByText(new RegExp(esc(copy.dialogs.settings.security.unsynced(1)))).waitFor();
+    await page.getByRole("button", { name: copy.dialogs.settings.security.signOutBrowser }).click();
     await page.waitForURL(/\/signin/);
     await waitFor("the copies to be wiped at sign-out", async () => (await cacheNames(page)).filter((n) => n.startsWith("purss-api:")).length === 0, 10_000);
     assert.ok((await cacheNames(page)).some((n) => n.startsWith("purss-shell:")), "the app shell stays after sign-out");
@@ -449,10 +471,10 @@ async function main(): Promise<void> {
     // Opened offline with nobody signed in and nothing saved, the app says so plainly instead of failing blank.
     await context.setOffline(true);
     await page.reload();
-    await page.getByText(/Can't reach PURSS right now/).waitFor({ timeout: 20_000 });
+    await page.getByText(new RegExp(esc(copy.api.client.offline))).waitFor({ timeout: 20_000 });
     await context.setOffline(false);
-    await page.getByRole("button", { name: "Try again" }).click();
-    await page.getByRole("button", { name: /Sign in/ }).first().waitFor();
+    await page.getByRole("button", { name: copy.shell.app.tryAgain }).click();
+    await page.getByRole("button", { name: new RegExp(esc(copy.auth.signIn.signIn)) }).first().waitFor();
     step("signed out: every saved copy is gone, the app shell stays, and opening it offline says why it can't sign in");
 
     // Run as an installed app, offline reading starts on its own: it is on by default only there.
@@ -469,8 +491,8 @@ async function main(): Promise<void> {
     await waitFor("the installed app to save its reading list on its own", async () => (await cacheNames(app)).includes(`purss-api:${accountId}`), 30_000);
     await openSettings(app);
     assert.equal(await offlineBox(app).isChecked(), true, "offline reading is on by default in an installed app");
-    await app.getByText("You're using the installed app.").waitFor();
-    await app.getByText(/\d+ items? saved/).first().waitFor();
+    await app.getByText(settingsCopy.installed).waitFor();
+    await app.getByText(new RegExp(source(savedCopy.saved, COUNT))).first().waitFor();
     await installed.close();
     step("as an installed app, offline reading is on by default and saves by itself");
 

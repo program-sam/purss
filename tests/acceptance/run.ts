@@ -11,6 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
+import { app as copy } from "@purss/copy/app";
+import { server } from "@purss/copy/server";
+import { ui } from "@purss/copy/ui";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const dataDir = mkdtempSync(path.join(os.tmpdir(), "purss-acceptance-"));
@@ -69,6 +72,20 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 const step = (s: string) => console.log(`✓ ${s}`);
 
+// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+const { workflow, views, filters } = copy.lib.constants;
+const add = copy.dialogs.addSource;
+const basketForm = copy.dialogs.baskets.form;
+const tabs = copy.dialogs.settings.dialog.tabs;
+/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+/** What a catalog message says before and after its one value. */
+const around = (message: (value: string) => string) => message("\u0000").split("\u0000") as [string, string];
+const ADD_SOURCE = copy.shell.sidebar.addSource;
+const SOURCES_FOUND = new RegExp(`${esc(add.oneSourceFound)}|${esc(add.sourcesFound(7)).replace("7", "\\d+")}`);
+/** The item's state button, whatever state it is in: it starts "State: …". */
+const STATE_BUTTON = new RegExp(`^${esc(around(copy.lib.statusLabel.menu)[0])}`);
+
 let stopping = false;
 async function teardown(): Promise<void> {
   stopping = true;
@@ -87,9 +104,9 @@ async function addPasskeyAuthenticator(cdp: CDPSession): Promise<string> {
 }
 
 async function follow(page: Page, url: string, collection: string): Promise<void> {
-  await page.getByRole("button", { name: "Add source" }).first().click();
+  await page.getByRole("button", { name: ADD_SOURCE }).first().click();
   const dlg = page.locator(".dlg");
-  const found = dlg.getByText(/\d+ sources? found/);
+  const found = dlg.getByText(SOURCES_FOUND);
   const link = dlg.locator("input").first();
   const help = dlg.locator("#as-help");
   await help.waitFor();
@@ -102,7 +119,7 @@ async function follow(page: Page, url: string, collection: string): Promise<void
   await link.press("x");
   await found.waitFor({ state: "detached" });
   await help.waitFor();
-  assert.equal(await dlg.getByRole("button", { name: "Follow" }).count(), 0, "Follow is gone after the link changes");
+  assert.equal(await dlg.getByRole("button", { name: add.follow }).count(), 0, "Follow is gone after the link changes");
   await link.fill(url);
   await page.keyboard.press("Enter");
   await found.waitFor({ timeout: 30_000 });
@@ -110,20 +127,20 @@ async function follow(page: Page, url: string, collection: string): Promise<void
   const options = await select.locator("option").allInnerTexts();
   if (options.includes(collection)) await select.selectOption({ label: collection });
   else {
-    await select.selectOption({ label: options.find((o) => o.startsWith("New collection"))! });
+    await select.selectOption({ label: options.find((o) => o.startsWith(add.newCollection))! });
     // A new collection needs its name before Follow does anything.
-    assert.ok(await dlg.getByRole("button", { name: "Follow" }).isDisabled(), "Follow waits for the collection name");
+    assert.ok(await dlg.getByRole("button", { name: add.follow }).isDisabled(), "Follow waits for the collection name");
     await dlg.getByLabel("New collection name").fill(collection);
   }
   // Following starts from now: what the feed already has is kept as Ignored (and the dialog says so), so it is off Home. This journey works
   // with the items on screen, so it also asks for the last week's posts as New.
-  assert.equal(await dlg.getByRole("radio", { name: /^Start from now/ }).isChecked(), true, "following starts from now");
-  assert.match(await dlg.locator("fieldset").innerText(), /Older posts are kept as Ignored: search finds them\./, "the dialog says what happens to the posts the source already has");
-  const lastWeek = dlg.getByRole("radio", { name: /^Also show posts from the last week as New/ });
+  assert.equal(await dlg.getByRole("radio", { name: new RegExp(`^${esc(add.startNow.label)}`) }).isChecked(), true, "following starts from now");
+  assert.match(await dlg.locator("fieldset").innerText(), new RegExp(esc(add.startNow.blurb)), "the dialog says what happens to the posts the source already has");
+  const lastWeek = dlg.getByRole("radio", { name: new RegExp(`^${esc(add.startWeek.label)}`) });
   await lastWeek.check();
   assert.equal(await lastWeek.isChecked(), true);
-  await dlg.getByRole("button", { name: "Follow" }).click();
-  await page.locator("#toasts").getByText(/Following/).waitFor();
+  await dlg.getByRole("button", { name: add.follow }).click();
+  await page.locator("#toasts").getByText(new RegExp(esc(around(add.following)[0].trim()))).waitFor();
 }
 
 let currentPage: Page | null = null;
@@ -170,22 +187,22 @@ async function main(): Promise<void> {
     // Set up with the one-time code, an email address and a password, then add a passkey.
     await page.goto(`${origin}/app/`);
     await page.waitForURL(/\/setup/);
-    await page.getByLabel("Setup code").fill(readFileSync(path.join(dataDir, "secrets/setup-code"), "utf8").trim());
-    await page.getByLabel("Email address").fill("first.reader@example.test");
+    await page.getByLabel(copy.auth.setup.setupCode).fill(readFileSync(path.join(dataDir, "secrets/setup-code"), "utf8").trim());
+    await page.getByLabel(copy.auth.setup.emailLabel).fill("first.reader@example.test");
     await page.locator("#pw-p").fill(PASSWORD);
     await page.locator("#pw-a").fill(PASSWORD);
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Sign in without typing a password", { exact: true }).waitFor();
-    await page.getByRole("button", { name: /add a passkey/i }).first().click();
+    await page.getByRole("button", { name: copy.auth.setup.continue }).click();
+    await page.getByText(copy.auth.newAccount.passkeyTitle, { exact: true }).waitFor();
+    await page.getByRole("button", { name: new RegExp(esc(copy.auth.passkeyStep.add), "i") }).first().click();
     await waitFor("a passkey", async () => (await cdp.send("WebAuthn.getCredentials", { authenticatorId })).credentials.length === 1, 15_000);
-    const firstVisit = page.getByRole("dialog", { name: "How often do you want to hear about new items?" });
-    const notNow = firstVisit.getByRole("button", { name: "Not now", exact: true });
+    const firstVisit = page.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
+    const notNow = firstVisit.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true });
     await notNow.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
     if (await notNow.isVisible().catch(() => false)) {
       await notNow.click();
       await firstVisit.waitFor({ state: "hidden" });
     }
-    await page.getByRole("button", { name: "Add source" }).first().waitFor();
+    await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     step("claimed with the setup code, an email address and a password, and registered a passkey");
 
     // Paste, preview, follow; the engine collects through the egress proxy and items arrive.
@@ -200,7 +217,7 @@ async function main(): Promise<void> {
 
     // Browse a collection in every view; open an item with the keyboard; mark To read.
     await page.getByText("Reading", { exact: true }).first().click();
-    for (const v of ["Cards", "Board", "Table", "Timeline", "List"]) {
+    for (const v of [views.cards, views.board, views.table, views.timeline, views.list]) {
       await page.getByRole("button", { name: v, exact: true }).first().click();
       await page.waitForTimeout(300);
     }
@@ -209,16 +226,16 @@ async function main(): Promise<void> {
     await page.keyboard.press("o");
     await page.waitForURL(/item=/);
     const title = (await page.locator(".p-title").first().innerText()).trim();
-    await page.getByRole("button", { name: /^State: / }).click();
-    await page.getByRole("menuitemradio", { name: "To read" }).click();
-    await page.locator("#toasts").getByText("Marked To read").waitFor();
+    await page.getByRole("button", { name: STATE_BUTTON }).click();
+    await page.getByRole("menuitemradio", { name: workflow.toread }).click();
+    await page.locator("#toasts").getByText(copy.state.actions.marked(workflow.toread)).waitFor();
     step(`opened “${title.slice(0, 50)}” and marked it To read`);
     // The status button steps along the reading path, one click a step, and names the state at its end.
-    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark In progress", exact: true }).click();
-    await page.locator("#toasts").getByText("Marked In progress").waitFor();
-    await page.locator("#panel-in .p-acts").getByRole("button", { name: "Mark Finished", exact: true }).click();
-    await page.locator("#toasts").getByText("Marked Finished").waitFor();
-    await page.locator("#panel-in .p-acts").getByRole("button", { name: "State: Finished. Change state", exact: true }).waitFor();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: copy.lib.statusLabel.mark(workflow.inprogress), exact: true }).click();
+    await page.locator("#toasts").getByText(copy.state.actions.marked(workflow.inprogress)).waitFor();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: copy.lib.statusLabel.mark(workflow.finished), exact: true }).click();
+    await page.locator("#toasts").getByText(copy.state.actions.marked(workflow.finished)).waitFor();
+    await page.locator("#panel-in .p-acts").getByRole("button", { name: copy.lib.statusLabel.menu(workflow.finished), exact: true }).waitFor();
     step("stepped it on to In progress and Finished with the status button, one click each");
 
     // Triage from the list itself: To read and Ignore each take one click on the row.
@@ -227,18 +244,18 @@ async function main(): Promise<void> {
       return { row: page.locator(`main .irow[data-item="${await row.getAttribute("data-item")}"]`), name: (await row.locator(".title").first().innerText()).trim() };
     };
     const later = await rowById(0);
-    await later.row.getByRole("button", { name: `To read: ${later.name}`, exact: true }).click();
+    await later.row.getByRole("button", { name: `${workflow.toread}: ${later.name}`, exact: true }).click();
     await later.row.locator('.rq.tr[aria-pressed="true"]').waitFor();
-    await later.row.getByText("To read", { exact: true }).waitFor();
+    await later.row.getByText(workflow.toread, { exact: true }).waitFor();
     const skip = await rowById(0);
     await skip.row.getByRole("button", { name: `Ignore: ${skip.name}`, exact: true }).click();
     await skip.row.waitFor({ state: "detached" });
-    await page.locator("#toasts").getByRole("button", { name: "Undo" }).last().click();
+    await page.locator("#toasts").getByRole("button", { name: ui.toast.undo }).last().click();
     await skip.row.waitFor();
     step("marked a row To read and ignored another with one click each; Undo brought it back");
 
     // On Home, an ignored item leaves its box at once and the next one takes its place.
-    await page.locator("#side").getByRole("button", { name: "Home", exact: true }).first().click();
+    await page.locator("#side").getByRole("button", { name: copy.shell.sidebar.home, exact: true }).first().click();
     const box = page.locator("section.mod:not(.wb)").filter({ has: page.locator(".irow") }).first();
     await box.locator(".irow").nth(1).waitFor();
     const shown = await box.locator(".irow").count();
@@ -246,7 +263,7 @@ async function main(): Promise<void> {
     await box.locator(".irow").first().getByRole("button", { name: /^Ignore: / }).click();
     await box.locator(`.irow[data-item="${gone}"]`).waitFor({ state: "detached" });
     assert.equal(await box.locator(".irow").count(), shown, "a spare item fills the ignored one's place");
-    await page.locator("#toasts").getByRole("button", { name: "Undo" }).last().click();
+    await page.locator("#toasts").getByRole("button", { name: ui.toast.undo }).last().click();
     await box.locator(`.irow[data-item="${gone}"]`).waitFor();
     step("ignoring on Home took the item out of its box at once and the next one moved up; Undo put it back");
 
@@ -263,17 +280,18 @@ async function main(): Promise<void> {
     const kept = (await page.locator(".p-title").first().innerText()).trim();
 
     // A basket that saves readable text, created from the open item, keeps that item; the capture job completes.
-    await page.locator(".p-acts").getByRole("button", { name: "Keep" }).click();
-    await page.getByRole("menuitem", { name: "New basket…" }).click();
+    await page.locator(".p-acts").getByRole("button", { name: copy.shell.itemPanel.keep }).click();
+    await page.getByRole("menuitem", { name: copy.state.itemMenus.newBasket }).click();
     await page.locator(".dlg input").first().fill("Read later");
-    await page.locator(".dlg").getByRole("radio", { name: /Readable copy too/ }).check();
-    await page.locator(".dlg").getByRole("button", { name: "Create basket" }).click();
+    await page.locator(".dlg").getByRole("radio", { name: new RegExp(esc(copy.dialogs.baskets.modes.text.label)) }).check();
+    await page.locator(".dlg").getByRole("button", { name: basketForm.create }).click();
     await page.locator(".dlg").waitFor({ state: "detached" });
     // Names in messages are wrapped in direction isolates (U+2068/U+2069) so mixed scripts stay in place.
-    await page.locator("#toasts").getByText(/Created \u2068?Read later\u2069? and kept the item in it/).waitFor();
+    const [createdBefore, createdAfter] = around((name) => basketForm.createdAndKept(name, null));
+    await page.locator("#toasts").getByText(new RegExp(`${esc(createdBefore)}\u2068?Read later\u2069?${esc(createdAfter)}`)).waitFor();
     await waitFor("the readable-text capture", async () => {
       await page.reload();
-      return page.getByText("Full text saved").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+      return page.getByText(server.api.shared.labelFulltext).first().waitFor({ timeout: 8000 }).then(() => true, () => false);
     }, 90_000);
     step("kept in a text basket and captured readable text");
 
@@ -295,16 +313,16 @@ async function main(): Promise<void> {
     start("worker", "apps/worker/src/main.ts");
     await waitFor("the API after restart", async () => (await fetch(`${origin}/api/session`)).ok, 30_000);
     await page.goto(`${origin}/app/`);
-    await page.getByRole("button", { name: "Add source" }).first().waitFor();
+    await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     step("API and worker restarted; still signed in");
 
     // Sign out, sign back in with the passkey, find the kept item in its basket.
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("tab", { name: "Security" }).or(page.getByRole("button", { name: "Security" })).first().click();
-    await page.getByRole("button", { name: "Sign out of this browser" }).click();
+    await page.getByRole("button", { name: copy.shell.sidebar.settings }).click();
+    await page.getByRole("tab", { name: tabs.security }).or(page.getByRole("button", { name: tabs.security })).first().click();
+    await page.getByRole("button", { name: copy.dialogs.settings.security.signOutBrowser }).click();
     await page.waitForURL(/\/signin/);
-    await page.getByRole("button", { name: /sign in with a passkey/i }).first().click();
-    await page.getByRole("button", { name: "Add source" }).first().waitFor();
+    await page.getByRole("button", { name: new RegExp(esc(copy.auth.signIn.withPasskey), "i") }).first().click();
+    await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     await page.getByText("Read later", { exact: true }).first().click();
     await page.locator("main").getByText(kept.slice(0, 30)).first().waitFor();
     step("signed in again with the passkey and found the kept item");
@@ -325,39 +343,42 @@ async function main(): Promise<void> {
     assert.equal(await row.getByRole("button", { name: /^Ignore:/ }).count(), 0, "no Ignore button in a basket");
     assert.equal(await row.getByRole("button", { name: /^Restore:/ }).count(), 0, "no Restore button in a basket");
     assert.equal(await row.getByRole("button", { name: /^Remove from Read later:/ }).count(), 1);
-    assert.equal(await page.getByText("Ignored items are", { exact: false }).count(), 0, "no show or hide ignored note in a basket");
-    await page.getByRole("button", { name: /^Filter: All/ }).click();
+    const listing = copy.pages.listing;
+    assert.equal(await page.getByText(new RegExp(`${esc(listing.ignoredHidden.trim())}|${esc(listing.ignoredShowing.trim())}`)).count(), 0, "no show or hide ignored note in a basket");
+    await page.getByRole("button", { name: new RegExp(`^Filter: ${esc(filters.active)}`) }).click();
     const filterMenu = page.getByRole("menu", { name: "Filter items" });
     await filterMenu.waitFor();
-    assert.equal(await filterMenu.getByRole("menuitemradio", { name: "Ignored" }).count(), 0, "no Ignored filter in a basket");
-    assert.equal(await filterMenu.getByText("Show ignored items").count(), 0, "no Show ignored items in a basket");
+    assert.equal(await filterMenu.getByRole("menuitemradio", { name: filters.ignored }).count(), 0, "no Ignored filter in a basket");
+    assert.equal(await filterMenu.getByText(copy.shell.listTools.showIgnored).count(), 0, "no Show ignored items in a basket");
     await page.keyboard.press("Escape");
     await row.getByRole("button", { name: /^Actions for / }).click();
     const rowMenu = page.getByRole("menu").last();
-    await rowMenu.getByRole("menuitem", { name: "Remove from basket" }).waitFor();
-    assert.equal(await rowMenu.getByRole("menuitem", { name: /^(Ignore|Restore)$/ }).count(), 0, "no Ignore or Restore in a basket's item menu");
+    const itemMenus = copy.state.itemMenus;
+    await rowMenu.getByRole("menuitem", { name: itemMenus.removeFromBasket }).waitFor();
+    assert.equal(await rowMenu.getByRole("menuitem", { name: new RegExp(`^(${esc(itemMenus.ignore)}|${esc(itemMenus.restore)})$`) }).count(), 0, "no Ignore or Restore in a basket's item menu");
     await page.keyboard.press("Escape");
     step("a basket shows an ignored item like any kept item and offers no Ignore");
 
     // A basket opens in the view last chosen on it, after going elsewhere and after a reload.
     const saved = page.waitForResponse((r) => r.url().includes("/api/bootstrap") && r.ok());
-    await page.getByRole("button", { name: "Cards", exact: true }).first().click();
-    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
+    await page.getByRole("button", { name: views.cards, exact: true }).first().click();
+    await page.getByRole("button", { name: views.cards, exact: true, pressed: true }).first().waitFor();
     await saved;
     await page.getByText("Reading", { exact: true }).first().click();
-    await page.getByRole("button", { name: "List", exact: true, pressed: true }).first().waitFor();
+    await page.getByRole("button", { name: views.list, exact: true, pressed: true }).first().waitFor();
     await page.getByText("Read later", { exact: true }).first().click();
-    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
+    await page.getByRole("button", { name: views.cards, exact: true, pressed: true }).first().waitFor();
     assert.doesNotMatch(page.url(), /view=/, "the basket's own view, not one carried in the address");
     await page.reload();
-    await page.getByRole("button", { name: "Cards", exact: true, pressed: true }).first().waitFor();
-    await page.getByRole("button", { name: "List", exact: true }).first().click();
+    await page.getByRole("button", { name: views.cards, exact: true, pressed: true }).first().waitFor();
+    await page.getByRole("button", { name: views.list, exact: true }).first().click();
     step("a basket keeps the view last chosen on it");
 
     const meter = page.locator(".side-foot .stor");
-    assert.match(await meter.innerText(), /^[1-9]\d* sources?$/, "the sidebar counts the followed sources");
+    assert.match(await meter.innerText(), new RegExp(`^[1-9]\\d* ${esc(copy.lib.nouns.source)}s?$`), "the sidebar counts the followed sources");
     await meter.click();
-    await page.getByText(/^No limit on sources, collections or storage for your account\./).waitFor();
+    const capacity = copy.shell.capacity;
+    await page.getByText(new RegExp(`^${esc(capacity.noLimit(capacity.listWords([capacity.unlimitedSources, capacity.unlimitedCollections, capacity.unlimitedStorage])))}`)).waitFor();
     await page.keyboard.press("Escape");
     step("the sidebar shows the followed sources, without limits on a self-hosted PURSS");
 
@@ -371,31 +392,31 @@ async function main(): Promise<void> {
     p2.on("pageerror", (e) => errors.push(e.message));
     await p2.goto(`${origin}/app/invite?code=${encodeURIComponent(inviteCode)}&email=${encodeURIComponent("second.reader@example.test")}`);
     // The invitation link names the address it is for.
-    assert.equal(await p2.getByLabel("Email address").inputValue(), "second.reader@example.test");
+    assert.equal(await p2.getByLabel(copy.auth.setup.emailLabel).inputValue(), "second.reader@example.test");
     await p2.locator("#auth-name").fill("Second Reader");
     await p2.locator("#pw-p").fill(PASSWORD);
     await p2.locator("#pw-a").fill(PASSWORD);
-    await p2.getByRole("button", { name: "Continue" }).click();
-    await p2.getByRole("button", { name: /skip for now/i }).first().click();
+    await p2.getByRole("button", { name: copy.auth.setup.continue }).click();
+    await p2.getByRole("button", { name: new RegExp(esc(copy.auth.passkeyStep.skip), "i") }).first().click();
     // A new account is asked once how it wants to be told about new things.
-    const firstVisit2 = p2.getByRole("dialog", { name: "How often do you want to hear about new items?" });
-    await firstVisit2.getByRole("button", { name: "Not now", exact: true }).click();
+    const firstVisit2 = p2.getByRole("dialog", { name: copy.dialogs.firstVisitQuestion.title });
+    await firstVisit2.getByRole("button", { name: copy.dialogs.firstVisitQuestion.notNow, exact: true }).click();
     await firstVisit2.waitFor({ state: "hidden" });
-    await p2.getByRole("button", { name: "Add source" }).first().waitFor();
-    await p2.getByRole("button", { name: "Settings" }).click();
-    await p2.getByRole("tab", { name: "Account" }).or(p2.getByRole("button", { name: "Account", exact: true })).first().click();
-    await p2.getByRole("button", { name: /^Delete account…$/ }).click();
+    await p2.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
+    await p2.getByRole("button", { name: copy.shell.sidebar.settings }).click();
+    await p2.getByRole("tab", { name: tabs.account }).or(p2.getByRole("button", { name: tabs.account, exact: true })).first().click();
+    await p2.getByRole("button", { name: new RegExp(`^${esc(copy.account.deleteAccount.section.button)}$`) }).click();
     await p2.locator("#da-confirm").fill("Second Reader");
-    await p2.getByRole("button", { name: "Delete account", exact: true }).click();
+    await p2.getByRole("button", { name: copy.account.deleteAccount.deleteAccount, exact: true }).click();
     await p2.waitForURL(/\/signin/);
-    await p2.getByText(/Your account will be deleted on/).waitFor();
+    await p2.getByText(new RegExp(esc(around(copy.auth.signIn.deletionNotice)[0].trim()))).waitFor();
     step("a second account asked to be deleted and was signed out");
 
-    await p2.getByRole("textbox", { name: "Email address" }).fill("SECOND.reader@example.test");
-    await p2.getByLabel("Password", { exact: true }).fill(PASSWORD);
-    await p2.getByRole("button", { name: "Sign in", exact: true }).click();
-    await p2.getByRole("button", { name: "Keep my account" }).click();
-    await p2.getByRole("button", { name: "Add source" }).first().waitFor();
+    await p2.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill("SECOND.reader@example.test");
+    await p2.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(PASSWORD);
+    await p2.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+    await p2.getByRole("button", { name: copy.account.keepAccount.keep }).click();
+    await p2.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
     await second.close();
     currentPage = page;
     step("it signed in again and kept the account");

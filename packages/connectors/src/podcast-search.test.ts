@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { searchPodcasts } from "./podcast-search.ts";
+import { server } from "@purss/copy/server";
+import { PODCAST_DIRECTORY, searchPodcasts } from "./podcast-search.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
 import type { FetchFn } from "./discover.ts";
 
+const copy = server.sources.connectors.podcastSearch;
 const row = (over: Record<string, unknown>) => ({ collectionName: "Show", artistName: "Maker", artworkUrl100: "https://img.example/100.jpg", feedUrl: "https://feeds.example/show.xml", primaryGenreName: "Sport", ...over });
 const answer = (...rows: Record<string, unknown>[]): FetchFn => async (url) => fakeResponse(url, JSON.stringify({ resultCount: rows.length, results: rows }), "text/javascript; charset=utf-8");
 
@@ -40,18 +42,18 @@ test("only the typed words are sent, to the directory's search address", async (
 test("failures say that it is Apple's directory that is slow or away, in plain words", async () => {
   const slow = await searchPodcasts("x show", { fetch: async () => fakeFailure("timeout") });
   assert.ok(!slow.ok && slow.reason === "timeout");
-  assert.match(slow.message, /Apple's podcast directory was slow/);
+  assert.equal(slow.message, copy.slow(PODCAST_DIRECTORY));
   const away = await searchPodcasts("x show", { fetch: async () => fakeFailure("unreachable") });
   assert.ok(!away.ok && away.reason === "unreachable");
-  assert.match(away.message, /couldn't reach Apple's podcast directory/);
+  assert.equal(away.message, copy.unreachable(PODCAST_DIRECTORY));
   for (const status of [429, 503]) {
     const busy = await searchPodcasts("x show", { fetch: async (url) => fakeResponse(url, "busy", "text/html", status) });
     assert.ok(!busy.ok);
-    assert.match(busy.message, /busy or limiting/);
+    assert.equal(busy.message, copy.busy(PODCAST_DIRECTORY));
   }
   const odd = await searchPodcasts("x show", { fetch: async (url) => fakeResponse(url, "<html>", "text/html") });
   assert.ok(!odd.ok);
-  assert.match(odd.message, /couldn't read/);
+  assert.equal(odd.message, copy.unreadable(PODCAST_DIRECTORY));
 });
 
 test("through the real fetch layer: a local directory answers, and a private address is still refused", async () => {

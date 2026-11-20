@@ -1,15 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { extension } from "@purss/copy/extension";
 import { BADGE_TTL_MS, Debouncer, KeptCache, mayLookUp } from "./badge.ts";
 import { menuAction, menuItems } from "./menus.ts";
+
+const menu = extension.background.menu;
 
 test("the right-click menu offers each basket for pages and links, or connecting", () => {
   assert.deepEqual(menuItems(false, []).map((m) => m.id), ["connect"]);
   assert.deepEqual(menuItems(true, []).map((m) => [m.id, m.enabled]), [["no-baskets", false]]);
   const items = menuItems(true, [{ id: "bsk_r", name: "Reading" }, { id: "bsk_p", name: "Papers" }]);
   assert.deepEqual(items.map((m) => [m.id, m.parentId ?? null, m.title, m.contexts.join()]), [
-    ["keep-page", null, "Keep page in", "page"], ["keep-page:bsk_r", "keep-page", "Reading", "page"], ["keep-page:bsk_p", "keep-page", "Papers", "page"],
-    ["keep-link", null, "Keep link in", "link"], ["keep-link:bsk_r", "keep-link", "Reading", "link"], ["keep-link:bsk_p", "keep-link", "Papers", "link"],
+    ["keep-page", null, menu.keepPage, "page"], ["keep-page:bsk_r", "keep-page", "Reading", "page"], ["keep-page:bsk_p", "keep-page", "Papers", "page"],
+    ["keep-link", null, menu.keepLink, "link"], ["keep-link:bsk_r", "keep-link", "Reading", "link"], ["keep-link:bsk_p", "keep-link", "Papers", "link"],
   ]);
   assert.equal(menuItems(true, Array.from({ length: 30 }, (_, i) => ({ id: `b${i}`, name: `B${i}` }))).length, 2 + 2 * 12, "a long list is cut");
   assert.deepEqual(menuAction("keep-link:bsk_r"), { kind: "keep", what: "link", basketId: "bsk_r" });

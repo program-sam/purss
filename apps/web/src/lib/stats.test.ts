@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CollectionStatsRow, StatsNumbers } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import { countWithShare, firstDirection, gapLabel, sharePercent, sortRows, sparklineLabel, weeklyAverage } from "./stats.ts";
+
+const t = app.lib.stats;
 
 function numbers(over: Partial<StatsNumbers> = {}): StatsNumbers {
   return {
@@ -25,8 +28,8 @@ test("average, label and gap are plain numbers", () => {
   weekly[25] = 3; weekly[24] = 2;
   assert.equal(weeklyAverage(weekly), 0.2);
   assert.equal(weeklyAverage([]), 0);
-  assert.match(sparklineLabel(weekly), /^Items per week over the last 26 weeks, oldest first: 0, 0,.*2, 3\. Average 0\.2 per week\.$/);
-  assert.deepEqual([gapLabel(null), gapLabel(1), gapLabel(56), gapLabel(0.4)], ["–", "1 day", "56 days", "0.4 days"]);
+  assert.equal(sparklineLabel(weekly), t.sparkline(26, weekly.join(", "), 0.2));
+  assert.deepEqual([gapLabel(null), gapLabel(1), gapLabel(56), gapLabel(0.4)], [t.noGap, t.gap(1), t.gap(56), t.gap(0.4)]);
 });
 
 test("rows sort by the chosen column and fall back to the name on ties", () => {

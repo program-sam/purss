@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
+import { app as copy } from "@purss/copy/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -37,6 +38,14 @@ const env: NodeJS.ProcessEnv = {
 const shots = os.tmpdir();
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
+
+// The words the page shows come from the copy catalog, so rewording one never breaks this check.
+const { display, general } = copy.dialogs.settings;
+const { up, down } = copy.components.pageNav;
+/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+/** The sidebar's Add source button, or the tab bar's on a phone. */
+const ADD_SOURCE = new RegExp(`${esc(copy.shell.sidebar.addSource)}|${esc(copy.shell.tabBar.addSource)}`);
 
 let api: ChildProcess | null = null;
 let stopping = false;
@@ -94,30 +103,30 @@ function prepare(): { sourceId: string; longItemId: string } {
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${origin}/app/`);
   await page.waitForURL(/\/signin/);
-  await page.getByRole("textbox", { name: "Email address" }).fill(EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.getByRole("button", { name: "Add source" }).first().waitFor();
+  await page.getByRole("textbox", { name: copy.auth.signIn.emailLabel }).fill(EMAIL);
+  await page.getByLabel(copy.auth.signIn.passwordLabel, { exact: true }).fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: copy.auth.signIn.signIn, exact: true }).click();
+  await page.getByRole("button", { name: ADD_SOURCE }).first().waitFor();
 }
 
 async function openSettings(page: Page): Promise<void> {
   // The older phone layout has a Settings button in the header; current layouts put it in the
   // account menu, with the sidebar as the fallback.
-  const inHeader = page.locator("header").getByRole("button", { name: "Settings", exact: true });
+  const inHeader = page.locator("header").getByRole("button", { name: copy.shell.sidebar.settings, exact: true });
   if (await inHeader.isVisible()) await inHeader.click();
   else {
     const account = page.getByRole("button", { name: /^Account menu(?: for .+)?$/ });
     if (await account.isVisible()) {
       await account.click();
-      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Settings", exact: true }).click();
-    } else await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: copy.auth.headerAccount.settings, exact: true }).click();
+    } else await page.getByRole("button", { name: copy.shell.sidebar.settings, exact: true }).click();
   }
   await page.getByRole("dialog").waitFor();
 }
-const einkBox = (page: Page) => page.getByRole("checkbox", { name: /E-ink display/ });
+const einkBox = (page: Page) => page.getByRole("checkbox", { name: new RegExp(esc(display.label)) });
 async function setEink(page: Page, on: boolean): Promise<void> {
   await openSettings(page);
-  if ((await einkBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: "E-ink display" }).click();
+  if ((await einkBox(page).isChecked()) !== on) await page.locator("label.chk", { hasText: display.label }).click();
   assert.equal(await einkBox(page).isChecked(), on);
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
@@ -217,11 +226,11 @@ async function main(): Promise<void> {
     assert.equal(before.top, 0);
     assert.ok(before.max > before.height, "the list is longer than one screen");
     const listNav = page.getByRole("group", { name: "Page through the list" });
-    assert.equal(await listNav.getByRole("button", { name: "Page up" }).isDisabled(), true, "nothing above the top");
-    await listNav.getByRole("button", { name: "Page down" }).click();
+    assert.equal(await listNav.getByRole("button", { name: up }).isDisabled(), true, "nothing above the top");
+    await listNav.getByRole("button", { name: down }).click();
     const after = await scrollOf(page, "#main");
     assert.equal(after.top, before.height - 40, "one screen down, keeping one line of the last one, with no smooth scroll");
-    await listNav.getByRole("button", { name: "Page up" }).click();
+    await listNav.getByRole("button", { name: up }).click();
     assert.equal((await scrollOf(page, "#main")).top, 0);
     step("Page down and Page up move the list exactly one screen at once");
 
@@ -230,7 +239,7 @@ async function main(): Promise<void> {
     await page.locator("#panel-body .prose").waitFor();
     const articleNav = page.getByRole("group", { name: "Page through the article" });
     const a0 = await scrollOf(page, "#panel-body");
-    await articleNav.getByRole("button", { name: "Page down" }).click();
+    await articleNav.getByRole("button", { name: down }).click();
     const a1 = await scrollOf(page, "#panel-body");
     assert.equal(a1.top, a0.height - 40, "the article moves one screen");
     await page.screenshot({ path: path.join(shots, "purss-eink-article.png") });
@@ -245,8 +254,8 @@ async function main(): Promise<void> {
 
     // A dark theme on the account doesn't reach this device; a reload keeps the choice.
     await openSettings(page);
-    await page.getByRole("button", { name: "Dark" }).click();
-    await page.getByText("This device uses the e-ink display").waitFor();
+    await page.getByRole("button", { name: general.dark }).click();
+    await page.getByText(general.einkNote).waitFor();
     await page.keyboard.press("Escape");
     await page.reload();
     await page.locator(".row-main").first().waitFor();
@@ -260,7 +269,7 @@ async function main(): Promise<void> {
     await setEink(page, false);
     assert.equal((await look(page)).theme, "dark", "the account's dark theme returns");
     await openSettings(page);
-    await page.getByRole("button", { name: "Light" }).click();
+    await page.getByRole("button", { name: general.light }).click();
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
     await page.goto(`${origin}/app/s/${sourceId}`);
@@ -276,7 +285,7 @@ async function main(): Promise<void> {
     await setEink(small, true);
     await small.goto(`${origin}/app/s/${sourceId}`);
     await small.locator(".row-main").first().waitFor();
-    await small.getByRole("group", { name: "Page through the list" }).getByRole("button", { name: "Page down" }).click();
+    await small.getByRole("group", { name: "Page through the list" }).getByRole("button", { name: down }).click();
     assert.ok((await scrollOf(small, "#main")).top > 0);
     await small.screenshot({ path: path.join(shots, "purss-eink-phone.png") });
     await phone.close();

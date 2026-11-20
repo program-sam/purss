@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemMedia } from "@purss/domain";
+import { app } from "@purss/copy/app";
 import type { BackendState, PlaybackSource, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
 import { Player } from "./player.ts";
@@ -364,7 +365,7 @@ test("speed, skipping and failures", async () => {
   player.forward();
   assert.equal(backend.state().position, 115);
   backend.set({ ...backend.state(), failed: true });
-  assert.match(player.getSnapshot().error!, /publisher's file couldn't be played/);
+  assert.equal(player.getSnapshot().error, app.player.errors.publisherFailed);
 });
 
 test("the operating system's media controls follow the player and drive it", async () => {
@@ -425,7 +426,7 @@ test("a copy downloaded to the device plays first, with no connection needed", a
   assert.deepEqual([backend.loaded?.source.title, backend.loaded?.source.artist, backend.loaded?.source.artwork], ["Episode", "Slow Radio", "https://img.example.org/c.jpg"], "what the lock screen shows");
   assert.equal(player.getSnapshot().now?.from, "device");
   backend.set({ ...backend.state(), failed: true });
-  assert.match(player.getSnapshot().error!, /download on this device couldn't be played/);
+  assert.equal(player.getSnapshot().error, app.player.errors.deviceFailed);
   await player.open(item({ id: "itm_2" }));
   assert.equal(player.getSnapshot().now?.itemId, "itm_2", "not downloaded: it plays from the publisher");
   assert.equal(backend.loaded?.source.url, "https://cdn.example.org/a.mp3");
@@ -436,7 +437,7 @@ test("a publisher's file is played only over a secure connection, as downloads a
   const { backend, player } = make();
   await player.open(item({ media: { ...media, url: "http://cdn.example.org/a.mp3" } }));
   assert.equal(backend.loaded, null, "nothing loaded");
-  assert.match(player.getSnapshot().error!, /secure connection/);
+  assert.equal(player.getSnapshot().error, app.player.errors.notSecure);
 });
 
 function memoryStorage() {
