@@ -3,7 +3,7 @@ import { hostOf, isHostOrSub, segmentsOf } from "./services.ts";
 
 /*
  * Scholarly journals on the large publishing platforms. Their pages refuse automated readers (Wiley, Taylor & Francis,
- * the University of Chicago Press, ScienceDirect) or are drawn by script (Berghahn), but each journal's feed answers at an
+ * SAGE, the University of Chicago Press, ScienceDirect) or are drawn by script (Berghahn), but each journal's feed answers at an
  * address made from the journal's code or ISSN. A pasted journal, issue or article page is turned into that address
  * without opening the page, and the feed is then fetched and checked like any other (known-feeds.ts). Where the address
  * needs an ISSN that the page address doesn't carry (ScienceDirect, a DOI), Crossref's public metadata supplies it.
@@ -13,7 +13,7 @@ import { hostOf, isHostOrSub, segmentsOf } from "./services.ts";
  * issue) is a choice of its own. Copies are dropped after fetching, by their entries (known-feeds.ts).
  */
 
-export type Platform = "wiley" | "tandf" | "uchicago" | "berghahn" | "muse" | "sciencedirect";
+export type Platform = "wiley" | "tandf" | "sage" | "uchicago" | "berghahn" | "muse" | "sciencedirect";
 
 /** A journal named by a page address: its platform and the code the feed address is made from. */
 export type JournalRef = { platform: Exclude<Platform, "sciencedirect">; id: string } | { platform: "sciencedirect"; slug: string };
@@ -21,6 +21,7 @@ export type JournalRef = { platform: Exclude<Platform, "sciencedirect">; id: str
 const PUBLISHER: Record<Platform, string> = {
   wiley: "Wiley",
   tandf: "Taylor & Francis",
+  sage: "SAGE",
   uchicago: "University of Chicago Press",
   berghahn: "Berghahn",
   muse: "Project MUSE",
@@ -38,6 +39,7 @@ export function normalIssn(raw: string): string | null {
 }
 
 const TANDF_CODE = /^[a-z]{2,8}\d{2}$/i;
+const SAGE_CODE = /^[a-z][a-z0-9]{1,11}$/i;
 const WILEY_CODE = /^[a-z][a-z0-9]{1,11}$/i;
 const UCHICAGO_CODE = /^[a-z]{1,12}$/i;
 const BERGHAHN_CODE = /^[a-z0-9][a-z0-9-]{0,39}$/i;
@@ -64,6 +66,11 @@ export function journalFromUrl(url: URL): JournalRef | null {
   if (h === "tandfonline.com" || h === "www.tandfonline.com") {
     const code = codeAfterPrefix(s, ["journals", "journal", "toc", "loi"]);
     return code && TANDF_CODE.test(code) ? { platform: "tandf", id: code.toLowerCase() } : null;
+  }
+  if (h === "journals.sagepub.com" || h === "www.journals.sagepub.com") {
+    // The journal's home page, its issues and its issue list (/home/<code>, /toc/<code>/…, /loi/<code>).
+    const code = codeAfterPrefix(s, ["home", "toc", "loi"]);
+    return code && SAGE_CODE.test(code) ? { platform: "sage", id: code.toLowerCase() } : null;
   }
   if (h === "journals.uchicago.edu" || h === "www.journals.uchicago.edu") {
     const code = codeAfterPrefix(s, ["journals", "toc", "loi"]);
@@ -97,7 +104,7 @@ export function journalTitle(feedTitle: string | null | undefined): string | nul
   const t = (feedTitle ?? "")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/^(?:Wiley|tandf|Taylor (?:and|&) Francis|The University of Chicago Press|ScienceDirect Publication|Project MUSE\s*®?)\s*:\s*/i, "")
+    .replace(/^(?:Wiley|tandf|Taylor (?:and|&) Francis|SAGE Publications(?: (?:Ltd|Inc|India Pvt Ltd)\.?)?|SAGE Journals|The University of Chicago Press|ScienceDirect Publication|Project MUSE\s*®?)\s*:\s*/i, "")
     .replace(/\s*:\s*Table of Contents$/i, "")
     .replace(/\s+-\s+Latest (?:Articles|Issues)$/i, "")
     .trim();
@@ -134,6 +141,8 @@ export function journalFeedsFor(ref: Exclude<JournalRef, { platform: "sciencedir
       const main = journalFeed("tandf", `https://www.tandfonline.com/feed/rss/${ref.id}`);
       return [main, alsoFeed(main, `https://www.tandfonline.com/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, "Early articles feed", EARLY_NOTE)];
     }
+    case "sage":
+      return [journalFeed("sage", `https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`)];
     case "uchicago": {
       const main = journalFeed("uchicago", `https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=${ref.id}`);
       return [main, alsoFeed(main, `https://www.journals.uchicago.edu/action/showFeed?type=axatoc&feed=rss&jc=${ref.id}`, "Early articles feed", EARLY_NOTE)];
@@ -159,6 +168,8 @@ export function isPublisherHost(h: string): boolean {
   return (
     isHostOrSub(h, "onlinelibrary.wiley.com") ||
     isHostOrSub(h, "tandfonline.com") ||
+    h === "journals.sagepub.com" ||
+    h === "www.journals.sagepub.com" ||
     isHostOrSub(h, "journals.uchicago.edu") ||
     isHostOrSub(h, "sciencedirect.com") ||
     isHostOrSub(h, "berghahnjournals.com") ||

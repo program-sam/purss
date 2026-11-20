@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { discover, LINKED_JOURNAL_NOTE, OJS_ANNOUNCEMENTS_NOTE } from "./discover.ts";
-import type { DiscoveryDraft, FetchFn } from "./discover.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
-import { doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, EARLY_NOTE, ISSUES_NOTE, journalTitle, normalIssn, readCrossrefJournalSearch, readCrossrefWork } from "./journals.ts";
+import { doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, EARLY_NOTE, ISSUES_NOTE, isPublisherHost, journalFromUrl, journalTitle, normalIssn, planJournal, readCrossrefJournalSearch, readCrossrefWork } from "./journals.ts";
+import { crossrefJournalSearchUrl } from "./crossref.ts";
 import { planKnownFeeds } from "./known-feeds.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
@@ -38,6 +39,7 @@ function stub(routes: Record<string, Route>): { fetch: FetchFn; calls: { url: st
 const forbidden = (url: string) => fakeResponse(url, "<html><body>Just a moment…</body></html>", "text/html", 403);
 /** A feed whose entries are its own (two journals never share articles). */
 const feed = (url: string, title: string) => fakeResponse(url, rss(title, `${url}/`), "application/rss+xml");
+const rdfFeed = (url: string, title: string) => fakeResponse(url, `<?xml version="1.0"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel rdf:about="${url}"><title>${title}</title><link>${url}</link><description>Table of contents</description></channel><item rdf:about="${url}/article"><title>New article</title><link>${url}/article</link><dc:date>2026-11-19T12:00:00Z</dc:date></item></rdf:RDF>`, "application/xml;charset=UTF-8");
 const json = (url: string, data: unknown) => fakeResponse(url, JSON.stringify(data), "application/json");
 const page = (url: string, html: string) => fakeResponse(url, html, "text/html; charset=utf-8");
 
@@ -71,6 +73,10 @@ test("journal pages on the publishing platforms become their journal's feed addr
   assert.deepEqual(mainFeed("https://www.tandfonline.com/toc/rhum20/current"), ["https://www.tandfonline.com/feed/rss/rhum20"]);
   assert.deepEqual(mainFeed("https://www.journals.uchicago.edu/journals/ca/about"), ["https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=ca"]);
   assert.deepEqual(mainFeed("https://www.journals.uchicago.edu/toc/ca/current"), ["https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=ca"]);
+  assert.deepEqual(mainFeed("https://journals.sagepub.com/home/chd"), ["https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd"]);
+  assert.deepEqual(mainFeed("https://journals.sagepub.com/home/eth/"), ["https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=eth"]);
+  assert.deepEqual(mainFeed("https://journals.sagepub.com/toc/chd/current"), ["https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd"], "an issue page");
+  assert.deepEqual(mainFeed("https://journals.sagepub.com/loi/chd"), ["https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd"], "the issue list");
   // Berghahn's pages end in .xml without being feeds.
   for (const u of ["https://www.berghahnjournals.com/view/journals/ajec/ajec-overview.xml", "https://www.berghahnjournals.com/view/journals/ajec/34/2/ajec.34.issue-2.xml"]) {
     assert.deepEqual(feedUrls(u), ["https://www.berghahnjournals.com/journalissuetocrss/journals/ajec/ajec-overview.xml"], u);
@@ -84,6 +90,61 @@ test("journal pages on the publishing platforms become their journal's feed addr
     assert.deepEqual(feedUrls(u), ["https://muse.jhu.edu/feeds/latest_articles?jid=10", "https://muse.jhu.edu/feeds/latest_issues?jid=10"], u);
   }
   assert.equal(feedUrls("https://muse.jhu.edu/article/12345"), null);
+});
+
+test("SAGE journal pages refuse the page fetch but offer their RSS 1.0 table-of-contents feed", async () => {
+  const pageUrl = "https://journals.sagepub.com/home/chd";
+  const feedUrl = "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd";
+  assert.deepEqual(journalFromUrl(new URL(pageUrl)), { platform: "sage", id: "chd" });
+  assert.equal(isPublisherHost("journals.sagepub.com"), true);
+  assert.equal(planJournal(new URL("https://journals.sagepub.com/")), null);
+  assert.equal(journalFromUrl(new URL("https://journals.sagepub.com/home/not-a-code")), null);
+  assert.equal(journalFromUrl(new URL("https://notjournals.sagepub.com/home/chd")), null);
+  assert.equal(isPublisherHost("notjournals.sagepub.com"), false);
+  assert.equal(journalFromUrl(new URL("https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd")), null, "the feed itself is not mistaken for a journal page");
+  const { fetch, calls } = stub({ [feedUrl]: rdfFeed(feedUrl, "SAGE Publications Ltd: Childhood: Table of Contents") });
+  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Childhood", feedUrl, "Articles feed", "SAGE journal"]]);
+  assert.deepEqual(calls.map((c) => c.url), [feedUrl], "derive and check the feed directly; don't fetch the page's 403 or guess generic paths");
+});
+
+test("a SAGE journal whose eTOC feed is unavailable doesn't guess at generic site feeds", async () => {
+  const pageUrl = "https://journals.sagepub.com/home/chd";
+  const feedUrl = "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd";
+  const { fetch, calls } = stub({
+    [pageUrl]: forbidden(pageUrl),
+    [feedUrl]: fakeResponse(feedUrl, "Not found", "text/plain", 404),
+  });
+  const d = await discover(pageUrl, { fetch, now: NOW });
+  assert.ok(!d.ok && d.reason === "unreachable" && d.message.includes("403"), JSON.stringify(d));
+  assert.deepEqual(calls.map((c) => c.url).filter((u) => !u.startsWith("https://www.wikidata.org/")), [feedUrl, pageUrl, "https://www.journals.sagepub.com/home/chd"]);
+});
+
+test("a SAGE journal's Crossref feed is an alternative after its own table-of-contents feed", async () => {
+  const pageUrl = "https://journals.sagepub.com/home/chd";
+  const feedUrl = "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd";
+  const crossrefUrl = crossrefJournalSearchUrl("Childhood");
+  const { fetch, calls } = stub({
+    [feedUrl]: rdfFeed(feedUrl, "SAGE Publications Ltd: Childhood: Table of Contents"),
+    [crossrefUrl]: json(crossrefUrl, { message: { items: [{ title: "Childhood", publisher: "SAGE Publications", ISSN: ["0907-5682", "1461-7013"], "issn-type": [{ type: "print", value: "0907-5682" }, { type: null, value: "1461-7013" }] }] } }),
+  });
+  const asked: string[] = [];
+  const bridge: BridgeClient = async (target) => {
+    asked.push(`${target.service.id}/${target.key}`);
+    return { status: 200, body: Buffer.from(rss("Childhood")) };
+  };
+  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.alternative ?? false]), [
+    ["Childhood", feedUrl, false],
+    ["Childhood", "bridge:crossref/09075682", true],
+  ]);
+  assert.deepEqual(asked, ["crossref/09075682"]);
+  assert.ok(calls.some((c) => c.url.startsWith("https://api.crossref.org/journals?query=Childhood")));
+  const searchesBefore = calls.filter((c) => c.url.startsWith("https://api.crossref.org/")).length;
+  const one = ok(await discover(pageUrl, { fetch, bridge, now: NOW, maxCandidates: 1 }));
+  assert.equal(calls.filter((c) => c.url.startsWith("https://api.crossref.org/")).length, searchesBefore, "nor its journal search");
+  assert.deepEqual(one.candidates.map((c) => [c.title, c.feedUrl, c.alternative ?? false]), [["Childhood", feedUrl, false]], "when one choice fits, keep the journal's own feed ahead of Crossref");
+  assert.deepEqual(asked, ["crossref/09075682"], "don't fetch an alternative that cannot fit in the caller's candidate limit");
 });
 
 test("journal rules take a code only from where the platform puts it, and leave feeds and other pages alone", () => {
@@ -105,10 +166,12 @@ test("journal names: the platform's decoration around the journal's name is drop
   assert.equal(journalTitle("Wiley: American Anthropologist: Table of Contents"), "American Anthropologist");
   assert.equal(journalTitle("tandf: History and Anthropology: Table of Contents"), "History and Anthropology");
   assert.equal(journalTitle("The University of Chicago Press: Current Anthropology: Table of Contents"), "Current Anthropology");
+  assert.equal(journalTitle("SAGE Publications Ltd: Childhood: Table of Contents"), "Childhood");
   assert.equal(journalTitle("Social Anthropology/Anthropologie sociale"), "Social Anthropology/Anthropologie sociale");
   assert.equal(journalTitle("Project MUSE®: Anthropological Quarterly - Latest Issues"), "Anthropological Quarterly");
   assert.equal(journalTitle("Wiley-Online-Library: Table of Contents"), null, "names only the platform");
   assert.equal(journalTitle(" "), null);
+  for (const name of ["SAGE Publications Ltd: Childhood: Table of Contents", "SAGE Publications Inc: Childhood: Table of Contents", "SAGE Publications India Pvt Ltd: Childhood: Table of Contents"]) assert.equal(journalTitle(name), "Childhood", name);
 });
 
 test("DOIs: bare, doi:, doi.org and walled article addresses; nothing else", () => {

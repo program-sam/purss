@@ -995,6 +995,7 @@ type JournalClue = { issns: string[]; names: { name: string; publisher?: RegExp 
 const PLATFORM_PUBLISHER: Record<Platform, RegExp | undefined> = {
   wiley: /\b(?:wiley|hindawi)\b/i,
   tandf: /\b(?:taylor|informa|routledge)\b/i,
+  sage: /\bsage\b/i,
   uchicago: /\bchicago\b/i,
   berghahn: /\bberghahn\b/i,
   // Project MUSE hosts many publishers' journals: an exact, single title match is required instead.
@@ -1078,7 +1079,8 @@ function isJournalArticlesFeed(c: DraftCandidate): boolean {
 /**
  * The journal's Crossref choice, added after everything else was found and ordered. Next to the journal's own
  * articles feed it is an alternative, never chosen first; without one it is the journal's feed. A journal Crossref
- * doesn't know, or a router that can't reach Crossref just now, leaves the result as it was.
+ * doesn't know, or a router that can't reach Crossref just now, leaves the result as it was. If the caller allows only
+ * one choice, the journal's own feed stays and Crossref is not added.
  */
 async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDraft, max: number): Promise<DiscoveryDraft> {
   const service = bridgeService("crossref");
@@ -1086,6 +1088,9 @@ async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDra
   if (!draft.ok && draft.reason === "blocked") return draft;
   if (draft.ok && draft.candidates.some((c) => c.feedUrl.startsWith(`bridge:${service.id}/`))) return draft;
   if (ctx.signal.aborted) return draft;
+  if (draft.ok && max <= 1 && draft.candidates.some(isJournalArticlesFeed)) {
+    return { ...draft, candidates: draft.candidates.slice(0, Math.max(0, max)) };
+  }
   const issn = await journalIssn(ctx, draft);
   if (!issn || ctx.signal.aborted) return draft;
   const answer = await opts.bridge({ service, key: issn }, ctx.signal).catch(() => ({ failed: true }) as const);
