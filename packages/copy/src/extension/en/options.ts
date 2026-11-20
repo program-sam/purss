@@ -1,0 +1,46 @@
+// Extension copy: apps/extension/src/options/options.ts (the options page)
+export default {
+  title: "PURSS extension",
+  somethingWentWrong: "Something went wrong. Try again.",
+  finishing: "Finishing…",
+  connect: {
+    title: "Connect to your PURSS",
+    addressPlaceholder: "e.g. purss.example.org",
+    addressLabel: "Server address",
+    useOfficial: (host: string) => `Use the official server (${host})`,
+    server: (host: string) => `Server: ${host} · `,
+    changeServer: "Change server",
+    codePlaceholder: "xxxx-xxxx-xxxx",
+    typedCode: "Approve the connection in the tab that opened, then type the code it shows here.",
+    finish: "Finish connecting",
+    looking: "Looking for your PURSS…",
+    approve: (note: string | null) => `Approve the connection in the window that opened.${note ? ` ${note}` : ""}`,
+    notFinished: "The connection wasn't finished: the window was closed or the PURSS couldn't be reached. Try again, or connect with a code instead.",
+    typeTheCode: "Type the code your PURSS shows.",
+    codeDidntWork: "That code didn't work. It works once, for five minutes. Start connecting again for a new one.",
+    button: "Connect",
+    explainer: "You'll approve the connection in your PURSS, signed in as yourself. The extension can then keep pages, look up whether a page is kept, list your baskets and collections, search, and hand sites to Add source; it can't change your account or security settings.",
+    useCode: "Connect with a code instead",
+  },
+  connected: {
+    title: "Connected",
+    to: (origin: string, device: string) => `Connected to ${origin} as “${device}”.`,
+    hint: "You can also disconnect this extension in your PURSS, under Settings → Connected apps.",
+    disconnecting: "Disconnecting…",
+    disconnect: "Disconnect",
+  },
+  badge: {
+    title: "Mark pages you've kept",
+    label: "Show a ✓ on the toolbar button when the page you open is already kept",
+    hint: "Off unless you turn it on. When it's on, the extension asks your PURSS about each page you open in a normal window (never in a private window), so your PURSS learns those addresses. When it's off, it asks only when you open the extension's popup on a page.",
+  },
+  search: {
+    title: "Search from the address bar",
+    before: "Type ",
+    after: ", a space and what you're looking for, then press Enter.",
+  },
+  sends: {
+    title: "What the extension sends",
+    body: "Only to your own PURSS, and only when you use it: the page's address and title when you keep it or open the popup; the readable text of the page when you choose to keep its text; your search words. It reads a page only when you open the popup on it or use the right-click menu. It sends nothing anywhere else.",
+  },
+};

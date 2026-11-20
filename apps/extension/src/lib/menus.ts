@@ -1,3 +1,4 @@
+import { extension } from "@purss/copy/extension";
 import type { MenuItem } from "./browser.ts";
 import type { BasketRef } from "./store.ts";
 
@@ -10,13 +11,13 @@ import type { BasketRef } from "./store.ts";
 const MAX_BASKETS = 12;
 
 export function menuItems(connected: boolean, baskets: BasketRef[]): MenuItem[] {
-  if (!connected) return [{ id: "connect", title: "Connect to your PURSS…", contexts: ["page", "link"] }];
-  if (!baskets.length) return [{ id: "no-baskets", title: "Create a basket in your PURSS to keep pages", contexts: ["page", "link"], enabled: false }];
+  if (!connected) return [{ id: "connect", title: extension.background.menu.connect, contexts: ["page", "link"] }];
+  if (!baskets.length) return [{ id: "no-baskets", title: extension.background.menu.noBaskets, contexts: ["page", "link"], enabled: false }];
   const shown = baskets.slice(0, MAX_BASKETS);
   return [
-    { id: "keep-page", title: "Keep page in", contexts: ["page"] },
+    { id: "keep-page", title: extension.background.menu.keepPage, contexts: ["page"] },
     ...shown.map((b) => ({ id: `keep-page:${b.id}`, parentId: "keep-page", title: b.name, contexts: ["page"] })),
-    { id: "keep-link", title: "Keep link in", contexts: ["link"] },
+    { id: "keep-link", title: extension.background.menu.keepLink, contexts: ["link"] },
     ...shown.map((b) => ({ id: `keep-link:${b.id}`, parentId: "keep-link", title: b.name, contexts: ["link"] })),
   ];
 }

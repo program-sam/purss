@@ -1,3 +1,4 @@
+import { extension } from "@purss/copy/extension";
 import { deepLink, isWebPage } from "./lib/address.ts";
 import { signedOut, workspace } from "./lib/api.ts";
 import { BADGE_DELAY_MS, Debouncer, KEPT_MARK, KeptCache, mayLookUp } from "./lib/badge.ts";
@@ -15,12 +16,11 @@ import { forgetConnection, getBaskets, getConnection, getSettings, setBaskets } 
 const api = ext();
 const kept = new KeptCache();
 const settle = new Debouncer<number>(BADGE_DELAY_MS);
-const TITLE = "PURSS";
 
 async function mark(tabId: number | undefined, state: "kept" | "none" | "error", title?: string): Promise<void> {
   if (tabId === undefined) return;
   await api.action.setBadgeText({ tabId, text: state === "kept" ? KEPT_MARK : state === "error" ? "!" : "" }).catch(() => undefined);
-  await api.action.setTitle({ tabId, title: title ?? (state === "kept" ? "Kept in your PURSS" : TITLE) }).catch(() => undefined);
+  await api.action.setTitle({ tabId, title: title ?? (state === "kept" ? extension.background.keptInYourPurss : extension.background.title) }).catch(() => undefined);
 }
 
 async function rebuildMenus(): Promise<void> {
@@ -62,23 +62,23 @@ api.contextMenus?.onClicked.addListener((info, tab) => void (async () => {
   const conn = await getConnection();
   if (!conn) { await api.runtime.openOptionsPage(); return; }
   const url = action.what === "link" ? info.linkUrl : info.pageUrl ?? tab?.url;
-  if (!isWebPage(url, conn.origin)) { await mark(tab?.id, "error", "Only web pages can be kept."); return; }
+  if (!isWebPage(url, conn.origin)) { await mark(tab?.id, "error", extension.background.onlyWebPages); return; }
   const basket = (await getBaskets()).find((b) => b.id === action.basketId);
   // Firefox tells the link's text; Chrome doesn't, and the PURSS then names the link by its address.
   const title = (action.what === "page" ? tab?.title : info.linkText)?.trim().slice(0, 300) || undefined;
   try {
     await workspace(conn).keep({ url, basketId: action.basketId, ...(title ? { title } : {}) });
     if (action.what === "page") kept.set(url, true, Date.now());
-    await mark(tab?.id, action.what === "page" ? "kept" : "none", `Kept ${action.what === "page" ? "this page" : "the link"} in ${basket?.name ?? "your basket"}`);
+    await mark(tab?.id, action.what === "page" ? "kept" : "none", extension.background.kept(action.what, basket?.name));
   } catch (err) {
     if (signedOut(err)) await forgetConnection();
-    await mark(tab?.id, "error", err instanceof Error ? err.message : "Couldn't keep it.");
+    await mark(tab?.id, "error", err instanceof Error ? err.message : extension.background.couldntKeep);
     if (err instanceof Error && /basket/i.test(err.message)) await refreshBaskets();
   }
 })());
 
 // ---------- address bar: "purss <words>" searches the PURSS ----------
-api.omnibox?.setDefaultSuggestion({ description: "Search your PURSS for: %s" });
+api.omnibox?.setDefaultSuggestion({ description: extension.background.searchSuggestion });
 api.omnibox?.onInputEntered.addListener((text, disposition) => void (async () => {
   const conn = await getConnection();
   if (!conn) { await api.runtime.openOptionsPage(); return; }

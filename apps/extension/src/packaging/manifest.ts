@@ -3,6 +3,7 @@
  * how the background runs and a few browser-specific keys differ.
  */
 
+import { extension } from "@purss/copy/extension";
 import { dottedVersion } from "@purss/domain/version";
 
 export const TARGETS = ["chromium", "firefox", "safari"] as const;
@@ -35,12 +36,12 @@ export function manifestFor(target: Target, version: string | null): Record<stri
   ];
   return {
     manifest_version: 3,
-    name: "PURSS",
-    short_name: "PURSS",
-    description: "Keep pages in your own PURSS, follow the sites you read, and search it from the address bar.",
+    name: extension.manifest.name,
+    short_name: extension.manifest.shortName,
+    description: extension.manifest.description,
     version: extensionVersion(version),
     icons: ICONS,
-    action: { default_title: "PURSS", default_popup: "popup/popup.html", default_icon: ICONS },
+    action: { default_title: extension.manifest.toolbarTitle, default_popup: "popup/popup.html", default_icon: ICONS },
     options_ui: { page: "options/options.html", open_in_tab: true },
     // Chrome and Edge run the background as a service worker; Firefox as an event page; Safari takes either.
     background: target === "firefox" ? { scripts: ["background.js"] } : { service_worker: "background.js" },

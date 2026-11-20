@@ -6,6 +6,7 @@
  * with the verifier at /api/connect/token for the device token.
  */
 
+import { extension } from "@purss/copy/extension";
 import { appUrl } from "@purss/domain/paths";
 
 const b64url = (bytes: Uint8Array): string => {
@@ -40,14 +41,14 @@ export type RedirectOutcome = { ok: true; code: string } | { ok: false; reason: 
  */
 export function readRedirect(finalUrl: string, expected: { redirectUri: string; state: string; origin: string }): RedirectOutcome {
   let u: URL;
-  try { u = new URL(finalUrl); } catch { return { ok: false, reason: "invalid", message: "The PURSS sent back something unexpected. Try connecting again." }; }
-  if (!finalUrl.startsWith(expected.redirectUri)) return { ok: false, reason: "invalid", message: "The PURSS sent back something unexpected. Try connecting again." };
+  try { u = new URL(finalUrl); } catch { return { ok: false, reason: "invalid", message: extension.connect.unexpectedAnswer }; }
+  if (!finalUrl.startsWith(expected.redirectUri)) return { ok: false, reason: "invalid", message: extension.connect.unexpectedAnswer };
   if (u.searchParams.get("state") !== expected.state || u.searchParams.get("iss") !== expected.origin) {
-    return { ok: false, reason: "mismatch", message: "That answer didn't come from this connection attempt. Try connecting again." };
+    return { ok: false, reason: "mismatch", message: extension.connect.otherAttempt };
   }
-  if (u.searchParams.get("error") === "access_denied") return { ok: false, reason: "declined", message: "You chose not to connect." };
+  if (u.searchParams.get("error") === "access_denied") return { ok: false, reason: "declined", message: extension.connect.declined };
   const code = u.searchParams.get("code");
-  return code ? { ok: true, code } : { ok: false, reason: "invalid", message: "The PURSS didn't send a connection code. Try connecting again." };
+  return code ? { ok: true, code } : { ok: false, reason: "invalid", message: extension.connect.noCode };
 }
 
 /** A typed code as your PURSS shows it ("abcd-efgh-ijkm"), forgiving spaces and case. */
@@ -61,5 +62,5 @@ export function deviceNameFor(userAgent: string): string {
     : /Chrome\//.test(userAgent) ? "Chrome" : /Safari\//.test(userAgent) ? "Safari" : "Browser";
   const os = /iPhone|iPad|iPod/.test(userAgent) ? "iOS" : /Android/.test(userAgent) ? "Android" : /CrOS/.test(userAgent) ? "ChromeOS"
     : /Windows/.test(userAgent) ? "Windows" : /Mac OS X|Macintosh/.test(userAgent) ? "macOS" : /Linux/.test(userAgent) ? "Linux" : "";
-  return os ? `${browser} on ${os}` : browser;
+  return os ? extension.connect.deviceName(browser, os) : browser;
 }

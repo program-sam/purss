@@ -1,3 +1,4 @@
+import { extension } from "@purss/copy/extension";
 import { appUrl } from "@purss/domain/paths";
 import "@purss/ui/tokens.css";
 import "@purss/ui/primitives.css";
@@ -35,17 +36,17 @@ async function openTab(url: string): Promise<void> {
 
 function notConnected(message?: string): void {
   show(app, h("div", { class: "pg" },
-    h("h1", {}, "PURSS"),
+    h("h1", {}, extension.popup.notConnected.title),
     message ? h("p", { class: "error", role: "alert" }, message) : null,
-    h("p", {}, "Connect this extension to your PURSS to keep pages, follow sites and search from here."),
-    h("button", { class: "btn primary", type: "button", id: "connect", onclick: () => void api.runtime.openOptionsPage().then(() => window.close()) }, "Connect…"),
+    h("p", {}, extension.popup.notConnected.body),
+    h("button", { class: "btn primary", type: "button", id: "connect", onclick: () => void api.runtime.openOptionsPage().then(() => window.close()) }, extension.popup.notConnected.connect),
   ));
 }
 
 function footer(conn: Connection) {
   return h("div", { class: "foot" },
-    h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}`) }, "Open your PURSS"),
-    h("button", { type: "button", class: "link", onclick: () => void api.runtime.openOptionsPage().then(() => window.close()) }, "Options"));
+    h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}`) }, extension.popup.footer.open),
+    h("button", { type: "button", class: "link", onclick: () => void api.runtime.openOptionsPage().then(() => window.close()) }, extension.popup.footer.options));
 }
 
 async function main(): Promise<void> {
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
   if (!conn) return notConnected();
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !isWebPage(tab.url, conn.origin)) {
-    show(app, h("div", { class: "pg" }, h("h1", {}, "Nothing to keep here"), h("p", { class: "fine" }, "Open a web page to keep it or follow its site. Browser pages and the PURSS itself can't be kept."), footer(conn)));
+    show(app, h("div", { class: "pg" }, h("h1", {}, extension.popup.nothingToKeep.title), h("p", { class: "fine" }, extension.popup.nothingToKeep.body), footer(conn)));
     return;
   }
   await showPage(conn, tab as Tab & { id: number; url: string });
@@ -62,12 +63,12 @@ async function main(): Promise<void> {
 async function showPage(conn: Connection, tab: Tab & { id: number; url: string }): Promise<void> {
   const ws = workspace(conn);
   const settings = await getSettings();
-  const status = h("div", { id: "status" }, spinner("Checking your PURSS…"));
+  const status = h("div", { id: "status" }, spinner(extension.popup.checking));
   const result = h("p", { class: "result", id: "result", role: "status" });
   const basketSelect = h("select", { class: "in", id: "basket", "aria-label": "Basket" });
   const keepText = h("input", { type: "checkbox", id: "keep-text", ...(settings.keepText ? { checked: true } : {}) });
   const textNote = h("span", { class: "fine", id: "keep-text-hint" });
-  const keepBtn = h("button", { class: "btn primary", type: "button", id: "keep", disabled: true }, "Keep");
+  const keepBtn = h("button", { class: "btn primary", type: "button", id: "keep", disabled: true }, extension.popup.keep.button);
   const offers = h("div", { class: "offers", id: "offers" });
   let lookup: UrlLookup | null = null;
   let baskets: BasketDTO[] = [];
@@ -76,9 +77,9 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
     h("div", {}, h("div", { class: "page-t", id: "page-title" }, tab.title || tab.url), h("div", { class: "host" }, new URL(tab.url).host)),
     status,
     h("div", { class: "card" },
-      h("h2", {}, "Keep this page"),
+      h("h2", {}, extension.popup.keep.title),
       h("div", { class: "hrow" }, h("div", { class: "fill" }, basketSelect), keepBtn),
-      conn.browserCapture ? h("label", { class: "check" }, keepText, h("span", {}, "Also keep its text as you see it", h("br"), textNote)) : null,
+      conn.browserCapture ? h("label", { class: "check" }, keepText, h("span", {}, extension.popup.keep.withText, h("br"), textNote)) : null,
       result),
     offers,
     footer(conn)));
@@ -107,7 +108,7 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
     show(status,
       h("p", { class: `status${s.kept ? " kept" : ""}` }, s.kept ? `${KEPT_MARK} ` : "", s.text),
       follow ? h("p", { class: "fine" }, follow) : null,
-      item ? h("button", { type: "button", class: "link", id: "open-item", onclick: () => void openTab(itemLink(conn.origin, item.id, item.baskets[0]?.id ?? null)) }, "Open it in your PURSS") : null);
+      item ? h("button", { type: "button", class: "link", id: "open-item", onclick: () => void openTab(itemLink(conn.origin, item.id, item.baskets[0]?.id ?? null)) }, extension.popup.openItem) : null);
     textNote.textContent = textHint(lookup, shortDate);
     void api.action.setBadgeText({ tabId: tab.id, text: s.kept ? KEPT_MARK : "" }).catch(() => undefined);
     void api.runtime.sendMessage({ type: "looked-up", url: tab.url, kept: s.kept }).catch(() => undefined);
@@ -122,13 +123,13 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
   // What the PURSS has, its baskets, and what the page offers to follow, side by side.
   const [looked, basketList, info] = await Promise.allSettled([lookUp(), ws.baskets(), pageInfoOf(tab.id)]);
   for (const r of [looked, basketList]) if (r.status === "rejected" && await signedOutNow(r.reason)) return;
-  if (looked.status === "rejected") show(status, h("p", { class: "error", role: "alert" }, looked.reason instanceof Error ? looked.reason.message : "Couldn't check your PURSS."));
+  if (looked.status === "rejected") show(status, h("p", { class: "error", role: "alert" }, looked.reason instanceof Error ? looked.reason.message : extension.popup.couldntCheck));
   if (basketList.status === "fulfilled") {
     baskets = basketList.value;
     void setBaskets(baskets);
     if (!baskets.length) {
-      show(basketSelect.parentElement!.parentElement!, h("p", { class: "fine" }, "You don't have a basket yet. ",
-        h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}?dialog=basket`) }, "Create one in your PURSS"), "."));
+      show(basketSelect.parentElement!.parentElement!, h("p", { class: "fine" }, extension.popup.noBasket.before,
+        h("button", { type: "button", class: "link", onclick: () => void openTab(`${conn.origin}${appUrl("/")}?dialog=basket`) }, extension.popup.noBasket.link), extension.popup.noBasket.after));
     }
     const start = initialBasket(baskets, await getLastBasket());
     show(basketSelect, ...baskets.map((b) => h("option", { value: b.id, ...(b.id === start ? { selected: true } : {}) }, b.name)));
@@ -143,10 +144,10 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
       if (link) void openTab(link);
     };
     show(offers,
-      h("h2", {}, "Add as a source"),
+      h("h2", {}, extension.popup.addSource.title),
       h("button", { class: "btn", type: "button", id: "add-source", onclick: () => handOff(first!.url) }, first!.label),
       ...rest.map((o) => h("button", { class: "btn", type: "button", onclick: () => handOff(o.url) }, o.label)),
-      h("p", { class: "fine" }, "Opens Add source in your PURSS, where you check what was found and choose a collection."));
+      h("p", { class: "fine" }, extension.popup.addSource.hint));
   }
 
   keepBtn.addEventListener("click", () => void (async () => {
@@ -154,7 +155,7 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
     if (!basket) return;
     keepBtn.disabled = true;
     const wantText = conn.browserCapture && keepText.checked;
-    show(result, spinner(wantText ? "Reading the page and keeping it…" : "Keeping…"));
+    show(result, spinner(wantText ? extension.popup.keep.reading : extension.popup.keep.keeping));
     const title = tab.title?.trim().slice(0, 300) || undefined;
     try {
       let line: string;
@@ -173,10 +174,10 @@ async function showPage(conn: Connection, tab: Tab & { id: number; url: string }
       await lookUp().catch(() => undefined);
     } catch (err) {
       if (await signedOutNow(err)) return;
-      show(result, h("span", { class: "error", role: "alert" }, err instanceof Error ? err.message : "Couldn't keep this page."));
+      show(result, h("span", { class: "error", role: "alert" }, err instanceof Error ? err.message : extension.popup.keep.couldntKeep));
       refreshButton();
     }
   })());
 }
 
-void main().catch((err) => show(app, h("div", { class: "pg" }, h("p", { class: "error", role: "alert" }, err instanceof Error ? err.message : "Something went wrong."))));
+void main().catch((err) => show(app, h("div", { class: "pg" }, h("p", { class: "error", role: "alert" }, err instanceof Error ? err.message : extension.popup.somethingWentWrong))));
