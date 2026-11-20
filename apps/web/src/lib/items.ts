@@ -12,9 +12,8 @@ export function belongsInList(item: ItemDTO, scope: string, filter: ListFilter):
 }
 
 /** Whether an item belongs in a list with this filter, judged on the client so a change shows at once. */
-export function matchesFilter(item: ItemDTO, filter: ListFilter | "open"): boolean {
+export function matchesFilter(item: ItemDTO, filter: ListFilter): boolean {
   switch (filter) {
-    case "open": return item.workflow === "new" || item.workflow === "toread";
     case "active": return item.workflow !== "ignored";
     case "all": return true;
     case "fresh": return item.fresh && item.workflow !== "ignored";

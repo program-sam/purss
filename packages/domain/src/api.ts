@@ -336,7 +336,9 @@ export const itemScopeSchema = z.string().regex(/^(home|all|fresh|toread|loose|c
 const sourceIdList = z.string().max(4000).regex(/^[a-z0-9_]+(,[a-z0-9_]+)*$/);
 export const itemListQuerySchema = z.object({
   scope: itemScopeSchema.default("all"),
-  filter: z.enum(["all", "fresh", ...WORKFLOW_STATES, "active", "open"]).default("active"), // active = everything but ignored; open = New and To read (Home)
+  // active = everything but ignored. "open" is what interfaces installed in the phone and desktop apps before Home listed only
+  // Undecided items send for Home's lists (such an interface can stay installed indefinitely): it reads as "new", so they follow the same rule.
+  filter: z.enum(["all", "fresh", ...WORKFLOW_STATES, "active", "open"]).default("active").transform((f) => (f === "open" ? "new" : f)),
   sort: z.enum(SORTS).default("newest"),
   q: z.string().max(200).optional(),
   /** Only items from these sources (comma separated). */

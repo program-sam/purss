@@ -71,7 +71,7 @@ const pageAll = (app: App, p: Owner, q: ItemListQuery): string[] => {
   return out;
 };
 /** Home's one feed, with Only new off: New items first, then what is left undecided or put aside. */
-const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "open" }));
+const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }));
 
 /** A source followed from now, its back catalogue stored (`size` posts) and the source settled, then one post that really is new. */
 function followedFromNow(app: App, p: Owner, collectionId: string | null = null, size = 7) {
@@ -241,10 +241,10 @@ test("an Ignored back-catalogue post is the person's to change: To read or Undec
   for (const id of [opened, partway, kept, highlighted, noted, untouched]) assert.equal(workflowOf(app, id), "ignored", "what the person does with the post does not change its state; they do");
   assert.deepEqual(app.db.all<{ t: string }>("SELECT to_state AS t FROM state_log ORDER BY seq").map((r) => r.t), ["toread", "new"], "and the log has what they did");
 
-  // Where they show: Home's To read and feed for the two the person moved; every list but a basket and search hides the rest.
+  // Where they show: Home's To read row for the one put aside and Home's feed for the Undecided one; every list but a basket and search hides the rest.
   assert.deepEqual(ids(homeOverview(app, p).toRead.items), [toread]);
   const feed = homeFeed(app, p);
-  assert.ok(feed.has(toread) && feed.has(undecided));
+  assert.ok(!feed.has(toread) && feed.has(undecided));
   for (const id of [opened, partway, kept, highlighted, noted, untouched]) assert.ok(!feed.has(id));
   assert.equal(listItems(app, p, { scope: "all", limit: 10 }).total, 3, "the two it was moved to and the brand new post");
   assert.equal(listItems(app, p, { scope: "all", limit: 10, filter: "all" }).total, 10, "all nine of the back catalogue and the brand new post");
@@ -309,7 +309,7 @@ test("the queries that hide the Ignored posts and count what is left read their 
   const original = { all: db.all, get: db.get, run: db.run };
   for (const k of ["all", "get", "run"] as const) db[k] = (sql, ...params) => { seen.push({ sql, params }); return original[k].call(app.db, sql, ...params); };
   try {
-    listItems(app, p, { scope: "home", mix: "home", filter: "open", limit: 50 });
+    listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
     listItems(app, p, { scope: "all", limit: 50 });
     homeOverview(app, p);
     listSources(app, p);

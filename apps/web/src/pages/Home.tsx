@@ -29,8 +29,8 @@ import { useItemActions } from "../state/actions.ts";
 import { useRowCtx } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
 import { useWorkspace } from "../state/workspace.tsx";
-import { HomeBand, MutedLine, WelcomeRows, useHomeOverview, useShownAbove } from "./WelcomeBack.tsx";
-import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox, shownAbove } from "./home-boxes.ts";
+import { HomeBand, MutedLine, WelcomeRows } from "./WelcomeBack.tsx";
+import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox } from "./home-boxes.ts";
 import "./home.css";
 
 const t = app.pages.home;
@@ -54,10 +54,10 @@ const HEADLINE_ITEMS = 5;
 const GROUP_ITEMS = 25;
 
 /**
- * Home's lists show New and To read items (`open`), New first and newest first within each; the server orders them (`mix=home`).
+ * Home's lists show Undecided items (`new`), newest first; the Only new layout shows New items (`fresh`), Undecided first. The server orders them (`mix=home`).
  * `showMuted` lists what muted words leave out.
  */
-const homeParams = (scope: string, filter: "open" | "fresh", o: { showMuted?: boolean } = {}): ListParams =>
+const homeParams = (scope: string, filter: "new" | "fresh", o: { showMuted?: boolean } = {}): ListParams =>
   ({ scope, filter, sort: "newest", mix: "home", ...(o.showMuted ? { muted: "show" as const } : {}) });
 
 /** Whether the person asked to see the items that muted words leave out (`?muted=show`). */
@@ -72,28 +72,27 @@ function useBoxes(): CollectionDTO[] {
 }
 
 /**
- * What each box lists: what it fetched, without the items a row above the boxes or an earlier box already shows (an item shows in
- * one Home section only). A box asks for a few more than `limit` to make up for that, and shows `rows[i]` of them (`limit` each
- * unless given; none for a collapsed box): only the items shown count against the boxes after it. A change made here (an item
- * ignored or finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place.
+ * What each box lists: what it fetched, without the items an earlier box already shows (a source can be in several collections).
+ * A box asks for a few more than `limit` to make up for that, and shows `rows[i]` of them (`limit` each unless given; none for a
+ * collapsed box): only the items shown count against the boxes after it. A change made here (an item put aside, ignored or
+ * finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place.
  */
-function useBoxLists(boxes: readonly CollectionDTO[], filter: "open" | "fresh", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
+function useBoxLists(boxes: readonly CollectionDTO[], filter: "new" | "fresh", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
   const showMuted = useShowMuted();
-  const seen = useShownAbove();
   const results = useQueries({ queries: boxes.map((c) => itemPreviewQuery(homeParams(boxScope(c), filter, { showMuted }), limit + DEDUPE_SLACK)) });
   const held = useOpenHold();
-  const lists = distribute(results.map((r) => withOpenItem(r.data?.items ?? [], (i) => matchesFilter(i, filter), held)), seen, rows);
+  const lists = distribute(results.map((r) => withOpenItem(r.data?.items ?? [], (i) => matchesFilter(i, filter), held)), rows);
   return results.map((r, i) => ({ items: lists[i]!, pending: r.isPending }));
 }
 
 /** The item requests Home makes for a layout, so the offline pack can save the same answers. Keep in step with the layouts below. */
 export function homeRequests(layout: Preferences["homeLayout"], shown: readonly CollectionDTO[]): { params: ListParams; limit: number }[] {
-  const inCollection = (c: CollectionDTO, filter: "open" | "fresh", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
+  const inCollection = (c: CollectionDTO, filter: "new" | "fresh", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
   switch (layout) {
-    case "collections": return shown.map((c) => inCollection(c, "open", moduleItems(shown.length)));
-    case "feed": return [{ params: homeParams("home", "open"), limit: PAGE }];
+    case "collections": return shown.map((c) => inCollection(c, "new", moduleItems(shown.length)));
+    case "feed": return [{ params: homeParams("home", "new"), limit: PAGE }];
     case "new": return shown.map((c) => inCollection(c, "fresh", GROUP_ITEMS));
-    case "front": return shown.map((c) => inCollection(c, "open", HEADLINE_ITEMS));
+    case "front": return shown.map((c) => inCollection(c, "new", HEADLINE_ITEMS));
   }
 }
 
@@ -176,7 +175,7 @@ function CollectionsLayout() {
   const limit = moduleItems(boxes.length);
   // A collapsed box shows no rows, so it keeps no item from the boxes after it; in one column a box shows fewer rows.
   const rows = boxes.map((c) => (hints.collapsed.includes(`mod:${c.id}`) ? 0 : n === 1 ? Math.min(limit, ONE_COLUMN_ROWS) : limit));
-  const lists = useBoxLists(boxes, "open", limit, rows);
+  const lists = useBoxLists(boxes, "new", limit, rows);
 
   function menu(c: CollectionDTO, anchor: HTMLElement) {
     // The saved order holds every collection, so moving a box swaps it with its neighbour among the boxes shown.
@@ -216,15 +215,14 @@ function CollectionsLayout() {
 /** Everything in one list, paged by the server and strictly newest first: the sources of the boxes shown on Home, whichever boxes are hidden. */
 function useFeedItems(): { items: ItemDTO[]; loading: boolean; more: (() => void) | null } {
   const showMuted = useShowMuted();
-  const seen = useShownAbove();
-  const paged = useInfiniteQuery(itemListQuery(homeParams("home", "open", { showMuted })));
+  const paged = useInfiniteQuery(itemListQuery(homeParams("home", "new", { showMuted })));
   const held = useOpenHold();
   return useMemo(
     () => ({
-      items: withOpenItem(paged.data?.pages.flatMap((p) => p.items) ?? [], (it) => matchesFilter(it, "open") && !seen.has(it.id), held),
+      items: withOpenItem(paged.data?.pages.flatMap((p) => p.items) ?? [], (it) => matchesFilter(it, "new"), held),
       loading: paged.isPending, more: paged.hasNextPage && !paged.isFetchingNextPage ? () => void paged.fetchNextPage() : null,
     }),
-    [paged.data, paged.isPending, paged.hasNextPage, paged.isFetchingNextPage, seen, held]); // eslint-disable-line react-hooks/exhaustive-deps
+    [paged.data, paged.isPending, paged.hasNextPage, paged.isFetchingNextPage, held]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 function FeedLayout() {
@@ -300,7 +298,7 @@ function FrontLayout() {
   const ws = useWorkspace();
   const nav = useNav();
   const boxes = useBoxes();
-  const lists = useBoxLists(boxes, "open", HEADLINE_ITEMS);
+  const lists = useBoxLists(boxes, "new", HEADLINE_ITEMS);
   return (
     <>
       <section className="sec" aria-labelledby="fcol"><h2 id="fcol">{t.collections}</h2>
@@ -345,11 +343,8 @@ export function HomePage() {
   const ws = useWorkspace();
   const overlays = useOverlays();
   const layout = ws.prefs.homeLayout;
-  const homeFilter = layout === "new" ? "fresh" : "open";
-  // An item the row above the boxes shows (or will show once it is put aside or started) is left out of the boxes: it leaves them.
-  const overview = useHomeOverview().data;
-  const opened = useHints().opened;
-  const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter) && !shownAbove(i, overview, opened), [homeFilter, overview, opened]);
+  const homeFilter = layout === "new" ? "fresh" : "new";
+  const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter), [homeFilter]);
   const value = useRowContextValue(null, keeps);
   const narrow = layout === "feed" || layout === "new" ? " narrow" : "";
   const empty = !ws.data.sources.length && !ws.collections.length && !ws.data.baskets.length;

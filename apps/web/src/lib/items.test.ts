@@ -18,9 +18,8 @@ test("filters judge workflow and freshness independently", () => {
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "toread"), true);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "finished"), false);
   assert.equal(matchesFilter({ ...base, fresh: false, workflow: "finished" }, "fresh"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "open"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "finished" }, "open"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "open"), false);
+  assert.equal(matchesFilter({ ...base, workflow: "new" }, "new"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "new"), false, "Home's boxes leave out what was put aside");
 });
 
 test("an item's date is its time in lists; the publisher's date is shown apart only when it is more than an hour away", () => {

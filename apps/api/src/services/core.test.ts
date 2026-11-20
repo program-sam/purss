@@ -177,7 +177,7 @@ test("workflow revisions prevent silent overwrites; undo restores", (t) => {
   assert.equal(listItems(app, p, { scope: "all", filter: "ignored" }).total, 1);
 });
 
-test("the open filter is New and To read: it leaves out finished, ignored and in-progress items, in lists and on Home", (t) => {
+test("the Undecided filter leaves out what was put aside, started, finished or ignored, in lists and on Home", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1"), entry("feed/1"), entry("feed/1"), entry("feed/1")]));
@@ -186,13 +186,12 @@ test("the open filter is New and To read: it leaves out finished, ignored and in
   bulk(app, p, [ids[1]!], { type: "workflow", workflow: "ignored" });
   bulk(app, p, [ids[2]!], { type: "workflow", workflow: "toread" });
   bulk(app, p, [ids[3]!], { type: "workflow", workflow: "inprogress" });
-  const open = new Set([ids[2], ids[4]]);
-  const listed = listItems(app, p, { scope: "all", filter: "open" });
-  assert.deepEqual(new Set(listed.items.map((i) => i.id)), open);
-  assert.equal(listed.total, 2);
-  assert.equal(listItems(app, p, { scope: "all", filter: "open", q: "post" }).items.every((i) => open.has(i.id)), true);
-  const home = listItems(app, p, { scope: "home", filter: "open", mix: "home", limit: 10 });
-  assert.deepEqual(home.items.map((i) => i.id), [ids[4], ids[2]], "New first, then To read");
+  const listed = listItems(app, p, { scope: "all", filter: "new" });
+  assert.deepEqual(listed.items.map((i) => i.id), [ids[4]]);
+  assert.equal(listed.total, 1);
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "new", q: "post" }).items.map((i) => i.id), [ids[4]]);
+  const home = listItems(app, p, { scope: "home", filter: "new", mix: "home", limit: 10 });
+  assert.deepEqual(home.items.map((i) => i.id), [ids[4]]);
   assert.equal(listItems(app, p, { scope: "all", filter: "active" }).total, 4, "active still shows finished");
 });
 
@@ -523,4 +522,13 @@ test("claiming makes the owner with a password and removes the setup-code file",
   assert.ok(!existsSync(`${app.config.secretsDir}/setup-code`), "the code file goes with the claim");
   assert.equal(await checkPassword(app, "owner@example.org", TEST_PASSWORD), owner.accountId, "the owner signs in with the address and password chosen at setup");
   assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", owner.accountId) !== undefined, true);
+});
+
+test("an installed app interface that still asks Home for the open filter gets the Undecided items", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
+  const ids = listItems(app, p, { scope: "all" }).items.map((i) => i.id);
+  bulk(app, p, [ids[0]!], { type: "workflow", workflow: "toread" });
+  assert.deepEqual(listItems(app, p, { scope: "home", filter: "open", mix: "home", limit: 10 }).items.map((i) => i.id), [ids[1]]);
 });

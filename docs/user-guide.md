@@ -427,8 +427,8 @@ in that browser.
   finished, ignored or deleted. Shown when you come back after more than 30 days, or when
   50 or more items are New.
 
-Filter collections leave out items from collections you hide from Home, and an item in To read,
-To watch or To listen is not listed again in the boxes below. A new filter collection starts off Home. Items that match your
+Filter collections leave out items from collections you hide from Home. The boxes below list only
+Undecided items: an item you put aside or started is in the To read, To watch or To listen row instead. A new filter collection starts off Home. Items that match your
 [muted words](#muted-words) are left out of Home too.
 
 A visit starts when you come back after half an hour away. **To read** in the sidebar lists your
@@ -437,8 +437,8 @@ started ones first, then the rest, each newest first. Its page is titled **To re
 because a video's To read is *To watch* and a podcast's is *To listen* (the one-click button on a row, its tip and the tag
 on the row say the same word). Its *Show* menu has *All*, *New*, *To read* (not started yet) and
 *In progress*; an episode you half heard is in *In progress* until you finish it. Home's boxes and its one feed show
-what you haven't dealt with: New items first, then To read, newest first within each. Finished
-and ignored items leave Home, and an item you started shows in the To read, To watch or To listen row instead of its box.
+what you haven't dealt with, the Undecided items, newest first. Marking an item To read, To watch or To listen,
+starting it, finishing it or ignoring it takes it out of its box at once; the rows above hold what you put aside or started.
 The summary line ("● 20 new in 14 sources") is plain text, not a link; to see only what is New,
 choose the *Only new* layout in Customise Home. With *Show counts* off the numbers are left out of the summary. When nothing is marked New, the
 summary says "Nothing new since your last visit" while older items you haven't looked at are still

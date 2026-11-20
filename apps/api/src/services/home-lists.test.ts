@@ -68,7 +68,7 @@ function twoCollections(app: App, p: Owner) {
   return { work, fun, workBox, funBox };
 }
 
-const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "open" }));
+const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }));
 
 test("Home leaves out items of collections hidden on Home, and brings them back when the collection is shown", (t) => {
   const { app, p, cleanup } = setup();
@@ -108,7 +108,7 @@ test("a filter collection on Home leaves out items of collections hidden on Home
   const w = addItem(app, p, work, { title: "road works" }), f = addItem(app, p, fun, { title: "road trip" });
   const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
-  assert.deepEqual(ids(listItems(app, p, { scope: `collection:${filter.id}`, filter: "open", limit: 10, mix: "home" }).items), [f]);
+  assert.deepEqual(ids(listItems(app, p, { scope: `collection:${filter.id}`, filter: "new", limit: 10, mix: "home" }).items), [f]);
   assert.deepEqual(new Set(ids(listItems(app, p, { scope: `collection:${filter.id}`, limit: 10 }).items)), new Set([w, f]));
 });
 
@@ -171,8 +171,8 @@ test("the queue is what was put aside and what was started: In progress items ar
   assert.deepEqual(ids(o.toListen.items), [half]);
   assert.equal(o.toListen.total, 1);
   assert.deepEqual(ids(o.toWatch.items), []);
-  // Home's boxes still show New and To read only: a started item is in its row, not in the boxes.
-  assert.ok(!homeFeed(app, p).has(half) && !homeFeed(app, p).has(halfRead) && homeFeed(app, p).has(old));
+  // Home's boxes show Undecided items only: what was put aside or started is in its row, not in the boxes.
+  assert.deepEqual(homeFeed(app, p), new Set([untouched]));
   assert.ok(!ids(o.toRead.items).includes(untouched) && !ids(o.toRead.items).includes(finished) && !ids(o.toRead.items).includes(ignored));
 });
 
@@ -234,8 +234,8 @@ test("Home's one feed leaves out hidden collections and what was dealt with, and
   workflow(app, p, done, "finished");
   workflow(app, p, dropped, "ignored");
   workflow(app, p, later, "toread");
-  const feed = () => pageAll(app, p, { scope: "home", limit: 2, mix: "home", filter: "open" });
-  assert.deepEqual(feed(), [w, f, l, later], "New newest first, then To read");
+  const feed = () => pageAll(app, p, { scope: "home", limit: 2, mix: "home", filter: "new" });
+  assert.deepEqual(feed(), [w, f, l], "Undecided newest first; what was put aside is in its row");
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
   assert.deepEqual(feed(), [f, l]);
   setPreferences(app, p.workspaceId, { homeOther: false });
@@ -249,7 +249,7 @@ test("a Home list reads the items that existed when paging began: a backdated ar
   const day = (hour: number) => `2026-05-01T${String(hour).padStart(2, "0")}:00:00.000Z`;
   const early = at(app, p, work, day(1)), five = at(app, p, work, day(5));
   const late = at(app, p, fun, day(20)), mid = at(app, p, fun, day(10));
-  const query = { scope: "home", mix: "home", filter: "open", limit: 1 } as const;
+  const query = { scope: "home", mix: "home", filter: "new", limit: 1 } as const;
   const first = listItems(app, p, query);
   assert.deepEqual(ids(first.items), [late]);
   // Between the pages an item arrives dated after the item the next page starts from.
@@ -355,9 +355,9 @@ test("items that match a muted word stay stored but are left out of Home and lis
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 7, "all stored");
 
   // Home: a box, the one feed, and the sections above them.
-  const box = pageAll(app, p, { scope: `collection:${app.db.get<{ id: string }>("SELECT id FROM collections WHERE name = 'Fun'")!.id}`, limit: 10, mix: "home", filter: "open" });
-  assert.deepEqual(new Set(box), new Set([stays, bakeSeparate]));
-  assert.deepEqual(new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "open" })), new Set([stays, bakeSeparate]));
+  const box = pageAll(app, p, { scope: `collection:${app.db.get<{ id: string }>("SELECT id FROM collections WHERE name = 'Fun'")!.id}`, limit: 10, mix: "home", filter: "new" });
+  assert.deepEqual(box, [bakeSeparate], "the To read item that stays is in its row");
+  assert.deepEqual(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }), [bakeSeparate]);
   const o = homeOverview(app, p);
   assert.deepEqual(ids(o.toRead.items), [stays], "To read leaves out a To read item that matches too");
   assert.equal(o.toRead.total, 1);
@@ -468,7 +468,7 @@ test("Home's one feed and a list that leaves out muted items read the date index
   twoCollections(app, p);
   setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
   const seen = statements(app, () => {
-    listItems(app, p, { scope: "home", mix: "home", filter: "open", limit: 50 });
+    listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
     listItems(app, p, { scope: "all", limit: 50 });
     homeOverview(app, p);
   });

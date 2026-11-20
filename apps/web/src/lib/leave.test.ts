@@ -15,8 +15,8 @@ test("a list of everything but ignored loses an item only when it is ignored", (
   assert.deepEqual(causes(base, "active"), ["ignored"]);
 });
 
-test("Home's open lists (New and To read) lose items that are started, finished or ignored", () => {
-  assert.deepEqual(causes(base, "open"), ["inprogress", "finished", "ignored"]);
+test("Home's lists (Undecided items) lose an item put aside, started, finished or ignored", () => {
+  assert.deepEqual(causes(base, "new"), ["toread", "inprogress", "finished", "ignored"]);
 });
 
 test("a list of new items loses one whose state changes, as PURSS clears its marker then", () => {

@@ -5,7 +5,7 @@
 // Checks, in a desktop browser unless said: reading progress counts only a person's own scrolling (a script's jump to the end and
 // Tab moving focus to the bottom save nothing; the wheel does), reopening goes back to where the item was left, an item that fits
 // the screen counts after twenty seconds; Home's rows above the boxes start closed and stay open once opened; To read lists what was put aside, a collection hidden on Home is left out of
-// it, and the boxes below do not repeat what is above them; a muted word is saved in Settings and lists say how many items it
+// it, and the boxes below list only Undecided items, whether a row is open or closed; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
 // phone the open drawer's Settings and capacity sit at its bottom.
@@ -377,19 +377,19 @@ async function main(): Promise<void> {
     assert.deepEqual(toRead, ["Night forecast", "Medium note"], "To read lists what was started first, then what was put aside");
     assert.deepEqual(await page.locator(".wb:has(h2 :text('To read')) .irow .wf").evaluateAll((els) => els.map((e) => e.textContent)), ["In progress", "To read"], "each row says whether it was started");
     const boxes = await homeTitles(page, ".mod:not(.wb) .irow .title");
-    for (const title of toRead) assert.ok(!boxes.includes(title), `${title} is shown once, above the boxes`);
+    for (const title of toRead) assert.ok(!boxes.includes(title), `${title} was put aside or started, so it is not in the boxes`);
     for (const title of ["Night forecast", "Crackle on long wave", "Numbers stations"]) assert.ok(!boxes.includes(title), `${title} (a collection hidden on Home) is not on Home`);
-    step("To read lists what was started, then what was put aside, from any collection; the boxes do not repeat what is above");
+    step("To read lists what was started, then what was put aside, from any collection; the boxes list only Undecided items");
 
     // To read is articles; a video put aside is in To watch, and a row with nothing in it (To listen) is not there.
     assert.deepEqual(toRead, ["Night forecast", "Medium note"], "a video is not in To read");
     await rowToggle("To watch").waitFor();
     assert.equal(await rowToggle("To watch").getAttribute("aria-expanded"), "false", "To watch starts closed like the other rows");
+    assert.ok(!(await homeTitles(page, ".mod:not(.wb) .irow .title")).includes("Short film"), "the boxes list only Undecided items: a video put aside is not there, with its row closed");
     await rowToggle("To watch").click();
     await page.locator(".wb:has(h2 :text('To watch')) .irow").first().waitFor();
     assert.deepEqual(await homeTitles(page, ".wb:has(h2 :text('To watch')) .irow .title"), ["Short film"], "To watch lists the video put aside");
     assert.equal(await rowToggle("To listen").count(), 0, "no podcast was put aside: no To listen row");
-    assert.ok(!(await homeTitles(page, ".mod:not(.wb) .irow .title")).includes("Short film"), "a video in To watch is not listed again in the boxes");
     step("a video put aside is in its own To watch row; a row with nothing in it is not shown");
 
     // The page behind "Show all" and the sidebar's To read: the same queue, with its In progress filter showing what was started.
@@ -608,7 +608,9 @@ async function main(): Promise<void> {
     const afterHome = await activeRow();
     assert.equal(afterHome.inMain, true, `To read on "${movedTitle}" in a Home box: focus is not on the page`);
     assert.equal(afterHome.inRow, true, "it is on a row that stays");
-    assert.ok((await homeTitles(stillPage, ".wb:has(h2 :text('To read')) .irow .title")).includes(movedTitle), "and the item is in the To read row above");
+    await stillPage.waitForFunction((t) => [...document.querySelectorAll(".wb")].filter((w) => w.querySelector("h2")?.textContent?.includes("To read"))
+      .some((w) => [...w.querySelectorAll(".irow .title")].some((e) => (e.textContent ?? "").trim().replace(/^New\.\s*/, "") === t)), movedTitle, { timeout: 5000 })
+      .catch(() => assert.fail(`"${movedTitle}" did not appear in the To read row above`));
     step("a Home row marked To read leaves its box for the To read row above and focus goes to a row that stays");
 
     // Play here puts the platform's player where the button was, and focus goes with it.

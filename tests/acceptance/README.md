@@ -54,8 +54,8 @@ itself as an installed app, that offline reading starts on by itself.
 `tests/acceptance/home.ts` is a hermetic journey (Node 26 and Chromium only, a seeded library; `npm run test:e2e` runs it
 after the offline journey, or `node tests/acceptance/home.ts` after `npm run build`). It checks in the real page that
 reading progress counts only a person's own scrolling and reopening goes back to where an item was left; that Home's
-rows above the boxes start closed and stay open once opened, To read lists what was put aside and the boxes below don't
-repeat what is above them, and a video put aside is in To watch, not To read; that a muted word is saved in Settings and
+rows above the boxes start closed and stay open once opened, To read lists what was put aside and the boxes below list
+only Undecided items, open row or closed, and a video put aside is in To watch, not To read; that a muted word is saved in Settings and
 lists say how many items it leaves out and can show them, and the filter menu narrows a list; that a source followed
 from now has its back catalogue Ignored, off Home, said so on its own page and found by search; that an article In
 progress is in Home's To read row, first and marked; that a row action's tip shows on mouse hover and keyboard focus but

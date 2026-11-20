@@ -348,7 +348,7 @@ function listSort(app: App, p: Principal, q: { scope: string; source?: string; s
 }
 
 /**
- * Home's order: New items first, then the rest the filter allows (To read), newest first within each. Listed as two runs, each
+ * Home's order: Undecided items first, then the rest the filter allows (the Only new layout's New items put aside), newest first within each. Listed as two runs, each
  * in the date order, so each reads the date index in order instead of sorting every candidate.
  */
 const HOME_RUNS = ["st.workflow = 'new'", "st.workflow <> 'new'"] as const;
@@ -403,7 +403,6 @@ function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQ
   const where: string[] = ["i.workspace_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
   if (q.filter === "fresh") where.push("st.fresh = 1");
   else if (q.filter === "active") where.push("st.workflow <> 'ignored'");
-  else if (q.filter === "open") where.push("st.workflow IN ('new', 'toread')");
   else if (q.filter !== "all") { where.push("st.workflow = ?"); params.push(q.filter); }
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
   if (q.exceptPrivate) where.push("COALESCE(s.is_private, 0) = 0");
@@ -552,8 +551,8 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
     scopeSources = new Set(looseSources(app, p.workspaceId));
   } else if (kind !== "all" && kind !== "home" && !scopeState) return null;
 
-  const filterSql = q.filter === "fresh" ? "st.fresh = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "open" ? "st.workflow IN ('new', 'toread')" : q.filter === "all" ? "1" : "st.workflow = ?";
-  const filterKeep: CellFilter = q.filter === "fresh" ? (_w, fresh) => fresh : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "open" ? (w) => w === "new" || w === "toread" : q.filter === "all" ? () => true : (w) => w === q.filter;
+  const filterSql = q.filter === "fresh" ? "st.fresh = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "all" ? "1" : "st.workflow = ?";
+  const filterKeep: CellFilter = q.filter === "fresh" ? (_w, fresh) => fresh : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "all" ? () => true : (w) => w === q.filter;
   const keep: CellFilter = (w, fresh) => filterKeep(w, fresh) && (!scopeState || scopeState.keep(w, fresh));
 
   const counts = itemCounts(app, p.workspaceId);

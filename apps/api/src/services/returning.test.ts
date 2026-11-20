@@ -444,7 +444,7 @@ function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "fr
   const out: string[] = [];
   let cursor: string | undefined;
   for (let n = 0; n < 400; n++) {
-    const page = listItems(app, p, { filter: "open", ...query, cursor, mix: "home" });
+    const page = listItems(app, p, { filter: "new", ...query, cursor, mix: "home" });
     out.push(...page.items.map((i) => i.id));
     between(n);
     if (!page.nextCursor) break;
@@ -456,7 +456,7 @@ const noRepeats = (ids: string[]) => assert.equal(new Set(ids).size, ids.length,
 const feedItem = (app: App, p: Owner, src: string, minutesAgo: number) => addItem(app, p, src, { publishedAt: ago(minutesAgo * 60_000), discoveredAt: ago(minutesAgo * 60_000) });
 const setWorkflow = (app: App, p: Owner, id: string, workflow: "toread" | "finished" | "ignored" | "inprogress") => changeState(app, p, id, { workflow, expectedRevision: revision(app, id) });
 
-test("Home lists New items first, then To read, newest first within each; nothing finished, ignored or in progress", (t) => {
+test("Home lists only Undecided items, newest first; nothing put aside, started, finished or ignored", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const quiet = makeSource(app, p, "Quiet", "feed/1");
@@ -470,12 +470,12 @@ test("Home lists New items first, then To read, newest first within each; nothin
   setWorkflow(app, p, today[1]!, "finished");
   setWorkflow(app, p, today[2]!, "toread");
   setWorkflow(app, p, today[3]!, "inprogress");
-  const expected = [today[4], today[5], today[2], old];
-  // Pages that end inside a run and at the end of the New run both carry on where they stopped.
+  const expected = [today[4], today[5]];
+  // Pages that end inside the list and at its end both carry on where they stopped.
   for (const scope of [`collection:${col.id}`, "home"]) for (const limit of [1, 2, 3, 10]) {
-    assert.deepEqual(pages(app, p, { scope, limit }), expected, `${scope}, ${limit} a page: New newest first, then To read newest first`);
+    assert.deepEqual(pages(app, p, { scope, limit }), expected, `${scope}, ${limit} a page: Undecided newest first`);
   }
-  // The New-only layout keeps its own filter, in the same order.
+  // The New-only layout keeps its own filter: New items still Undecided first, then those put aside, each newest first.
   app.db.run("UPDATE item_state SET fresh = CASE WHEN item_id IN (?, ?) THEN 1 ELSE 0 END", today[5]!, old);
   assert.deepEqual(pages(app, p, { scope: "home", filter: "fresh", limit: 10 }), [today[5], old]);
   assert.throws(() => listItems(app, p, { scope: "home", cursor: "garbage", mix: "home" }), /expired/);
@@ -521,9 +521,9 @@ test("Home lists of scopes that are not a set of sources keep Home's filter and 
   const a = makeSource(app, p, "A", "feed/1");
   const ids = [feedItem(app, p, a, 5), feedItem(app, p, a, 4), feedItem(app, p, a, 3)];
   for (const id of ids.slice(0, 2)) setWorkflow(app, p, id, "toread");
-  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "open", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[1], ids[0]]);
+  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
   const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
-  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "open", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2], ids[1], ids[0]]);
+  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
   assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), /doesn't exist/);
 });
 
@@ -988,7 +988,7 @@ test("a PURSS's Home, digest and activity never include another's", (t) => {
   assert.deepEqual(o.since!.boxes.map((b) => b.name), ["Other sources"]);
   assert.equal(o.since!.total, 1);
   assert.equal(o.toRead.total, 0);
-  assert.deepEqual(listItems(app, p, { scope: "home", filter: "open", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
+  assert.deepEqual(listItems(app, p, { scope: "home", filter: "new", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
   assert.deepEqual(activityFor(app, p).sources.map((s) => s.title), ["Mine"]);
   assert.equal(digestFor(app, p.workspaceId, { from: ago(DAY), to: ahead(DAY) }).total, 1);
 });

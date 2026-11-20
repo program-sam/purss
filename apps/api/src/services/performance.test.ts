@@ -208,7 +208,7 @@ test("an account that followed its sources from now has most items Ignored: Home
     try {
       return recordQueries(app, () => {
         const home = homeOverview(app, p);
-        const page = listItems(app, p, { scope: "home", mix: "home", filter: "open", limit: 50 });
+        const page = listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
         const collection = listItems(app, p, { scope: `collection:${listCollections(app, p)[0]!.id}`, limit: 50 });
         listSources(app, p);
         return { home, page, collection };

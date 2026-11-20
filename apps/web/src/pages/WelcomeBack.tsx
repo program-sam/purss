@@ -122,21 +122,6 @@ function Attention() {
   );
 }
 
-/** The items To read, To watch and To listen show right now (a collapsed row shows none): the boxes below leave these out. */
-export function useShownAbove(): ReadonlySet<string> {
-  const o = useHomeOverview().data;
-  const hints = useHints();
-  return useMemo(() => {
-    const ids = new Set<string>();
-    if (!o) return ids;
-    const open = (row: string) => hints.opened.includes(`home:${row}`);
-    if (open("toread")) for (const it of o.toRead.items) ids.add(it.id);
-    if (open("towatch")) for (const it of o.toWatch.items) ids.add(it.id);
-    if (open("tolisten")) for (const it of o.toListen.items) ids.add(it.id);
-    return ids;
-  }, [o, hints.opened]);
-}
-
 /** Under Home's rows: how many items the muted words left out of Home, and a way to see them. */
 export function MutedLine() {
   const ws = useWorkspace();
