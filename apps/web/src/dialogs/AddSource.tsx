@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { app } from "@purss/copy/app";
-import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, PodcastSearchHit, PodcastSearchResponse, SourceDTO } from "@purss/domain";
+import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, PodcastSearchHit, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, messageOf, post } from "../api/client.ts";
 import { refreshWorkspace } from "../api/queries.ts";
@@ -20,7 +20,7 @@ import { hasPage } from "../plugins.ts";
 import { platform } from "../platform/index.ts";
 import { isolate } from "../lib/bidi.ts";
 import { preselect } from "../lib/discovery.ts";
-import { looksLikePodcastName } from "../lib/podcast-name.ts";
+import { looksLikeName } from "../lib/typed-name.ts";
 
 const t = app.dialogs.addSource;
 
@@ -49,8 +49,8 @@ const NEW = "__new";
 const LOOSE = "__none";
 /** Nothing chosen yet: a kept link goes into a basket the person names, never into whichever came first. */
 const UNSET = "";
-/** What searching for a show by name tells the person up front: where the words go. */
-const PODCAST_SEARCH_NOTE = t.podcastSearchNote;
+/** What searching by name tells the person up front: where the words go. */
+const NAME_SEARCH_NOTE = t.nameSearchNote;
 
 function CandidateCard({ c, checked, own, onPick }: { c: DiscoveryCandidate; checked: boolean; own: boolean; onPick: () => void }) {
   return (
@@ -103,7 +103,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const { toast } = useToasts();
   const sourceCollections = ws.collections.filter((c) => c.mode === "sources");
   const [url, setUrl] = useState(initialUrl ?? "");
-  const [phase, setPhase] = useState<"paste" | "looking" | "found" | "failed" | "single" | "shows">("paste");
+  const [phase, setPhase] = useState<"paste" | "looking" | "found" | "failed" | "single" | "results">("paste");
   /** A video link starts on keeping the video; its channel and playlist are the other choices in the same list. */
   const [mode, setMode] = useState<"follow" | "keep">("follow");
   const [result, setResult] = useState<DiscoveryResult | null>(null);
@@ -125,13 +125,19 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const [newBasket, setNewBasket] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [readableText, setReadableText] = useState(false);
-  // Finding a show by name
+  // Finding a site or a show by name
+  const [sites, setSites] = useState<SiteSearchHit[]>([]);
   const [shows, setShows] = useState<PodcastSearchHit[]>([]);
+  /** A directory that failed while the other answered: said beside the results that did come. */
+  const [siteTrouble, setSiteTrouble] = useState("");
+  const [showTrouble, setShowTrouble] = useState("");
   const [searching, setSearching] = useState(false);
-  /** The look-up came from a show picked in the results, so the typed words are not an address to keep. */
-  const [fromShow, setFromShow] = useState(false);
+  /** Which search is current: the answers of an earlier one (the name was changed and searched again) are dropped. */
+  const searchRun = useRef(0);
+  /** The look-up came from a result picked in a search, so the typed words are not an address to keep. */
+  const [fromSearch, setFromSearch] = useState(false);
 
-  // The control that had focus is replaced or disabled by each step (a show chosen from the results, Find and Follow while they work):
+  // The control that had focus is replaced or disabled by each step (a site or show chosen from the results, Find and Follow while they work):
   // focus goes to what the step shows, so it doesn't fall to the page.
   useEffect(() => {
     if (!focusLost()) return;
@@ -147,37 +153,46 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate ?? !!cand?.privateWarning);
   const canFullText = !!cand && (cand.kind === "feed" || cand.kind === "publication") && !isPrivate;
   const fullText = canFullText && (fullTextChoice ?? false); // off unless the person ticks it
-  /** What was typed reads as a show's name, not an address: it can be searched for. */
-  const nameLike = phase === "paste" && looksLikePodcastName(url);
+  /** What was typed reads as a name, not an address: it can be searched for. */
+  const nameLike = phase === "paste" && looksLikeName(url);
 
-  /** Look up an address: the typed one, or a show's own feed address chosen from a search. */
+  /** Look up an address: the typed one, or the website or feed of a result chosen from a search. */
   async function look(e?: FormEvent, address?: string) {
     e?.preventDefault();
     const target = address ?? url.trim();
     if (!target) return;
-    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setStartFrom("now"); setFromShow(address !== undefined);
+    setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setStartFrom("now"); setFromSearch(address !== undefined);
     try {
       const out = await post<DiscoveryResult>("/api/discover", { url: target });
       setResult(out);
       setPick(out.ok ? preselect(out.candidates) : 0);
       setMode(out.ok && out.keep ? "keep" : "follow");
       setPhase(out.ok ? "found" : "failed");
-    } catch (err) { setError(messageOf(err)); setPhase(address !== undefined ? "shows" : "paste"); }
+    } catch (err) { setError(messageOf(err)); setPhase(address !== undefined ? "results" : "paste"); }
   }
-  /** Shows with this name in Apple's podcast directory. */
-  async function searchShows() {
+  /** Websites and shows with this name, asked of both directories at once. One failing still shows what the other found. */
+  async function searchByName() {
     const query = url.trim();
     if (!query) return;
-    setSearching(true); setError(""); setShows([]); setPhase("shows");
-    try {
-      const out = await post<PodcastSearchResponse>("/api/discover/podcasts", { query });
-      if (out.ok) setShows(out.hits); else { setError(out.message); }
-    } catch (err) { setError(messageOf(err)); } finally { setSearching(false); }
+    const run = ++searchRun.current;
+    setSearching(true); setError(""); setSites([]); setShows([]); setSiteTrouble(""); setShowTrouble(""); setPhase("results");
+    const [siteOut, showOut] = await Promise.allSettled([
+      post<SiteSearchResponse>("/api/discover/sites", { query }),
+      post<PodcastSearchResponse>("/api/discover/podcasts", { query }),
+    ]);
+    if (run !== searchRun.current) return;
+    const trouble = (r: PromiseSettledResult<SiteSearchResponse | PodcastSearchResponse>) => (r.status === "rejected" ? messageOf(r.reason) : r.value.ok ? "" : r.value.message);
+    if (siteOut.status === "fulfilled" && siteOut.value.ok) setSites(siteOut.value.hits);
+    if (showOut.status === "fulfilled" && showOut.value.ok) setShows(showOut.value.hits);
+    const siteFailed = trouble(siteOut), showFailed = trouble(showOut);
+    if (siteFailed && showFailed) setError(siteFailed);
+    else { setSiteTrouble(siteFailed); setShowTrouble(showFailed); }
+    setSearching(false);
   }
   /** A changed link makes the earlier result stale: forget it, so Follow can't act on the old address. */
   function editUrl(next: string) {
     setUrl(next);
-    if (phase === "found" || phase === "failed" || phase === "shows") { setPhase("paste"); setResult(null); setPick(0); setError(""); setShows([]); setFromShow(false); }
+    if (phase === "found" || phase === "failed" || phase === "results") { searchRun.current++; setSearching(false); setPhase("paste"); setResult(null); setPick(0); setError(""); setSites([]); setShows([]); setSiteTrouble(""); setShowTrouble(""); setFromSearch(false); }
   }
 
   async function follow() {
@@ -261,62 +276,84 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   return (
     <Dialog title={app.words.addSource} onClose={ov.close} footer={footer} initialFocus="#as-url">
       {phase !== "single" ? (
-        <form className="field" onSubmit={(e) => { if (nameLike) { e.preventDefault(); void searchShows(); } else void look(e); }}>
+        <form className="field" onSubmit={(e) => { if (nameLike) { e.preventDefault(); void searchByName(); } else void look(e); }}>
           <label htmlFor="as-url">{t.linkOrName}</label>
           <div className="find">
             <input className="in" id="as-url" type="text" inputMode="url" autoComplete="off" spellCheck={false} placeholder={t.placeholder} aria-describedby={showHelp ? "as-help" : undefined}
               value={url} onChange={(e) => editUrl(e.target.value)} />
             {nameLike
-              ? <button type="submit" className="btn primary" style={{ height: 38 }}>{t.searchPodcasts}</button>
-              : <button type="submit" className={`btn${phase === "paste" || phase === "failed" ? " primary" : ""}`} disabled={phase === "looking" || phase === "shows" || !url.trim()} style={{ height: 38 }}>{t.find}</button>}
+              ? <button type="submit" className="btn primary" style={{ height: 38 }}>{t.search}</button>
+              : <button type="submit" className={`btn${phase === "paste" || phase === "failed" ? " primary" : ""}`} disabled={phase === "looking" || phase === "results" || !url.trim()} style={{ height: 38 }}>{t.find}</button>}
           </div>
           {showHelp ? (
             <>
               <p className="fine" id="as-help">{t.help}</p>
-              {nameLike ? <p className="fine">{PODCAST_SEARCH_NOTE}</p> : null}
+              {nameLike ? <p className="fine">{NAME_SEARCH_NOTE}</p> : null}
               {hasPage("/settings/data") ? <p className="fine"><button type="button" className="link" onClick={() => { ov.close(); nav.goPath("/settings/data"); }}>{t.importOpml}</button></p> : null}
               {platform.connection ? null : <p className="fine">{t.extension.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "apps" })}>{app.words.browserExtensionOrABookmarklet}</button>{t.extension.after}</p>}
             </>
           ) : null}
         </form>
       ) : null}
-      <div className="sr" role="status">{addSourceStatus({ phase, searching, shows: shows.length, candidates: candidates.length, failure: result && !result.ok ? FAIL_TITLE[result.reason] : null, keeping: !!result?.ok && !!result.keep })}</div>
+      <div className="sr" role="status">{addSourceStatus({ phase, searching, results: sites.length + shows.length, candidates: candidates.length, failure: result && !result.ok ? FAIL_TITLE[result.reason] : null, keeping: !!result?.ok && !!result.keep })}</div>
       <div style={{ display: "grid", gap: 16 }}>
         {phase === "looking" ? <p className="state" id="as-looking" tabIndex={-1}><span className="spin" aria-hidden="true" />{app.words.looking}</p> : null}
         {error && phase !== "single" ? <p className="state note" id="as-error" tabIndex={-1} role="alert"><Icon name="info" /><span>{error}</span></p> : null}
         {phase === "failed" && result && !result.ok ? (
           <>
             <p className="state note" id="as-failed" tabIndex={-1}><Icon name="info" /><span><b style={{ display: "block" }}>{FAIL_TITLE[result.reason]}</b>{result.message}</span></p>
-            {fromShow ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>{t.backToShows}</button></div> : null}
-            {CAN_KEEP.includes(result.reason) && !isHandle(url) && !fromShow ? <div><Button onClick={() => setPhase("single")}>{t.keepThisLink}</Button></div> : null}
+            {fromSearch ? <div><button type="button" className="link" onClick={() => setPhase("results")}>{t.backToResults}</button></div> : null}
+            {CAN_KEEP.includes(result.reason) && !isHandle(url) && !fromSearch ? <div><Button onClick={() => setPhase("single")}>{t.keepThisLink}</Button></div> : null}
           </>
         ) : null}
-        {phase === "shows" ? (
-          <div className="field" id="as-shows">
-            <div className="lbl" id="shw">{searching ? t.searchingDirectory : shows.length ? t.podcastsMatching(url.trim()) : t.showsInDirectory}</div>
+        {phase === "results" ? (
+          <div className="field" id="as-results">
+            <div className="lbl">{searching ? t.searchingDirectories : t.resultsFor(url.trim())}</div>
             {searching ? <p className="state" id="as-searching" tabIndex={-1}><span className="spin" aria-hidden="true" />{app.words.searching}</p> : null}
-            {!searching && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>{t.noShows}</span></p> : null}
-            {shows.length ? (
-              <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {shows.map((h) => (
-                  <li key={h.feedUrl}>
-                    <button type="button" className="cand" style={{ gridTemplateColumns: "auto 1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.feedUrl)}>
-                      {h.artworkUrl ? <img src={h.artworkUrl} alt="" width={56} height={56} referrerPolicy="no-referrer" style={{ objectFit: "cover", borderRadius: 8, background: "var(--bg-2)" }} /> : <span style={{ width: 56, height: 56, borderRadius: 8, background: "var(--bg-2)", display: "grid", placeItems: "center" }} aria-hidden="true"><Icon name="rss" /></span>}
-                      <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
-                        <b dir="auto">{h.name}</b>
-                        <span className="cad" dir="auto">{[h.author, h.genre].filter(Boolean).join(" · ")}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            {!searching && !sites.length && !shows.length && !error ? <p className="state note"><Icon name="info" /><span>{t.noResults}</span></p> : null}
+            {sites.length ? (
+              <>
+                <div className="lbl" id="sts">{t.websites}</div>
+                <ul className="cands" aria-labelledby="sts" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {sites.map((h) => (
+                    <li key={h.address}>
+                      <button type="button" className="cand" style={{ gridTemplateColumns: "1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.address)}>
+                        <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+                          <b dir="auto">{h.name}</b>
+                          <span className="cad" dir="auto">{[h.site, h.from === "readers" ? t.followedHere : h.description].filter(Boolean).join(" · ")}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : null}
-            <p className="fine">{t.chooseShow(PODCAST_SEARCH_NOTE)}</p>
+            {!searching && siteTrouble ? <p className="fine">{siteTrouble}</p> : null}
+            {shows.length ? (
+              <>
+                <div className="lbl" id="shw">{t.podcasts}</div>
+                <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {shows.map((h) => (
+                    <li key={h.feedUrl}>
+                      <button type="button" className="cand" style={{ gridTemplateColumns: "auto 1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.feedUrl)}>
+                        {h.artworkUrl ? <img src={h.artworkUrl} alt="" width={56} height={56} referrerPolicy="no-referrer" style={{ objectFit: "cover", borderRadius: 8, background: "var(--bg-2)" }} /> : <span style={{ width: 56, height: 56, borderRadius: 8, background: "var(--bg-2)", display: "grid", placeItems: "center" }} aria-hidden="true"><Icon name="rss" /></span>}
+                        <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+                          <b dir="auto">{h.name}</b>
+                          <span className="cad" dir="auto">{[h.author, h.genre].filter(Boolean).join(" · ")}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {!searching && showTrouble ? <p className="fine">{showTrouble}</p> : null}
+            <p className="fine">{t.chooseResult(NAME_SEARCH_NOTE)}</p>
           </div>
         ) : null}
         {phase === "found" && (candidates.length || offer) ? (
           <>
-            {fromShow && shows.length ? <div><button type="button" className="link" onClick={() => setPhase("shows")}>{t.backToShows}</button></div> : null}
+            {fromSearch && (sites.length || shows.length) ? <div><button type="button" className="link" onClick={() => setPhase("results")}>{t.backToResults}</button></div> : null}
             <div className="field"><div className="lbl" id="fnd">{offer ? (candidates.length ? t.keepOrFollow : t.singleVideoLink) : candidates.length === 1 ? t.oneSourceFound : t.sourcesFound(candidates.length)}</div>
               <div className="cands" role="radiogroup" aria-labelledby="fnd">
                 {offer ? <KeepOfferCard offer={offer} checked={mode === "keep"} onPick={() => setMode("keep")} /> : null}
@@ -364,7 +401,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 ) : null}
               </>
             ) : null}
-            {isHandle(url) || fromShow || offer ? null : <div><button type="button" className="link" onClick={() => setPhase("single")}>{t.keepInstead}</button></div>}
+            {isHandle(url) || fromSearch || offer ? null : <div><button type="button" className="link" onClick={() => setPhase("single")}>{t.keepInstead}</button></div>}
           </>
         ) : null}
         {phase === "found" && result?.ok && !candidates.length && !offer ? <p className="state note"><Icon name="info" /><span>{t.nothingFound}</span></p> : null}

@@ -29,6 +29,7 @@ This page lists the modules.
 | `classifySocialInput(text)` | Recognises a fediverse handle (`@name@server`, a `server/@name@other` link) or a Bluesky handle, `*.bsky.social` host or `bsky.app/profile/…` link (`social.ts`). `discover` then resolves it: WebFinger to the profile page to the feed it advertises, or bsky.app's profile feed by DID. A pasted page with an ActivityPub actor link and a `/@name` path is treated as a fediverse profile: only its advertised feeds are offered, with no path probing. |
 | `lookUpPostPictures` (`bluesky.ts`) | The pictures of Bluesky posts, asked of Bluesky's public API through `safeFetch` for posts the feed already brought; never finds or adds a post. |
 | `searchPodcasts` (`podcast-search.ts`) | Apple's podcast directory by name; a hit is a feed address that discovery then previews like any other. |
+| `searchSites` (`site-search.ts`) | Wikidata by name: the official websites of the things called that; a hit is a website that discovery then searches like any other address. A `429` says how long Wikidata asked to wait. |
 | `fetchPictures` (`pictures.ts`) | Pictures for a kept copy, through `safeFetch`, typed from their bytes (no SVG, no ICO), optionally shrunk to WebP at most 720 px wide. |
 
 The package also holds the pure helpers the others share: privacy redaction and credential-like URL

@@ -92,6 +92,14 @@ export const sources = {
         references: "Only part of the page could be saved: what was captured is mostly a list of references.",
         short: "Only part of the page could be saved: what was captured is shorter than the text the feed already gave.",
       },
+      siteSearch: {
+        directory: "Wikidata",
+        slow: (directory: string) => `${directory} was slow to answer. Try again in a moment.`,
+        unreachable: (directory: string) => `We couldn't reach ${directory} just now. Try again later, or paste the site's address.`,
+        busy: (directory: string) => `${directory} is busy or limiting searches. Try again in a few minutes.`,
+        unexpected: (directory: string, status: number) => `${directory} answered with an unexpected result (${status}). Try again later.`,
+        unreadable: (directory: string) => `${directory} sent something we couldn't read. Try again later.`,
+      },
       podcastSearch: {
         directory: "Apple's podcast directory",
         slow: (directory: string) => `${directory} was slow to answer. Try again in a moment.`,

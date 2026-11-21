@@ -2,7 +2,7 @@ import { clientAddress } from "../http.ts";
 import { z } from "zod";
 import {
   bulkActionSchema, basketCreateSchema, basketPatchSchema, clearFreshSchema, collectionCreateSchema,
-  browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, podcastSearchSchema, sourcePatchSchema, sourcePrivacySchema,
+  browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, nameSearchSchema, sourcePatchSchema, sourcePrivacySchema,
   stateChangeSchema, undoSchema,
 } from "@purss/domain";
 import type { Bootstrap, SearchResult } from "@purss/domain";
@@ -31,7 +31,7 @@ import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets }
 import { SEARCH_FIRST, SEARCH_MAX, noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
 import { applyUndo, bulk, changeState, clearFreshAll, keepWithUndo } from "../services/state.ts";
-import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
+import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, searchSiteDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
 import {
   basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection, deleteItems, deletePreview,
   listBaskets, listCollections, patchBasket, patchCollection,
@@ -544,7 +544,13 @@ export function publicRouter(): Router<Ctx> {
   r.post("/api/discover/podcasts", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`discover-podcasts:${p.accountId}`, 60);
-    return searchPodcastDirectory(parse(podcastSearchSchema, req.body).query);
+    return searchPodcastDirectory(parse(nameSearchSchema, req.body).query);
+  });
+  /** Websites by name: the public sources other readers here follow (hosted only) and Wikidata's official websites. What was typed goes to Wikidata, nothing else. */
+  r.post("/api/discover/sites", async (req, ctx) => {
+    const p = requirePrincipal(ctx);
+    limit(`discover-sites:${p.accountId}`, 60);
+    return searchSiteDirectory(ctx.app, p, parse(nameSearchSchema, req.body).query);
   });
   r.post("/api/sources", (req, ctx) => followSource(ctx.app, requirePrincipal(ctx), parse(followSchema, req.body)));
   r.get("/api/sources/:id", (req, ctx) => getSource(ctx.app, requirePrincipal(ctx), req.params.id!));

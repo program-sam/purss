@@ -549,7 +549,7 @@ export default {
   lib: {
     /** Singular nouns that `plural(n, noun)` counts. */
     nouns: {
-      show: "show",
+      result: "result",
       olderItem: "older item",
     },
     format: {
@@ -571,9 +571,9 @@ export default {
         `Your ${plan} plan allows ${collections}, and you have ${used}. Remove one to add another.${more}`,
     },
     addSourceStatus: {
-      searching: "Searching for shows…",
-      showsFound: (shows: string) => `${shows} found.`,
-      noShows: "No shows found.",
+      searching: "Searching…",
+      resultsFound: (results: string) => `${results} found.`,
+      nothingFound: "Nothing found.",
       failedWith: (failure: string) => `Couldn't follow that: ${failure}`,
       failed: "Couldn't follow that.",
       keepable: "Found a page you can keep.",

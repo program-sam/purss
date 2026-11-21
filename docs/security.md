@@ -545,8 +545,11 @@ On the official hosted service (`PURSS_MODE=hosted`):
   never what. A handle is the only credential `notify` needs, so anyone who learns one can wake that
   phone, within the relay's rate limits. `PURSS_PUSH_RELAY_URL=` turns it off.
 - **Lookups for discovery.** When no feed is found, a page's address (without query string, and not one
-  that looks private) can be asked of Wikidata, an ISSN of Crossref, and a podcast name typed into
-  search of Apple's podcast directory.
+  that looks private) can be asked of Wikidata, an ISSN of Crossref, and a name typed into Add
+  source's search of Wikidata (for websites) and of Apple's podcast directory. Requests to Wikimedia's
+  sites name the project's public website in their User-Agent (`PURSS/0.1 (https://purss.app; feed
+  reader)`), as Wikimedia's API rules ask of clients; it names the software, not the installation or a
+  person. Every other request sends the generic `PURSS/0.1 (self-hosted feed reader)`.
 
 ## What the operator can see
 
@@ -588,7 +591,7 @@ Data leaves the server in these cases:
 | What an assistant reads | The assistant's provider | The person's switch and grant |
 | Email | The operator's SMTP server | The operator |
 | Sign-in | The configured OpenID Connect provider, which learns that a sign-in happened | The operator |
-| Lookups when no feed is found | Wikidata, Crossref, Apple's podcast directory | Automatic, only as described above |
+| Lookups when no feed is found, and names typed into Add source's search | Wikidata, Crossref, Apple's podcast directory | Automatic, only as described above; a search only when the person presses *Search* |
 | Changes to a subscription (hosted) | The billing service | The operator |
 
 PURSS sends no telemetry. It calls an AI service only when an administrator has set a Smart filter key and someone has turned a filter on.

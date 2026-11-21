@@ -198,3 +198,103 @@ test("a self-hosted installation has no Discover: no route, and nothing is built
   assert.equal((await call(b.app, b.server.base, "GET", "/api/suggestions", s)).status, 404);
   assert.equal((await call(b.app, b.server.base, "POST", "/api/suggestions/dismiss", s, { key: "example.org/a.xml" })).status, 404);
 });
+
+test("a name search lists only the graph's public sources, under names many readers use, and only to a reader who shares, on a hosted installation", async (t) => {
+  const { sourcesNamed } = await import("./discover.ts");
+  const { resetSiteSearchCache, searchSiteDirectory } = await import("./sources.ts");
+  resetSiteSearchCache();
+  const b = await boot();
+  t.after(b.close);
+  const crowd = Array.from({ length: MIN_READERS }, () => makeOwner(b.app, { admin: false }));
+  for (const p of crowd) {
+    b.app.db.run("UPDATE sources SET title = 'The Verge' WHERE id = ?", add(b.app, p, "verge"));
+    add(b.app, p, "other");
+    // Followed privately by every one of them, under one name: still never listed, its address is a secret.
+    const secret = add(b.app, p, "verge-members", { isPrivate: true });
+    b.app.db.run("UPDATE sources SET title = 'The Verge Members', feed_url = 'https://example.org/verge-members.xml?token=abc' WHERE id = ?", secret);
+  }
+  // Only nine readers: not in the graph, so never listed.
+  for (const p of crowd.slice(1)) b.app.db.run("UPDATE sources SET title = 'The Verge Podcast' WHERE id = ?", add(b.app, p, "vergecast"));
+  rebuildDiscovery(b.app);
+  const reader = makeOwner(b.app, { admin: false });
+  assert.deepEqual(sourcesNamed(b.app, reader, "the verge"), [{ title: "The Verge", host: "example.org", feedUrl: "https://example.org/verge.xml" }]);
+  assert.deepEqual(sourcesNamed(b.app, reader, "Verge"), [{ title: "The Verge", host: "example.org", feedUrl: "https://example.org/verge.xml" }], "a part of the name finds it");
+  assert.deepEqual(sourcesNamed(b.app, reader, "members"), []);
+  assert.deepEqual(sourcesNamed(b.app, reader, "x"), [], "one letter matches nothing");
+
+  // The directory search puts them first and leaves out Wikidata's hit for a site already listed.
+  const fakeResponse = (url: string, body: string, contentType: string, status = 200) => ({ ok: true as const, response: { url, requestedUrl: url, redirects: [], status, headers: { "content-type": contentType }, mediaType: contentType, contentType, body: Buffer.from(body), bytes: body.length, truncated: false, remoteAddress: "93.184.216.34", fetchedAt: new Date().toISOString() } });
+  const wikidata = async (url: string) => {
+    if (url.includes("wbsearchentities")) return fakeResponse(url, JSON.stringify({ search: [{ id: "Q1", label: "The Verge", description: "news website" }, { id: "Q2", label: "Verge Cafe" }] }), "application/json");
+    return fakeResponse(url, JSON.stringify({ entities: { Q1: { claims: { P856: [{ rank: "normal", mainsnak: { datavalue: { value: "https://example.org/" } } }] } }, Q2: { claims: { P856: [{ rank: "normal", mainsnak: { datavalue: { value: "https://verge.cafe.example/" } } }] } } } }), "application/json");
+  };
+  const out = await searchSiteDirectory(b.app, reader, "the verge", { fetch: wikidata });
+  assert.ok(out.ok);
+  assert.deepEqual(out.hits.map((h) => [h.name, h.address, h.from]), [["The Verge", "https://example.org/verge.xml", "readers"], ["Verge Cafe", "https://verge.cafe.example/", "wikidata"]]);
+  assert.doesNotMatch(JSON.stringify(out), /followers|\b10\b/, "no counts");
+  // Wikidata failing still shows the readers' sources; with none, its failure.
+  const down = async (url: string) => fakeResponse(url, "busy", "text/html", 503);
+  assert.deepEqual((await searchSiteDirectory(b.app, reader, "the verge", { fetch: down })).ok, true);
+  assert.equal((await searchSiteDirectory(b.app, reader, "nothing here", { fetch: down })).ok, false);
+
+  // A reader who doesn't share gets no readers' sources, like suggestions.
+  // Wikidata's answer is kept: the same name asked again doesn't ask it. While it limits requests, it isn't asked until the wait is over.
+  let asked = 0;
+  const counting = async (url: string) => { asked++; return wikidata(url); };
+  assert.equal((await searchSiteDirectory(b.app, reader, "verge cafe", { fetch: counting })).ok, true);
+  assert.equal((await searchSiteDirectory(b.app, reader, "  Verge   CAFE ", { fetch: counting })).ok, true);
+  assert.equal(asked, 2, "one search and one look at its items, once");
+  // The same name searched twice at once, before an answer is kept, asks Wikidata once.
+  asked = 0;
+  await Promise.all([searchSiteDirectory(b.app, reader, "verge at once", { fetch: counting }), searchSiteDirectory(b.app, reader, "Verge At Once", { fetch: counting })]);
+  assert.equal(asked, 2, "one search and one look at its items, shared");
+  // A name still waiting for its answer keeps waiting for it when another name meanwhile gets a 429.
+  resetSiteSearchCache();
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  const slow = async (url: string) => { await held; return wikidata(url); };
+  const first = searchSiteDirectory(b.app, reader, "verge slow", { fetch: slow });
+  const limitedNow = async (url: string) => ({ ...fakeResponse(url, "too many", "text/plain", 429), response: { ...fakeResponse(url, "too many", "text/plain", 429).response, headers: { "content-type": "text/plain", "retry-after": "120" } } });
+  assert.equal((await searchSiteDirectory(b.app, reader, "other name", { fetch: limitedNow })).ok, false);
+  const again = searchSiteDirectory(b.app, reader, "verge slow", { fetch: slow });
+  release();
+  assert.equal((await first).ok, true);
+  assert.equal((await again).ok, true, "it shares the request on its way, not the other name's wait");
+  resetSiteSearchCache();
+  const limited = async (url: string) => { asked++; return { ...fakeResponse(url, "too many", "text/plain", 429), response: { ...fakeResponse(url, "too many", "text/plain", 429).response, headers: { "content-type": "text/plain", "retry-after": "120" } } }; };
+  asked = 0;
+  assert.equal((await searchSiteDirectory(b.app, reader, "elsewhere", { fetch: limited })).ok, false);
+  assert.equal((await searchSiteDirectory(b.app, reader, "another name", { fetch: counting })).ok, false, "still waiting");
+  assert.equal(asked, 1, "Wikidata was not asked again while it said to wait");
+  resetSiteSearchCache();
+
+  const { setPreferences } = await import("./preferences.ts");
+  setPreferences(b.app, reader.workspaceId, { discoveryShare: false });
+  assert.deepEqual(sourcesNamed(b.app, reader, "the verge"), []);
+});
+
+test("a self-hosted installation's name search lists no readers' sources", async (t) => {
+  const { sourcesNamed } = await import("./discover.ts");
+  const b = await boot("self");
+  t.after(b.close);
+  const crowd = Array.from({ length: MIN_READERS }, () => makeOwner(b.app, { admin: false }));
+  for (const p of crowd) add(b.app, p, "a");
+  rebuildDiscovery(b.app);
+  assert.deepEqual(sourcesNamed(b.app, crowd[0]!, "title"), []);
+});
+
+test("making a followed source private rebuilds the graph within a minute, so suggestions and name search drop it when too few readers remain", async (t) => {
+  const { setSourcePrivacy } = await import("./sources.ts");
+  const { sourcesNamed } = await import("./discover.ts");
+  const b = await boot();
+  t.after(b.close);
+  const crowd = Array.from({ length: MIN_READERS }, () => makeOwner(b.app, { admin: false }));
+  const ids = crowd.map((p) => add(b.app, p, "a"));
+  rebuildDiscovery(b.app);
+  const reader = makeOwner(b.app, { admin: false });
+  assert.equal(sourcesNamed(b.app, reader, "Title a").length, 1);
+  await setSourcePrivacy(b.app, crowd[0]!, ids[0]!, true);
+  assert.equal(b.app.db.get<{ dirty: number }>("SELECT dirty FROM discovery_state")!.dirty, 1);
+  runDiscoveryPass(b.app, Date.now() + 61_000);
+  assert.deepEqual(sourcesNamed(b.app, reader, "Title a"), [], "nine public readers are too few");
+});

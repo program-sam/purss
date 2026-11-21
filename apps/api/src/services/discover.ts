@@ -266,3 +266,25 @@ export function dismissSuggestion(app: App, p: Principal, key: string): { ok: tr
   app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) SELECT ?, key, ? FROM discovery_sources WHERE key = ? ON CONFLICT DO NOTHING", p.workspaceId, nowIso(), key);
   return { ok: true };
 }
+
+/** Sources named in a name search at most. */
+const NAMED = 5;
+const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * The public sources of the co-follow graph whose shown name or site matches a typed name, for Add source's name search. Only what the
+ * graph already holds: a source at least MIN_READERS sharing accounts follow, never a private one, under a title or site that many of them
+ * use. Like suggestions, only for a reader who shares, and none on a self-hosted installation. A title that is the name typed comes first,
+ * then the most followed; the counts themselves are not returned.
+ */
+export function sourcesNamed(app: App, p: Principal, query: string): { title: string; host: string | null; feedUrl: string }[] {
+  if (app.config.mode !== "hosted" || !getPreferences(app, p.workspaceId).discoveryShare) return [];
+  const q = letters(query);
+  if (q.length < 2) return [];
+  const rows = app.db.all<{ title: string; host: string | null; feed_url: string; followers: number }>("SELECT title, host, feed_url, followers FROM discovery_sources");
+  return rows
+    .filter((r) => letters(r.title).includes(q) || (r.host !== null && letters(r.host).includes(q)))
+    .sort((a, b) => Number(letters(b.title) === q) - Number(letters(a.title) === q) || b.followers - a.followers || a.title.localeCompare(b.title))
+    .slice(0, NAMED)
+    .map((r) => ({ title: r.title, host: r.host, feedUrl: r.feed_url }));
+}

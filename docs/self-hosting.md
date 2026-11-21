@@ -453,6 +453,9 @@ keeps and serves none of it and has no Discover page.
   sources only when at least 10 accounts follow both. Thinner data is dropped, never shown. The title and
   site shown for a suggestion must themselves be used by at least 10 of its followers, otherwise the
   feed's host shows, so a name someone gave their own copy never reaches anyone else.
+- **Name search.** Add source's search by name lists the graph's sources whose shown name or site
+  contains the name, first, for a reader who shares. It shows what a suggestion would (the shared name
+  and site, never a count, never a private source).
 - **What is kept.** Two tables of counts, with no account or workspace in them. Counts are never shown: a
   suggestion names the reader's own sources that led to it, or says *Popular with readers here*. *Not
   interested* is stored per account and deleted with it.

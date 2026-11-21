@@ -54,6 +54,25 @@ candidates (with an optional offer to keep a single video) or a failure with a r
 message that says what to do next. One lookup has 30 seconds and 40 requests (a redirect hop
 counts as one), each request 15 seconds, and returns at most 8 candidates.
 
+### A name instead of an address
+
+Add source sends a name (no scheme, slash, `@` or port, and no dot inside a word) to two searches at
+once, and a result chosen there is looked up like a pasted address:
+
+- **Websites** (`POST /api/discover/sites`, `site-search.ts`): Wikidata's `wbsearchentities` for the
+  name, then the official website (P856, a preferred one first, deprecated ones never) of up to ten
+  matches, eight hits at most, the same site written another way once. Choosing one searches that
+  website; when it has no feed, the registry fallback below can still find one Wikidata records for it
+  (P1019). Only the typed name is sent. Answers are kept in memory for an hour by name, and while
+  Wikidata limits requests (`429`), it isn't asked again for the time it said (at least a minute, at
+  most an hour); its limit counts the installation's whole address. On a hosted installation, sources
+  of the Discover graph whose shared name or site contains the name come first (`sourcesNamed`), only
+  for a reader who shares: the same public, ten-reader sources Discover suggests, never a private one,
+  and never with a count. A Wikidata failure still shows those.
+- **Podcasts** (`POST /api/discover/podcasts`, `podcast-search.ts`): Apple's podcast directory.
+
+Each search allows 60 a person per ten minutes. One failing still shows what the other found.
+
 ### What decides the route
 
 The shape of the input decides, in this order:

@@ -439,11 +439,21 @@ export type DiscoveryResult =
 export const discoverSchema = z.object({ url: z.string().trim().min(1).max(2000) });
 
 // ---------- sources and discovery ----------
+/** POST /api/discover/podcasts and /api/discover/sites: a name typed instead of an address. */
+export const nameSearchSchema = z.object({ query: z.string().trim().min(2).max(100) });
 /** POST /api/discover/podcasts: shows whose name matches, from Apple's podcast directory. */
-export const podcastSearchSchema = z.object({ query: z.string().trim().min(2).max(100) });
 export type PodcastSearchHit = { name: string; author: string | null; artworkUrl: string | null; feedUrl: string; genre: string | null };
 export type PodcastSearchResponse =
   | { ok: true; query: string; hits: PodcastSearchHit[] }
+  | { ok: false; reason: "unreachable" | "timeout"; message: string };
+/**
+ * POST /api/discover/sites: websites whose name matches. `readers`: a public source enough accounts on this hosted installation follow
+ * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
+ * looked up when the hit is chosen: the source's feed, or the website.
+ */
+export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "wikidata" };
+export type SiteSearchResponse =
+  | { ok: true; query: string; hits: SiteSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
 export const followSchema = z.object({
   token: z.string(),

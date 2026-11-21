@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { brotliCompressSync, constants, deflateSync, gzipSync } from "node:zlib";
 import { server } from "@purss/copy/server";
-import { boundLookup, HARD_STREAM_BYTES, resolveDestination, safeFetch, USER_AGENT } from "./safe-fetch.ts";
+import { boundLookup, HARD_STREAM_BYTES, resolveDestination, safeFetch, USER_AGENT, userAgentFor, WIKIMEDIA_USER_AGENT } from "./safe-fetch.ts";
 import type { Resolver } from "./safe-fetch.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
@@ -227,6 +227,13 @@ test("credential headers go to the first hop only and a User-Agent without perso
   } finally {
     await server.close();
   }
+});
+
+test("Wikimedia's sites get a User-Agent that names the project's website, as their API rules ask; every other host the generic one", () => {
+  for (const host of ["www.wikidata.org", "wikidata.org", "en.wikipedia.org", "WWW.WIKIDATA.ORG.", "upload.wikimedia.org"]) assert.equal(userAgentFor(host), WIKIMEDIA_USER_AGENT, host);
+  for (const host of ["example.org", "notwikidata.org", "wikidata.org.evil.example", "purss.app"]) assert.equal(userAgentFor(host), USER_AGENT, host);
+  assert.match(WIKIMEDIA_USER_AGENT, /^PURSS\/\S+ \(https:\/\/purss\.app; /, "a name, a version and a contact");
+  assert.doesNotMatch(WIKIMEDIA_USER_AGENT, /sam|@|home/i, "it names the software, not a person or an installation");
 });
 
 test("a POST sends its body under the same rules and never follows a redirect", async () => {

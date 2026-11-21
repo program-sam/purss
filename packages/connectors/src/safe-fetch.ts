@@ -21,6 +21,18 @@ import { redactUrl } from "./privacy.ts";
 export type FailureReason = "blocked" | "unreachable" | "toolarge" | "timeout" | "invalid" | "aborted";
 
 export const USER_AGENT = "PURSS/0.1 (self-hosted feed reader)";
+/**
+ * Wikimedia's API rules give a client that names a contact 20 times the requests of one that doesn't (200 a minute, not 10), so
+ * requests to Wikimedia's sites name the project's public website. It names the software, never the installation or a person.
+ */
+export const WIKIMEDIA_USER_AGENT = "PURSS/0.1 (https://purss.app; feed reader)";
+const WIKIMEDIA_HOSTS = ["wikidata.org", "wikipedia.org", "wikimedia.org"];
+
+/** The User-Agent sent to a host. */
+export function userAgentFor(hostname: string): string {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  return WIKIMEDIA_HOSTS.some((h) => host === h || host.endsWith(`.${h}`)) ? WIKIMEDIA_USER_AGENT : USER_AGENT;
+}
 export const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 export const HARD_MAX_BYTES = 32 * 1024 * 1024;
 /** The ceiling for a body that is read as a stream (`sink`) and never held whole. */
@@ -329,7 +341,7 @@ function requestHop(url: URL, addresses: ResolvedAddress[], ctx: Ctx, first: boo
   return new Promise<HopOk>((resolve, reject) => {
     const lib = url.protocol === "https:" ? https : http;
     const headers: Record<string, string> = {
-      "user-agent": USER_AGENT,
+      "user-agent": userAgentFor(url.hostname),
       accept: ctx.accept,
       "accept-encoding": "gzip, deflate, br",
       host: url.host,

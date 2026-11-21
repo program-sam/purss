@@ -22,6 +22,7 @@ export * from "./opml.ts";
 export * from "./pictures.ts";
 export * from "./platforms.ts";
 export * from "./podcast-search.ts";
+export * from "./site-search.ts";
 export * from "./privacy.ts";
 export * from "./readable.ts";
 export * from "./safe-fetch.ts";

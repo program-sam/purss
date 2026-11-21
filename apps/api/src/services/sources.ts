@@ -1,13 +1,14 @@
 import { FULL_TEXT_BACKFILL, newId } from "@purss/domain";
-import type { DiscoveryResult, PodcastSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
-import { coreName, discover, searchPodcasts } from "@purss/connectors";
+import type { DiscoveryResult, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
+import { coreName, discover, searchPodcasts, searchSites } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
-import type { PodcastSearchOptions } from "@purss/connectors";
+import type { PodcastSearchOptions, SiteSearchOptions } from "@purss/connectors";
 import type { z } from "zod";
 import type { followSchema, sourcePatchSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { bridgeOptions } from "./bridge.ts";
 import { recordDiscoveryMiss } from "./discovery-misses.ts";
+import { sourcesNamed } from "./discover.ts";
 import { emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
@@ -125,6 +126,69 @@ export function presentCandidates(app: App, p: Principal, drafts: Parameters<typ
 export async function searchPodcastDirectory(query: string, opts?: PodcastSearchOptions): Promise<PodcastSearchResponse> {
   const found = await searchPodcasts(query, opts);
   return found.ok ? { ok: true, query, hits: found.hits } : found;
+}
+
+const hostOf = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
+
+/**
+ * Wikidata's answers by query, kept an hour, so the same name asked again (by anyone) costs Wikidata nothing; and while Wikidata is
+ * limiting requests, the time it asked us to wait, during which it isn't asked. Its limit counts the whole installation's address.
+ */
+const SITE_SEARCH_TTL_MS = 60 * 60 * 1000;
+const SITE_SEARCH_ENTRIES = 1000;
+const siteSearches = new Map<string, { at: number; found: Extract<Awaited<ReturnType<typeof searchSites>>, { ok: true }> }>();
+let siteSearchQuietUntil = 0;
+let siteSearchQuietAnswer: Extract<Awaited<ReturnType<typeof searchSites>>, { ok: false }> | null = null;
+/** Searches still waiting for Wikidata by query: the same name asked meanwhile shares the one request. */
+const siteSearchesAsked = new Map<string, Promise<Awaited<ReturnType<typeof searchSites>>>>();
+
+async function cachedSiteSearch(query: string, opts?: SiteSearchOptions, now = Date.now()): Promise<Awaited<ReturnType<typeof searchSites>>> {
+  const key = query.replace(/\s+/g, " ").trim().toLowerCase();
+  const kept = siteSearches.get(key);
+  if (kept && now - kept.at < SITE_SEARCH_TTL_MS) return kept.found;
+  // A request already on its way for this name is awaited even when another name has since been told to wait.
+  const asked = siteSearchesAsked.get(key);
+  if (asked) return asked;
+  if (now < siteSearchQuietUntil && siteSearchQuietAnswer) return siteSearchQuietAnswer;
+  const request = searchSites(query, opts);
+  siteSearchesAsked.set(key, request);
+  let found: Awaited<typeof request>;
+  try {
+    found = await request;
+  } finally {
+    siteSearchesAsked.delete(key);
+  }
+  if (found.ok) {
+    if (siteSearches.size >= SITE_SEARCH_ENTRIES) siteSearches.delete(siteSearches.keys().next().value!);
+    siteSearches.set(key, { at: now, found });
+  } else if (found.retryAfterMs) {
+    // Counted from the answer, and a shorter wait never cuts a longer one short.
+    siteSearchQuietUntil = Math.max(siteSearchQuietUntil, Date.now() + found.retryAfterMs);
+    siteSearchQuietAnswer = found;
+  }
+  return found;
+}
+
+/** TEST ONLY: forget kept answers and any wait. */
+export function resetSiteSearchCache(): void {
+  siteSearches.clear();
+  siteSearchesAsked.clear();
+  siteSearchQuietUntil = 0;
+  siteSearchQuietAnswer = null;
+}
+
+/**
+ * Websites named like `query`: the public sources other readers here follow (sourcesNamed: hosted, sharing readers only, never a private
+ * source), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
+ * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' sources when there are any.
+ */
+export async function searchSiteDirectory(app: App, p: Principal, query: string, opts?: SiteSearchOptions): Promise<SiteSearchResponse> {
+  const readers: SiteSearchHit[] = sourcesNamed(app, p, query).map((s) => ({ name: s.title, description: null, address: s.feedUrl, site: s.host ?? hostOf(s.feedUrl), from: "readers" }));
+  const found = await cachedSiteSearch(query, opts);
+  if (!found.ok) return readers.length ? { ok: true, query, hits: readers } : { ok: false, reason: found.reason, message: found.message };
+  const listed = new Set(readers.map((h) => h.site));
+  const wikidata: SiteSearchHit[] = found.hits.filter((h) => !listed.has(hostOf(h.siteUrl))).map((h) => ({ name: h.name, description: h.description, address: h.siteUrl, site: hostOf(h.siteUrl), from: "wikidata" }));
+  return { ok: true, query, hits: [...readers, ...wikidata] };
 }
 
 /** The followed sources by the part of their name that says what they are, to point out a second source with the same name. */
@@ -356,6 +420,9 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
           AND json_extract(payload, '$.itemId') IN (SELECT id FROM items WHERE source_id = ?)`, nowIso(), id);
         // Item titles already shown in its notifications are not shown again.
         app.db.run("UPDATE notifications SET body = NULL WHERE source_id = ? AND kind = 'arrivals'", id);
+        // The address no longer counts in the Discover graph: it is rebuilt within a minute, so suggestions and name search drop it if
+        // that leaves too few readers.
+        app.db.run("UPDATE discovery_state SET dirty = 1");
       });
     } catch (err) {
       removeSecret(app.config.secretsDir, file);
