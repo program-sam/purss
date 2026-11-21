@@ -30,6 +30,9 @@ test("a site is its registrable domain: a CDN subdomain belongs to it, another c
 test("addresses that differ in their query are different feeds; tracking parameters don't make a second one", () => {
   const found = namedAddresses([`"/feed?category=news"`, `"/feed?category=sports"`, `"/feed?category=news&utm_source=x"`], "https://www.example.org/news");
   assert.deepEqual(found.feeds.map((f) => new URL(f.url).searchParams.get("category")).sort(), ["news", "sports"]);
+  // An encoded & inside a value is not a second parameter.
+  const encoded = namedAddresses([`"/feed?category=local%26type%3Dnews"`, `"/feed?category=local&type=news"`], "https://www.example.org/news");
+  assert.equal(encoded.feeds.length, 2);
 });
 
 test("only the page's own site's scripts are read, a CDN subdomain of it included, the ones that look like the page's code first", () => {
