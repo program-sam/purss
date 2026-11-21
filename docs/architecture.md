@@ -48,7 +48,7 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
 | Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
 | Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds); bridge router and its fetch log; control listener |
-| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video) into feeds; pinned upstream image, only the catalogued bridges enabled |
+| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video), and a list of posts found on a page that has no feed (XPathBridge, [Page lists](sources.md#page-lists)), into feeds; pinned upstream image, only the catalogued bridges enabled |
 | FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
 | Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
 | Browser extension | `apps/extension` | Popup, right-click menu, address-bar search and browser-assisted capture in the person's browser; talks only to the PURSS it is connected to, with a device token |
@@ -203,7 +203,8 @@ deletes the unkept copies. `/news`, `/news/<id>` and `/news/feed.atom` are publi
 **Bridged sources.** A page of a catalogued service
 (`packages/connectors/src/bridges.ts`) is discovered as the descriptor `bridge:<service>/<key>`,
 previewed by the API through the bridge router, and stored as the source's feed address; exports
-write the service's page instead. Only the worker turns the descriptor into an engine address,
+write the service's page instead. A page with no feed can also be a bridged source: the list of posts the detector
+finds on it, as `bridge:page/<key>` where the key is its page and recipe ([Page lists](sources.md#page-lists)). Only the worker turns the descriptor into an engine address,
 `http://feed-bridge.internal:8945/b/<service>/<key>/<HMAC>` under `secrets/bridge-key`, so the
 router answers nothing a feed could redirect FreshRSS to. The router asks RSS-Bridge (one fetch
 per source at a time, four at once, ten-minute cache, back-off after failures), gives every entry

@@ -46,7 +46,7 @@ entries of every account.
 | Worker (`apps/worker`) | The secrets folder, read and write | Leases jobs from the internal listener and never opens the database. It fetches and parses untrusted pages for readable text, so it is not a sandbox |
 | Egress (`apps/egress`) | The service token, the bridge key and the feed-trim key | Forward proxy that is the only way out for FreshRSS and RSS-Bridge; feed gateway and bridge router that answer only signed addresses; a control listener that accepts only the service token |
 | FreshRSS | Every account's subscriptions and entries, the operator account's credentials and the admin helper's token | Parses hostile feeds in PHP. Internal network only, no published port, no route out except egress, administered only through a fixed helper |
-| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the catalogued bridges enabled |
+| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the catalogued bridges enabled. Its XPathBridge runs only the recipes the router passes it ([Page lists](sources.md#page-lists)) |
 | Push relay (`apps/push-relay`) | The project's FCM and APNs credentials and each phone's push address | Run by the project, apart from any PURSS. Wakes a phone by handle and carries no content |
 
 Under Compose the containers sit on four networks. All but `outside` have no route to the internet.
@@ -112,6 +112,15 @@ redirect to the feed gateway's or the bridge router's alias is refused there lik
 gateway and the bridge router answer only addresses signed with a key (`feed-trim-key`, `bridge-key`)
 that FreshRSS never reads, so a feed that redirects FreshRSS can't make them fetch anything that was
 not signed ([Sources](sources.md#identity-and-signed-addresses)).
+
+**Page lists.** The one bridge that is given a page and expressions instead of a handle is XPathBridge, for a list of posts the detector found on a page
+that has no feed ([Sources](sources.md#page-lists)). What reaches it is what the router derives from a signed key: a page and four XPath expressions,
+read back only when they are exactly what PURSS's writer makes: an inflate cap of 4 KiB, an http(s) address that passes the address rules (no login, no private
+or internal host, none that looks to carry a key), and expressions inside a fixed XPath 1.0 grammar (class and attribute tests, child and descendant steps, one
+union or one `concat`; no `document()`, variable, extension function or regular expression). It is given no cookie, header, content or other XPathBridge parameter. It
+fetches the page once per check through the egress proxy, which resolves and checks every hop, and RSS-Bridge's own refusal of a private or reserved first
+address stays on. The key is made only by the detector, and a descriptor pasted from an archive is read the same way, so a hand-made one can only select text and links
+from a public page. XPathBridge's answer is parsed by the router as an untrusted feed, like any other. No script of the page runs, in discovery or in the bridge.
 
 Addresses the operator fixes (the SMTP server, OIDC issuers, the Jev address, the billing service)
 are not user input and are not subject to these rules. The push relay's address is one of them but is

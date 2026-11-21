@@ -155,12 +155,15 @@ what a bridged source is and how one is followed.
   reused for ten minutes (24 MiB of them at most, least recently used dropped first), and after a failure a
   back-off (5 minutes, doubling to an hour) during which the last good answer, or the failure, is repeated.
   A failure with nothing good to repeat is `503` with `Retry-After`, never an empty feed; a real empty feed
-  is `200`, except for a service whose backend answers empty when it misread the page (Instagram): no posts
-  is asked again once at once and is otherwise a failure (`no_posts`).
+  is `200`, except for a service whose backend answers empty when it misread the page (Instagram, and page
+  lists, whose recipe matches nothing once a page's layout changes): no posts is asked again once at once and
+  is otherwise a failure (`no_posts`).
 - Output is RSS whose GUIDs are post ids from the post address (`telegram:durov/552`, `doi:10.1111/…`), so a
   source keeps its items whichever backend answered; entries without one are dropped, and output with entries
   none of which is this source's post or one its catalogue entry leaves out on purpose (Mixcloud's
-  listened-to shows) is a failure (`no_ids`). An answer holds at most 50 entries of 256 KiB each. An entry's
+  listened-to shows) is a failure (`no_ids`). A service can tidy what its backend writes: a page list's titles lose the
+  whitespace of the page's markup, its source is named by the page's title (or its site's name when the page has no
+  single title), and a changelog's entries keep their `#fragment`. An answer holds at most 50 entries of 256 KiB each. An entry's
   picture is the backend's, except where the catalogue entry names pictures for keeping only (Instagram's,
   `keptPictures`: the post's lasting picture address first, then the rest of a carousel).
 - Each answer is recorded in `<data>/egress/bridge.db` (30 days, at most 200,000 rows) with its service, key,
@@ -170,13 +173,16 @@ what a bridged source is and how one is followed.
 ### RSS-Bridge backend
 
 The services RSS-Bridge collects (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music,
-Instagram, MangaDex, VK Video) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
+Instagram, MangaDex, VK Video, and page lists through XPathBridge) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
 parameters, 45 seconds and 8 MiB at most, errors as HTTP statuses. On RSS-Bridge's own network
 (`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS resolver answers A questions with public addresses
 only (a name with any forbidden answer is refused), because RSS-Bridge looks every host up itself before
 fetching through the proxy. RSS-Bridge has no other route out. It follows redirects (at most three) and checks only
 the first address itself, so each hop is a new request to this proxy, checked like any other; this proxy is given
 no internal destinations, so a redirect can't reach the feed gateway or the bridge router by their aliases.
+A page list's key (`<service>` is `page`) is read first (`decodePageKey`: an inflate cap, an address PURSS may fetch, a recipe inside the
+grammar) and only then turned into XPathBridge's parameters, with `%` and `+` written for the second `urldecode` XPathBridge applies; the route
+accepts keys of up to 400 characters.
 
 ### Crossref backend
 

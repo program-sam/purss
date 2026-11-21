@@ -17,9 +17,11 @@ syncs flow is in [Architecture](architecture.md); the code is in
   (public addresses only, every redirect hop checked, size and time caps). FreshRSS and
   RSS-Bridge reach the internet only through the egress proxy with the same rules. The
   [security](security.md) page has the address rules.
-- **No connector code.** The catalogue of source kinds is declarative data in the repository.
-  No uploaded code, user script or recipe is ever run, and adding a kind of source is a
-  reviewed code change with recorded fixtures.
+- **No connector code.** The catalogue of source kinds is declarative data in the repository, and
+  adding a kind of source is a reviewed code change with recorded fixtures. No uploaded code, user
+  script or user-written recipe is ever run; a page list's recipe is made only by PURSS's detector,
+  from a fixed grammar, and run by the bundled RSS-Bridge's XPathBridge behind the signed router
+  ([Page lists](#page-lists)).
 - **No credentials.** No source needs a password, a session cookie or an API key from the
   person, and nothing scrapes a login. A service that needs one stays unavailable, and the
   answer says so.
@@ -79,7 +81,7 @@ The shape of the input decides, in this order:
 
 | Input | Route |
 | --- | --- |
-| `bridge:<service>/<key>` | The bridged source itself, as an export or an archive writes it. Refused where this installation does not run that service |
+| `bridge:<service>/<key>` | The bridged source itself, as an archive writes it (a page list is `bridge:page/<key>`). Refused where this installation does not run that service, and for a key that service does not accept |
 | A DOI (`10.…`, `doi:…`, a doi.org link) | Crossref's record of the work names the journal ([Journals and Crossref](#journals-and-crossref)) |
 | An ISSN (`1534-8687`, `ISSN 1534-8687`) | Crossref's record of the journal. Eight digits alone are a number, not an ISSN |
 | A fediverse or Bluesky handle or profile link | [Social accounts](#social-accounts) |
@@ -180,9 +182,10 @@ Along the way:
 
 ### Where discovery ends
 
-After the web address's own search, two lookups can add a candidate: Wikidata when nothing was
-found ([Registry fallbacks](#registry-fallbacks)), and Crossref for a journal ([Journals and
-Crossref](#journals-and-crossref)). Failed lookups are counted per site and reason for the
+After the web address's own search, three lookups can add a candidate: Wikidata when nothing was
+found ([Registry fallbacks](#registry-fallbacks)), Crossref for a journal ([Journals and
+Crossref](#journals-and-crossref)), and, last of all and only when none of them found a feed, the
+lists of posts the page itself shows ([Page lists](#page-lists)). Failed lookups are counted per site and reason for the
 administrator, with the site's registrable domain only and kept 180 days
 (`discovery_misses`).
 
@@ -263,6 +266,7 @@ stable ids. FreshRSS stays the only thing that polls.
 | MangaDex | A title's latest chapters (`mangadex.org/title/<uuid>/…`), in every language the title has, each marked in its title (`[en]`); a chapter that only links to another site is left out | The title's uuid |
 | VK Video | A channel (`vkvideo.ru/@name`, `vk.com/video/@name`) | The handle without the `@`, in lower case |
 | Crossref | A journal's registered articles ([Journals and Crossref](#journals-and-crossref)) | The ISSN without its hyphen |
+| Page lists | A list of posts read from a page that has no feed ([Page lists](#page-lists)); no pasted address names one, only the detector makes one | The page's address and recipe, encoded |
 
 Patreon, GoComics and The Far Side were tried and left out: they refuse datacenter addresses.
 
@@ -276,7 +280,9 @@ changes its site, and the preview says so.
 A bridged source's feed address in the product is a descriptor, `bridge:<service>/<key>`
 (`bridge:telegram/durov`): no host, port, backend or credential. The key is the service's
 public handle, lower-cased where the service ignores case, and a renamed handle is a different
-source (a VK Video channel that changes its handle, say). The database, exports and job payloads carry the descriptor.
+source (a VK Video channel that changes its handle, say); a page list's key is its page and recipe, written as
+[Page lists](#page-lists) describes. The database, archives and job payloads carry the descriptor. A descriptor holds a key of at most
+400 characters; each service's key pattern (and, for a page list, the reading of the key) is what a key must pass.
 
 Only the worker turns it into an engine address, `http://feed-bridge.internal:8945/b/<service>/<key>/<signature>`,
 where the signature is an HMAC-SHA-256 of `<service>/<key>` under `secrets/bridge-key`. The
@@ -288,8 +294,9 @@ are the same `404`, so a public feed that redirects FreshRSS to the alias gets n
   `--include-secrets` backups. It is never rotated: replacing it makes the router answer `404` to
   every address FreshRSS holds, and those sources go quiet. Following the page again
   re-subscribes with a fresh address and keeps the items, whose post ids do not change.
-- An OPML export writes the service's page address, which imports as the same source, and the
-  account archive keeps the descriptor.
+- An OPML export writes the service's page address, which imports as the same source (a page
+  list's page address is looked up again, and the detector runs again: [Page lists](#page-lists)),
+  and the account archive keeps the descriptor.
 - An installation without the router (`PURSS_BRIDGE_URL` unset), or, for the RSS-Bridge services
   only, without `PURSS_RSS_BRIDGE=1`, does not offer a bridged service: its pages are searched
   like any web page (the services in `platforms.ts` get the "publishes no feeds" answer) and a
@@ -313,8 +320,8 @@ collects it (RSS-Bridge, or Crossref's API), and the router asks the backends of
 - **Failure.** After a failed fetch the source is left alone for five minutes, doubling to an hour,
   and meanwhile the last good answer is repeated, or `503` with `Retry-After`. A failure is
   never an empty `200`. A real empty feed is `200`, except for a service whose backend answers
-  empty when it misread the page (Instagram): no posts is asked again once at once and is
-  otherwise a failure (`no_posts`).
+  empty when it misread the page (Instagram, and page lists, whose recipe matches nothing once a
+  page's layout changes): no posts is asked again once at once and is otherwise a failure (`no_posts`).
 - **RSS-Bridge's isolation.** It runs in its own container on a network shared only with
   egress, with no route out. Its proxy is the egress proxy and its name lookups go to egress's
   resolver, which answers only public addresses. Only the catalogued bridges are enabled
@@ -325,7 +332,8 @@ collects it (RSS-Bridge, or Crossref's API), and the router asks the backends of
   reaches egress's proxy as a new request and is resolved and checked there like any other (a hop to a private,
   link-local or metadata address, or to a name that resolves to one, is a `403`). That proxy has no internal
   destinations: egress's own aliases, the feed gateway and the bridge router, are reached only by FreshRSS, so a
-  redirect can't send RSS-Bridge to them.
+  redirect can't send RSS-Bridge to them. RSS-Bridge's own refusal of a first address that is private or reserved
+  (its `http` settings `allow_private_addresses` and `allow_reserved_addresses`, off by default and left off) is a second layer, not the one relied on.
 
 ### The failure log
 
@@ -350,9 +358,75 @@ A service is a `BridgeService` in `packages/connectors/src/bridges.ts`: id, name
 pattern, an example account (the monthly RSS-Bridge update check asks each service's example
 through the real router), how a page address names a key, the page address of a key, the
 backend and its parameters, the post-id rule, and optional clean-ups (title and text, a date
-correction, a rule for entries to leave out on purpose, pictures to keep). It needs recorded
+correction, a rule for entries to leave out on purpose, pictures to keep, a check a key pattern
+can't make, a name for a source that has none of its own). It needs recorded
 fixtures for the key and page rules, the post ids and the router's handling. An RSS-Bridge service
 also needs its bridge added to the enabled list in `infra/compose.yaml` (a test checks that the list and the catalogue agree).
+
+## Page lists
+
+Many pages have no feed but show a list of posts: a news index, a blog's archive, a changelog, a
+job board. When a pasted page has none, PURSS looks at the page it already read for such a list
+and offers up to three as sources. FreshRSS collects each through the signed bridge router, and
+RSS-Bridge's XPathBridge reads the page. No script of the page ever runs.
+
+- **When it runs.** Last of all ([Where discovery ends](#where-discovery-ends)), and only when
+  the installation's router serves page lists (the router and RSS-Bridge both run), the address
+  opened as a web page, and nothing found a feed: not the page's own feeds, not the usual addresses,
+  not Wikidata, not Crossref. It also runs when the cap on requests ended the search for a feed. A
+  page that turned readers away, was slow or busy is answered as before, and a page whose address looks
+  to carry a key is left out (its descriptor would be kept, exported and logged). Discovery reads the page once;
+  the detector works on those bytes and fetches nothing.
+- **The detector** (`page-lists.ts`, [connectors](../packages/connectors/README.md)). It reads
+  the page's own markup: JSON-LD, microformats and microdata first, then groups of links that sit
+  in the same kind of place. It returns up to three lists, each with a score, a confidence, reasons, its
+  first posts and a *recipe*: four XPath 1.0 expressions (the item, and the title, link and date inside it)
+  from a small fixed grammar that `validateRecipe` checks (class and attribute tests, child and
+  descendant steps, one union or one `concat`; no `document()`, variable or extension function).
+  A date goes into a recipe only when PHP's `strtotime`, which XPathBridge uses, reads it as the page shows it.
+- **Confidence and choice.** `high` (only a clearly best first list): the page's own list, chosen for the person.
+  `medium`: offered, and none is chosen, even when it is the only list found. `low`: no list was found, and
+  the usual "no feed" answer stands. A page that draws its list with script (an application shell, an empty `<main>`) is told
+  so: *This page builds its list with JavaScript, so PURSS can't read its posts. Paste the site's feed
+  address if it has one, or keep this link.*
+- **Preview.** Each list is asked of the router as the source it would be, in parallel, and is offered
+  only if the router read posts from it just now. The previews are the lookup's own allowance of three, apart
+  from the request cap (a site whose usual addresses all redirect has used that up by then); each waits at most 25 s,
+  none starts with less than 8 s of the lookup's time left, and the lookup's deadline stops them and says it took too long.
+  Each list says plainly that PURSS reads it from the way the page is laid out; that it holds only the posts the page
+  lists now, never older ones; that a post whose date isn't on the page is dated when PURSS first sees it; that it can
+  stop working when the site changes its page; and why PURSS chose it, and what it doubts (words for the detector's reason
+  codes, in the copy catalog).
+- **The source.** `bridge:page/<key>`. The key is a compact JSON, `{"u": page address, "i": item, "t": title, "l": link,
+  "d": date (when there is one), "e": 1 (when the page needs its character set repaired)}`, in that order, deflated (raw) and
+  written in base64url: at most 380 characters, and the same recipe is always the same key. Over the detector's saved pages the
+  keys are 96 to 238 characters long (median 164). Reading a key refuses anything the writer would not make: another spelling, another
+  order or extra fields, a document that inflates to more than 4 KiB, an address that is not an http(s) address PURSS may fetch (no
+  login in it, no private or internal host, none that looks to carry a key), or an expression outside the grammar. The engine address
+  is `http://feed-bridge.internal:8945/b/page/<key>/<signature>`, and the signature covers the key; FreshRSS 1.30.4 keeps a feed address
+  in a 32768-character column. A descriptor pasted from an archive is read the same way, so a hand-made one can say only what the grammar
+  can: a selection of text and links from a public page, never code.
+- **XPathBridge.** The router asks for the page, `item`, `title`, `uri` (the link) and `timestamp` (the date, when there is one), and for
+  `fix_encoding` when the page names no character set of its own and is UTF-8 with letters outside ASCII (PHP reads such a page as
+  Latin-1; repairing a plain-ASCII page, or one that names its set, would break it). XPathBridge decodes each expression once more, so
+  `%` and `+` in one are written `%25` and `%2B`. It is given no cookie, regular expression or other parameter, and it fetches the page once
+  per check, through the egress proxy, which checks every hop. It has no limit on posts: the router keeps the first 50. RSS-Bridge cuts a long
+  title at 150 characters.
+- **Ids.** A post's id is `page:` and its canonical address, written as the detector writes the ids of the samples it shows (https, no
+  `www.`, no tracking parameters, no fragment, no trailing slash or `index.html`), so the id outlives a change of recipe; a link that is not an
+  http(s) address is dropped. The entries of a changelog on one page are headings of that page, so their fragments are kept. Titles lose the
+  whitespace of the page's markup. The source is named by the page's own title, or by the page's site when the page has no single title.
+- **Dates.** A post has the date the page shows when the recipe carries it; otherwise it has none, and FreshRSS dates it when it first sees it.
+- **Failure.** A recipe that matches nothing, or a page the bridge can't read, is a failure like Instagram's: asked again once, then a `503`
+  with the back-off above, never an empty source, and the last good posts stay meanwhile. When a site changes its layout the source goes quiet
+  and shows as failing, and the administrator sees it by its page. Following the page again finds a new recipe, which is another key and so
+  another source: the first one keeps its posts.
+- **Export.** The archive keeps the descriptor. An OPML export writes the page's address, which imports through discovery like any pasted address
+  and runs the detector again, so it may offer a different recipe, or none.
+- **Limits.** Only the posts the page shows now, the first 50 of them; no older posts. A page that needs script, a login or a cookie can't be read,
+  and neither can one over 2 MiB. A site that refuses the bridge's fetch (a datacenter address) fails where it worked for the person. A stored key is
+  read whatever made it, but the same recipe is the same key only for the same zlib: after an upgrade of Node a page followed again can make another
+  key for the same recipe and show as a second source.
 
 ## Instagram
 
