@@ -290,6 +290,10 @@ export const sources = {
         vkvideo: "VK Video channel",
         pageList: "Page list",
       },
+      scriptScan: {
+        feedNote: "The page doesn't link to this feed; PURSS found its address in the page's own scripts.",
+        listNote: (page: string) => `PURSS found this list on ${page}, which the page's scripts point to.`,
+      },
       pageLists: {
         service: "Page lists",
         via: "Posts listed on this page",

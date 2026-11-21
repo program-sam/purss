@@ -16,6 +16,9 @@ import type { KnownDeps, KnownFeed, KnownPlan } from "./known-feeds.ts";
 import { bridgeDescriptor, bridgeService, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
 import type { BridgeService, BridgeTarget } from "./bridges.ts";
 import { encodePageKey, needsCharsetRepair } from "./page-feeds.ts";
+import { sameSite } from "./hosts.ts";
+import { carriesAKey, inlineScripts, namedAddresses, readableAddress, scriptFiles, SCRIPT_BYTES, SCRIPT_FEEDS, SCRIPT_FILE_BYTES, SCRIPT_FILES, SCRIPT_SIBLINGS } from "./script-scan.ts";
+import type { ScriptAddress } from "./script-scan.ts";
 import { detectPageLists, markupDeclaresCharset } from "./page-lists.ts";
 import type { PageListCandidate, PageListReason } from "./page-lists.ts";
 import { crossrefJournalSearchUrl, crossrefJournalUrl, findCrossrefJournal, issnFromInput, issnPortalUrl, readCrossrefJournal } from "./crossref.ts";
@@ -221,12 +224,12 @@ function failFromStatus(url: string, status: number): Failure | null {
 }
 
 /** Fetch with an https-first attempt when the person gave no scheme or plain http. */
-async function getWithUpgrade(ctx: Ctx, url: string, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string }): Promise<SafeFetchResult> {
+async function getWithUpgrade(ctx: Ctx, url: string, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string; timeoutMs?: number }): Promise<SafeFetchResult> {
   return withHttpFallback(ctx, await ctx.get(url, o), httpFallback, o);
 }
 
 /** What the https attempt gave, or when it could not do better, what plain http gives for the same address. */
-async function withHttpFallback(ctx: Ctx, first: SafeFetchResult, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string }): Promise<SafeFetchResult> {
+async function withHttpFallback(ctx: Ctx, first: SafeFetchResult, httpFallback: string | null, o?: { maxBytes?: number; maxRedirects?: number; accept?: string; timeoutMs?: number }): Promise<SafeFetchResult> {
   if (!httpFallback) return first;
   if (first.ok && first.response.status < 400) return first;
   if (!first.ok && (first.reason === "blocked" || first.reason === "aborted" || first.reason === "toolarge")) return first;
@@ -386,7 +389,7 @@ export function stableFeedUrl(requested: string, final: string): string {
 
 const bareHost = (u: string): string => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } };
 
-async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedirects?: number } = {}): Promise<FeedProbe> {
+async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedirects?: number; timeoutMs?: number } = {}): Promise<FeedProbe> {
   let httpFallback: string | null = null;
   let start = url;
   if (upgrade && url.startsWith("http://")) {
@@ -401,7 +404,7 @@ async function probeFeed(ctx: Ctx, url: string, upgrade: boolean, o: { maxRedire
       /* keep as is */
     }
   }
-  const res = await getWithUpgrade(ctx, start, httpFallback, { maxBytes: FEED_MAX_BYTES, ...(o.maxRedirects !== undefined ? { maxRedirects: o.maxRedirects } : {}) });
+  const res = await getWithUpgrade(ctx, start, httpFallback, { maxBytes: FEED_MAX_BYTES, ...(o.maxRedirects !== undefined ? { maxRedirects: o.maxRedirects } : {}), ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}) });
   if (!res.ok) return { failed: failFromFetch(url, res), inconclusive: res.reason === "timeout" || res.reason === "aborted" };
   const r = res.response;
   const away = bareHost(r.url) !== bareHost(start);
@@ -1365,6 +1368,22 @@ const MAX_PAGE_LISTS = 3;
 const PAGE_PREVIEW_MIN_MS = 8000;
 /** One list's preview waits this long at most. */
 const PAGE_PREVIEW_MAX_MS = 25_000;
+/**
+ * What the scripts of a page are read for (script-scan.ts): the step's own allowance of requests, and its own time. Ten scripts, six feeds and two pages are 18
+ * at most; the full scan that was measured (every script, eight addresses of any kind) made 17 at its median, and this one 8 (13 at most) over the same pages.
+ * The rest of the allowance is for the redirects they follow.
+ */
+const scriptCopy = server.sources.connectors.scriptScan;
+const SCRIPT_ALLOWANCE = 24;
+/** Reading scripts takes at most this long, and starts only with this much more than the previews of lists still need. */
+const SCRIPT_SCAN_MAX_MS = 9000;
+const SCRIPT_SCAN_MIN_MS = 2500;
+const SCRIPT_SCAN_MARGIN_MS = 1000;
+/** One script or feed named in a script waits this long at most; a page it names, a little longer. */
+const SCRIPT_REQUEST_MS = 6000;
+const SIBLING_REQUEST_MS = 8000;
+/** The most feeds found in scripts that are offered. */
+const MAX_SCRIPT_FEEDS = 3;
 /** The words for what made a list likely or doubtful, by the detector's reason codes (a code without words does not compile). */
 const REASON_WORDS: Record<PageListReason, string> = pageLists.reasons;
 /** What counts for a list, and what counts against it: the first are said as "why", the second as "doubts"; `undated` is said by the note. */
@@ -1396,56 +1415,182 @@ function pageListNote(c: PageListCandidate): string {
   ].filter(Boolean).join(" ");
 }
 
+/** A page the lookup read, with the bytes the detector and the character-set check work on. */
+type ListSource = { url: string; html: string; body: Uint8Array };
+type Detected = ReturnType<typeof detectPageLists>;
+
+/** The lists the detector found as followable recipes, the likeliest first, at most `limit`. */
+function keyedLists(found: Detected, source: ListSource, limit: number) {
+  const fixEncoding = !markupDeclaresCharset(source.html) && needsCharsetRepair(source.body);
+  return found.candidates.flatMap((c) => {
+    const key = c.confidence !== "low" && c.portable && c.recipe ? encodePageKey({ url: source.url, recipe: c.recipe, fixEncoding }) : null;
+    return key ? [{ c, key }] : [];
+  }).slice(0, limit);
+}
+
+/** Each list asked of the router as the source it would be, all at once; the ones it read posts from. */
+async function previewLists(ctx: Ctx, bridge: BridgeClient, service: BridgeService, keyed: ReturnType<typeof keyedLists>) {
+  const read = await Promise.all(keyed.map(async ({ c, key }) => ({ c, key, parsed: await previewPageList(ctx, bridge, { service, key }) })));
+  return read.flatMap((r) => (r.parsed ? [{ ...r, parsed: r.parsed }] : []));
+}
+
+/** A list the router read, as a candidate. `note` says what PURSS says about it; `of`: the page it was found on. */
+function listCandidate(ctx: Ctx, service: BridgeService, of: ListSource, read: { c: PageListCandidate; key: string; parsed: ParsedFeed }, numbered: { n: number; of: number }, note: string, scripts: boolean): DraftCandidate {
+  const facts = extractPageFacts(of.html, of.url);
+  const host = new URL(of.url).hostname.replace(/^www\./, "");
+  const siteName = siteNameFor(facts, of.url);
+  const confidence = read.c.confidence === "high" ? "high" : "medium";
+  const candidate = buildCandidate(bridgeDescriptor(service.id, read.key), read.parsed, { url: of.url, title: facts.title, siteName }, ctx, {
+    route: scripts ? "script-page" : "page-list",
+    origin: service.origin,
+    via: numbered.of > 1 ? pageLists.viaNumbered(numbered.n) : pageLists.via,
+    note,
+    title: nameFeed({ feedTitle: read.parsed.title, linkTitle: cleanLine(facts.title, 200), siteName, host }),
+  });
+  // Only the page's own first list, and only when PURSS is sure of it, is the page's own; the others, and anything found through scripts, are for the person to choose.
+  return { ...candidate, siteUrl: of.url, matchesPage: !scripts && read.c.rank === 1 && confidence === "high", pageList: { confidence }, ...(scripts ? { fromScripts: true } : {}) };
+}
+
+/** What the page itself shows: its lists as offered candidates (none when the router read none), and whether its markup is only a shell for script. */
+async function ownLists(ctx: Ctx, bridge: BridgeClient, service: BridgeService, page: ListSource, max: number): Promise<{ lists: DraftCandidate[]; shell: boolean }> {
+  const found = detectPageLists(page.html, page.url, ctx.now());
+  const best = found.candidates[0];
+  if (!best || best.confidence === "low") return { lists: [], shell: found.diagnosis === "appShell" || found.diagnosis === "emptyMain" };
+  const read = await previewLists(ctx, bridge, service, keyedLists(found, page, Math.min(MAX_PAGE_LISTS, max)));
+  return { lists: read.map((r, i) => listCandidate(ctx, service, page, r, { n: i + 1, of: read.length }, pageListNote(r.c), false)), shell: false };
+}
+
 /**
- * Discovery's last step, for a page that has no feed: the lists of posts the page itself shows (page-lists.ts), each previewed through the
- * bridge as the source it would be. It runs only when the bridge serves page lists, a web page was read, and nothing else (the page's own
- * feeds, its usual addresses, Wikidata, Crossref) found a feed, so a real feed always wins. A list is offered only when the bridge read posts
- * from it just now; one that is likely (`high`) is the page's own and starts out chosen, one that is merely possible (`medium`) is offered
- * and left to the person; a guess (`low`) is no list at all. No script of the page runs, and nothing is fetched here: the page is the one
- * the lookup already read.
+ * The lists on the pages the page's scripts name: at most two pages, asked for with a GET and judged by the same detector as the page itself.
+ * The best list of each page comes first, then their second best, and so on, up to three, each asked of the router.
  */
-async function withPageLists(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDraft, max: number): Promise<DiscoveryDraft> {
-  const service = bridgeService(PAGE_SERVICE);
+async function siblingLists(ctx: Ctx, bridge: BridgeClient, service: BridgeService, page: ListSource, named: ScriptAddress[], max: number): Promise<DraftCandidate[]> {
+  const limit = Math.min(MAX_PAGE_LISTS, max);
+  const fetched = await mapLimit(named.slice(0, SCRIPT_SIBLINGS), SCRIPT_SIBLINGS, async (address): Promise<ListSource | null> => {
+    if (ctx.signal.aborted) return null;
+    const res = await ctx.get(address.url, { maxBytes: PAGE_MAX_BYTES, accept: HTML_ACCEPT, timeoutMs: SIBLING_REQUEST_MS, maxRedirects: 3 });
+    if (!res.ok || res.response.status >= 400 || sniffContent(res.response.body, res.response.contentType) !== "html") return null;
+    const url = res.response.url;
+    // It went where the page's site is, and not to the page itself or somewhere that looks to hold a key.
+    try {
+      if (!sameSite(new URL(url).hostname, new URL(page.url).hostname) || carriesAKey(new URL(url)) || privateUrlReason(url) || new URL(url).href === new URL(page.url).href) return null;
+    } catch {
+      return null;
+    }
+    return { url, html: decodeBody(res.response.body, res.response.contentType), body: res.response.body };
+  });
+  const pages = fetched.flatMap((source) => (source ? [source] : []));
+  if (!pages.length || ctx.signal.aborted) return [];
+  // Which lists, page by page, best first; then the previews, all at once.
+  const perPage = pages.map((source) => keyedLists(detectPageLists(source.html, source.url, ctx.now()), source, limit));
+  const chosen: { source: ListSource; c: PageListCandidate; key: string }[] = [];
+  for (let rank = 0; chosen.length < limit && perPage.some((l) => l.length > rank); rank++) {
+    perPage.forEach((lists, i) => { if (lists[rank] && chosen.length < limit) chosen.push({ source: pages[i]!, ...lists[rank]! }); });
+  }
+  const read = await Promise.all(chosen.map(async ({ source, c, key }) => ({ source, c, key, parsed: await previewPageList(ctx, bridge, { service, key }) })));
+  const offered = read.flatMap((r) => (r.parsed ? [{ ...r, parsed: r.parsed }] : []));
+  return offered.map((r, i) => listCandidate(ctx, service, r.source, r, { n: i + 1, of: offered.length }, [scriptCopy.listNote(readableAddress(r.source.url)), pageListNote(r.c)].join(" "), true));
+}
+
+/**
+ * The feeds the page's own scripts name: its scripts (those of its own site, at most ten files and three MiB, and its inline scripts) are read as
+ * text, never run, and every feed address they name is asked for like any other, at most six. One counts only if it answers as a feed with
+ * entries. The step has an allowance of requests of its own and a time of its own, which leaves the lists that come after it theirs. Also gives
+ * back the pages of the site the scripts name, for the lists found on them.
+ */
+async function readScripts(ctx: Ctx, page: ListSource): Promise<{ feeds: DraftCandidate[]; pages: ScriptAddress[] }> {
+  const nothing = { feeds: [], pages: [] };
+  const budgetMs = Math.min(SCRIPT_SCAN_MAX_MS, ctx.remainingMs() - PAGE_PREVIEW_MIN_MS - SCRIPT_SCAN_MARGIN_MS);
+  if (budgetMs < SCRIPT_SCAN_MIN_MS) return nothing;
+  const deadline = Date.now() + budgetMs;
+  const left = () => deadline - Date.now();
+  ctx.allow(SCRIPT_ALLOWANCE);
+  const texts = inlineScripts(page.html);
+  const queue = scriptFiles(page.html, page.url).slice(0, SCRIPT_FILES);
+  // Three files at a time, none past two MiB and all of them together within three: a read keeps the room it may take until it is done.
+  let used = 0;
+  let inflight = 0;
+  const waiting: (() => void)[] = [];
+  const take = async (): Promise<number | null> => {
+    for (;;) {
+      const room = Math.min(SCRIPT_FILE_BYTES, SCRIPT_BYTES - used - inflight);
+      if (room > 0) { inflight += room; return room; }
+      if (inflight === 0) return null;
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
+  };
+  const give = (room: number, got: number) => {
+    inflight -= room;
+    used += got;
+    for (const wake of waiting.splice(0)) wake();
+  };
+  const reader = async () => {
+    for (;;) {
+      if (!queue.length || ctx.signal.aborted || left() <= 0) return;
+      const room = await take();
+      const file = room === null ? undefined : queue.shift();
+      if (room === null || !file) {
+        if (room !== null) give(room, 0);
+        return;
+      }
+      const res = await ctx.get(file, { maxBytes: room, accept: "*/*", timeoutMs: Math.max(1000, Math.min(SCRIPT_REQUEST_MS, left())), maxRedirects: 2 });
+      const got = res.ok && res.response.status < 400 ? res.response.body : null;
+      give(room, got?.length ?? 0);
+      if (got) texts.push(new TextDecoder().decode(got));
+    }
+  };
+  await Promise.all([reader(), reader(), reader()]);
+  const named = namedAddresses(texts, page.url);
+  const facts = extractPageFacts(page.html, page.url);
+  const siteName = siteNameFor(facts, page.url);
+  const probed = await mapLimit(named.feeds.slice(0, SCRIPT_FEEDS), 3, async (address) => {
+    if (ctx.signal.aborted || left() <= 0) return null;
+    const probe = await probeFeed(ctx, address.url, false, { maxRedirects: 2, timeoutMs: Math.max(1000, Math.min(SCRIPT_REQUEST_MS, left())) });
+    return "parsed" in probe && probe.parsed.items.length ? probe : null;
+  });
+  const feeds: { c: DraftCandidate; parsed: ParsedFeed }[] = [];
+  for (const probe of probed) {
+    if (!probe || feeds.some((f) => sameEntries(f.parsed, probe.parsed))) continue;
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { route: "script-feed", note: scriptCopy.feedNote });
+    // A feed of comments is not what a page is followed for.
+    if (c.via !== feedLabels.commentsFeed) feeds.push({ c: { ...c, matchesPage: false, fromScripts: true }, parsed: probe.parsed });
+  }
+  return { feeds: feeds.slice(0, MAX_SCRIPT_FEEDS).map((f) => f.c), pages: named.pages };
+}
+
+/**
+ * Discovery's last steps, for a page that has no feed. They run only when nothing else (the page's own feeds, its usual addresses, Wikidata,
+ * Crossref) found a feed, the address doesn't look to carry a key, and a web page was read; the page the lookup already read is the one used, and
+ * no script of it runs. In this order, the first that finds something ends the search, so a real feed always beats a list, and the page's own list
+ * beats another page's:
+ *   1. a feed the page's own scripts name, which answers as a feed with entries (readScripts);
+ *   2. the lists of posts the page itself shows (page-lists.ts), each previewed through the bridge as the source it would be. One that is likely (`high`)
+ *      is the page's own and starts out chosen, one that is merely possible (`medium`) is offered and left to the person, a guess (`low`) is no list at all;
+ *   3. the lists on a page of the same site that the scripts name, which the page itself does not show (siblingLists), never chosen for the person.
+ * A list is offered only when the bridge read posts from it just now, and only where the bridge serves page lists. A page that is only a shell for
+ * its script, with nothing found in the steps above, is told so.
+ */
+async function withScriptsAndLists(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDraft, max: number): Promise<DiscoveryDraft> {
   const page = ctx.page;
-  if (!service || !page || !opts.bridge || !(opts.bridgeServes?.(service) ?? true)) return draft;
+  if (!page) return draft;
   // Nothing was found: no feed, or the cap ended the search for one. A page that turned readers away, was slow or busy is not "no list" either.
   if (draft.ok || draft.reason !== "nofeed" || (draft.message !== NO_FEED_MESSAGE && draft.message !== CAP_MESSAGE)) return draft;
   // A page whose address looks to carry a key stays out of a descriptor that is kept, exported and logged.
-  if (ctx.signal.aborted || ctx.remainingMs() < PAGE_PREVIEW_MIN_MS || privateUrlReason(page.url)) return draft;
-  const found = detectPageLists(page.html, page.url, ctx.now());
-  const best = found.candidates[0];
-  if (!best || best.confidence === "low") {
-    return found.diagnosis === "appShell" || found.diagnosis === "emptyMain" ? fail(draft.url, "nofeed", pageLists.scriptPage) : draft;
-  }
-  const fixEncoding = !markupDeclaresCharset(page.html) && needsCharsetRepair(page.body);
-  const keyed = found.candidates.flatMap((c) => {
-    const key = c.confidence !== "low" && c.portable && c.recipe ? encodePageKey({ url: page.url, recipe: c.recipe, fixEncoding }) : null;
-    return key ? [{ c, key }] : [];
-  }).slice(0, Math.min(MAX_PAGE_LISTS, max));
-  const bridge = opts.bridge;
-  const read = await Promise.all(keyed.map(async ({ c, key }) => ({ c, key, parsed: await previewPageList(ctx, bridge, { service, key }) })));
+  if (ctx.signal.aborted || privateUrlReason(page.url)) return draft;
+  const scripts = await readScripts(ctx, page);
   if (ctx.signal.aborted) return fail(draft.url, "timeout", TIMEOUT_MESSAGE);
-  const offered = read.flatMap((r) => (r.parsed ? [{ ...r, parsed: r.parsed }] : []));
-  if (!offered.length) return draft;
-  const facts = extractPageFacts(page.html, page.url);
-  const host = new URL(page.url).hostname.replace(/^www\./, "");
-  const siteName = siteNameFor(facts, page.url);
-  return {
-    ok: true,
-    url: draft.url,
-    candidates: offered.map(({ c, key, parsed }, i) => {
-      const confidence = c.confidence === "high" ? "high" : "medium";
-      const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: page.url, title: facts.title, siteName }, ctx, {
-        route: "page-list",
-        origin: service.origin,
-        via: offered.length > 1 ? pageLists.viaNumbered(i + 1) : pageLists.via,
-        note: pageListNote(c),
-        title: nameFeed({ feedTitle: parsed.title, linkTitle: cleanLine(facts.title, 200), siteName, host }),
-      });
-      // Only the first list, and only when PURSS is sure of it, is the page's own; the others are for the person to choose.
-      return { ...candidate, siteUrl: page.url, matchesPage: c.rank === 1 && confidence === "high", pageList: { confidence } };
-    }),
-  };
+  if (scripts.feeds.length) return { ok: true, url: draft.url, candidates: scripts.feeds.slice(0, max) };
+  const service = bridgeService(PAGE_SERVICE);
+  const bridge = opts.bridge;
+  if (!service || !bridge || !(opts.bridgeServes?.(service) ?? true) || ctx.remainingMs() < PAGE_PREVIEW_MIN_MS) return draft;
+  const own = await ownLists(ctx, bridge, service, page, max);
+  if (ctx.signal.aborted) return fail(draft.url, "timeout", TIMEOUT_MESSAGE);
+  if (own.lists.length) return { ok: true, url: draft.url, candidates: own.lists };
+  // The pages the scripts name are asked for only when there is time to ask them and still to preview what they show.
+  const siblings = ctx.remainingMs() < PAGE_PREVIEW_MIN_MS + SIBLING_REQUEST_MS ? [] : await siblingLists(ctx, bridge, service, page, scripts.pages, max);
+  if (ctx.signal.aborted) return fail(draft.url, "timeout", TIMEOUT_MESSAGE);
+  if (siblings.length) return { ok: true, url: draft.url, candidates: siblings };
+  return own.shell ? fail(draft.url, "nofeed", pageLists.scriptPage) : draft;
 }
 
 // ---------- bridged services ----------
@@ -1527,7 +1672,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const ctx = makeCtx(opts);
   const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
   try {
-    return await withPageLists(ctx, opts, await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max), max);
+    return await withScriptsAndLists(ctx, opts, await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max), max);
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", server.sources.connectors.discover.checkFailed(redactUrl(norm.url)));

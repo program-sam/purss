@@ -437,6 +437,11 @@ export type DiscoveryCandidate = {
    * offered and left for them to choose.
    */
   pageList?: { confidence: "high" | "medium" };
+  /**
+   * found in the page's own scripts, read as text: a feed they name that the page doesn't link, or a list on a page of the same site that they
+   * point to. PURSS can't tell from the page that it is the pasted page's own, so it is never chosen for the person, even when it is the only one.
+   */
+  fromScripts?: boolean;
 };
 /** A page worth keeping as it is rather than following (a single video), with what could be learned about it. */
 export type KeepOffer = { url: string; kind: "video" | "link"; title: string; siteName: string | null; author: string | null; imageUrl: string | null };

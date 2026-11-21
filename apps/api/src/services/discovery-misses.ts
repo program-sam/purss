@@ -1,4 +1,4 @@
-import { cleanPasted } from "@purss/connectors";
+import { cleanPasted, registrableDomain } from "@purss/connectors";
 import type { App } from "../app.ts";
 
 /*
@@ -15,23 +15,10 @@ export const KEEP_DAYS = 180;
 /** A day never holds more distinct (site, reason) rows than this: pasting endless made-up sites can't grow the table without bound. */
 const MAX_ROWS_PER_DAY = 1000;
 
-/** Second-level labels registered under a country code: bbc.co.uk, example.com.au, nhk.or.jp. */
-const SECOND_LEVEL = new Set(["co", "com", "org", "net", "ac", "gov", "edu", "ne", "or"]);
-const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const TLD = /^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 const FEED_SCHEME = /^(?:feed|feeds|rss|pcast|itpc|podcast):/i;
 const HOST_PORT = /^[^/\s:]+\.[^/\s:]+:\d+(?:[/?#]|$)/;
 
-/** The registrable domain of a host name (`www.example.co.uk` → `example.co.uk`), or null for an address, a single label or anything else that isn't a public name. */
-export function registrableDomain(host: string): string | null {
-  const labels = host.toLowerCase().replace(/\.$/, "").split(".");
-  if (labels.length < 2 || labels.join(".").length > 253 || !labels.every((l) => LABEL.test(l))) return null;
-  const tld = labels.at(-1)!;
-  if (!TLD.test(tld)) return null; // all-numeric last label: an IP address
-  const rest = labels[0] === "www" && labels.length > 2 ? labels.slice(1) : labels;
-  const takeThree = rest.length >= 3 && tld.length === 2 && SECOND_LEVEL.has(rest.at(-2)!);
-  return rest.slice(takeThree ? -3 : -2).join(".");
-}
+export { registrableDomain };
 
 /** The host name of a web address, in the form a browser would use (internationalised names as punycode), or null. */
 function hostOf(address: string): string | null {

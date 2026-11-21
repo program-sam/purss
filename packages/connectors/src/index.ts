@@ -14,6 +14,7 @@ export * from "./discover.ts";
 export { coreName } from "./feed-choice.ts";
 export * from "./feed.ts";
 export * from "./frame-policy.ts";
+export * from "./hosts.ts";
 export * from "./icon-format.ts";
 export * from "./input.ts";
 export * from "./jev.ts";

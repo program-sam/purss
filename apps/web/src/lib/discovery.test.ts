@@ -40,3 +40,15 @@ test("a page list is chosen only when PURSS is confident of it: a medium one is 
   assert.equal(preselect([medium, { matchesPage: false, alternative: true }]), 1, "an alternative that isn't a page list is still chosen when it is all there is");
   assert.equal(preselect([medium, { matchesPage: true }]), 1, "an ordinary feed beside a medium list");
 });
+
+test("anything found in the page's scripts is offered and never chosen for the person, whether it is the only candidate or one of several", () => {
+  const feed = { matchesPage: false, fromScripts: true };
+  const list = { matchesPage: false, fromScripts: true, pageList: { confidence: "high" as const } };
+  assert.equal(preselect([feed]), -1, "a lone feed named in a script is not chosen");
+  assert.equal(preselect([list]), -1, "nor a lone list, though PURSS was sure of it on its page");
+  assert.equal(preselect([feed, feed, feed]), -1);
+  assert.equal(preselect([list, { matchesPage: false, fromScripts: true, pageList: { confidence: "medium" as const } }]), -1);
+  assert.equal(preselect([{ ...feed, matchesPage: true }]), -1, "whatever the page's flag says");
+  assert.equal(preselect([feed, { matchesPage: true }]), 1, "a candidate that is shown to be the page's own is still chosen");
+  assert.equal(preselect([feed, { matchesPage: undefined, alternative: true }]), 1, "an alternative that is not from scripts is chosen when it is all there is");
+});

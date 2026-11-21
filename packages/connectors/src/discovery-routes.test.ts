@@ -25,7 +25,6 @@ function rss(title: string, link = "https://x.example"): string {
   return `<?xml version="1.0"?><rss version="2.0"><channel><title>${title}</title><link>${link}/</link><description>x</description><generator>PeerTube</generator>${items}</channel></rss>`;
 }
 /** Each address has posts of its own, so two feeds on one site are never taken for one. */
-/** Each address has posts of its own, so two feeds on one site are never taken for one. */
 const page_ = (url: string, html: string) => fakeResponse(url, html, "text/html; charset=utf-8");
 /** A page that loads one script. */
 const scriptsPage = (url: string, src: string) => page_(url, `<html><head><title>News</title><script src="${src}"></script></head><body><div id="root"></div></body></html>`);
@@ -141,6 +140,16 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
   },
   bluesky: () => discover("@bsky.app", { fetch: stub({ "https://bsky.app/profile/bsky.app/rss": fakeResponse("https://bsky.app/profile/bsky.app/rss", fixture("social/bluesky.rss"), "application/xml") }).fetch, now: NOW }),
   ...(Object.fromEntries(BRIDGE_SERVICES.map((s) => [`bridge:${s.id}`, bridged(s.id)])) as Record<Extract<Produced, `bridge:${string}`>, () => Promise<DiscoveryDraft>>),
+  "script-feed": () => {
+    const page = "https://www.rotterdam.nl/nieuws";
+    return discover(page, { fetch: stub({ [page]: scriptsPage(page, "/_next/a.js"), "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `"/feed/rss/nieuws/"`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
+  },
+  "script-page": () => {
+    const page = "https://www.rijksoverheid.nl/actueel/nieuws";
+    const sibling = "https://www.rijksoverheid.nl/actueel";
+    const listed = fixture("page-lists/anthropic-news.html");
+    return discover(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<head>", `<head><script>window.__routes = { news: "/actueel/nieuws", overview: "/actueel", search: "/zoeken-nope" };</script>`)), [sibling]: page_(sibling, listed) }).fetch, now: NOW, bridge: router });
+  },
   "page-list": () => {
     const url = "https://www.anthropic.com/news";
     const html = fixture("page-lists/anthropic-news.html");

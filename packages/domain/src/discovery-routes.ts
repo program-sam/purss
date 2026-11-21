@@ -82,9 +82,13 @@ export const DISCOVERY_ROUTES = [
   "bridge:vkvideo",
   "bridge:crossref",
   "bridge:page",
-  // Reading what the page shows when it has no feed.
+  // Reading what the page shows or loads when it has no feed.
   /** A list of posts the page itself shows, read from its layout (page-lists.ts). */
   "page-list",
+  /** A feed address the page's own scripts name (script-scan.ts); the scripts are read as text, never run. */
+  "script-feed",
+  /** A list of posts on a page of the same site that the page's scripts name (script-scan.ts). */
+  "script-page",
   // This installation.
   /** This installation's own news (its address or its feed). */
   "installation-news",
