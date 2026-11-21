@@ -357,7 +357,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
             <div className="field"><div className="lbl" id="fnd">{offer ? (candidates.length ? t.keepOrFollow : t.singleVideoLink) : candidates.length === 1 ? t.oneSourceFound : t.sourcesFound(candidates.length)}</div>
               <div className="cands" role="radiogroup" aria-labelledby="fnd">
                 {offer ? <KeepOfferCard offer={offer} checked={mode === "keep"} onPick={() => setMode("keep")} /> : null}
-                {candidates.map((c, i) => <CandidateCard key={c.token} c={c} checked={mode === "follow" && pick === i} own={candidates.length > 1 && c.matchesPage === true} onPick={() => { setMode("follow"); setPick(i); setFullTextChoice(null); setMarkPrivate(null); }} />)}
+                {candidates.map((c, i) => <CandidateCard key={c.token} c={c} checked={mode === "follow" && pick === i} own={candidates.length > 1 && c.matchesPage === true && !c.pageList} onPick={() => { setMode("follow"); setPick(i); setFullTextChoice(null); setMarkPrivate(null); }} />)}
               </div>
               {pick < 0 && mode === "follow" && candidates.length ? <p className="fine">{t.noneMatches}</p> : null}
             </div>

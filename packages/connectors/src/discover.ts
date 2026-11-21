@@ -15,6 +15,9 @@ import { journalNameFromDoi, planKnownFeeds, resolveKnown } from "./known-feeds.
 import type { KnownDeps, KnownFeed, KnownPlan } from "./known-feeds.ts";
 import { bridgeDescriptor, bridgeService, bridgeTargetForPage, parseBridgeDescriptor } from "./bridges.ts";
 import type { BridgeService, BridgeTarget } from "./bridges.ts";
+import { encodePageKey, needsCharsetRepair } from "./page-feeds.ts";
+import { detectPageLists, markupDeclaresCharset } from "./page-lists.ts";
+import type { PageListCandidate, PageListReason } from "./page-lists.ts";
 import { crossrefJournalSearchUrl, crossrefJournalUrl, findCrossrefJournal, issnFromInput, issnPortalUrl, readCrossrefJournal } from "./crossref.ts";
 import type { CrossrefJournalRecord } from "./crossref.ts";
 import { noFeedPlatform } from "./platforms.ts";
@@ -108,6 +111,8 @@ type Ctx = {
   get: (url: string, opts?: { maxBytes?: number; accept?: string; timeoutMs?: number; phaseTimeoutsMs?: PhaseTimeouts; maxRedirects?: number }) => Promise<SafeFetchResult>;
   /** What was learned on the way about the journal the address belongs to, for its Crossref choice. */
   journal: JournalClue;
+  /** The web page the lookup read (where it ended up, and what it said), for the lists of posts that may be found on it. Null when no page was read. */
+  page: { url: string; html: string; body: Uint8Array } | null;
 };
 
 function makeCtx(opts: DiscoverOptions): Ctx {
@@ -120,6 +125,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
   let requests = 0;
   return {
     journal: { issns: [], names: [] },
+    page: null,
     retryDelayMs: opts.retryDelayMs ?? 1500,
     signal,
     remainingMs: () => Math.max(0, budgetMs - (Date.now() - started)),
@@ -329,7 +335,8 @@ function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ct
     samples: feed.items.slice(0, 3).map((item, i) => ({ title: sampleTitle(feed, i), publishedAt: item.publishedAt })),
     summariesOnly: feed.summariesOnly,
     alreadyFollowingSourceId: null,
-    privateWarning: privateUrlReason(feedUrl) ? PRIVATE_URL_WARNING : null,
+    // A bridged source's address is a descriptor (its key can be long and random-looking), not a link anyone holds.
+    privateWarning: !feedUrl.startsWith("bridge:") && privateUrlReason(feedUrl) ? PRIVATE_URL_WARNING : null,
     ...(overrides.note ? { note: overrides.note } : {}),
     // The gateway trims RSS, Atom and RDF; a JSON Feed is read by the engine as it is.
     ...(feed.large && feed.format !== "jsonfeed" ? { large: true } : {}),
@@ -910,7 +917,9 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
     return { ok: true, url: inputUrl, candidates: [candidate] };
   }
   if (kind === "html") {
-    return await discoverFromPage(ctx, response.url, decodeBody(response.body, response.contentType), max, inputUrl, prior);
+    const html = decodeBody(response.body, response.contentType);
+    ctx.page = { url: response.url, html, body: response.body };
+    return await discoverFromPage(ctx, response.url, html, max, inputUrl, prior);
   }
   if (kind === "xml") {
     const text = decodeBody(response.body.subarray(0, 4096), response.contentType);
@@ -1324,6 +1333,101 @@ async function discoverSocial(t: SocialTarget, ctx: Ctx, max: number, opts: Disc
   return discoverBluesky(t, ctx);
 }
 
+// ---------- lists of posts on a page that has no feed ----------
+
+const pageLists = server.sources.connectors.pageLists;
+const PAGE_SERVICE = "page";
+/**
+ * The most lists offered for one page, and so the most previews: each has the bridge fetch the page once more. They are the lookup's own
+ * allowance, apart from the cap of requests discovery makes itself, which a site whose usual addresses all redirect has used up by then.
+ */
+const MAX_PAGE_LISTS = 3;
+/** A list is previewed only with this much of the lookup's time left: the bridge fetches the page and reads it, which takes seconds. */
+const PAGE_PREVIEW_MIN_MS = 8000;
+/** One list's preview waits this long at most. */
+const PAGE_PREVIEW_MAX_MS = 25_000;
+/** The words for what made a list likely or doubtful, by the detector's reason codes (a code without words does not compile). */
+const REASON_WORDS: Record<PageListReason, string> = pageLists.reasons;
+/** What counts for a list, and what counts against it: the first are said as "why", the second as "doubts"; `undated` is said by the note. */
+const DOUBTS = new Set<PageListReason>(["inNav", "inFooter", "inSidebar", "inChrome", "brittle", "approximate", "incomplete", "facetTitles", "metaTitles", "queryOnlyLinks"]);
+
+/** A list's preview: what the bridge makes of it now, or nothing when it could not read it. */
+async function previewPageList(ctx: Ctx, bridge: BridgeClient, target: BridgeTarget): Promise<ParsedFeed | null> {
+  const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(Math.max(1, Math.min(PAGE_PREVIEW_MAX_MS, ctx.remainingMs())))]);
+  const answer = await bridge(target, signal).catch(() => ({ failed: true }) as const);
+  if ("failed" in answer || answer.status !== 200) return null;
+  try {
+    const parsed = parseFeed(answer.body, "application/rss+xml");
+    return parsed.items.length ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What PURSS says about a list it offers: how it reads it and what that costs, how sure it is, and why it chose it. */
+function pageListNote(c: PageListCandidate): string {
+  const reasons = c.reasons.filter((r) => r !== "dataOnly");
+  const why = reasons.filter((r) => !DOUBTS.has(r));
+  const doubts = reasons.filter((r) => DOUBTS.has(r));
+  return [
+    pageLists.note,
+    c.confidence === "high" ? "" : pageLists.unsure,
+    why.length ? pageLists.because(why.map((r) => REASON_WORDS[r])) : "",
+    doubts.length ? pageLists.doubts(doubts.map((r) => REASON_WORDS[r])) : "",
+  ].filter(Boolean).join(" ");
+}
+
+/**
+ * Discovery's last step, for a page that has no feed: the lists of posts the page itself shows (page-lists.ts), each previewed through the
+ * bridge as the source it would be. It runs only when the bridge serves page lists, a web page was read, and nothing else (the page's own
+ * feeds, its usual addresses, Wikidata, Crossref) found a feed, so a real feed always wins. A list is offered only when the bridge read posts
+ * from it just now; one that is likely (`high`) is the page's own and starts out chosen, one that is merely possible (`medium`) is offered
+ * and left to the person; a guess (`low`) is no list at all. No script of the page runs, and nothing is fetched here: the page is the one
+ * the lookup already read.
+ */
+async function withPageLists(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDraft, max: number): Promise<DiscoveryDraft> {
+  const service = bridgeService(PAGE_SERVICE);
+  const page = ctx.page;
+  if (!service || !page || !opts.bridge || !(opts.bridgeServes?.(service) ?? true)) return draft;
+  // Nothing was found: no feed, or the cap ended the search for one. A page that turned readers away, was slow or busy is not "no list" either.
+  if (draft.ok || draft.reason !== "nofeed" || (draft.message !== NO_FEED_MESSAGE && draft.message !== CAP_MESSAGE)) return draft;
+  // A page whose address looks to carry a key stays out of a descriptor that is kept, exported and logged.
+  if (ctx.signal.aborted || ctx.remainingMs() < PAGE_PREVIEW_MIN_MS || privateUrlReason(page.url)) return draft;
+  const found = detectPageLists(page.html, page.url, ctx.now());
+  const best = found.candidates[0];
+  if (!best || best.confidence === "low") {
+    return found.diagnosis === "appShell" || found.diagnosis === "emptyMain" ? fail(draft.url, "nofeed", pageLists.scriptPage) : draft;
+  }
+  const fixEncoding = !markupDeclaresCharset(page.html) && needsCharsetRepair(page.body);
+  const keyed = found.candidates.flatMap((c) => {
+    const key = c.confidence !== "low" && c.portable && c.recipe ? encodePageKey({ url: page.url, recipe: c.recipe, fixEncoding }) : null;
+    return key ? [{ c, key }] : [];
+  }).slice(0, Math.min(MAX_PAGE_LISTS, max));
+  const bridge = opts.bridge;
+  const read = await Promise.all(keyed.map(async ({ c, key }) => ({ c, key, parsed: await previewPageList(ctx, bridge, { service, key }) })));
+  if (ctx.signal.aborted) return fail(draft.url, "timeout", TIMEOUT_MESSAGE);
+  const offered = read.flatMap((r) => (r.parsed ? [{ ...r, parsed: r.parsed }] : []));
+  if (!offered.length) return draft;
+  const facts = extractPageFacts(page.html, page.url);
+  const host = new URL(page.url).hostname.replace(/^www\./, "");
+  const siteName = siteNameFor(facts, page.url);
+  return {
+    ok: true,
+    url: draft.url,
+    candidates: offered.map(({ c, key, parsed }, i) => {
+      const confidence = c.confidence === "high" ? "high" : "medium";
+      const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: page.url, title: facts.title, siteName }, ctx, {
+        origin: service.origin,
+        via: offered.length > 1 ? pageLists.viaNumbered(i + 1) : pageLists.via,
+        note: pageListNote(c),
+        title: nameFeed({ feedTitle: parsed.title, linkTitle: cleanLine(facts.title, 200), siteName, host }),
+      });
+      // Only the first list, and only when PURSS is sure of it, is the page's own; the others are for the person to choose.
+      return { ...candidate, siteUrl: page.url, matchesPage: c.rank === 1 && confidence === "high", pageList: { confidence } };
+    }),
+  };
+}
+
 // ---------- bridged services ----------
 
 export const BRIDGE_NOTE = server.sources.connectors.discover.bridgeNote;
@@ -1334,17 +1438,23 @@ async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: 
   if (ctx.signal.aborted) return fail(label, "timeout", TIMEOUT_MESSAGE);
   const answer = await bridge(target, ctx.signal).catch(() => ({ failed: true }) as const);
   if (ctx.signal.aborted) return fail(label, "timeout", TIMEOUT_MESSAGE);
+  const shown = service.label?.(key) ?? key;
   if ("failed" in answer || answer.status !== 200) {
-    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPostsCheck(service.name, key));
+    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPostsCheck(service.name, shown));
   }
   let parsed: ParsedFeed;
   try {
     parsed = parseFeed(answer.body, "application/rss+xml");
   } catch {
-    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPosts(service.name, key));
+    return fail(label, "unreachable", server.sources.connectors.discover.bridgeNoPosts(service.name, shown));
   }
   const crossref = service.backend.kind === "crossref";
-  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, { origin: service.origin, via: crossref ? CROSSREF_VIA : feedLabels.postsFeed, note: crossref ? CROSSREF_NOTE : BRIDGE_NOTE });
+  const pageList = service.id === PAGE_SERVICE;
+  const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, {
+    origin: service.origin,
+    via: crossref ? CROSSREF_VIA : pageList ? pageLists.via : feedLabels.postsFeed,
+    note: crossref ? CROSSREF_NOTE : pageList ? pageLists.note : BRIDGE_NOTE,
+  });
   return { ok: true, url: service.pageUrl(key), candidates: [{ ...candidate, siteUrl: service.pageUrl(key) }] };
 }
 
@@ -1396,7 +1506,7 @@ export async function discover(input: string, opts: DiscoverOptions = {}): Promi
   const ctx = makeCtx(opts);
   const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
   try {
-    return await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max);
+    return await withPageLists(ctx, opts, await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max), max);
   } catch (error) {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", server.sources.connectors.discover.checkFailed(redactUrl(norm.url)));

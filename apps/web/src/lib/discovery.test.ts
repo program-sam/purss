@@ -29,3 +29,14 @@ test("an alternative (a journal through Crossref) is never chosen over the other
   assert.equal(preselect([{ ...alt, matchesPage: true }, { matchesPage: false }]), 1, "an alternative claiming the page doesn't win");
   assert.equal(preselect([alt]), 0);
 });
+
+test("a page list is chosen only when PURSS is confident of it: a medium one is offered and left to the person, even alone", () => {
+  const high = { matchesPage: true, pageList: { confidence: "high" as const } };
+  const medium = { matchesPage: false, pageList: { confidence: "medium" as const } };
+  assert.equal(preselect([high, medium, medium]), 0, "the confident list, the others offered");
+  assert.equal(preselect([medium]), -1, "a lone medium list is not chosen");
+  assert.equal(preselect([medium, medium, medium]), -1, "several medium lists: none");
+  assert.equal(preselect([{ matchesPage: undefined, pageList: { confidence: "medium" as const } }]), -1, "whatever the page's flag says");
+  assert.equal(preselect([medium, { matchesPage: false, alternative: true }]), 1, "an alternative that isn't a page list is still chosen when it is all there is");
+  assert.equal(preselect([medium, { matchesPage: true }]), 1, "an ordinary feed beside a medium list");
+});

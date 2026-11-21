@@ -429,6 +429,11 @@ export type DiscoveryCandidate = {
   sameNameSource?: { id: string; title: string } | null;
   /** another way to follow the same source (a journal through Crossref next to its own feed): offered, never chosen first. */
   alternative?: boolean;
+  /**
+   * a list of posts read from the page's layout (the page has no feed). Only a `high` one is chosen for the person; a `medium` one is
+   * offered and left for them to choose.
+   */
+  pageList?: { confidence: "high" | "medium" };
 };
 /** A page worth keeping as it is rather than following (a single video), with what could be learned about it. */
 export type KeepOffer = { url: string; kind: "video" | "link"; title: string; siteName: string | null; author: string | null; imageUrl: string | null };
@@ -618,7 +623,7 @@ export type BridgeServiceHealth = {
 export type BridgeFailingSource = {
   service: string;
   serviceName: string;
-  /** The service's handle for it ("durov"). */
+  /** The service's handle for it ("durov"), or a page list's page address. */
   key: string;
   /** Its public page on the service; null when the service or key isn't one this server knows. */
   pageUrl: string | null;
