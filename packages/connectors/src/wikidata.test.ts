@@ -89,6 +89,19 @@ test("a site that points to no feed: the feeds Wikidata lists for it are offered
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.note, c.matchesPage]), [["https://www.deutschlandfunk.de/nachrichten-100.rss", WIKIDATA_NOTE, true]]);
 });
 
+test("a site whose own addresses used up the lookup's requests still gets Wikidata asked, within a small allowance of its own", async () => {
+  const site = "https://essays.example/";
+  const { fetch, calls } = stub({
+    [site]: page(site),
+    ...wikidata(site, { Q1: { websites: [site], feeds: ["https://mirror.example/essays.rss"] } }),
+    "https://mirror.example/essays.rss": feed("https://mirror.example/essays.rss", "Essays"),
+  });
+  // A cap the page and its usual addresses use up before the registry's turn.
+  const d = ok(await discover(site, { fetch, now: NOW, maxRequests: 3 }));
+  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.note]), [["https://mirror.example/essays.rss", WIKIDATA_NOTE]]);
+  assert.ok(calls.filter((u) => !u.startsWith(site)).length <= 4, "the registry's allowance: its search, its items and the feeds it names");
+});
+
 test("a section page: the front page's item gives the whole site's feed, labelled so; its ISSNs are not taken for the section", async () => {
   const section = "https://news.example.org/politics";
   const { fetch } = stub({

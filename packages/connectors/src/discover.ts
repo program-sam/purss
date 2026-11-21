@@ -107,6 +107,8 @@ type Ctx = {
   remainingMs: () => number;
   /** True once this discovery has made all the requests it may. */
   spent: () => boolean;
+  /** Raise the cap by `n` requests, for a step that asks someone other than the site (the registry) after the site used the cap up. */
+  allow: (n: number) => void;
   now: () => Date;
   get: (url: string, opts?: { maxBytes?: number; accept?: string; timeoutMs?: number; phaseTimeoutsMs?: PhaseTimeouts; maxRedirects?: number }) => Promise<SafeFetchResult>;
   /** What was learned on the way about the journal the address belongs to, for its Crossref choice. */
@@ -121,7 +123,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
   const started = Date.now();
   const budget = AbortSignal.timeout(budgetMs);
   const signal = opts.signal ? AbortSignal.any([opts.signal, budget]) : budget;
-  const maxRequests = opts.maxRequests ?? MAX_REQUESTS;
+  let maxRequests = opts.maxRequests ?? MAX_REQUESTS;
   let requests = 0;
   return {
     journal: { issns: [], names: [] },
@@ -130,6 +132,7 @@ function makeCtx(opts: DiscoverOptions): Ctx {
     signal,
     remainingMs: () => Math.max(0, budgetMs - (Date.now() - started)),
     spent: () => requests >= maxRequests,
+    allow: (n) => { maxRequests = Math.max(maxRequests, requests) + n; },
     now: opts.now ?? (() => new Date()),
     get: async (url, o) => {
       // One lookup is never allowed to turn into an unbounded number of requests to someone else's site.
@@ -941,12 +944,14 @@ export const WIKIDATA_NOTE = server.sources.connectors.discover.wikidataNote;
  * which says something the registries can't improve on.
  */
 function registryMayHelp(draft: Failure): boolean {
-  if (draft.reason === "nofeed") return draft.message === NO_FEED_MESSAGE;
+  if (draft.reason === "nofeed") return draft.message === NO_FEED_MESSAGE || draft.message === CAP_MESSAGE;
   if (draft.reason !== "unreachable") return false;
   return [403, 429].some((status) => draft.message === failFromStatus(draft.url, status)!.message) || draft.message === BUSY_MESSAGE || Array.from({ length: 100 }, (_, i) => 500 + i).some((status) => draft.message === failFromStatus(draft.url, status)!.message);
 }
 /** Feeds Wikidata lists that are tried. */
 const MAX_REGISTRY_FEEDS = 4;
+/** Requests the registry step may make after the site used up the cap: Wikidata's search and items, and two feeds. */
+const REGISTRY_ALLOWANCE = 4;
 /** Each registry request gets this long, so a slow registry can't use up the lookup's budget. */
 const REGISTRY_TIMEOUT_MS = 8000;
 
@@ -968,6 +973,9 @@ async function withRegistry(ctx: Ctx, draft: DiscoveryDraft, pageUrl: string, ma
   if (/^[\d.]+$|^\[/.test(url.hostname)) return draft;
   const page = addressVariants(url);
   const front = url.pathname.replace(/\/+$/, "") ? addressVariants(new URL("/", url)) : [];
+  // A site whose own addresses used up the lookup's requests (a 404 that redirects, say) still gets the registry asked: its search and
+  // items, and two of the feeds it names. That is someone else being asked, not more load on the site.
+  if (ctx.spent()) ctx.allow(REGISTRY_ALLOWANCE);
   // A search over a very long page address's spellings would be too long an address to send: the front page alone then.
   const items = await wikidataItems(ctx, wikidataSearchUrl([...page, ...front]) ? [...page, ...front] : front);
   const pageSet = new Set(page);

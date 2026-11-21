@@ -298,7 +298,7 @@ export const sources = {
         unsure: "PURSS isn't sure this is the list you mean, so it isn't chosen for you.",
         because: (reasons: string[]) => `Why this list: ${reasons.join(", ")}.`,
         doubts: (reasons: string[]) => `Doubts: ${reasons.join(", ")}.`,
-        scriptPage: "This page builds its list with JavaScript, so PURSS can't read its posts. Paste the site's feed address if it has one, or keep this link.",
+        scriptPage: "PURSS couldn't find a list of posts on this page. It may build its list with JavaScript, which PURSS doesn't run. Paste the site's feed address if it has one, or keep this link.",
         reasons: {
           dated: "its posts show dates",
           undated: "its posts show no dates",

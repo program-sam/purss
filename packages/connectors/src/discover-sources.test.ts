@@ -701,7 +701,8 @@ test("the usual addresses are asked for with at most two redirects each, and one
   const nothing: FetchFn = async (url) => { calls.push(url); return answer(url); };
   const d = await discover("https://plain.example/", { fetch: nothing, now: NOW, maxRequests: 7 });
   assert.ok(!d.ok && d.reason === "nofeed");
-  assert.ok(calls.length <= 7, `${calls.length} requests`);
+  // The cap is on what the site is asked; Wikidata gets its own small allowance after it (wikidata.test.ts).
+  assert.ok(calls.filter((u) => !u.startsWith("https://www.wikidata.org/")).length <= 7, `${calls.length} requests`);
   const unlimited: string[] = [];
   await discover("https://plain.example/", { fetch: async (url) => { unlimited.push(url); return answer(url); }, now: NOW });
   assert.ok(unlimited.length > 7 && unlimited.length <= 40, `${unlimited.length} requests without the small cap, still bounded`);
@@ -736,7 +737,7 @@ test("redirects count toward the cap, and a lookup that hit the cap says so inst
   };
   const d = await discover(home, { fetch, now: NOW, maxRequests: 10 });
   assert.ok(!d.ok);
-  assert.ok(calls.length <= 4, `${calls.length} fetches: the redirects used the cap up`);
+  assert.ok(calls.filter((u) => !u.startsWith("https://www.wikidata.org/")).length <= 4, `${calls.length} fetches: the redirects used the cap up`);
   assert.equal(d.reason, "nofeed");
   assert.equal(d.message, copy.discover.cap);
   assert.notEqual(d.message, copy.discover.timeout);

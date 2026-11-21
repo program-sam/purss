@@ -387,8 +387,9 @@ RSS-Bridge's XPathBridge reads the page. No script of the page ever runs.
 - **Confidence and choice.** `high` (only a clearly best first list): the page's own list, chosen for the person.
   `medium`: offered, and none is chosen, even when it is the only list found. `low`: no list was found, and
   the usual "no feed" answer stands. A page that draws its list with script (an application shell, an empty `<main>`) is told
-  so: *This page builds its list with JavaScript, so PURSS can't read its posts. Paste the site's feed
-  address if it has one, or keep this link.*
+  so: *PURSS couldn't find a list of posts on this page. It may build its list with JavaScript, which PURSS
+  doesn't run. Paste the site's feed address if it has one, or keep this link.* (A nearly empty static page
+  gets the same answer: the detector can't tell the two apart.)
 - **Preview.** Each list is asked of the router as the source it would be, in parallel, and is offered
   only if the router read posts from it just now. The previews are the lookup's own allowance of three, apart
   from the request cap (a site whose usual addresses all redirect has used that up by then); each waits at most 25 s,
@@ -528,7 +529,8 @@ some publishers send no abstracts.
 When a web address found nothing, discovery asks Wikidata, the open knowledge base, what the page is.
 
 **When it runs.** Only when discovery would otherwise fail, and only after its own answers: no feed
-on the page, a page that turns automated readers away (403, 429, "busy or limiting") or is broken
+on the page, the lookup's cap on requests used up by the site's own addresses (the registry then gets four
+requests of its own: its search, its items and two of the feeds it names), a page that turns automated readers away (403, 429, "busy or limiting") or is broken
 (5xx). Not after a more particular answer (a fediverse post, a page that is not there, one that wants
 a password, Duke's message), not for an address made of numbers, not for an address that looks
 private, and not when the journal's ISSN is already known, which the Crossref step handles. Asking a

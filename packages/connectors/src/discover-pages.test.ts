@@ -123,7 +123,7 @@ test("a page that draws its list with script says so, instead of the usual no-fe
     assert.equal(d.message, words.scriptPage, file);
     assert.deepEqual(asked, [], file);
   }
-  assert.match(words.scriptPage, /builds its list with JavaScript, so PURSS can't read its posts/);
+  assert.match(words.scriptPage, /may build its list with JavaScript, which PURSS doesn't run/);
   assert.match(words.scriptPage, /Paste the site's feed address if it has one, or keep this link/);
 });
 
