@@ -272,7 +272,8 @@ The Administration area has fixed, audited operations: health, jobs (retry or ca
 Smart filter and assistant switches, the installation's news and the audit log. It shows no item
 titles, reading history, notes, tokens or sign-in details; the one trace of what accounts follow is
 the bridge log's list of failing public sources (a Telegram channel name, for instance), kept with no
-account. It has no impersonation, content browser, database console, shell, generic fetch proxy or
+account, and the counts of which discovery routes were used (the way a source was found and the way the person got to the
+lookup, as two ids from fixed lists, with how many were offered and followed; no account, address or title). It has no impersonation, content browser, database console, shell, generic fetch proxy or
 token viewer. The one piece of content an administrator sees is a reported public page, shown as
 visitors saw it in a sandboxed frame with its links disabled.
 

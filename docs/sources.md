@@ -190,12 +190,16 @@ Along the way:
 
 ### Where discovery ends
 
-After the web address's own search, three lookups can add a candidate: Wikidata when nothing was
+After the web address's own search, these can add a candidate, in this order: Wikidata when nothing was
 found ([Registry fallbacks](#registry-fallbacks)), Crossref for a journal ([Journals and
-Crossref](#journals-and-crossref)), and, last of all and only when none of them found a feed, the
-lists of posts the page itself shows ([Page lists](#page-lists)). Failed lookups are counted per site and reason for the
-administrator, with the site's registrable domain only and kept 180 days
-(`discovery_misses`).
+Crossref](#journals-and-crossref)), and, last of all and only when none of them found a feed, what the page's own
+scripts name ([The page's scripts](#the-pages-scripts)) and the lists of posts the page itself shows
+([Page lists](#page-lists)). Within that last stage the first that finds something ends the search: a feed a script
+names beats any list, and the page's own list beats a list on another page the scripts name. When all of them
+find nothing, a page that is only a shell for its script says so, and any other page gets the usual "no feed" answer.
+Failed lookups are counted per site and reason for the administrator, with the site's registrable domain only and kept 180
+days (`discovery_misses`); which route found each source, and how the person got there, is counted too
+([Discovery routes](#discovery-routes)).
 
 ## Social accounts
 
@@ -360,6 +364,60 @@ success rate, and the keys currently failing and since when. FreshRSS's own per-
 read, so a source whose fetches fail inside the engine looks quiet after the usual quiet period; for a
 bridged source the administrator sees the failure at once in the log.
 
+### Discovery routes
+
+Every candidate discovery produces carries exactly one **route**: a short stable id for the way it was found. A lookup
+also has an **entry**: how the person got to it. Both are closed lists in `packages/domain/src/discovery-routes.ts`, and an
+id is never reused for something else. The administrator reads them on the Service health page to see which routes are used and
+which could go; they are never shown to anyone else.
+
+| Route | The candidate is… |
+| --- | --- |
+| `feed-address` | the pasted address, which is a feed |
+| `alternate-link` | a feed the page advertises (`<link rel="alternate">`) |
+| `page-anchor` | a link on the page that looks like a feed |
+| `copy-address` | an address the page shows for copying |
+| `listed-feed` | a feed on a page of the site's feeds |
+| `section-path` · `conventional-path` · `more-paths` | a conventional feed address of a section, of the site, and the longer list |
+| `discourse-latest` | a Discourse forum's latest topics |
+| `known:github`, `known:apple-podcasts`, `known:guardian`, `known:substack`, `known:medium`, `known:tumblr`, `known:blogger`, `known:wordpress`, `known:vimeo`, `known:pinterest`, `known:steam`, `known:arxiv`, `known:dailymotion`, `known:odysee`, `known:deviantart`, `known:peertube`, `known:behance`, `known:nos`, `known:bbc`, `known:presscorner`, `known:rijksoverheid` | a feed made from the address of that service (one id per service) |
+| `journal-platform` · `journal-issn` · `journal-ojs` | a journal's feed on its publisher's platform, one a publisher makes from an ISSN, an Open Journal Systems journal's announcements |
+| `wikidata` · `crossref` | what the registry fallback or Crossref added |
+| `youtube` · `fediverse` · `bluesky` | a YouTube channel or playlist, a fediverse account, a Bluesky account |
+| `bridge:<service>` | a bridged source, one id per service of the catalogue (`telegram`, `bandcamp`, `soundcloud`, `twitch`, `mixcloud`, `rutube`, `applemusic`, `instagram`, `mangadex`, `vkvideo`, `crossref`, `page`) |
+| `page-list` | a list of posts the page itself shows |
+| `script-feed` · `script-page` | a feed a script names, a list on a page a script names |
+| `installation-news` | this installation's own news |
+
+| Entry | The person got to the lookup by… |
+| --- | --- |
+| `paste` | Add source with a link (the default) |
+| `site-search` · `podcast-search` | choosing a website or a show from the name search |
+| `suggestion` | following a source suggested on the Discovery page |
+| `shared-link` | a link shared to the app, or opened as a link to it (`?dialog=add&url=…`) |
+| `opml-import` | a list of feeds imported (OPML) |
+| `extension` | the browser extension's token (the server decides this) |
+| `assistant` | an assistant connected over MCP |
+
+The browser says only `paste`, `site-search`, `podcast-search`, `suggestion` or `shared-link` (the `entry` of `POST
+/api/discover`); a lookup that is only to reconnect a private source's link (`reconnect`) follows nothing and is not counted.
+
+The route and the entry are kept with the preview on the server, like a feed's `large` mark and its newest posts' addresses, and are
+never sent to the browser or an assistant. Two records keep them:
+
+- **On the source.** Following a source stores its route and entry (`sources.discovery_route`, `discovery_entry`) and, when it is
+  unfollowed, when (`unfollowed_at`). Sources followed before this, and ones an archive brought in, have none. They are the account's
+  own data, but not user content: they are in no export, archive or OPML file.
+- **Daily counters.** `discovery_routes` holds, per UTC day, entry and route, how many candidates were shown ("offered", counted when the
+  candidates are held for the person: a lookup, an import's chosen feed) and how many were followed. No account, workspace, source, address or
+  title is in it. Rows older than 180 days are deleted when a new one is written.
+
+The Service health page's **Discovery routes** table (`GET /api/admin/health`, `discoveryRoutes`) shows, for each route and then for each
+entry over the last 90 days and across every account: offered, followed, the follow rate, the sources followed in those days that are still followed,
+and, of those followed at least 30 days ago, how many were followed for at least 30 days. The routes with nothing at all in those days are listed
+under the table, with the day counting began, so a route can be judged unused only once the counting has run long enough. Hosted and
+self-hosted installations alike show it: it is the operator's own installation's data.
+
 ### Adding a service
 
 A service is a `BridgeService` in `packages/connectors/src/bridges.ts`: id, name, origin, key
@@ -371,6 +429,57 @@ can't make, a name for a source that has none of its own). It needs recorded
 fixtures for the key and page rules, the post ids and the router's handling. An RSS-Bridge service
 also needs its bridge added to the enabled list in `infra/compose.yaml` (a test checks that the list and the catalogue agree).
 
+## The page's scripts
+
+Some pages build their list of posts with script, and name where the posts are in that script: a feed address the page
+doesn't link, or a page of the same site that shows the list as ordinary markup. When a pasted web page has no feed and nothing
+else found one, PURSS reads the page's own scripts **as text**. It never runs one, and everything it asks for is an ordinary `GET`
+through `safeFetch`. Two kinds of finding come of it, and nothing else (`script-scan.ts`, `discover.ts`):
+
+- **A feed named in a script** (route `script-feed`). An address a script writes out that looks like a feed's (`/feed/rss/nieuws/`,
+  `/api/rss`, `feed.json`, `https:\/\/…` as JSON writes it), or a feed route a script builds on a base it doesn't write out
+  (`` `${this.apiUrl}rss` ``) tried on the API roots the scripts do write out (an address ending in `/api`, `/rest`, `/wp-json`, a
+  configured `apiUrl`): at most three roots and three routes. The usual conventional feed addresses are not asked for again. Every
+  such address is **verified like any feed**: it counts only when it answers as a feed with entries (the same probe, sniff and parse as any
+  other), and is then offered as an ordinary feed candidate (a feed of comments is left out, one feed under two addresses once).
+- **A list on a page the scripts name** (route `script-page`). Any other address of the page's own site that a script writes out and is
+  not an interface or a file, not the page itself, its language version or the site's front page, and whose address shares a word of
+  four letters or more with the page's (`/latest` for `/latest/news`, `/en/search-publications` for `/en/publications`; the same word, or
+  a longer one that starts with it, never one that merely contains it, and not `index`, `html` or `home`). The pages that rank best (the
+  page's own words, a list's words such as news or releases) are fetched, at most two, with a `GET`, and the same detector as for the
+  page itself ([Page lists](#page-lists)) reads each; its lists go through the router and are offered exactly like the page's own, as
+  `bridge:page/<key>` of the sibling page.
+
+**What is read.** Only scripts of the page's own site, by registrable domain, so a CDN subdomain of the site counts and another company's
+host does not (`<script src>`, and module and script preloads); the likeliest first (a word of the page's address in the file's name, a
+page's own code before a library); at most 10 files, 2 MiB of one and 3 MiB of all of them, three at a time; and the page's inline scripts
+(JSON-LD and application data included, which often name the parent pages), from the page already in hand. The page's own links and attributes
+are not read as a source of sibling pages. An address that carries a key
+(a parameter called `key`, `token`, `hash`, `sha256`, `client_id`, `signature` or the like, whatever its value, a credential by
+the privacy rules, a secret in the path) is never asked for and never offered, and neither is one outside what the rules above allow. At most six feed
+addresses and two pages are asked for in all (eight addresses).
+
+**Order and choice.** Last of all ([Where discovery ends](#where-discovery-ends)), after Wikidata and Crossref, and only when they found
+nothing, the page opened as a web page and its address doesn't look to carry a key. The scripts are read first and a feed they name ends the
+search; then the page's own lists; then the lists on the pages the scripts name, which are asked for only when the page showed none. PURSS can't
+tell from the page that something found this way is the pasted page's own, so **none of it is ever chosen for the person**, even when it is the only
+candidate: the candidate carries `fromScripts`, and the dialog's `preselect` leaves it unchosen. A list keeps the confidence the detector gave it
+(`high` or `medium`). At most three are offered. The notes say it in plain words: *The page doesn't link to this feed; PURSS found its address
+in the page's own scripts.* and *PURSS found this list on <page>, which the page's scripts point to.* (and, for a list, what every list read from a
+layout says). A page that builds its list with JavaScript and has nothing found in its scripts still gets the message *PURSS couldn't find a list of
+posts on this page. It may build its list with JavaScript, which PURSS doesn't run…*.
+
+**Cost.** The step has an allowance of requests of its own (24: ten scripts, six feeds and two pages are 18 at most, and the rest is for
+the redirects they follow), so a site whose usual addresses used up the lookup's 40 doesn't stop it. It has a time of its own too: at most 9 s, and only
+when the lookup has more than 11.5 s left, so the lists that come after it still have the 8 s their previews need and the whole lookup still ends within
+its 30 s. The step reads a site's scripts once per lookup, and only for a page nothing else could follow.
+
+**What it leaves out, on purpose.** JSON interfaces the scripts call (they need a source type that reads a JSON list, which PURSS doesn't have), a list that is
+inside the page's own data, a content management system's interface, and the scripts a script loads later. A measurement over 56 script-built list pages that
+had none of PURSS's other ways found these to add nothing of what PURSS can follow, or to need that source type. It is a guess from text:
+a script can name an address it never uses, and a page it names can show a list of something else; that is what "never chosen" and the plain notes
+are for.
+
 ## Page lists
 
 Many pages have no feed but show a list of posts: a news index, a blog's archive, a changelog, a
@@ -381,7 +490,9 @@ RSS-Bridge's XPathBridge reads the page. No script of the page ever runs.
 - **When it runs.** Last of all ([Where discovery ends](#where-discovery-ends)), and only when
   the installation's router serves page lists (the router and RSS-Bridge both run), the address
   opened as a web page, and nothing found a feed: not the page's own feeds, not the usual addresses,
-  not Wikidata, not Crossref. It also runs when the cap on requests ended the search for a feed. A
+  not Wikidata, not Crossref, not a script ([The page's scripts](#the-pages-scripts)). It also runs when the cap on requests
+  ended the search for a feed. The page's own lists come before the lists on pages its scripts name, which are read by the same detector and offered the same
+  way, but never chosen. A
   page that turned readers away, was slow or busy is answered as before, and a page whose address looks
   to carry a key is left out (its descriptor would be kept, exported and logged). Discovery reads the page once;
   the detector works on those bytes and fetches nothing.

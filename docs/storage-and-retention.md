@@ -17,6 +17,12 @@ full. An item is removed only by one of these:
 | Deleting a **news post** (an administrator) | Its copies that nobody kept, shared or annotated | The rest |
 | **Deleting an account** | Everything, after a 7-day grace period (see [architecture](architecture.md)) | Nothing but the audit log's account id |
 
+Two records belong to the installation and to no account: `discovery_misses` (the site, by registrable domain, and why a lookup
+failed) and `discovery_routes` (which discovery route offered and which was followed, as two ids from fixed lists, with counts). Each is kept per
+UTC day for 180 days, holds no account, workspace, source, address or title, and is no part of anyone's export or of deleting an account.
+A followed source also keeps, on its own row, which route found it, how the person got to the lookup and when it was unfollowed; that is the account's
+own data and goes with the account, but it is not user content and no export, archive or OPML file carries it.
+
 Finishing, ignoring or leaving an item undecided deletes nothing. Taking an item out of a basket, or deleting a
 basket, removes the pins and leaves the items. Permanent delete asks for a preview first: it lists the kept items
 with their baskets, the items that carry the person's notes, and the bytes it releases, and its confirmation
@@ -191,7 +197,7 @@ words included), the log of workflow changes, the person's live highlights and n
 and sharing settings with public notes.
 
 **Never in the file:** passwords, passkeys, sessions and access tokens; service secrets, FreshRSS's data and
-identifiers; private source links and any link, picture or media address of an item from a private source;
+identifiers; how a source was found and when it was unfollowed; private source links and any link, picture or media address of an item from a private source;
 addresses that carry a password or access key; copies still in progress, undo history, pending confirmations,
 notifications, discovery previews and dismissals; Smart filters, playback positions and source icons; and anything never
 captured (pages, pictures, audio and video that stayed at the publisher).

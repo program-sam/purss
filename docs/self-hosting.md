@@ -335,7 +335,7 @@ copies nobody kept. Each post shows how many PURSSes it reached and how many ope
 ignored or deleted it, as counts only.
 
 **Administration → Health** shows the engine, jobs, disk, database, followed sources, egress and, when it is
-set up, outgoing email. Two more sections show how well following works:
+set up, outgoing email. Three more sections show how well following works:
 
 - **Bridged sources** appears when this server runs the bridge for services that publish no feed
   (see [Sources](sources.md)). For each service it shows the last 7 days: attempts, how
@@ -347,6 +347,12 @@ set up, outgoing email. Two more sections show how well following works:
 - **Sites people couldn't follow** lists the sites most often pasted without success over the last 30
   days, with the reason (no feed found, can't be followed, couldn't be reached, took too long). Only the
   site is counted (`bandcamp.com`, never the page, a creator's subdomain or who looked), kept 180 days.
+- **Discovery routes** shows which ways of finding a source are used, so that those nobody uses can go. Each route
+  (an advertised feed, a known service, a list read from a page, a feed found in a page's scripts…) and each way of getting
+  to the lookup (a pasted link, a name search, an import, the extension, an assistant) is listed with, over the last 90 days and across
+  every account: how many candidates it was offered for, how many were followed, the follow rate, how many of the sources followed in those days are still
+  followed, and how many of those followed at least 30 days ago were followed for 30 days. Routes with nothing at all are named under
+  the table. Only the two ids and counts are kept (per day, 180 days), never an account, an address or a title ([Sources](sources.md#discovery-routes)).
 
 An administrator creates invitations under **Administration → Invitations** (confirming with
 fingerprint, face or screen lock or a password) or with the CLI, and can list and
