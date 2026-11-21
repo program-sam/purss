@@ -201,7 +201,8 @@ test("a client that follows redirects on its own reaches the proxy once per hop,
         // An https hop is a CONNECT: the tunnel to a forbidden address is refused, so the client never gets to speak TLS.
         logs.length = 0;
         const tunnel = await curlFollowing(egress.ports.proxy, `http://feeds.test:${upstream.port}/to-metadata-tunnel`);
-        assert.equal(tunnel.exit, 56, "curl: CONNECT tunnel failed, response 403");
+        // curl says "CONNECT tunnel failed, response 403" with exit 56, or 7 in older versions; the proxy's refusal below is the proof.
+        assert.ok([7, 56].includes(tunnel.exit), `curl exit ${tunnel.exit}`);
         assert.deepEqual(denied(), ["CONNECT 169.254.169.254:443 address"]);
         assert.deepEqual(upstream.requests.map((r) => r.url), ["/to-private", "/to-rebind", "/after-one-public-hop", "/to-private", "/to-metadata-tunnel"], "only the redirecting pages were asked, never what they pointed at");
       },
