@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { encodePageKey } from "@purss/connectors";
 import { followSchema } from "@purss/domain";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { buildAggregates } from "./discover.ts";
@@ -90,4 +91,53 @@ test("co-follow suggestions keep a bridged source's descriptor", () => {
   const rows = ["a", "b", "c", "d", "e"].map((account) => ({ account_id: account, feed_url: "bridge:telegram/durov", title: "Durov", site_url: "https://t.me/durov", kind: "feed" as const }));
   const agg = buildAggregates(rows, 3);
   assert.deepEqual(agg.sources.map((s) => [s.key, s.feedUrl, s.host]), [["bridge:telegram/durov", "bridge:telegram/durov", "t.me"]]);
+});
+
+const PAGE_KEY = encodePageKey({ url: "https://www.anthropic.com/news", recipe: { item: "//li[contains(@class, '_row')]", title: ".//h3", link: ".//a/@href", date: ".//time" }, fixEncoding: false })!;
+
+test("a page list is followed as its descriptor, never as a private link, though its key looks random; its export is the page", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  holdCandidate("dsc_page", p.workspaceId, {
+    feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
+    cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+  });
+  const s = followSource(app, p, followSchema.parse({ token: "dsc_page", collectionId: null, newCollectionName: null, markPrivate: true }));
+  const row = app.db.get<{ feed_url: string; is_private: number }>("SELECT feed_url, is_private FROM sources WHERE id = ?", s.id)!;
+  assert.deepEqual({ ...row }, { feed_url: `bridge:page/${PAGE_KEY}`, is_private: 0 });
+  assert.equal(s.privacyChangeable, false);
+  const job = app.db.get<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'engine.subscribe'")!;
+  assert.equal(JSON.parse(job.payload).feedUrl, `bridge:page/${PAGE_KEY}`, "the worker signs it; the job carries no engine address");
+  // The export writes the page's address, which discovery reads again (and runs the detector on again); never the key.
+  const opml = generateOpml(app, p);
+  assert.equal(opml.included, 1);
+  assert.match(opml.xml, /xmlUrl="https:\/\/www\.anthropic\.com\/news"/);
+  assert.doesNotMatch(opml.xml, new RegExp(`bridge:|feed-bridge|${PAGE_KEY.slice(0, 30)}`));
+  const preview = previewOpml(app, p, opml.xml);
+  assert.equal(preview.feeds[0]!.alreadyFollowing, true, "the page's address is the followed page list again");
+  assert.equal(preview.feeds[0]!.looksPrivate, false);
+  // Icons are looked for at the page, not at the descriptor.
+  scheduleIconChecks(app);
+  const icon = app.db.all<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'source.icon'").map((j) => JSON.parse(j.payload))[0];
+  assert.deepEqual([icon.feedUrl, icon.siteUrl], [null, "https://www.anthropic.com/news"]);
+});
+
+test("an archive restores a page list as itself", async (t) => {
+  const from = makeTestApp();
+  t.after(from.cleanup);
+  const pa = makeOwner(from.app);
+  holdCandidate("dsc_page", pa.workspaceId, {
+    feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
+    cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+  });
+  followSource(from.app, pa, followSchema.parse({ token: "dsc_page", collectionId: null, newCollectionName: null }));
+  const parts: string[] = [];
+  await streamExport(from.app, pa, (c) => { parts.push(c); });
+  const into = makeTestApp();
+  t.after(into.cleanup);
+  const pi = makeOwner(into.app);
+  applyImport(into.app, pi, stageImport(into.app, pi, JSON.parse(parts.join(""))).token);
+  const row = into.app.db.get<{ feed_url: string; is_private: number }>("SELECT feed_url, is_private FROM sources WHERE workspace_id = ? AND kind <> 'manual'", pi.workspaceId)!;
+  assert.deepEqual({ ...row }, { feed_url: `bridge:page/${PAGE_KEY}`, is_private: 0 });
 });

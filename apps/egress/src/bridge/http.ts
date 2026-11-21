@@ -9,7 +9,7 @@ import type { BridgeRouter } from "./router.ts";
  * the service and status, never the key's signature.
  */
 
-const ROUTE = /^\/b\/([a-z0-9]{2,20})\/([^/]{1,300})\/([A-Za-z0-9_-]{43})$/;
+const ROUTE = /^\/b\/([a-z0-9]{2,20})\/([^/]{1,400})\/([A-Za-z0-9_-]{43})$/;
 
 export function createBridgeServer(router: BridgeRouter, opts: { log?: Logger } = {}): http.Server {
   const log = opts.log ?? (() => {});

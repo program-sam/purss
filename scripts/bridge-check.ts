@@ -104,7 +104,7 @@ const failingBoth: string[] = [];
 for (const s of BRIDGE_SERVICES.filter(needsRssBridge)) {
   const a = after.get(s.id);
   const b = before?.get(s.id);
-  lines.push(`| ${s.name} | ${s.example} | ${before ? `${shown(b)} | ` : ""}${shown(a)} |`);
+  lines.push(`| ${s.name} | ${s.label?.(s.example) ?? s.example} | ${before ? `${shown(b)} | ` : ""}${shown(a)} |`);
   if (a?.status !== 200 && (!before || b?.status === 200)) regressions.push(s.name);
   else if (a?.status !== 200) failingBoth.push(s.name);
 }

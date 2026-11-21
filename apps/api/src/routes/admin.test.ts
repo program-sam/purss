@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { server as copy } from "@purss/copy/server";
+import { encodePageKey } from "@purss/connectors";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { makeOwner, makeTestApp, testPassword } from "../testing.ts";
@@ -255,6 +256,8 @@ async function fakeEgress(t: { after: (fn: () => void) => void }, routes: Record
 }
 const json = (body: unknown) => (res: import("node:http").ServerResponse) => { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body)); };
 
+const PAGE_KEY = encodePageKey({ url: "https://www.anthropic.com/news", recipe: { item: "//li[contains(@class, '_row')]", title: ".//h3", link: ".//a/@href", date: ".//time" }, fixEncoding: false })!;
+
 const SUMMARY = {
   days: 7,
   services: [
@@ -271,6 +274,9 @@ const SUMMARY = {
     { service: "retired", key: "gone", outcome: "timeout", phase: "parse", failingSince: "2026-11-07T12:00:00.000Z", lastOkAt: null, attempts: 3 },
     { service: "telegram", key: "no-time", outcome: "timeout", phase: "backend", failingSince: "yesterday", lastOkAt: null, attempts: 1 },
     { service: "telegram", outcome: "timeout", failingSince: "2026-11-07T12:00:00.000Z" },
+    // A page list's key is long and says little; the router's log has it as written, and the administrator is shown its page.
+    { service: "page", key: PAGE_KEY, outcome: "no_posts", phase: "backend", failingSince: "2026-11-07T13:00:00.000Z", lastOkAt: null, attempts: 2 },
+    { service: "page", key: "AAAAAAAAAAAAAAAAAAAA", outcome: "no_posts", phase: "backend", failingSince: "2026-11-07T14:00:00.000Z", lastOkAt: null, attempts: 1 },
     "not a row", null,
   ],
 };
@@ -292,7 +298,7 @@ test("health shows the bridge's last week from the egress log: every catalogued 
       { id: "bandcamp", name: "Bandcamp", attempts: 1000, ok: 990, empty: 9, failed: 1, cachedAnswers: 40, successPercent: 99 },
       { id: "soundcloud", name: "SoundCloud", attempts: 3, ok: 2, empty: 0, failed: 1, cachedAnswers: 0, successPercent: 67 },
       { id: "twitch", name: "Twitch", attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null },
-      ...[["mixcloud", "Mixcloud"], ["rutube", "Rutube"], ["applemusic", "Apple Music"], ["instagram", "Instagram"], ["mangadex", "MangaDex"], ["vkvideo", "VK Video"], ["crossref", "Crossref"]].map(([id, name]) => ({ id, name, attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null })),
+      ...[["mixcloud", "Mixcloud"], ["rutube", "Rutube"], ["applemusic", "Apple Music"], ["instagram", "Instagram"], ["mangadex", "MangaDex"], ["vkvideo", "VK Video"], ["crossref", "Crossref"], ["page", "Page lists"]].map(([id, name]) => ({ id, name, attempts: 0, ok: 0, empty: 0, failed: 0, cachedAnswers: 0, successPercent: null })),
       { id: "fine", name: "fine", attempts: 400, ok: 400, empty: 0, failed: 0, cachedAnswers: 12, successPercent: 100 },
       { id: "retired", name: "retired", attempts: 3, ok: 0, empty: 0, failed: 3, cachedAnswers: 0, successPercent: 0 },
     ],
@@ -301,6 +307,8 @@ test("health shows the bridge's last week from the egress log: every catalogued 
       { service: "bandcamp", serviceName: "Bandcamp", key: "nilsfrahm", pageUrl: "https://nilsfrahm.bandcamp.com/", outcome: "no_ids", failingSince: "2026-11-07T10:00:00.000Z", lastOkAt: null, attempts: 2 },
       { service: "telegram", serviceName: "Telegram", key: "<b>x</b>", pageUrl: null, outcome: "unknown", failingSince: "2026-11-07T11:00:00.000Z", lastOkAt: null, attempts: 0 },
       { service: "retired", serviceName: "retired", key: "gone", pageUrl: null, outcome: "timeout", failingSince: "2026-11-07T12:00:00.000Z", lastOkAt: null, attempts: 3 },
+      { service: "page", serviceName: "Page lists", key: "https://www.anthropic.com/news", pageUrl: "https://www.anthropic.com/news", outcome: "no_posts", failingSince: "2026-11-07T13:00:00.000Z", lastOkAt: null, attempts: 2 },
+      { service: "page", serviceName: "Page lists", key: "AAAAAAAAAAAAAAAAAAAA", pageUrl: null, outcome: "no_posts", failingSince: "2026-11-07T14:00:00.000Z", lastOkAt: null, attempts: 1 },
     ],
   }, "rows that aren't shaped as expected are left out, and a page address is given only for a key the service's handles allow");
 });

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title type="text">Spaced   out
+  title</title>
+  <link rel="alternate" type="text/html" href="http://pages.test/ws.html"/>
+  <link rel="self" type="application/atom+xml" href="http://rss-bridge.test/?action=display&amp;format=Atom&amp;bridge=XPathBridge&amp;url=http%3A%2F%2Fpages.test%2Fws.html&amp;item=%2F%2Fli%5Bcontains%28%40class%2C+%27post%27%29%5D&amp;title=.%2F%2Fa&amp;uri=.%2F%2Fa%2F%40href&amp;timestamp=.%2F%2Ftime%2F%40datetime"/>
+  <icon>https://github.com/rss-bridge/rss-bridge/favicon.ico</icon>
+  <logo>https://github.com/rss-bridge/rss-bridge/favicon.ico</logo>
+  <id>http://rss-bridge.test/?action=display&amp;format=Atom&amp;bridge=XPathBridge&amp;url=http%3A%2F%2Fpages.test%2Fws.html&amp;item=%2F%2Fli%5Bcontains%28%40class%2C+%27post%27%29%5D&amp;title=.%2F%2Fa&amp;uri=.%2F%2Fa%2F%40href&amp;timestamp=.%2F%2Ftime%2F%40datetime</id>
+  <updated>2026-11-21T14:49:14+00:00</updated>
+  <author>
+    <name>RSS-Bridge</name>
+  </author>
+  <entry>
+    <title type="html">A title
+	 with   odd  spaces
+ and lines</title>
+    <published>2026-11-01T00:00:00+00:00</published>
+    <updated>2026-11-01T00:00:00+00:00</updated>
+    <id>http://pages.test/p/1</id>
+    <link rel="alternate" type="text/html" href="http://pages.test/p/1"/>
+    <content type="html"> </content>
+  </entry>
+  <entry>
+    <title type="html">Second   post</title>
+    <id>http://pages.test/p/2?utm_source=x&amp;ref=y</id>
+    <link rel="alternate" type="text/html" href="http://pages.test/p/2?utm_source=x&amp;ref=y"/>
+    <content type="html"> </content>
+  </entry>
+  <entry>
+    <title type="html">A mail link</title>
+    <id>urn:sha1:f9e13bdcdf65dde7d1e1cc96a8cbe13a9a7843d8</id>
+    <content type="html"> </content>
+  </entry>
+  <entry>
+    <title type="html">A script link</title>
+    <id>urn:sha1:898b548ccfddfbeebde224a02084d40da8348564</id>
+    <content type="html"> </content>
+  </entry>
+  <entry>
+    <title type="html">Third</title>
+    <id>http://pages.test/p/3/</id>
+    <link rel="alternate" type="text/html" href="http://pages.test/p/3/"/>
+    <content type="html"> </content>
+  </entry>
+</feed>

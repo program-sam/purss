@@ -1,4 +1,4 @@
-import { BRIDGE_SERVICES, bridgeService } from "@purss/connectors";
+import { BRIDGE_SERVICES, bridgeKeyValid, bridgeService } from "@purss/connectors";
 import { appUrl } from "@purss/domain";
 import type { UsageReport, AdminAccountDTO, Plan } from "@purss/domain";
 export type { UsageReport, AdminAccountDTO };
@@ -88,12 +88,14 @@ function bridgeFailing(rows: unknown): BridgeFailingSource[] {
   for (const raw of Array.isArray(rows) ? rows : []) {
     const r = record(raw);
     const failingSince = isoOrNull(r?.failingSince);
-    if (!r || typeof r.service !== "string" || r.service.length > 40 || typeof r.key !== "string" || r.key.length > 100 || typeof r.outcome !== "string" || !failingSince) continue;
+    if (!r || typeof r.service !== "string" || r.service.length > 40 || typeof r.key !== "string" || r.key.length > 400 || typeof r.outcome !== "string" || !failingSince) continue;
     const service = bridgeService(r.service);
+    const valid = !!service && bridgeKeyValid(service, r.key);
     out.push({
-      service: r.service, serviceName: service?.name ?? r.service, key: r.key,
-      // The service's own page for the key, only for a key its handle syntax allows.
-      pageUrl: service && service.keyPattern.test(r.key) ? service.pageUrl(r.key) : null,
+      service: r.service, serviceName: service?.name ?? r.service,
+      // What the key is called (a page list's key is its page's address), and the service's own page for it, only for a key the service allows.
+      key: valid ? (service.label?.(r.key) ?? r.key) : r.key,
+      pageUrl: valid ? service.pageUrl(r.key) : null,
       outcome: OUTCOME.test(r.outcome) ? r.outcome : "unknown",
       failingSince, lastOkAt: isoOrNull(r.lastOkAt), attempts: count(r.attempts),
     });

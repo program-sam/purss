@@ -1,6 +1,6 @@
 import { server } from "@purss/copy/server";
 import http from "node:http";
-import { bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
+import { bridgeKeyValid, bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
 import type { BridgeService, FeedItem } from "@purss/connectors";
 import { boundEntry, serializeFeed, serializeItem } from "../gateway/rss.ts";
 import type { FeedEntry } from "../gateway/rss.ts";
@@ -92,7 +92,7 @@ export class BridgeRouter {
     const service = bridgeService(serviceId);
     let key: string;
     try { key = decodeURIComponent(rawKey); } catch { return NOT_FOUND; }
-    if (!service || !service.keyPattern.test(key) || !bridgeSignatureMatches(this.#secret, service.id, key, signature)) return NOT_FOUND;
+    if (!service || !bridgeKeyValid(service, key) || !bridgeSignatureMatches(this.#secret, service.id, key, signature)) return NOT_FOUND;
     // A service whose backend this installation doesn't run (RSS-Bridge's, without RSS-Bridge) is not served here.
     if (!this.#backends.some((b) => b.kind === service.backend.kind)) return NOT_FOUND;
 
@@ -250,11 +250,11 @@ export class BridgeRouter {
     try { link = new URL(item.url ?? ""); } catch { return null; }
     const guid = service.postId(key, link);
     if (!guid) return null;
-    link.hash = "";
+    if (!service.keepFragment?.(key, link)) link.hash = "";
     const kept = service.keptPictures?.(link, item.contentHtml ?? item.summaryHtml ?? "");
     return {
       guid,
-      title: item.title ?? "",
+      title: service.cleanPostTitle ? service.cleanPostTitle(item.title ?? "") : item.title ?? "",
       url: link.toString(),
       author: item.author,
       publishedAt: item.publishedAt && service.dateCorrectionMinutes
@@ -274,8 +274,8 @@ export class BridgeRouter {
       return serializeItem(b.entry, b.limited);
     });
     const raw = title?.trim() ?? "";
-    const name = (raw && service.cleanTitle ? service.cleanTitle(raw) : raw) || server.sources.egress.bridge.feedTitle(key, service.name);
-    return serializeFeed({ title: name, siteUrl: service.pageUrl(key), description: `${service.origin} ${key}` }, items, new Date(this.#now()));
+    const name = (raw && service.cleanTitle ? service.cleanTitle(raw) : raw) || service.fallbackTitle?.(key) || server.sources.egress.bridge.feedTitle(key, service.name);
+    return serializeFeed({ title: name, siteUrl: service.pageUrl(key), description: `${service.origin} ${service.label?.(key) ?? key}` }, items, new Date(this.#now()));
   }
 }
 

@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { server } from "@purss/copy/server";
-import { BRIDGE_SERVICES, bridgeDescriptor, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
+import { BRIDGE_SERVICES, bridgeDescriptor, bridgeKeyValid, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
 import { discover } from "./discover.ts";
+import { decodePageKey, encodePageKey } from "./page-feeds.ts";
 import { parseFeed } from "./feed.ts";
 import type { BridgeClient } from "./discover.ts";
 
@@ -284,8 +285,59 @@ test("bridged discovery keeps discovery's deadline: cancelled, it asks nothing a
 test("every service's example account is a valid key that its own page address names", () => {
   for (const service of BRIDGE_SERVICES) {
     assert.match(service.example, service.keyPattern, service.id);
-    assert.equal(service.keyFromPage(new URL(service.pageUrl(service.example))), service.example, service.id);
+    assert.equal(bridgeKeyValid(service, service.example), true, service.id);
+    // A page list is the exception: its page's address names no source, only the detector makes one.
+    assert.equal(service.keyFromPage(new URL(service.pageUrl(service.example))), service.id === "page" ? null : service.example, service.id);
   }
+});
+
+const NEWS = { url: "https://www.anthropic.com/news", recipe: { item: "//li[contains(@class, '_row')]", title: ".//h3", link: ".//a/@href", date: ".//time" }, fixEncoding: false };
+
+test("a page list is a bridged service whose key is its page and recipe, and no pasted page address ever names one", () => {
+  const page = bridgeService("page")!;
+  assert.equal(page.backend.kind, "rss-bridge");
+  assert.equal(page.backend.kind === "rss-bridge" && page.backend.bridge, "XPathBridge");
+  assert.equal(page.emptyIsFailure, true);
+  assert.equal(page.name, copy.pageLists.service);
+  assert.equal(page.origin, copy.bridges.pageList);
+  // Its example is the real list of a long-running page, as a key that reads back.
+  assert.deepEqual(decodePageKey(page.example), NEWS);
+  assert.equal(page.pageUrl(page.example), "https://www.anthropic.com/news");
+  assert.equal(page.label!(page.example), "https://www.anthropic.com/news");
+  // No page address names a page-list source; the services that do are still first.
+  for (const url of ["https://www.anthropic.com/news", "https://paulgraham.com/articles.html", "https://example.com/blog", "https://t.me/durov"]) {
+    assert.notEqual(bridgeTargetForPage(new URL(url))?.service.id, "page", url);
+  }
+  assert.equal(page.keyFromPage(new URL("https://www.anthropic.com/news")), null);
+});
+
+test("a page list's descriptor parses only when its key is one the writer makes", () => {
+  const key = encodePageKey(NEWS)!;
+  const parsed = parseBridgeDescriptor(bridgeDescriptor("page", key));
+  assert.equal(parsed?.service.id, "page");
+  assert.equal(parsed?.key, key);
+  assert.ok(`bridge:page/${key}`.length <= 400 + "bridge:page/".length);
+  for (const bad of [`bridge:page/${key.slice(0, -3)}`, "bridge:page/AAAA", "bridge:page/not-a-key", `bridge:page/${key}x`, `bridge:page/${"A".repeat(381)}`, `bridge:page/${"A".repeat(401)}`, `bridge:page/${key}/x`, `bridge:page/${key}?x=1`, "bridge:page/"]) {
+    assert.equal(parseBridgeDescriptor(bad), null, bad.slice(0, 40));
+  }
+  // The shape of a descriptor allows long keys, but each of the other services still holds to its own pattern.
+  assert.equal(parseBridgeDescriptor(`bridge:telegram/${"a".repeat(150)}`), null);
+});
+
+test("a page list's source name is its page's own title with the markup's whitespace gone, or the page's site", () => {
+  const page = bridgeService("page")!;
+  assert.equal(page.cleanTitle!("  Newsroom \\\n   Anthropic "), "Newsroom \\ Anthropic");
+  assert.equal(page.cleanTitle!("XPathBridge"), "", "what the bridge says when the page has no single title");
+  assert.equal(page.fallbackTitle!(page.example), "anthropic.com");
+  assert.equal(page.cleanPostTitle!("  A title\n\t with\u00a0\u00a0odd   spaces "), "A title with odd spaces");
+});
+
+test("XPathBridge is asked for a page list with the page, the item, its title, link and date", () => {
+  const page = bridgeService("page")!;
+  assert.deepEqual(page.backend.kind === "rss-bridge" && page.backend.params(page.example), { url: "https://www.anthropic.com/news", item: NEWS.recipe.item, title: ".//h3", uri: ".//a/@href", timestamp: ".//time" });
+  assert.equal(page.postId(page.example, new URL("https://www.anthropic.com/news/ipo-close?utm_source=x")), "page:https://anthropic.com/news/ipo-close");
+  assert.equal(page.postId(page.example, new URL("mailto:press@anthropic.com")), null);
+  assert.equal(page.postId("garbage", new URL("https://www.anthropic.com/news/ipo-close")), null, "a key that isn't one names no post");
 });
 
 test("Instagram posts keep only their caption in their text; an escape linked as a hashtag is undone", () => {

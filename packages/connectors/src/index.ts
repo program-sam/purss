@@ -19,6 +19,7 @@ export * from "./input.ts";
 export * from "./jev.ts";
 export * from "./link-metadata.ts";
 export * from "./opml.ts";
+export * from "./page-feeds.ts";
 export * from "./page-lists.ts";
 export * from "./pictures.ts";
 export * from "./platforms.ts";

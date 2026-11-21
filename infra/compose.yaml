@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
     environment:
       TZ: UTC
-      RSSBRIDGE_system_enabled_bridges: TelegramBridge,BandcampBridge,SoundcloudBridge,TwitchBridge,MixCloudBridge,RutubeBridge,AppleMusicBridge,InstagramBridge,MangaDexBridge,VkVideoBridge
+      RSSBRIDGE_system_enabled_bridges: TelegramBridge,BandcampBridge,SoundcloudBridge,TwitchBridge,MixCloudBridge,RutubeBridge,AppleMusicBridge,InstagramBridge,MangaDexBridge,VkVideoBridge,XPathBridge
       RSSBRIDGE_system_enable_debug_mode: "false"
       RSSBRIDGE_proxy_url: http://172.31.89.10:8946
       RSSBRIDGE_proxy_by_bridge: "false"

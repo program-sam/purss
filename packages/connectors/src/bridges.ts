@@ -1,6 +1,7 @@
 import { server } from "@purss/copy/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
+import { MAX_PAGE_KEY, decodePageKey, encodePageKey, keepsFragment, pageBridgeParams, pageHost, pagePostId } from "./page-feeds.ts";
 
 /*
  * Services followed through the installation's bridge: pages that publish no feed of
@@ -24,12 +25,16 @@ export type BridgeService = {
   origin: string;
   /** The service's public handle syntax, after lower-casing. */
   keyPattern: RegExp;
+  /** A check a pattern can't make: a key that is a pattern-shaped document must also say something allowed (a page list's). */
+  validKey?(key: string): boolean;
   /** A long-running public account, for checking that the bridge still works (the weekly update check). */
   example: string;
   /** The key a page address names, or null for every other page on the service. */
   keyFromPage(url: URL): string | null;
   /** The public page of a key: the source's site address, and what OPML exports. */
   pageUrl(key: string): string;
+  /** What a key is called to the administrator, when the key itself says little (a page list's key is its page's address). */
+  label?(key: string): string;
   /** Which backend collects it: RSS-Bridge (with its bridge and parameters for a key), or Crossref's API. */
   backend: { kind: "rss-bridge"; bridge: string; params(key: string): Record<string, string> } | { kind: "crossref" };
   /** The stable id of a post, from its address, or null when the address isn't one of this key's posts. */
@@ -38,6 +43,12 @@ export type BridgeService = {
   excluded?(key: string, link: URL): boolean;
   /** The source's name without the backend's decoration ("Nils Frahm - Bandcamp Band" → "Nils Frahm"). */
   cleanTitle?(title: string): string;
+  /** What a source is called when the backend gave it no name of its own, instead of "<key> on <service>". */
+  fallbackTitle?(key: string): string;
+  /** A post's title as the backend wrote it, tidied (a page's titles keep the whitespace of its markup). */
+  cleanPostTitle?(title: string): string;
+  /** Whether a post's address keeps its #fragment (a changelog's entries are headings of one page, told apart by it). */
+  keepFragment?(key: string, link: URL): boolean;
   /** A post's HTML without the backend's placeholders for media it couldn't show. */
   cleanHtml?(html: string): string;
   /** Minutes to add to the backend's dates, when it labels local times as UTC. */
@@ -449,7 +460,58 @@ const crossref: BridgeService = {
   },
 };
 
-export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, instagram, mangadex, vkvideo, crossref]);
+/**
+ * A list of posts found on a page that publishes no feed (page-lists.ts), read by RSS-Bridge's XPathBridge. The key says which page, which
+ * recipe and whether the page needs its character set repaired (page-feeds.ts); the page's own address names no source, so
+ * only the detector makes one and a pasted address never maps here.
+ */
+const pageList: BridgeService = {
+  id: "page",
+  name: server.sources.connectors.pageLists.service,
+  origin: server.sources.connectors.bridges.pageList,
+  // A key is whatever the writer makes; it is read back whole (decodePageKey) before anything is asked of the bridge.
+  keyPattern: new RegExp(`^[A-Za-z0-9_-]{1,${MAX_PAGE_KEY}}$`),
+  validKey: (key) => decodePageKey(key) !== null,
+  // A real list on a long-running page, for the weekly check that the bridge still reads one.
+  example: examplePageKey({
+    url: "https://www.anthropic.com/news",
+    recipe: { item: "//li[contains(@class, '_row')]", title: ".//h3", link: ".//a/@href", date: ".//time" },
+    fixEncoding: false,
+  }),
+  keyFromPage: () => null,
+  pageUrl: (key) => pageOf(key).url,
+  label: (key) => pageOf(key).url,
+  backend: { kind: "rss-bridge", bridge: "XPathBridge", params: (key) => pageBridgeParams(pageOf(key)) },
+  // The page's own title, as XPathBridge reads it, is the source's name, with the whitespace its markup puts in it; without one it says "XPathBridge".
+  cleanTitle: (title) => (title.replace(/\s+/g, " ").trim() === "XPathBridge" ? "" : title.replace(/\s+/g, " ").trim()),
+  fallbackTitle: (key) => pageHost(pageOf(key)),
+  cleanPostTitle: (title) => title.replace(/\s+/g, " ").trim(),
+  postId: (key, link) => {
+    const source = decodePageKey(key);
+    return source ? pagePostId(source, link) : null;
+  },
+  keepFragment: (key, link) => {
+    const source = decodePageKey(key);
+    return source ? keepsFragment(source, link) : false;
+  },
+  // A recipe that matches nothing, or a page it cannot read, is answered with an empty feed and no error.
+  emptyIsFailure: true,
+};
+
+function examplePageKey(source: Parameters<typeof encodePageKey>[0]): string {
+  const key = encodePageKey(source);
+  if (!key) throw new Error("The page list used as the example is not a valid page source.");
+  return key;
+}
+
+/** A key this service accepted, read; the catalogue only asks for keys it has checked. */
+function pageOf(key: string): NonNullable<ReturnType<typeof decodePageKey>> {
+  const source = decodePageKey(key);
+  if (!source) throw new Error("Not a page list's key.");
+  return source;
+}
+
+export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, instagram, mangadex, vkvideo, crossref, pageList]);
 
 /** True for services collected by RSS-Bridge, which an installation may not run. */
 export function needsRssBridge(service: BridgeService): boolean {
@@ -462,11 +524,17 @@ export function bridgeService(id: string): BridgeService | undefined {
 
 export type BridgeTarget = { service: BridgeService; key: string };
 
-const DESCRIPTOR = /^bridge:([a-z0-9]{2,20})\/([^/\s]{1,100})$/;
+/** The shape of a descriptor; what a key may be is each service's own rule (`keyPattern`, `validKey`). */
+const DESCRIPTOR = /^bridge:([a-z0-9]{2,20})\/([^/\s]{1,400})$/;
 
 /** The descriptor a bridged source keeps as its feed address. */
 export function bridgeDescriptor(serviceId: string, key: string): string {
   return `bridge:${serviceId}/${key}`;
+}
+
+/** Whether a key is one this service answers: its pattern, and what the pattern can't say. */
+export function bridgeKeyValid(service: BridgeService, key: string): boolean {
+  return service.keyPattern.test(key) && (service.validKey?.(key) ?? true);
 }
 
 /** A descriptor (`bridge:telegram/durov`) of a catalogued service with a valid key, or null. */
@@ -474,7 +542,7 @@ export function parseBridgeDescriptor(value: string): BridgeTarget | null {
   const m = DESCRIPTOR.exec(value.trim());
   if (!m) return null;
   const service = bridgeService(m[1]!);
-  return service && service.keyPattern.test(m[2]!) ? { service, key: m[2]! } : null;
+  return service && bridgeKeyValid(service, m[2]!) ? { service, key: m[2]! } : null;
 }
 
 /** The bridged source a page address names (a Telegram channel, a Bandcamp artist…), or null. */

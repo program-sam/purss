@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import http from "node:http";
 import { test } from "node:test";
+import { deflateRawSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
-import { BRIDGE_SERVICES, bridgeRoutePath, bridgeService, needsRssBridge, parseFeed } from "@purss/connectors";
+import { BRIDGE_SERVICES, MAX_PAGE_KEY, bridgeRoutePath, bridgeService, decodePageKey, encodePageKey, needsRssBridge, parseFeed } from "@purss/connectors";
 import type { BridgeService } from "@purss/connectors";
 import { createBridgeServer } from "./bridge/http.ts";
 import { BridgeLog } from "./bridge/log.ts";
@@ -406,7 +407,7 @@ test("a MangaDex answer without entries is a title it doesn't know, or a misread
 });
 
 test("each service's example, asked of RSS-Bridge as the catalogue says, comes back through the router as entries with ids", async () => {
-  const files = new Map<string, string>(RECORDED.map((n) => [n.service, n.file]));
+  const files = new Map<string, string>([...RECORDED.map((n) => [n.service, n.file] as const), ["page", "xpath-anthropic-news"]]);
   const asked: { bridge: string; params: Record<string, string> }[] = [];
   const upstream = await startUpstream((req, res) => {
     const q = new URL(req.url ?? "/", "http://rss-bridge.test").searchParams;
@@ -428,8 +429,158 @@ test("each service's example, asked of RSS-Bridge as the catalogue says, comes b
     assert.deepEqual(asked, [
       { bridge: "MangaDexBridge", params: { context: "Title Chapters", url: "https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92", limit: "50", images: "no" } },
       { bridge: "VkVideoBridge", params: { context: "Channel", u: "@thoisoi" } },
+      { bridge: "XPathBridge", params: { url: "https://www.anthropic.com/news", item: "//li[contains(@class, '_row')]", title: ".//h3", uri: ".//a/@href", timestamp: ".//time" } },
     ]);
   } finally {
+    await upstream.close();
+  }
+});
+
+// ---------- page lists (XPathBridge) ----------
+
+const PAGE = { url: "https://www.anthropic.com/news", recipe: { item: "//li[contains(@class, '_row')]", title: ".//h3", link: ".//a/@href", date: ".//time" }, fixEncoding: false };
+const pageKey = (source = PAGE) => encodePageKey(source)!;
+const askPage = async (r: BridgeRouter, key: string) => r.serve("page", key, sig("page", key));
+
+/** XPathBridge's Atom for a page: its feed title is the page's title, its entries have no content. */
+function xpathAtom(entries: { title: string; href?: string; date?: string }[], title = "Newsroom \\ Anthropic"): string {
+  const items = entries.map((e, i) => `<entry><title type="html">${e.title}</title>${e.date ? `<published>${e.date}</published><updated>${e.date}</updated>` : ""}`
+    + `<id>${e.href ?? `urn:sha1:${String(i).padStart(40, "0")}`}</id>${e.href ? `<link rel="alternate" type="text/html" href="${e.href}"/>` : ""}<content type="html"> </content></entry>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">${title}</title><link rel="alternate" type="text/html" href="https://www.anthropic.com/news"/><id>x</id><updated>2026-11-21T14:43:30+00:00</updated>${items}</feed>`;
+}
+
+test("a page list, as the pinned XPathBridge answered it, is served as RSS with each post's id taken from its canonical address", async () => {
+  const key = pageKey();
+  const { r } = router([new FakeBackend("rss-bridge", ok(recorded("xpath-anthropic-news")))]);
+  const a = await askPage(r, key);
+  assert.equal(a.status, 200);
+  const feed = parseFeed(a.body, a.headers["content-type"]);
+  assert.equal(feed.items.length, 24);
+  assert.deepEqual(feed.items.slice(0, 2).map((i) => i.guid), ["page:https://anthropic.com/news/ipo-close", "page:https://anthropic.com/news/anthropic-prices-initial-public-offering"]);
+  assert.equal(new Set(feed.items.map((i) => i.guid)).size, 24, "every post has an id of its own");
+  assert.ok(feed.items.every((i) => i.guid?.startsWith("page:https://") && i.url && i.publishedAt), "every post has its link and date");
+  assert.equal(feed.items[0]!.publishedAt, "2026-11-20T00:00:00.000Z");
+  assert.equal(feed.title, "Newsroom \\ Anthropic", "the source is named by the page's own title");
+  assert.equal(feed.siteUrl, "https://www.anthropic.com/news");
+  assert.match(a.body, /<description>Page list https:\/\/www\.anthropic\.com\/news<\/description>/, "the feed says which page it is, not what the key is");
+  assert.doesNotMatch(a.body, new RegExp(key.slice(0, 40)));
+});
+
+test("a page list's titles lose the whitespace of the page's markup, and posts without a web address are left out", async () => {
+  const { r } = router([new FakeBackend("rss-bridge", ok(recorded("xpath-whitespace")))]);
+  const a = await askPage(r, pageKey({ ...PAGE, url: "http://pages.test/ws.html" }));
+  assert.equal(a.status, 200);
+  const feed = parseFeed(a.body, a.headers["content-type"]);
+  assert.equal(feed.title, "Spaced out title");
+  assert.deepEqual(feed.items.map((i) => [i.guid, i.title]), [
+    ["page:https://pages.test/p/1", "A title with odd spaces and lines"],
+    ["page:https://pages.test/p/2", "Second post"],
+    ["page:https://pages.test/p/3", "Third"],
+  ]);
+  // The tracking parameters are no part of the post's identity; the entry's link is as the page gives it.
+  assert.equal(feed.items[1]!.url, "http://pages.test/p/2?utm_source=x&ref=y");
+  assert.equal(feed.items[0]!.publishedAt, "2026-11-01T00:00:00.000Z");
+  assert.equal(feed.items[1]!.publishedAt, null, "a post whose date the page doesn't show has none, and FreshRSS dates it when it first sees it");
+});
+
+test("a page list with no title of its own is named by its page's site", async () => {
+  for (const title of ["XPathBridge", "  XPathBridge ", ""]) {
+    const { r } = router([new FakeBackend("rss-bridge", ok(xpathAtom([{ title: "One", href: "https://www.anthropic.com/news/one" }], title)))]);
+    const feed = parseFeed((await askPage(r, pageKey())).body);
+    assert.equal(feed.title, "anthropic.com", JSON.stringify(title));
+  }
+});
+
+test("a changelog's entries, which are headings of one page, keep their fragments in their ids and links; no other service's links do", async () => {
+  const log: typeof PAGE = { ...PAGE, url: "https://go.dev/doc/devel/release" };
+  const atom = xpathAtom(["go1.26.0", "go1.25.0", "go1.24.0"].map((h) => ({ title: h, href: `https://go.dev/doc/devel/release#${h}` })), "Release History");
+  const { r } = router([new FakeBackend("rss-bridge", ok(atom))]);
+  const feed = parseFeed((await askPage(r, pageKey(log))).body);
+  assert.deepEqual(feed.items.map((i) => i.guid), ["page:https://go.dev/doc/devel/release#go1.26.0", "page:https://go.dev/doc/devel/release#go1.25.0", "page:https://go.dev/doc/devel/release#go1.24.0"]);
+  assert.deepEqual(feed.items.map((i) => i.url), ["https://go.dev/doc/devel/release#go1.26.0", "https://go.dev/doc/devel/release#go1.25.0", "https://go.dev/doc/devel/release#go1.24.0"]);
+  // An anchor on another page's address is that page's post, and loses it as before.
+  const other = xpathAtom([{ title: "A", href: "https://www.anthropic.com/news/a#comments" }]);
+  const second = parseFeed((await askPage(router([new FakeBackend("rss-bridge", ok(other))]).r, pageKey())).body);
+  assert.deepEqual(second.items.map((i) => [i.guid, i.url]), [["page:https://anthropic.com/news/a", "https://www.anthropic.com/news/a"]]);
+});
+
+test("a page list that matches nothing, or whose page can't be read, is a failure asked about twice, never an empty source", async () => {
+  const backend = new FakeBackend("rss-bridge", ok(xpathAtom([])));
+  const { r, log } = router([backend]);
+  const a = await askPage(r, pageKey());
+  assert.equal(a.status, 503);
+  assert.equal(backend.calls, 2);
+  assert.deepEqual(log.summary().failing.map((f) => [f.service, f.outcome]), [["page", "no_posts"]]);
+  assert.equal(bridgeService("page")!.emptyIsFailure, true);
+  // Entries that are all without a web address (a page whose list has no links) are no posts either.
+  const none = router([new FakeBackend("rss-bridge", ok(xpathAtom([{ title: "No link" }])))]);
+  assert.equal((await askPage(none.r, pageKey())).status, 503);
+});
+
+test("a page list's key must be one the writer made and one the installation signed: anything else is the same 404 and asks no backend", async () => {
+  const backend = new FakeBackend("rss-bridge", ok(xpathAtom([{ title: "One", href: "https://www.anthropic.com/news/one" }])));
+  const { r } = router([backend]);
+  const key = pageKey();
+  const forgedKey = (fields: Record<string, unknown>) => deflateRawSync(Buffer.from(JSON.stringify(fields))).toString("base64url");
+  const recipe = PAGE.recipe;
+  for (const [k, s] of [
+    [key, "x".repeat(43)],
+    [key, sig("page", key.slice(0, -1))],
+    [key.slice(0, -2), sig("page", key.slice(0, -2))],
+    ["not-a-key", sig("page", "not-a-key")],
+    // Signed by the installation's key, but not a key the writer makes: the address is private, or the recipe leaves the grammar.
+    [forgedKey({ u: "http://169.254.169.254/latest", i: recipe.item, t: recipe.title, l: recipe.link }), ""],
+    [forgedKey({ u: PAGE.url, i: "//li[document('http://example.com/x')]", t: recipe.title, l: recipe.link }), ""],
+  ] as const) {
+    const a = await r.serve("page", k, s || sig("page", k));
+    assert.equal(a.status, 404, k.slice(0, 30));
+  }
+  assert.equal(backend.calls, 0);
+  assert.equal((await askPage(r, key)).status, 200, "the real key, signed, is served");
+});
+
+test("RSS-Bridge's XPathBridge is asked with the page and the recipe, and the character-set repair only for a page that needs it", async () => {
+  const upstream = await startUpstream((_req, res) => {
+    res.writeHead(200, { "content-type": "application/atom+xml" });
+    res.end(xpathAtom([{ title: "One", href: "https://www.anthropic.com/news/one" }]));
+  });
+  try {
+    const r = new BridgeRouter({ secret: SECRET, backends: [rssBridgeBackend(`http://127.0.0.1:${upstream.port}`)], log: new BridgeLog({ now: () => T0 }), now: () => T0 });
+    for (const fixEncoding of [false, true]) {
+      assert.equal((await askPage(r, pageKey({ ...PAGE, fixEncoding }))).status, 200);
+    }
+    const asked = upstream.requests.map((q) => Object.fromEntries(new URL(q.url, "http://rss-bridge.test").searchParams));
+    assert.deepEqual(asked.map((q) => q.fix_encoding), [undefined, "on"]);
+    assert.deepEqual(asked.map((q) => [q.bridge, q.url, q.item, q.title, q.uri, q.timestamp]), Array(2).fill(["XPathBridge", PAGE.url, PAGE.recipe.item, PAGE.recipe.title, PAGE.recipe.link, PAGE.recipe.date]));
+    assert.ok(asked.every((q) => !("content" in q) && !("author" in q) && !("enclosures" in q) && !("categories" in q)), "nothing but the recipe is asked");
+  } finally {
+    await upstream.close();
+  }
+});
+
+test("the running listener serves a page list's longest key", async () => {
+  // A page address that makes the key as long as the longest the writer allows (a plain path of words compresses badly enough).
+  const urlFor = (n: number) => `https://www.anthropic.com/${Array.from({ length: n }, (_, i) => `news${(i * 7919) % 9973}-${(i * 104729) % 7001}`).join("/")}`;
+  let n = 1;
+  while (encodePageKey({ ...PAGE, url: urlFor(n + 1) })) n++;
+  const source = { ...PAGE, url: urlFor(n) };
+  const key = pageKey(source);
+  assert.ok(key.length > 300 && key.length <= MAX_PAGE_KEY, `${key.length} characters`);
+  assert.deepEqual(decodePageKey(key), { ...source, url: new URL(source.url).href });
+  const upstream = await startUpstream((_req, res) => {
+    res.writeHead(200, { "content-type": "application/atom+xml" });
+    res.end(xpathAtom([{ title: "One", href: "https://www.anthropic.com/news/one" }]));
+  });
+  const egress = await startEgress(
+    makeConfig({ bridge: { host: "127.0.0.1", port: 0, backendUrl: `http://127.0.0.1:${upstream.port}`, secret: SECRET, dbPath: ":memory:", net: null } }),
+    { bridgeBackends: [rssBridgeBackend(`http://127.0.0.1:${upstream.port}`)] },
+  );
+  try {
+    const status = await new Promise<number>((resolve, reject) => http.get({ host: "127.0.0.1", port: egress.ports.bridge!, path: bridgeRoutePath(SECRET, "page", key) }, (res) => { res.resume(); resolve(res.statusCode ?? 0); }).on("error", reject));
+    assert.equal(status, 200);
+    assert.equal(new URL(upstream.requests[0]!.url, "http://rss-bridge.test").searchParams.get("url"), new URL(source.url).href);
+  } finally {
+    await egress.stop();
     await upstream.close();
   }
 });
