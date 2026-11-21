@@ -4,30 +4,30 @@
 // What several places say, written once.
 export const words = {
   appsAndExtensions: "Apps and extensions",
-  createAFreeAccount: "Create a free account",
-  docs: "Docs",
+  createAFreeAccount: "Create an account",
+  docs: "Documentation",
   downloadForAndroid: "Download for Android",
   features: "Features",
   home: "Home",
   hostItYourself: "Host it yourself",
   legalNotice: "Legal notice",
-  local: "Local",
+  local: "Local news",
   november2026: "November 2026",
   pricing: "Pricing",
   privacy: "Privacy",
-  recipes: "Recipes",
-  slowReads: "Slow reads",
+  recipes: "Cooking",
+  slowReads: "Literature",
   why: "Why",
 };
 
 export const compare = {
   feeds: {
     heading: "Algorithmic feeds",
-    points: ["Ranked to keep you scrolling", "Strangers and ads in between", "Your attention is the product", "Gone when the platform changes its mind"],
+    points: ["Designed to keep you hooked", "Filled with adds and promoted content", "You are the product", "No transparency"],
   },
   purss: {
     heading: "Your PURSS",
-    points: ["Only the sources you chose, in your order", "No ads, no third-party trackers, no suggested posts", "Open source: read the code, or run it yourself", "What you keep stays put. Export it all, any time"],
+    points: ["Design it yourself", "No ads, no trackers, no suggestions", "You own the product", "Fully open source"],
   },
 };
 
@@ -39,77 +39,76 @@ export const desktop = {
 export const home = {
   nav: { whatItDoes: "What it does" },
   hero: {
-    heading: "Your internet, organized by you.",
-    lead: "A reader you fill yourself. Pick the blogs, channels, podcasts and journals; PURSS brings what they post, in order, and nothing else.",
+    heading: "Make the internet yours again",
+    lead: "Create one feed with everything you want to follow on the internet. You decide what to follow. You decide what you should care about. Not an algorithm.",
     switchOff: "Chosen for you",
     switchOn: "Chosen by you",
     points: [
-      { title: "No algorithmic feed", text: "Everything in the order it was posted." },
-      { title: "No ads, no trackers", text: "Nothing sponsored, nothing suggested." },
-      { title: "You're in control", text: "You pick every source and what stays." },
+      { title: "No algorithmic feed" },
+      { title: "No ads, no trackers" },
+      { title: "You own your feed" },
     ],
   },
   /** The picture of the home screen, which flips between the feed everyone knows and PURSS. */
   picture: {
-    labelOn: "PURSS Home: a dashboard with a box for each source you follow, and nothing else.",
-    labelOff: "A typical feed: ads, suggestions and trending posts mixed in with the few things you follow, with more loading forever.",
+    labelOn: "PURSS Home: a dashboard with a box for each source you follow and nothing else.",
+    labelOff: "A typical feed: ads, suggestions and trending posts mixed in with the few things you follow with more loading forever.",
     addressOff: "the feed",
-    addressOn: "your.purss",
+    addressOn: "purss.app",
     titleOff: "For You",
     view: "View",
-    greeting: "Good morning, Robin",
-    sinceLastVisit: "New items since your last visit (yesterday) in 2&nbsp;collections",
-    loadingMore: "Loading more for you…",
+    greeting: "Good morning",
+    sinceLastVisit: "New items since your last visit in 2 collections",
+    loadingMore: "Loading more…",
     newCount: (n: number) => `${n} new`,
     posts: {
-      cyclePath: { title: "Council approves the Mill Road cycle path", source: "Millbrook Gazette", when: "12 min ago" },
-      handPlane: { title: "Restoring a 1970s hand plane", source: "Maker Bench", when: "1 h ago · 24:10" },
-      smallLibraries: { title: "Ep. 112: Small libraries", source: "Night Shift Radio", when: "3 h ago · 58 min" },
-      nightSky: { title: "The night sky is getting brighter", source: "Slow Light Journal", when: "Today · 9 min read" },
-      tomatoSauce: { title: "Slow-roast tomato sauce that keeps all week", source: "Kitchen Table", when: "Yesterday" },
+      cyclePath: { title: "Council approves the Main Road cycle path", source: "Your Council", when: "12 min ago" },
+      handPlane: { title: "Restoring an antique fractal vice", source: "Hand Tool Rescue", when: "1 h ago · 24:10" },
+      smallLibraries: { title: "298 - The Grand Night Vale Hotel", source: "Welcome to Night Vale", when: "3 h ago · 58 min" },
+      nightSky: { title: "Librarymaxxing: The Secrets Librarians Wish You Knew", source: "Elle Reads Library Books", when: "Today · 9 min read" },
+      tomatoSauce: { title: "Caramelized Onion and Garlic Roasted Tomato Sauce", source: "Healthy Little Vittles", when: "Yesterday" },
     },
     junk: {
       sponsored: { tag: "Sponsored", title: "The mattress 4 million sleepers can't stop talking about", sub: "Shop now" },
-      suggested: { tag: "Suggested for you", title: "A stranger is extremely angry about something", sub: "Because you paused on a post like this" },
-      trending: { tag: "Trending", title: "Everyone is arguing about this today", sub: "48.2K posts" },
+      suggested: { tag: "Suggested for you", title: "Something insane just happened and you should be angry", sub: "Because you looked at similar content" },
+      trending: { tag: "Trending", title: "Everyone is looking at this today, you should too", sub: "48.2M views" },
       people: { tag: "People you may know", title: "Someone you met once in 2014", sub: "Follow back" },
     },
     boxes: { watchListen: "Watch & listen" },
   },
   why: {
-    heading: "The web was yours once. Take it back.",
-    pitch: "You used to choose what you read. Then feeds started choosing for you, ranked to keep you scrolling. PURSS hands the choice back: you decide what comes in, in what order, and what's worth keeping.",
+    heading: "The internet should serve you, not the other way around.",
+    pitch: "The web started as a place where you found anything you could think of. Now anything you could think of finds you. Take back control over the media you consume, you'll be richer for it.",
   },
   features: {
-    follow: { label: "Follow", heading: "Nothing from the people you follow gets buried.", text: "Subscribing on YouTube or following someone on Bluesky doesn't mean you'll see what they post. Here it does: paste a link, and new posts arrive, unranked, until you say stop." },
-    keep: { label: "Keep", heading: "Find it again in six months.", text: "Drop it in a basket for the project, the trip or the rainy Sunday, and its details, summary and, if you ask, a readable copy of the text stay with you." },
-    read: { label: "Read", heading: "Start on the laptop, finish on the train.", text: "Your place, your highlights and your notes follow you to every device, so nothing you started gets lost." },
-    share: { label: "Share", heading: "You're the one people ask for good links.", text: "Share a basket or collection as a page anyone can open. Anyone who follows it gets each new pick as you add it." },
+    follow: { label: "Follow", text: "When you want to follow someone or something, you don't want it to disappear in an unpredictable sea of content. With PURSS you will never miss a thing." },
+    keep: { label: "Keep", text: "Create baskets for the content you want to keep. Whether it are longer reads for a rainy Sunday, or sources for your research paper, they will always be there." },
+    read: { label: "Read", text: "Read anywhere, from any device, and all your sources, where you left off, and your notes are synched to every device." },
+    share: { label: "Share", text: "Share your curated baskets or collections for anyone to follow. Either in their own feed, or as a public page anyone can access." },
   },
   apps: {
-    heading: "Wherever you come across things.",
-    lead: "Save it where you find it, read it where you are. Your browser, phone, computer and e-reader all share one PURSS.",
+    heading: "Take your PURSS anywhere you go.",
   },
   pricing: {
-    heading: "Simple, honest pricing.",
-    lead: "No ads, no engagement algorithm, and we don't sell your data. Run it yourself or let us run it: it's the same app, and one export moves you between them.",
+    heading: "If you want to go that one step further",
+    lead: "Some features are just more expensive to offer... For those you can contribute to the app and unlock the full power of your PURSS. You can always unlock the exact same features by hosting it yourself.",
     youRunIt: "You run it",
     ownServer: "Your own server",
     ownServerLimits: "unlimited sources · unlimited collections · public pages",
     installGuide: "Read the install guide",
-    hostPoints: ["Every feature, free forever", "Runs on a spare computer, in about 1&nbsp;GB of memory", "Open source, AGPL-3.0"],
+    hostPoints: ["Every feature, free forever", "Runs on a spare computer with minimum 1GB of memory", "Open source, AGPL-3.0"],
     weRunIt: "We run it",
-    hostedNote: "Cancel any time · Export everything, any time · Prices include VAT",
+    hostedNote: "Cancel any time · Easily import and export your sources",
     planLine: {
       sources: (n: string) => `${n} sources`,
       collections: (n: string) => `${n} collections`,
       publicPages: "public pages",
-      smartFilters: "Smart filters",
+      smartFilters: "smart filters",
     },
     chargedInEuros: " a month, charged in euros",
   },
   faq: { heading: "Questions" },
-  end: { heading: "Make the internet yours again." },
+  end: { heading: "Fill your PURSS today." },
 };
 
 export const kit = {
@@ -120,7 +119,6 @@ export const kit = {
   footer: {
     source: "Source code",
     terms: "Terms",
-    credit: { before: "Run by ", middle: ". Built on the ", engine: "FreshRSS", after: " engine. No trackers on this site." },
   },
   /** The app's sidebar as pictured on the home page. */
   sidebar: {
@@ -130,47 +128,44 @@ export const kit = {
     collections: { watch: "Watch", listen: "Listen" },
     basketsTitle: "Baskets",
     baskets: { localHistory: "Local history", thesisSources: "Thesis sources" },
-    storage: "37 of 100 sources",
   },
   plans: {
     selfHosted: "Self-hosted",
     unlimited: "unlimited",
     billedMonthly: "per month, billed monthly",
     billedYearly: (year: string) => `per month, billed yearly as ${year}`,
-    free: { name: "Free", per: "per month", lede: "We run it for you. No card needed." },
-    plus: { name: "Plus", lede: "For people who follow a lot, and keep a lot.", cta: "Start with Plus" },
-    pro: { name: "Pro", lede: "For busy feeds you want curated for you.", cta: "Start with Pro" },
+    free: { name: "Free", per: "per month" },
+    plus: { name: "Plus", cta: "Start with Plus" },
+    pro: { name: "Pro", cta: "Start with Pro" },
   },
   billing: {
     yearly: "Yearly",
-    save: (percent: number) => `save ${percent}%`,
     monthly: "Monthly",
     showPricesIn: "Show prices in",
   },
   apps: {
     extension: {
       title: "Browser extension",
-      text: (platforms: string) => `Found something good? Keep it or follow its site without leaving the page. For ${platforms}.`,
+      text: (platforms: string) => `With a browser extension, you can keep or follow any site you are currently on, without leaving the page. For ${platforms}.`,
     },
     phone: {
       title: "Phone and tablet",
-      text: (platforms: string) => `Catch up in the queue or on the plane. The ${platforms} app plays with the screen off, keeps downloads for offline and takes links shared from any app.`,
+      text: (platforms: string) => `Catch up wherever you are. At home or on the go. The ${platforms} app keeps playing media with the screen off and allows for offline reading.`,
     },
     desktop: {
       title: "Windows, Mac and Linux",
-      text: "Close the window and it keeps working: alerts and downloads carry on from the tray, and it updates itself.",
+      text: "With the native app you can download your items locally, play media in the background and get notifications when something new appears.",
       download: "Download",
-      otherSystems: "Other systems",
+      otherSystems: "All downloads...",
     },
-    bookmarklets: { title: "Bookmarklets", text: "Can't install anything? Two bookmarks send any page to PURSS, in any browser." },
-    assistant: { title: "Your assistant, if you want one", text: "Ask Claude, ChatGPT or another assistant you already use what you've read about something, and let it tidy up if you allow. Connects through MCP; off until you turn it on." },
-    eink: { title: "E-ink compatible", text: "Made to work on e-readers: black on white, with page buttons instead of scrolling." },
+    bookmarklets: { title: "Bookmarklets", text: "A bookmark you can create in any browser. Without installing anything, you can save your current page in a basket or follow it in a collection." },
+    assistant: { title: "Your assistant", text: "With the MCP integration you can give read and/or write access to your agents so they have access to your PURSS as well. Integrate it in whichever workflow you already have." },
+    eink: { title: "E-ink compatible", text: "An integrated display mode to work well on e-ink screens. A digital feed does not have to mean that you're staring at a screen." },
   },
   terminal: {
     host: "your-server",
-    steps: { code: "Get the code", settings: "Settings (empty is fine for one machine)", start: "Start" },
+    steps: { code: "Get the code", settings: "Customize your parameters", start: "Run it" },
     running: "✔ PURSS running on http://localhost:8940",
-    developers: { before: "Developers: ", phone: "build the phone app", between: " or ", extension: "load the browser extension", after: " from the source." },
   },
   /** The questions and answers on the home page. An answer may contain the HTML it always had. */
   faq: [
@@ -329,12 +324,12 @@ export const legal = {
 
 export const pages = {
   index: {
-    title: (name: string) => `${name}: your internet, organized by you`,
-    description: "Follow blogs, journals, YouTube channels and podcasts in one calm place, with no engagement algorithm. Keep what matters in baskets. Open source: host it yourself for free, or let us host it.",
+    title: (name: string) => `${name}: `${home.hero.heading}`,
+    description: home.hero.lead,
   },
   /** Structured data on the home page. */
   structuredData: {
-    description: "A calm reader for blogs, journals, YouTube channels and podcasts that you can host yourself.",
+    description: "A reader for blogs, journals, YouTube channels and podcasts that you can host yourself.",
     operatingSystem: "Any modern browser; self-hosted with Docker on Linux",
     offer: (plan: string, period: string) => `${plan}, billed ${period}`,
     yearly: "yearly",
