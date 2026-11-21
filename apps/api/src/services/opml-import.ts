@@ -329,9 +329,13 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
     if (!found.ok) { settle("failed", found.message || server.api.opmlImport.couldNotFollow); dropLink(); return; }
     const key = canonicalFeedKey(feedUrl);
     const exact = found.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } });
-    const chosen = exact ?? (found.candidates.length === 1 ? found.candidates[0] : undefined);
+    // A lone candidate is followed for the file's address only when it is a feed the page offers or a list PURSS is sure of: one found
+    // through the page's scripts or links, or a list it isn't sure of, waits for the person to choose it in Add source.
+    const sole = found.candidates.length === 1 ? found.candidates[0]! : undefined;
+    const unsure = !!sole && (sole.fromScripts === true || (sole.pageList !== undefined && sole.pageList.confidence !== "high"));
+    const chosen = exact ?? (unsure ? undefined : sole);
     if (!chosen) {
-      settle("failed", found.candidates.length ? server.api.opmlImport.moreThanOneFeed : server.api.opmlImport.noFeedFound);
+      settle("failed", unsure ? server.api.opmlImport.chooseYourself : found.candidates.length ? server.api.opmlImport.moreThanOneFeed : server.api.opmlImport.noFeedFound);
       dropLink();
       return;
     }

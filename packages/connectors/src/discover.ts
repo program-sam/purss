@@ -1475,7 +1475,9 @@ async function siblingLists(ctx: Ctx, bridge: BridgeClient, service: BridgeServi
     const url = res.response.url;
     // It went where the page's site is, and not to the page itself or somewhere that looks to hold a key.
     try {
-      if (!sameSite(new URL(url).hostname, new URL(page.url).hostname) || carriesAKey(new URL(url)) || privateUrlReason(url) || new URL(url).href === new URL(page.url).href) return null;
+      // A sibling is a page of the page's own host (with or without www.), not of another part of the site.
+      const host = (h: string) => h.toLowerCase().replace(/^www\./, "");
+      if (host(new URL(url).hostname) !== host(new URL(page.url).hostname) || carriesAKey(new URL(url)) || privateUrlReason(url) || new URL(url).href === new URL(page.url).href) return null;
     } catch {
       return null;
     }
@@ -1538,8 +1540,10 @@ async function readScripts(ctx: Ctx, page: ListSource): Promise<{ feeds: DraftCa
         return;
       }
       const res = await ctx.get(file, { maxBytes: room, accept: "*/*", timeoutMs: Math.max(1000, Math.min(SCRIPT_REQUEST_MS, left())), maxRedirects: 2 });
-      const got = res.ok && res.response.status < 400 ? res.response.body : null;
-      give(room, got?.length ?? 0);
+      // Read only if it ended on the page's own site: a file redirected elsewhere is someone else's script.
+      const stayed = res.ok && (res.response.redirects.length === 0 || (() => { try { return sameSite(new URL(res.response.url).hostname, new URL(page.url).hostname); } catch { return false; } })());
+      const got = res.ok && stayed && res.response.status < 400 ? res.response.body : null;
+      give(room, res.ok ? res.response.body.length : 0);
       if (got) texts.push(new TextDecoder().decode(got));
     }
   };

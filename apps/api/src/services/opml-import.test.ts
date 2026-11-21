@@ -86,6 +86,16 @@ test("feeds already followed, several feeds at one address and a second list whi
   await wait(app, d);
   const done = getOpmlImport(app, p, first.id);
   assert.deepEqual(done.entries!.map((e) => [e.state, e.message]), [["already", null], ["failed", opmlImport.moreThanOneFeed]]);
+  // A lone list found through the page's scripts or links, or one PURSS isn't sure of, waits for the person to choose it.
+  const scripted = "https://scripted.example/";
+  const unsure = "https://unsure.example/";
+  const d2 = answers({
+    [scripted]: found(scripted, candidate("https://scripted.example/feed/", "Scripted", { route: "script-feed", fromScripts: true })),
+    [unsure]: found(unsure, candidate("bridge:page/abc", "Unsure", { route: "page-list", pageList: { confidence: "medium" } })),
+  });
+  const second = startOpmlImport(app, p, request(feeds(["Scripted", scripted], ["Unsure", unsure])));
+  await wait(app, d2);
+  assert.deepEqual(getOpmlImport(app, p, second.id).entries!.map((e) => [e.state, e.message]), [["failed", opmlImport.chooseYourself], ["failed", opmlImport.chooseYourself]]);
   // Once it is over, another can start.
   assert.doesNotThrow(() => startOpmlImport(app, p, request(feeds(["x", "https://x.example/"]))));
 });

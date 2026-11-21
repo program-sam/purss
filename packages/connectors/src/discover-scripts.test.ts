@@ -323,3 +323,25 @@ test("the page's own links name its parent and sibling pages: a breadcrumb or a 
   assert.deepEqual([...new Set(asked)], [sibling]);
   assert.ok(!calls.includes("https://www.cdc.gov/about/index.html") && !calls.includes("https://www.cdc.gov/other/page.html"), "a page about something else is not asked for");
 });
+
+test("a script file that redirects to another site is not read, and a sibling on another subdomain of the site is not offered", async () => {
+  const page = SHELL_URL;
+  const moved = "https://www.rijksoverheid.nl/assets/app.js";
+  const feedUrl = "https://www.rijksoverheid.nl/feed/rss/nieuws/";
+  const { fetch, calls } = site({
+    [page]: html(page, shell(`<script src="/assets/app.js"></script>`)),
+    // The site sends its script to someone else's host: what that host serves is not the page's code.
+    [moved]: fakeResponse("https://cdn.other.example/app.js", `const f="/feed/rss/nieuws/";`, "application/javascript", 200, { redirects: ["https://cdn.other.example/app.js"] }),
+    [feedUrl]: feed(feedUrl),
+  });
+  const d = await discover(page, { fetch, now: NOW, bridge: router({}) });
+  assert.ok(!calls.includes(feedUrl), "the redirected file's addresses were not asked for");
+  assert.ok(!d.ok || d.candidates.every((c) => c.route !== "script-feed"));
+  // A sibling a script names on another subdomain of the same site is another part of the site, not the page's sibling.
+  const named = "https://blog.rijksoverheid.nl/actueel";
+  const other = site({ [page]: html(page, shell(`<script>window.r = { a: "https://blog.rijksoverheid.nl/actueel" };</script>`)), [named]: html(named, LISTED) });
+  const asked: string[] = [];
+  const e = await discover(page, { fetch: other.fetch, now: NOW, bridge: router({ [named]: LISTED }, asked) });
+  assert.deepEqual(asked, []);
+  assert.ok(!e.ok || e.candidates.every((c) => c.route !== "script-page"));
+});

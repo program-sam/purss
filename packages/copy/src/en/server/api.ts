@@ -495,6 +495,7 @@ export default {
       couldNotFollow: "That address couldn't be followed.",
       moreThanOneFeed: "More than one feed was found there. Add it from Add source to choose the right one.",
       noFeedFound: "No feed was found at that address.",
+      chooseYourself: "PURSS found a list of posts there, but can't be sure it's the one you followed. Add it from Add source to see it and choose.",
       wentWrongFollowing: "Something went wrong while following this feed.",
     },
     opml: {

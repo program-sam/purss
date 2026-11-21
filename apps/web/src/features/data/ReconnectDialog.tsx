@@ -6,6 +6,7 @@ import { app } from "@purss/copy/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { refreshWorkspace } from "../../api/queries.ts";
+import { preselect } from "../../lib/discovery.ts";
 import { useToasts } from "../../state/toasts.tsx";
 
 const t = app.data.reconnectDialog;
@@ -27,7 +28,12 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
     e?.preventDefault();
     if (!url.trim()) return;
     setLooking(true); setError(""); setResult(null); setPick(0);
-    try { setResult(await post<DiscoveryResult>("/api/discover", { url: url.trim(), entry: "reconnect" })); } catch (err) { setError(messageOf(err)); } finally { setLooking(false); }
+    try {
+      const out = await post<DiscoveryResult>("/api/discover", { url: url.trim(), entry: "reconnect" });
+      setResult(out);
+      // What Add source would choose, and nothing when it wouldn't (a list found through the page's scripts is for the person to pick).
+      setPick(out.ok ? preselect(out.candidates) : 0);
+    } catch (err) { setError(messageOf(err)); } finally { setLooking(false); }
   }
   async function reconnect() {
     if (!cand) return;

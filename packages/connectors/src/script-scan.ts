@@ -184,7 +184,9 @@ export function namedAddresses(texts: readonly string[], pageUrl: string): { fee
   const found = new Map<string, ScriptAddress>();
   const put = (u: URL, kind: "feed" | "page", bonus = 0) => {
     if (carriesAKey(u)) return;
-    const key = `${kind}:${u.origin.replace(/^(https?:\/\/)www\./, "$1")}${u.pathname.replace(/\/+$/, "")}`;
+    // Addresses that differ in their query are different feeds (?category=news, ?category=sports); tracking parameters are left out.
+    const query = [...u.searchParams].filter(([k]) => !/^(?:utm_|fbclid$|gclid$)/i.test(k)).map(([k, v]) => `${k}=${v}`).join("&");
+    const key = `${kind}:${u.origin.replace(/^(https?:\/\/)www\./, "$1")}${u.pathname.replace(/\/+$/, "")}${query ? `?${query}` : ""}`;
     const score = worth(u, kind, page, words) + bonus;
     if (!found.has(key) || found.get(key)!.score < score) found.set(key, { url: u.href, kind, score });
   };

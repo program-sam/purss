@@ -21,6 +21,15 @@ test("a site is its registrable domain: a CDN subdomain belongs to it, another c
   assert.ok(sameSite("www.example.com", "cdn.example.com"));
   assert.ok(!sameSite("www.example.com", "example.net"));
   assert.ok(!sameSite("10.0.0.1", "10.0.0.1"), "two addresses by number are never one site");
+  // On a host where everyone gets a subdomain, the subdomain is the site.
+  assert.ok(!sameSite("alice.github.io", "bob.github.io"));
+  assert.ok(sameSite("alice.github.io", "www.alice.github.io"));
+  assert.equal(registrableDomain("news.example.com.br"), "example.com.br");
+});
+
+test("addresses that differ in their query are different feeds; tracking parameters don't make a second one", () => {
+  const found = namedAddresses([`"/feed?category=news"`, `"/feed?category=sports"`, `"/feed?category=news&utm_source=x"`], "https://www.example.org/news");
+  assert.deepEqual(found.feeds.map((f) => new URL(f.url).searchParams.get("category")).sort(), ["news", "sports"]);
 });
 
 test("only the page's own site's scripts are read, a CDN subdomain of it included, the ones that look like the page's code first", () => {
