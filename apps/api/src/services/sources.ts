@@ -17,6 +17,7 @@ import { iconUrl } from "./icons.ts";
 import { createCollection, deleteItemNow } from "./collections.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
 import { canonicalFeedKey, privateFeedKey } from "./feed-keys.ts";
+import { linkKey, urlKey } from "./url-key.ts";
 import { dropCandidate, holdCandidate, peekCandidate } from "./discovery-cache.ts";
 import { failCapture, fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { HAS_ANNOTATIONS } from "./annotations.ts";
@@ -201,21 +202,60 @@ function followedByName(app: App, p: Principal): Map<string, { id: string; title
   return byName;
 }
 
-/** The followed source of this PURSS for a feed address: by the address, or for a private source by its keyed hash. */
-export function followedSource(app: App, p: Principal, feedUrl: string): { id: string } | undefined {
-  const key = privateFeedKey(app, p.workspaceId, feedUrl);
-  return app.db.get<{ id: string }>(
-    "SELECT id FROM sources WHERE workspace_id = ? AND followed = 1 AND (feed_url = ? OR (feed_key IS NOT NULL AND feed_key = ?)) LIMIT 1", p.workspaceId, feedUrl, key);
+/** The address with the other scheme (http and https), or null. */
+function otherScheme(feedUrl: string): string | null {
+  if (feedUrl.startsWith("https://")) return `http://${feedUrl.slice(8)}`;
+  if (feedUrl.startsWith("http://")) return `https://${feedUrl.slice(7)}`;
+  return null;
 }
+
+/**
+ * The followed source of this PURSS for a feed address: by the address written the same way up to what never changes which feed a
+ * server sends (http or https, a trailing slash, tracking parameters; urlKey), or for a private source by its keyed hash of either scheme.
+ */
+export function followedSource(app: App, p: Principal, feedUrl: string): { id: string } | undefined {
+  const other = otherScheme(feedUrl);
+  const keys = [privateFeedKey(app, p.workspaceId, feedUrl), other ? privateFeedKey(app, p.workspaceId, other) : null].filter((k): k is string => !!k);
+  return app.db.get<{ id: string }>(
+    `SELECT id FROM sources WHERE workspace_id = ? AND followed = 1 AND (feed_url = ? OR (feed_url IS NOT NULL AND purss_url_key(feed_url) = ?)
+       ${keys.length ? `OR feed_key IN (${keys.map(() => "?").join(", ")})` : ""}) ORDER BY created_at LIMIT 1`,
+    p.workspaceId, feedUrl, urlKey(feedUrl), ...keys);
+}
+
+/**
+ * A followed source (under another address) whose newest posts are this feed's newest: most of the feed's newest posts are among the
+ * source's, and most of the source's as many newest are among the feed's. A section's feed inside a site's whole feed, or a feed that
+ * shares a few posts with another, is not the same feed. Compared by post address (linkKey: no www, scheme or tracking parameters).
+ */
+function sameFeedSource(app: App, p: Principal, itemLinks: readonly string[] | undefined): { id: string; title: string } | undefined {
+  const keys = [...new Set((itemLinks ?? []).map(linkKey).filter((k): k is string => !!k))];
+  if (keys.length < SAME_FEED_MIN) return undefined;
+  const need = Math.max(SAME_FEED_MIN, Math.ceil(keys.length * SAME_FEED_SHARE));
+  const marks = keys.map(() => "?").join(", ");
+  const best = app.db.get<{ id: string; title: string; n: number }>(
+    `SELECT s.id, s.title, COUNT(DISTINCT i.link_key) AS n FROM sources s JOIN items i ON i.workspace_id = s.workspace_id AND i.source_id = s.id
+     WHERE s.workspace_id = ? AND s.followed = 1 AND s.kind <> 'manual' AND i.link_key IN (${marks})
+     GROUP BY s.id ORDER BY n DESC, s.created_at LIMIT 1`, p.workspaceId, ...keys);
+  if (!best || best.n < need) return undefined;
+  const newest = app.db.all<{ link_key: string }>(
+    "SELECT link_key FROM items WHERE workspace_id = ? AND source_id = ? AND link_key IS NOT NULL ORDER BY discovered_at DESC, id DESC LIMIT ?", p.workspaceId, best.id, keys.length);
+  const asked = new Set(keys);
+  return newest.filter((r) => asked.has(r.link_key)).length >= need ? { id: best.id, title: best.title } : undefined;
+}
+/** At least this many posts in common, and this share of the newest on both sides. */
+const SAME_FEED_MIN = 3;
+const SAME_FEED_SHARE = 0.7;
 
 /** A found feed behind an opaque token, with whether this PURSS already follows it, or follows a source of the same name. */
 function holdDraft(app: App, p: Principal, c: Parameters<typeof holdCandidate>[2], byName: Map<string, { id: string; title: string }>) {
   const token = newId("dsc");
   const existing = followedSource(app, p, c.feedUrl);
   holdCandidate(token, p.workspaceId, c);
-  const same = existing ? undefined : byName.get(coreName(c.title));
-  const { large: _held, ...shown } = c; // how the engine will follow it is not the person's business
-  return { ...shown, token, alreadyFollowingSourceId: existing?.id ?? null, sameNameSource: same ?? null };
+  const sameFeed = existing ? undefined : sameFeedSource(app, p, c.itemLinks);
+  const same = existing || sameFeed ? undefined : byName.get(coreName(c.title));
+  // How the engine will follow it, and the posts it was compared by, are not the person's business.
+  const { large: _held, itemLinks: _links, ...shown } = c;
+  return { ...shown, token, alreadyFollowingSourceId: existing?.id ?? null, sameFeedSource: sameFeed ?? null, sameNameSource: same ?? null };
 }
 
 type Candidate = Omit<DiscoveryResult & { ok: true }, "ok" | "url">["candidates"][number] & { large?: boolean };

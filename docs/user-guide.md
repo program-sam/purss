@@ -80,7 +80,7 @@ how often it publishes ("about 2 posts a week"), a few recent items, and whether
 gives summaries. Pick one and **Follow**. When a page lists several feeds, the one that is the page's own
 is chosen for you; if none of them clearly is, none is chosen until you pick. A feed with no posts yet
 can still be followed ("No posts yet" shows on its page until the first one arrives). If you already
-follow a source with the same name under another address, the result says so before you follow a second. The collection starts as *No collection*: you never
+follow a source with the same name under another address, the result says so before you follow a second. The same feed written another way (`http` or `https`, with or without a trailing slash or tracking parameters) is the one you already follow, and Follow opens it. A feed at a different address whose newest posts are those of a source you follow (a site's own feed and its FeedBurner copy, say) is pointed out too, as the same posts under another address; following it anyway makes a second source. A section's feed inside a site's whole feed is not taken for it. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
 you want to group it). *Posts the source already has* starts on **Start from now**: only posts that come out after
 you follow are New, and what the feed already had is kept as Ignored: search finds it ([Back catalogue](#sources)). Choose

@@ -5,6 +5,7 @@ import { server } from "@purss/copy/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { keepLink } from "./links.ts";
+import * as sourcesModule from "./sources.ts";
 import { getSource, listSources, NO_POSTS_YET, onSubscribed, presentCandidates, searchPodcastDirectory } from "./sources.ts";
 import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
 
@@ -121,4 +122,48 @@ test("podcast search: Apple's directory answers with shows, and a failure says s
   const down = await searchPodcastDirectory("football weekly", { fetch: async (url) => fakeResponse(url, "oops", "text/html", 503) });
   assert.ok(!down.ok);
   assert.ok(down.message.includes(server.sources.connectors.podcastSearch.directory));
+});
+
+test("the same feed written another way (http or https, a trailing slash, tracking parameters) is 'already followed'; www. and another path are not", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const existing = makeSource(app, p, "Harbour Notes", "feed/harbour");
+  app.db.run("UPDATE sources SET feed_url = 'https://harbour.example/feed/' WHERE id = ?", existing);
+  const urls = ["http://harbour.example/feed", "https://harbour.example/feed", "https://harbour.example/feed/?utm_source=x", "https://HARBOUR.example/feed/", "https://www.harbour.example/feed/", "https://harbour.example/feed/atom"];
+  const found = presentCandidates(app, p, urls.map((feedUrl) => draft({ title: "Something", feedUrl })));
+  assert.deepEqual(found.map((c) => c.alreadyFollowingSourceId), [existing, existing, existing, existing, null, null]);
+  // Following it returns the source already followed instead of a second one.
+  const { followSource } = sourcesModule;
+  assert.equal(followSource(app, p, { token: found[0]!.token, collectionId: null, newCollectionName: null }).id, existing);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE workspace_id = ?", p.workspaceId)!.n, 1);
+});
+
+test("a feed whose newest posts are a followed source's (the same feed at another address) is pointed out; a section inside it, or a few shared posts, is not", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const site = makeSource(app, p, "Harbour Notes", "feed/harbour");
+  const posts = Array.from({ length: 10 }, (_, i) => `https://www.harbour.example/${i % 2 ? "tides" : "boats"}/post-${i}`);
+  applySyncBatch(app, p.engineUserId, batch(posts.map((url, i) => entry("feed/harbour", { url, originalGuid: url, publishedAt: new Date(Date.now() - (10 - i) * 3600_000).toISOString() }))));
+  const withLinks = (feedUrl: string, itemLinks: string[]) => ({ ...draft({ title: "Other name", feedUrl }), itemLinks });
+  const newestFirst = [...posts].reverse();
+  const [mirror, section, overlap, fresh] = presentCandidates(app, p, [
+    // FeedBurner's copy: the same posts, written without www. and over http.
+    withLinks("https://feeds.feedburner.example/harbour", newestFirst.map((u) => u.replace("https://www.", "http://"))),
+    // The tides section: five of its posts, all in the site's feed, but most of the site's newest are boats.
+    withLinks("https://harbour.example/tides/feed", newestFirst.filter((u) => u.includes("/tides/"))),
+    withLinks("https://other.example/feed", [...newestFirst.slice(0, 2), "https://other.example/a", "https://other.example/b", "https://other.example/c"]),
+    withLinks("https://new.example/feed", ["https://new.example/1", "https://new.example/2", "https://new.example/3"]),
+  ]);
+  assert.deepEqual(mirror!.sameFeedSource, { id: site, title: "Harbour Notes" });
+  assert.equal(mirror!.alreadyFollowingSourceId, null, "another address: pointed out, not merged");
+  assert.equal(mirror!.sameNameSource, null);
+  assert.equal(section!.sameFeedSource, null, "a section inside a whole site's feed is another feed");
+  assert.equal(overlap!.sameFeedSource, null, "two shared posts are not the same feed");
+  assert.equal(fresh!.sameFeedSource, null);
+  assert.ok(!("itemLinks" in mirror!), "the posts compared stay on the server");
+  // Another account's sources never count.
+  const q = makeOwner(app, { admin: false });
+  assert.equal(presentCandidates(app, q, [withLinks("https://feeds.feedburner.example/harbour", newestFirst)])[0]!.sameFeedSource, null);
 });

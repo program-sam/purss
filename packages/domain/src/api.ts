@@ -427,6 +427,8 @@ export type DiscoveryCandidate = {
   matchesPage?: boolean;
   /** a source already followed under the same name (another address), so following this one makes a second. */
   sameNameSource?: { id: string; title: string } | null;
+  /** a source already followed under another address whose newest posts are this feed's: following this one makes a second with the same posts. */
+  sameFeedSource?: { id: string; title: string } | null;
   /** another way to follow the same source (a journal through Crossref next to its own feed): offered, never chosen first. */
   alternative?: boolean;
   /**

@@ -249,8 +249,8 @@ export const TOOLS: Tool[] = [
         candidates: r.candidates.map((c) => ({
           followToken: c.token, title: c.title, kind: c.kind, origin: c.origin, via: c.via, cadence: c.cadence,
           summariesOnly: c.summariesOnly, private: !!c.privateWarning, alreadyFollowingSourceId: c.alreadyFollowingSourceId, note: c.note ?? null,
-          // With several candidates, the one that is the pasted page's own (when one is shown to be), and a followed source of the same name.
-          matchesPage: c.matchesPage ?? null, sameNameAsFollowedSource: c.sameNameSource?.title ?? null,
+          // With several candidates, the one that is the pasted page's own (when one is shown to be), and a followed source of the same name or with the same posts.
+          matchesPage: c.matchesPage ?? null, sameNameAsFollowedSource: c.sameNameSource?.title ?? null, samePostsAsFollowedSource: c.sameFeedSource?.title ?? null,
           recentTitlesFromPublisher: c.samples.slice(0, 3).map((s) => s.title),
         })),
       };

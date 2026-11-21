@@ -64,6 +64,7 @@ function CandidateCard({ c, checked, own, onPick }: { c: DiscoveryCandidate; che
         {c.summariesOnly ? <span className="fine" style={{ marginTop: 6 }}>{t.candidate.summariesOnly}</span> : null}
         {own ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>{t.candidate.own}</span> : null}
         {c.alreadyFollowingSourceId ? <span className="fine" style={{ marginTop: 6, color: "var(--accent-ink)", fontWeight: 800 }}>{t.candidate.alreadyFollowing}</span> : null}
+        {c.sameFeedSource ? <span className="fine" style={{ marginTop: 6 }}>{t.candidate.sameFeed.before}<b><bdi>{c.sameFeedSource.title}</bdi></b>{t.candidate.sameFeed.after}</span> : null}
         {c.sameNameSource ? <span className="fine" style={{ marginTop: 6 }}>{t.candidate.sameName.before}<b><bdi>{c.sameNameSource.title}</bdi></b>{t.candidate.sameName.after}</span> : null}
         {c.privateWarning ? <span className="p-warn" style={{ marginTop: 8 }}><Icon name="lock" /><span>{c.privateWarning}</span></span> : null}
         {c.note ? <span className="fine" style={{ marginTop: 6 }}>{c.note}</span> : null}

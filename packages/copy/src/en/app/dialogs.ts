@@ -22,6 +22,7 @@ export default {
         own: "This is the feed of the page you gave.",
         alreadyFollowing: "You already follow this.",
         sameName: { before: "You already follow a source called ", after: " (another address). Following this one adds a second source with the same name." },
+        sameFeed: { before: "You already follow these posts as ", after: ", the same feed at another address. Following this one adds a second source with the same posts." },
       },
       keepOffer: {
         singleVideo: "Single video",

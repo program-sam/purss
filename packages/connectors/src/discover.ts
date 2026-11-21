@@ -53,7 +53,11 @@ const feedLabels = server.sources.connectors.labels;
  * A found feed before it is held behind a token. `large`: the feed is bigger than the engine can read whole (`TRIM_FEED_BYTES` or `TRIM_FEED_ITEMS`), so
  * it is followed through the feed gateway; the person is not shown it.
  */
-export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { large?: boolean };
+/**
+ * `large`: the feed is too big for the engine to read whole. `itemLinks`: its newest posts' addresses, to recognise the same feed already
+ * followed under another address. Both are kept with the preview on the server and never sent to the browser.
+ */
+export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { large?: boolean; itemLinks?: string[] };
 export type DiscoveryDraft = { ok: true; url: string; candidates: DraftCandidate[]; keep?: KeepOffer } | Extract<DiscoveryResult, { ok: false }>;
 type Failure = Extract<DiscoveryResult, { ok: false }>;
 
@@ -318,6 +322,9 @@ export function meaningfulTitle(title: string | null | undefined): string | null
   return t && !isGenericTitle(t) ? t : null;
 }
 
+/** Newest posts compared to recognise a feed already followed under another address. */
+const SAME_FEED_ITEMS = 10;
+
 function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ctx, overrides: { via?: string; origin?: string; title?: string; note?: string } = {}): DraftCandidate {
   const feed = newestFirst(parsed);
   const noun = nounFor(feed);
@@ -336,6 +343,7 @@ function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ct
     siteUrl: feed.siteUrl,
     cadence: cadenceText(feed.items, noun, ctx.now()),
     samples: feed.items.slice(0, 3).map((item, i) => ({ title: sampleTitle(feed, i), publishedAt: item.publishedAt })),
+    itemLinks: feed.items.slice(0, SAME_FEED_ITEMS).flatMap((item) => (item.url ? [item.url] : [])),
     summariesOnly: feed.summariesOnly,
     alreadyFollowingSourceId: null,
     // A bridged source's address is a descriptor (its key can be long and random-looking), not a link anyone holds.

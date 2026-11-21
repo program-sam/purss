@@ -5,9 +5,10 @@ import type { DiscoveryCandidate } from "@purss/domain";
  * carry a secret (a private link), so it never enters the database, backups or logs before
  * the owner decides how to follow it. A restart forgets previews; the person looks up again.
  * `large`: the feed is bigger than the engine can read whole, so following it goes through the
- * feed gateway; it is held with the preview and never sent to the browser.
+ * feed gateway; it is held with the preview and never sent to the browser. `itemLinks`: the feed's newest posts' addresses, compared
+ * with followed sources to recognise the same feed at another address; never sent either.
  */
-type Held = { workspaceId: string; candidate: Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> & { large?: boolean }; expires: number };
+type Held = { workspaceId: string; candidate: Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> & { large?: boolean; itemLinks?: string[] }; expires: number };
 
 const TTL_MS = 60 * 60 * 1000;
 const MAX_ENTRIES = 5000;

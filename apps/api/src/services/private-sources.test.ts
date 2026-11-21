@@ -57,6 +57,7 @@ test("a followed source's link can be kept private afterwards, and shown again o
   assert.deepEqual({ ...row(), feed_key: row().feed_key !== null }, { kind: "private", feed_url: null, feed_key: true, site_url: "https://journals.example", is_private: 1, full_text: 0 });
   assert.deepEqual(linkFiles(app.config.secretsDir), [id]);
   assert.equal(presentCandidates(app, p, [draft(link)])[0]!.alreadyFollowingSourceId, id, "still found again by its fingerprint");
+  assert.equal(presentCandidates(app, p, [draft(link.replace("https://", "http://"))])[0]!.alreadyFollowingSourceId, id, "and over plain http too");
 
   // The feed can't be reached: nothing changes.
   await assert.rejects(setSourcePrivacy(app, p, id, false, async (url) => ({ ok: false, url, reason: "unreachable", message: "down" })), { message: sources.feedUnreachable });
