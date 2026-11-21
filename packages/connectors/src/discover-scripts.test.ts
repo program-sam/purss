@@ -311,3 +311,15 @@ test("without a router the scripts still give their feeds, and no list is looked
   assert.ok(!(await discover(page, { fetch: none.fetch, now: NOW })).ok);
   assert.ok(!none.calls.includes("https://www.example.net/news/latest"), "a sibling is asked for only to preview its lists");
 });
+
+test("the page's own links name its parent and sibling pages: a breadcrumb or a menu that a script doesn't repeat is read as text too", async () => {
+  const page = "https://www.cdc.gov/media/releases/index.html";
+  const sibling = "https://www.cdc.gov/media/index.html";
+  const asked: string[] = [];
+  const markup = `<html><head><title>Media releases</title></head><body><nav><a href="/media/index.html">Media</a> <a href="/about/index.html">About</a> <a href="/other/page.html">Other</a></nav><div id="app"></div></body></html>`;
+  const { fetch, calls } = site({ [page]: html(page, markup), [sibling]: html(sibling, LISTED) });
+  const d = ok(await discover(page, { fetch, now: NOW, bridge: router({ [sibling]: LISTED }, asked) }));
+  assert.ok(d.candidates.length >= 1 && d.candidates.every((c) => c.route === "linked-page" && c.fromScripts === true && c.matchesPage === false), "named only by the page's links: its own route");
+  assert.deepEqual([...new Set(asked)], [sibling]);
+  assert.ok(!calls.includes("https://www.cdc.gov/about/index.html") && !calls.includes("https://www.cdc.gov/other/page.html"), "a page about something else is not asked for");
+});

@@ -150,6 +150,16 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
     const listed = fixture("page-lists/anthropic-news.html");
     return discover(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<head>", `<head><script>window.__routes = { news: "/actueel/nieuws", overview: "/actueel", search: "/zoeken-nope" };</script>`)), [sibling]: page_(sibling, listed) }).fetch, now: NOW, bridge: router });
   },
+  "markup-feed": () => {
+    const page = "https://www.rotterdam.nl/nieuws";
+    const html = page_(page, `<html><head><title>News</title><script src="/_next/a.js"></script></head><body><div id="root" data-feed="/feed/rss/nieuws/"></div></body></html>`);
+    return discover(page, { fetch: stub({ [page]: html, "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `console.log(1)`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
+  },
+  "linked-page": () => {
+    const page = "https://www.rijksoverheid.nl/actueel/nieuws";
+    const sibling = "https://www.rijksoverheid.nl/actueel";
+    return discover(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<body>", `<body><nav><a href="/actueel">Actueel</a></nav>`)), [sibling]: page_(sibling, fixture("page-lists/anthropic-news.html")) }).fetch, now: NOW, bridge: router });
+  },
   "page-list": () => {
     const url = "https://www.anthropic.com/news";
     const html = fixture("page-lists/anthropic-news.html");

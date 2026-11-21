@@ -89,6 +89,10 @@ export const DISCOVERY_ROUTES = [
   "script-feed",
   /** A list of posts on a page of the same site that the page's scripts name (script-scan.ts). */
   "script-page",
+  /** A feed address written in the page's own markup (an attribute, a breadcrumb), not as a feed link, read with its scripts. */
+  "markup-feed",
+  /** A list of posts on a page of the same site that the page itself links to (a breadcrumb, a menu), read with its scripts. */
+  "linked-page",
   // This installation.
   /** This installation's own news (its address or its feed). */
   "installation-news",

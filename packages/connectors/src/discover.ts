@@ -1375,6 +1375,8 @@ const PAGE_PREVIEW_MAX_MS = 25_000;
  */
 const scriptCopy = server.sources.connectors.scriptScan;
 const SCRIPT_ALLOWANCE = 24;
+/** How much of the page's own markup is read as text for the addresses it names. */
+const SCRIPT_MARKUP_CHARS = 1_500_000;
 /** Reading scripts takes at most this long, and starts only with this much more than the previews of lists still need. */
 const SCRIPT_SCAN_MAX_MS = 9000;
 const SCRIPT_SCAN_MIN_MS = 2500;
@@ -1435,13 +1437,13 @@ async function previewLists(ctx: Ctx, bridge: BridgeClient, service: BridgeServi
 }
 
 /** A list the router read, as a candidate. `note` says what PURSS says about it; `of`: the page it was found on. */
-function listCandidate(ctx: Ctx, service: BridgeService, of: ListSource, read: { c: PageListCandidate; key: string; parsed: ParsedFeed }, numbered: { n: number; of: number }, note: string, scripts: boolean): DraftCandidate {
+function listCandidate(ctx: Ctx, service: BridgeService, of: ListSource, read: { c: PageListCandidate; key: string; parsed: ParsedFeed }, numbered: { n: number; of: number }, note: string, scripts: boolean, route: "page-list" | "script-page" | "linked-page" = scripts ? "script-page" : "page-list"): DraftCandidate {
   const facts = extractPageFacts(of.html, of.url);
   const host = new URL(of.url).hostname.replace(/^www\./, "");
   const siteName = siteNameFor(facts, of.url);
   const confidence = read.c.confidence === "high" ? "high" : "medium";
   const candidate = buildCandidate(bridgeDescriptor(service.id, read.key), read.parsed, { url: of.url, title: facts.title, siteName }, ctx, {
-    route: scripts ? "script-page" : "page-list",
+    route,
     origin: service.origin,
     via: numbered.of > 1 ? pageLists.viaNumbered(numbered.n) : pageLists.via,
     note,
@@ -1466,7 +1468,7 @@ async function ownLists(ctx: Ctx, bridge: BridgeClient, service: BridgeService, 
  */
 async function siblingLists(ctx: Ctx, bridge: BridgeClient, service: BridgeService, page: ListSource, named: ScriptAddress[], max: number): Promise<DraftCandidate[]> {
   const limit = Math.min(MAX_PAGE_LISTS, max);
-  const fetched = await mapLimit(named.slice(0, SCRIPT_SIBLINGS), SCRIPT_SIBLINGS, async (address): Promise<ListSource | null> => {
+  const fetched = await mapLimit(named.slice(0, SCRIPT_SIBLINGS), SCRIPT_SIBLINGS, async (address): Promise<(ListSource & { fromMarkup: boolean }) | null> => {
     if (ctx.signal.aborted) return null;
     const res = await ctx.get(address.url, { maxBytes: PAGE_MAX_BYTES, accept: HTML_ACCEPT, timeoutMs: SIBLING_REQUEST_MS, maxRedirects: 3 });
     if (!res.ok || res.response.status >= 400 || sniffContent(res.response.body, res.response.contentType) !== "html") return null;
@@ -1477,19 +1479,21 @@ async function siblingLists(ctx: Ctx, bridge: BridgeClient, service: BridgeServi
     } catch {
       return null;
     }
-    return { url, html: decodeBody(res.response.body, res.response.contentType), body: res.response.body };
+    return { url, html: decodeBody(res.response.body, res.response.contentType), body: res.response.body, fromMarkup: !!address.fromMarkup };
   });
   const pages = fetched.flatMap((source) => (source ? [source] : []));
   if (!pages.length || ctx.signal.aborted) return [];
   // Which lists, page by page, best first; then the previews, all at once.
   const perPage = pages.map((source) => keyedLists(detectPageLists(source.html, source.url, ctx.now()), source, limit));
-  const chosen: { source: ListSource; c: PageListCandidate; key: string }[] = [];
+  const chosen: { source: ListSource & { fromMarkup: boolean }; c: PageListCandidate; key: string }[] = [];
   for (let rank = 0; chosen.length < limit && perPage.some((l) => l.length > rank); rank++) {
     perPage.forEach((lists, i) => { if (lists[rank] && chosen.length < limit) chosen.push({ source: pages[i]!, ...lists[rank]! }); });
   }
   const read = await Promise.all(chosen.map(async ({ source, c, key }) => ({ source, c, key, parsed: await previewPageList(ctx, bridge, { service, key }) })));
   const offered = read.flatMap((r) => (r.parsed ? [{ ...r, parsed: r.parsed }] : []));
-  return offered.map((r, i) => listCandidate(ctx, service, r.source, r, { n: i + 1, of: offered.length }, [scriptCopy.listNote(readableAddress(r.source.url)), pageListNote(r.c)].join(" "), true));
+  return offered.map((r, i) => listCandidate(ctx, service, r.source, r, { n: i + 1, of: offered.length },
+    [r.source.fromMarkup ? scriptCopy.linkedListNote(readableAddress(r.source.url)) : scriptCopy.listNote(readableAddress(r.source.url)), pageListNote(r.c)].join(" "), true,
+    r.source.fromMarkup ? "linked-page" : "script-page"));
 }
 
 /**
@@ -1540,18 +1544,24 @@ async function readScripts(ctx: Ctx, page: ListSource): Promise<{ feeds: DraftCa
     }
   };
   await Promise.all([reader(), reader(), reader()]);
-  const named = namedAddresses(texts, page.url);
+  // The page itself is one more text: its links and attributes name the parent and sibling pages that its scripts do not (a breadcrumb, a
+  // menu). What only the markup names is told apart, so the route it came by is recorded as its own.
+  const inScripts = namedAddresses(texts, page.url);
+  const scriptUrls = new Set([...inScripts.feeds, ...inScripts.pages].map((a) => a.url));
+  const all = namedAddresses([...texts, page.html.slice(0, SCRIPT_MARKUP_CHARS)], page.url);
+  const mark = (a: ScriptAddress): ScriptAddress => (scriptUrls.has(a.url) ? a : { ...a, fromMarkup: true });
+  const named = { feeds: all.feeds.map(mark), pages: all.pages.map(mark) };
   const facts = extractPageFacts(page.html, page.url);
   const siteName = siteNameFor(facts, page.url);
   const probed = await mapLimit(named.feeds.slice(0, SCRIPT_FEEDS), 3, async (address) => {
     if (ctx.signal.aborted || left() <= 0) return null;
     const probe = await probeFeed(ctx, address.url, false, { maxRedirects: 2, timeoutMs: Math.max(1000, Math.min(SCRIPT_REQUEST_MS, left())) });
-    return "parsed" in probe && probe.parsed.items.length ? probe : null;
+    return "parsed" in probe && probe.parsed.items.length ? { ...probe, fromMarkup: !!address.fromMarkup } : null;
   });
   const feeds: { c: DraftCandidate; parsed: ParsedFeed }[] = [];
   for (const probe of probed) {
     if (!probe || feeds.some((f) => sameEntries(f.parsed, probe.parsed))) continue;
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { route: "script-feed", note: scriptCopy.feedNote });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, probe.fromMarkup ? { route: "markup-feed", note: scriptCopy.markupFeedNote } : { route: "script-feed", note: scriptCopy.feedNote });
     // A feed of comments is not what a page is followed for.
     if (c.via !== feedLabels.commentsFeed) feeds.push({ c: { ...c, matchesPage: false, fromScripts: true }, parsed: probe.parsed });
   }

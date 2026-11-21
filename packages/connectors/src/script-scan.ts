@@ -168,7 +168,8 @@ function worth(u: URL, kind: "feed" | "page", page: URL, words: string[]): numbe
 /** A path without its language folder (`/fr/news` → `/news`), to tell a page's own language versions from its siblings. */
 const withoutLanguage = (path: string): string => path.replace(/^\/[a-z]{2}(?:[-_][A-Za-z]{2,4})?(?=\/|$)/, "").replace(/\/+$/, "") || "/";
 
-export type ScriptAddress = { url: string; kind: "feed" | "page"; score: number };
+/** `fromMarkup`: named only in the page's own markup, not in any of its scripts. */
+export type ScriptAddress = { url: string; kind: "feed" | "page"; score: number; fromMarkup?: boolean };
 
 /**
  * The addresses the scripts name, best first. Feeds: an address written out that looks like a feed's (`/feed/rss/nieuws/`, `/api/rss`), and a

@@ -293,6 +293,8 @@ export const sources = {
       scriptScan: {
         feedNote: "The page doesn't link to this feed; PURSS found its address in the page's own scripts.",
         listNote: (page: string) => `PURSS found this list on ${page}, which the page's scripts point to.`,
+        markupFeedNote: "The page doesn't link to this feed as one; PURSS found its address written in the page.",
+        linkedListNote: (page: string) => `PURSS found this list on ${page}, which the page links to.`,
       },
       pageLists: {
         service: "Page lists",

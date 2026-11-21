@@ -387,6 +387,7 @@ which could go; they are never shown to anyone else.
 | `bridge:<service>` | a bridged source, one id per service of the catalogue (`telegram`, `bandcamp`, `soundcloud`, `twitch`, `mixcloud`, `rutube`, `applemusic`, `instagram`, `mangadex`, `vkvideo`, `crossref`, `page`) |
 | `page-list` | a list of posts the page itself shows |
 | `script-feed` · `script-page` | a feed a script names, a list on a page a script names |
+| `markup-feed` · `linked-page` | a feed address written in the page's own markup (not as a feed link), a list on a page the page itself links to, read along with its scripts |
 | `installation-news` | this installation's own news |
 
 | Entry | The person got to the lookup by… |
@@ -433,7 +434,7 @@ also needs its bridge added to the enabled list in `infra/compose.yaml` (a test 
 
 Some pages build their list of posts with script, and name where the posts are in that script: a feed address the page
 doesn't link, or a page of the same site that shows the list as ordinary markup. When a pasted web page has no feed and nothing
-else found one, PURSS reads the page's own scripts **as text**. It never runs one, and everything it asks for is an ordinary `GET`
+else found one, PURSS reads the page's own scripts, and its own markup with them, **as text**. It never runs a script, and everything it asks for is an ordinary `GET`
 through `safeFetch`. Two kinds of finding come of it, and nothing else (`script-scan.ts`, `discover.ts`):
 
 - **A feed named in a script** (route `script-feed`). An address a script writes out that looks like a feed's (`/feed/rss/nieuws/`,
@@ -453,8 +454,8 @@ through `safeFetch`. Two kinds of finding come of it, and nothing else (`script-
 **What is read.** Only scripts of the page's own site, by registrable domain, so a CDN subdomain of the site counts and another company's
 host does not (`<script src>`, and module and script preloads); the likeliest first (a word of the page's address in the file's name, a
 page's own code before a library); at most 10 files, 2 MiB of one and 3 MiB of all of them, three at a time; and the page's inline scripts
-(JSON-LD and application data included, which often name the parent pages), from the page already in hand. The page's own links and attributes
-are not read as a source of sibling pages. An address that carries a key
+(JSON-LD and application data included, which often name the parent pages) and the page's own markup as one more text (its links and attributes: a
+breadcrumb or a menu names the parent and sibling pages that its scripts do not), all from the page already in hand. An address that carries a key
 (a parameter called `key`, `token`, `hash`, `sha256`, `client_id`, `signature` or the like, whatever its value, a credential by
 the privacy rules, a secret in the path) is never asked for and never offered, and neither is one outside what the rules above allow. At most six feed
 addresses and two pages are asked for in all (eight addresses).
