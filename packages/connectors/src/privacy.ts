@@ -96,18 +96,19 @@ function looksMachineMade(piece: string, hexOk = true): boolean {
   return changes / piece.length >= 0.4;
 }
 
-/** Is a query parameter named like a credential, whatever its value (`token`, `api_key`, `sig`; never a paging token)? */
-export function isCredentialName(name: string): boolean {
-  const bare = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return SECRET_NAME.test(bare) || (SECRET_NAME_ENDING.test(bare) && !PAGING_NAME.test(bare));
-}
-
-/** Is a query parameter's name that of a credential, given its value? A name that could be a topic needs a value that is not a word. */
-export function isCredentialParam(name: string, value: string): boolean {
-  if (value.length < 6) return false;
+/**
+ * Could a query parameter be a credential, however short its value? A name that says so (`token`, `api_key`, `sig`; never a paging
+ * token) always; a name that could be a topic (`key`, `code`) unless its value is a word.
+ */
+export function mayBeCredentialParam(name: string, value: string): boolean {
   const bare = name.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (SECRET_NAME.test(bare) || (SECRET_NAME_ENDING.test(bare) && !PAGING_NAME.test(bare))) return true;
   return AMBIGUOUS_NAME.test(bare) && !isPlainWord(value);
+}
+
+/** Is a query parameter's name that of a credential, given its value? A value under six characters is too short to be one here. */
+export function isCredentialParam(name: string, value: string): boolean {
+  return value.length >= 6 && mayBeCredentialParam(name, value);
 }
 
 /** Remove userinfo, query string, fragment and token-looking path segments. */

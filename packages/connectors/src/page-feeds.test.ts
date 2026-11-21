@@ -99,13 +99,13 @@ test("a key holds only an address PURSS may fetch, and only a recipe inside the 
     "https://user:secret@example.com/news", "ftp://example.com/news", "file:///etc/passwd", "javascript:alert(1)", "not an address", "https://example.com:25/news",
     `https://example.com/${"a".repeat(2100)}`, "https://example.com/private/feeds/a8f3c91d2e7b4f6a9c0d1e2f3a4b5c6d", "https://example.com/feed?token=a8f3c91d2e7b4f6a9c0d1e2f",
     // Written into the key, so a credential-named parameter refuses the address however short its value.
-    "https://example.org/news?token=abc", "https://example.org/news?api_key=x1", "https://example.org/news?sig=1", "https://example.org/news?auth=y&page=2",
+    "https://example.org/news?token=abc", "https://example.org/news?api_key=x1", "https://example.org/news?sig=1", "https://example.org/news?auth=y&page=2", "https://example.org/news?key=x1", "https://example.org/news?code=7f3",
   ]) {
     assert.equal(encodePageKey({ ...NEWS, url }), null, `${url.slice(0, 60)}: not made`);
     assert.equal(decodePageKey(forged({ ...FIELDS, u: url })), null, `${url.slice(0, 60)}: not read`);
   }
   // Ordinary parameters, a paging token among them, are kept.
-  for (const url of ["https://example.org/news?page=2", "https://example.org/news?category=tech&nextPageToken=abc"]) assert.ok(encodePageKey({ ...NEWS, url }), url);
+  for (const url of ["https://example.org/news?page=2", "https://example.org/news?category=tech&nextPageToken=abc", "https://example.org/news?key=sport"]) assert.ok(encodePageKey({ ...NEWS, url }), url);
   // An address that isn't written the way the parser writes it is not the one the writer made.
   assert.equal(decodePageKey(forged({ ...FIELDS, u: "https://www.anthropic.com:443/news#top" })), null);
   assert.equal(decodePageKey(forged({ ...FIELDS, u: "HTTPS://WWW.ANTHROPIC.COM/news" })), null);
