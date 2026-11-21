@@ -99,6 +99,10 @@ with what feeds, FreshRSS, publishers' sites and large accounts really do, so:
 - Source discovery and the journal rules are checked against the live sites with
   `node scripts/journal-feeds-check.ts`; an RSS-Bridge image is checked against every bridged service
   with `node scripts/bridge-check.ts`. Both need the network and are not part of `npm test`.
+- The page-list detector is measured against saved pages and hand labels (top-1 and top-3 accuracy, titles, dates,
+  how well its confidence separates right from wrong) with
+  `node scripts/page-lists-eval.ts <pages-dir> <labels.json>`; the saved pages are not in the repository, so it is
+  not part of `npm test` either.
 - Anything that changes how lists, counts, storage totals or sync read the database is shown on a
   large account (below), not only on a test database.
 - Say which commands you ran, what they showed, and which cases you could not try.
