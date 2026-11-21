@@ -23,7 +23,7 @@ pub mod notification {
     pub const OPEN: &str = "Open";
     pub const UPDATE_READY: &str = "A new version of PURSS is ready";
     pub fn update_ready_text(version: impl std::fmt::Display) -> String {
-        format!("Version {version} is installed when you restart the app, or when you quit it from the tray.")
+        format!("Version {version} is installed. Restart the app to see the changes.")
     }
 }
 pub mod dialog {
@@ -59,11 +59,9 @@ pub mod errors {
     pub fn downloads_folder_not_made(e: impl std::fmt::Display) -> String {
         format!("Couldn't make the downloads folder: {e}")
     }
-    pub fn downloads_folder_taken(folder: impl std::fmt::Display) -> String {
-        format!("There's already a folder called “{folder}” there that isn't the app's. Choose another folder.")
-    }
+    pub const DOWNLOADS_FOLDER_TAKEN: &str = "There's already a folder with that name. Choose another folder.";
     pub fn downloads_folder_is_link(folder: impl std::fmt::Display) -> String {
-        format!("“{folder}” there is a link. Choose another folder.")
+        format!("“{folder}” is a link. Choose another folder.")
     }
 }
 pub mod incoming {

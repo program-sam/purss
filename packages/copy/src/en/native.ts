@@ -9,17 +9,18 @@ const name = "PURSS";
 
 // The sample rows Android's widget picker shows, used by more than one panel.
 const sample = {
-  howCitiesAre: { avatar: "CD", title: "How cities are rethinking their streets", meta: "City Desk, 2 hr. ago" },
-  aShortHistory: { avatar: "LR", title: "A short history of the paperback", meta: "Long Reads, 1 day ago" },
-  whySleepMatters: { avatar: "SW", title: "Why sleep matters more than you think", meta: "Science Weekly, 3 days ago" },
-  episodeTheLong: { avatar: "TM", title: "Episode 212: The long game", meta: "The Money Hour, 1 day ago" },
-  insideTheWorld: { avatar: "DT", title: "Inside the world of mapmakers", meta: "Design Talk, 2 days ago" },
-  theScienceOf: { avatar: "MM", title: "The science of habits", meta: "Mind Matters, 4 days ago" },
-  theQuietReturn: { avatar: "MN", title: "The quiet return of the train", meta: "Morning News, 12 min. ago" },
-  whatWeLearned: { avatar: "TN", title: "What we learned from a year of tests", meta: "Tech Notes, 1 hr. ago" },
-  aNewWay: { avatar: "SW", title: "A new way to see the stars", meta: "Science Weekly, 3 hr. ago" },
-  theNewChips: { avatar: "TN", title: "The new chips are here", meta: "Tech Notes, 5 hr. ago" },
-  insideAData: { avatar: "TN", title: "Inside a data centre", meta: "Tech Notes, 1 day ago" },
+  theTailEnd: { avatar: "WB", title: "The Tail End", meta: "Wait But Why, 2 hr. ago" },
+  howToDo: { avatar: "PG", title: "How to Do Great Work", meta: "Paul Graham, 1 day ago" },
+  howToBuild: { avatar: "LT", title: "How to Build a Low-tech Website?", meta: "Low-tech Magazine, 3 days ago" },
+  colors: { avatar: "RL", title: "Colors", meta: "Radiolab, 1 day ago" },
+  theUpsideOf: { avatar: "FR", title: "The Upside of Quitting", meta: "Freakonomics Radio, 2 days ago" },
+  theLadyVanishes: { avatar: "RH", title: "The Lady Vanishes", meta: "Revisionist History, 4 days ago" },
+  thePillarsOf: { avatar: "AP", title: "The Pillars of Creation", meta: "APOD, 12 min. ago" },
+  whyNoOne: { avatar: "VE", title: "Why No One Has Measured The Speed Of Light", meta: "Veritasium, 1 hr. ago" },
+  theFermiParadox: { avatar: "WB", title: "The Fermi Paradox", meta: "Wait But Why, 3 hr. ago" },
+  standards: { avatar: "XK", title: "Standards", meta: "xkcd, 1 hr. ago" },
+  exploitsOfA: { avatar: "XK", title: "Exploits of a Mom", meta: "xkcd, 2 days ago" },
+  compiling: { avatar: "XK", title: "Compiling", meta: "xkcd, 4 days ago" },
 };
 
 export const native = {
@@ -52,29 +53,29 @@ export const native = {
     // The sample rows each panel shows in the launcher's list of widgets.
     widgetPreview: {
       toRead: {
-        first: sample.howCitiesAre,
-        second: sample.aShortHistory,
-        third: sample.whySleepMatters,
+        first: sample.theTailEnd,
+        second: sample.howToDo,
+        third: sample.howToBuild,
       },
       toListen: {
-        first: sample.episodeTheLong,
-        second: sample.insideTheWorld,
-        third: sample.theScienceOf,
+        first: sample.colors,
+        second: sample.theUpsideOf,
+        third: sample.theLadyVanishes,
       },
       new: {
-        first: sample.theQuietReturn,
-        second: sample.whatWeLearned,
-        third: sample.aNewWay,
+        first: sample.thePillarsOf,
+        second: sample.whyNoOne,
+        third: sample.theFermiParadox,
       },
       collection: {
-        first: sample.theQuietReturn,
-        second: sample.howCitiesAre,
-        third: sample.aShortHistory,
+        first: sample.thePillarsOf,
+        second: sample.theFermiParadox,
+        third: sample.colors,
       },
       source: {
-        first: sample.whatWeLearned,
-        second: sample.theNewChips,
-        third: sample.insideAData,
+        first: sample.standards,
+        second: sample.exploitsOfA,
+        third: sample.compiling,
       },
     },
   },
