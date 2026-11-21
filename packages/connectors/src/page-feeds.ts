@@ -3,7 +3,7 @@ import { isForbiddenLiteralHost } from "./addresses.ts";
 import { canonicalUrl } from "./page-context.ts";
 import { validateRecipe } from "./page-xpath.ts";
 import type { PageListRecipe } from "./page-xpath.ts";
-import { privateUrlReason } from "./privacy.ts";
+import { isCredentialName, privateUrlReason } from "./privacy.ts";
 import { parseTarget } from "./safe-fetch.ts";
 
 /*
@@ -40,11 +40,15 @@ const MAX_PAGE_DOCUMENT = 4096;
 
 const KEY_CHARS = /^[A-Za-z0-9_-]+$/;
 
-/** The page's address as discovery keeps it, or null when PURSS may not fetch it or it looks to carry a credential. */
+/**
+ * The page's address as discovery keeps it, or null when PURSS may not fetch it or it may carry a credential. Stricter than the
+ * private-link check: the address is written into the source's key, so any parameter named like a credential refuses it, however short.
+ */
 function allowedPage(url: unknown): string | null {
   if (typeof url !== "string") return null;
   const target = parseTarget(url);
   if (!target.ok || isForbiddenLiteralHost(target.url.hostname) || privateUrlReason(target.url.href)) return null;
+  if ([...target.url.searchParams.keys()].some(isCredentialName)) return null;
   return target.url.href;
 }
 

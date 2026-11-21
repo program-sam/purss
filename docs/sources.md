@@ -18,9 +18,11 @@ syncs flow is in [Architecture](architecture.md); the code is in
   RSS-Bridge reach the internet only through the egress proxy with the same rules. The
   [security](security.md) page has the address rules.
 - **No connector code.** The catalogue of source kinds is declarative data in the repository, and
-  adding a kind of source is a reviewed code change with recorded fixtures. No uploaded code, user
-  script or user-written recipe is ever run; a page list's recipe is made only by PURSS's detector,
-  from a fixed grammar, and run by the bundled RSS-Bridge's XPathBridge behind the signed router
+  adding a kind of source is a reviewed code change with recorded fixtures. No uploaded code or user
+  script is ever run. A page list's recipe is a few expressions from a fixed grammar that can only
+  select text and links on one public page; PURSS's detector writes it, and any recipe outside the
+  grammar is refused, though a `bridge:page/…` address someone writes by hand within it is read like
+  the detector's. The bundled RSS-Bridge's XPathBridge runs it behind the signed router
   ([Page lists](#page-lists)).
 - **No credentials.** No source needs a password, a session cookie or an API key from the
   person, and nothing scrapes a login. A service that needs one stays unavailable, and the
@@ -530,7 +532,8 @@ When a web address found nothing, discovery asks Wikidata, the open knowledge ba
 
 **When it runs.** Only when discovery would otherwise fail, and only after its own answers: no feed
 on the page, the lookup's cap on requests used up by the site's own addresses (the registry then gets four
-requests of its own: its search, its items and two of the feeds it names), a page that turns automated readers away (403, 429, "busy or limiting") or is broken
+more requests: its search, its items and two of the feeds it names; a redirect a feed answers with
+counts once followed, so the step can go a few hops past the four), a page that turns automated readers away (403, 429, "busy or limiting") or is broken
 (5xx). Not after a more particular answer (a fediverse post, a page that is not there, one that wants
 a password, Duke's message), not for an address made of numbers, not for an address that looks
 private, and not when the journal's ISSN is already known, which the Crossref step handles. Asking a
