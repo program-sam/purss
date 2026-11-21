@@ -1,7 +1,7 @@
 /** Copy for the browser extension (apps/extension). */
 export const extension = {
   api: {
-    offline: "Couldn't reach your PURSS. Check your connection, or that the PURSS is running.",
+    offline: "Couldn't reach your PURSS. Check your connection.",
     signedOut: "This extension isn't connected to your PURSS any more. Connect it again.",
     tooLarge: "This page's text is too large to keep.",
     failed: (status: number) => `The PURSS answered with an error (${status}).`,
@@ -65,7 +65,7 @@ export const extension = {
     badge: {
       title: "Mark pages you've kept",
       label: "Show a ✓ on the toolbar button when the page you open is already kept",
-      hint: "Off unless you turn it on. When it's on, the extension asks your PURSS about each page you open in a normal window (never in a private window), so your PURSS learns those addresses. When it's off, it asks only when you open the extension's popup on a page.",
+      hint: "Off unless you turn it on. When it's on, the extension asks your PURSS about each page you open in a normal window (never in a private window). When it's off, it asks only when you open the extension's popup on a page.",
     },
     search: {
       title: "Search from the address bar",
