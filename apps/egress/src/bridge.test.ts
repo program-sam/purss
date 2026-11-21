@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import { test } from "node:test";
 import type { AddressInfo } from "node:net";
-import { bridgeRoutePath, bridgeService, parseFeed } from "@purss/connectors";
+import { BRIDGE_SERVICES, bridgeRoutePath, bridgeService, needsRssBridge, parseFeed } from "@purss/connectors";
 import type { BridgeService } from "@purss/connectors";
 import { createBridgeServer } from "./bridge/http.ts";
 import { BridgeLog } from "./bridge/log.ts";
@@ -368,4 +369,67 @@ test("an Instagram answer without posts is a misread page: asked again at once, 
 
   const { r: fresh } = router([new FakeBackend("rss-bridge", ok(instagramAtom([])))]);
   assert.equal((await fresh.serve("instagram", "natgeo", s)).status, 503, "with nothing good yet, never an empty source");
+});
+
+/** What RSS-Bridge answered for a service's example, recorded (trimmed), in the connectors' fixtures. */
+const recorded = (name: string) => readFileSync(new URL(`../../../packages/connectors/src/fixtures/bridges/${name}.atom`, import.meta.url), "utf8");
+
+const RECORDED = [
+  { service: "mangadex", key: "801513ba-a712-498c-8f57-cae55b38cc92", file: "mangadex-berserk", title: "Berserk", site: "https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92",
+    guids: ["c0cd4656-6946-4be8-8d33-0aeb2fbeddfb", "cb0148ea-ba2e-487a-b368-2a9346350b5c", "a153d3b0-d79c-459e-912b-ed6c24dc1738", "62650219-b889-4a63-960b-0ac4add893a7",
+      "4b7b0d08-b690-47a3-b9d1-73c1e230c4e1", "c95f6343-24c9-4476-af3c-a4d904238734", "17f089d2-d457-4718-89f5-4c41cf5f29a4", "88d18567-d54a-4c76-8e4e-d419291ce38b"].map((u) => `mangadex:chapter/${u}`) },
+  { service: "vkvideo", key: "thoisoi", file: "vkvideo-thoisoi", title: "Thoisoi", site: "https://vkvideo.ru/@thoisoi",
+    guids: [456240181, 456240180, 456240179, 456240178, 456240177].map((n) => `vkvideo:video/-22629421_${n}`) },
+] as const;
+
+test("MangaDex's and VK Video's recorded outputs are served as RSS whose ids come from the post links and whose links are the canonical post addresses", async () => {
+  for (const n of RECORDED) {
+    const { r } = router([new FakeBackend("rss-bridge", ok(recorded(n.file)))]);
+    const a = await r.serve(n.service, n.key, sig(n.service, n.key));
+    assert.equal(a.status, 200, n.file);
+    const feed = parseFeed(a.body, a.headers["content-type"]);
+    assert.deepEqual(feed.items.map((i) => i.guid), n.guids, n.file);
+    assert.equal(feed.title, n.title, n.file);
+    assert.equal(feed.siteUrl, n.site, n.file);
+    assert.ok(feed.items.every((i) => i.url && i.publishedAt), `${n.file}: every entry has its link and date`);
+  }
+});
+
+test("a MangaDex answer without entries is a title it doesn't know, or a misread: asked twice and then a failure, never an empty feed", async () => {
+  const [service, key] = ["mangadex", "00000000-0000-4000-8000-000000000000"];
+  const backend = new FakeBackend("rss-bridge", ok(recorded("mangadex-unknown-title")));
+  const { r, log } = router([backend]);
+  const a = await r.serve(service, key, sig(service, key));
+  assert.equal(a.status, 503);
+  assert.equal(backend.calls, 2, "asked again once at once");
+  assert.deepEqual(log.summary().failing.map((f) => [f.service, f.outcome]), [[service, "no_posts"]]);
+});
+
+test("each service's example, asked of RSS-Bridge as the catalogue says, comes back through the router as entries with ids", async () => {
+  const files = new Map<string, string>(RECORDED.map((n) => [n.service, n.file]));
+  const asked: { bridge: string; params: Record<string, string> }[] = [];
+  const upstream = await startUpstream((req, res) => {
+    const q = new URL(req.url ?? "/", "http://rss-bridge.test").searchParams;
+    const bridge = q.get("bridge") ?? "";
+    asked.push({ bridge, params: Object.fromEntries([...q].filter(([k]) => k !== "bridge" && k !== "action" && k !== "format")) });
+    const file = [...files].find(([service]) => (bridgeService(service)!.backend as { bridge?: string }).bridge === bridge)?.[1];
+    res.writeHead(file ? 200 : 404, { "content-type": "application/atom+xml" });
+    res.end(file ? recorded(file) : "unknown bridge");
+  });
+  try {
+    const log = new BridgeLog({ now: () => T0 });
+    const r = new BridgeRouter({ secret: SECRET, backends: [rssBridgeBackend(`http://127.0.0.1:${upstream.port}`)], log, now: () => T0 });
+    for (const service of BRIDGE_SERVICES.filter((s) => needsRssBridge(s) && files.has(s.id))) {
+      const a = await r.serve(service.id, service.example, sig(service.id, service.example));
+      assert.equal(a.status, 200, service.id);
+      const feed = parseFeed(a.body, a.headers["content-type"]);
+      assert.ok(feed.items.length > 0 && feed.items.every((i) => i.guid?.startsWith(`${service.id}:`)), service.id);
+    }
+    assert.deepEqual(asked, [
+      { bridge: "MangaDexBridge", params: { context: "Title Chapters", url: "https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92", limit: "50", images: "no" } },
+      { bridge: "VkVideoBridge", params: { context: "Channel", u: "@thoisoi" } },
+    ]);
+  } finally {
+    await upstream.close();
+  }
 });

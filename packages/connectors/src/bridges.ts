@@ -367,6 +367,69 @@ const instagram: BridgeService = {
   emptyIsFailure: true,
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MANGADEX_HOSTS = new Set(["mangadex.org", "www.mangadex.org"]);
+
+const mangadex: BridgeService = {
+  id: "mangadex",
+  example: "801513ba-a712-498c-8f57-cae55b38cc92",
+  name: "MangaDex",
+  origin: server.sources.connectors.bridges.mangadex,
+  keyPattern: UUID,
+  keyFromPage(url) {
+    if (!MANGADEX_HOSTS.has(hostOf(url))) return null;
+    const s = segmentsOf(url);
+    const id = s[1]?.toLowerCase() ?? "";
+    // /title/<uuid> and /title/<uuid>/<slug>; a chapter is a page of its own.
+    return s[0] === "title" && s.length <= 3 && UUID.test(id) ? id : null;
+  },
+  pageUrl: (key) => `https://mangadex.org/title/${key}`,
+  // The latest chapters in every language, newest first (one request whatever the number); chapters that are only a link to another site are left out.
+  backend: { kind: "rss-bridge", bridge: "MangaDexBridge", params: (key) => ({ context: "Title Chapters", url: `https://mangadex.org/title/${key}`, limit: "50", images: "no" }) },
+  cleanTitle: (title) => title.replace(/\s+Chapters$/, ""),
+  postId(_key, link) {
+    if (!MANGADEX_HOSTS.has(hostOf(link))) return null;
+    const s = segmentsOf(link);
+    const id = s[1]?.toLowerCase() ?? "";
+    return s.length === 2 && s[0] === "chapter" && UUID.test(id) ? `mangadex:chapter/${id}` : null;
+  },
+  // A title MangaDex doesn't know is answered as a title without chapters (a feed with no entries), as is a title nobody has uploaded to.
+  emptyIsFailure: true,
+};
+
+/** VK Video channel handles: letters, digits, underscores and periods, any case (the site ignores it). */
+const VK_NAME = /^[a-z0-9_][a-z0-9_.]{1,63}$/;
+const VK_VIDEO_HOSTS = new Set(["vkvideo.ru", "www.vkvideo.ru", "m.vkvideo.ru"]);
+const VK_SITE_HOSTS = new Set(["vk.com", "www.vk.com", "m.vk.com"]);
+/** A channel's own tabs, all of which are the channel. */
+const VK_TABS = new Set(["all", "clips", "playlists"]);
+
+const vkvideo: BridgeService = {
+  id: "vkvideo",
+  example: "thoisoi",
+  name: "VK Video",
+  origin: server.sources.connectors.bridges.vkvideo,
+  keyPattern: VK_NAME,
+  keyFromPage(url) {
+    let s = segmentsOf(url);
+    // vkvideo.ru/@name, and vk.com/video/@name, which redirects there.
+    if (VK_SITE_HOSTS.has(hostOf(url)) && s[0] === "video") s = s.slice(1);
+    else if (!VK_VIDEO_HOSTS.has(hostOf(url))) return null;
+    if (!s[0]?.startsWith("@") || s.length > 2 || (s.length === 2 && !VK_TABS.has(s[1]!))) return null;
+    const name = s[0].slice(1).toLowerCase();
+    return VK_NAME.test(name) ? name : null;
+  },
+  pageUrl: (key) => `https://vkvideo.ru/@${key}`,
+  backend: { kind: "rss-bridge", bridge: "VkVideoBridge", params: (key) => ({ context: "Channel", u: `@${key}` }) },
+  // A video's address is vkvideo.ru/video<owner>_<number>; the owner (a negative number for a community) is part of the video's identity.
+  postId(_key, link) {
+    if (!VK_VIDEO_HOSTS.has(hostOf(link))) return null;
+    const s = segmentsOf(link);
+    const m = s.length === 1 ? /^video(-?\d{1,12})_(\d{1,12})$/.exec(s[0]!) : null;
+    return m ? `vkvideo:video/${m[1]}_${m[2]}` : null;
+  },
+};
+
 /** A journal's articles as registered with Crossref. The key is the journal's ISSN without its hyphen. */
 const crossref: BridgeService = {
   id: "crossref",
@@ -386,7 +449,7 @@ const crossref: BridgeService = {
   },
 };
 
-export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, instagram, crossref]);
+export const BRIDGE_SERVICES: readonly BridgeService[] = Object.freeze([telegram, bandcamp, soundcloud, twitch, mixcloud, rutube, appleMusic, instagram, mangadex, vkvideo, crossref]);
 
 /** True for services collected by RSS-Bridge, which an installation may not run. */
 export function needsRssBridge(service: BridgeService): boolean {

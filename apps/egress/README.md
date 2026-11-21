@@ -170,7 +170,7 @@ what a bridged source is and how one is followed.
 ### RSS-Bridge backend
 
 The services RSS-Bridge collects (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music,
-Instagram) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
+Instagram, MangaDex, VK Video) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
 parameters, 45 seconds and 8 MiB at most, errors as HTTP statuses. On RSS-Bridge's own network
 (`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS resolver answers A questions with public addresses
 only (a name with any forbidden answer is refused), because RSS-Bridge looks every host up itself before

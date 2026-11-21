@@ -48,7 +48,7 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
 | Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
 | Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds); bridge router and its fetch log; control listener |
-| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram) into feeds; pinned upstream image, only the catalogued bridges enabled |
+| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video) into feeds; pinned upstream image, only the catalogued bridges enabled |
 | FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
 | Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
 | Browser extension | `apps/extension` | Popup, right-click menu, address-bar search and browser-assisted capture in the person's browser; talks only to the PURSS it is connected to, with a device token |

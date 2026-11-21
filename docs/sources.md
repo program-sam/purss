@@ -250,7 +250,11 @@ stable ids. FreshRSS stays the only thing that polls.
 | Rutube | A channel (dates are moved back three hours: the backend labels Moscow time as UTC) | The channel number |
 | Apple Music | An artist's releases (up to 50, in no order) | The artist number |
 | Instagram | A public account's latest six posts, as captions ([Instagram](#instagram)) | The user name |
+| MangaDex | A title's latest chapters (`mangadex.org/title/<uuid>/…`), in every language the title has, each marked in its title (`[en]`); a chapter that only links to another site is left out | The title's uuid |
+| VK Video | A channel (`vkvideo.ru/@name`, `vk.com/video/@name`) | The handle without the `@`, in lower case |
 | Crossref | A journal's registered articles ([Journals and Crossref](#journals-and-crossref)) | The ISSN without its hyphen |
+
+Patreon, GoComics and The Far Side were tried and left out: they refuse datacenter addresses.
 
 Facebook, Threads, X and TikTok are not bridged: they need a session. A service enters the
 catalogue only when its bridge returns real recent entries for popular accounts from both a
@@ -262,7 +266,7 @@ changes its site, and the preview says so.
 A bridged source's feed address in the product is a descriptor, `bridge:<service>/<key>`
 (`bridge:telegram/durov`): no host, port, backend or credential. The key is the service's
 public handle, lower-cased where the service ignores case, and a renamed handle is a different
-source. The database, exports and job payloads carry the descriptor.
+source (a VK Video channel that changes its handle, say). The database, exports and job payloads carry the descriptor.
 
 Only the worker turns it into an engine address, `http://feed-bridge.internal:8945/b/<service>/<key>/<signature>`,
 where the signature is an HMAC-SHA-256 of `<service>/<key>` under `secrets/bridge-key`. The
@@ -338,7 +342,7 @@ through the real router), how a page address names a key, the page address of a 
 backend and its parameters, the post-id rule, and optional clean-ups (title and text, a date
 correction, a rule for entries to leave out on purpose, pictures to keep). It needs recorded
 fixtures for the key and page rules, the post ids and the router's handling. An RSS-Bridge service
-also needs its bridge added to the enabled list in `infra/compose.yaml`.
+also needs its bridge added to the enabled list in `infra/compose.yaml` (a test checks that the list and the catalogue agree).
 
 ## Instagram
 

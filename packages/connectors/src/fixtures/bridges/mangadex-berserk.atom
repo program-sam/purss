@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title type="text">Berserk Chapters</title>
+  <link rel="alternate" type="text/html" href="https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92"/>
+  <link rel="self" type="application/atom+xml" href="https://rss-bridge.invalid/?action=display&amp;format=Atom&amp;bridge=MangaDexBridge&amp;context=Title+Chapters&amp;url=https%3a%2f%2fmangadex.org%2ftitle%2f801513ba-a712-498c-8f57-cae55b38cc92&amp;limit=50&amp;images=no"/>
+  <icon>https://mangadex.org/favicon.ico</icon>
+  <logo>https://mangadex.org/favicon.ico</logo>
+  <id>https://rss-bridge.invalid/?action=display&amp;format=Atom&amp;bridge=MangaDexBridge&amp;context=Title+Chapters&amp;url=https%3a%2f%2fmangadex.org%2ftitle%2f801513ba-a712-498c-8f57-cae55b38cc92&amp;limit=50&amp;images=no</id>
+  <updated>2026-11-21T13:00:00+00:00</updated>
+  <author>
+    <name>RSS-Bridge</name>
+  </author>
+  <entry>
+    <title type="html">Volume 14 Chapter 93 - Въоръжение [bg]</title>
+    <published>2026-11-15T13:46:51+00:00</published>
+    <updated>2026-11-15T13:46:51+00:00</updated>
+    <id>urn:sha1:27af7f19974baf7541eec3dbeda49e9499054fd3</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/c0cd4656-6946-4be8-8d33-0aeb2fbeddfb"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 14 Chapter 92 - Бебе демон [bg]</title>
+    <published>2026-11-04T20:30:23+00:00</published>
+    <updated>2026-11-04T20:30:23+00:00</updated>
+    <id>urn:sha1:c938ae22083318261b8481014ff652db36cc6eca</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/cb0148ea-ba2e-487a-b368-2a9346350b5c"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 3 Chapter 0.09 - Златният век (1) [bg]</title>
+    <published>2026-10-27T13:27:34+00:00</published>
+    <updated>2026-10-27T13:27:34+00:00</updated>
+    <id>urn:sha1:392ab3fa74b3265e2574155b7b9e5d3911ffd73b</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/a153d3b0-d79c-459e-912b-ed6c24dc1738"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 3 Chapter 0.08 - Пазителите на желания (6) [bg]</title>
+    <published>2026-10-25T12:43:21+00:00</published>
+    <updated>2026-10-25T12:43:21+00:00</updated>
+    <id>urn:sha1:4ca4783482ce6d91e0c67b5807149d1450de75a2</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/62650219-b889-4a63-960b-0ac4add893a7"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 3 Chapter 0.07 - Пазителите на желания (5) [bg]</title>
+    <published>2026-10-20T17:05:57+00:00</published>
+    <updated>2026-10-20T17:05:57+00:00</updated>
+    <id>urn:sha1:896e3a2aab757b80fc4a82fe39443d5970da27ab</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/4b7b0d08-b690-47a3-b9d1-73c1e230c4e1"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 1 Chapter 0.03 - इच्छाओं के रक्षक देवदूत (1) [hi]</title>
+    <published>2026-10-19T08:17:40+00:00</published>
+    <updated>2026-10-19T08:17:40+00:00</updated>
+    <id>urn:sha1:abe3b01c54a154ce395b98fd267b6cd9c0ecbb45</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/c95f6343-24c9-4476-af3c-a4d904238734"/>
+    <author>
+      <name>amankumarsihmar25</name>
+    </author>
+    <content type="html">Groups: No Group</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 3 Chapter 0.06 - Пазителите на желания (4) [bg]</title>
+    <published>2026-10-13T12:58:28+00:00</published>
+    <updated>2026-10-13T12:58:28+00:00</updated>
+    <id>urn:sha1:e6ec24ed79fcaf693ffbc04ecaa34234758f3ea7</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/17f089d2-d457-4718-89f5-4c41cf5f29a4"/>
+    <author>
+      <name>Achigga</name>
+    </author>
+    <content type="html">Groups: Mangimal</content>
+  </entry>
+  <entry>
+    <title type="html">Volume 1 Chapter 0.02 - बलिदान की मुहर  [hi]</title>
+    <published>2026-10-08T07:04:34+00:00</published>
+    <updated>2026-10-08T07:04:34+00:00</updated>
+    <id>urn:sha1:207039e22cf8781c724c09f5d02e7403bb33cc25</id>
+    <link rel="alternate" type="text/html" href="https://mangadex.org/chapter/88d18567-d54a-4c76-8e4e-d419291ce38b"/>
+    <author>
+      <name>amankumarsihmar25</name>
+    </author>
+    <content type="html">Groups: No Group</content>
+  </entry>
+</feed>

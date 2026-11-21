@@ -280,6 +280,8 @@ export const sources = {
         rutube: "Rutube channel",
         appleMusic: "Apple Music releases",
         instagram: "Instagram account",
+        mangadex: "MangaDex chapters",
+        vkvideo: "VK Video channel",
       },
     },
     egress: {

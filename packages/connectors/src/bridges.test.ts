@@ -63,6 +63,20 @@ test("page addresses name a source; the service's other pages don't", () => {
     ["https://www.instagram.com/natgeo./", null],
     ["https://www.instagram.com/natgeo/followers/", null],
     ["https://about.instagram.com/blog", null],
+    ["https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92", "mangadex/801513ba-a712-498c-8f57-cae55b38cc92"],
+    ["https://mangadex.org/title/801513BA-A712-498C-8F57-CAE55B38CC92/berserk", "mangadex/801513ba-a712-498c-8f57-cae55b38cc92"],
+    ["https://mangadex.org/chapter/c0cd4656-6946-4be8-8d33-0aeb2fbeddfb", null],
+    ["https://mangadex.org/title/not-a-uuid", null],
+    ["https://mangadex.org/titles/latest", null],
+    ["https://api.mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92", null],
+    ["https://vkvideo.ru/@thoisoi", "vkvideo/thoisoi"],
+    ["https://www.vkvideo.ru/@Thoisoi/clips", "vkvideo/thoisoi"],
+    ["https://vk.com/video/@thoisoi", "vkvideo/thoisoi"],
+    ["https://vkvideo.ru/video-22629421_456240181", null],
+    ["https://vkvideo.ru/playlist/-142758151_-4", null],
+    ["https://vkvideo.ru/@thoisoi/other", null],
+    ["https://vk.com/thoisoi", null],
+    ["https://vk.com/video/@", null],
     ["https://example.com/durov", null],
     ["ftp://t.me/durov", null],
   ];
@@ -92,6 +106,17 @@ test("post ids come from the post address and belong to the source", () => {
   assert.equal(id("instagram", "natgeo", "https://www.instagram.com/p/DfxGoxTl16O/media"), null);
   assert.equal(id("instagram", "natgeo", "https://example.com/p/DfxGoxTl16O/"), null);
   assert.equal(id("applemusic", "909253", "https://music.apple.com/us/album/yard-sale-single/1876582352?uo=4"), "applemusic:album/1876582352");
+  const berserk = "801513ba-a712-498c-8f57-cae55b38cc92";
+  assert.equal(id("mangadex", berserk, "https://mangadex.org/chapter/C0CD4656-6946-4BE8-8D33-0AEB2FBEDD"), null, "not a uuid");
+  assert.equal(id("mangadex", berserk, "https://mangadex.org/chapter/C0CD4656-6946-4BE8-8D33-0AEB2FBEDDFB"), "mangadex:chapter/c0cd4656-6946-4be8-8d33-0aeb2fbeddfb");
+  assert.equal(id("mangadex", berserk, `https://mangadex.org/title/${berserk}`), null);
+  assert.equal(id("mangadex", berserk, "https://example.com/chapter/c0cd4656-6946-4be8-8d33-0aeb2fbeddfb"), null);
+  assert.equal(id("vkvideo", "thoisoi", "https://vkvideo.ru/video-22629421_456240181"), "vkvideo:video/-22629421_456240181");
+  assert.equal(id("vkvideo", "thoisoi", "https://vkvideo.ru/video123_456"), "vkvideo:video/123_456");
+  assert.equal(id("vkvideo", "thoisoi", "https://vkvideo.ru/@thoisoi"), null);
+  assert.equal(id("vkvideo", "thoisoi", "https://vkvideo.ru/playlist/-142758151_-4"), null);
+  assert.equal(id("vkvideo", "thoisoi", "https://vkvideo.ru/video-22629421"), null);
+  assert.equal(id("vkvideo", "thoisoi", "https://example.com/video-22629421_456240181"), null);
 });
 
 test("descriptors carry no host, backend or credential, and only catalogued keys parse", () => {
@@ -166,6 +191,83 @@ VIEW IN TELEGRAM<br><br>
   assert.equal(tg.cleanTitle!("Pavel Durov (@durov) - Telegram"), "Pavel Durov (@durov)");
   assert.equal(bridgeService("bandcamp")!.cleanTitle!("Nils Frahm - Bandcamp Band"), "Nils Frahm");
   assert.equal(bridgeService("soundcloud")!.cleanTitle!("The Kid LAROI. - All - Soundcloud"), "The Kid LAROI.");
+});
+
+test("a MangaDex title page and a VK Video channel page become sources previewed through the router, named by what the service's address names", async () => {
+  const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>A source</title><link>https://example.com/</link>`
+    + `<item><title>One</title><link>https://example.com/1</link><guid isPermaLink="false">x:1</guid><pubDate>Sun, 11 Oct 2026 14:52:40 GMT</pubDate></item></channel></rss>`;
+  const berserk = "801513ba-a712-498c-8f57-cae55b38cc92";
+  for (const [page, descriptor, site, origin] of [
+    [`https://mangadex.org/title/${berserk.toUpperCase()}/berserk`, `bridge:mangadex/${berserk}`, `https://mangadex.org/title/${berserk}`, copy.bridges.mangadex],
+    ["https://vk.com/video/@Thoisoi", "bridge:vkvideo/thoisoi", "https://vkvideo.ru/@thoisoi", copy.bridges.vkvideo],
+  ] as const) {
+    const asked: string[] = [];
+    const r = await discover(page, { bridge: async (t) => { asked.push(`bridge:${t.service.id}/${t.key}`); return { status: 200, body: Buffer.from(rss) }; } });
+    assert.ok(r.ok, page);
+    assert.deepEqual(asked, [descriptor], page);
+    assert.equal(r.candidates[0]!.feedUrl, descriptor, page);
+    assert.equal(r.candidates[0]!.siteUrl, site, page);
+    assert.equal(r.candidates[0]!.origin, origin, page);
+    // What an export writes for the source is its page address, which names the same source again.
+    assert.equal(target(site), descriptor.slice("bridge:".length), page);
+  }
+});
+
+test("each RSS-Bridge service asks its bridge for what it needs, and nothing the person typed but the key", () => {
+  const ask = (id: string, key: string) => {
+    const b = bridgeService(id)!.backend;
+    return b.kind === "rss-bridge" ? { bridge: b.bridge, ...b.params(key) } : null;
+  };
+  assert.deepEqual(ask("mangadex", "801513ba-a712-498c-8f57-cae55b38cc92"), {
+    bridge: "MangaDexBridge", context: "Title Chapters", url: "https://mangadex.org/title/801513ba-a712-498c-8f57-cae55b38cc92", limit: "50", images: "no",
+  });
+  assert.deepEqual(ask("vkvideo", "thoisoi"), { bridge: "VkVideoBridge", context: "Channel", u: "@thoisoi" });
+});
+
+test("only a service's own key patterns pass: a key can't reach past its place in the bridge's address", () => {
+  const accepts = (id: string, key: string) => bridgeService(id)!.keyPattern.test(key);
+  for (const [id, key] of [
+    ["mangadex", "801513ba-a712-498c-8f57-cae55b38cc9"], ["mangadex", "801513ba-a712-498c-8f57-cae55b38cc92/feed"], ["mangadex", "801513BA-A712-498C-8F57-CAE55B38CC92"],
+    ["vkvideo", "thoi/soi"], ["vkvideo", "@thoisoi"], ["vkvideo", "t"], ["vkvideo", ".thoisoi"],
+  ] as const) assert.equal(accepts(id, key), false, `${id}/${key}`);
+  for (const [id, key] of [["mangadex", "801513ba-a712-498c-8f57-cae55b38cc92"], ["vkvideo", "thoisoi"], ["vkvideo", "a.b_c"]] as const) {
+    assert.equal(accepts(id, key), true, `${id}/${key}`);
+  }
+});
+
+test("the backend's decoration is taken off MangaDex's source name", () => {
+  assert.equal(bridgeService("mangadex")!.cleanTitle!("Berserk Chapters"), "Berserk");
+});
+
+const recorded = (name: string) => parseFeed(readFileSync(new URL(`./fixtures/bridges/${name}.atom`, import.meta.url)), "application/atom+xml");
+
+test("recorded outputs of MangaDex and VK Video give every entry a distinct stable id from its link, and the entries are dated", () => {
+  const berserk = "801513ba-a712-498c-8f57-cae55b38cc92";
+  for (const [file, service, key, want] of [
+    ["mangadex-berserk", "mangadex", berserk, [
+      "c0cd4656-6946-4be8-8d33-0aeb2fbeddfb", "cb0148ea-ba2e-487a-b368-2a9346350b5c", "a153d3b0-d79c-459e-912b-ed6c24dc1738", "62650219-b889-4a63-960b-0ac4add893a7",
+      "4b7b0d08-b690-47a3-b9d1-73c1e230c4e1", "c95f6343-24c9-4476-af3c-a4d904238734", "17f089d2-d457-4718-89f5-4c41cf5f29a4", "88d18567-d54a-4c76-8e4e-d419291ce38b",
+    ].map((u) => `mangadex:chapter/${u}`)],
+    ["vkvideo-thoisoi", "vkvideo", "thoisoi", [456240181, 456240180, 456240179, 456240178, 456240177].map((n) => `vkvideo:video/-22629421_${n}`)],
+  ] as const) {
+    const feed = recorded(file);
+    const svc = bridgeService(service)!;
+    assert.deepEqual(feed.items.map((i) => svc.postId(key, new URL(i.url!))), want, file);
+    assert.ok(feed.items.every((i) => i.publishedAt && !Number.isNaN(Date.parse(i.publishedAt))), `${file}: every entry is dated`);
+    assert.equal(svc.excluded?.(key, new URL(feed.items[0]!.url!)) ?? false, false, file);
+  }
+  // Names, with the backend's decoration off: the source's own.
+  assert.equal(bridgeService("mangadex")!.cleanTitle!(recorded("mangadex-berserk").title!), "Berserk");
+  // MangaDex marks each chapter's language in its title, every language arriving in one list.
+  assert.match(recorded("mangadex-berserk").items[0]!.title!, /^Volume 14 Chapter 93 - .+ \[bg\]$/);
+  // VK's titles arrive with HTML escapes already undone by the feed reader.
+  assert.equal(recorded("vkvideo-thoisoi").items[0]!.title, "Расплавленная СОЛЬ - Самая ОПАСНАЯ Жидкость!");
+});
+
+test("a MangaDex title the site doesn't know comes back as a feed with no entries, which is why the service counts that as a failure", () => {
+  const feed = recorded("mangadex-unknown-title");
+  assert.equal(feed.items.length, 0);
+  assert.equal(bridgeService("mangadex")!.emptyIsFailure, true);
 });
 
 test("bridged discovery keeps discovery's deadline: cancelled, it asks nothing and says it took too long", async () => {
