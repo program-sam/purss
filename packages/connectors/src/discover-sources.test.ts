@@ -120,6 +120,37 @@ test("Apple Podcasts: the iTunes lookup supplies the feed, and the feed goes thr
   assert.equal(refused.reason, "blocked");
 });
 
+test("Substack: a profile's publication comes from Substack's profile record, read whole, and its feed through the same fetcher", async () => {
+  const record = "https://substack.com/api/v1/user/ellereadslibrarybooks/public_profile";
+  const feedUrl = "https://ellesshelflife.substack.com/feed";
+  const sizes: (number | undefined)[] = [];
+  const { fetch, calls } = stub({
+    [record]: (u) => fakeResponse(u, JSON.stringify({ handle: "ellereadslibrarybooks", primaryPublication: { subdomain: "ellesshelflife", custom_domain: null }, publicationUsers: [{ role: "admin", is_primary: true, public: true, publication: { subdomain: "ellesshelflife", custom_domain: null } }], subscriptions: [{ publication: { subdomain: "other" } }] }), "application/json"),
+    [feedUrl]: feedRes(feedUrl, rss("Elle Reads Library Books", WEEKLY, "https://ellesshelflife.substack.com")),
+  });
+  const sized: FetchFn = (u, o) => { sizes.push(o?.maxBytes); return fetch(u, o); };
+  const d = ok(await discover("https://substack.com/@ellereadslibrarybooks", { fetch: sized, now: NOW }));
+  assert.deepEqual(calls, [record, feedUrl]);
+  assert.ok(sizes[0]! > 1024 * 1024, "a profile record runs past a megabyte");
+  assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.title]), [[feedUrl, "Elle Reads Library Books"]]);
+  const none = await discover("https://substack.com/@nobody", { fetch: stub({ "https://substack.com/api/v1/user/nobody/public_profile": (u) => fakeResponse(u, `{"error":"profile not found"}`, "application/json", 404) }).fetch, now: NOW });
+  assert.ok(!none.ok);
+  assert.equal(none.message, copy.substack.noProfile);
+});
+
+test("a section page on a custom-domain Substack offers its section feed as the page's own, not as the whole site's", async () => {
+  const pageUrl = "https://news.example.com/s/community-wisdom";
+  const feedUrl = "https://news.example.com/feed?sectionId=75201";
+  const { fetch } = stub({
+    [pageUrl]: page(pageUrl, `<html><head><title>Community wisdom</title><link rel="alternate" type="application/rss+xml" href="/feed?sectionId=75201" title="News"/></head><body></body></html>`),
+    [feedUrl]: feedRes(feedUrl, rss("News: Community wisdom", WEEKLY, "https://news.example.com")),
+  });
+  const c = ok(await discover(pageUrl, { fetch, now: NOW })).candidates[0]!;
+  assert.equal(c.feedUrl, feedUrl);
+  assert.notEqual(c.via, copy.labels.wholeSiteFeed);
+  assert.equal(c.note, undefined);
+});
+
 test("Substack, Medium, Tumblr, Blogger, WordPress, Vimeo and Pinterest are followed through their known feed paths", async () => {
   const cases: [string, string][] = [
     ["https://astralcodexten.substack.com/p/a-post", "https://astralcodexten.substack.com/feed"],

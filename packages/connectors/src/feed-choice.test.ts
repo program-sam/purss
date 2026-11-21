@@ -45,6 +45,8 @@ test("sections: which pages are one, where their own feed would be, and what cou
   assert.ok(isSiteWideFeed("https://www.theguardian.com/?feed=rss2", page));
   assert.ok(!isSiteWideFeed("https://www.theguardian.com/world/france/rss", page), "the section's own feed");
   assert.ok(!isSiteWideFeed("https://feeds.example.net/rss", page), "another host is the page's own say-so");
+  assert.ok(!isSiteWideFeed("https://www.theguardian.com/feed?sectionId=75201", page), "a query that names a section");
+  assert.ok(isSiteWideFeed("https://www.theguardian.com/feed?format=rss&utm_source=x", page), "format and tracking words name nothing");
   assert.ok(!isSiteWideFeed("https://www.theguardian.com/rss", "https://www.theguardian.com/"), "on the front page the site feed is the page's feed");
 });
 

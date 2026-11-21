@@ -112,6 +112,16 @@ For a web address, the first of these that applies wins:
    Technology", since each is titled "BBC News"), the European Commission's Press Corner (the
    `/commission/presscorner/api/rss` feed its own script reads, in the address's language) and
    Rijksoverheid's front and news pages (the news search feed its "RSS-link kopiëren" button makes).
+   Substack (`substack.ts`): a publication, post or share link (`open.substack.com/pub/name/…`)
+   is the publication's `/feed`; a section page (`/s/<slug>`) offers `/feed?section=<slug>` first,
+   then the whole publication's; a podcast page is read as a page, since only it names the podcast
+   feed on api.substack.com. A profile (`substack.com/@handle`, `/profile/<id>-<name>`, a note
+   under it) has no feed: Substack's public profile record
+   (`substack.com/api/v1/user/<handle>/public_profile`, read up to 4 MB because it also lists what the
+   person reads) names the publications the person runs or writes for, and their feeds are offered,
+   the primary one first and preselected (at most four). An unknown profile and one without a
+   publication each get their own message. A post link under a profile (`/@handle/p-123`) redirects
+   to the post on its publication and is searched like any page.
    The pasted address is only rewritten; the feed is then fetched and checked like any other, and an
    address with no feed there (a BBC section without one answers 404) goes on to the page search.
 7. **Fetch the address.** A feed is a candidate. A page is searched, below. Anything else

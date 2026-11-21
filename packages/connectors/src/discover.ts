@@ -1208,14 +1208,14 @@ function knownDeps(ctx: Ctx): KnownDeps {
       if (!("failed" in probe)) return probe;
       return { failed: probe.failed ? { reason: probe.failed.reason, message: probe.failed.message } : null, inconclusive: !!probe.inconclusive };
     },
-    json: async (url) => {
-      const res = await ctx.get(url, { maxBytes: 256 * 1024, accept: "application/json" });
+    json: async (url, o) => {
+      const res = await ctx.get(url, { maxBytes: o?.maxBytes ?? 256 * 1024, accept: "application/json" });
       if (!res.ok) {
         const f = failFromFetch(url, res);
         return { ok: false, reason: f.reason, message: f.message };
       }
       const status = failFromStatus(url, res.response.status);
-      if (status) return { ok: false, reason: status.reason, message: status.message };
+      if (status) return { ok: false, reason: status.reason, message: status.message, status: res.response.status };
       try {
         return { ok: true, data: JSON.parse(decodeBody(res.response.body, res.response.contentType)) };
       } catch {

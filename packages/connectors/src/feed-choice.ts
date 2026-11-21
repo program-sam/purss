@@ -233,6 +233,8 @@ export function isSiteWideFeed(feedUrl: string, pageUrl: string): boolean {
   if (path.startsWith(`${section.toLowerCase()}/`)) return false;
   // PeerTube's feed of every video on the instance; with an account or channel in the query it is that one's.
   if (path === "/feeds/videos.xml") return feed.search === "";
+  // A query that names what the feed covers (Substack's `/feed?sectionId=…`, `?category=…`) makes it that part's feed.
+  if ([...feed.searchParams.keys()].some((k) => !FORMAT_PARAMS.has(k.toLowerCase()) && !/^utm_/i.test(k))) return false;
   return SITE_WIDE.has(path) || (path === "/" && /(?:^|&)feed=/.test(feed.search.slice(1)));
 }
 

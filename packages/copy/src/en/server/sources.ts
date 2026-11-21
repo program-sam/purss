@@ -271,6 +271,12 @@ export const sources = {
         guardianPodcastNote: "The show's articles and video pages, without the audio. Choose the podcast feed above to listen.",
         appleNoFeed: "Apple Podcasts doesn't list a public feed for that show, so it can't be followed from here. Try the show's own website, or search for it by name in a podcast app.",
       },
+      substack: {
+        alsoRuns: "Another publication this writer runs on Substack.",
+        alsoWrites: "A publication this writer also writes for.",
+        noProfile: "There's no Substack profile at that address. Check the name after the @, or paste the address of the publication itself.",
+        noPublication: "That Substack profile has no publication of its own, so there is nothing to follow. Notes, likes and restacks on Substack have no feed.",
+      },
       bridges: {
         telegram: "Telegram channel",
         bandcamp: "Bandcamp artist",

@@ -4,12 +4,13 @@ import type { ParsedFeed } from "./feed.ts";
 import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed, sameEntries } from "./feed-choice.ts";
 import { crossrefWorkUrl, planJournal, readCrossrefWork } from "./journals.ts";
 import { hostOf as host, isHostOrSub, planServiceFeeds, segmentsOf as segments } from "./services.ts";
+import { planSubstack, profileFeeds, readSubstackProfile, SUBSTACK_PROFILE_BYTES, substackProfileUrl } from "./substack.ts";
 
 const feedLabels = server.sources.connectors.labels;
 
 /*
  * Services whose feed addresses follow a fixed pattern, so a pasted page address can be turned
- * into the feed address without guessing: a GitHub repository, a Substack, a
+ * into the feed address without guessing: a GitHub repository, a Substack (substack.ts), a
  * Medium writer, a Tumblr or Blogger blog, a Vimeo channel, a Pinterest board, an Apple
  * Podcasts show, and the profile and page addresses of services.ts. Only the address is rewritten;
  * everything is then fetched and checked like any other feed (safeFetch, the address rules and the
@@ -54,7 +55,9 @@ export type KnownPlan =
       /** The feeds are alternative addresses of one feed (a journal's ISSNs): offer only the first that answers. */
       firstAnswer?: boolean;
     }
-  | { service: "Apple Podcasts"; lookup: { id: string; country: string | null } };
+  | { service: "Apple Podcasts"; lookup: { id: string; country: string | null } }
+  /** A Substack profile (its handle, or `<id>-<name>`): the feeds are those of the publications its public record lists. */
+  | { service: "Substack"; profile: string };
 
 const FEED_LIKE_PATH = /(?:^|\/)(?:feed|feeds|rss|atom)(?:\/|\.|$)|\.(?:rss|atom|xml)$/i;
 
@@ -64,7 +67,6 @@ const RESERVED_GITHUB = new Set([
   "solutions", "resources", "premium-support", "logout", "dashboard", "stars", "copilot", "account", "assets", "sessions", "discussions", "models", "pages", "watching", "password_reset",
 ]);
 const RESERVED_MEDIUM = new Set(["m", "tag", "topics", "search", "me", "plans", "membership", "about", "creators", "help", "policy", "jobs", "new-story", "p", "feed", "partner-program", "gift", "signin", "login"]);
-const RESERVED_SUBSTACK = new Set(["www", "open", "support", "on", "api", "substack", "go", "email", "help"]);
 const RESERVED_TUMBLR = new Set(["www", "api", "assets", "static", "at", "media", "tumblr", "dashboard", "explore", "tagged", "search", "settings", "login", "register", "likes", "following", "blog", "new", "inbox", "themes", "about", "privacy", "policy", "docs", "help", "jobs", "press", "apps", "tag"]);
 const RESERVED_VIMEO = new Set([
   "channels", "groups", "categories", "watch", "ondemand", "features", "search", "upload", "blog", "enterprise", "stock", "log_in", "join", "about", "help", "music", "staffpicks", "couchmode",
@@ -116,12 +118,6 @@ function guardian(url: URL): KnownPlan | null {
 
 function simple(service: string, feedUrl: string, via = feedLabels.postsFeed): KnownPlan {
   return { service, feeds: [{ feedUrl, via }] };
-}
-
-function substack(url: URL): KnownPlan | null {
-  const label = host(url).slice(0, -".substack.com".length);
-  if (!/^[a-z0-9-]{1,63}$/.test(label) || RESERVED_SUBSTACK.has(label)) return null;
-  return simple("Substack", `https://${label}.substack.com/feed`);
 }
 
 function medium(url: URL): KnownPlan | null {
@@ -209,7 +205,7 @@ export function planKnownFeeds(url: URL): KnownPlan | null {
   if (h === "theguardian.com" || h === "www.theguardian.com") return guardian(url);
   if (h === "github.com" || h === "www.github.com") return github(url);
   if (h === "podcasts.apple.com" || h === "itunes.apple.com") return applePodcasts(url);
-  if (isHostOrSub(h, "substack.com") && h !== "substack.com") return substack(url);
+  if (isHostOrSub(h, "substack.com")) return planSubstack(url);
   if (isHostOrSub(h, "medium.com")) return medium(url);
   if (isHostOrSub(h, "tumblr.com")) return tumblr(url);
   if (/\.blogspot\.[a-z]{2,3}(?:\.[a-z]{2})?$/.test(h)) return blogger(url);
@@ -228,7 +224,8 @@ export type KnownProbe =
 
 export type KnownDeps = {
   probe: (feedUrl: string) => Promise<KnownProbe>;
-  json: (url: string) => Promise<{ ok: true; data: unknown } | { ok: false; reason: KnownReason; message: string }>;
+  /** `maxBytes` raises the usual 256 KB limit for a record known to be big; `status` is the service's answer when it gave one. */
+  json: (url: string, opts?: { maxBytes?: number }) => Promise<{ ok: true; data: unknown } | { ok: false; reason: KnownReason; message: string; status?: number }>;
   candidate: (feedUrl: string, parsed: ParsedFeed, extra: { title?: string; via?: string; origin?: string; note?: string }) => DraftCandidate;
 };
 
@@ -243,6 +240,8 @@ export type KnownOutcome =
   | null;
 
 export const APPLE_NO_FEED = server.sources.connectors.known.appleNoFeed;
+export const SUBSTACK_NO_PROFILE = server.sources.connectors.substack.noProfile;
+export const SUBSTACK_NO_PUBLICATION = server.sources.connectors.substack.noPublication;
 
 function firstFeedUrl(data: unknown): string | null {
   const results = (data as { results?: unknown } | null)?.results;
@@ -279,6 +278,14 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
     if ("feedUrl" in probe) return { candidates: [deps.candidate(probe.feedUrl, probe.parsed, { via: feedLabels.podcastFeed, origin: feedLabels.podcastFeed })] };
     if (probe.failed) return { failure: probe.failed };
     return { failure: { reason: "unsupported", message: APPLE_NO_FEED } };
+  }
+  if ("profile" in plan) {
+    const found = await deps.json(substackProfileUrl(plan.profile), { maxBytes: SUBSTACK_PROFILE_BYTES });
+    if (!found.ok) return { failure: found.status === 404 ? { reason: "nofeed", message: SUBSTACK_NO_PROFILE } : { reason: found.reason, message: found.message } };
+    const publications = readSubstackProfile(found.data);
+    if (!publications) return { failure: { reason: "unsupported", message: server.sources.connectors.discover.serviceUnreadable } };
+    if (!publications.length) return { failure: { reason: "nofeed", message: SUBSTACK_NO_PUBLICATION } };
+    return await resolveKnown({ service: "Substack", feeds: profileFeeds(publications) }, deps, pageUrl);
   }
   const probes = (await Promise.all(plan.feeds.map((f) => deps.probe(f.feedUrl)))).map((probe, i) => counted(plan.feeds[i]!, probe));
   const doiNames = await Promise.all(plan.feeds.map((f, i) => {

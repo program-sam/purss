@@ -184,7 +184,7 @@ test("blog and publishing services map to their known feed paths", () => {
   assert.deepEqual(feedUrls("https://writer.wordpress.com/author/jo/"), ["https://writer.wordpress.com/author/jo/feed/", "https://writer.wordpress.com/feed/"]);
   assert.deepEqual(feedUrls("https://writer.wordpress.com/category/"), ["https://writer.wordpress.com/feed/"], "no category named");
   assert.deepEqual(feedUrls("https://buzz.blogspot.com/search/label/Tips"), ["https://buzz.blogspot.com/feeds/posts/default/-/Tips", "https://buzz.blogspot.com/feeds/posts/default"]);
-  for (const u of ["https://www.substack.com/", "https://substack.com/@someone", "https://medium.com/feed/@someone", "https://medium.com/", "https://www.tumblr.com/dashboard", "https://vimeo.com/123456789", "https://vimeo.com/watch", "https://www.pinterest.com/pin/123/"]) {
+  for (const u of ["https://www.substack.com/", "https://medium.com/feed/@someone", "https://medium.com/", "https://www.tumblr.com/dashboard", "https://vimeo.com/123456789", "https://vimeo.com/watch", "https://www.pinterest.com/pin/123/"]) {
     assert.equal(plan(u), null, u);
   }
   // Mastodon and Bluesky belong to their own connector.
