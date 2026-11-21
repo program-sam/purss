@@ -2,6 +2,7 @@ import * as copy from "@purss/copy/site";
 import { PLANS, appCards, billingToggle, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
+import { initialsFor } from "@purss/domain/initials";
 
 // The public home page: one feed and one switch. Off, it is the feed everyone knows, with ads and suggestions between the few posts
 // you follow. On, everything you didn't choose slides out, the posts you chose stay on screen and shrink into the boxes of a PURSS
@@ -49,11 +50,11 @@ type Mine = { l: string; h: number; title: string; source: string; when: string;
 type Junk = { tag: string; title: string; sub: string; c: string };
 const POSTS = copy.home.picture.posts;
 const MINE: Mine[] = [
-  { l: "MG", h: 210, ...POSTS.cyclePath, box: 0, fresh: true },
-  { l: "MB", h: 18, ...POSTS.handPlane, box: 1 },
-  { l: "NS", h: 280, ...POSTS.smallLibraries, box: 1 },
-  { l: "SL", h: 228, ...POSTS.nightSky, box: 2, fresh: true },
-  { l: "KT", h: 12, ...POSTS.tomatoSauce, box: 3 },
+  { l: initialsFor(POSTS.cyclePath.source), h: 210, ...POSTS.cyclePath, box: 0, fresh: true },
+  { l: initialsFor(POSTS.handPlane.source), h: 18, ...POSTS.handPlane, box: 1 },
+  { l: initialsFor(POSTS.smallLibraries.source), h: 280, ...POSTS.smallLibraries, box: 1 },
+  { l: initialsFor(POSTS.nightSky.source), h: 228, ...POSTS.nightSky, box: 2, fresh: true },
+  { l: initialsFor(POSTS.tomatoSauce.source), h: 12, ...POSTS.tomatoSauce, box: 3 },
 ];
 const ADS = copy.home.picture.junk;
 const JUNK: Junk[] = [
@@ -65,10 +66,10 @@ const JUNK: Junk[] = [
 /** The feed's order: a junk card, a post you chose, and so on. */
 const ORDER: ({ mine: number } | { junk: number })[] = [{ junk: 0 }, { mine: 0 }, { junk: 1 }, { mine: 1 }, { junk: 2 }, { mine: 2 }, { junk: 3 }, { mine: 3 }, { mine: 4 }];
 const BOXES = [
-  { title: copy.words.local, stack: [["MG", 210]] },
-  { title: copy.home.picture.boxes.watchListen, stack: [["MB", 18], ["NS", 280]] },
-  { title: copy.words.slowReads, stack: [["SL", 228]] },
-  { title: copy.words.recipes, stack: [["KT", 12]] },
+  { title: copy.words.local, stack: [[MINE[0]!.l, 210]] },
+  { title: copy.home.picture.boxes.watchListen, stack: [[MINE[1]!.l, 18], [MINE[2]!.l, 280]] },
+  { title: copy.words.slowReads, stack: [[MINE[3]!.l, 228]] },
+  { title: copy.words.recipes, stack: [[MINE[4]!.l, 12]] },
 ] as const;
 
 const css = `

@@ -11,6 +11,7 @@
     "./app-bundle": "./src/app-bundle.ts",
     "./paths": "./src/paths.ts",
     "./plans": "./src/plans.ts",
+    "./initials": "./src/initials.ts",
     "./version": "./src/version.ts"
   },
   "dependencies": {

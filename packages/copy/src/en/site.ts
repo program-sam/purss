@@ -1,6 +1,9 @@
 // Copy for the public website (apps/site): one export per source file of apps/site/src, so each page's script
 // bundles only its own text. Import it as `import * as copy from "@purss/copy/site"`.
 
+// The pictures of the app say what the app says: their labels come from its own words.
+import { words as app } from "./app/words.ts";
+
 // What several places say, written once.
 export const words = {
   appsAndExtensions: "Apps and extensions",
@@ -8,7 +11,7 @@ export const words = {
   docs: "Documentation",
   downloadForAndroid: "Download for Android",
   features: "Features",
-  home: "Home",
+  home: app.home,
   hostItYourself: "Host it yourself",
   legalNotice: "Legal notice",
   local: "Local news",
@@ -56,11 +59,11 @@ export const home = {
     addressOff: "the feed",
     addressOn: "purss.app",
     titleOff: "For You",
-    view: "View",
+    view: app.view,
     greeting: "Good morning",
     sinceLastVisit: "New items since your last visit in 2 collections",
     loadingMore: "Loading more…",
-    newCount: (n: number) => `${n} new`,
+    newCount: (n: number) => `${n}${app.newSpaced}`,
     posts: {
       cyclePath: { title: "Council approves the Main Road cycle path", source: "Your Council", when: "12 min ago" },
       handPlane: { title: "Restoring an antique fractal vice", source: "Hand Tool Rescue", when: "1 h ago · 24:10" },
@@ -122,11 +125,11 @@ export const kit = {
   },
   /** The app's sidebar as pictured on the home page. */
   sidebar: {
-    addSource: "Add source",
-    search: "Search",
-    collectionsTitle: "Collections",
+    addSource: app.addSource,
+    search: app.search,
+    collectionsTitle: app.collections,
     collections: { watch: "Watch", listen: "Listen" },
-    basketsTitle: "Baskets",
+    basketsTitle: app.baskets,
     baskets: { localHistory: "Local history", thesisSources: "Thesis sources" },
   },
   plans: {

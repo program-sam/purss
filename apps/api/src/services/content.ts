@@ -298,8 +298,3 @@ export function hueFor(text: string): number {
   for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return h;
 }
-export function initialsFor(title: string): string {
-  const words = title.replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
-  const letters = words.length >= 2 ? words[0]![0]! + words[1]![0]! : (words[0] ?? "?").slice(0, 2);
-  return letters.toUpperCase();
-}

@@ -1,4 +1,4 @@
-import { FULL_TEXT_BACKFILL, newId } from "@purss/domain";
+import { FULL_TEXT_BACKFILL, initialsFor, newId } from "@purss/domain";
 import type { DiscoveryResult, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
 import { coreName, discover, searchPodcasts, searchSites } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
@@ -12,7 +12,7 @@ import { sourcesNamed } from "./discover.ts";
 import { emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
-import { hueFor, initialsFor } from "./content.ts";
+import { hueFor } from "./content.ts";
 import { iconUrl } from "./icons.ts";
 import { createCollection, deleteItemNow } from "./collections.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
