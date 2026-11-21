@@ -352,7 +352,7 @@ fn ensure_root(root: &Path) -> Result<(), String> {
     if root.is_dir() && !marker.is_file() {
         let empty = fs::read_dir(root).map(|mut d| d.next().is_none()).unwrap_or(false);
         if !empty {
-            return Err(copy::errors::downloads_folder_taken(FOLDER_NAME));
+            return Err(copy::errors::DOWNLOADS_FOLDER_TAKEN.to_string());
         }
     }
     if is_link(root) {
