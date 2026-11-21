@@ -14,19 +14,8 @@ const feedUrls = (u: string): string[] | null => {
   return p && "feeds" in p ? p.feeds.map((f) => f.feedUrl) : null;
 };
 
-test("Reddit: a subreddit or a user becomes the .rss feed with the name people know it by", () => {
-  const sub = plan("https://www.reddit.com/r/modeltrains/");
-  assert.ok(sub && "feeds" in sub);
-  assert.deepEqual(sub.feeds.map((f) => [f.feedUrl, f.title]), [["https://www.reddit.com/r/modeltrains/.rss", "r/modeltrains"]]);
-  assert.equal(feedUrls("https://old.reddit.com/r/modeltrains")![0], "https://www.reddit.com/r/modeltrains/.rss");
-  assert.equal(feedUrls("https://www.reddit.com/r/modeltrains/new/")![0], "https://www.reddit.com/r/modeltrains/.rss");
-  const user = plan("https://www.reddit.com/user/spez/");
-  assert.ok(user && "feeds" in user);
-  assert.deepEqual(user.feeds.map((f) => [f.feedUrl, f.title]), [["https://www.reddit.com/user/spez/.rss", "u/spez"]]);
-  assert.equal(feedUrls("https://www.reddit.com/u/spez")![0], "https://www.reddit.com/user/spez/.rss");
-  assert.equal(plan("https://www.reddit.com/r/modeltrains/comments/abc/some_post/"), null, "a thread is not a subreddit");
-  assert.equal(plan("https://www.reddit.com/r/modeltrains/.rss"), null, "an address that already is the feed is read as a feed");
-  assert.equal(plan("https://www.reddit.com/"), null);
+test("Reddit is no known feed pattern: its feed addresses answer with nothing to follow", () => {
+  for (const u of ["https://www.reddit.com/r/modeltrains/", "https://old.reddit.com/r/modeltrains", "https://www.reddit.com/user/spez/", "https://www.reddit.com/r/modeltrains/.rss"]) assert.equal(plan(u), null, u);
 });
 
 test("GitHub: a repository offers its Releases and Tags feeds, in that order", () => {
@@ -80,6 +69,35 @@ test("NOS: its front, news and sport pages and their sections become the feeds o
   for (const u of ["https://nos.nl/artikel/2600000-een-verhaal", "https://nos.nl/video/2600000-een-filmpje", "https://nos.nl/zoeken?q=x", "https://nos.nl/sport/tennis", "https://nos.nl/over-nos", "https://nos.example/nieuws", "https://feeds.nos.nl/nosnieuwsalgemeen", "https://nos.nl/nieuws/laatste/extra"]) {
     assert.equal(plan(u), null, u);
   }
+});
+
+test("BBC: a news or sport section and a language service become their feed on feeds.bbci.co.uk; articles, live pages and the front page do not", () => {
+  const feed = (path: string) => [[`https://feeds.bbci.co.uk/${path}/rss.xml`, null, copy.labels.postsFeed, "BBC"]];
+  assert.deepEqual(only("https://www.bbc.com/news/technology"), feed("news/technology"));
+  assert.deepEqual(only("https://www.bbc.co.uk/news/world/europe/"), feed("news/world/europe"));
+  assert.deepEqual(only("https://bbc.com/sport/football"), feed("sport/football"));
+  assert.deepEqual(only("https://www.bbc.com/News"), feed("news"));
+  assert.deepEqual(only("https://www.bbc.com/mundo"), feed("mundo"));
+  for (const u of ["https://www.bbc.com/", "https://www.bbc.com/news/articles/c4g0m2kn8w3o", "https://www.bbc.co.uk/news/technology-68623121", "https://www.bbc.com/news/live/c1abc", "https://www.bbc.co.uk/iplayer", "https://www.bbc.com/news/topics/c1234", "https://www.bbc.com/a/b/c/d/e", "https://bbc.example/news"]) {
+    assert.equal(plan(u), null, u);
+  }
+});
+
+test("the European Commission's Press Corner becomes the press releases feed its own script reads, in the address's language", () => {
+  const feed = (language: string) => [[`https://ec.europa.eu/commission/presscorner/api/rss?language=${language}`, "European Commission Press Corner", copy.labels.postsFeed, "European Commission"]];
+  assert.deepEqual(only("https://ec.europa.eu/commission/presscorner/home/en"), feed("en"));
+  assert.deepEqual(only("https://ec.europa.eu/commission/presscorner/home/nl"), feed("nl"));
+  assert.deepEqual(only("https://ec.europa.eu/commission/presscorner/detail/de/ip_26_1234"), feed("de"));
+  assert.deepEqual(only("https://ec.europa.eu/commission/presscorner/"), feed("en"));
+  for (const u of ["https://ec.europa.eu/", "https://ec.europa.eu/eurostat/news", "https://commission.europa.eu/commission/presscorner/home/en"]) assert.equal(plan(u), null, u);
+});
+
+test("Rijksoverheid: the front and news pages become the news search feed its RSS button makes", () => {
+  const url = "https://www.rijksoverheid.nl/api/rss?query=%7B%22filters%22%3A%5B%7B%22field%22%3A%22content_type%22%2C%22values%22%3A%5B%22pro%3AnewsDocument%22%5D%2C%22type%22%3A%22all%22%7D%5D%2C%22resultSearchTerm%22%3A%22%22%2C%22pageTitle%22%3A%22Nieuws%22%7D";
+  for (const u of ["https://www.rijksoverheid.nl/", "https://rijksoverheid.nl", "https://www.rijksoverheid.nl/actueel", "https://www.rijksoverheid.nl/actueel/nieuws"]) {
+    assert.deepEqual(only(u), [[url, "Rijksoverheid Nieuws", copy.labels.postsFeed, "Rijksoverheid"]], u);
+  }
+  for (const u of ["https://www.rijksoverheid.nl/actueel/nieuws/2026/11/21/vogelgriep", "https://www.rijksoverheid.nl/onderwerpen/x", "https://www.rijksoverheid.nl/api/rss?query=x"]) assert.equal(plan(u), null, u);
 });
 
 test("those services' site pages, other pages and bare names are not turned into feeds", () => {
@@ -183,28 +201,31 @@ const deps = (probes: Record<string, KnownProbe>, json?: KnownDeps["json"]): Kno
   probe: async (u) => probes[u] ?? { failed: null, inconclusive: false },
   json: json ?? (async () => ({ ok: false, reason: "unreachable", message: "no" })),
   candidate: (u, _p, extra) => draft(u, extra),
-  unverified: (f, service) => ({ ...draft(f.feedUrl, { title: f.title ?? service }), note: copy.discover.serviceNoRecentPosts(service) }),
 });
 
-test("a busy service still gets its feed offered; a missing one falls through to ordinary discovery", async () => {
-  const p = plan("https://www.reddit.com/r/modeltrains/") as Extract<KnownPlan, { feeds: unknown }>;
+test("a service that did not answer keeps its trouble for ordinary discovery; a missing feed falls through; a private one is refused", async () => {
+  const p = plan("https://github.com/a/b") as Extract<KnownPlan, { feeds: unknown }>;
   const url = p.feeds[0]!.feedUrl;
-  const busy = await resolveKnown(p, deps({ [url]: { failed: { reason: "unreachable", message: "busy" }, inconclusive: true } }), PAGE);
-  assert.ok(busy && "candidates" in busy);
-  assert.equal(busy.candidates[0]!.title, "r/modeltrains");
-  assert.equal(busy.candidates[0]!.note, copy.discover.serviceNoRecentPosts("Reddit"));
-  const missing = await resolveKnown(p, deps({ [url]: { failed: { reason: "unreachable", message: "404" }, inconclusive: false } }), PAGE);
-  assert.equal(missing, null);
   const blocked = await resolveKnown(p, deps({ [url]: { failed: { reason: "blocked", message: "private" }, inconclusive: false } }), PAGE);
   assert.deepEqual(blocked, { failure: { reason: "blocked", message: "private" } });
   const ok = await resolveKnown(p, deps({ [url]: { feedUrl: url, parsed: feed } }), PAGE);
   assert.ok(ok && "candidates" in ok);
-  assert.equal(ok.candidates[0]!.title, "r/modeltrains");
-  // GitHub is not tolerant: nothing is offered for feeds that did not answer, but the trouble is kept for ordinary discovery.
-  const gh = plan("https://github.com/a/b") as Extract<KnownPlan, { feeds: unknown }>;
-  assert.deepEqual(await resolveKnown(gh, deps({ [gh.feeds[0]!.feedUrl]: { failed: { reason: "timeout", message: "t" }, inconclusive: true } }), PAGE), { trouble: { timeout: true, busy: false } });
-  assert.deepEqual(await resolveKnown(gh, deps({ [gh.feeds[1]!.feedUrl]: { failed: { reason: "unreachable", message: "429" }, inconclusive: true } }), PAGE), { trouble: { timeout: false, busy: true } });
-  assert.equal(await resolveKnown(gh, deps({ [gh.feeds[0]!.feedUrl]: { failed: { reason: "unreachable", message: "404" }, inconclusive: false } }), PAGE), null, "a plain 404 is no trouble");
+  // Nothing is offered for feeds that did not answer, but the trouble is kept for ordinary discovery.
+  assert.deepEqual(await resolveKnown(p, deps({ [p.feeds[0]!.feedUrl]: { failed: { reason: "timeout", message: "t" }, inconclusive: true } }), PAGE), { trouble: { timeout: true, busy: false } });
+  assert.deepEqual(await resolveKnown(p, deps({ [p.feeds[1]!.feedUrl]: { failed: { reason: "unreachable", message: "429" }, inconclusive: true } }), PAGE), { trouble: { timeout: false, busy: true } });
+  assert.equal(await resolveKnown(p, deps({ [p.feeds[0]!.feedUrl]: { failed: { reason: "unreachable", message: "404" }, inconclusive: false } }), PAGE), null, "a plain 404 is no trouble");
+});
+
+test("BBC: a section's feed is named by its description, since every section's feed is titled BBC News or BBC Sport", async () => {
+  const p = plan("https://www.bbc.com/news/technology") as Extract<KnownPlan, { feeds: unknown }>;
+  const url = p.feeds[0]!.feedUrl;
+  const named = async (title: string, description: string | null) => {
+    const r = await resolveKnown(p, deps({ [url]: { feedUrl: url, parsed: { ...feed, title, description } } }), PAGE);
+    return r && "candidates" in r ? r.candidates[0]!.title : null;
+  };
+  assert.equal(await named("BBC News", "BBC News - Technology"), "BBC News – Technology");
+  assert.equal(await named("BBC Mundo", "BBC Mundo - Noticias - BBC News Mundo"), "T", "left to the feed's own title");
+  assert.equal(await named("BBC News", null), "T");
 });
 
 test("Apple Podcasts: the lookup's feed address is fetched like any feed; no public feed says so", async () => {

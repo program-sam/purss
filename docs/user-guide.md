@@ -103,7 +103,6 @@ What you can paste:
 | A YouTube video | Keeping the video (with its real title, channel and picture) and following its channel are choices in one list, starting on keeping the video. If the link names a playlist, that playlist is offered too |
 | A podcast's name instead of a link | **Search podcasts** looks the name up in Apple's podcast directory (what you typed is sent there, and the screen says so). Choose a show to see its latest episodes, then follow its own feed |
 | A series page of the Guardian whose series is a podcast | The podcast feed is offered first and chosen; the articles feed comes second |
-| A subreddit or a Reddit user (`reddit.com/r/name`, `/user/name`) | Followed through Reddit's own feed, named *r/name* or *u/name*. When Reddit is limiting requests the feed is still offered and PURSS keeps trying. A post with a picture shows it above its text, as wide as the reader allows (up to the picture's own size), not squeezed beside the text in a table cell |
 | A GitHub repository (`github.com/owner/repo`) | Its *Releases* feed, and its *Tags* feed when it lists tags that have no release (otherwise the two feeds are the same) |
 | A GitHub user or organisation (`github.com/name`) | Its public activity feed |
 | A game's page in the Steam store (`store.steampowered.com/app/…`) | The game's news feed, named after the game as the address spells it |
@@ -111,6 +110,9 @@ What you can paste:
 | A Dailymotion channel (`dailymotion.com/name`), an Odysee channel (`odysee.com/@name:id`, the form Odysee's own links take), a DeviantArt profile or gallery (`deviantart.com/name`) or a Behance profile (`behance.net/name`) | That account's own feed. Pages of those sites that aren't an account (search, settings, a single project or video) are looked at like any other page |
 | A PeerTube account or channel (`/a/name`, `/c/name`, on any PeerTube server) | The server's feed for that account or channel, offered only when the server answers with a PeerTube feed |
 | NOS (`nos.nl`, its news and sport pages, and the sections *Binnenland*, *Buitenland*, *Economie*, *Tech* and *Voetbal*) | The NOS feed for that page on `feeds.nos.nl`, which NOS's pages don't link to |
+| A BBC news or sport section (`bbc.com/news/technology`, `bbc.co.uk/sport/football`) or language service (`bbc.com/mundo`) | That section's feed on `feeds.bbci.co.uk`, named after the section (*BBC News – Technology*), which the BBC's pages don't link to |
+| The European Commission's Press Corner (`ec.europa.eu/commission/presscorner/…`) | Its press releases feed, in the language the address names |
+| Rijksoverheid's front or news page (`rijksoverheid.nl/actueel/nieuws`) | The government's news feed that the page's *RSS-link kopiëren* button makes |
 | An Apple Podcasts show link | The show's own feed, looked up from Apple's public podcast directory |
 | A scholarly journal's page, or one of its issue pages, on Wiley Online Library, Taylor & Francis, the University of Chicago Press journals site, Berghahn Journals, Project MUSE or ScienceDirect | The journal's feed of new articles, named after the journal, even though those sites turn automated readers away. Where the journal has more feeds with other contents they are offered too, each saying what it holds: on Wiley, Taylor & Francis and Chicago the articles published online that aren't in an issue yet, on Project MUSE one entry per new issue. Feeds with the same entries under different addresses are offered once. For ScienceDirect the journal's name from the address is looked up in Crossref's public journal list (the name is sent there). A journal on Open Journal Systems also offers its announcements (news and calls for papers) when it publishes them. A society's page for its journal that links to the journal on one of those sites offers the journal's feed first and the society's own feed after it; a journal the page only links to, without being shown to be the page's own, says *Linked from that page*. Duke University Press can't be reached, but its journals are found in Crossref by the name in the address (below); one Crossref doesn't know tells you to copy the RSS link from the journal's issue page |
 | A SAGE Journals journal page, issue page or issue list (`journals.sagepub.com/home/code`, `/toc/code/…`, `/loi/code`) | The journal's table-of-contents feed, named after the journal, even when the page blocks automated readers |
@@ -137,7 +139,8 @@ What doesn't work:
   page's own feed comes first; a feed for the whole site is offered only when nothing narrower
   exists, and is labelled *Whole site feed*.
 - Services that publish no feeds: TikTok, Facebook, X (Twitter), Threads, WhatsApp,
-  Discord, Signal, Snapchat, Spotify and LinkedIn, and the pages of Telegram, Twitch,
+  Discord, Signal, Snapchat, Spotify, LinkedIn and Reddit (whose old feed addresses answer
+  with nothing to follow), and the pages of Telegram, Twitch,
   Bandcamp and Instagram that aren't a channel, artist or account (an invite link or a single
   post, say). Private Instagram accounts, and accounts that switched off embedding, can't be
   followed. You're told so at once, and

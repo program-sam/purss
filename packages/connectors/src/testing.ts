@@ -50,7 +50,7 @@ export function send(res: http.ServerResponse, status: number, type: string, bod
 }
 
 /** A canned successful safeFetch result, for tests that stub the fetch layer. */
-export function fakeResponse(url: string, body: string | Buffer, contentType: string, status = 200, extra: { redirects?: string[] } = {}): SafeFetchResult {
+export function fakeResponse(url: string, body: string | Buffer, contentType: string, status = 200, extra: { redirects?: string[]; headers?: Record<string, string> } = {}): SafeFetchResult {
   const buf = typeof body === "string" ? Buffer.from(body) : body;
   return {
     ok: true,
@@ -59,7 +59,7 @@ export function fakeResponse(url: string, body: string | Buffer, contentType: st
       requestedUrl: url,
       redirects: extra.redirects ?? [],
       status,
-      headers: { "content-type": contentType },
+      headers: { "content-type": contentType, ...extra.headers },
       mediaType: contentType.split(";")[0]!.trim().toLowerCase(),
       contentType,
       body: buf,

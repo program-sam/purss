@@ -144,6 +144,9 @@ function makeCtx(opts: DiscoverOptions): Ctx {
       });
       // Every redirect hop is a request to someone else's site too.
       if (result.ok) requests += result.response.redirects.length;
+      // A 401 that names no way to sign in (no WWW-Authenticate) is a bot wall (DataDome answers so), not a password prompt: it is the
+      // refusal a 403 is, and is handled as one.
+      if (result.ok && result.response.status === 401 && !result.response.headers["www-authenticate"]) return { ok: true, response: { ...result.response, status: 403 } };
       return result;
     },
   };
@@ -716,7 +719,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
       return false;
     }
     if (feed.needsItems && probe.parsed.items.length === 0) return false;
-    const name = feed.title ?? feed.retitle?.(probe.parsed.title) ?? (feed.nameFromDoi ? await journalNameFromDoi(probe.parsed, knownDeps(ctx)) : null) ?? (feed.nameLike ? (found.find((f) => f.asked === feed.nameLike)?.c.title ?? null) : null);
+    const name = feed.title ?? feed.retitle?.(probe.parsed.title, probe.parsed) ?? (feed.nameFromDoi ? await journalNameFromDoi(probe.parsed, knownDeps(ctx)) : null) ?? (feed.nameLike ? (found.find((f) => f.asked === feed.nameLike)?.c.title ?? null) : null);
     const own = matches(name);
     const note = [feed.note, own ? null : LINKED_JOURNAL_NOTE].filter(Boolean).join(" ");
     const shown = name ?? (feed.nameFromDoi ? (feed.origin ?? null) : null);
@@ -1220,20 +1223,6 @@ function knownDeps(ctx: Ctx): KnownDeps {
       }
     },
     candidate: (feedUrl, parsed, extra) => buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, extra),
-    unverified: (feed, service) => ({
-      title: feed.title ?? service,
-      kind: "feed",
-      origin: feed.origin ?? server.sources.connectors.discover.serviceFeed(service),
-      via: feed.via ?? feedLabels.postsFeed,
-      feedUrl: feed.feedUrl,
-      siteUrl: null,
-      cadence: null,
-      samples: [],
-      summariesOnly: false,
-      alreadyFollowingSourceId: null,
-      privateWarning: null,
-      note: server.sources.connectors.discover.serviceNoRecentPosts(service),
-    }),
   };
 }
 

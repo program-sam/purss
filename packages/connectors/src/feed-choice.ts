@@ -208,7 +208,7 @@ export function sectionPath(pageUrl: string): string | null {
 
 /** Conventional places for a section's own feed, most likely first. */
 export function sectionFeedPaths(path: string): string[] {
-  return ["/rss", "/feed", "/rss.xml", "/feed.xml", "/atom.xml"].map((suffix) => `${path}${suffix}`);
+  return ["/rss", "/feed", "/rss.xml", "/feed.xml", "/atom.xml", "/feed.rss"].map((suffix) => `${path}${suffix}`);
 }
 
 /** The conventional paths of a site-wide feed. */

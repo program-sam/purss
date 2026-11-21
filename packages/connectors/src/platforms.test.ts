@@ -30,6 +30,11 @@ test("platforms that publish no feeds are named, with the same plain message", (
     ["https://sacredbonesrecords.bandcamp.com/album/x", "Bandcamp"],
     ["https://open.spotify.com/show/abc", "Spotify"],
     ["https://www.linkedin.com/company/x", "LinkedIn"],
+    ["https://www.reddit.com/r/modeltrains/", "Reddit"],
+    ["https://old.reddit.com/user/spez", "Reddit"],
+    ["https://redd.it/abc", "Reddit"],
+    // Reddit's own feed addresses answer with nothing to follow, so they are named too rather than fetched.
+    ["https://www.reddit.com/r/modeltrains/.rss", "Reddit"],
   ];
   for (const [url, name] of cases) {
     const p = noFeedPlatform(U(url));
@@ -52,6 +57,7 @@ test("look-alike hosts, a platform's own blog and feed addresses are not refused
     "https://signal.org/blog/",
     "https://www.example.com/feed",
     "https://twitter.com/i/rss/feed.xml",
+    "https://notreddit.com/r/x",
   ]) {
     assert.equal(noFeedPlatform(U(url)), null, url);
   }

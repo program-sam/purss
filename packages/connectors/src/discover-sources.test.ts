@@ -68,28 +68,13 @@ test("platforms that publish no feeds are named at once, without any request, an
 
 // ---------- F46, F47, F45 and the other known services ----------
 
-test("Reddit: r/x and u/x are followed through /.rss and named r/x and u/x", async () => {
-  const sub = "https://www.reddit.com/r/modeltrains/.rss";
-  const { fetch, calls } = stub({ [sub]: feedRes(sub, atom("How We Roll"), "application/atom+xml") });
-  const c = ok(await discover("https://www.reddit.com/r/modeltrains/", { fetch, now: NOW })).candidates;
-  assert.equal(c.length, 1);
-  assert.equal(c[0]!.title, "r/modeltrains", "not the subreddit's tagline");
-  assert.equal(c[0]!.feedUrl, sub);
-  assert.equal(c[0]!.via, copy.labels.postsFeed);
-  assert.deepEqual(calls, [sub], "only the feed was asked for");
-  const user = "https://www.reddit.com/user/spez/.rss";
-  const u = ok(await discover("reddit.com/u/spez", { fetch: stub({ [user]: feedRes(user, atom("overview for spez"), "application/atom+xml") }).fetch, now: NOW })).candidates[0]!;
-  assert.equal(u.title, "u/spez");
-});
-
-test("Reddit limiting requests does not turn into 'nothing to follow'", async () => {
-  const sub = "https://www.reddit.com/r/modeltrains/.rss";
-  const { fetch } = stub({ [sub]: fakeResponse(sub, "Too Many Requests", "text/html", 429) });
-  const c = ok(await discover("https://www.reddit.com/r/modeltrains/", { fetch, now: NOW })).candidates[0]!;
-  assert.equal(c.title, "r/modeltrains");
-  assert.equal(c.feedUrl, sub);
-  assert.equal(c.note, copy.discover.serviceNoRecentPosts("Reddit"));
-  assert.deepEqual(c.samples, []);
+test("Reddit, whose feed addresses answer with nothing to follow, is named at once without asking it, its old feed addresses too", async () => {
+  for (const url of ["https://www.reddit.com/r/modeltrains/", "reddit.com/u/spez", "https://www.reddit.com/r/modeltrains/.rss", "https://redd.it/abc"]) {
+    const { fetch, calls } = stub({});
+    const d = await discover(url, { fetch, now: NOW });
+    assert.ok(!d.ok && d.reason === "unsupported" && d.message === server.sources.connectors.platforms.noFeed("Reddit"), url);
+    assert.deepEqual(calls, [], `${url} was not asked`);
+  }
 });
 
 test("GitHub: a repository link offers Releases and Tags", async () => {
@@ -586,6 +571,11 @@ test("a front page that failed (500) or refused (403) still gets the site's usua
     assert.equal(d.candidates[0]!.feedUrl, feed, String(status));
     assert.ok(d.candidates[0]!.note?.includes(copy.discover.didntOpen(copy.discover.frontPage, status)), String(d.candidates[0]!.note));
   }
+  // A bot wall that answers 401 without naming a way to sign in (DataDome) is a refusal too, not a password prompt.
+  const wall = stub({ "https://comic.example/": fakeResponse("https://comic.example/", "<html>captcha</html>", "text/html", 401), [feed]: feedRes(feed, rss("Comic", WEEKLY, "https://comic.example"), "application/xml") });
+  assert.equal(ok(await discover("https://comic.example/", { fetch: wall.fetch, now: NOW })).candidates[0]!.feedUrl, feed);
+  const walled = await discover("https://comic.example/", { fetch: stub({ "https://comic.example/": fakeResponse("https://comic.example/", "<html>captcha</html>", "text/html", 401) }).fetch, now: NOW });
+  assert.ok(!walled.ok && walled.message === copy.discover.refused, "not 'asks for a username and password'");
   // A page inside the site that fails says "that page", not "front page".
   const inner = stub({ "https://comic.example/strip/12": fakeResponse("https://comic.example/strip/12", "<html>broken</html>", "text/html", 500), "https://comic.example/rss": feedRes("https://comic.example/rss", rss("Comic", WEEKLY, "https://comic.example")) });
   const i = ok(await discover("https://comic.example/strip/12", { fetch: inner.fetch, now: NOW }));
@@ -774,7 +764,7 @@ test("when www. fails too, or is no better, the answer is the bare host's own, a
 
 test("what is no trouble of the host is not retried: a page that is not found, a site asking for slowness, a host that works", async () => {
   for (const status of [404, 410, 429, 401]) {
-    const s = stub({ "https://spab.example/": fakeResponse("https://spab.example/", "x", "text/html", status) });
+    const s = stub({ "https://spab.example/": fakeResponse("https://spab.example/", "x", "text/html", status, status === 401 ? { headers: { "www-authenticate": "Basic" } } : {}) });
     await discover("https://spab.example/", { fetch: s.fetch, now: NOW });
     assert.deepEqual(s.calls.filter(atSite), ["https://spab.example/"], String(status));
   }

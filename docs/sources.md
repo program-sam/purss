@@ -76,19 +76,25 @@ For a web address, the first of these that applies wins:
 2. **YouTube hosts** ([YouTube](#youtube)).
 3. **A page of a bridged service** this installation runs ([Source bridges](#source-bridges)).
 4. **A service that publishes no feeds** (`platforms.ts`: TikTok, Facebook, X, Threads,
-   WhatsApp, Discord, Signal, Snapchat, Spotify, LinkedIn, and Instagram, Telegram, Twitch and
-   Bandcamp where they are not bridged). It is named at once without asking it for a feed, with
+   WhatsApp, Discord, Signal, Snapchat, Spotify, LinkedIn, Reddit, and Instagram, Telegram, Twitch and
+   Bandcamp where they are not bridged). Reddit's own feed addresses (`/r/name/.rss`) answer "Not
+   Found", so they are refused too rather than fetched. It is named at once without asking it for a feed, with
    the pointer to a YouTube channel, blog or newsletter the person may follow instead. The link
    can still be kept.
 5. **Journal addresses** (and article links, through their DOI) on Wiley, Taylor & Francis,
    Chicago, Berghahn, Project MUSE and ScienceDirect, whose pages turn automated readers away
    but whose feeds answer at addresses made from the journal's code or ISSN (`journals.ts`).
-6. **Known feed patterns** (`known-feeds.ts`, `services.ts`): a subreddit or Reddit user, a
+6. **Known feed patterns** (`known-feeds.ts`, `services.ts`): a
    GitHub repository or account, an Apple Podcasts show (through Apple's public lookup), a
    Substack, Medium, Tumblr, Blogger, WordPress.com, Vimeo or Pinterest address, a Steam game,
    an arXiv listing, a Dailymotion, Odysee or PeerTube channel, a DeviantArt or Behance profile,
-   and NOS's section pages, whose feeds are on another host. The pasted address is only rewritten;
-   the feed is then fetched and checked like any other.
+   and pages whose feeds the page does not link: NOS's and the BBC's news and sport sections (feeds on
+   `feeds.nos.nl` and `feeds.bbci.co.uk`, a BBC section's feed named by its description, "BBC News –
+   Technology", since each is titled "BBC News"), the European Commission's Press Corner (the
+   `/commission/presscorner/api/rss` feed its own script reads, in the address's language) and
+   Rijksoverheid's front and news pages (the news search feed its "RSS-link kopiëren" button makes).
+   The pasted address is only rewritten; the feed is then fetched and checked like any other, and an
+   address with no feed there (a BBC section without one answers 404) goes on to the page search.
 7. **Fetch the address.** A feed is a candidate. A page is searched, below. Anything else
    (an OPML list, a sitemap, JSON that is not a JSON Feed, a file) gets a specific message.
 
@@ -136,9 +142,10 @@ Along the way:
   shows what its publisher includes, usually the latest items, and an empty feed does not prove
   that nothing was published.
 - A timeout, a busy or limiting site and a site that refuses automated readers are each their
-  own answer. None is ever "no feed". The lookup's request cap has its own message.
-- A feed that did not answer when asked but belongs to a known channel or service (YouTube,
-  Reddit while it limits requests) is offered with a note, and following keeps trying.
+  own answer. None is ever "no feed". The lookup's request cap has its own message. A `401` that
+  names no way to sign in (no `WWW-Authenticate`, as bot walls such as DataDome answer) is a refusal
+  like a `403`, not a page that wants a password.
+- A YouTube feed that did not answer when asked is offered with a note, and following keeps trying.
 - A failed login or an unreachable service is never an empty feed: the bridge router and the
   feed gateway answer a failure as a failure, and the source says what is wrong.
 
@@ -473,7 +480,7 @@ The trimmer, its limits, sharing and memory are in the [egress README](../apps/e
   private link is excluded), so the followers after the first find its fetch in the cache, and the
   engine's minimum cache window is 800 seconds, so a feed that sends `no-cache` or `no-store` is not
   fetched again for each user within one refresh run. A private feed's address carries its own
-  credentials, so its cache entries stay its own. Per-address limits such as Reddit's are a separate
+  credentials, so its cache entries stay its own. A site's own per-address request limits are a separate
   matter.
 - **Back catalogue.** What a source already had when it was followed is not New and sends no
   notification. A source is settled once a sync walk that began after the engine confirmed the

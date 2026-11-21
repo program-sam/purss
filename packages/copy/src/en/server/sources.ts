@@ -176,8 +176,6 @@ export const sources = {
         journalNoFeed: (journal: string) => `${journal} has no feed of its own that we could find.`,
         articleInJournal: (journal: string) => `That article is in ${journal}, but its feed can't be found from an article link. Paste the journal's own page instead.`,
         serviceUnreadable: "That service answered with something we couldn't read.",
-        serviceFeed: (service: string) => `${service} feed`,
-        serviceNoRecentPosts: (service: string) => `${service} didn't send recent posts just now. Following will keep trying.`,
         fediverseNoFeed: "This account doesn't offer a public feed. Some servers only publish one when the account's owner turns it on.",
         fediverseNotProfile: "That page doesn't offer a feed. If it's a post, paste the account's profile address or its @name@server handle instead.",
         handleNotFound: (handle: string) => `We couldn't find ${handle}. Check the spelling; the part after the second @ is the account's server.`,
@@ -256,7 +254,6 @@ export const sources = {
         dukeMessage: "Duke University Press doesn't let automated readers open its journal pages, and its feed addresses can't be worked out from the page address. Each journal's issue page has an RSS link: open it in a browser and paste that link here.",
       },
       known: {
-        redditFeed: "Reddit feed",
         activity: (owner: string) => `${owner} activity`,
         githubActivity: "GitHub activity",
         releases: (repo: string) => `${repo} releases`,

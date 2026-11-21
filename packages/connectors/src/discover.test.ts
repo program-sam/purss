@@ -246,7 +246,9 @@ test("failure modes map to the contract reasons with plain messages", async () =
     ["aborted", fakeFailure("aborted"), "timeout"],
     ["404", fakeResponse("https://x.example/", "nope", "text/html", 404), "unreachable"],
     ["403", fakeResponse("https://x.example/", "nope", "text/html", 403), "unreachable"],
-    ["401", fakeResponse("https://x.example/", "nope", "text/html", 401), "unsupported"],
+    ["401", fakeResponse("https://x.example/", "nope", "text/html", 401, { headers: { "www-authenticate": 'Basic realm="x"' } }), "unsupported"],
+    // A 401 that names no way to sign in is a bot wall (DataDome answers so), refused like a 403.
+    ["401 without a challenge", fakeResponse("https://x.example/", "nope", "text/html", 401), "unreachable"],
     ["429", fakeResponse("https://x.example/", "nope", "text/html", 429), "unreachable"],
     ["500", fakeResponse("https://x.example/", "nope", "text/html", 503), "unreachable"],
     ["pdf", fakeResponse("https://x.example/", Buffer.from("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj\n\u0000\u0000"), "application/pdf"), "unsupported"],

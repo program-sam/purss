@@ -1,11 +1,13 @@
 import { server } from "@purss/copy/server";
+import type { ParsedFeed } from "./feed.ts";
 import type { KnownPlan } from "./known-feeds.ts";
 
 const feedLabels = server.sources.connectors.labels;
 
 /*
  * Profile and page addresses of services that publish a native feed at a predictable address: a Steam game's news,
- * an arXiv listing, a Dailymotion, Odysee or PeerTube channel, a DeviantArt gallery, a Behance profile. Each plan
+ * an arXiv listing, a Dailymotion, Odysee or PeerTube channel, a DeviantArt gallery, a Behance profile, and the news pages of
+ * NOS, the BBC, the European Commission's Press Corner and Rijksoverheid. Each plan
  * only rewrites the pasted address into the feed address; the feed is then fetched and checked like any other
  * (known-feeds.ts), and an address that turns out not to have one goes through ordinary discovery as before.
  * Reserved first path segments (site pages such as /search or /settings) never name an account.
@@ -135,6 +137,49 @@ function nos(url: URL): KnownPlan | null {
   return { service: "NOS", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: feedLabels.postsFeed, origin: "NOS" }] };
 }
 
+/**
+ * The BBC: its news and sport pages and its language services carry no feed link, and their feeds live on `feeds.bbci.co.uk` under the
+ * page's own path (`/news/technology` → `feeds.bbci.co.uk/news/technology/rss.xml`). Pages that are not a section (an article, a live page,
+ * a topic, iPlayer) have none and are left to the page search; a section without a feed answers 404 there and is left to it too.
+ */
+const BBC_NOT_SECTIONS = new Set(["articles", "live", "videos", "av", "topics", "programmes", "iplayer", "sounds", "search", "weather", "usingthebbc", "aboutthebbc"]);
+
+/** Every section's feed is titled "BBC News" or "BBC Sport"; its description names the section ("BBC News - Technology"). */
+function bbcTitle(title: string | null, feed: ParsedFeed): string | null {
+  const section = title && feed.description?.startsWith(`${title} - `) ? feed.description.slice(title.length + 3).trim() : "";
+  // A language service's description is a tagline of its own ("BBC Mundo - Noticias - BBC News Mundo"): its title is name enough.
+  return section && !section.includes(" - ") ? `${title} – ${section}` : null;
+}
+
+function bbc(url: URL): KnownPlan | null {
+  const s = segmentsOf(url).map((x) => x.toLowerCase());
+  if (s.length === 0 || s.length > 4 || s.some((x) => !/^[a-z][a-z0-9_-]*$/.test(x) || /\d{5,}/.test(x) || BBC_NOT_SECTIONS.has(x))) return null;
+  return { service: "BBC", feeds: [{ feedUrl: `https://feeds.bbci.co.uk/${s.join("/")}/rss.xml`, retitle: bbcTitle, via: feedLabels.postsFeed, origin: "BBC" }] };
+}
+
+/**
+ * The European Commission's Press Corner builds its list in the browser and links no feed, but its own script reads the press releases from
+ * a feed at `/commission/presscorner/api/rss`, in the language the address names.
+ */
+function presscorner(url: URL): KnownPlan | null {
+  const s = segmentsOf(url);
+  if (s[0] !== "commission" || s[1] !== "presscorner") return null;
+  const language = s.slice(2).reverse().find((x) => /^[a-z]{2}$/.test(x)) ?? "en";
+  return { service: "European Commission", feeds: [{ feedUrl: `https://ec.europa.eu/commission/presscorner/api/rss?language=${language}`, title: "European Commission Press Corner", via: feedLabels.postsFeed, origin: "European Commission" }] };
+}
+
+/**
+ * Rijksoverheid (the Dutch government): its news page links no feed, and its "RSS-link kopiëren" button makes the address of a search feed in the
+ * browser. The whole news list is that search with only the news filter; the old `feeds.rijksoverheid.nl` feeds now carry a notice that they stopped.
+ */
+const RIJKSOVERHEID_NEWS = "https://www.rijksoverheid.nl/api/rss?query=" + encodeURIComponent(JSON.stringify({ filters: [{ field: "content_type", values: ["pro:newsDocument"], type: "all" }], resultSearchTerm: "", pageTitle: "Nieuws" }));
+
+function rijksoverheid(url: URL): KnownPlan | null {
+  const path = segmentsOf(url).join("/").toLowerCase();
+  if (path !== "" && path !== "actueel" && path !== "actueel/nieuws") return null;
+  return { service: "Rijksoverheid", feeds: [{ feedUrl: RIJKSOVERHEID_NEWS, title: "Rijksoverheid Nieuws", via: feedLabels.postsFeed, origin: "Rijksoverheid" }] };
+}
+
 /** The feed addresses to try for a page address of one of these services, or null. */
 export function planServiceFeeds(url: URL): KnownPlan | null {
   const h = hostOf(url);
@@ -145,5 +190,8 @@ export function planServiceFeeds(url: URL): KnownPlan | null {
   if (h === "deviantart.com" || h === "www.deviantart.com") return deviantart(url);
   if (h === "behance.net" || h === "www.behance.net") return behance(url);
   if (h === "nos.nl" || h === "www.nos.nl") return nos(url);
+  if (h === "bbc.com" || h === "www.bbc.com" || h === "bbc.co.uk" || h === "www.bbc.co.uk") return bbc(url);
+  if (h === "ec.europa.eu") return presscorner(url);
+  if (h === "rijksoverheid.nl" || h === "www.rijksoverheid.nl") return rijksoverheid(url);
   return peertube(url);
 }

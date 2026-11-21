@@ -177,7 +177,7 @@ test("Wikidata's feeds keep to the lookup's limit on choices, and a page address
 
 test("Wikidata isn't asked about a page that isn't there, one that wants a password, or an address by number", async () => {
   for (const [url, status] of [["https://gone.example.org/page", 404], ["https://gone.example.org/old", 410], ["https://login.example.org/", 401], ["https://203.0.113.9/", 403]] as const) {
-    const s = stub({ [url]: fakeResponse(url, "x", "text/html", status) });
+    const s = stub({ [url]: fakeResponse(url, "x", "text/html", status, status === 401 ? { headers: { "www-authenticate": "Basic" } } : {}) });
     await discover(url, { fetch: s.fetch, now: NOW, testAllowAddress: () => true });
     assert.ok(!s.calls.some((u) => u.startsWith("https://www.wikidata.org/")), url);
   }

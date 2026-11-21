@@ -13,6 +13,8 @@ type Platform = {
   hosts: string[];
   /** Subdomains that are not the platform's own pages (its blog, say), so the normal check applies. */
   except?: string[];
+  /** Its feed-looking addresses answer with nothing to follow, so they are refused too rather than fetched. */
+  feedsGone?: boolean;
 };
 
 const PLATFORMS: readonly Platform[] = [
@@ -30,6 +32,8 @@ const PLATFORMS: readonly Platform[] = [
   { name: "Bandcamp", hosts: ["bandcamp.com"], except: ["daily.bandcamp.com"] },
   { name: "Spotify", hosts: ["spotify.com", "spotify.link"], except: ["podcasters.spotify.com", "newsroom.spotify.com", "engineering.atspotify.com"] },
   { name: "LinkedIn", hosts: ["linkedin.com", "lnkd.in"] },
+  // Reddit's feed addresses (`/r/name/.rss`) answer "Not Found".
+  { name: "Reddit", hosts: ["reddit.com", "redd.it"], feedsGone: true },
 ];
 
 /** An address that is itself a feed (a service's own blog feed, say) is never refused by name. */
@@ -42,8 +46,9 @@ export function noFeedMessage(platform: string): string {
 /** The platform an address belongs to when that platform offers no feeds, or null. */
 export function noFeedPlatform(url: URL): { name: string; message: string } | null {
   const host = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (FEED_LIKE_PATH.test(url.pathname)) return null;
+  const feedLike = FEED_LIKE_PATH.test(url.pathname);
   for (const p of PLATFORMS) {
+    if (feedLike && !p.feedsGone) continue;
     if (p.except?.some((e) => host === e || host.endsWith(`.${e}`))) continue;
     if (p.hosts.some((h) => host === h || host.endsWith(`.${h}`))) return { name: p.name, message: noFeedMessage(p.name) };
   }

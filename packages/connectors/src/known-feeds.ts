@@ -9,7 +9,7 @@ const feedLabels = server.sources.connectors.labels;
 
 /*
  * Services whose feed addresses follow a fixed pattern, so a pasted page address can be turned
- * into the feed address without guessing: a subreddit, a GitHub repository, a Substack, a
+ * into the feed address without guessing: a GitHub repository, a Substack, a
  * Medium writer, a Tumblr or Blogger blog, a Vimeo channel, a Pinterest board, an Apple
  * Podcasts show, and the profile and page addresses of services.ts. Only the address is rewritten;
  * everything is then fetched and checked like any other feed (safeFetch, the address rules and the
@@ -38,7 +38,7 @@ export type KnownFeed = {
   /** The feed counts only when its generator matches: the address shape alone doesn't say which software runs the site. */
   generator?: RegExp;
   /** The name to use made from the feed's own title, when the feed decorates it ("Wiley: Oceania: Table of Contents"). */
-  retitle?: (feedTitle: string | null) => string | null;
+  retitle?: (feedTitle: string | null, feed: ParsedFeed) => string | null;
   /** Said of this feed whenever it is offered (what a journal's second feed covers). */
   note?: string;
   /** Named like the feed at this address in the same plan, when its own title names only the platform. */
@@ -51,8 +51,6 @@ export type KnownPlan =
   | {
       service: string;
       feeds: KnownFeed[];
-      /** Offer the feed with a note when the service is only busy or limiting requests right now. */
-      tolerateBusy?: boolean;
       /** The feeds are alternative addresses of one feed (a journal's ISSNs): offer only the first that answers. */
       firstAnswer?: boolean;
     }
@@ -73,19 +71,6 @@ const RESERVED_VIMEO = new Set([
   "solutions", "pricing", "plans", "watchlater", "api", "manage", "settings", "home", "live", "everywhere", "create", "tv", "business",
 ]);
 const RESERVED_PINTEREST = new Set(["pin", "ideas", "search", "today", "business", "settings", "explore", "topics", "news_hub", "shop", "video", "login", "about", "help", "_", "create", "following", "watch"]);
-
-function reddit(url: URL): KnownPlan | null {
-  const s = segments(url);
-  const kind = (s[0] ?? "").toLowerCase();
-  const name = s[1] ?? "";
-  if (kind === "r" && /^[A-Za-z0-9_]{2,21}$/.test(name) && (s.length === 2 || (s.length === 3 && /^(?:hot|new|top|rising|best|controversial)$/i.test(s[2]!)))) {
-    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/r/${name}/.rss`, title: `r/${name}`, via: feedLabels.postsFeed, origin: server.sources.connectors.known.redditFeed }] };
-  }
-  if ((kind === "user" || kind === "u") && /^[A-Za-z0-9_-]{3,20}$/.test(name) && (s.length === 2 || (s.length === 3 && /^(?:submitted|overview|posts)$/i.test(s[2]!)))) {
-    return { service: "Reddit", tolerateBusy: true, feeds: [{ feedUrl: `https://www.reddit.com/user/${name}/.rss`, title: `u/${name}`, via: feedLabels.postsFeed, origin: server.sources.connectors.known.redditFeed }] };
-  }
-  return null;
-}
 
 function github(url: URL): KnownPlan | null {
   const s = segments(url);
@@ -220,8 +205,7 @@ export function planKnownFeeds(url: URL): KnownPlan | null {
   // Before the feed-address check: a Berghahn journal page ends in .xml without being a feed.
   const journal = planJournal(url);
   if (journal) return journal;
-  if (FEED_LIKE_PATH.test(url.pathname) && !/(?:^|\.)reddit\.com$/.test(h)) return null;
-  if (isHostOrSub(h, "reddit.com")) return reddit(url);
+  if (FEED_LIKE_PATH.test(url.pathname)) return null;
   if (h === "theguardian.com" || h === "www.theguardian.com") return guardian(url);
   if (h === "github.com" || h === "www.github.com") return github(url);
   if (h === "podcasts.apple.com" || h === "itunes.apple.com") return applePodcasts(url);
@@ -246,8 +230,6 @@ export type KnownDeps = {
   probe: (feedUrl: string) => Promise<KnownProbe>;
   json: (url: string) => Promise<{ ok: true; data: unknown } | { ok: false; reason: KnownReason; message: string }>;
   candidate: (feedUrl: string, parsed: ParsedFeed, extra: { title?: string; via?: string; origin?: string; note?: string }) => DraftCandidate;
-  /** A candidate for a feed that did not answer (no preview). */
-  unverified: (feed: KnownFeed, service: string) => DraftCandidate;
 };
 
 /**
@@ -319,7 +301,7 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
       offered.push(probe.parsed);
       // Judged by what was asked for, not by where the answer ended up (a blog's feed often lives on another host).
       const wholeSite = !feed.section && (sectionAsked || isSiteWideFeed(feed.feedUrl, pageUrl));
-      const title = feed.title ?? feed.retitle?.(probe.parsed.title) ?? doiNames[i] ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? (feed.nameFromDoi ? feed.origin : undefined) ?? undefined;
+      const title = feed.title ?? feed.retitle?.(probe.parsed.title, probe.parsed) ?? doiNames[i] ?? (feed.nameLike ? byAddress.get(feed.nameLike)?.title : undefined) ?? (feed.nameFromDoi ? feed.origin : undefined) ?? undefined;
       const c = deps.candidate(probe.feedUrl, probe.parsed, wholeSite
         ? { title, via: feedLabels.wholeSiteFeed, origin: feed.origin, note: sectionAsked && !sectionAnswered ? WHOLE_SITE_FALLBACK_NOTE : WHOLE_SITE_NOTE }
         : { title, via: feed.via, origin: feed.origin, ...(leadAnswered && feed.alsoNote ? { note: feed.alsoNote } : feed.emptyNote && probe.parsed.items.length === 0 ? { note: feed.emptyNote } : feed.note ? { note: feed.note } : {}) });
@@ -328,8 +310,6 @@ export async function resolveKnown(plan: KnownPlan, deps: KnownDeps, pageUrl: st
       candidates.push(leadAnswered ? { ...c, matchesPage: !!feed.lead } : c);
     } else if (probe.failed?.reason === "blocked") {
       blocked ??= probe.failed;
-    } else if (probe.inconclusive && plan.tolerateBusy) {
-      candidates.push(deps.unverified(feed, plan.service));
     } else if (probe.inconclusive) {
       if (probe.failed?.reason === "timeout") trouble.timeout = true;
       else trouble.busy = true;
