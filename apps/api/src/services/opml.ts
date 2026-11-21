@@ -4,7 +4,8 @@ import { Parser } from "htmlparser2";
 import { assertShallowMarkup, looksPrivateUrl, parseBridgeDescriptor, TooComplexError } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { badRequest, nowIso } from "../http.ts";
-import { canonicalFeedKey, privateFeedKey } from "./feed-keys.ts";
+import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
+import { urlKey } from "./url-key.ts";
 import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
 import { server } from "@purss/copy/server";
 
@@ -60,7 +61,8 @@ export function parseOpml(text: string): ParsedOpml {
       if (truncated) return;
       const feedUrl = httpUrlOrNull(xmlUrl);
       if (!feedUrl) { skipped.notWebAddress++; return; }
-      const key = canonicalFeedKey(feedUrl);
+      // The same feed written another way (http or https, a trailing slash, tracking parameters) is listed once.
+      const key = urlKey(feedUrl) ?? feedUrl;
       if (seen.has(key)) { skipped.duplicates++; return; }
       if (feeds.length >= OPML_MAX_FEEDS) { truncated = true; return; }
       seen.add(key);
@@ -99,15 +101,20 @@ export function previewOpml(app: App, p: Principal, text: string): OpmlPreview {
     // A bridged source is listed by its page, as the export writes it.
     const bridged = parseBridgeDescriptor(s.feed_url);
     const href = bridged ? bridged.service.pageUrl(bridged.key) : httpUrlOrNull(s.feed_url);
-    if (href) followed.set(canonicalFeedKey(href), s.id);
+    const key = href ? urlKey(href) : null;
+    if (key && !followed.has(key)) followed.set(key, s.id);
   }
   // A private source has no address to compare: its keyed hash is compared with the listed address's.
   const privateOnes = new Map<string, string>();
   for (const s of app.db.all<{ id: string; feed_key: string }>("SELECT id, feed_key FROM sources WHERE workspace_id = ? AND followed = 1 AND feed_key IS NOT NULL", p.workspaceId)) privateOnes.set(s.feed_key, s.id);
   return {
     feeds: parsed.feeds.map((f) => {
-      const key = privateOnes.size ? privateFeedKey(app, p.workspaceId, f.feedUrl) : null;
-      const sourceId = followed.get(canonicalFeedKey(f.feedUrl)) ?? (key ? privateOnes.get(key) : undefined) ?? null;
+      // The same address written another way (http or https, a trailing slash, tracking parameters) is the source followed; a private
+      // source's keyed hash is compared under either scheme.
+      const other = otherScheme(f.feedUrl);
+      const privateKeys = privateOnes.size ? [privateFeedKey(app, p.workspaceId, f.feedUrl), other ? privateFeedKey(app, p.workspaceId, other) : null] : [];
+      const listed = urlKey(f.feedUrl);
+      const sourceId = (listed ? followed.get(listed) : undefined) ?? privateKeys.map((k) => (k ? privateOnes.get(k) : undefined)).find(Boolean) ?? null;
       return { ...f, alreadyFollowing: sourceId !== null, sourceId, looksPrivate: looksPrivateFeed(f.feedUrl) };
     }),
     skipped: parsed.skipped,

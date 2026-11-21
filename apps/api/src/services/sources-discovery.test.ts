@@ -166,4 +166,21 @@ test("a feed whose newest posts are a followed source's (the same feed at anothe
   // Another account's sources never count.
   const q = makeOwner(app, { admin: false });
   assert.equal(presentCandidates(app, q, [withLinks("https://feeds.feedburner.example/harbour", newestFirst)])[0]!.sameFeedSource, null);
+
+  // A source that shares as many posts but whose newest are others (made first, so it is looked at first) is passed over for one whose
+  // newest are the feed's.
+  const r = makeOwner(app, { admin: false });
+  makeSource(app, r, "Harbour Archive", "feed/archive");
+  const mine = makeSource(app, r, "Harbour Notes", "feed/notes");
+  applySyncBatch(app, r.engineUserId, batch(posts.map((url, i) => entry("feed/archive", { url, originalGuid: `a-${url}`, publishedAt: new Date(Date.now() - (40 - i) * 3600_000).toISOString() }))));
+  applySyncBatch(app, r.engineUserId, batch(Array.from({ length: 10 }, (_, i) => entry("feed/archive", { url: `https://harbour.example/archive-new-${i}`, originalGuid: `n-${i}`, publishedAt: new Date(Date.now() - i * 60_000).toISOString() }))));
+  applySyncBatch(app, r.engineUserId, batch(posts.map((url, i) => entry("feed/notes", { url, originalGuid: `m-${url}`, publishedAt: new Date(Date.now() - (10 - i) * 3600_000).toISOString() }))));
+  assert.deepEqual(presentCandidates(app, r, [withLinks("https://feeds.feedburner.example/harbour", newestFirst)])[0]!.sameFeedSource, { id: mine, title: "Harbour Notes" });
+
+  // Newer posts without an address still count as the source's newest: older shared posts alone are not the same feed.
+  const quiet = makeOwner(app, { admin: false });
+  makeSource(app, quiet, "Harbour Notes", "feed/harbour");
+  applySyncBatch(app, quiet.engineUserId, batch(posts.map((url, i) => entry("feed/harbour", { url, originalGuid: `q-${url}`, publishedAt: new Date(Date.now() - (30 - i) * 3600_000).toISOString() }))));
+  applySyncBatch(app, quiet.engineUserId, batch(Array.from({ length: 10 }, (_, i) => entry("feed/harbour", { url: null, originalGuid: `nolink-${i}`, title: `Note ${i}`, publishedAt: new Date(Date.now() - i * 60_000).toISOString() }))));
+  assert.equal(presentCandidates(app, quiet, [withLinks("https://feeds.feedburner.example/harbour", newestFirst)])[0]!.sameFeedSource, null);
 });

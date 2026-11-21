@@ -12,6 +12,13 @@ export function canonicalFeedKey(href: string): string {
   return `${u.protocol}//${u.host}${path}${u.search}`;
 }
 
+/** The address with the other scheme (http and https), or null. */
+export function otherScheme(feedUrl: string): string | null {
+  if (feedUrl.startsWith("https://")) return `http://${feedUrl.slice(8)}`;
+  if (feedUrl.startsWith("http://")) return `https://${feedUrl.slice(7)}`;
+  return null;
+}
+
 /** A bridged source's descriptor (`bridge:telegram/durov`) when it names a catalogued service and key, else null. */
 export function bridgeAddress(value: string | null | undefined): string | null {
   return value && parseBridgeDescriptor(value) ? value.trim() : null;

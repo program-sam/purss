@@ -16,7 +16,7 @@ import { hueFor, initialsFor } from "./content.ts";
 import { iconUrl } from "./icons.ts";
 import { createCollection, deleteItemNow } from "./collections.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
-import { canonicalFeedKey, privateFeedKey } from "./feed-keys.ts";
+import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { dropCandidate, holdCandidate, peekCandidate } from "./discovery-cache.ts";
 import { failCapture, fullTextAvailable, queueAutoCapture } from "./captures.ts";
@@ -202,13 +202,6 @@ function followedByName(app: App, p: Principal): Map<string, { id: string; title
   return byName;
 }
 
-/** The address with the other scheme (http and https), or null. */
-function otherScheme(feedUrl: string): string | null {
-  if (feedUrl.startsWith("https://")) return `http://${feedUrl.slice(8)}`;
-  if (feedUrl.startsWith("http://")) return `https://${feedUrl.slice(7)}`;
-  return null;
-}
-
 /**
  * The followed source of this PURSS for a feed address: by the address written the same way up to what never changes which feed a
  * server sends (http or https, a trailing slash, tracking parameters; urlKey), or for a private source by its keyed hash of either scheme.
@@ -232,15 +225,18 @@ function sameFeedSource(app: App, p: Principal, itemLinks: readonly string[] | u
   if (keys.length < SAME_FEED_MIN) return undefined;
   const need = Math.max(SAME_FEED_MIN, Math.ceil(keys.length * SAME_FEED_SHARE));
   const marks = keys.map(() => "?").join(", ");
-  const best = app.db.get<{ id: string; title: string; n: number }>(
-    `SELECT s.id, s.title, COUNT(DISTINCT i.link_key) AS n FROM sources s JOIN items i ON i.workspace_id = s.workspace_id AND i.source_id = s.id
+  const sharing = app.db.all<{ id: string; title: string }>(
+    `SELECT s.id, s.title FROM sources s JOIN items i ON i.workspace_id = s.workspace_id AND i.source_id = s.id
      WHERE s.workspace_id = ? AND s.followed = 1 AND s.kind <> 'manual' AND i.link_key IN (${marks})
-     GROUP BY s.id ORDER BY n DESC, s.created_at LIMIT 1`, p.workspaceId, ...keys);
-  if (!best || best.n < need) return undefined;
-  const newest = app.db.all<{ link_key: string }>(
-    "SELECT link_key FROM items WHERE workspace_id = ? AND source_id = ? AND link_key IS NOT NULL ORDER BY discovered_at DESC, id DESC LIMIT ?", p.workspaceId, best.id, keys.length);
+     GROUP BY s.id HAVING COUNT(DISTINCT i.link_key) >= ? ORDER BY COUNT(DISTINCT i.link_key) DESC, s.created_at`, p.workspaceId, ...keys, need);
   const asked = new Set(keys);
-  return newest.filter((r) => asked.has(r.link_key)).length >= need ? { id: best.id, title: best.title } : undefined;
+  // Each source sharing enough posts in turn: the first whose newest posts (with or without an address) are mostly the feed's.
+  for (const s of sharing) {
+    const newest = app.db.all<{ link_key: string | null }>(
+      "SELECT link_key FROM items WHERE workspace_id = ? AND source_id = ? ORDER BY discovered_at DESC, id DESC LIMIT ?", p.workspaceId, s.id, keys.length);
+    if (newest.filter((r) => r.link_key !== null && asked.has(r.link_key)).length >= need) return { id: s.id, title: s.title };
+  }
+  return undefined;
 }
 /** At least this many posts in common, and this share of the newest on both sides. */
 const SAME_FEED_MIN = 3;
