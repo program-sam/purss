@@ -61,9 +61,9 @@ export async function startUpstream(handler: (req: http.IncomingMessage, res: ht
 export type ProxyReply = { status: number; headers: http.IncomingHttpHeaders; body: Buffer; error?: string };
 
 /** Send an absolute-form request to the proxy, as a client configured to use it would. */
-export function viaProxy(proxyPort: number, target: string, opts: { method?: string; headers?: Record<string, string>; timeoutMs?: number } = {}): Promise<ProxyReply> {
+export function viaProxy(proxyPort: number, target: string, opts: { method?: string; headers?: Record<string, string>; timeoutMs?: number; proxyHost?: string } = {}): Promise<ProxyReply> {
   return new Promise((resolve) => {
-    const req = http.request({ host: "127.0.0.1", port: proxyPort, method: opts.method ?? "GET", path: target, headers: { ...(/^https?:\/\//.test(target) ? { host: new URL(target).host } : {}), ...opts.headers }, agent: false, timeout: opts.timeoutMs ?? 8000 });
+    const req = http.request({ host: opts.proxyHost ?? "127.0.0.1", port: proxyPort, method: opts.method ?? "GET", path: target, headers: { ...(/^https?:\/\//.test(target) ? { host: new URL(target).host } : {}), ...opts.headers }, agent: false, timeout: opts.timeoutMs ?? 8000 });
     req.on("response", (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));

@@ -174,7 +174,9 @@ Instagram) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name
 parameters, 45 seconds and 8 MiB at most, errors as HTTP statuses. On RSS-Bridge's own network
 (`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS resolver answers A questions with public addresses
 only (a name with any forbidden answer is refused), because RSS-Bridge looks every host up itself before
-fetching through the proxy. RSS-Bridge has no other route out.
+fetching through the proxy. RSS-Bridge has no other route out. It follows redirects (at most three) and checks only
+the first address itself, so each hop is a new request to this proxy, checked like any other; this proxy is given
+no internal destinations, so a redirect can't reach the feed gateway or the bridge router by their aliases.
 
 ### Crossref backend
 

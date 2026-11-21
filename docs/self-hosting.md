@@ -786,7 +786,8 @@ against its working directory.
 
 **Local bridge** (`scripts/bridge.ts`): `PURSS_BRIDGE_CONTAINER` (`purss-rss-bridge`),
 `PURSS_BRIDGE_BACKEND_PORT` (8944). Unlike under Compose, the development RSS-Bridge isn't cut off
-from the network: its requests go through the egress proxy, but its name lookups use the host's.
+from the network: its requests go through the egress proxy, but its name lookups use the host's, and the proxy is the one
+FreshRSS uses, with the internal aliases that Compose's proxy for RSS-Bridge doesn't have.
 
 **Web dev server** (`apps/web/vite.config.ts`): `PURSS_API_URL` (`http://127.0.0.1:8940`),
 `PURSS_WEB_PORT` (5173).

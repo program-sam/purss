@@ -73,9 +73,10 @@ export async function startEgress(config: EgressConfig, deps: StartDeps = {}): P
     bridgeServer = createBridgeServer(router, { log: deps.log });
   }
   const proxy = createProxyServer({ config, stats, log: deps.log, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver });
-  // On the bridge container's network: the same proxy rules, and the only name resolution it has.
+  // On the bridge container's network: the same proxy rules and the only name resolution it has, but no internal destinations. RSS-Bridge
+  // follows redirects, so a site could send it to `feed-bridge.internal`; it needs nothing of egress's own, only the internet.
   const bridgeNet = config.bridge?.net ?? null;
-  const bridgeProxy = bridgeNet ? createProxyServer({ config, stats, log: deps.log, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver }) : null;
+  const bridgeProxy = bridgeNet ? createProxyServer({ config: { ...config, internalDestinations: [] }, stats, log: deps.log, testAllowAddress: deps.testAllowAddress, resolver: deps.resolver }) : null;
   const dns = bridgeNet ? createDnsServer({ log: deps.log }) : null;
   let dnsBound = false;
   const closeAll = () => {

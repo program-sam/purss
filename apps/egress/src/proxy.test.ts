@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import http from "node:http";
 import { test } from "node:test";
 import type { LogEvent } from "./proxy.ts";
@@ -146,6 +147,98 @@ test("redirects are not followed by the proxy; each hop the client follows is ch
     );
   } finally {
     await upstream.close();
+  }
+});
+
+/** curl as RSS-Bridge's HTTP client runs it: through the proxy, following up to three redirects. Async, so the proxy in this process keeps answering. */
+function curlFollowing(proxyPort: number, url: string): Promise<{ exit: number; status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    execFile("curl", ["-sS", "-L", "--max-redirs", "3", "--max-time", "10", "--proxy", `http://127.0.0.1:${proxyPort}`, "-w", "\n%{http_code}", url], (error, stdout) => {
+      if (error && typeof error.code === "string") return reject(new Error(`curl could not run: ${error.code}`));
+      const at = stdout.lastIndexOf("\n");
+      resolve({ exit: error ? Number(error.code) : 0, status: Number(stdout.slice(at + 1)), body: stdout.slice(0, Math.max(0, at)) });
+    });
+  });
+}
+
+test("a client that follows redirects on its own reaches the proxy once per hop, and each hop is checked", async () => {
+  const upstream = await startUpstream((req, res) => {
+    const redirect = (status: number, location: string) => { res.writeHead(status, { location }); res.end(); };
+    const base = `http://feeds.test:${upstream.port}`;
+    if (req.url === "/hop1") return redirect(302, `${base}/hop2`);
+    if (req.url === "/hop2") return redirect(301, `${base}/final`);
+    if (req.url === "/to-private") return redirect(307, "http://10.0.0.5:8080/admin");
+    if (req.url === "/to-metadata-tunnel") return redirect(302, "https://169.254.169.254/latest/meta-data/");
+    if (req.url === "/to-rebind") return redirect(302, `${base.replace("feeds.test", "rebind.test")}/secret`);
+    if (req.url === "/after-one-public-hop") return redirect(302, `${base}/to-private`);
+    res.end("final");
+  });
+  const resolver = async (host: string) => (host === "rebind.test" ? ["10.0.0.9"] : ["127.0.0.1"]);
+  try {
+    await withEgress(
+      async (egress, logs) => {
+        const done = () => logs.filter((l) => l.event === "proxy.done").map((l) => `${l.method} ${l.host}${l.path} ${l.status}`);
+        const denied = () => logs.filter((l) => l.event === "proxy.deny").map((l) => `${l.method} ${l.host}:${l.port} ${l.reason}`);
+
+        const chain = await curlFollowing(egress.ports.proxy, `http://feeds.test:${upstream.port}/hop1`);
+        assert.deepEqual([chain.exit, chain.status, chain.body], [0, 200, "final"]);
+        assert.deepEqual(upstream.requests.map((r) => r.url), ["/hop1", "/hop2", "/final"], "the client asked for each hop itself");
+        assert.deepEqual(done(), [`GET feeds.test/hop1 302`, `GET feeds.test/hop2 301`, `GET feeds.test/final 200`], "and each reached the proxy as its own request");
+        assert.deepEqual(egress.stats.snapshot(), { allowedLastHour: 3, blockedLastHour: 0 });
+
+        upstream.requests.length = 0;
+        for (const [path, via, reason] of [
+          ["/to-private", "GET 10.0.0.5:8080", "address"],
+          ["/to-rebind", `GET rebind.test:${upstream.port}`, "address"],
+          ["/after-one-public-hop", "GET 10.0.0.5:8080", "address"],
+        ] as const) {
+          logs.length = 0;
+          const hop = await curlFollowing(egress.ports.proxy, `http://feeds.test:${upstream.port}${path}`);
+          assert.deepEqual([hop.exit, hop.status], [0, 403], path);
+          assert.match(hop.body, /Blocked by egress policy/, path);
+          assert.deepEqual(denied(), [`${via} ${reason}`], path);
+        }
+        // An https hop is a CONNECT: the tunnel to a forbidden address is refused, so the client never gets to speak TLS.
+        logs.length = 0;
+        const tunnel = await curlFollowing(egress.ports.proxy, `http://feeds.test:${upstream.port}/to-metadata-tunnel`);
+        assert.equal(tunnel.exit, 56, "curl: CONNECT tunnel failed, response 403");
+        assert.deepEqual(denied(), ["CONNECT 169.254.169.254:443 address"]);
+        assert.deepEqual(upstream.requests.map((r) => r.url), ["/to-private", "/to-rebind", "/after-one-public-hop", "/to-private", "/to-metadata-tunnel"], "only the redirecting pages were asked, never what they pointed at");
+      },
+      { allow: true, resolver },
+    );
+  } finally {
+    await upstream.close();
+  }
+});
+
+test("the bridge network's proxy has no internal destinations: a redirect to egress's own listeners is refused, as it is for anything private", async () => {
+  const internal = await startUpstream((_req, res) => res.end("internal listener"));
+  const bridgeAlias = "feed-bridge.internal";
+  try {
+    await withEgress(
+      async (egress, logs) => {
+        const target = `http://${bridgeAlias}:8945/b/telegram/durov/signature`;
+        // The engine's proxy reaches the alias, as it must.
+        const engine = await viaProxy(egress.ports.proxy, target, { proxyHost: "127.0.0.2" });
+        assert.deepEqual([engine.status, engine.body.toString()], [200, "internal listener"]);
+        // The proxy on the bridge's network (same port, its own address) does not, so a redirect from a site cannot send RSS-Bridge there.
+        const bridge = await viaProxy(egress.ports.proxy, target);
+        assert.equal(bridge.status, 403);
+        assert.equal(internal.requests.length, 1, "only the engine's request arrived");
+        assert.ok(logs.some((l) => l.event === "proxy.deny" && l.host === bridgeAlias));
+      },
+      {
+        allow: true,
+        config: {
+          proxy: { host: "127.0.0.2", port: 0 },
+          bridge: { host: "127.0.0.1", port: 0, backendUrl: null, secret: "k".repeat(43), dbPath: ":memory:", net: { host: "127.0.0.1", dnsPort: 0 } },
+          internalDestinations: [{ host: bridgeAlias, port: 8945, connectHost: "127.0.0.1", connectPort: internal.port }],
+        },
+      },
+    );
+  } finally {
+    await internal.close();
   }
 });
 

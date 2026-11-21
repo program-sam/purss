@@ -66,7 +66,9 @@ services:
 
   # RSS-Bridge, pinned by digest, only the catalogued bridges enabled. It reaches the
   # internet only through egress: its requests go to the proxy and its name lookups to egress's
-  # resolver, both of which refuse private addresses.
+  # resolver, both of which refuse private addresses. It follows redirects (many sites serve a
+  # page only after one or two), which is safe only because each hop is a new request to that
+  # proxy: RSS-Bridge itself checks only the first address.
   bridge:
     image: docker.io/rssbridge/rss-bridge@sha256:268709ce72acb66930dd0700ce1fcfe28501fa8fcdbfc79c149ffadccac8746b
     restart: unless-stopped
@@ -76,6 +78,7 @@ services:
       RSSBRIDGE_system_enable_debug_mode: "false"
       RSSBRIDGE_proxy_url: http://172.31.89.10:8946
       RSSBRIDGE_proxy_by_bridge: "false"
+      RSSBRIDGE_http_follow: "true"
       RSSBRIDGE_http_timeout: "15"
       RSSBRIDGE_error_output: http
       RSSBRIDGE_cache_type: array

@@ -306,6 +306,12 @@ collects it (RSS-Bridge, or Crossref's API), and the router asks the backends of
   resolver, which answers only public addresses. Only the catalogued bridges are enabled
   (`RSSBRIDGE_system_enabled_bridges` in `infra/compose.yaml`), `error_output` is `http` so
   failures are HTTP errors, and the container's memory limit bounds a decompression bomb.
+- **Redirects.** RSS-Bridge follows them (`RSSBRIDGE_http_follow`, at most three), as many sites serve a page only
+  after one or two. RSS-Bridge itself checks only the first address, so what makes this safe is that each hop
+  reaches egress's proxy as a new request and is resolved and checked there like any other (a hop to a private,
+  link-local or metadata address, or to a name that resolves to one, is a `403`). That proxy has no internal
+  destinations: egress's own aliases, the feed gateway and the bridge router, are reached only by FreshRSS, so a
+  redirect can't send RSS-Bridge to them.
 
 ### The failure log
 

@@ -106,7 +106,9 @@ redirect hop (which reaches it as a separate request), pins the outgoing connect
 address again. By default it allows 256 connections, 60 seconds and 32 MiB per response, and 120
 seconds and 64 MiB per tunnel. It binds only loopback or a private address, and logs a redacted path (no user
 information, query string, fragment or token-like path piece). The only exceptions are exact
-host-and-port pairs the operator lists, which map to a fixed address and can't be tunnelled. The feed
+host-and-port pairs the operator lists, which map to a fixed address and can't be tunnelled, and which the
+proxy on RSS-Bridge's network doesn't have (RSS-Bridge follows redirects and checks only its first address, so a
+redirect to the feed gateway's or the bridge router's alias is refused there like one to any private address). The feed
 gateway and the bridge router answer only addresses signed with a key (`feed-trim-key`, `bridge-key`)
 that FreshRSS never reads, so a feed that redirects FreshRSS can't make them fetch anything that was
 not signed ([Sources](sources.md#identity-and-signed-addresses)).
