@@ -99,7 +99,6 @@ const css = `
 .pf-points li{display:flex;gap:12px;align-items:flex-start}
 .pf-points .pt{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(hsl(var(--h) 85% 56%),hsl(var(--h) 85% 38%));box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 5px hsl(var(--h) 70% 25% / .3)}
 .pf-points .pt .ic{width:15px;height:15px;stroke-width:3.2}
-.pf-points small{display:block;font-weight:700;font-size:14px;color:var(--ink-2)}
 .pf-hero .s-cta{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pf-hero .s-cta .btn{width:100%;justify-content:center;padding:0 10px}
 
@@ -182,7 +181,6 @@ const css = `
 .pf-feats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:38px}
 .pf-feats .mod-t{display:flex;align-items:center;gap:8px;padding-left:6px}
 .pf-feats .mod-b{padding:14px 16px 18px;display:grid;gap:8px}
-.pf-feats h3{font-size:18px;font-weight:900;line-height:1.2;letter-spacing:-.01em}
 .pf-feats p{font-size:14.5px;font-weight:600;color:var(--ink-2)}
 .pf-why{margin-top:0}
 .pf-end{padding:80px 24px 90px;text-align:center}
@@ -215,8 +213,8 @@ const css = `
 @media (max-width:420px){.pk-p{font-size:34px}.pk-row{padding:14px}.pk-own{padding:14px}.pk-per .btn{width:100%}}
 .pk-fx:has([data-money]:empty){display:none}
 @media (max-width:1200px){.pf-nav a:not(.btn){display:none}.pf-hero{grid-template-columns:minmax(0,1fr);gap:28px;padding-top:8px}.pf-stage{height:520px}.pf-feats{grid-template-columns:1fr 1fr}.pf-hero>div:first-child{display:contents}.pf-h1{order:1}.pf-lead{order:2;margin-top:0}.pf-sw{order:3;margin-top:0;font-size:14px;gap:10px}.pf-sw label{flex:1}.pf-sw .l0{text-align:right}.pf-stage{order:4;height:540px;min-height:0}.pf-points{order:5;margin-top:0}.pf[data-on="1"] .pf-content{padding-left:0}.pf-main>.s-side{display:none}.pf[data-on="1"] .pf-bar{padding-left:18px}.pf-hero .s-cta{order:6;margin-top:0;grid-template-columns:minmax(0,1fr)}.pf-hero{gap:18px;min-height:0;padding-bottom:40px}.pf-sw{white-space:normal}.pf-toggle{width:112px;height:54px}.pf-toggle i{width:42px;height:42px}.pf[data-on="1"] .pf-toggle i{translate:58px 0}}
-@media (min-width:1600px){.pf-nav,.pf-hero{max-width:1640px}.pf-hero{grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:64px}.pf-h1{font-size:clamp(54px,3.7vw,76px)}.pf-lead{font-size:22px}.pf-points{font-size:19px}.pf-points small{font-size:15.5px}.pf-stage{height:min(840px,calc(100vh - 120px))}.pf-nav{font-size:16px}}
-@media (min-width:2200px){.pf-nav,.pf-hero{max-width:2100px}.pf-hero{grid-template-columns:minmax(0,600px) minmax(0,1fr);gap:90px}.pf-h1{font-size:clamp(72px,3.4vw,96px)}.pf-lead{font-size:27px}.pf-points{font-size:23px;gap:16px}.pf-points small{font-size:18px}.pf-stage{height:min(1080px,calc(100vh - 140px))}.pf-nav{font-size:18px}}
+@media (min-width:1600px){.pf-nav,.pf-hero{max-width:1640px}.pf-hero{grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:64px}.pf-h1{font-size:clamp(54px,3.7vw,76px)}.pf-lead{font-size:22px}.pf-points{font-size:19px}.pf-stage{height:min(840px,calc(100vh - 120px))}.pf-nav{font-size:16px}}
+@media (min-width:2200px){.pf-nav,.pf-hero{max-width:2100px}.pf-hero{grid-template-columns:minmax(0,600px) minmax(0,1fr);gap:90px}.pf-h1{font-size:clamp(72px,3.4vw,96px)}.pf-lead{font-size:27px}.pf-points{font-size:23px;gap:16px}.pf-stage{height:min(1080px,calc(100vh - 140px))}.pf-nav{font-size:18px}}
 @media (max-width:480px){.pf-nav{padding:10px 18px}.pf-h1{font-size:29px;line-height:1.04}.pf-lead{font-size:15px;line-height:1.42}.pf-sw{font-size:13px}.pf-stage{height:clamp(420px,calc(100svh - 300px),560px)!important}.pf-hero{gap:12px;padding-top:2px}}
 `;
 
@@ -232,7 +230,7 @@ export const home = {
 <div><h1 class="pf-h1">${copy.home.hero.heading}</h1>
 <p class="pf-lead">${copy.home.hero.lead}</p>
 <div class="pf-sw"><label class="l0" for="pf-t">${copy.home.hero.switchOff}</label><button class="pf-toggle" id="pf-t" type="button" role="switch" aria-checked="true" aria-label="Show only what you chose"><i>${ic("mark")}</i></button><label class="l1" for="pf-t">${copy.home.hero.switchOn}</label></div>
-<ul class="pf-points">${copy.home.hero.points.map(({ title, text }) => `<li><span class="pt">${ic("check")}</span><span>${title}<small>${text}</small></span></li>`).join("")}</ul>
+<ul class="pf-points">${copy.home.hero.points.map(({ title }) => `<li><span class="pt">${ic("check")}</span><span>${title}</span></li>`).join("")}</ul>
 <div class="s-cta"><a class="btn primary xl" href="${links(site).signUp}">${copy.words.createAFreeAccount}</a><a class="btn xl" href="#self-host">${ic("server")}${copy.words.hostItYourself}</a></div></div>
 <div class="pf-stage" role="img" aria-label="${copy.home.picture.labelOn}">
 <div class="s-win pf-win"><div class="s-chrome" aria-hidden="true"><i></i><i></i><i></i><span class="u0">${copy.home.picture.addressOff}</span><span class="u1">${copy.home.picture.addressOn}</span></div>
@@ -246,9 +244,9 @@ export const home = {
 
 <section class="pf-sec" id="why"><h2 class="pf-h2">${copy.home.why.heading}</h2><p class="pf-p">${copy.home.why.pitch}</p>${comparison()}</section>
 
-<section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.label}</span></div></div><div class="mod-b"><h3>${f.heading}</h3><p>${f.text}</p></div></section>`).join("")}</div></section>
+<section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.label}</span></div></div><div class="mod-b"><p>${f.text}</p></div></section>`).join("")}</div></section>
 
-<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.words.appsAndExtensions}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2><p class="s-lead">${copy.home.apps.lead}</p></div>
+<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.words.appsAndExtensions}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
 <section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.words.pricing}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>

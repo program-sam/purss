@@ -324,7 +324,7 @@ export const legal = {
 
 export const pages = {
   index: {
-    title: (name: string) => `${name}: `${home.hero.heading}`,
+    title: (name: string) => `${name}: ${home.hero.heading}`,
     description: home.hero.lead,
   },
   /** Structured data on the home page. */

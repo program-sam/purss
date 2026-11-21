@@ -92,7 +92,6 @@ ${COLLECTIONS.map((c) => `<div class="grow ${selected === c.n ? "sel" : ""}"><sp
 <div class="sec-head"><div class="s-sh">${SIDEBAR.basketsTitle}</div></div>
 ${[[SIDEBAR.baskets.localHistory, 6], [SIDEBAR.baskets.thesisSources, 38]].map(([n, c]) => `<span class="bk">${ic("basket")}<span class="nm">${n}</span><span class="n">${c}</span></span>`).join("\n")}
 </div>
-<div class="side-foot"><span class="stor"><span class="meter"><i class="feeds" style="width:37%"></i></span>${SIDEBAR.storage}</span></div>
 </aside>`;
 }
 
@@ -110,10 +109,10 @@ type Row = "sources" | "collections" | "sharing" | "smart";
 
 /** A plan's price; `yearly` is shown while the pricing toggle is on yearly billing, `price`/`per` while it is on monthly. */
 const PLAN_TEXT = copy.kit.plans;
-export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; lede: string; has: Partial<Record<Row, string>>; cta: string }> = {
-  free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, lede: PLAN_TEXT.free.lede, has: { sources: "100", collections: "5" }, cta: copy.words.createAFreeAccount },
-  plus: { name: PLAN_TEXT.plus.name, price: euros(PLUS.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PLUS.year / 12), per: PLAN_TEXT.billedYearly(euros(PLUS.year)) }, eur: PLUS, lede: PLAN_TEXT.plus.lede, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
-  pro: { name: copy.kit.plans.pro.name, price: euros(PRO.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PRO.year / 12), per: PLAN_TEXT.billedYearly(euros(PRO.year)) }, eur: PRO, lede: PLAN_TEXT.pro.lede, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
+export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eur?: { month: number; year: number }; name: string; has: Partial<Record<Row, string>>; cta: string }> = {
+  free: { name: PLAN_TEXT.free.name, price: "€0", per: PLAN_TEXT.free.per, has: { sources: "100", collections: "5" }, cta: copy.words.createAFreeAccount },
+  plus: { name: PLAN_TEXT.plus.name, price: euros(PLUS.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PLUS.year / 12), per: PLAN_TEXT.billedYearly(euros(PLUS.year)) }, eur: PLUS, has: { sources: "1,000", collections: PLAN_TEXT.unlimited, sharing: "yes" }, cta: PLAN_TEXT.plus.cta },
+  pro: { name: copy.kit.plans.pro.name, price: euros(PRO.month), per: PLAN_TEXT.billedMonthly, yearly: { price: euros(PRO.year / 12), per: PLAN_TEXT.billedYearly(euros(PRO.year)) }, eur: PRO, has: { sources: "5,000", collections: PLAN_TEXT.unlimited, sharing: "yes", smart: "yes" }, cta: PLAN_TEXT.pro.cta },
 };
 
 
@@ -121,7 +120,7 @@ export const PLANS: Record<"free" | "plus" | "pro", Price & { yearly?: Price; eu
 export function billingToggle(): string {
   const B = copy.kit.billing;
   const opt = (id: string, label: string, checked = false) => `<input type="radio" name="billing" id="${id}" class="sr"${checked ? " checked" : ""}><label for="${id}">${label}</label>`;
-  return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", `${B.yearly} <span class="s-save">${B.save(Math.round(100 - (100 * PLUS.year) / (12 * PLUS.month)))}</span>`, true)}${opt("bill-month", B.monthly)}</fieldset>${currencyPicker()}</div>`;
+  return `<div class="s-bill-row"><fieldset class="s-bill"><legend class="sr">Billing</legend>${opt("bill-year", B.yearly, true)}${opt("bill-month", B.monthly)}</fieldset>${currencyPicker()}</div>`;
 }
 
 /** A price the visitor's currency script can rewrite; `approx` prices are ours, shown converted only outside the euro. */
@@ -141,8 +140,6 @@ function getIt(what: Distributed): string {
   return stores.length ? `<span class="a-stores">${stores.map((s) => `<a class="btn" href="${s.url}">${s.name}</a>`).join("")}</span>` : "";
 }
 
-/** For developers: the apps can already be built from the source code. Shown with the install commands in the pricing section's "You run it" door. */
-const developerLinks = () => { const D = copy.kit.terminal.developers; return `<p class="fine a-dev">${D.before}<a class="link" href="${DISTRIBUTION.mobile.install}">${D.phone}</a>${D.between}<a class="link" href="${DISTRIBUTION.extension.install}">${D.extension}</a>${D.after}</p>`; };
 
 /**
  * The desktop app's download: one button, which a few lines of script (main.ts, pickDesktopDownload) point
@@ -182,7 +179,7 @@ export function terminal(site: Site): string {
   // Each command is its own block with a hanging indent, so wrapped lines never look like new commands.
   const cmds = (c: string) => c.split(/\n(?!<span class="ind">)/).map((cmd) => `<span class="cmd"><span class="p">$</span> ${cmd}</span>`).join("");
   return `<div class="s-term"><div class="s-term-h" aria-hidden="true"><i></i><i></i><i></i><span>${copy.kit.terminal.host}</span></div>
-<pre tabindex="0" aria-label="Install commands" class="s-pre">${steps(site).map((s) => `<span class="c"># ${s.t}</span>${cmds(s.c)}`).join("")}<span class="ok">${copy.kit.terminal.running}</span></pre></div>${developerLinks()}`;
+<pre tabindex="0" aria-label="Install commands" class="s-pre">${steps(site).map((s) => `<span class="c"># ${s.t}</span>${cmds(s.c)}`).join("")}<span class="ok">${copy.kit.terminal.running}</span></pre></div>`;
 }
 
 export function faq(site: Site): string {
@@ -191,7 +188,7 @@ export function faq(site: Site): string {
 
 export function footer(site: Site): string {
   const F = copy.kit.footer;
-  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">${copy.words.features}</a><a href="/#apps">${copy.words.appsAndExtensions}</a><a href="/#pricing">${copy.words.pricing}</a><a href="/#self-host">${copy.words.hostItYourself}</a><a href="${links(site).docs}">${copy.words.docs}</a><a href="${links(site).source}">${F.source}</a><a href="/privacy.html">${copy.words.privacy}</a><a href="/terms.html">${F.terms}</a><a href="/legal.html">${copy.words.legalNotice}</a></nav><span class="fine">${F.credit.before}<a class="link" href="https://github.com/program-sam">${"Program Sam"}</a>${F.credit.middle}<a class="link" href="https://freshrss.org">${F.credit.engine}</a>${F.credit.after}</span></div></footer>`;
+  return `<footer class="s-foot"><div class="s-wrap s-foot-in">${brand()}<nav aria-label="Footer"><a href="/#features">${copy.words.features}</a><a href="/#apps">${copy.words.appsAndExtensions}</a><a href="/#pricing">${copy.words.pricing}</a><a href="/#self-host">${copy.words.hostItYourself}</a><a href="${links(site).docs}">${copy.words.docs}</a><a href="${links(site).source}">${F.source}</a><a href="/privacy.html">${copy.words.privacy}</a><a href="/terms.html">${F.terms}</a><a href="/legal.html">${copy.words.legalNotice}</a></nav></div></footer>`;
 }
 
 /** The header. A page the server marks `data-session` (signed in) swaps the sign-up buttons for Go to your PURSS. */

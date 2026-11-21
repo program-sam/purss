@@ -93,9 +93,6 @@ test("the app cards describe the apps as they are, the desktop app has one downl
   const desktop = h.slice(h.indexOf('class="a-desktop"'), h.indexOf("</div>", h.indexOf('class="a-desktop"')));
   assert.equal(desktop.match(/<a /g)?.length, 2, "one button and one link");
   assert.match(desktop, new RegExp(`data-desktop-other hidden href="[^"]+/releases/latest">${literally(copy.kit.apps.desktop.otherSystems)}<`));
-  const host = h.slice(h.indexOf('id="self-host"'), h.indexOf('id="faq"'));
-  assert.ok(host.includes(copy.kit.terminal.developers.phone));
-  assert.ok(host.includes(copy.kit.terminal.developers.extension));
 });
 
 test("the mock screens use everyday examples next to the research one", () => {
