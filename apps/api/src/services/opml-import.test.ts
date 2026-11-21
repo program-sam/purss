@@ -15,7 +15,7 @@ import { listSources } from "./sources.ts";
 const { http, opmlImport, plans, shared } = copy.api;
 
 const candidate = (feedUrl: string, title: string, over: Record<string, unknown> = {}) => ({
-  title, kind: "feed" as const, origin: "RSS feed", via: "Posts feed", feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, privateWarning: null, alreadyFollowingSourceId: null, ...over,
+  title, kind: "feed" as const, origin: "RSS feed", via: "Posts feed", feedUrl, siteUrl: null, cadence: null, samples: [], route: "feed-address" as const, summariesOnly: false, privateWarning: null, alreadyFollowingSourceId: null, ...over,
 });
 
 /** A discovery that answers from a table: a feed address maps to what the site would say it is, or to a failure. */
@@ -61,6 +61,9 @@ test("a list is followed on the server with the titles the file gave, and the re
     ["Gone", "failed", "We couldn't find a feed on that page."],
   ]);
   assert.ok(done.entries![0]!.sourceId);
+  // How they were found and how the person got there is recorded: an import is its own entry, and shows only the feed it follows.
+  assert.deepEqual(app.db.all<{ r: string; e: string }>("SELECT discovery_route AS r, discovery_entry AS e FROM sources WHERE followed = 1").map((x) => [x.r, x.e]), [["feed-address", "opml-import"], ["feed-address", "opml-import"]]);
+  assert.deepEqual(app.db.all<{ entry: string; route: string; offered: number; followed: number }>("SELECT entry, route, offered, followed FROM discovery_routes").map((x) => ({ ...x })), [{ entry: "opml-import", route: "feed-address", offered: 2, followed: 2 }]);
   assert.equal(listOpmlImports(app, p).length, 1);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'engine.subscribe'")!.n, 2, "each followed feed is subscribed through the usual job");
   // The record can be forgotten; the sources stay.

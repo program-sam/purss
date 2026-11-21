@@ -89,7 +89,7 @@ export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPa
         principal = resolvePrincipal(app, cookies[SESSION_COOKIE]);
         if (principal?.renewed) renewSessionCookie(app, res, cookies[SESSION_COOKIE]!);
       }
-      const ctx: Ctx = { app, principal };
+      const ctx: Ctx = { app, principal, ...(gate.kind === "device" ? { client: gate.client } : {}) };
 
       if (url.pathname.startsWith("/api/")) {
         if (gate.kind === "browser" && method !== "GET" && method !== "HEAD") {

@@ -43,7 +43,7 @@ function setup() {
 /** Follow a feed the way the app does (a held candidate, then the engine confirming it). */
 function follow(app: App, p: Owner, title: string, stream: string, startFrom?: "now" | "week", collectionId: string | null = null): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, { feedUrl: `https://example.org/${stream}.xml`, siteUrl: null, title, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null });
+  holdCandidate(token, p.workspaceId, { feedUrl: `https://example.org/${stream}.xml`, siteUrl: null, title, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   const src = followSource(app, p, { token, collectionId, newCollectionName: null, markPrivate: false, fullText: false, ...(startFrom ? { startFrom } : {}) }).id;
   onSubscribed(app, src, stream);
   return src;

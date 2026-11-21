@@ -223,7 +223,7 @@ export function journalFeedsFor(ref: Exclude<JournalRef, { platform: "sciencedir
 export function planJournal(url: URL): KnownPlan | null {
   const ref = journalFromUrl(url);
   if (!ref || ref.platform === "sciencedirect") return null;
-  return { service: PUBLISHER[ref.platform], feeds: journalFeedsFor(ref) };
+  return { service: PUBLISHER[ref.platform], route: "journal-platform", feeds: journalFeedsFor(ref) };
 }
 
 /** True for hosts of these platforms, and of other publishers whose pages hold no feed at the usual blog addresses. */
@@ -276,7 +276,7 @@ export function planFromIssns(publisher: string | null | undefined, issns: reado
     platform === "wiley"
       ? journalFeed("wiley", `https://onlinelibrary.wiley.com/feed/${issn}/most-recent`, title ?? undefined)
       : journalFeed("sciencedirect", `https://rss.sciencedirect.com/publication/science/${issn}`, title ?? undefined);
-  return { service: PUBLISHER[platform], feeds: valid.map(make), firstAnswer: true };
+  return { service: PUBLISHER[platform], route: "journal-issn", feeds: valid.map(make), firstAnswer: true };
 }
 
 /** A DOI as written in a bare identifier, a `doi:` reference or a doi.org address; null for anything else. */

@@ -1,5 +1,5 @@
 import { FULL_TEXT_BACKFILL, initialsFor, newId } from "@purss/domain";
-import type { DiscoveryResult, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
+import type { DiscoveryEntry, DiscoveryResult, LookupEntry, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
 import { coreName, discover, searchPodcasts, searchSites } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { PodcastSearchOptions, SiteSearchOptions } from "@purss/connectors";
@@ -19,6 +19,8 @@ import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
 import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { dropCandidate, holdCandidate, peekCandidate } from "./discovery-cache.ts";
+import type { HeldCandidate } from "./discovery-cache.ts";
+import { recordFollowed, recordOffered } from "./discovery-routes.ts";
 import { failCapture, fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { HAS_ANNOTATIONS } from "./annotations.ts";
 import { itemCounts } from "./counts.ts";
@@ -105,22 +107,32 @@ export function getSource(app: App, p: Principal, id: string): SourceDTO {
   return toSourceDTO(r);
 }
 
-/** Discovery runs the safe fetcher; candidates are held server-side behind opaque tokens. */
-export async function discoverSources(app: App, p: Principal, url: string): Promise<DiscoveryResult> {
+/**
+ * Discovery runs the safe fetcher; candidates are held server-side behind opaque tokens. `entry` is how the person got to the lookup (the
+ * administrator's record of discovery routes counts what it shows and what is followed by it); `reconnect` is a lookup for a private
+ * source's link, which follows nothing and is not counted.
+ */
+export async function discoverSources(app: App, p: Principal, url: string, entry: LookupEntry | DiscoveryEntry = "paste"): Promise<DiscoveryResult> {
+  const how: Presenting = entry === "reconnect" ? { entry: "paste", count: false } : { entry };
   const news = newsCandidate(app, url);
-  if (news) return { ok: true, url, candidates: presentCandidates(app, p, [news]) };
+  if (news) return { ok: true, url, candidates: presentCandidates(app, p, [news], how) };
   const result = await discover(url, bridgeOptions(app));
   if (!result.ok) {
     recordDiscoveryMiss(app, url, result.reason); // counts the site only, for the administrator; never changes the answer
     return result;
   }
-  return { ...result, candidates: presentCandidates(app, p, result.candidates) };
+  return { ...result, candidates: presentCandidates(app, p, result.candidates, how) };
 }
 
+/** How candidates are shown: the lookup's entry, and whether showing them is counted (a reconnect lookup's is not). */
+type Presenting = { entry: DiscoveryEntry; count?: boolean };
+
 /** Found feeds held behind opaque tokens, each with whether this PURSS already follows it, or follows a source of the same name. */
-export function presentCandidates(app: App, p: Principal, drafts: Parameters<typeof holdCandidate>[2][]) {
+export function presentCandidates(app: App, p: Principal, drafts: Omit<HeldCandidate, "entry">[], how: Presenting = { entry: "paste" }) {
   const byName = followedByName(app, p);
-  return drafts.map((c) => holdDraft(app, p, c, byName));
+  const shown = drafts.map((c) => holdDraft(app, p, { ...c, entry: how.entry }, byName));
+  if (how.count !== false) recordOffered(app, how.entry, drafts.map((c) => c.route));
+  return shown;
 }
 
 /** Shows named like `query` in Apple's podcast directory. Nothing is stored; the person picks one and it is looked up like any feed address. */
@@ -243,18 +255,18 @@ const SAME_FEED_MIN = 3;
 const SAME_FEED_SHARE = 0.7;
 
 /** A found feed behind an opaque token, with whether this PURSS already follows it, or follows a source of the same name. */
-function holdDraft(app: App, p: Principal, c: Parameters<typeof holdCandidate>[2], byName: Map<string, { id: string; title: string }>) {
+function holdDraft(app: App, p: Principal, c: HeldCandidate, byName: Map<string, { id: string; title: string }>) {
   const token = newId("dsc");
   const existing = followedSource(app, p, c.feedUrl);
   holdCandidate(token, p.workspaceId, c);
   const sameFeed = existing ? undefined : sameFeedSource(app, p, c.itemLinks);
   const same = existing || sameFeed ? undefined : byName.get(coreName(c.title));
-  // How the engine will follow it, and the posts it was compared by, are not the person's business.
-  const { large: _held, itemLinks: _links, ...shown } = c;
+  // How the engine will follow it, the posts it was compared by, and which way it was found are not the person's business.
+  const { large: _held, itemLinks: _links, route: _route, entry: _entry, ...shown } = c;
   return { ...shown, token, alreadyFollowingSourceId: existing?.id ?? null, sameFeedSource: sameFeed ?? null, sameNameSource: same ?? null };
 }
 
-type Candidate = Omit<DiscoveryResult & { ok: true }, "ok" | "url">["candidates"][number] & { large?: boolean };
+type Candidate = HeldCandidate;
 
 /** For private sources keep only the site's origin: a feed's site link can carry the same secret. */
 function siteOrigin(url: string | null): string | null {
@@ -296,20 +308,22 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
         // (The posts stored the first time keep what they were; only what arrives now is the back catalogue of this follow.)
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
-             health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ? WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", null, nowIso(), viaGateway ? 1 : 0, id,
+             health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ?,
+             discovery_route = ?, discovery_entry = ?, unfollowed_at = NULL WHERE id = ?`,
+          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", null, nowIso(), viaGateway ? 1 : 0, c.route, c.entry, id,
         );
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
         app.db.run(
-          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway, discovery_route, discovery_entry)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, p.accountId, p.workspaceId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.workspaceId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
-          isNews ? "ok" : "pending", null, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0,
+          isNews ? "ok" : "pending", null, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0, c.route, c.entry,
         );
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
       if (collectionId) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
+      recordFollowed(app, c.entry, c.route);
       if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${id}` });
     });
   } catch (err) {
@@ -524,7 +538,7 @@ export function unfollowSource(app: App, p: Principal, id: string, opts: { delet
            AND NOT ${HAS_ANNOTATIONS}`, id, p.workspaceId);
       for (const it of unkept) if (deleteItemNow(app, p, it.id) !== null) deletedItems++;
     }
-    app.db.run("UPDATE sources SET followed = 0, engine_stream_id = NULL WHERE id = ?", id);
+    app.db.run("UPDATE sources SET followed = 0, engine_stream_id = NULL, unfollowed_at = ? WHERE id = ?", nowIso(), id);
     deleteSourceNotifications(app, id);
     app.db.run("DELETE FROM collection_sources WHERE source_id = ?", id);
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);

@@ -571,7 +571,7 @@ test("a private source restored as 'Reconnect required' resumes only when the ow
   assert.throws(() => reconnectSource(b, pb, priv, "no-such-token"), (e: unknown) => e instanceof HttpError && e.status === 400);
 
   const token = newId("dsc");
-  holdCandidate(token, pb.workspaceId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null });
+  holdCandidate(token, pb.workspaceId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   reconnectSource(b, pb, priv, token);
   const row = b.db.get<{ paused: number; health: string; feed_url: string | null }>("SELECT paused, health, feed_url FROM sources WHERE id = ?", priv)!;
   assert.deepEqual([row.paused, row.health, row.feed_url], [0, "pending", null], "the address stays outside the database");

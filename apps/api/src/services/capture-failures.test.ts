@@ -228,7 +228,7 @@ test("a link of a private source is not fetched for its readable text, however i
 test("following a source starts text saving only when it is asked for", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  const candidate = (token: string, feedUrl: string) => holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: "https://s.example/", title: feedUrl, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: true, privateWarning: null });
+  const candidate = (token: string, feedUrl: string) => holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: "https://s.example/", title: feedUrl, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
   // A summaries-only feed, followed with the box left alone: the request carries no choice at all.
   candidate("dsc_a", "https://a.example/feed.xml");
   const left = followSource(app, p, followSchema.parse({ token: "dsc_a", collectionId: null, newCollectionName: null }));

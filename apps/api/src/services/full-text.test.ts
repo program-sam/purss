@@ -156,7 +156,7 @@ function hold(p: Principal, over: { kind?: "feed" | "youtube"; summariesOnly?: b
   const token = newId("dsc");
   holdCandidate(token, p.workspaceId, {
     feedUrl: `https://example.org/${token}.xml`, siteUrl: "https://example.org/", title: "Quiet Harbour", kind: over.kind ?? "feed",
-    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: over.summariesOnly ?? true, privateWarning: null,
+    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: over.summariesOnly ?? true, privateWarning: null,
   });
   return token;
 }

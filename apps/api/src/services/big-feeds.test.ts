@@ -14,7 +14,7 @@ import { checkEmptyFeeds, followSource, getSource, onSubscribeFailed, onSubscrib
 const { failures } = server.api;
 const BIG = "https://feeds.simplecast.com/54nAGcIl";
 const base = { collectionId: null, newCollectionName: null, fullText: false };
-const draft = (feedUrl: string, over: Record<string, unknown> = {}) => ({ feedUrl, siteUrl: "https://www.nytimes.com/the-daily", title: "The Daily", kind: "podcast" as const, origin: "Podcast feed", via: "Podcast feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null, ...over });
+const draft = (feedUrl: string, over: Record<string, unknown> = {}) => ({ feedUrl, siteUrl: "https://www.nytimes.com/the-daily", title: "The Daily", kind: "podcast" as const, origin: "Podcast feed", via: "Podcast feed", cadence: null, samples: [], route: "feed-address" as const, summariesOnly: false, privateWarning: null, ...over });
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");

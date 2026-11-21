@@ -160,6 +160,18 @@ export default {
         caption: { site: "Site", why: "Why", times: "Times" },
         none: "Nothing to show for the last 30 days.",
       },
+      routes: {
+        title: "Discovery routes",
+        hint: (days: number) => `The last ${days} days, across every account: which way sources were found, and how many were followed. Counts only, never an account, an address or a title.`,
+        since: (day: string) => `Counted since ${day}.`,
+        caption: { route: "Route", offered: "Offered", followed: "Followed", rate: "Follow rate", following: "Following now", kept: "Followed 30 days" },
+        keptHint: "Following now: of the sources followed in these days, those still followed. Followed 30 days: of those followed at least 30 days ago, how many were followed for at least 30 days.",
+        entriesTitle: "By entry",
+        entryCaption: "Entry",
+        unused: (n: number) => `Not used in these days (${n}):`,
+        none: "Nothing counted yet.",
+        noRate: "–",
+      },
       engine: {
         title: "Collection engine",
         lastSync: "Last successful sync",

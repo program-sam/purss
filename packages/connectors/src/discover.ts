@@ -1,5 +1,5 @@
 import { server } from "@purss/copy/server";
-import type { DiscoveryCandidate, DiscoveryResult, KeepOffer } from "@purss/domain";
+import type { DiscoveryCandidate, DiscoveryResult, DiscoveryRoute, KeepOffer } from "@purss/domain";
 import { EPISODES, POSTS, VIDEOS, cadenceText } from "./cadence.ts";
 import type { Noun } from "./cadence.ts";
 import { decodeBody, isFeedKind, sniffContent } from "./content-type.ts";
@@ -55,9 +55,10 @@ const feedLabels = server.sources.connectors.labels;
  */
 /**
  * `large`: the feed is too big for the engine to read whole. `itemLinks`: its newest posts' addresses, to recognise the same feed already
- * followed under another address. Both are kept with the preview on the server and never sent to the browser.
+ * followed under another address. `route`: which way discovery found it (discovery-routes.ts), exactly one, for the administrator's record of
+ * which routes are used. All three are kept with the preview on the server and never sent to the browser.
  */
-export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { large?: boolean; itemLinks?: string[] };
+export type DraftCandidate = Omit<DiscoveryCandidate, "token"> & { route: DiscoveryRoute; large?: boolean; itemLinks?: string[] };
 export type DiscoveryDraft = { ok: true; url: string; candidates: DraftCandidate[]; keep?: KeepOffer } | Extract<DiscoveryResult, { ok: false }>;
 type Failure = Extract<DiscoveryResult, { ok: false }>;
 
@@ -325,7 +326,7 @@ export function meaningfulTitle(title: string | null | undefined): string | null
 /** Newest posts compared to recognise a feed already followed under another address. */
 const SAME_FEED_ITEMS = 10;
 
-function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ctx, overrides: { via?: string; origin?: string; title?: string; note?: string } = {}): DraftCandidate {
+function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ctx, overrides: { route: DiscoveryRoute; via?: string; origin?: string; title?: string; note?: string }): DraftCandidate {
   const feed = newestFirst(parsed);
   const noun = nounFor(feed);
   let host = "";
@@ -335,6 +336,7 @@ function buildCandidate(feedUrl: string, parsed: ParsedFeed, hint: Hint, ctx: Ct
     host = feedUrl;
   }
   return {
+    route: overrides.route,
     title: overrides.title ?? nameFeed({ feedTitle: feed.title, linkTitle: cleanLine(hint.title, 200), siteName: hint.siteName, host }),
     kind: feed.youtube ? "youtube" : feed.isPodcast ? "podcast" : "feed",
     origin: overrides.origin ?? originFor(feed),
@@ -484,7 +486,7 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
         // The channel is known, only its feed didn't answer: offer it anyway; the engine keeps retrying.
         if (what === "channel" && channelLabel) {
           candidates.push({
-            title: channelLabel, kind: "youtube", origin: feedLabels.youtubeChannelFeed, via: via ?? feedLabels.channelFeed,
+            route: "youtube", title: channelLabel, kind: "youtube", origin: feedLabels.youtubeChannelFeed, via: via ?? feedLabels.channelFeed,
             feedUrl, siteUrl: inputUrl, cadence: null, samples: [], summariesOnly: false, privateWarning: null, alreadyFollowingSourceId: null,
             note: server.sources.connectors.discover.youtubeNoRecentVideos,
           });
@@ -496,7 +498,7 @@ async function discoverYoutube(norm: { url: string }, ctx: Ctx, max: number): Pr
       return fail(inputUrl, "unreachable", what === "playlist" ? server.sources.connectors.discover.youtubeNoPlaylistFeed : server.sources.connectors.discover.youtubeNoChannelFeed);
     }
     const hint = { url: probe.feedUrl };
-    const base = buildCandidate(probe.feedUrl, probe.parsed, hint, ctx);
+    const base = buildCandidate(probe.feedUrl, probe.parsed, hint, ctx, { route: "youtube" });
     candidates.push({ ...base, via: via ?? base.via, origin: what === "playlist" ? feedLabels.youtubePlaylistFeed : feedLabels.youtubeChannelFeed, kind: "youtube" });
     return null;
   };
@@ -648,7 +650,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     else if (probe.inconclusive) trouble.busy = true;
   };
 
-  const add = (url: string, probe: FeedProbe, hint: Hint, via: FoundVia, matches: boolean): void => {
+  const add = (url: string, probe: FeedProbe, hint: Hint, via: FoundVia, matches: boolean, route: DiscoveryRoute): void => {
     if ("failed" in probe) {
       record(probe);
       if (probe.page && isDirectoryAddress(probe.page.url, pageUrl)) probedListings.set(url, probe.page);
@@ -658,7 +660,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     // A link on the page to a "Subscribe" feed that holds nothing is the site's sign-up address, not its posts: the search goes on. A feed the page
     // advertises as its own is meant, however quiet it is.
     if (via !== "alternate" && probe.parsed.items.length === 0 && isSubscribeEndpoint(probe.feedUrl, probe.parsed.title)) return;
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { ...hint, url: probe.feedUrl, siteName }, ctx);
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { ...hint, url: probe.feedUrl, siteName }, ctx, { route });
     const wholeSite = isSiteWideFeed(url, pageUrl) || isSiteWideFeed(probe.feedUrl, pageUrl);
     if (wholeSite) wholeSiteFeeds.add(c);
     // A section's feed that only calls itself by the site's name is named after the section as well.
@@ -675,7 +677,8 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     });
     for (const { l, probe } of results) {
       const via: FoundVia = listed ? "listed" : l.source === "alternate" ? "alternate" : "anchor";
-      add(l.url, probe, { title: l.title, url: l.url }, via, via === "alternate" || linkMatchesPage(l, page));
+      const route: DiscoveryRoute = listed ? "listed-feed" : l.source === "alternate" ? "alternate-link" : l.shown ? "copy-address" : "page-anchor";
+      add(l.url, probe, { title: l.title, url: l.url }, via, via === "alternate" || linkMatchesPage(l, page), route);
     }
   };
 
@@ -686,7 +689,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
    * "too many requests", an error of its own or no answer in time gets no more guesses in this lookup.
    */
   let siteStrained = false;
-  const tryPaths = async (urls: string[], hint: { section?: boolean } = {}) => {
+  const tryPaths = async (urls: string[], route: DiscoveryRoute, hint: { section?: boolean } = {}) => {
     const fresh = urls.filter((u) => !attempted.has(u));
     let hits = 0;
     let sendsAway = false;
@@ -702,7 +705,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
         else if (probe.away) sendsAway = true;
         else if (probe.inconclusive) siteStrained = true;
         // A front page's conventional feed is the site's; a section's own feed is the section's.
-        add(u, probe, { title: null, url: u, ...hint }, "path", !section || !!hint.section);
+        add(u, probe, { title: null, url: u, ...hint }, "path", !section || !!hint.section, route);
       }
     }
   };
@@ -712,11 +715,11 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const origin = new URL(pageUrl).origin;
   if (isDiscourse(html)) {
     // A forum's "latest posts" feed has an entry per reply; its latest topics are what people want.
-    await tryPaths([`${origin}/latest.rss`]);
+    await tryPaths([`${origin}/latest.rss`], "discourse-latest");
   }
 
   /** Probe a journal's feed; `matches` says whether it is shown to be this page's own journal. */
-  const tryJournal = async (feed: KnownFeed, matches: (journalName: string | null) => boolean): Promise<boolean> => {
+  const tryJournal = async (feed: KnownFeed, matches: (journalName: string | null) => boolean, route: DiscoveryRoute): Promise<boolean> => {
     if (attempted.has(feed.feedUrl)) {
       // Already offered as a journal the page links to: now shown to be the page's own, with its second feed.
       const seen = found.find((f) => f.asked === feed.feedUrl);
@@ -741,14 +744,14 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     const own = matches(name);
     const note = [feed.note, own ? null : LINKED_JOURNAL_NOTE].filter(Boolean).join(" ");
     const shown = name ?? (feed.nameFromDoi ? (feed.origin ?? null) : null);
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { via: feed.via, origin: feed.origin, ...(shown ? { title: shown } : {}), ...(note ? { note } : {}) });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl, siteName }, ctx, { route, via: feed.via, origin: feed.origin, ...(shown ? { title: shown } : {}), ...(note ? { note } : {}) });
     found.push({ c, parsed: probe.parsed, via: "journal", matches: own, asked: feed.feedUrl, sibling: feed.nameLike, feedNote: feed.note });
     return true;
   };
   /** A journal's feeds, its main feed first (a second feed is named like it); true when any answered. */
-  const tryJournalFeeds = async (feeds: KnownFeed[], matches: (journalName: string | null) => boolean): Promise<boolean> => {
+  const tryJournalFeeds = async (feeds: KnownFeed[], matches: (journalName: string | null) => boolean, route: DiscoveryRoute): Promise<boolean> => {
     let any = false;
-    for (const feed of feeds) if (await tryJournal(feed, matches)) any = true;
+    for (const feed of feeds) if (await tryJournal(feed, matches, route)) any = true;
     return any;
   };
   const publisherPage = isPublisherHost(new URL(pageUrl).hostname.toLowerCase());
@@ -769,9 +772,9 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
     // Shown to be the page's own journal only by its name or ISSN: the address words a publisher shares with the page (`/journals`) say nothing.
     await mapLimit([...picks.values()], 3, async ({ link, ref }) => {
       const own = (name: string | null) => nameMatchesTitle(link.title, page.title) || nameMatchesTitle(name, page.title) || (ref.platform === "wiley" && pageIssns.has(ref.id));
-      if (ref.platform !== "sciencedirect") return tryJournalFeeds(journalFeedsFor(ref), own);
+      if (ref.platform !== "sciencedirect") return tryJournalFeeds(journalFeedsFor(ref), own, "journal-platform");
       const plan = await scienceDirectPlan(ctx, ref.slug);
-      if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, own)) return true;
+      if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, own, plan.route)) return true;
       return false;
     });
   }
@@ -779,13 +782,13 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   const ojs = facts.links.find((l) => l.source === "alternate" && /\/gateway\/plugin\/WebFeedGatewayPlugin\//.test(l.url));
   if (ojs && !publisherPage) {
     const base = ojs.url.slice(0, ojs.url.indexOf("/gateway/plugin/"));
-    await tryJournal({ feedUrl: `${base}/gateway/plugin/AnnouncementFeedGatewayPlugin/atom`, via: feedLabels.announcementsFeed, note: OJS_ANNOUNCEMENTS_NOTE, needsItems: true }, () => true);
+    await tryJournal({ feedUrl: `${base}/gateway/plugin/AnnouncementFeedGatewayPlugin/atom`, via: feedLabels.announcementsFeed, note: OJS_ANNOUNCEMENTS_NOTE, needsItems: true }, () => true, "journal-ojs");
   }
   // Unless the page's own feed or journal was already found.
   if (pageIssns.size && !found.some((f) => f.matches && !wholeSiteFeeds.has(f.c))) {
     // The page's scholarly metadata names its journal; a publisher whose feeds are made from an ISSN gives the address.
     const plan = planFromIssns(facts.journal.publisher, [...pageIssns]);
-    if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, () => true)) break;
+    if (plan && "feeds" in plan) for (const feed of plan.feeds) if (await tryJournal(feed, () => true, plan.route)) break;
   }
 
   // Journals answer in whatever order their probes finish: the page's own come before those it only links to.
@@ -793,11 +796,11 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
 
   // A section's own feed comes before any guess at the whole site. Publishers keep no feed at a blog's usual addresses.
   if (!publisherPage && section && !found.some((f) => !wholeSiteFeeds.has(f.c) && f.c.via !== feedLabels.commentsFeed)) {
-    await tryPaths(sectionFeedPaths(section).map((p) => `${origin}${p}`), { section: true });
+    await tryPaths(sectionFeedPaths(section).map((p) => `${origin}${p}`), "section-path", { section: true });
   }
   if (!hasPosts() && !publisherPage) {
     // Conservative fallback: a handful of conventional paths on the same site only.
-    await tryPaths(PROBE_PATHS.map((p) => `${origin}${p}`));
+    await tryPaths(PROBE_PATHS.map((p) => `${origin}${p}`), "conventional-path");
   }
   if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
     // Many news sites list their feeds on a page of their own ("RSS feeds"): look at the first two, those the page links to first,
@@ -823,7 +826,7 @@ async function discoverFromPage(ctx: Ctx, pageUrl: string, html: string, max: nu
   }
   if (!hasPosts() && !publisherPage && !ctx.signal.aborted) {
     // Publisher and webcomic software that keeps its feed one folder down or names it after its format.
-    await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`));
+    await tryPaths(MORE_FEED_PATHS.map((p) => `${origin}${p}`), "more-paths");
   }
 
   // Feeds that were only listed (a hub's, a directory's) say nothing about the page unless one of them is the page's own.
@@ -924,7 +927,7 @@ async function discoverAddress(ctx: Ctx, asked: string, httpFallback: string | n
     }
     // A YouTube feed pasted directly is still a YouTube source.
     const feedUrl = stableFeedUrl(url, response.url);
-    const candidate = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx);
+    const candidate = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, { route: "feed-address" });
     return { ok: true, url: inputUrl, candidates: [candidate] };
   }
   if (kind === "html") {
@@ -1005,7 +1008,7 @@ async function withRegistry(ctx: Ctx, draft: DiscoveryDraft, pageUrl: string, ma
     const probe = await probeFeed(ctx, feedUrl, false);
     if ("failed" in probe || offered.some((p) => sameEntries(p, probe.parsed))) continue;
     offered.push(probe.parsed);
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, wholeSite ? { via: feedLabels.wholeSiteFeed, note: `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}` } : { note: WIKIDATA_NOTE });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, wholeSite ? { route: "wikidata", via: feedLabels.wholeSiteFeed, note: `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}` } : { route: "wikidata", note: WIKIDATA_NOTE });
     found.push({ ...c, matchesPage: !wholeSite });
   }
   return found.length ? { ok: true, url: draft.url, candidates: found } : draft;
@@ -1174,7 +1177,7 @@ async function withCrossref(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDra
   if (!picked) return draft;
   const { issn, parsed } = picked;
   const site = issnPortalUrl(issn);
-  const c = { ...buildCandidate(bridgeDescriptor(service.id, issn), parsed, { url: site }, ctx, { origin: service.origin, via: CROSSREF_VIA, note: CROSSREF_NOTE }), siteUrl: site };
+  const c = { ...buildCandidate(bridgeDescriptor(service.id, issn), parsed, { url: site }, ctx, { route: "crossref", origin: service.origin, via: CROSSREF_VIA, note: CROSSREF_NOTE }), siteUrl: site };
   if (!draft.ok) return { ok: true, url: draft.url, candidates: [{ ...c, matchesPage: true }] };
   const others = draft.candidates.slice(0, max - 1);
   // Without the journal's own feed, its articles come first (before its announcements, say), and start out chosen. The
@@ -1271,7 +1274,7 @@ async function socialFeedsFromProfile(ctx: Ctx, links: FoundLink[], max: number,
       continue;
     }
     const platform = platformForFeed(probe.parsed.generator);
-    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, { origin: SOCIAL_ORIGIN[platform], via: feedLabels.postsFeed });
+    const c = buildCandidate(probe.feedUrl, probe.parsed, { url: probe.feedUrl }, ctx, { route: "fediverse", origin: SOCIAL_ORIGIN[platform], via: feedLabels.postsFeed });
     candidates.push({ ...c, kind: "feed", title: meaningfulTitle(probe.parsed.title) ?? fallbackTitle ?? c.title, note: SOCIAL_NOTE[platform] });
   }
   if (candidates.length === 0) return fail(inputUrl, "nofeed", FEDIVERSE_NO_FEED);
@@ -1335,7 +1338,7 @@ async function discoverBluesky(t: { actor: string; related: boolean }, ctx: Ctx)
     throw error;
   }
   const feedUrl = stableFeedUrl(requested, r.url);
-  const c = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, { origin: SOCIAL_ORIGIN.bluesky, via: t.related ? feedLabels.relatedAccountConfirm : feedLabels.postsFeed });
+  const c = buildCandidate(feedUrl, parsed, { url: feedUrl }, ctx, { route: "bluesky", origin: SOCIAL_ORIGIN.bluesky, via: t.related ? feedLabels.relatedAccountConfirm : feedLabels.postsFeed });
   return { ok: true, url: label, candidates: [{ ...c, kind: "feed", title: blueskyTitle(parsed.title, t.actor), note: SOCIAL_NOTE.bluesky }] };
 }
 
@@ -1433,6 +1436,7 @@ async function withPageLists(ctx: Ctx, opts: DiscoverOptions, draft: DiscoveryDr
     candidates: offered.map(({ c, key, parsed }, i) => {
       const confidence = c.confidence === "high" ? "high" : "medium";
       const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: page.url, title: facts.title, siteName }, ctx, {
+        route: "page-list",
         origin: service.origin,
         via: offered.length > 1 ? pageLists.viaNumbered(i + 1) : pageLists.via,
         note: pageListNote(c),
@@ -1467,6 +1471,7 @@ async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: 
   const crossref = service.backend.kind === "crossref";
   const pageList = service.id === PAGE_SERVICE;
   const candidate = buildCandidate(bridgeDescriptor(service.id, key), parsed, { url: service.pageUrl(key) }, ctx, {
+    route: `bridge:${service.id}`,
     origin: service.origin,
     via: crossref ? CROSSREF_VIA : pageList ? pageLists.via : feedLabels.postsFeed,
     note: crossref ? CROSSREF_NOTE : pageList ? pageLists.note : BRIDGE_NOTE,

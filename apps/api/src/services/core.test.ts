@@ -371,7 +371,7 @@ test("discovery previews (which may hold a secret link) never reach the database
   const { app, cleanup } = setup();
   t.after(cleanup);
   const { holdCandidate, peekCandidate } = await import("./discovery-cache.ts");
-  holdCandidate("dsc_test", "wsp_a", { feedUrl: "https://example.org/feed?token=s3cret", siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: "secret" });
+  holdCandidate("dsc_test", "wsp_a", { feedUrl: "https://example.org/feed?token=s3cret", siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: "secret" });
   assert.equal(peekCandidate("dsc_test", "wsp_other"), null, "other PURSSes can't use the token");
   assert.equal(peekCandidate("dsc_test", "wsp_a")!.feedUrl, "https://example.org/feed?token=s3cret");
   assert.ok(!app.db.get("SELECT 1 FROM sqlite_master WHERE name = 'discovery_results'"));

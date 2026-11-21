@@ -151,8 +151,8 @@ test("a feed counts only if it is the one asked for: PeerTube's generator, a gal
 
 test("Apple Podcasts: a show link is looked up by its id (and store), not scraped", () => {
   const p = plan("https://podcasts.apple.com/nl/podcast/de-dagelijkse-podcast/id1234567890?i=1000");
-  assert.deepEqual(p, { service: "Apple Podcasts", lookup: { id: "1234567890", country: "nl" } });
-  assert.deepEqual(plan("https://podcasts.apple.com/podcast/id1234567890"), { service: "Apple Podcasts", lookup: { id: "1234567890", country: null } });
+  assert.deepEqual(p, { service: "Apple Podcasts", route: "known:apple-podcasts", lookup: { id: "1234567890", country: "nl" } });
+  assert.deepEqual(plan("https://podcasts.apple.com/podcast/id1234567890"), { service: "Apple Podcasts", route: "known:apple-podcasts", lookup: { id: "1234567890", country: null } });
   assert.equal(plan("https://podcasts.apple.com/us/browse"), null);
   assert.equal(plan("https://podcasts.apple.com/us/podcast/no-id"), null);
 });
@@ -194,7 +194,7 @@ test("blog and publishing services map to their known feed paths", () => {
 const PAGE = "https://example.org/";
 const feed = { title: "T", items: [] } as unknown as ParsedFeed;
 const draft = (feedUrl: string, extra: { title?: string; via?: string; origin?: string; note?: string } = {}): DraftCandidate => ({
-  title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? server.words.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
+  route: "feed-address", title: extra.title ?? "T", kind: "feed", origin: extra.origin ?? server.words.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
   ...(extra.note ? { note: extra.note } : {}),
 });
 const deps = (probes: Record<string, KnownProbe>, json?: KnownDeps["json"]): KnownDeps => ({

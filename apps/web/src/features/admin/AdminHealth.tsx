@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import type { AdminBridgeHealth, AdminHealth, DiscoveryMissDTO } from "@purss/domain";
+import type { AdminBridgeHealth, AdminHealth, DiscoveryMissDTO, DiscoveryRouteStatDTO, DiscoveryRoutesDTO } from "@purss/domain";
 import { app } from "@purss/copy/app";
 import { Button, Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
@@ -8,7 +8,7 @@ import { dateTime, formatCount, plural, timeAgo } from "../../lib/format.ts";
 import { platform } from "../../platform/index.ts";
 import { adminHealthQuery } from "../shared/api.ts";
 import { Facts, Loading, LoadFailed } from "../shared/bits.tsx";
-import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, missLabel } from "./admin-model.ts";
+import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, keptLabel, missLabel, rateLabel } from "./admin-model.ts";
 
 const t = app.admin.adminHealth;
 
@@ -115,6 +115,55 @@ function SitesNotFollowed({ misses }: { misses: DiscoveryMissDTO[] }) {
   );
 }
 
+function RouteRows({ rows }: { rows: DiscoveryRouteStatDTO[] }) {
+  return (
+    <>
+      {rows.map((r) => (
+        <tr key={r.id}>
+          <th scope="row"><code>{r.id}</code></th>
+          <td className="num">{formatCount(r.offered)}</td>
+          <td className="num">{formatCount(r.followed)}</td>
+          <td className="num">{rateLabel(r.followed, r.offered, t.routes.noRate)}</td>
+          <td className="num">{formatCount(r.following)}</td>
+          <td className="num">{keptLabel(r.agedStill, r.aged, t.routes.noRate)}</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+function RouteTable({ label, first, rows }: { label: string; first: string; rows: DiscoveryRouteStatDTO[] }) {
+  const c = t.routes.caption;
+  return (
+    <div className="fx-scroll">
+      <table className="fx-tbl" aria-label={label}>
+        <thead>
+          <tr><th scope="col">{first}</th><th scope="col" className="num">{c.offered}</th><th scope="col" className="num">{c.followed}</th><th scope="col" className="num">{c.rate}</th><th scope="col" className="num">{c.following}</th><th scope="col" className="num">{c.kept}</th></tr>
+        </thead>
+        <tbody><RouteRows rows={rows} /></tbody>
+      </table>
+    </div>
+  );
+}
+
+function DiscoveryRoutes({ routes }: { routes: DiscoveryRoutesDTO }) {
+  const nothing = !routes.routes.length;
+  return (
+    <Area title={t.routes.title}>
+      <p className="fine">{t.routes.hint(routes.days)}{routes.since ? ` ${t.routes.since(routes.since)}` : ""}</p>
+      <p className="fine">{t.routes.keptHint}</p>
+      {nothing ? <p className="fine">{t.routes.none}</p> : (
+        <>
+          <RouteTable label={t.routes.title} first={t.routes.caption.route} rows={routes.routes} />
+          <h4>{t.routes.entriesTitle}</h4>
+          <RouteTable label={t.routes.entriesTitle} first={t.routes.entryCaption} rows={routes.entries} />
+          {routes.unused.length ? <p className="fine">{t.routes.unused(routes.unused.length)} {routes.unused.join(", ")}</p> : null}
+        </>
+      )}
+    </Area>
+  );
+}
+
 function Body({ h }: { h: AdminHealth }) {
   const engineOk = h.engine.status === "ok";
   const egress = h.egress.status === "ok";
@@ -198,6 +247,7 @@ export function AdminHealthPanel() {
           <Body h={q.data} />
           <BridgedSources bridge={q.data.bridge} />
           <SitesNotFollowed misses={q.data.discoveryMisses} />
+          <DiscoveryRoutes routes={q.data.discoveryRoutes} />
         </>
       ) : null}
     </div>

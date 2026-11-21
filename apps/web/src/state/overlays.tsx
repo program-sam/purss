@@ -4,8 +4,8 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 
 /** Every popup the app can show. Only one is open at a time; opening another replaces it. */
 export type Overlay =
-  /** `url` prefills the link; nothing is looked up until the person presses Find. */
-  | { kind: "add-source"; collectionId?: string; url?: string }
+  /** `url` prefills the link; nothing is looked up until the person presses Find. `entry` says where that link came from (the Discovery page, a shared or opened link). */
+  | { kind: "add-source"; collectionId?: string; url?: string; entry?: "suggestion" | "shared-link" }
   /** A link shared into the apps from another app. */
   | { kind: "shared"; url: string; title: string }
   /** An OPML file opened with the desktop app: its feeds, to choose which to follow. */

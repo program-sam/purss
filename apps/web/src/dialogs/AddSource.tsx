@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { app } from "@purss/copy/app";
-import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, PodcastSearchHit, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO } from "@purss/domain";
+import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, LookupEntry, PodcastSearchHit, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, messageOf, post } from "../api/client.ts";
 import { refreshWorkspace } from "../api/queries.ts";
@@ -96,7 +96,7 @@ function KeepOfferCard({ offer, checked, onPick }: { offer: KeepOffer; checked: 
  * shared into the apps) is only filled in: nothing is looked up until the person presses Find, so
  * visiting a link can't make the server fetch.
  */
-export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionId?: string; url?: string }) {
+export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialEntry }: { collectionId?: string; url?: string; entry?: "suggestion" | "shared-link" }) {
   const ov = useOverlays();
   const ws = useWorkspace();
   const qc = useQueryClient();
@@ -104,6 +104,8 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const { toast } = useToasts();
   const sourceCollections = ws.collections.filter((c) => c.mode === "sources");
   const [url, setUrl] = useState(initialUrl ?? "");
+  /** How the link in the box got there: typed (the default), or handed over by the Discovery page or a shared link until the person changes it. */
+  const [typed, setTyped] = useState<LookupEntry>(initialUrl ? initialEntry ?? "paste" : "paste");
   const [phase, setPhase] = useState<"paste" | "looking" | "found" | "failed" | "single" | "results">("paste");
   /** A video link starts on keeping the video; its channel and playlist are the other choices in the same list. */
   const [mode, setMode] = useState<"follow" | "keep">("follow");
@@ -158,13 +160,13 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   const nameLike = phase === "paste" && looksLikeName(url);
 
   /** Look up an address: the typed one, or the website or feed of a result chosen from a search. */
-  async function look(e?: FormEvent, address?: string) {
+  async function look(e?: FormEvent, address?: string, chosen?: "site-search" | "podcast-search") {
     e?.preventDefault();
     const target = address ?? url.trim();
     if (!target) return;
     setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setStartFrom("now"); setFromSearch(address !== undefined);
     try {
-      const out = await post<DiscoveryResult>("/api/discover", { url: target });
+      const out = await post<DiscoveryResult>("/api/discover", { url: target, entry: chosen ?? typed });
       setResult(out);
       setPick(out.ok ? preselect(out.candidates) : 0);
       setMode(out.ok && out.keep ? "keep" : "follow");
@@ -193,6 +195,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
   /** A changed link makes the earlier result stale: forget it, so Follow can't act on the old address. */
   function editUrl(next: string) {
     setUrl(next);
+    setTyped("paste");
     if (phase === "found" || phase === "failed" || phase === "results") { searchRun.current++; setSearching(false); setPhase("paste"); setResult(null); setPick(0); setError(""); setSites([]); setShows([]); setSiteTrouble(""); setShowTrouble(""); setFromSearch(false); }
   }
 
@@ -318,7 +321,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 <ul className="cands" aria-labelledby="sts" style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {sites.map((h) => (
                     <li key={h.address}>
-                      <button type="button" className="cand" style={{ gridTemplateColumns: "1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.address)}>
+                      <button type="button" className="cand" style={{ gridTemplateColumns: "1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.address, "site-search")}>
                         <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
                           <b dir="auto">{h.name}</b>
                           <span className="cad" dir="auto">{[h.site, h.from === "readers" ? t.followedHere : h.description].filter(Boolean).join(" · ")}</span>
@@ -336,7 +339,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl }: { collectionI
                 <ul className="cands" aria-labelledby="shw" style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {shows.map((h) => (
                     <li key={h.feedUrl}>
-                      <button type="button" className="cand" style={{ gridTemplateColumns: "auto 1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.feedUrl)}>
+                      <button type="button" className="cand" style={{ gridTemplateColumns: "auto 1fr", width: "100%", textAlign: "start", font: "inherit", color: "inherit", alignItems: "center" }} onClick={() => void look(undefined, h.feedUrl, "podcast-search")}>
                         {h.artworkUrl ? <img src={h.artworkUrl} alt="" width={56} height={56} referrerPolicy="no-referrer" style={{ objectFit: "cover", borderRadius: 8, background: "var(--bg-2)" }} /> : <span style={{ width: 56, height: 56, borderRadius: 8, background: "var(--bg-2)", display: "grid", placeItems: "center" }} aria-hidden="true"><Icon name="rss" /></span>}
                         <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
                           <b dir="auto">{h.name}</b>

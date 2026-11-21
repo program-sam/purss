@@ -28,9 +28,9 @@ const MAX_PUBLICATIONS = 4;
 function publication(base: string, rest: string[]): KnownPlan {
   const whole: KnownFeed = { feedUrl: `${base}/feed`, via: feedLabels.postsFeed };
   if (rest[0] === "s" && SECTION.test(rest[1] ?? "")) {
-    return { service: "Substack", feeds: [{ feedUrl: `${base}/feed?section=${rest[1]}`, via: feedLabels.sectionFeed, section: true }, whole] };
+    return { service: "Substack", route: "known:substack", feeds: [{ feedUrl: `${base}/feed?section=${rest[1]}`, via: feedLabels.sectionFeed, section: true }, whole] };
   }
-  return { service: "Substack", feeds: [whole] };
+  return { service: "Substack", route: "known:substack", feeds: [whole] };
 }
 
 /** The feed plan for a Substack address, or null when ordinary discovery should read the page. */
@@ -44,8 +44,8 @@ export function planSubstack(url: URL): KnownPlan | null {
   }
   if (h === "substack.com" || h === "www.substack.com") {
     const first = s[0] ?? "";
-    if (first.startsWith("@") && HANDLE.test(first.slice(1))) return /^p-\d+$/.test(s[1] ?? "") ? null : { service: "Substack", profile: first.slice(1) };
-    if (first === "profile" && PROFILE_SLUG.test(s[1] ?? "")) return { service: "Substack", profile: s[1]! };
+    if (first.startsWith("@") && HANDLE.test(first.slice(1))) return /^p-\d+$/.test(s[1] ?? "") ? null : { service: "Substack", route: "known:substack", profile: first.slice(1) };
+    if (first === "profile" && PROFILE_SLUG.test(s[1] ?? "")) return { service: "Substack", route: "known:substack", profile: s[1]! };
     return null;
   }
   const label = h.slice(0, -".substack.com".length);

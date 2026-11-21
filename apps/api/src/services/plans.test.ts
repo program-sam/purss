@@ -21,7 +21,7 @@ function hold(p: Principal, n: number): string {
   const token = newId("dsc");
   holdCandidate(token, p.workspaceId, {
     feedUrl: `https://example.org/new/${n}.xml`, siteUrl: "https://example.org/", title: `New ${n}`, kind: "feed",
-    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   return token;
 }

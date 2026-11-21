@@ -16,7 +16,7 @@ function fakeResponse(url: string, body: string, contentType: string, status = 2
 }
 
 const draft = (over: { title: string; feedUrl: string }) => ({
-  siteUrl: null, kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null, ...over,
+  siteUrl: null, kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address" as const, summariesOnly: false, privateWarning: null, ...over,
 });
 
 test("a second source with the same name is pointed out, not blocked; the same feed is 'already followed'", (t) => {

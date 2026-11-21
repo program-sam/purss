@@ -1,4 +1,5 @@
 import { server } from "@purss/copy/server";
+import type { BridgeServiceId } from "@purss/domain";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 import { MAX_PAGE_KEY, decodePageKey, encodePageKey, keepsFragment, pageBridgeParams, pageHost, pagePostId } from "./page-feeds.ts";
@@ -18,7 +19,7 @@ import { MAX_PAGE_KEY, decodePageKey, encodePageKey, keepsFragment, pageBridgePa
  */
 
 export type BridgeService = {
-  id: string;
+  id: BridgeServiceId;
   /** What people call the service. */
   name: string;
   /** What one source on it is called ("Telegram channel"). */

@@ -26,7 +26,7 @@ const DIALOGS: Record<string, Overlay> = {
  * - `?dialog=search&q=…` opens search with the words typed in.
  */
 export function deepLinkOverlay(s: ListSearch): Overlay | null {
-  if (s.dialog === "add" && s.url) return { kind: "add-source", url: s.url };
+  if (s.dialog === "add" && s.url) return { kind: "add-source", url: s.url, entry: "shared-link" };
   if (s.dialog === "keep") return s.url ? { kind: "keep-page", url: s.url, ...(s.title ? { title: s.title } : {}) } : null;
   if (s.dialog === "search" && s.q) return { kind: "palette", query: s.q };
   return s.dialog && Object.hasOwn(DIALOGS, s.dialog) ? DIALOGS[s.dialog]! : null;

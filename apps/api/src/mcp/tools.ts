@@ -242,7 +242,7 @@ export const TOOLS: Tool[] = [
     input: z.object({ url: z.string().trim().min(1).max(2000) }),
     run: async (ctx, a) => {
       rateLimit(`discover:${ctx.p.accountId}`, 120);
-      const r = await discoverSources(ctx.app, ctx.p, a.url);
+      const r = await discoverSources(ctx.app, ctx.p, a.url, "assistant");
       if (!r.ok) return { found: false, reason: r.reason, message: r.message };
       return {
         found: true,

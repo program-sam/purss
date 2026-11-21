@@ -40,7 +40,7 @@ function Row({ s, onDismiss }: { s: DiscoverSuggestion; onDismiss: (s: DiscoverS
       </div>
       <div className="fx-end">
         {/* Following goes through Add source, which looks the address up again like any pasted link. */}
-        <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: s.feedUrl })}><Icon name="plus" size="sm" />{copy.follow}</Button>
+        <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: s.feedUrl, entry: "suggestion" })}><Icon name="plus" size="sm" />{copy.follow}</Button>
         <Button onClick={() => onDismiss(s)}>{copy.notInterested}</Button>
       </div>
     </div>

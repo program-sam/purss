@@ -45,6 +45,11 @@ export function bridgeFailureText(outcome: string): string {
 export const MISS_LABEL: Record<string, string> = copy.miss;
 export const missLabel = (reason: string): string => MISS_LABEL[reason] ?? reason;
 
+/** A follow rate as a whole percentage ("12%"), or the dash when nothing was offered. */
+export const rateLabel = (followed: number, offered: number, none: string): string => (offered > 0 ? `${Math.round((100 * followed) / offered)}%` : none);
+/** How many of the sources followed 30 days ago were followed for 30 days, as "7 of 9", or the dash when none was that old. */
+export const keptLabel = (still: number, aged: number, none: string): string => (aged > 0 ? `${still} of ${aged}` : none);
+
 /** Last characters of an id: enough to tell accounts apart without printing the whole identifier. */
 export function shortId(id: string | null): string {
   if (!id) return copy.system;

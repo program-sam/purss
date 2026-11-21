@@ -38,7 +38,7 @@ function steam(url: URL): KnownPlan | null {
   const id = s[1] ?? "";
   if (s[0] !== "app" || !/^\d{1,9}$/.test(id)) return null;
   const name = /^[\w.%'-]{1,100}$/.test(s[2] ?? "") ? s[2]!.replace(/_+/g, " ").trim() : "";
-  return { service: "Steam", feeds: [{ feedUrl: `https://store.steampowered.com/feeds/news/app/${id}/`, title: server.sources.connectors.services.steamNews(name || server.sources.connectors.services.steamApp(id)), via: feedLabels.postsFeed, origin: server.sources.connectors.services.steamOrigin }] };
+  return { service: "Steam", route: "known:steam", feeds: [{ feedUrl: `https://store.steampowered.com/feeds/news/app/${id}/`, title: server.sources.connectors.services.steamNews(name || server.sources.connectors.services.steamApp(id)), via: feedLabels.postsFeed, origin: server.sources.connectors.services.steamOrigin }] };
 }
 
 /** A listing (`/list/cs.LG/recent`): the category's daily announcements. The feed is empty on days arXiv announces nothing. */
@@ -48,6 +48,7 @@ function arxiv(url: URL): KnownPlan | null {
   if (s[0] !== "list" || !/^[a-z][a-z-]{1,24}(?:\.[A-Za-z][A-Za-z-]{0,24})?$/.test(category)) return null;
   return {
     service: "arXiv",
+    route: "known:arxiv",
     feeds: [{
       feedUrl: `https://rss.arxiv.org/rss/${category}`,
       via: feedLabels.postsFeed,
@@ -61,7 +62,7 @@ function dailymotion(url: URL): KnownPlan | null {
   const s = segmentsOf(url);
   const name = s[0] ?? "";
   if (s.length !== 1 || !/^[A-Za-z0-9_.-]{3,60}$/.test(name) || RESERVED_DAILYMOTION.has(name.toLowerCase())) return null;
-  return { service: "Dailymotion", feeds: [{ feedUrl: `https://www.dailymotion.com/rss/user/${encodeURIComponent(name)}`, title: server.sources.connectors.services.dailymotionTitle(name), via: feedLabels.channelFeed, origin: server.sources.connectors.services.dailymotionOrigin }] };
+  return { service: "Dailymotion", route: "known:dailymotion", feeds: [{ feedUrl: `https://www.dailymotion.com/rss/user/${encodeURIComponent(name)}`, title: server.sources.connectors.services.dailymotionTitle(name), via: feedLabels.channelFeed, origin: server.sources.connectors.services.dailymotionOrigin }] };
 }
 
 /**
@@ -71,7 +72,7 @@ function dailymotion(url: URL): KnownPlan | null {
 function odysee(url: URL): KnownPlan | null {
   const channel = /^@([^\s/\\?#:@]{1,80}):([0-9a-f]{1,40})$/i.exec(segmentsOf(url)[0] ?? "");
   if (!channel) return null;
-  return { service: "Odysee", feeds: [{ feedUrl: `https://odysee.com/$/rss/@${encodeURIComponent(channel[1]!)}:${channel[2]}`, via: feedLabels.channelFeed, origin: server.sources.connectors.services.odyseeOrigin }] };
+  return { service: "Odysee", route: "known:odysee", feeds: [{ feedUrl: `https://odysee.com/$/rss/@${encodeURIComponent(channel[1]!)}:${channel[2]}`, via: feedLabels.channelFeed, origin: server.sources.connectors.services.odyseeOrigin }] };
 }
 
 /** A profile (`/name`) or its gallery (`/name/gallery`). The backend answers an empty feed for a name it doesn't know, so only a gallery with entries counts. */
@@ -81,7 +82,7 @@ function deviantart(url: URL): KnownPlan | null {
   if (!/^[A-Za-z0-9_-]{2,30}$/.test(name) || RESERVED_DEVIANTART.has(name.toLowerCase())) return null;
   const gallery = s.length === 1 || (s[1] === "gallery" && (s.length === 2 || (s.length === 3 && s[2] === "all")));
   if (!gallery) return null;
-  return { service: "DeviantArt", feeds: [{ feedUrl: `https://backend.deviantart.com/rss.xml?q=gallery:${name}`, via: feedLabels.galleryFeed, origin: server.sources.connectors.services.deviantartOrigin, needsItems: true }] };
+  return { service: "DeviantArt", route: "known:deviantart", feeds: [{ feedUrl: `https://backend.deviantart.com/rss.xml?q=gallery:${name}`, via: feedLabels.galleryFeed, origin: server.sources.connectors.services.deviantartOrigin, needsItems: true }] };
 }
 
 const PEERTUBE_TABS = new Set(["videos", "video-channels", "video-playlists", "about", "channels", "playlists"]);
@@ -98,6 +99,7 @@ function peertube(url: URL): KnownPlan | null {
   const param = kind === "a" ? "accountName" : "videoChannelName";
   return {
     service: "PeerTube",
+    route: "known:peertube",
     feeds: [{
       feedUrl: `${url.origin}/feeds/videos.xml?${param}=${encodeURIComponent(s[1]!)}`,
       via: feedLabels.channelFeed,
@@ -111,7 +113,7 @@ function behance(url: URL): KnownPlan | null {
   const s = segmentsOf(url);
   const name = s[0] ?? "";
   if (s.length !== 1 || !/^[A-Za-z0-9_-]{2,40}$/.test(name) || RESERVED_BEHANCE.has(name.toLowerCase())) return null;
-  return { service: "Behance", feeds: [{ feedUrl: `https://www.behance.net/feeds/user?username=${encodeURIComponent(name)}`, via: feedLabels.projectsFeed, origin: server.sources.connectors.services.behanceOrigin }] };
+  return { service: "Behance", route: "known:behance", feeds: [{ feedUrl: `https://www.behance.net/feeds/user?username=${encodeURIComponent(name)}`, via: feedLabels.projectsFeed, origin: server.sources.connectors.services.behanceOrigin }] };
 }
 
 /**
@@ -134,7 +136,7 @@ const NOS_SECTIONS: Record<string, { feed: string; title: string }> = {
 function nos(url: URL): KnownPlan | null {
   const section = NOS_SECTIONS[segmentsOf(url).join("/").toLowerCase()];
   if (!section) return null;
-  return { service: "NOS", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: feedLabels.postsFeed, origin: "NOS" }] };
+  return { service: "NOS", route: "known:nos", feeds: [{ feedUrl: `https://feeds.nos.nl/${section.feed}`, title: section.title, via: feedLabels.postsFeed, origin: "NOS" }] };
 }
 
 /**
@@ -154,7 +156,7 @@ function bbcTitle(title: string | null, feed: ParsedFeed): string | null {
 function bbc(url: URL): KnownPlan | null {
   const s = segmentsOf(url).map((x) => x.toLowerCase());
   if (s.length === 0 || s.length > 4 || s.some((x) => !/^[a-z][a-z0-9_-]*$/.test(x) || /\d{5,}/.test(x) || BBC_NOT_SECTIONS.has(x))) return null;
-  return { service: "BBC", feeds: [{ feedUrl: `https://feeds.bbci.co.uk/${s.join("/")}/rss.xml`, retitle: bbcTitle, via: feedLabels.postsFeed, origin: "BBC" }] };
+  return { service: "BBC", route: "known:bbc", feeds: [{ feedUrl: `https://feeds.bbci.co.uk/${s.join("/")}/rss.xml`, retitle: bbcTitle, via: feedLabels.postsFeed, origin: "BBC" }] };
 }
 
 /**
@@ -165,7 +167,7 @@ function presscorner(url: URL): KnownPlan | null {
   const s = segmentsOf(url);
   if (s[0] !== "commission" || s[1] !== "presscorner") return null;
   const language = s.slice(2).reverse().find((x) => /^[a-z]{2}$/.test(x)) ?? "en";
-  return { service: "European Commission", feeds: [{ feedUrl: `https://ec.europa.eu/commission/presscorner/api/rss?language=${language}`, title: "European Commission Press Corner", via: feedLabels.postsFeed, origin: "European Commission" }] };
+  return { service: "European Commission", route: "known:presscorner", feeds: [{ feedUrl: `https://ec.europa.eu/commission/presscorner/api/rss?language=${language}`, title: "European Commission Press Corner", via: feedLabels.postsFeed, origin: "European Commission" }] };
 }
 
 /**
@@ -177,7 +179,7 @@ const RIJKSOVERHEID_NEWS = "https://www.rijksoverheid.nl/api/rss?query=" + encod
 function rijksoverheid(url: URL): KnownPlan | null {
   const path = segmentsOf(url).join("/").toLowerCase();
   if (path !== "" && path !== "actueel" && path !== "actueel/nieuws") return null;
-  return { service: "Rijksoverheid", feeds: [{ feedUrl: RIJKSOVERHEID_NEWS, title: "Rijksoverheid Nieuws", via: feedLabels.postsFeed, origin: "Rijksoverheid" }] };
+  return { service: "Rijksoverheid", route: "known:rijksoverheid", feeds: [{ feedUrl: RIJKSOVERHEID_NEWS, title: "Rijksoverheid Nieuws", via: feedLabels.postsFeed, origin: "Rijksoverheid" }] };
 }
 
 /** The feed addresses to try for a page address of one of these services, or null. */

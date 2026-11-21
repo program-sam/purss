@@ -26,10 +26,10 @@ test("a publication's address, a post or a share link is the publication's feed;
 });
 
 test("a profile is looked up; a post under a profile, a podcast page and Substack's own pages are read as pages", () => {
-  assert.deepEqual(plan("https://substack.com/@ellereadslibrarybooks"), { service: "Substack", profile: "ellereadslibrarybooks" });
-  assert.deepEqual(plan("https://substack.com/@someone/note/c-123456"), { service: "Substack", profile: "someone" });
-  assert.deepEqual(plan("https://www.substack.com/@some_one/posts"), { service: "Substack", profile: "some_one" });
-  assert.deepEqual(plan("https://substack.com/profile/494484809-elle-reads-library-books"), { service: "Substack", profile: "494484809-elle-reads-library-books" });
+  assert.deepEqual(plan("https://substack.com/@ellereadslibrarybooks"), { service: "Substack", route: "known:substack", profile: "ellereadslibrarybooks" });
+  assert.deepEqual(plan("https://substack.com/@someone/note/c-123456"), { service: "Substack", route: "known:substack", profile: "someone" });
+  assert.deepEqual(plan("https://www.substack.com/@some_one/posts"), { service: "Substack", route: "known:substack", profile: "some_one" });
+  assert.deepEqual(plan("https://substack.com/profile/494484809-elle-reads-library-books"), { service: "Substack", route: "known:substack", profile: "494484809-elle-reads-library-books" });
   for (const u of [
     // Redirects to the post on its own publication, which names its feed.
     "https://substack.com/@ellereadslibrarybooks/p-212421030", "https://substack.com/home/post/p-212421030", "https://substack.com/inbox/post/212421030",
@@ -66,7 +66,7 @@ test("a profile record gives the publications the person runs, primary first, at
 
 const feed = { title: "T", items: [] } as unknown as ParsedFeed;
 const draft = (feedUrl: string, extra: { title?: string; via?: string; note?: string }): DraftCandidate => ({
-  title: extra.title ?? "T", kind: "feed", origin: server.words.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
+  route: "feed-address", title: extra.title ?? "T", kind: "feed", origin: server.words.rssFeed, via: extra.via ?? copy.labels.postsFeed, feedUrl, siteUrl: null, cadence: null, samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null,
   ...(extra.note ? { note: extra.note } : {}),
 });
 const deps = (probes: Record<string, KnownProbe>, json: KnownDeps["json"]): KnownDeps => ({

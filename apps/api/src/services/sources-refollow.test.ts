@@ -18,7 +18,7 @@ function hold(p: Principal, over: { feedUrl?: string; title?: string } = {}): st
   const token = newId("dsc");
   holdCandidate(token, p.workspaceId, {
     feedUrl: over.feedUrl ?? FEED, siteUrl: "https://example.org/", title: over.title ?? "Herman's blog", kind: "feed",
-    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   return token;
 }

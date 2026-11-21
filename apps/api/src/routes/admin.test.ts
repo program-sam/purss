@@ -212,6 +212,8 @@ test("health is an aggregate: engine, jobs, disk, database, sources and a tolera
   assert.deepEqual(h.egress, { status: "ok", blockedLastHour: 4 });
   assert.equal(h.bridge, null, "no bridge is configured, and the egress log isn't asked for");
   assert.deepEqual(h.discoveryMisses, []);
+  assert.deepEqual([h.discoveryRoutes.days, h.discoveryRoutes.routes, h.discoveryRoutes.entries, h.discoveryRoutes.since], [90, [], [], null], "no route has been counted yet");
+  assert.ok(Array.isArray(h.discoveryRoutes.unused) && h.discoveryRoutes.unused.includes("page-list"));
   assert.equal(h.jobs.queued >= 1, true);
   assert.ok(h.jobs.oldestQueuedSeconds >= 89);
   assert.deepEqual(h.sources, { total: 2, failing: 1, paused: 1 });

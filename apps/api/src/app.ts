@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { newId } from "@purss/domain";
-import type { EventMessage } from "@purss/domain";
+import type { ConnectClientKind, EventMessage } from "@purss/domain";
 import type { Config } from "./config.ts";
 import type { Database } from "./db/database.ts";
 import { HttpError, nowIso } from "./http.ts";
@@ -25,7 +25,8 @@ export type Principal = {
   renewed?: boolean;
 };
 
-export type Ctx = { app: App; principal: Principal | null };
+/** `client`: the connected app a device token belongs to; absent for a browser's session. */
+export type Ctx = { app: App; principal: Principal | null; client?: ConnectClientKind };
 
 export function requirePrincipal(ctx: Ctx): Principal {
   if (!ctx.principal) throw new HttpError(401, "signed_out", server.api.shared.signInAgain);

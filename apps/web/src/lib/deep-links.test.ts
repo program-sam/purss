@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { bookmarklet, deepLinkOverlay } from "./deep-links.ts";
 
 test("deep links open the popup they name with what they carry", () => {
-  assert.deepEqual(deepLinkOverlay({ dialog: "add", url: "https://quiet.example/feed" }), { kind: "add-source", url: "https://quiet.example/feed" });
+  assert.deepEqual(deepLinkOverlay({ dialog: "add", url: "https://quiet.example/feed" }), { kind: "add-source", url: "https://quiet.example/feed", entry: "shared-link" });
   assert.deepEqual(deepLinkOverlay({ dialog: "add" }), { kind: "add-source" });
   assert.deepEqual(deepLinkOverlay({ dialog: "keep", url: "https://quiet.example/a", title: "A" }), { kind: "keep-page", url: "https://quiet.example/a", title: "A" });
   assert.deepEqual(deepLinkOverlay({ dialog: "keep", url: "https://quiet.example/a" }), { kind: "keep-page", url: "https://quiet.example/a" });

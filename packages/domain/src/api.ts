@@ -4,6 +4,7 @@ import type { ItemKind, QueryNode, Sort } from "./query.ts";
 import { WORKFLOW_STATES } from "./workflow.ts";
 import { SORTS, queryNodeSchema } from "./query.ts";
 import type { Capacity } from "./plans.ts";
+import { LOOKUP_ENTRIES } from "./discovery-routes.ts";
 import type { TextRef } from "./annotations.ts";
 
 /*
@@ -443,7 +444,8 @@ export type DiscoveryResult =
   | { ok: true; url: string; candidates: DiscoveryCandidate[]; keep?: KeepOffer }
   | { ok: false; url: string; reason: "invalid" | "blocked" | "unreachable" | "nofeed" | "unsupported" | "toolarge" | "timeout"; message: string };
 
-export const discoverSchema = z.object({ url: z.string().trim().min(1).max(2000) });
+/** `entry`: how the person got to this lookup (discovery-routes.ts); left out, it is a pasted link. */
+export const discoverSchema = z.object({ url: z.string().trim().min(1).max(2000), entry: z.enum(LOOKUP_ENTRIES).optional() });
 
 // ---------- sources and discovery ----------
 /** POST /api/discover/podcasts and /api/discover/sites: a name typed instead of an address. */
@@ -646,6 +648,14 @@ export type AdminBridgeHealth = {
 };
 /** A site people tried to follow without success, and how often over the last 30 days. */
 export type DiscoveryMissDTO = { site: string; reason: "nofeed" | "unsupported" | "unreachable" | "timeout"; count: number };
+/**
+ * One discovery route's (or entry's) counts over the last 90 days, across every account. `offered` and `followed`: candidates shown and follows,
+ * from the daily counters. `following`: sources followed in those days that are still followed. `aged`: those followed at least 30 days ago, and
+ * `agedStill` how many of them were still followed 30 days after they were followed.
+ */
+export type DiscoveryRouteStatDTO = { id: string; offered: number; followed: number; following: number; aged: number; agedStill: number };
+/** `since`: the first day anything was counted (null before any), to say how long the counting has run; `unused`: the routes with nothing at all in the window. */
+export type DiscoveryRoutesDTO = { days: number; since: string | null; routes: DiscoveryRouteStatDTO[]; entries: DiscoveryRouteStatDTO[]; unused: string[] };
 
 export type AdminHealth = {
   engine: { status: string; version: string | null; lastSyncAt: string | null; lagSeconds: number | null; message: string | null };
@@ -659,6 +669,8 @@ export type AdminHealth = {
   bridge: AdminBridgeHealth | null;
   /** The sites most often tried without success over the last 30 days, per reason, at most 20, most first. */
   discoveryMisses: DiscoveryMissDTO[];
+  /** Which ways of finding a source were used, and what became of the sources they found, over the last 90 days. */
+  discoveryRoutes: DiscoveryRoutesDTO;
   /** The installation is configured for open sign-up, but it is closed because outgoing email isn't set up or isn't working. */
   signupWaitingForMail: boolean;
   /** Null when outgoing email isn't set up. */

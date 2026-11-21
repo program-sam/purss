@@ -538,7 +538,9 @@ export function publicRouter(): Router<Ctx> {
   r.post("/api/discover", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`discover:${p.accountId}`, 120);
-    return discoverSources(ctx.app, p, parse(discoverSchema, req.body).url);
+    const { url, entry } = parse(discoverSchema, req.body);
+    // The extension's token says where the lookup came from; the interface says which of its own ways it was (a pasted link by default).
+    return discoverSources(ctx.app, p, url, ctx.client === "extension" ? "extension" : entry ?? "paste");
   });
   /** Shows by name from Apple's podcast directory: what was typed goes there, nothing else. Following a hit is an ordinary lookup of its feed. */
   r.post("/api/discover/podcasts", async (req, ctx) => {

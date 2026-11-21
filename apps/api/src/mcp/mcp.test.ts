@@ -222,7 +222,7 @@ test("writing tools organise items and sources through the same rules as the app
   // A candidate from find_sources (held as discovery holds it) is followed into a new collection;
   // full articles stay off, even for a summary-only feed, unless the assistant asks for them.
   const followToken = "dsc_mcptest";
-  holdCandidate(followToken, b.owner.workspaceId, { feedUrl: "https://quiet.example/feed.xml", siteUrl: "https://quiet.example/", title: "Quiet Harbour", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: true, privateWarning: null });
+  holdCandidate(followToken, b.owner.workspaceId, { feedUrl: "https://quiet.example/feed.xml", siteUrl: "https://quiet.example/", title: "Quiet Harbour", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
   const followed = await ok("follow_source", { followToken, newCollectionName: "Harbours" });
   assert.deepEqual([followed.title, followed.fullArticles, followed.collectionIds.length], ["Quiet Harbour", false, 1]);
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe'"), "the engine is asked to subscribe, as from the app");

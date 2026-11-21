@@ -58,7 +58,7 @@ export function OverlayHost() {
 function Overlay({ o }: { o: NonNullable<ReturnType<typeof useOverlays>["overlay"]> }) {
   const { close } = useOverlays();
   switch (o.kind) {
-    case "add-source": return <AddSourceDialog key="add" collectionId={o.collectionId} url={o.url} />;
+    case "add-source": return <AddSourceDialog key="add" collectionId={o.collectionId} url={o.url} entry={o.entry} />;
     case "new-collection": return <NewCollectionDialog key="newcol" />;
     case "collection-settings": return <CollectionSettingsDialog key={`cs-${o.id}`} id={o.id} />;
     case "customise-home": return <CustomiseHomeDialog key="home" />;

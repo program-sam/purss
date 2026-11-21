@@ -335,7 +335,7 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
       dropLink();
       return;
     }
-    const [held] = presentCandidates(app, p, [chosen]);
+    const [held] = presentCandidates(app, p, [chosen], { entry: "opml-import" });
     if (held!.alreadyFollowingSourceId) { settle("already", null, held!.alreadyFollowingSourceId); dropLink(); return; }
     const where = collectionFor(app, row, p, entry);
     // The file's title is the person's own name for it; without one, what the feed calls itself.

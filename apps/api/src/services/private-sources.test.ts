@@ -23,10 +23,10 @@ const base = { collectionId: null, newCollectionName: null, fullText: false };
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: null, title: "Private feed", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: "This link has a secret in it.", ...over } as never);
+  holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: null, title: "Private feed", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: "This link has a secret in it.", ...over } as never);
   return token;
 }
-const draft = (feedUrl: string) => ({ feedUrl, siteUrl: null, title: "Private feed", kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: "This link has a secret in it." });
+const draft = (feedUrl: string) => ({ feedUrl, siteUrl: null, title: "Private feed", kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address" as const, summariesOnly: false, privateWarning: "This link has a secret in it." });
 const linkFiles = (dir: string) => { try { return readdirSync(path.join(dir, "source-urls")); } catch { return []; } };
 
 test("a link that only looks like it has a key starts private, and the person can follow it as an ordinary feed", (t) => {

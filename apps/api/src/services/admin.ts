@@ -19,6 +19,7 @@ import { capacity, storedPlan } from "./plans.ts";
 import { serverTokensOf } from "./ai-access.ts";
 import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
+import { discoveryRouteStats } from "./discovery-routes.ts";
 import { server } from "@purss/copy/server";
 
 /*
@@ -162,6 +163,7 @@ export async function adminHealth(app: App, now = Date.now()): Promise<AdminHeal
     egress,
     bridge,
     discoveryMisses: topDiscoveryMisses(app, { days: 30, limit: 20, now: new Date(now) }),
+    discoveryRoutes: discoveryRouteStats(app, new Date(now)),
     signupWaitingForMail: app.config.mode === "hosted" && app.config.signup === "open" && !signupOpen(app),
     mail: mailSummary(app),
   };

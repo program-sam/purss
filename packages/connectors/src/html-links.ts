@@ -10,6 +10,8 @@ export type FoundLink = {
   /** MIME type declared in <link type=…>, lower-case. */
   type: string | null;
   source: "alternate" | "anchor";
+  /** An address the page shows for copying (an input's value, a copy button's text, a lone address in code), not a link to it. */
+  shown?: true;
 };
 
 export type PageFacts = {
@@ -143,7 +145,7 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
         const url = shown && /^\s*https?:\/\/\S+\s*$/i.test(shown) ? resolve(shown, base) : null;
         if (url && looksLikeFeedAddress(url)) {
           shownFeeds++;
-          anchors.push({ url, title: cleanLine(a["aria-label"] ?? a.title, 120), type: null, source: "anchor" });
+          anchors.push({ url, title: cleanLine(a["aria-label"] ?? a.title, 120), type: null, source: "anchor", shown: true });
         }
       }
     }

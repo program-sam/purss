@@ -17,3 +17,4 @@ export * from "./downloads.ts";
 export * from "./quiet-hours.ts";
 export * from "./news.ts";
 export * from "./initials.ts";
+export * from "./discovery-routes.ts";

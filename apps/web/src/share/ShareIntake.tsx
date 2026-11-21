@@ -22,7 +22,7 @@ export function ShareIntake() {
     overlays.open({ kind: "shared", url: link.url, title: link.title });
   }), [overlays, toast]);
   useEffect(() => platform.onIntake((intake) => {
-    overlays.open(intake.kind === "source" ? { kind: "add-source", url: intake.url } : { kind: "opml-file", name: intake.name, text: intake.text });
+    overlays.open(intake.kind === "source" ? { kind: "add-source", url: intake.url, entry: "shared-link" } : { kind: "opml-file", name: intake.name, text: intake.text });
   }), [overlays]);
   return null;
 }
@@ -34,7 +34,7 @@ export function SharedDialog({ url, title }: { url: string; title: string }) {
     <Dialog title={t.dialog.title} onClose={overlays.close} initialFocus="dialog"
       footer={<>
         <Button onClick={overlays.close}>{app.words.cancel}</Button>
-        <Button onClick={() => overlays.open({ kind: "add-source", url })}>{app.words.addAsSource}</Button>
+        <Button onClick={() => overlays.open({ kind: "add-source", url, entry: "shared-link" })}>{app.words.addAsSource}</Button>
         <Button variant="primary" onClick={() => overlays.open({ kind: "keep-page", url, title })}>{app.words.keepLink}</Button>
       </>}>
       <div style={{ display: "grid", gap: 10 }}>

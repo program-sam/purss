@@ -1,4 +1,4 @@
-import type { DiscoveryCandidate } from "@purss/domain";
+import type { DiscoveryCandidate, DiscoveryEntry, DiscoveryRoute } from "@purss/domain";
 
 /**
  * Discovery previews live in memory only, behind opaque tokens. A pasted feed address may
@@ -6,9 +6,11 @@ import type { DiscoveryCandidate } from "@purss/domain";
  * the owner decides how to follow it. A restart forgets previews; the person looks up again.
  * `large`: the feed is bigger than the engine can read whole, so following it goes through the
  * feed gateway; it is held with the preview and never sent to the browser. `itemLinks`: the feed's newest posts' addresses, compared
- * with followed sources to recognise the same feed at another address; never sent either.
+ * with followed sources to recognise the same feed at another address; never sent either. Nor are `route` (which way discovery found it) and
+ * `entry` (how the person got to the lookup): they go onto the source when it is followed, and into the administrator's counts.
  */
-type Held = { workspaceId: string; candidate: Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> & { large?: boolean; itemLinks?: string[] }; expires: number };
+export type HeldCandidate = Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> & { route: DiscoveryRoute; entry: DiscoveryEntry; large?: boolean; itemLinks?: string[] };
+type Held = { workspaceId: string; candidate: HeldCandidate; expires: number };
 
 const TTL_MS = 60 * 60 * 1000;
 const MAX_ENTRIES = 5000;

@@ -14,7 +14,7 @@ import type { App, Principal } from "../app.ts";
 function followBridged(app: App, p: Principal, key = "durov"): string {
   holdCandidate(`dsc_${key}`, p.workspaceId, {
     feedUrl: `bridge:telegram/${key}`, siteUrl: `https://t.me/${key}`, title: key, kind: "feed",
-    origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], route: "bridge:telegram", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   return followSource(app, p, followSchema.parse({ token: `dsc_${key}`, collectionId: null, newCollectionName: null })).id;
 }
@@ -25,7 +25,7 @@ test("a bridged source is followed as its descriptor, never as a private link, a
   const p = makeOwner(app);
   holdCandidate("dsc_bridge", p.workspaceId, {
     feedUrl: "bridge:telegram/durov", siteUrl: "https://t.me/durov", title: "Pavel Durov (@durov)", kind: "feed",
-    origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], route: "bridge:telegram", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   // Even when the request asks for it, there is no link to lock away.
   const s = followSource(app, p, followSchema.parse({ token: "dsc_bridge", collectionId: null, newCollectionName: null, markPrivate: true }));
@@ -101,7 +101,7 @@ test("a page list is followed as its descriptor, never as a private link, though
   const p = makeOwner(app);
   holdCandidate("dsc_page", p.workspaceId, {
     feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
-    cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    cadence: null, samples: [], route: "bridge:page", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   const s = followSource(app, p, followSchema.parse({ token: "dsc_page", collectionId: null, newCollectionName: null, markPrivate: true }));
   const row = app.db.get<{ feed_url: string; is_private: number }>("SELECT feed_url, is_private FROM sources WHERE id = ?", s.id)!;
@@ -129,7 +129,7 @@ test("an archive restores a page list as itself", async (t) => {
   const pa = makeOwner(from.app);
   holdCandidate("dsc_page", pa.workspaceId, {
     feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
-    cadence: null, samples: [], summariesOnly: false, privateWarning: null,
+    cadence: null, samples: [], route: "bridge:page", entry: "paste", summariesOnly: false, privateWarning: null,
   });
   followSource(from.app, pa, followSchema.parse({ token: "dsc_page", collectionId: null, newCollectionName: null }));
   const parts: string[] = [];

@@ -1,4 +1,4 @@
-import type { DiscoveryCandidate } from "@purss/domain";
+import type { DraftCandidate } from "@purss/connectors";
 import type { App } from "../app.ts";
 import { PRODUCT_NAME } from "./public-pages.ts";
 import { server } from "@purss/copy/server";
@@ -27,12 +27,12 @@ export function publishedNews(app: App, limit: number): { id: string; title: str
 }
 
 /** This installation's news page or feed address, as a discovery preview: nothing is fetched (the engine never fetches it). */
-export function newsCandidate(app: App, url: string): Omit<DiscoveryCandidate, "token" | "alreadyFollowingSourceId"> | null {
+export function newsCandidate(app: App, url: string): Omit<DraftCandidate, "alreadyFollowingSourceId"> | null {
   const { page, feed } = newsUrls(app);
   const u = url.trim().replace(/\/+$/, "");
   if (u !== page && u !== feed) return null;
   return {
-    title: NEWS_TITLE, kind: "feed", origin: server.api.shared.newsFrom(PRODUCT_NAME), via: server.api.newsAddress.newsFeed, feedUrl: feed, siteUrl: page, cadence: null,
+    route: "installation-news", title: NEWS_TITLE, kind: "feed", origin: server.api.shared.newsFrom(PRODUCT_NAME), via: server.api.newsAddress.newsFeed, feedUrl: feed, siteUrl: page, cadence: null,
     samples: publishedNews(app, 3).map((p) => ({ title: p.title, publishedAt: p.published_at })), summariesOnly: false, privateWarning: null,
   };
 }

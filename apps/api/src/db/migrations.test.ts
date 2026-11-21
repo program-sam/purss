@@ -1129,3 +1129,35 @@ test("073 gives sources that failed because the site didn't answer their reason 
     db.close();
   }
 });
+
+test("074 gives sources the ids of how they were found and when they were unfollowed, leaving existing ones with none, and adds the daily counters", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL) STRICT");
+    const files = readdirSync(DIR).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+    for (const file of files.filter((f) => f < "074")) {
+      db.tx(() => db.exec(readFileSync(path.join(DIR, file), "utf8")));
+      db.run("INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)", file, "2026-01-01T00:00:00.000Z");
+    }
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, followed, created_at) VALUES ('src_a', 'acc_1', 'ws_1', 'feed', 'A', 'RSS feed', 'ok', 1, '2026-01-01T00:00:00.000Z'), ('src_b', 'acc_1', 'ws_1', 'feed', 'B', 'RSS feed', 'ok', 0, '2026-01-01T00:00:00.000Z')");
+    assert.equal(db.get("SELECT 1 FROM sqlite_master WHERE name = 'discovery_routes'"), undefined);
+    assert.equal(migrate(db), files.filter((f) => f >= "074").length);
+    assert.deepEqual(db.all("SELECT id, discovery_route, discovery_entry, unfollowed_at FROM sources ORDER BY id").map((r) => ({ ...r })), [
+      { id: "src_a", discovery_route: null, discovery_entry: null, unfollowed_at: null },
+      { id: "src_b", discovery_route: null, discovery_entry: null, unfollowed_at: null },
+    ], "sources from before it have no route, no entry and no time");
+
+    assert.equal(db.get<{ strict: number }>("SELECT strict FROM pragma_table_list('discovery_routes')")!.strict, 1);
+    assert.deepEqual(db.all<{ name: string }>("SELECT name FROM pragma_table_info('discovery_routes') ORDER BY cid").map((c) => c.name), ["day", "entry", "route", "offered", "followed"]);
+    assert.equal(db.all("SELECT 1 FROM pragma_foreign_key_list('discovery_routes')").length, 0, "no account, workspace or source is named");
+    db.run("INSERT INTO discovery_routes (day, entry, route, offered) VALUES ('2026-11-08', 'paste', 'alternate-link', 2)");
+    assert.deepEqual({ ...db.get("SELECT offered, followed FROM discovery_routes")! }, { offered: 2, followed: 0 }, "a count starts at zero");
+    assert.throws(() => db.run("INSERT INTO discovery_routes (day, entry, route) VALUES ('2026-11-08', 'paste', 'alternate-link')"), /UNIQUE/, "one row for a day, entry and route");
+    assert.throws(() => db.run("INSERT INTO discovery_routes (day, entry, route, offered) VALUES ('2026-11-08', 'paste', 'page-list', -1)"), /CHECK/, "a count is never negative");
+    assert.throws(() => db.run("INSERT INTO discovery_routes (day, entry, route, followed) VALUES ('2026-11-08', 'paste', 'page-list', 'many')"), /cannot store TEXT/, "and is a number");
+    assert.equal(migrate(db), 0, "it doesn't run twice");
+  } finally {
+    db.close();
+  }
+});
