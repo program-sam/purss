@@ -126,7 +126,7 @@ function CatalogRow({ s }: { s: CatalogSource }) {
   return (
     <li className="fx-row wrap disc-row">
       <button type="button" className="chev" aria-expanded={open} aria-controls={id} aria-label={copy.previewOf(s.title)} onClick={() => setOpen((o) => !o)}><Icon name="chev" /></button>
-      <Avatar hue={s.hue} initials={s.initials} src={s.imageUrl} size={36} />
+      <Avatar hue={s.hue} initials={s.initials} src={s.iconUrl} size={56} />
       <div className="fx-grow">
         <b dir="auto">{s.title}</b>
         <span className="fine">{KIND_LABEL[s.kind]}{s.host ? ` · ${s.host}` : ""}</span>
@@ -138,12 +138,12 @@ function CatalogRow({ s }: { s: CatalogSource }) {
   );
 }
 
-/** Whether a Discovery box is folded shut; remembered in this browser like Home's boxes. */
+/** Whether a Discovery box is folded shut. Boxes start folded; the ones opened are remembered in this browser. */
 function useShut(id: string): [boolean, () => void] {
   const hints = useHints();
   const key = `disc:${id}`;
-  const shut = hints.collapsed.includes(key);
-  return [shut, () => setHints({ collapsed: shut ? hints.collapsed.filter((x) => x !== key) : [...hints.collapsed, key] })];
+  const shut = !hints.opened.includes(key);
+  return [shut, () => setHints({ opened: shut ? [...hints.opened, key] : hints.opened.filter((x) => x !== key) })];
 }
 
 /** A Discovery box's folding arrow, before its title like a collection's in the sidebar. */

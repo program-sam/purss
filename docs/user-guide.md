@@ -737,9 +737,10 @@ changes daily. **Follow…** opens Add source; **Not interested** hides a sugges
 Below it, one box per topic (news, technology, science, food, and so on) lists popular sources,
 roughly by how many people follow them in feed readers, with some chance in the order. The boxes
 and the sources in them come in a new order each time you open the page, and sources you already
-have are left out. Podcasts show their artwork. **See all** opens the topic's full list. The arrow
-before a source shows its latest posts right there, and **Follow…** opens Add source. The arrow
-before a box's title folds the box shut; it stays shut in this browser until you open it again.
+have are left out. Each source shows its icon (a podcast its artwork). **See all** opens the
+topic's full list. The arrow before a source shows its latest posts right there, and **Follow…**
+opens Add source. The boxes start folded: the arrow before a box's title opens it, and the boxes
+you opened stay open in this browser.
 The hosted service chose these sources itself; it only lists English sources for now.
 
 To get suggestions, keep **Share my sources** on (Settings → General, or on the Discovery page).
