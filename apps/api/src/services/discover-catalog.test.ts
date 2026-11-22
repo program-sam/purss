@@ -10,17 +10,20 @@ import { extraRouters } from "../routes/index.ts";
 import { publicRouter } from "../routes/public.ts";
 import { OVERVIEW_PER_CATEGORY, catalogNamed } from "./discover-catalog.ts";
 
-type Row = { feed_url: string; title: string; site_url?: string | null; category: string; kind?: string; language?: string; description?: string | null; weight: number; image_url?: string | null };
+type Row = { feed_url: string; title: string; site_url?: string | null; category: string; kind?: string; language?: string; description?: string | null; weight: number; icon?: Uint8Array | null };
+
+/** Bytes that pass as a stored WebP icon. */
+const webp = (tag: string) => Buffer.concat([Buffer.from("RIFF\x10\x00\x00\x00WEBPVP8 ", "latin1"), Buffer.from(tag)]);
 
 /** A catalog file in the layout the hosted service puts on its server, with a table the API never reads beside it. */
 function writeCatalog(file: string, rows: Row[]): void {
   const db = new DatabaseSync(file);
   db.exec(`DROP TABLE IF EXISTS sources; DROP TABLE IF EXISTS metrics;
     CREATE TABLE sources (feed_url TEXT PRIMARY KEY, title TEXT NOT NULL, site_url TEXT, category TEXT NOT NULL, kind TEXT NOT NULL,
-      language TEXT NOT NULL, description TEXT, weight REAL NOT NULL, image_url TEXT);
+      language TEXT NOT NULL, description TEXT, weight REAL NOT NULL, icon BLOB);
     CREATE TABLE metrics (feed_url TEXT NOT NULL, name TEXT NOT NULL, value REAL NOT NULL, source TEXT)`);
   const put = db.prepare("INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  for (const r of rows) put.run(r.feed_url, r.title, r.site_url ?? null, r.category, r.kind ?? "feed", r.language ?? "en", r.description ?? null, r.weight, r.image_url ?? null);
+  for (const r of rows) put.run(r.feed_url, r.title, r.site_url ?? null, r.category, r.kind ?? "feed", r.language ?? "en", r.description ?? null, r.weight, r.icon ?? null);
   db.close();
 }
 
@@ -41,9 +44,9 @@ const follow = (app: App, p: Principal, feedUrl: string) => {
 const rows: Row[] = [
   { feed_url: "https://www.theverge.com/rss/index.xml", title: "The Verge", site_url: "https://www.theverge.com", category: "technology", weight: 14.2, description: "Technology news" },
   { feed_url: "https://techcrunch.com/feed/", title: "TechCrunch", site_url: "https://techcrunch.com", category: "technology", weight: 14.1 },
-  { feed_url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabc", title: "Some Channel", category: "technology", kind: "youtube", weight: 9, image_url: "https://img.example/channel.jpg" },
-  { feed_url: "https://feeds.example/show.xml", title: "A Show", category: "technology", kind: "podcast", weight: 8, image_url: "https://img.example/show.jpg" },
-  { feed_url: "https://feeds.example/plain.xml", title: "Plain Show", category: "technology", kind: "podcast", weight: 7, image_url: "http://img.example/plain.jpg" },
+  { feed_url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabc", title: "Some Channel", category: "technology", kind: "youtube", weight: 9, icon: webp("channel") },
+  { feed_url: "https://feeds.example/show.xml", title: "A Show", category: "technology", kind: "podcast", weight: 8, icon: webp("show") },
+  { feed_url: "https://feeds.example/plain.xml", title: "Plain Show", category: "technology", kind: "podcast", weight: 7, icon: Buffer.from("\x89PNG\r\n\x1a\n-not-webp", "latin1") },
   { feed_url: "https://feeds.bbci.co.uk/news/rss.xml", title: "BBC News", site_url: "https://www.bbc.co.uk/news", category: "news", weight: 13 },
   { feed_url: "https://www.nu.nl/rss", title: "NU.nl", category: "news", language: "nl", weight: 12 },
   { feed_url: "https://bad.example/feed", title: "Unknown topic", category: "knitting", weight: 20 },
@@ -67,10 +70,18 @@ test("Discovery's catalog lists each category's popular sources, most popular fi
   ], "other languages, unknown categories and kinds, and a second address of one feed are left out");
   const [verge, , channel, show, plain] = all.categories[1]!.sources;
   const { hueFor } = await import("./content.ts");
-  assert.deepEqual(verge, { key: "www.theverge.com/rss/index.xml", title: "The Verge", host: "theverge.com", feedUrl: "https://www.theverge.com/rss/index.xml", kind: "feed", description: "Technology news", weight: 14.2, imageUrl: null, hue: hueFor("The Verge"), initials: "TV" });
-  assert.equal(show!.imageUrl, "https://img.example/show.jpg", "a podcast shows its artwork");
-  assert.equal(plain!.imageUrl, null, "only over https");
-  assert.equal(channel!.imageUrl, null, "only a podcast's");
+  assert.deepEqual(verge, { key: "www.theverge.com/rss/index.xml", title: "The Verge", host: "theverge.com", feedUrl: "https://www.theverge.com/rss/index.xml", kind: "feed", description: "Technology news", weight: 14.2, iconUrl: null, hue: hueFor("The Verge"), initials: "TV" });
+  assert.match(show!.iconUrl ?? "", /^\/api\/suggestions\/catalog\/icons\/[0-9a-f]{32}$/, "a source with an icon has it served here");
+  assert.notEqual(channel!.iconUrl, show!.iconUrl);
+  assert.equal(plain!.iconUrl, null, "only a WebP counts as an icon");
+  // The icon itself, read from the file, cached by its digest; an unknown digest is not found.
+  const icon = await call(b.app, b.server.base, "GET", show!.iconUrl!, signIn(b.app, reader.accountId));
+  assert.equal(icon.status, 200);
+  assert.equal(icon.headers.get("content-type"), "image/webp");
+  assert.match(icon.headers.get("cache-control") ?? "", /immutable/);
+  assert.ok(icon.text.endsWith("show"));
+  assert.equal((await call(b.app, b.server.base, "GET", "/api/suggestions/catalog/icons/0123456789abcdef0123456789abcdef", signIn(b.app, reader.accountId))).status, 404);
+  assert.equal((await call(b.app, b.server.base, "GET", show!.iconUrl!, null)).status, 401, "signed-in readers only");
 
   // What the reader has, followed now, once, or privately, is left out.
   follow(b.app, reader, "http://www.theverge.com/rss/index.xml?utm_source=x");
@@ -138,11 +149,11 @@ test("a self-hosted installation shows a catalog its administrator put there, an
   assert.equal((await get(b, reader)).status, 200);
   assert.deepEqual(((await get(b, reader)).json as CatalogResponse).categories, []);
 
-  // A catalog without the optional image column still works.
+  // A catalog without the optional icon column still works.
   unlinkSync(b.app.config.catalogFile);
   const old = new DatabaseSync(b.app.config.catalogFile);
   old.exec(`CREATE TABLE sources (feed_url TEXT PRIMARY KEY, title TEXT NOT NULL, site_url TEXT, category TEXT NOT NULL, kind TEXT NOT NULL,
     language TEXT NOT NULL, description TEXT, weight REAL NOT NULL); INSERT INTO sources VALUES ('https://feeds.example/p.xml', 'Pod', NULL, 'news', 'podcast', 'en', NULL, 3)`);
   old.close();
-  assert.deepEqual(((await get(b, reader)).json as CatalogResponse).categories.map((c) => c.sources.map((s) => [s.title, s.imageUrl])), [[["Pod", null]]]);
+  assert.deepEqual(((await get(b, reader)).json as CatalogResponse).categories.map((c) => c.sources.map((s) => [s.title, s.iconUrl])), [[["Pod", null]]]);
 });

@@ -493,11 +493,12 @@ CREATE TABLE sources (
   language TEXT NOT NULL,      -- a language code; only "en" rows are shown
   description TEXT,
   weight REAL NOT NULL,        -- popularity on a log scale, e.g. ln(1 + subscribers)
-  image_url TEXT               -- optional: a podcast's https artwork
+  icon BLOB                    -- optional: a WebP of at most 64 KiB
 );
 ```
 
-Other tables in the file are ignored.
+Other tables in the file are ignored. Icons are served by PURSS itself, so readers' browsers load
+nothing from other sites for the page.
 
 ## Outgoing email
 

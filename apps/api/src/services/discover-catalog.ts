@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { CATALOG_CATEGORIES, initialsFor, isCatalogCategory } from "@purss/domain";
 import type { CatalogCategory, CatalogCategoryList, CatalogResponse, CatalogSource, SiteSearchHit } from "@purss/domain";
 import { server } from "@purss/copy/server";
+import { isStoredIcon } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { notFound } from "../http.ts";
 import { hueFor } from "./content.ts";
@@ -16,9 +18,10 @@ import { NAMED, feedKey, hostOf, letters, ownSources, skipPrivate } from "./disc
  *
  * The file holds one table the API reads (other tables, such as where each popularity figure came from, are left alone):
  *   sources(feed_url TEXT PRIMARY KEY, title TEXT NOT NULL, site_url TEXT, category TEXT NOT NULL, kind TEXT NOT NULL,
- *           language TEXT NOT NULL, description TEXT, weight REAL NOT NULL, image_url TEXT)
+ *           language TEXT NOT NULL, description TEXT, weight REAL NOT NULL, icon BLOB)
  * `category` is one of CATALOG_CATEGORIES, `kind` feed, youtube or podcast, `language` a language code, `weight` how popular the
- * source is on a log scale, and `image_url` (optional) a podcast's https artwork. Only English sources are shown.
+ * source is on a log scale, and `icon` (optional) a WebP of at most 64 KiB, as PURSS stores a followed source's icon. Icons are not
+ * kept in memory: each is read from the file when asked for, by its digest. Only English sources are shown.
  */
 
 /** Sources of each category Discovery's overview sends: more than a box shows, so the page's chance has some to choose from. */
@@ -26,21 +29,23 @@ export const OVERVIEW_PER_CATEGORY = 24;
 const LANGUAGE = "en";
 const KINDS = new Set(["feed", "youtube", "podcast"]);
 
-type Entry = CatalogSource & { category: CatalogCategory; feed_url: string };
+type Entry = Omit<CatalogSource, "iconUrl"> & { category: CatalogCategory; feed_url: string; iconDigest: string | null };
 type Loaded = { mtimeMs: number; size: number; byCategory: Map<CatalogCategory, Entry[]>; all: Entry[] };
-type Row = { feed_url: string; title: string; site_url: string | null; category: string; kind: string; description: string | null; weight: number; image_url: string | null };
+type Row = { feed_url: string; title: string; site_url: string | null; category: string; kind: string; description: string | null; weight: number; icon: Uint8Array | null };
 const loaded = new Map<string, Loaded | null>();
 
 function readRows(file: string): Row[] {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    const image = (db.prepare("PRAGMA table_info(sources)").all() as { name: string }[]).some((c) => c.name === "image_url") ? "image_url" : "NULL AS image_url";
-    return db.prepare(`SELECT feed_url, title, site_url, category, kind, description, weight, ${image} FROM sources WHERE language = ? ORDER BY weight DESC, title`)
+    const icon = hasIconColumn(db) ? "icon" : "NULL AS icon";
+    return db.prepare(`SELECT feed_url, title, site_url, category, kind, description, weight, ${icon} FROM sources WHERE language = ? ORDER BY weight DESC, title`)
       .all(LANGUAGE) as Row[];
   } finally { db.close(); }
 }
 
-const httpsImage = (v: string | null): string | null => { try { return v && new URL(v).protocol === "https:" ? v : null; } catch { return null; } };
+const hasIconColumn = (db: DatabaseSync): boolean => (db.prepare("PRAGMA table_info(sources)").all() as { name: string }[]).some((c) => c.name === "icon");
+const iconDigest = (b: Uint8Array | null): string | null => (b && isStoredIcon(b) ? createHash("sha256").update(b).digest("hex").slice(0, 32) : null);
+export const catalogIconPath = (digest: string): string => `/api/suggestions/catalog/icons/${digest}`;
 
 /** The catalog's shown sources, most popular first in each category; null when there is no catalog file or it can't be read. */
 export function readCatalog(file: string): Loaded | null {
@@ -65,7 +70,7 @@ export function readCatalog(file: string): Loaded | null {
     const e: Entry = {
       key, title: r.title.trim(), host: hostOf(r.site_url) ?? hostOf(r.feed_url), feedUrl: r.feed_url, feed_url: r.feed_url,
       kind: r.kind as Entry["kind"], description: r.description?.trim() || null, weight: r.weight, category: r.category,
-      imageUrl: r.kind === "podcast" ? httpsImage(r.image_url) : null, hue: hueFor(r.title.trim()), initials: initialsFor(r.title.trim()),
+      iconDigest: iconDigest(r.icon), hue: hueFor(r.title.trim()), initials: initialsFor(r.title.trim()),
     };
     byCategory.get(r.category)!.push(e);
     all.push(e);
@@ -78,8 +83,21 @@ export function readCatalog(file: string): Loaded | null {
 /** When a catalog that couldn't be read was last looked at, so it is tried again only once it changes. */
 const stamps = new Map<string, string>();
 
-const shown = ({ key, title, host, feedUrl, kind, description, weight, imageUrl, hue, initials }: Entry): CatalogSource =>
-  ({ key, title, host, feedUrl, kind, description, weight, imageUrl, hue, initials });
+const shown = ({ key, title, host, feedUrl, kind, description, weight, iconDigest: digest, hue, initials }: Entry): CatalogSource =>
+  ({ key, title, host, feedUrl, kind, description, weight, iconUrl: digest ? catalogIconPath(digest) : null, hue, initials });
+
+/** A catalog source's icon by its digest, read from the file; not found when no shown source has it. */
+export function catalogIcon(app: App, digest: string): { bytes: Uint8Array; digest: string } {
+  const cat = readCatalog(app.config.catalogFile);
+  const entry = /^[0-9a-f]{32}$/.test(digest) ? cat?.all.find((e) => e.iconDigest === digest) : undefined;
+  if (!entry) throw notFound(server.api.discover.discoverName);
+  const db = new DatabaseSync(app.config.catalogFile, { readOnly: true });
+  try {
+    const row = db.prepare("SELECT icon FROM sources WHERE feed_url = ?").get(entry.feed_url) as { icon: Uint8Array | null } | undefined;
+    if (!row?.icon || iconDigest(row.icon) !== digest) throw notFound(server.api.discover.discoverName);
+    return { bytes: row.icon, digest };
+  } finally { db.close(); }
+}
 
 /** Whether this installation has a catalog to show. */
 export const hasCatalog = (app: App): boolean => (readCatalog(app.config.catalogFile)?.all.length ?? 0) > 0;

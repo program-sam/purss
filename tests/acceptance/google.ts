@@ -197,6 +197,8 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     await page.locator("#toasts").getByText(app.auth.providerConfirm.confirmed(GOOGLE)).waitFor();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: securityCopy.addAPassword }).click();
+    // The form opens once the server confirms the recent sign-in; until then "Password" also labels the section heading.
+    await page.getByLabel(passwordCopy.passwordAgain).waitFor();
     await page.getByLabel(app.words.password, { exact: true }).fill("tidal flats at low water");
     await page.getByLabel(passwordCopy.passwordAgain).fill("tidal flats at low water");
     await page.getByRole("button", { name: securityCopy.addPassword }).click();

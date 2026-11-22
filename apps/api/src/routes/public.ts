@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { clientAddress } from "../http.ts";
 import { z } from "zod";
 import {
@@ -122,6 +123,19 @@ const HTML = { "content-type": "text/html; charset=utf-8", "cache-control": "no-
 /** What every new account is made with, from setup and invitations: its display name and password. */
 const newAccountSchema = { displayName: z.string().trim().max(60).nullable().default(null), password: z.string().max(PASSWORD_MAX * 4), sharedComputer: z.boolean().default(false) };
 const signupToken = z.string().min(20).max(200);
+
+/**
+ * A stored WebP icon. The address carries the icon's digest, so the browser can keep it; private because it is shown to signed-in
+ * readers only.
+ */
+export function sendIcon(raw: IncomingMessage, res: ServerResponse, icon: { bytes: Uint8Array; digest: string }): undefined {
+  const etag = `"${icon.digest.slice(0, 32)}"`;
+  const headers = { "content-type": "image/webp", "cache-control": "private, max-age=31536000, immutable", etag, "content-security-policy": "default-src 'none'; sandbox" };
+  if (raw.headers["if-none-match"] === etag) { res.writeHead(304, headers); res.end(); return undefined; }
+  res.writeHead(200, { ...headers, "content-length": icon.bytes.byteLength });
+  res.end(icon.bytes);
+  return undefined;
+}
 
 export function publicRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
@@ -556,16 +570,7 @@ export function publicRouter(): Router<Ctx> {
   });
   r.post("/api/sources", (req, ctx) => followSource(ctx.app, requirePrincipal(ctx), parse(followSchema, req.body)));
   r.get("/api/sources/:id", (req, ctx) => getSource(ctx.app, requirePrincipal(ctx), req.params.id!));
-  r.get("/api/sources/:id/icon", (req, ctx, res) => {
-    const icon = readIcon(ctx.app, requirePrincipal(ctx), req.params.id!);
-    const etag = `"${icon.digest.slice(0, 32)}"`;
-    // The address carries the digest, so the browser can keep it; private because it is per account.
-    const headers = { "content-type": "image/webp", "cache-control": "private, max-age=31536000, immutable", etag, "content-security-policy": "default-src 'none'; sandbox" };
-    if (req.raw.headers["if-none-match"] === etag) { res.writeHead(304, headers); res.end(); return undefined; }
-    res.writeHead(200, { ...headers, "content-length": icon.bytes.byteLength });
-    res.end(icon.bytes);
-    return undefined;
-  });
+  r.get("/api/sources/:id/icon", (req, ctx, res) => sendIcon(req.raw, res, readIcon(ctx.app, requirePrincipal(ctx), req.params.id!)));
   r.patch("/api/sources/:id", (req, ctx) => patchSource(ctx.app, requirePrincipal(ctx), req.params.id!, parse(sourcePatchSchema, req.body)));
   r.post("/api/sources/:id/privacy", async (req, ctx) => {
     const p = requirePrincipal(ctx);
