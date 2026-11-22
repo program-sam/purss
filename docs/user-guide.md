@@ -737,16 +737,18 @@ changes daily. **Follow…** opens Add source; **Not interested** hides a sugges
 Below it, one box per topic (news, technology, science, food, and so on) lists popular sources,
 roughly by how many people follow them in feed readers, with some chance in the order. The boxes
 and the sources in them come in a new order each time you open the page, and sources you already
-have are left out. **See all** opens the topic's full list. **Preview** shows a source's latest
-posts right there, and **Follow…** opens Add source. The hosted service chose these sources itself;
-it only lists English sources for now.
+have are left out. Podcasts show their artwork. **See all** opens the topic's full list. The arrow
+before a source shows its latest posts right there, and **Follow…** opens Add source. The arrow
+before a box's title folds the box shut; it stays shut in this browser until you open it again.
+The hosted service chose these sources itself; it only lists English sources for now.
 
 To get suggestions, keep **Share my sources** on (Settings → General, or on the Discovery page).
 Your sources then count anonymously: a source only counts once 10 people follow it, nobody sees
 who follows what, and private sources never count. Turn it off and your sources leave the counts
 within minutes, and you stop getting suggestions.
 
-The first box says **Coming soon** until enough people share. Self-hosted PURSSes have no Discovery.
+The first box says **Coming soon** until enough people share. A self-hosted PURSS has no
+suggestions; it shows popular sources only if its administrator added a catalog of them.
 
 ## Reminders
 

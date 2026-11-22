@@ -5,7 +5,10 @@ import { Router, parse } from "../http.ts";
 import { dismissSuggestion, suggestionsFor } from "../services/discover.ts";
 import { catalogFor } from "../services/discover-catalog.ts";
 
-/** Discover suggestions and the catalog of popular sources (not /api/discover, which looks up a pasted link) for the signed-in account; all answer "not found" on a self-hosted installation. */
+/**
+ * Discover suggestions and the catalog of popular sources (not /api/discover, which looks up a pasted link) for the signed-in account.
+ * Suggestions answer "not found" on a self-hosted installation; the catalog is empty wherever there is no catalog file.
+ */
 export function discoverRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   r.get("/api/suggestions", (_req, ctx) => suggestionsFor(ctx.app, requirePrincipal(ctx)));

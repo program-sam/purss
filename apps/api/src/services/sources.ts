@@ -193,7 +193,7 @@ export function resetSiteSearchCache(): void {
 
 /**
  * Websites named like `query`: the public sources other readers here follow (sourcesNamed: hosted, sharing readers only, never a private
- * source), then the sources of Discovery's catalog with that name (catalogNamed: hosted only), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
+ * source), then the sources of Discovery's catalog with that name (catalogNamed, when the installation has one), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
  * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' and the catalog's sources when there are any.
  */
 export async function searchSiteDirectory(app: App, p: Principal, query: string, opts?: SiteSearchOptions): Promise<SiteSearchResponse> {

@@ -55,6 +55,8 @@ export type SessionInfo = {
     accountEmail: boolean;
     /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
     billing: boolean;
+    /** The installation has a catalog of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
+    catalog: boolean;
   };
 };
 /** The signed-in account's email address. */

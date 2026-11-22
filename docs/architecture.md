@@ -570,14 +570,17 @@ show, each naming the reader's own sources that led to it. The rebuild is quadra
 sources.
 
 The Discover page also shows popular sources by category from a catalog file, `discover-catalog.sqlite` in the
-data directory (`services/discover-catalog.ts`). It is an editorial file of the hosted service, kept on its server
-and never in the repository; only a hosted installation reads it, read-only, keeping it in memory until the file
-changes on disk. Its `sources` table holds a feed address, title, site, one of the categories in
-`CATALOG_CATEGORIES`, a kind (feed, YouTube, podcast), a language, a short description and a popularity weight on a
-log scale; only English rows are served. `GET /api/suggestions/catalog` sends each category's 24 most popular
+data directory (`services/discover-catalog.ts`). The hosted service's is its own editorial file, kept on its server
+and never in the repository; any installation reads one if it is there (`installation.catalog` in the session says
+so, and shows the page), read-only, keeping it in memory until the file changes on disk and leaving out one it
+can't read. Its `sources` table holds a feed address, title, site, one of the categories in `CATALOG_CATEGORIES`, a
+kind (feed, YouTube, podcast), a language, a short description, a popularity weight on a log scale and, optionally,
+a podcast's https artwork; only English rows are served, each with the hue and initials a source without an icon
+shows ([A catalog of popular sources](self-hosting.md#a-catalog-of-popular-sources)). `GET /api/suggestions/catalog` sends each category's 24 most popular
 sources, leaving out what the reader has (by `feedKey`, and private sources by their keyed hash), and
 `GET /api/suggestions/catalog/:category` all of one category's. The page shuffles the boxes and orders each box by
-weight plus Gumbel noise on every visit, showing six; a preview is an ordinary `POST /api/discover` lookup.
+weight plus Gumbel noise on every visit, showing six; a source's latest posts come from an ordinary
+`POST /api/discover` lookup, and a folded box is remembered in the browser's layout hints like Home's.
 
 **Outgoing email.** Optional (`PURSS_SMTP_*`, `PURSS_MAIL_FROM`; `apps/api/src/mail`). The API sends
 through nodemailer: invitation links, sign-up links, address confirmation, password-reset links and

@@ -166,8 +166,9 @@ export type DiscoverSuggestion = {
   reason: { kind: "because"; sourceIds: string[] } | { kind: "popular" } | { kind: "wildcard" };
 };
 /**
- * The catalog of popular sources Discovery shows by category (hosted only): an editorial file of the hosted service, kept on its
- * server and never in this repository, so an installation without it shows no category boxes.
+ * The catalog of popular sources Discovery shows by category: a file in the data directory, not in this repository. The hosted
+ * service has its own editorial one; a self-hosted installation can have one its administrator put there, and without it
+ * Discovery shows no category boxes.
  */
 export const CATALOG_CATEGORIES = ["news", "technology", "programming", "science", "business", "design", "gaming", "entertainment", "sports", "food", "health", "travel", "culture"] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
@@ -181,6 +182,10 @@ export type CatalogSource = {
   description: string | null;
   /** How popular the source is, on a log scale: only its order against other sources means anything. */
   weight: number;
+  /** A podcast's artwork from its feed; null for other sources, which show `initials` on `hue` like a followed source without an icon. */
+  imageUrl: string | null;
+  hue: number;
+  initials: string;
 };
 export type CatalogCategoryList = { id: CatalogCategory; total: number; sources: CatalogSource[] };
 /** The most popular sources of each category (all of them for one category's page), leaving out what the reader already follows. */

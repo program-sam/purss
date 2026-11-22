@@ -79,7 +79,7 @@ once, and a result chosen there is looked up like a pasted address:
   of the Discover graph whose shared name or site contains the name come first (`sourcesNamed`), only
   for a reader who shares: the same public, ten-reader sources Discover suggests, never a private one,
   and never with a count. Then come up to five sources of Discover's catalog of popular sources whose name or
-  site contains the name (`catalogNamed`, hosted only; see [Architecture](architecture.md)), most popular
+  site contains the name (`catalogNamed`, when the installation has a catalog; see [Architecture](architecture.md)), most popular
   first. A Wikidata failure still shows those.
 - **Podcasts** (`POST /api/discover/podcasts`, `podcast-search.ts`): Apple's podcast directory.
 

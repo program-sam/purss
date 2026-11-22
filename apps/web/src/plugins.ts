@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { IconName } from "@purss/ui";
+import type { SessionInfo } from "@purss/domain";
 import { featurePages } from "./features/pages.tsx";
 
 /**
@@ -17,7 +18,7 @@ import { featurePages } from "./features/pages.tsx";
  * - `parent`    optional breadcrumb parent: { label, to }
  * - `nav`       optional entry in the sidebar footer; omit for pages reached from elsewhere
  * - `adminOnly` hides the page and its nav entry from people who are not administrators
- * - `hostedOnly` hides the nav entry on a self-hosted installation (the page itself must say it isn't available there)
+ * - `available` hides the nav entry on an installation it returns false for (the page itself must say it isn't available there)
  */
 export type WorkspacePage = {
   path: string;
@@ -26,7 +27,7 @@ export type WorkspacePage = {
   parent?: { label: string; to: string };
   nav?: { label: string; icon: IconName };
   adminOnly?: boolean;
-  hostedOnly?: boolean;
+  available?: (installation: SessionInfo["installation"]) => boolean;
 };
 
 export const workspacePages: WorkspacePage[] = [...featurePages];

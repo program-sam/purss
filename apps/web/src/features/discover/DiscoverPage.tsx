@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CatalogCategory, CatalogCategoryList, CatalogSource, DiscoverSuggestion, DiscoveryResult } from "@purss/domain";
 import { app } from "@purss/copy/app";
-import { Button, Check, Icon } from "@purss/ui";
+import { Avatar, Button, Check, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
 import { byChance, shuffled } from "../../lib/discovery.ts";
@@ -10,6 +10,7 @@ import { plural, shortDate } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useColumns } from "../../pages/Home.tsx";
 import { useOverlays } from "../../state/overlays.tsx";
+import { setHints, useHints } from "../../state/ui-store.ts";
 import { useSavePreferences } from "../../state/prefs.ts";
 import { useToasts } from "../../state/toasts.tsx";
 import { useWorkspace } from "../../state/workspace.tsx";
@@ -82,10 +83,14 @@ function Suggestions({ suggestions }: { suggestions: DiscoverSuggestion[] }) {
 /** The first box: sources that readers who follow what you follow also follow, "coming soon" until the co-follow graph holds any. */
 function ForYou() {
   const q = useQuery(suggestionsQuery);
+  const [shut, toggle] = useShut("for-you");
   return (
-    <section className="mod" aria-labelledby="disc-for-you">
-      <header className="mod-h"><h2 className="mod-t" id="disc-for-you"><span className="mod-plain"><span className="t">{copy.forYou}</span></span></h2></header>
-      {q.isPending ? <div className="mod-empty"><Loading /></div> : q.isError ? <LoadFailed error={q.error} what={copy.suggestionsName} onRetry={() => void q.refetch()} /> : !q.data.ready ? (
+    <section className={`mod${shut ? " shut" : ""}`} aria-labelledby="disc-for-you">
+      <header className="mod-h">
+        <Fold shut={shut} name={copy.forYou} onToggle={toggle} />
+        <h2 className="mod-t" id="disc-for-you"><span className="mod-plain"><span className="t">{copy.forYou}</span></span></h2>
+      </header>
+      {shut ? null : q.isPending ? <div className="mod-empty"><Loading /></div> : q.isError ? <LoadFailed error={q.error} what={copy.suggestionsName} onRetry={() => void q.refetch()} /> : !q.data.ready ? (
         <div className="mod-empty"><span><b>{copy.comingSoon}.</b> {copy.comingSoonText}</span></div>
       ) : !q.data.sharing ? (
         <div className="mod-empty"><span><b>{copy.shareToGet}.</b> {copy.shareToGetText}</span></div>
@@ -114,23 +119,36 @@ function Preview({ s }: { s: CatalogSource }) {
   );
 }
 
+/** A catalog source: the arrow opens its latest posts under it, like a collection's arrow opens its sources. */
 function CatalogRow({ s }: { s: CatalogSource }) {
   const [open, setOpen] = useState(false);
   const id = `disc-pv-${s.key.replace(/[^a-z0-9]+/gi, "-")}`;
   return (
-    <li className="fx-row wrap">
+    <li className="fx-row wrap disc-row">
+      <button type="button" className="chev" aria-expanded={open} aria-controls={id} aria-label={copy.previewOf(s.title)} onClick={() => setOpen((o) => !o)}><Icon name="chev" /></button>
+      <Avatar hue={s.hue} initials={s.initials} src={s.imageUrl} size={36} />
       <div className="fx-grow">
         <b dir="auto">{s.title}</b>
         <span className="fine">{KIND_LABEL[s.kind]}{s.host ? ` · ${s.host}` : ""}</span>
         {s.description ? <span className="fine disc-desc" dir="auto" title={s.description}>{s.description}</span> : null}
       </div>
-      <div className="fx-end">
-        <Button aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>{open ? copy.hidePreview : copy.preview}</Button>
-        <FollowButton feedUrl={s.feedUrl} />
-      </div>
+      <div className="fx-end"><FollowButton feedUrl={s.feedUrl} /></div>
       {open ? <div className="disc-preview" id={id}><Preview s={s} /></div> : null}
     </li>
   );
+}
+
+/** Whether a Discovery box is folded shut; remembered in this browser like Home's boxes. */
+function useShut(id: string): [boolean, () => void] {
+  const hints = useHints();
+  const key = `disc:${id}`;
+  const shut = hints.collapsed.includes(key);
+  return [shut, () => setHints({ collapsed: shut ? hints.collapsed.filter((x) => x !== key) : [...hints.collapsed, key] })];
+}
+
+/** A Discovery box's folding arrow, before its title like a collection's in the sidebar. */
+function Fold({ shut, name, onToggle }: { shut: boolean; name: string; onToggle: () => void }) {
+  return <button type="button" className="chev" aria-expanded={!shut} aria-label={name} onClick={onToggle}><Icon name="chev" /></button>;
 }
 
 /** What the reader has since following one, left out at once (the server leaves them out on the next load). */
@@ -148,13 +166,19 @@ function CategoryBox({ list }: { list: CatalogCategoryList }) {
   const rows = ordered.filter(open).slice(0, BOX_ROWS);
   const name = copy.categories[list.id];
   const go = () => nav.goPath(catalogPath(list.id));
+  const [shut, toggle] = useShut(list.id);
   return (
-    <section className="mod" aria-labelledby={`disc-${list.id}`}>
+    <section className={`mod${shut ? " shut" : ""}`} aria-labelledby={`disc-${list.id}`}>
       <header className="mod-h">
+        <Fold shut={shut} name={name} onToggle={toggle} />
         <h2 className="mod-t" id={`disc-${list.id}`}><button type="button" onClick={go}><span className="t">{name}</span><Icon name="chev" size="sm" className="go" /></button></h2>
       </header>
-      {rows.length ? <ul className="mod-b">{rows.map((s) => <CatalogRow key={s.key} s={s} />)}</ul> : <div className="mod-empty"><span>{copy.nothingLeft}</span></div>}
-      {list.total > rows.length ? <button type="button" className="mod-all" onClick={go}>{copy.seeAll(list.total)}<span> · {name}</span><Icon name="chev" size="sm" /></button> : null}
+      {shut ? null : (
+        <>
+          {rows.length ? <ul className="mod-b">{rows.map((s) => <CatalogRow key={s.key} s={s} />)}</ul> : <div className="mod-empty"><span>{copy.nothingLeft}</span></div>}
+          {list.total > rows.length ? <button type="button" className="mod-all" onClick={go}>{copy.seeAll(list.total)}<span> · {name}</span><Icon name="chev" size="sm" /></button> : null}
+        </>
+      )}
     </section>
   );
 }
@@ -186,19 +210,19 @@ function SharingChoice() {
 }
 
 /**
- * Discovery (hosted only): first the sources that readers who follow what you follow also follow, then the hosted service's
- * catalog of popular sources in one box per category.
+ * Discovery: on a hosted installation first the sources that readers who follow what you follow also follow; then, wherever the
+ * installation has a catalog, its popular sources in one box per category.
  */
 export function DiscoverPage() {
   const session = useSession().data;
-  const hosted = session?.installation.mode === "hosted";
-  if (session && !hosted) {
-    return <Page title={app.words.discovery}><Note>{copy.hostedOnly}</Note></Page>;
-  }
+  if (!session) return <Page title={app.words.discovery}><Loading /></Page>;
+  const hosted = session.installation.mode === "hosted";
+  if (!hosted && !session.installation.catalog) return <Page title={app.words.discovery}><Note>{copy.hostedOnly}</Note></Page>;
   return (
-    <Page title={app.words.discovery} lead={copy.lead} wide>
-      {hosted ? <><ForYou /><Categories /></> : <Loading />}
-      <Section title={app.words.sharing}><SharingChoice /></Section>
+    <Page title={app.words.discovery} lead={hosted ? copy.lead : copy.catalogLead} wide>
+      {hosted ? <ForYou /> : null}
+      {session.installation.catalog ? <Categories /> : null}
+      {hosted ? <Section title={app.words.sharing}><SharingChoice /></Section> : null}
     </Page>
   );
 }
@@ -206,12 +230,12 @@ export function DiscoverPage() {
 /** One category's popular sources, all of them, most popular first with some chance. */
 export function CatalogCategoryPage({ id }: { id: CatalogCategory }) {
   const session = useSession().data;
-  const hosted = session?.installation.mode === "hosted";
-  const q = useQuery({ ...catalogQuery(id), enabled: hosted });
+  const available = !!session?.installation.catalog;
+  const q = useQuery({ ...catalogQuery(id), enabled: available });
   const open = useNotFollowed();
   const ordered = useMemo(() => byChance(q.data?.categories[0]?.sources ?? []), [q.data]);
   const name = copy.categories[id];
-  if (session && !hosted) return <Page title={name}><Note>{copy.hostedOnly}</Note></Page>;
+  if (session && !available) return <Page title={name}><Note>{copy.noCatalog}</Note></Page>;
   const rows = ordered.filter(open);
   return (
     <Page title={name} lead={copy.categoryLead}>
