@@ -29,7 +29,7 @@ export const OVERVIEW_PER_CATEGORY = 24;
 const LANGUAGE = "en";
 const KINDS = new Set(["feed", "youtube", "podcast"]);
 
-type Entry = Omit<CatalogSource, "iconUrl"> & { category: CatalogCategory; feed_url: string; iconDigest: string | null };
+type Entry = Omit<CatalogSource, "iconUrl"> & { category: CatalogCategory; feed_url: string; iconDigest: string | null; weight: number };
 type Loaded = { mtimeMs: number; size: number; byCategory: Map<CatalogCategory, Entry[]>; all: Entry[] };
 type Row = { feed_url: string; title: string; site_url: string | null; category: string; kind: string; description: string | null; weight: number; icon: Uint8Array | null };
 const loaded = new Map<string, Loaded | null>();
@@ -83,8 +83,23 @@ export function readCatalog(file: string): Loaded | null {
 /** When a catalog that couldn't be read was last looked at, so it is tried again only once it changes. */
 const stamps = new Map<string, string>();
 
-const shown = ({ key, title, host, feedUrl, kind, description, weight, iconDigest: digest, hue, initials }: Entry): CatalogSource =>
-  ({ key, title, host, feedUrl, kind, description, weight, iconUrl: digest ? catalogIconPath(digest) : null, hue, initials });
+/** What a reader's browser gets of a source. Popularity figures never leave the server: only the order they led to does. */
+const shown = ({ key, title, host, feedUrl, kind, description, iconDigest: digest, hue, initials }: Entry): CatalogSource =>
+  ({ key, title, host, feedUrl, kind, description, iconUrl: digest ? catalogIconPath(digest) : null, hue, initials });
+
+/** How much chance reorders the popular sources, on their log-scale weight. */
+const CHANCE = 1;
+
+/**
+ * Sources most popular first, with chance: each weight gets Gumbel noise from `random`, so a popular source usually comes early but
+ * the order differs on every request. Pure for a given `random`.
+ */
+export function byChance<T extends { weight: number }>(list: readonly T[], random: () => number = Math.random): T[] {
+  return list
+    .map((s) => ({ s, v: s.weight - CHANCE * Math.log(-Math.log(Math.min(Math.max(random(), 1e-12), 1 - 1e-12))) }))
+    .sort((a, b) => b.v - a.v)
+    .map((x) => x.s);
+}
 
 /** A catalog source's icon by its digest, read from the file; not found when no shown source has it. */
 export function catalogIcon(app: App, digest: string): { bytes: Uint8Array; digest: string } {
@@ -104,7 +119,7 @@ export const hasCatalog = (app: App): boolean => (readCatalog(app.config.catalog
 
 /**
  * The catalog for the signed-in reader: every category's most popular sources (all of one category's when `category` is given),
- * leaving out the sources the reader has. No categories when the installation has no catalog.
+ * in a new order with chance on each request and without their figures, leaving out the sources the reader has. No categories when the installation has no catalog.
  */
 export function catalogFor(app: App, p: Principal, category?: string): CatalogResponse {
   if (category !== undefined && !isCatalogCategory(category)) throw notFound(server.api.discover.discoverName);
@@ -116,7 +131,7 @@ export function catalogFor(app: App, p: Principal, category?: string): CatalogRe
   const categories: CatalogCategoryList[] = ids.flatMap((id) => {
     const open = cat.byCategory.get(id)!.filter((e) => !skip.has(e.key));
     if (!open.length) return [];
-    return [{ id, total: open.length, sources: (category === undefined ? open.slice(0, OVERVIEW_PER_CATEGORY) : open).map(shown) }];
+    return [{ id, total: open.length, sources: byChance(category === undefined ? open.slice(0, OVERVIEW_PER_CATEGORY) : open).map(shown) }];
   });
   return { categories };
 }

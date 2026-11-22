@@ -5,7 +5,7 @@ import { app } from "@purss/copy/app";
 import { Avatar, Button, Check, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
-import { byChance, shuffled } from "../../lib/discovery.ts";
+import { shuffled } from "../../lib/discovery.ts";
 import { plural, shortDate } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useColumns } from "../../pages/Home.tsx";
@@ -161,9 +161,7 @@ function useNotFollowed(): (s: CatalogSource) => boolean {
 function CategoryBox({ list }: { list: CatalogCategoryList }) {
   const nav = useNav();
   const open = useNotFollowed();
-  // Chance is drawn once per visit to the page: the list keeps its order while the page is open.
-  const ordered = useMemo(() => byChance(list.sources), [list.sources]);
-  const rows = ordered.filter(open).slice(0, BOX_ROWS);
+  const rows = list.sources.filter(open).slice(0, BOX_ROWS);
   const name = copy.categories[list.id];
   const go = () => nav.goPath(catalogPath(list.id));
   const [shut, toggle] = useShut(list.id);
@@ -233,10 +231,9 @@ export function CatalogCategoryPage({ id }: { id: CatalogCategory }) {
   const available = !!session?.installation.catalog;
   const q = useQuery({ ...catalogQuery(id), enabled: available });
   const open = useNotFollowed();
-  const ordered = useMemo(() => byChance(q.data?.categories[0]?.sources ?? []), [q.data]);
   const name = copy.categories[id];
   if (session && !available) return <Page title={name}><Note>{copy.noCatalog}</Note></Page>;
-  const rows = ordered.filter(open);
+  const rows = (q.data?.categories[0]?.sources ?? []).filter(open);
   return (
     <Page title={name} lead={copy.categoryLead}>
       {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what={copy.catalogName} onRetry={() => void q.refetch()} /> : (

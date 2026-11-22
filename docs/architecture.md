@@ -579,8 +579,9 @@ an icon (a WebP as a followed source's icon is stored); only English rows are se
 a source without an icon shows, and an icon is read from the file when `GET /api/suggestions/catalog/icons/:digest`
 asks for it ([A catalog of popular sources](self-hosting.md#a-catalog-of-popular-sources)). `GET /api/suggestions/catalog` sends each category's 24 most popular
 sources, leaving out what the reader has (by `feedKey`, and private sources by their keyed hash), and
-`GET /api/suggestions/catalog/:category` all of one category's. The page shuffles the boxes and orders each box by
-weight plus Gumbel noise on every visit, showing six; a source's latest posts come from an ordinary
+`GET /api/suggestions/catalog/:category` all of one category's. The server orders them by weight plus Gumbel noise on
+each request and never sends a weight or any other popularity figure; the page asks anew on each visit, shuffles the
+boxes and shows six in each; a source's latest posts come from an ordinary
 `POST /api/discover` lookup, and the boxes start folded, the ones opened remembered in the browser's layout hints.
 
 **Outgoing email.** Optional (`PURSS_SMTP_*`, `PURSS_MAIL_FROM`; `apps/api/src/mail`). The API sends

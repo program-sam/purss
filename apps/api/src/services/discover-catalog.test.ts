@@ -8,7 +8,7 @@ import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { extraRouters } from "../routes/index.ts";
 import { publicRouter } from "../routes/public.ts";
-import { OVERVIEW_PER_CATEGORY, catalogNamed } from "./discover-catalog.ts";
+import { OVERVIEW_PER_CATEGORY, byChance, catalogNamed } from "./discover-catalog.ts";
 
 type Row = { feed_url: string; title: string; site_url?: string | null; category: string; kind?: string; language?: string; description?: string | null; weight: number; icon?: Uint8Array | null };
 
@@ -64,13 +64,16 @@ test("Discovery's catalog lists each category's popular sources, most popular fi
 
   writeCatalog(b.app.config.catalogFile, rows);
   const all = (await get(b, reader)).json as CatalogResponse;
-  assert.deepEqual(all.categories.map((c) => [c.id, c.total, c.sources.map((s) => s.title)]), [
+  assert.deepEqual(all.categories.map((c) => [c.id, c.total, c.sources.map((s) => s.title).sort()]), [
     ["news", 1, ["BBC News"]],
-    ["technology", 5, ["The Verge", "TechCrunch", "Some Channel", "A Show", "Plain Show"]],
+    ["technology", 5, ["A Show", "Plain Show", "Some Channel", "TechCrunch", "The Verge"]],
   ], "other languages, unknown categories and kinds, and a second address of one feed are left out");
-  const [verge, , channel, show, plain] = all.categories[1]!.sources;
+  const named = (title: string) => all.categories[1]!.sources.find((s) => s.title === title)!;
+  const [verge, channel, show, plain] = [named("The Verge"), named("Some Channel"), named("A Show"), named("Plain Show")];
+  const raw = (await get(b, reader)).text;
+  assert.doesNotMatch(raw, /weight|subscribers|popularity|14\.2/i, "no popularity figure reaches the browser");
   const { hueFor } = await import("./content.ts");
-  assert.deepEqual(verge, { key: "www.theverge.com/rss/index.xml", title: "The Verge", host: "theverge.com", feedUrl: "https://www.theverge.com/rss/index.xml", kind: "feed", description: "Technology news", weight: 14.2, iconUrl: null, hue: hueFor("The Verge"), initials: "TV" });
+  assert.deepEqual(verge, { key: "www.theverge.com/rss/index.xml", title: "The Verge", host: "theverge.com", feedUrl: "https://www.theverge.com/rss/index.xml", kind: "feed", description: "Technology news", iconUrl: null, hue: hueFor("The Verge"), initials: "TV" });
   assert.match(show!.iconUrl ?? "", /^\/api\/suggestions\/catalog\/icons\/[0-9a-f]{32}$/, "a source with an icon has it served here");
   assert.notEqual(channel!.iconUrl, show!.iconUrl);
   assert.equal(plain!.iconUrl, null, "only a WebP counts as an icon");
@@ -90,7 +93,7 @@ test("Discovery's catalog lists each category's popular sources, most popular fi
   const secret = makeSource(b.app, reader, "Mine", "secret", { isPrivate: true });
   b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.workspaceId, "https://feeds.bbci.co.uk/news/rss.xml"), secret);
   const mine = (await get(b, reader)).json as CatalogResponse;
-  assert.deepEqual(mine.categories.map((c) => [c.id, c.total, c.sources.map((s) => s.title)]), [["technology", 3, ["Some Channel", "A Show", "Plain Show"]]], "a category with nothing left is left out");
+  assert.deepEqual(mine.categories.map((c) => [c.id, c.total, c.sources.map((s) => s.title).sort()]), [["technology", 3, ["A Show", "Plain Show", "Some Channel"]]], "a category with nothing left is left out");
 
   // One category's page has all of them; an unknown category is not found.
   const many = Array.from({ length: OVERVIEW_PER_CATEGORY + 5 }, (_, i) => ({ feed_url: `https://s${i}.example/feed`, title: `Site ${i}`, category: "food", weight: 100 - i }));
@@ -104,6 +107,17 @@ test("Discovery's catalog lists each category's popular sources, most popular fi
   assert.equal(page.categories[0]!.sources.length, OVERVIEW_PER_CATEGORY + 5);
   assert.deepEqual(((await get(b, reader, "/api/suggestions/catalog/sports")).json as CatalogResponse).categories, []);
   assert.equal((await get(b, reader, "/api/suggestions/catalog/knitting")).status, 404);
+});
+
+test("popular sources come in a different order each time, yet the most popular usually come first", () => {
+  const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) + 0.5) / 2 ** 31;
+  const list = Array.from({ length: 30 }, (_, i) => ({ id: i, weight: 14 - i * 0.4 }));
+  const a = byChance(list, seeded(1)).map((s) => s.id);
+  assert.notDeepEqual(a, byChance(list, seeded(2)).map((s) => s.id), "chance changes the order");
+  assert.deepEqual([...a].sort((x, y) => x - y), list.map((s) => s.id), "nothing lost or doubled");
+  let topSix = 0;
+  for (let seed = 1; seed <= 200; seed++) topSix += byChance(list, seeded(seed)).slice(0, 6).filter((s) => s.id < 6).length;
+  assert.ok(topSix / 200 > 3, `on average more than half of a box is the six most popular (${topSix / 200})`);
 });
 
 test("a name search lists the catalog's sources after the readers' and before Wikidata's", async (t) => {

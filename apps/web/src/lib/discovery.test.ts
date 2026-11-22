@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { byChance, preselect, shuffled } from "./discovery.ts";
+import { preselect, shuffled } from "./discovery.ts";
 
 const m = (...flags: (boolean | undefined)[]) => flags.map((matchesPage) => ({ matchesPage }));
 
@@ -55,17 +55,6 @@ test("anything found in the page's scripts is offered and never chosen for the p
 
 /** A seeded stand-in for Math.random. */
 const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) + 0.5) / 2 ** 31;
-
-test("popular sources come in a different order on each visit, yet the most popular usually come first", () => {
-  const list = Array.from({ length: 30 }, (_, i) => ({ id: i, weight: 14 - i * 0.4 }));
-  const a = byChance(list, seeded(1)).map((s) => s.id);
-  const b = byChance(list, seeded(2)).map((s) => s.id);
-  assert.notDeepEqual(a, b, "chance changes the order");
-  assert.deepEqual([...a].sort((x, y) => x - y), list.map((s) => s.id), "nothing lost or doubled");
-  let topSix = 0;
-  for (let seed = 1; seed <= 200; seed++) topSix += byChance(list, seeded(seed)).slice(0, 6).filter((s) => s.id < 6).length;
-  assert.ok(topSix / 200 > 3, `on average more than half of a box is the six most popular (${topSix / 200})`);
-});
 
 test("the category boxes are shuffled without losing or doubling one", () => {
   const boxes = ["news", "technology", "science", "food", "sports"];
