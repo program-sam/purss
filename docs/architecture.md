@@ -569,6 +569,16 @@ sources, a reader whose sources match nothing gets popular sources with noise, a
 show, each naming the reader's own sources that led to it. The rebuild is quadratic in each account's followed
 sources.
 
+The Discover page also shows popular sources by category from a catalog file, `discover-catalog.sqlite` in the
+data directory (`services/discover-catalog.ts`). It is an editorial file of the hosted service, kept on its server
+and never in the repository; only a hosted installation reads it, read-only, keeping it in memory until the file
+changes on disk. Its `sources` table holds a feed address, title, site, one of the categories in
+`CATALOG_CATEGORIES`, a kind (feed, YouTube, podcast), a language, a short description and a popularity weight on a
+log scale; only English rows are served. `GET /api/suggestions/catalog` sends each category's 24 most popular
+sources, leaving out what the reader has (by `feedKey`, and private sources by their keyed hash), and
+`GET /api/suggestions/catalog/:category` all of one category's. The page shuffles the boxes and orders each box by
+weight plus Gumbel noise on every visit, showing six; a preview is an ordinary `POST /api/discover` lookup.
+
 **Outgoing email.** Optional (`PURSS_SMTP_*`, `PURSS_MAIL_FROM`; `apps/api/src/mail`). The API sends
 through nodemailer: invitation links, sign-up links, address confirmation, password-reset links and
 change notices. Every account signs in with its email address, one account per address

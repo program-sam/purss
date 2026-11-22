@@ -468,6 +468,11 @@ keeps and serves none of it and has no Discover page.
 - **When.** The graph is rebuilt every 6 hours, and within a minute after someone changes the sharing
   setting, in the API process. Until at least one source reaches the threshold the page says *Coming soon*.
   Scoring is described in [Architecture](architecture.md).
+- **Popular sources by topic.** Below the suggestions, the Discover page shows one box per topic with
+  popular sources, read from `discover-catalog.sqlite` in the data directory. That file is an
+  editorial choice of the hosted service: it is put on the server by hand and is not part of this
+  repository, and a self-hosted installation never reads it, even if one is there. Without the file
+  the page shows no topic boxes. Add source's name search also lists the file's sources of that name.
 
 ## Outgoing email
 

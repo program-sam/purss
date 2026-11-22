@@ -101,7 +101,7 @@ What you can paste:
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
 | A YouTube video | Keeping the video (with its real title, channel and picture) and following its channel are choices in one list, starting on keeping the video. If the link names a playlist, that playlist is offered too |
-| A site's or podcast's name instead of a link | **Search** looks the name up in two places at once (what you typed is sent there, and the screen says so): Wikidata, the open knowledge base, for the official websites of things with that name, and Apple's podcast directory for shows. On a hosted server that shares sources, sources many of its readers follow under that name come first, marked *Followed by other readers here* (never a private source). Choose a website and it is searched like a pasted link; choose a show to see its latest episodes, then follow its own feed. A name Wikidata doesn't know (a small blog, say) finds nothing there: paste the site's address instead |
+| A site's or podcast's name instead of a link | **Search** looks the name up in two places at once (what you typed is sent there, and the screen says so): Wikidata, the open knowledge base, for the official websites of things with that name, and Apple's podcast directory for shows. On a hosted server that shares sources, sources many of its readers follow under that name come first, marked *Followed by other readers here* (never a private source), then sources of that name from Discovery's popular sources. Choose a website and it is searched like a pasted link; choose a show to see its latest episodes, then follow its own feed. A name Wikidata doesn't know (a small blog, say) finds nothing there: paste the site's address instead |
 | A series page of the Guardian whose series is a podcast | The podcast feed is offered first and chosen; the articles feed comes second |
 | A GitHub repository (`github.com/owner/repo`) | Its *Releases* feed, and its *Tags* feed when it lists tags that have no release (otherwise the two feeds are the same) |
 | A GitHub user or organisation (`github.com/name`) | Its public activity feed |
@@ -729,17 +729,24 @@ export and import.
 
 ## Discovery
 
-On the hosted service, **Discovery** suggests new sources, picked from what readers like you
-follow. Each suggestion says which of your sources led to it. A few random picks are mixed in,
-and the list changes daily. **Follow…** opens Add source; **Not interested** hides a suggestion
-for good.
+On the hosted service, **Discovery** helps you find new sources. The first box,
+**Recommended based on your sources**, suggests sources picked from what readers like you follow.
+Each suggestion says which of your sources led to it. A few random picks are mixed in, and the list
+changes daily. **Follow…** opens Add source; **Not interested** hides a suggestion for good.
+
+Below it, one box per topic (news, technology, science, food, and so on) lists popular sources,
+roughly by how many people follow them in feed readers, with some chance in the order. The boxes
+and the sources in them come in a new order each time you open the page, and sources you already
+have are left out. **See all** opens the topic's full list. **Preview** shows a source's latest
+posts right there, and **Follow…** opens Add source. The hosted service chose these sources itself;
+it only lists English sources for now.
 
 To get suggestions, keep **Share my sources** on (Settings → General, or on the Discovery page).
 Your sources then count anonymously: a source only counts once 10 people follow it, nobody sees
 who follows what, and private sources never count. Turn it off and your sources leave the counts
 within minutes, and you stop getting suggestions.
 
-The page says **Coming soon** until enough people share. Self-hosted PURSSes have no Discovery.
+The first box says **Coming soon** until enough people share. Self-hosted PURSSes have no Discovery.
 
 ## Reminders
 

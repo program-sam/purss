@@ -149,7 +149,7 @@ function NoHomeCollections({ inline = false }: { inline?: boolean }) {
  * How many columns of boxes fit. The width is measured before the first paint, so the boxes are laid out once and
  * stay where they are; only resizing the window moves them.
  */
-function useColumns(): number {
+export function useColumns(): number {
   const bp = useBreakpoint();
   const [width, setWidth] = useState(() => document.getElementById("main")?.clientWidth ?? 0);
   useLayoutEffect(() => {

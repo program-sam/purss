@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { AdminAccountDTO, AdminHealth, AdminJob, AuditEventDTO, DiscoverResponse, ReconcileList, ShareDTO, ShareReportDTO, ShareTarget } from "@purss/domain";
+import type { AdminAccountDTO, AdminHealth, AdminJob, AuditEventDTO, CatalogCategory, CatalogResponse, DiscoverResponse, ReconcileList, ShareDTO, ShareReportDTO, ShareTarget } from "@purss/domain";
 import { get } from "../../api/client.ts";
 
 /** Query keys and fetchers for the feature pages (data, sharing, review, admin). */
@@ -14,9 +14,17 @@ export const fkeys = {
   adminAccounts: ["feature", "admin", "accounts"] as const,
   adminReports: (status: string) => ["feature", "admin", "reports", status] as const,
   suggestions: ["feature", "suggestions"] as const,
+  catalog: (category?: CatalogCategory) => ["feature", "catalog", category ?? "all"] as const,
 };
 
 export const suggestionsQuery = queryOptions({ queryKey: fkeys.suggestions, queryFn: () => get<DiscoverResponse>("/api/suggestions"), staleTime: 60_000 });
+/** Discovery's popular sources: every category's top ones, or all of one category's. Not refetched on focus, so the page's chance holds while it is open. */
+export const catalogQuery = (category?: CatalogCategory) => queryOptions({
+  queryKey: fkeys.catalog(category),
+  queryFn: () => get<CatalogResponse>(category ? `/api/suggestions/catalog/${category}` : "/api/suggestions/catalog"),
+  staleTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+});
 
 export const sharesQuery = queryOptions({ queryKey: fkeys.shares, queryFn: () => get<ShareDTO[]>("/api/shares"), staleTime: 10_000 });
 export const reconcileQuery = queryOptions({ queryKey: fkeys.reconcile, queryFn: () => get<ReconcileList>("/api/reconcile", { limit: 100 }), staleTime: 5_000 });

@@ -165,6 +165,26 @@ export type DiscoverSuggestion = {
   kind: "feed" | "youtube" | "podcast";
   reason: { kind: "because"; sourceIds: string[] } | { kind: "popular" } | { kind: "wildcard" };
 };
+/**
+ * The catalog of popular sources Discovery shows by category (hosted only): an editorial file of the hosted service, kept on its
+ * server and never in this repository, so an installation without it shows no category boxes.
+ */
+export const CATALOG_CATEGORIES = ["news", "technology", "programming", "science", "business", "design", "gaming", "entertainment", "sports", "food", "health", "travel", "culture"] as const;
+export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
+export const isCatalogCategory = (v: unknown): v is CatalogCategory => typeof v === "string" && (CATALOG_CATEGORIES as readonly string[]).includes(v);
+export type CatalogSource = {
+  key: string;
+  title: string;
+  host: string | null;
+  feedUrl: string;
+  kind: "feed" | "youtube" | "podcast";
+  description: string | null;
+  /** How popular the source is, on a log scale: only its order against other sources means anything. */
+  weight: number;
+};
+export type CatalogCategoryList = { id: CatalogCategory; total: number; sources: CatalogSource[] };
+/** The most popular sources of each category (all of them for one category's page), leaving out what the reader already follows. */
+export type CatalogResponse = { categories: CatalogCategoryList[] };
 export type DiscoverResponse = {
   /** Whether this account's followed sources count towards suggestions (preference `discoveryShare`). Only accounts that share get suggestions. */
   sharing: boolean;

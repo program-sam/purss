@@ -55,6 +55,8 @@ export type Config = {
   dataDir: string;
   secretsDir: string;
   dbFile: string;
+  /** Discovery's catalog of popular sources (hosted only): an editorial file put on the server by hand, absent elsewhere. */
+  catalogFile: string;
   publicHost: string;
   publicPort: number;
   internalHost: string;
@@ -206,6 +208,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir,
     secretsDir: path.join(dataDir, "secrets"),
     dbFile: env.PURSS_DB_FILE ?? path.join(dataDir, "product.db"),
+    catalogFile: path.join(dataDir, "discover-catalog.sqlite"),
     publicHost: env.PURSS_HOST ?? "127.0.0.1",
     publicPort,
     internalHost: env.PURSS_INTERNAL_HOST ?? "127.0.0.1",

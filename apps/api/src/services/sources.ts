@@ -9,6 +9,7 @@ import type { App, Principal } from "../app.ts";
 import { bridgeOptions } from "./bridge.ts";
 import { recordDiscoveryMiss } from "./discovery-misses.ts";
 import { sourcesNamed } from "./discover.ts";
+import { catalogNamed } from "./discover-catalog.ts";
 import { emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
@@ -192,16 +193,18 @@ export function resetSiteSearchCache(): void {
 
 /**
  * Websites named like `query`: the public sources other readers here follow (sourcesNamed: hosted, sharing readers only, never a private
- * source), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
- * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' sources when there are any.
+ * source), then the sources of Discovery's catalog with that name (catalogNamed: hosted only), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
+ * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' and the catalog's sources when there are any.
  */
 export async function searchSiteDirectory(app: App, p: Principal, query: string, opts?: SiteSearchOptions): Promise<SiteSearchResponse> {
-  const readers: SiteSearchHit[] = sourcesNamed(app, p, query).map((s) => ({ name: s.title, description: null, address: s.feedUrl, site: s.host ?? hostOf(s.feedUrl), from: "readers" }));
+  const followed: SiteSearchHit[] = sourcesNamed(app, p, query).map((s) => ({ name: s.title, description: null, address: s.feedUrl, site: s.host ?? hostOf(s.feedUrl), from: "readers" }));
+  const followedSites = new Set(followed.map((h) => h.site));
+  const known = [...followed, ...catalogNamed(app, query).filter((h) => !followedSites.has(h.site))];
   const found = await cachedSiteSearch(query, opts);
-  if (!found.ok) return readers.length ? { ok: true, query, hits: readers } : { ok: false, reason: found.reason, message: found.message };
-  const listed = new Set(readers.map((h) => h.site));
+  if (!found.ok) return known.length ? { ok: true, query, hits: known } : { ok: false, reason: found.reason, message: found.message };
+  const listed = new Set(known.map((h) => h.site));
   const wikidata: SiteSearchHit[] = found.hits.filter((h) => !listed.has(hostOf(h.siteUrl))).map((h) => ({ name: h.name, description: h.description, address: h.siteUrl, site: hostOf(h.siteUrl), from: "wikidata" }));
-  return { ok: true, query, hits: [...readers, ...wikidata] };
+  return { ok: true, query, hits: [...known, ...wikidata] };
 }
 
 /** The followed sources by the part of their name that says what they are, to point out a second source with the same name. */

@@ -465,7 +465,7 @@ export type PodcastSearchResponse =
  * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
  * looked up when the hit is chosen: the source's feed, or the website.
  */
-export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "wikidata" };
+export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalog" | "wikidata" };
 export type SiteSearchResponse =
   | { ok: true; query: string; hits: SiteSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
