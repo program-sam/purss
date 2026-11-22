@@ -205,7 +205,7 @@ export default {
   pages: {
     home: {
       open: "Open ",
-      nothingNewYet: "Nothing new yet. Posts from before you followed are kept as Ignored: search finds them.",
+      nothingNewYet: "All caught up! Nothing new yet. Open the collection for older or finished posts.",
       noSources: "No sources yet.",
       nothingHere: "Nothing here yet.",
       noCollectionsOnHome: "No collections on Home",
