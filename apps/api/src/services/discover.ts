@@ -11,7 +11,7 @@ import { urlKey } from "./url-key.ts";
 import { server } from "@purss/copy/server";
 
 /** The co-follow key of a feed address: a web address without its noise, or a bridged source's descriptor. */
-const feedKey = (feedUrl: string): string | null => bridgeAddress(feedUrl) ?? urlKey(feedUrl);
+export const feedKey = (feedUrl: string): string | null => bridgeAddress(feedUrl) ?? urlKey(feedUrl);
 
 /*
  * Discover (hosted installations only; a self-hosted installation never builds, keeps or serves any
@@ -61,7 +61,7 @@ function top<T>(counts: Map<T, number>): [T, number] | null {
 }
 const bump = <T>(m: Map<T, number>, v: T) => m.set(v, (m.get(v) ?? 0) + 1);
 
-function hostOf(url: string | null): string | null {
+export function hostOf(url: string | null): string | null {
   if (!url) return null;
   try { const u = new URL(url); return u.protocol === "http:" || u.protocol === "https:" ? u.hostname.replace(/^www\./, "") || null : null; } catch { return null; }
 }
@@ -195,6 +195,29 @@ export function arrange(matched: Candidate[], popular: { key: string; followers:
   return out;
 }
 
+/**
+ * The keys (feedKey) of every source the reader has, followed now or once, in `skip`; in `mine` the followed ones, each with the
+ * reader's source id.
+ */
+export function ownSources(app: App, p: Principal): { skip: Set<string>; mine: Map<string, string> } {
+  const skip = new Set<string>();
+  const mine = new Map<string, string>();
+  for (const s of app.db.all<{ id: string; feed_url: string; followed: number }>(
+    "SELECT id, feed_url, followed FROM sources WHERE workspace_id = ? AND feed_url IS NOT NULL ORDER BY created_at, id", p.workspaceId)) {
+    const k = feedKey(s.feed_url);
+    if (!k) continue;
+    skip.add(k);
+    if (s.followed && !mine.has(k)) mine.set(k, s.id);
+  }
+  return { skip, mine };
+}
+
+/** A private source keeps only a keyed hash of its address: a candidate with the same hash is the reader's already, and joins `skip`. */
+export function skipPrivate(app: App, p: Principal, candidates: readonly { key: string; feed_url: string }[], skip: Set<string>): void {
+  const privateKeys = new Set(app.db.all<{ feed_key: string }>("SELECT feed_key FROM sources WHERE workspace_id = ? AND feed_key IS NOT NULL", p.workspaceId).map((r) => r.feed_key));
+  if (privateKeys.size) for (const r of candidates) { const k = privateFeedKey(app, p.workspaceId, r.feed_url); if (k && privateKeys.has(k)) skip.add(r.key); }
+}
+
 const CHUNK = 400;
 
 /** Suggestions for the signed-in account. Not found on a self-hosted installation. */
@@ -206,23 +229,12 @@ export function suggestionsFor(app: App, p: Principal, now = new Date()): Discov
   const ready = !!app.db.get("SELECT 1 FROM discovery_sources LIMIT 1");
   if (!sharing || !ready) return { sharing, ready, suggestions: [] };
   // What the reader follows, followed once, or said no to never comes back as a suggestion.
-  const own = app.db.all<{ id: string; feed_url: string; followed: number }>(
-    "SELECT id, feed_url, followed FROM sources WHERE workspace_id = ? AND feed_url IS NOT NULL ORDER BY created_at, id", p.workspaceId);
-  const skip = new Set<string>();
-  const mine = new Map<string, string>(); // key -> the reader's source id
-  for (const s of own) {
-    const k = feedKey(s.feed_url);
-    if (!k) continue;
-    skip.add(k);
-    if (s.followed && !mine.has(k)) mine.set(k, s.id);
-  }
+  const { skip, mine } = ownSources(app, p);
   for (const d of app.db.all<{ key: string }>("SELECT key FROM discovery_dismissed WHERE workspace_id = ?", p.workspaceId)) skip.add(d.key);
 
   const all = app.db.all<{ key: string; feed_url: string; followers: number }>("SELECT key, feed_url, followers FROM discovery_sources");
   const followers = new Map(all.map((r) => [r.key, r.followers]));
-  // A private source keeps only a keyed hash of its address: a suggestion with the same hash is already followed.
-  const privateKeys = new Set(app.db.all<{ feed_key: string }>("SELECT feed_key FROM sources WHERE workspace_id = ? AND feed_key IS NOT NULL", p.workspaceId).map((r) => r.feed_key));
-  if (privateKeys.size) for (const r of all) { const k = privateFeedKey(app, p.workspaceId, r.feed_url); if (k && privateKeys.has(k)) skip.add(r.key); }
+  skipPrivate(app, p, all, skip);
   const scores = new Map<string, { score: number; parts: { id: string; w: number }[] }>();
   const keys = [...mine.keys()].filter((k) => followers.has(k));
   for (let i = 0; i < keys.length; i += CHUNK) {
@@ -268,8 +280,8 @@ export function dismissSuggestion(app: App, p: Principal, key: string): { ok: tr
 }
 
 /** Sources named in a name search at most. */
-const NAMED = 5;
-const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+export const NAMED = 5;
+export const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
 /**
  * The public sources of the co-follow graph whose shown name or site matches a typed name, for Add source's name search. Only what the

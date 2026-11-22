@@ -55,6 +55,8 @@ export type SessionInfo = {
     accountEmail: boolean;
     /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
     billing: boolean;
+    /** The installation has a catalog of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
+    catalog: boolean;
   };
 };
 /** The signed-in account's email address. */
@@ -465,7 +467,7 @@ export type PodcastSearchResponse =
  * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
  * looked up when the hit is chosen: the source's feed, or the website.
  */
-export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "wikidata" };
+export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalog" | "wikidata" };
 export type SiteSearchResponse =
   | { ok: true; query: string; hits: SiteSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };

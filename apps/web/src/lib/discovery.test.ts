@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { preselect } from "./discovery.ts";
+import { byChance, preselect, shuffled } from "./discovery.ts";
 
 const m = (...flags: (boolean | undefined)[]) => flags.map((matchesPage) => ({ matchesPage }));
 
@@ -51,4 +51,25 @@ test("anything found in the page's scripts is offered and never chosen for the p
   assert.equal(preselect([{ ...feed, matchesPage: true }]), -1, "whatever the page's flag says");
   assert.equal(preselect([feed, { matchesPage: true }]), 1, "a candidate that is shown to be the page's own is still chosen");
   assert.equal(preselect([feed, { matchesPage: undefined, alternative: true }]), 1, "an alternative that is not from scripts is chosen when it is all there is");
+});
+
+/** A seeded stand-in for Math.random. */
+const seeded = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) + 0.5) / 2 ** 31;
+
+test("popular sources come in a different order on each visit, yet the most popular usually come first", () => {
+  const list = Array.from({ length: 30 }, (_, i) => ({ id: i, weight: 14 - i * 0.4 }));
+  const a = byChance(list, seeded(1)).map((s) => s.id);
+  const b = byChance(list, seeded(2)).map((s) => s.id);
+  assert.notDeepEqual(a, b, "chance changes the order");
+  assert.deepEqual([...a].sort((x, y) => x - y), list.map((s) => s.id), "nothing lost or doubled");
+  let topSix = 0;
+  for (let seed = 1; seed <= 200; seed++) topSix += byChance(list, seeded(seed)).slice(0, 6).filter((s) => s.id < 6).length;
+  assert.ok(topSix / 200 > 3, `on average more than half of a box is the six most popular (${topSix / 200})`);
+});
+
+test("the category boxes are shuffled without losing or doubling one", () => {
+  const boxes = ["news", "technology", "science", "food", "sports"];
+  const out = shuffled(boxes, seeded(3));
+  assert.deepEqual([...out].sort(), [...boxes].sort());
+  assert.deepEqual(boxes, ["news", "technology", "science", "food", "sports"], "the list given is left as it was");
 });

@@ -123,7 +123,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
   const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
   const paused = ws.data.paused ?? null;
   const hosted = session?.installation.mode === "hosted";
-  const pages = workspacePages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.hostedOnly || hosted));
+  const pages = workspacePages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
   // A single administrator page sits under More rather than under a heading with the same name.
   const adminOnly = pages.filter((p) => p.adminOnly);
   const morePages = pages.filter((p) => !p.adminOnly || adminOnly.length === 1);

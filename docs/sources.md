@@ -78,7 +78,9 @@ once, and a result chosen there is looked up like a pasted address:
   most an hour); its limit counts the installation's whole address. On a hosted installation, sources
   of the Discover graph whose shared name or site contains the name come first (`sourcesNamed`), only
   for a reader who shares: the same public, ten-reader sources Discover suggests, never a private one,
-  and never with a count. A Wikidata failure still shows those.
+  and never with a count. Then come up to five sources of Discover's catalog of popular sources whose name or
+  site contains the name (`catalogNamed`, when the installation has a catalog; see [Architecture](architecture.md)), most popular
+  first. A Wikidata failure still shows those.
 - **Podcasts** (`POST /api/discover/podcasts`, `podcast-search.ts`): Apple's podcast directory.
 
 Each search allows 60 a person per ten minutes. One failing still shows what the other found.
@@ -394,7 +396,7 @@ which could go; they are never shown to anyone else.
 | --- | --- |
 | `paste` | Add source with a link (the default) |
 | `site-search` · `podcast-search` | choosing a website or a show from the name search |
-| `suggestion` | following a source suggested on the Discovery page |
+| `suggestion` | following or previewing a source suggested on the Discovery page, including its popular sources |
 | `shared-link` | a link shared to the app, or opened as a link to it (`?dialog=add&url=…`) |
 | `opml-import` | a list of feeds imported (OPML) |
 | `extension` | the browser extension's token (the server decides this) |

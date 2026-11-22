@@ -468,6 +468,36 @@ keeps and serves none of it and has no Discover page.
 - **When.** The graph is rebuilt every 6 hours, and within a minute after someone changes the sharing
   setting, in the API process. Until at least one source reaches the threshold the page says *Coming soon*.
   Scoring is described in [Architecture](architecture.md).
+- **Popular sources by topic.** Below the suggestions, the Discover page shows one box per topic with
+  popular sources, read from `discover-catalog.sqlite` in the data directory. The hosted service's
+  catalog is its own editorial choice, put on its server by hand and not part of this repository.
+  Without the file the page shows no topic boxes. Add source's name search also lists the file's
+  sources of that name.
+
+### A catalog of popular sources
+
+Any installation can show popular sources by topic on its Discover page: put a SQLite file named
+`discover-catalog.sqlite` in the data directory (the `data` volume, `/data` in the containers). PURSS
+reads it read-only, picks up a changed file without a restart, and leaves out a file it can't read
+(the API log says why). The Discover page then appears in the menu even on a self-hosted
+installation, without the suggestions. The file needs one table:
+
+```sql
+CREATE TABLE sources (
+  feed_url TEXT PRIMARY KEY,   -- the address to follow
+  title TEXT NOT NULL,
+  site_url TEXT,
+  category TEXT NOT NULL,      -- news, technology, programming, science, business, design, gaming,
+                               -- entertainment, sports, food, health, travel or culture
+  kind TEXT NOT NULL,          -- feed, youtube or podcast
+  language TEXT NOT NULL,      -- a language code; only "en" rows are shown
+  description TEXT,
+  weight REAL NOT NULL,        -- popularity on a log scale, e.g. ln(1 + subscribers)
+  image_url TEXT               -- optional: a podcast's https artwork
+);
+```
+
+Other tables in the file are ignored.
 
 ## Outgoing email
 
