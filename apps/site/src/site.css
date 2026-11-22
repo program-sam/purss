@@ -5,7 +5,6 @@ a{text-decoration:none}
 .s-wrap{max-width:1180px;margin:0 auto;padding:0 28px}
 .s-sec{padding:88px 0}
 .s-sec.tight{padding:56px 0}
-.s-kicker{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink)}
 .s-h1{text-wrap:balance;font-size:clamp(40px,5.6vw,68px);font-weight:900;letter-spacing:-.035em;line-height:1.02;color:var(--ink)}
 .s-h2{text-wrap:balance;font-size:clamp(28px,3.4vw,42px);font-weight:900;letter-spacing:-.025em;line-height:1.1}
 .s-h3{font-size:19px;font-weight:800;letter-spacing:-.01em;line-height:1.25}

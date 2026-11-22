@@ -247,10 +247,10 @@ export const home = {
 
 <section class="pf-sec" id="features"><div class="pf-feats">${FEATURES.map((f) => `<section class="mod"><div class="mod-h"><div class="mod-t">${ic(f.icon)}<span class="t">${f.label}</span></div></div><div class="mod-b"><p>${f.text}</p></div></section>`).join("")}</div></section>
 
-<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${ic("phone")}${copy.words.appsAndExtensions}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.apps.heading}</h2></div>
+<section class="s-sec s-tint" id="apps"><div class="s-wrap"><div class="s-center"><h2 class="s-h2" style="margin:0 0 12px">${copy.home.apps.heading}</h2></div>
 <div class="s-feats" style="margin-top:40px">${appCards(site)}</div></div></section>
 
-<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><span class="s-kicker">${copy.words.pricing}</span><h2 class="s-h2" style="margin:10px 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
+<section class="s-sec" id="pricing"><div class="s-wrap"><div class="s-center"><h2 class="s-h2" style="margin:0 0 12px">${copy.home.pricing.heading}</h2><p class="s-lead pk-say">${copy.home.pricing.lead}</p></div>
 ${pricingDoors(site)}</div></section>
 
 
