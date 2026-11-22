@@ -180,8 +180,6 @@ export type CatalogSource = {
   feedUrl: string;
   kind: "feed" | "youtube" | "podcast";
   description: string | null;
-  /** How popular the source is, on a log scale: only its order against other sources means anything. */
-  weight: number;
   /** The source's icon served by this PURSS (a podcast's artwork, a site's icon); without one, `initials` on `hue` like a followed source. */
   iconUrl: string | null;
   hue: number;

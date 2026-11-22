@@ -18,12 +18,12 @@ export const fkeys = {
 };
 
 export const suggestionsQuery = queryOptions({ queryKey: fkeys.suggestions, queryFn: () => get<DiscoverResponse>("/api/suggestions"), staleTime: 60_000 });
-/** Discovery's popular sources: every category's top ones, or all of one category's. Not refetched on focus, so the page's chance holds while it is open. */
+/** Discovery's popular sources: every category's top ones, or all of one category's, in the order the server drew. Asked anew on each visit and not while the page is open, so the order holds until then. */
 export const catalogQuery = (category?: CatalogCategory) => queryOptions({
   queryKey: fkeys.catalog(category),
   queryFn: () => get<CatalogResponse>(category ? `/api/suggestions/catalog/${category}` : "/api/suggestions/catalog"),
-  staleTime: 5 * 60_000,
-  refetchOnWindowFocus: false,
+  staleTime: Infinity,
+  gcTime: 0,
 });
 
 export const sharesQuery = queryOptions({ queryKey: fkeys.shares, queryFn: () => get<ShareDTO[]>("/api/shares"), staleTime: 10_000 });
