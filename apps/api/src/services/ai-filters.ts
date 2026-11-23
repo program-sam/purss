@@ -8,7 +8,7 @@ import { aiSettings, keyFor, markKeyRejected, recordUsage, serverKeyReady } from
 import { enqueue } from "./jobs.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { setWorkflowByFilter } from "./state.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Smart filters. A filter holds the person's words for which posts of a source, or of every source in a collection, to
@@ -18,8 +18,8 @@ import { server } from "@purss/copy/server";
  * Filters run on the server's Jev key, which an administrator sets (hosted: for accounts on Pro); without it, posts simply stay as they are.
  */
 
-type Owner = Pick<Principal, "accountId" | "workspaceId">;
-type FilterRow = { id: string; workspace_id: string; source_id: string | null; collection_id: string | null; keep_text: string; drop_text: string | null; when_unsure: WhenUnsure; enabled: number; version: number; created_at: string; updated_at: string };
+type Owner = Pick<Principal, "accountId" | "accountId">;
+type FilterRow = { id: string; account_id: string; source_id: string | null; collection_id: string | null; keep_text: string; drop_text: string | null; when_unsure: WhenUnsure; enabled: number; version: number; created_at: string; updated_at: string };
 
 /** Posts per filter.judge job. */
 const JUDGE_BATCH = 20;
@@ -33,10 +33,10 @@ const PREVIEW_CONCURRENCY = 5;
 
 function scopeOf(app: App, p: Owner, scope: AiFilterScope): { column: "source_id" | "collection_id"; id: string } {
   if ("sourceId" in scope) {
-    if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND workspace_id = ? AND kind <> 'manual'", scope.sourceId, p.workspaceId)) throw notFound(server.api.shared.thatSource);
+    if (!app.db.get("SELECT 1 FROM sources WHERE id = ? AND account_id = ? AND kind <> 'manual'", scope.sourceId, p.accountId)) throw notFound(server.api.shared.thatSource);
     return { column: "source_id", id: scope.sourceId };
   }
-  const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND workspace_id = ?", scope.collectionId, p.workspaceId);
+  const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND account_id = ?", scope.collectionId, p.accountId);
   if (!c) throw notFound(server.api.shared.thatCollection);
   if (c.mode !== "sources") throw badRequest(server.api.aiFilters.onlySourcesCollection, "not_sources");
   return { column: "collection_id", id: scope.collectionId };
@@ -62,7 +62,7 @@ function toDTO(app: App, r: FilterRow): AiFilterDTO {
 
 function filterRow(app: App, p: Owner, scope: AiFilterScope): FilterRow | undefined {
   const s = scopeOf(app, p, scope);
-  return app.db.get<FilterRow>(`SELECT * FROM ai_filters WHERE ${s.column} = ? AND workspace_id = ?`, s.id, p.workspaceId);
+  return app.db.get<FilterRow>(`SELECT * FROM ai_filters WHERE ${s.column} = ? AND account_id = ?`, s.id, p.accountId);
 }
 
 export function getFilter(app: App, p: Principal, scope: AiFilterScope): AiFilterDTO | null {
@@ -72,7 +72,7 @@ export function getFilter(app: App, p: Principal, scope: AiFilterScope): AiFilte
 
 /** Every filter of the PURSS, for the source and collection lists. */
 export function listFilters(app: App, p: Principal): AiFilterDTO[] {
-  return app.db.all<FilterRow>("SELECT * FROM ai_filters WHERE workspace_id = ? ORDER BY created_at", p.workspaceId).map((r) => toDTO(app, r));
+  return app.db.all<FilterRow>("SELECT * FROM ai_filters WHERE account_id = ? ORDER BY created_at", p.accountId).map((r) => toDTO(app, r));
 }
 
 /** Add or change the filter of a source or collection. New words, or turning it on, re-check the recent posts. */
@@ -80,13 +80,13 @@ export function saveFilter(app: App, p: Principal, scope: AiFilterScope, rule: A
   const saved = app.db.tx(() => {
     const s = scopeOf(app, p, scope);
     const now = nowIso();
-    const before = app.db.get<FilterRow>(`SELECT * FROM ai_filters WHERE ${s.column} = ? AND workspace_id = ?`, s.id, p.workspaceId);
+    const before = app.db.get<FilterRow>(`SELECT * FROM ai_filters WHERE ${s.column} = ? AND account_id = ?`, s.id, p.accountId);
     let id: string;
     let recheck: boolean;
     if (!before) {
       id = newId("aif");
-      app.db.run(`INSERT INTO ai_filters (id, workspace_id, ${s.column}, keep_text, drop_text, when_unsure, enabled, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-        id, p.workspaceId, s.id, rule.keep, rule.drop, rule.whenUnsure, rule.enabled ? 1 : 0, now, now);
+      app.db.run(`INSERT INTO ai_filters (id, account_id, ${s.column}, keep_text, drop_text, when_unsure, enabled, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        id, p.accountId, s.id, rule.keep, rule.drop, rule.whenUnsure, rule.enabled ? 1 : 0, now, now);
       recheck = rule.enabled;
     } else {
       id = before.id;
@@ -137,9 +137,9 @@ function queueRecheck(app: App, owner: Owner, filterId: string): void {
   const since = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const undecided = app.db.all<{ id: string }>(
     `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.workspace_id = ? AND i.source_id IN (${filterSourcesSql()}) AND st.workflow = 'new' AND st.opened_at IS NULL AND ${UNTOUCHED}
+     WHERE i.account_id = ? AND i.source_id IN (${filterSourcesSql()}) AND st.workflow = 'undecided' AND st.opened_at IS NULL AND ${UNTOUCHED}
        AND i.discovered_at >= ? AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)
-     ORDER BY i.discovered_at DESC LIMIT ${RECHECK_MAX}`, owner.workspaceId, filterId, filterId, since).map((r) => r.id);
+     ORDER BY i.discovered_at DESC LIMIT ${RECHECK_MAX}`, owner.accountId, filterId, filterId, since).map((r) => r.id);
   // What this filter dropped and nobody has touched since: a looser filter gives it back.
   const dropped = app.db.all<{ id: string }>(
     `SELECT v.item_id AS id FROM ai_filter_verdicts v JOIN item_state st ON st.item_id = v.item_id
@@ -151,26 +151,26 @@ function queueRecheck(app: App, owner: Owner, filterId: string): void {
 /** Queue judging for these posts, in jobs of JUDGE_BATCH. `announce`: they arrived just now, and the posts that stay are announced. */
 function queueJudging(app: App, owner: Owner, itemIds: readonly string[], announce: boolean): void {
   for (let i = 0; i < itemIds.length; i += JUDGE_BATCH) {
-    enqueue(app, "filter.judge", { itemIds: itemIds.slice(i, i + JUDGE_BATCH), announce }, { accountId: owner.accountId, workspaceId: owner.workspaceId, maxAttempts: 4 });
+    enqueue(app, "filter.judge", { itemIds: itemIds.slice(i, i + JUDGE_BATCH), announce }, { accountId: owner.accountId, maxAttempts: 4 });
   }
 }
 
 /** Sources of the PURSS that an enabled filter covers. */
-function filteredSources(app: App, workspaceId: string): Set<string> {
+function filteredSources(app: App, accountId: string): Set<string> {
   return new Set(app.db.all<{ source_id: string }>(
-    `SELECT source_id FROM ai_filters WHERE workspace_id = ? AND enabled = 1 AND source_id IS NOT NULL
-     UNION SELECT cs.source_id FROM ai_filters f JOIN collection_sources cs ON cs.collection_id = f.collection_id WHERE f.workspace_id = ? AND f.enabled = 1`,
-    workspaceId, workspaceId).map((r) => r.source_id));
+    `SELECT source_id FROM ai_filters WHERE account_id = ? AND enabled = 1 AND source_id IS NOT NULL
+     UNION SELECT cs.source_id FROM ai_filters f JOIN collection_sources cs ON cs.collection_id = f.collection_id WHERE f.account_id = ? AND f.enabled = 1`,
+    accountId, accountId).map((r) => r.source_id));
 }
 
 /**
- * Called by a sync batch, in its transaction, with the posts it created: the new ones (not a source's back catalogue) of filtered
+ * Called by a sync batch, in its transaction, with the posts it created: the new ones (not a source's backlog) of filtered
  * sources are queued for judging. Returns the sources whose arrivals the judging will announce instead of the sync (so a post a
  * filter drops never shows up as a notification).
  */
 export function queueNewPosts(app: App, owner: Owner, created: readonly { itemId: string; sourceId: string }[]): Set<string> {
   if (!created.length) return new Set();
-  const covered = filteredSources(app, owner.workspaceId);
+  const covered = filteredSources(app, owner.accountId);
   if (!covered.size || !keyFor(app, owner)) return new Set();
   const mine = created.filter((c) => covered.has(c.sourceId));
   queueJudging(app, owner, mine.map((c) => c.itemId), true);
@@ -198,28 +198,28 @@ export function questionFor(rule: Pick<AiFilterRule, "keep" | "drop">): AiJudgeR
 }
 
 /** Enabled filters per source, for the sources of these posts. */
-function filtersBySource(app: App, workspaceId: string, sourceIds: readonly string[]): Map<string, FilterRow[]> {
+function filtersBySource(app: App, accountId: string, sourceIds: readonly string[]): Map<string, FilterRow[]> {
   const out = new Map<string, FilterRow[]>();
   if (!sourceIds.length) return out;
   const rows = app.db.all<FilterRow & { covered: string }>(
-    `SELECT f.*, j.value AS covered FROM json_each(?) j JOIN ai_filters f ON f.workspace_id = ? AND f.enabled = 1
+    `SELECT f.*, j.value AS covered FROM json_each(?) j JOIN ai_filters f ON f.account_id = ? AND f.enabled = 1
        AND (f.source_id = j.value OR f.collection_id IN (SELECT collection_id FROM collection_sources WHERE source_id = j.value))`,
-    JSON.stringify([...new Set(sourceIds)]), workspaceId);
+    JSON.stringify([...new Set(sourceIds)]), accountId);
   for (const r of rows) out.set(r.covered, [...(out.get(r.covered) ?? []), r]);
   return out;
 }
 
 /** What the worker asks Jev for a filter.judge job, as the filters are now. */
-export function judgeInput(app: App, job: { account_id: string | null; workspace_id: string | null; payload: string }): AiJudgeInput {
+export function judgeInput(app: App, job: { account_id: string | null; payload: string }): AiJudgeInput {
   const model = app.config.jev.model;
-  if (!job.account_id || !job.workspace_id) return { route: null, model, requests: [] };
-  const owner = { accountId: job.account_id, workspaceId: job.workspace_id };
+  if (!job.account_id || !job.account_id) return { route: null, model, requests: [] };
+  const owner = { accountId: job.account_id};
   if (!keyFor(app, owner)) return { route: null, model, requests: [] };
   const { itemIds } = JSON.parse(job.payload) as { itemIds: string[] };
   const posts = app.db.all<PostRow>(
     `SELECT i.id, i.source_id, i.title, i.author, i.excerpt, s.title AS source_title FROM json_each(?) j JOIN items i ON i.id = j.value
-     LEFT JOIN sources s ON s.id = i.source_id WHERE i.workspace_id = ?`, JSON.stringify(itemIds), owner.workspaceId);
-  const filters = filtersBySource(app, owner.workspaceId, posts.map((r) => r.source_id).filter((s): s is string => !!s));
+     LEFT JOIN sources s ON s.id = i.source_id WHERE i.account_id = ?`, JSON.stringify(itemIds), owner.accountId);
+  const filters = filtersBySource(app, owner.accountId, posts.map((r) => r.source_id).filter((s): s is string => !!s));
   const requests: AiJudgeRequest[] = [];
   for (const post of posts) {
     const applying = post.source_id ? filters.get(post.source_id) ?? [] : [];
@@ -231,16 +231,16 @@ export function judgeInput(app: App, job: { account_id: string | null; workspace
   return { route: "server", model, requests };
 }
 
-type ItemNow = { id: string; source_id: string | null; workflow: WorkflowState; revision: number; fresh: number; opened_at: string | null; kept: number };
+type ItemNow = { id: string; source_id: string | null; workflow: WorkflowState; revision: number; is_new: number; opened_at: string | null; kept: number };
 
 /**
  * The worker's answers for a filter.judge job. Answers to a filter's older words are left out. Then each post is marked Ignored
  * when a filter drops it and it is still Undecided, unopened and unkept; or given back (Undecided) when no filter drops it any
  * more and it is still as a filter left it. The posts that stay are announced, like a sync announces new posts.
  */
-export function completeJudging(app: App, job: { account_id: string | null; workspace_id: string | null; payload: string }, result: AiJudgeResult): void {
-  if (!job.account_id || !job.workspace_id) return;
-  const owner = { accountId: job.account_id, workspaceId: job.workspace_id };
+export function completeJudging(app: App, job: { account_id: string | null; payload: string }, result: AiJudgeResult): void {
+  if (!job.account_id || !job.account_id) return;
+  const owner = { accountId: job.account_id};
   const { itemIds } = JSON.parse(job.payload) as { itemIds: string[] };
   if (result.keyRejected && result.route) {
     markKeyRejected(app, result.keyFingerprint);
@@ -250,11 +250,11 @@ export function completeJudging(app: App, job: { account_id: string | null; work
   const unfinished = result.unfinished.filter((id) => itemIds.includes(id));
   const announce = (JSON.parse(job.payload) as { announce?: boolean }).announce === true;
   if (unfinished.length && !result.keyRejected) {
-    enqueue(app, "filter.judge", { itemIds: unfinished, announce }, { accountId: owner.accountId, workspaceId: owner.workspaceId, maxAttempts: 4, runAfter: new Date(Date.now() + 60_000).toISOString() });
+    enqueue(app, "filter.judge", { itemIds: unfinished, announce }, { accountId: owner.accountId, maxAttempts: 4, runAfter: new Date(Date.now() + 60_000).toISOString() });
   }
   if (result.route) recordUsage(app, owner.accountId, result.verdicts.reduce((n, v) => n + v.inputTokens, 0), result.verdicts.length);
 
-  const filters = new Map(app.db.all<FilterRow>("SELECT * FROM ai_filters WHERE workspace_id = ?", owner.workspaceId).map((f) => [f.id, f]));
+  const filters = new Map(app.db.all<FilterRow>("SELECT * FROM ai_filters WHERE account_id = ?", owner.accountId).map((f) => [f.id, f]));
   const now = nowIso();
   for (const v of result.verdicts) {
     if (!itemIds.includes(v.itemId)) continue;
@@ -263,9 +263,9 @@ export function completeJudging(app: App, job: { account_id: string | null; work
       const f = k && filters.get(k.filterId);
       if (!f || f.version !== k.version || !f.enabled) continue;
       app.db.run(
-        `INSERT INTO ai_filter_verdicts (filter_id, item_id, workspace_id, version, keep_probability, dropped, applied_revision, judged_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+        `INSERT INTO ai_filter_verdicts (filter_id, item_id, account_id, version, keep_probability, dropped, applied_revision, judged_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
          ON CONFLICT(filter_id, item_id) DO UPDATE SET version = excluded.version, keep_probability = excluded.keep_probability, dropped = excluded.dropped, judged_at = excluded.judged_at`,
-        f.id, v.itemId, owner.workspaceId, f.version, p, dropsPost(p, f.when_unsure) ? 1 : 0, now);
+        f.id, v.itemId, owner.accountId, f.version, p, dropsPost(p, f.when_unsure) ? 1 : 0, now);
     }
   }
 
@@ -282,15 +282,15 @@ export function completeJudging(app: App, job: { account_id: string | null; work
   for (const itemId of itemIds) {
     if (unfinished.includes(itemId) && !result.keyRejected) continue;
     const item = app.db.get<ItemNow>(
-      `SELECT i.id, i.source_id, st.workflow, st.revision, st.fresh, st.opened_at, EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AS kept
-       FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.workspace_id = ?`, itemId, owner.workspaceId);
+      `SELECT i.id, i.source_id, st.workflow, st.revision, st.is_new, st.opened_at, EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AS kept
+       FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.account_id = ?`, itemId, owner.accountId);
     if (!item) continue;
-    const fresh = item.workflow === "new" && item.fresh === 1;
+    const fresh = item.workflow === "undecided" && item.is_new === 1;
     if (unjudged) {
       if (fresh) keep(item.source_id, itemId);
       continue;
     }
-    const applying = item.source_id ? filtersBySource(app, owner.workspaceId, [item.source_id]).get(item.source_id) ?? [] : [];
+    const applying = item.source_id ? filtersBySource(app, owner.accountId, [item.source_id]).get(item.source_id) ?? [] : [];
     const verdicts = app.db.all<{ filter_id: string; version: number; dropped: number; applied_revision: number | null }>(
       "SELECT filter_id, version, dropped, applied_revision FROM ai_filter_verdicts WHERE item_id = ?", itemId);
     const current = verdicts.filter((x) => applying.some((f) => f.id === x.filter_id && f.version === x.version));
@@ -306,9 +306,9 @@ export function completeJudging(app: App, job: { account_id: string | null; work
     // The person's own change to the post is their last word on it: a filter changes only posts nobody else has.
     const untouched = item.revision === (lastByFilter ?? 0);
     let to: WorkflowState | null = null;
-    if (dropping && untouched && item.workflow === "new" && !item.opened_at && !item.kept) to = "ignored";
+    if (dropping && untouched && item.workflow === "undecided" && !item.opened_at && !item.kept) to = "ignored";
     // Opening or keeping a post doesn't move its revision, but it is the person's touch all the same.
-    else if (!dropping && untouched && item.workflow === "ignored" && !item.opened_at && !item.kept) to = "new";
+    else if (!dropping && untouched && item.workflow === "ignored" && !item.opened_at && !item.kept) to = "undecided";
     if (to) {
       const revision = setWorkflowByFilter(app, owner, itemId, item.workflow, to);
       app.db.run("UPDATE ai_filter_verdicts SET applied_revision = ? WHERE item_id = ?", revision, itemId);
@@ -318,7 +318,7 @@ export function completeJudging(app: App, job: { account_id: string | null; work
     }
   }
   // The preview title is one of the posts that stayed, never one a later job may still drop.
-  if (announce && kept.size) notifyArrivals(app, owner.workspaceId, [...kept.entries()], undefined, keptIds);
+  if (announce && kept.size) notifyArrivals(app, owner.accountId, [...kept.entries()], undefined, keptIds);
   if (changed) emit(app, owner.accountId, { type: "items", sourceIds: [], count: 0 });
 }
 
@@ -326,11 +326,11 @@ export function completeJudging(app: App, job: { account_id: string | null; work
 export function failJudging(app: App, payload: Record<string, unknown>): void {
   if (payload.announce !== true) return;
   const itemIds = Array.isArray(payload.itemIds) ? payload.itemIds.map(String) : [];
-  const rows = app.db.all<{ workspace_id: string; source_id: string; n: number }>(
-    `SELECT i.workspace_id, i.source_id, COUNT(*) AS n FROM json_each(?) j JOIN items i ON i.id = j.value JOIN item_state st ON st.item_id = i.id
-     WHERE i.source_id IS NOT NULL AND st.fresh = 1 AND st.workflow = 'new' GROUP BY i.workspace_id, i.source_id`, JSON.stringify(itemIds));
-  for (const workspaceId of new Set(rows.map((r) => r.workspace_id))) {
-    notifyArrivals(app, workspaceId, rows.filter((r) => r.workspace_id === workspaceId).map((r) => [r.source_id, r.n]));
+  const rows = app.db.all<{ account_id: string; source_id: string; n: number }>(
+    `SELECT i.account_id, i.source_id, COUNT(*) AS n FROM json_each(?) j JOIN items i ON i.id = j.value JOIN item_state st ON st.item_id = i.id
+     WHERE i.source_id IS NOT NULL AND st.is_new = 1 AND st.workflow = 'undecided' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));
+  for (const accountId of new Set(rows.map((r) => r.account_id))) {
+    notifyArrivals(app, accountId, rows.filter((r) => r.account_id === accountId).map((r) => [r.source_id, r.n]));
   }
 }
 
@@ -355,8 +355,8 @@ export async function previewFilter(app: App, p: Principal, scope: AiFilterScope
   const posts = app.db.all<PostRow & { published_at: string | null }>(
     `SELECT i.id, i.source_id, i.title, i.author, i.excerpt, i.published_at, src.title AS source_title FROM items i
      LEFT JOIN sources src ON src.id = i.source_id
-     WHERE i.workspace_id = ? AND i.source_id IN (${sources}) ORDER BY i.discovered_at DESC, i.id DESC LIMIT ${AI_FILTER_PREVIEW_POSTS}`,
-    p.workspaceId, s.id);
+     WHERE i.account_id = ? AND i.source_id IN (${sources}) ORDER BY i.discovered_at DESC, i.id DESC LIMIT ${AI_FILTER_PREVIEW_POSTS}`,
+    p.accountId, s.id);
   if (!posts.length) throw badRequest(server.api.aiFilters.noPostsToTry, "no_posts");
   const question = questionFor(rule);
   const results = await askJevEach(app.config.jev, key, posts.map((post) => ({ state: postState(post), questions: { keep: question } })), { concurrency: PREVIEW_CONCURRENCY });

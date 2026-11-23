@@ -83,7 +83,7 @@ async function startInstallOnly(life: EngineLifecycle, cfg: EngineConfig): Promi
 }
 
 describe("interrupted first run", () => {
-  test("install finished but the operator user was never created: up completes it and keeps the generated credentials", { timeout: 300_000 }, async () => {
+  test("install finished but the administrator user was never created: up completes it and keeps the generated credentials", { timeout: 300_000 }, async () => {
     const { cfg, life } = await fresh();
     await startInstallOnly(life, cfg);
     assert.equal(existsSync(path.join(cfg.engineDir, "users", cfg.adminUsername)), false, "precondition: no operator user yet");

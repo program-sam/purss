@@ -2,7 +2,7 @@ import { checkFraming } from "@purss/connectors";
 import type { FrameCheck } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { badRequest, rateLimit } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Whether the reader can show a page from another site in a frame: the page's own headers decide,
@@ -22,7 +22,7 @@ export function frameCheck(app: App, p: Principal, raw: string, checker: FrameCh
   try { url = new URL(raw); } catch { throw badRequest(server.api.frameCheck.notWebAddress); }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest(server.api.frameCheck.onlyWebAddresses);
   url.hash = "";
-  const key = `${p.workspaceId} ${url.href}`;
+  const key = `${p.accountId} ${url.href}`;
   const now = Date.now();
   const hit = known.get(key);
   if (hit && hit.expires > now) return hit.check;

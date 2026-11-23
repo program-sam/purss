@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { app } from "@purss/copy/app";
-import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, inviteLink, missLabel, parseAllocation, shortId, splitAllocation } from "./admin-model.ts";
+import { app } from "@purss/translations/app";
+import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, inviteLink, missLabel, parseAllowance, shortId, splitAllowance } from "./admin-model.ts";
 
 const t = app.admin.adminModel;
 const failure = t.bridgeFailure;
@@ -21,25 +21,25 @@ test("an unmeasured size says so instead of showing zero", () => {
   assert.equal(bytesOrUnknown(512), app.lib.format.bytes.small(512));
 });
 
-test("allocations: blank is no limit, numbers use binary units, nonsense is rejected", () => {
-  assert.equal(parseAllocation("", "GB"), null);
-  assert.equal(parseAllocation("  ", "MB"), null);
-  assert.equal(parseAllocation("1", "GB"), 1024 ** 3);
-  assert.equal(parseAllocation("512", "MB"), 512 * 1024 ** 2);
-  assert.equal(parseAllocation("0.5", "GB"), 512 * 1024 ** 2);
-  assert.equal(parseAllocation("0", "GB"), 0);
-  assert.equal(parseAllocation("-1", "GB"), undefined);
-  assert.equal(parseAllocation("1e3", "GB"), undefined);
-  assert.equal(parseAllocation("ten", "GB"), undefined);
-  assert.equal(parseAllocation("1.2345", "GB"), undefined);
+test("allowances: blank is no limit, numbers use binary units, nonsense is rejected", () => {
+  assert.equal(parseAllowance("", "GB"), null);
+  assert.equal(parseAllowance("  ", "MB"), null);
+  assert.equal(parseAllowance("1", "GB"), 1024 ** 3);
+  assert.equal(parseAllowance("512", "MB"), 512 * 1024 ** 2);
+  assert.equal(parseAllowance("0.5", "GB"), 512 * 1024 ** 2);
+  assert.equal(parseAllowance("0", "GB"), 0);
+  assert.equal(parseAllowance("-1", "GB"), undefined);
+  assert.equal(parseAllowance("1e3", "GB"), undefined);
+  assert.equal(parseAllowance("ten", "GB"), undefined);
+  assert.equal(parseAllowance("1.2345", "GB"), undefined);
 });
 
-test("an existing allocation is shown in the unit that reads best", () => {
-  assert.deepEqual(splitAllocation(null), { text: "", unit: "GB" });
-  assert.deepEqual(splitAllocation(1024 ** 3), { text: "1", unit: "GB" });
-  assert.deepEqual(splitAllocation(512 * 1024 ** 2), { text: "512", unit: "MB" });
-  assert.deepEqual(splitAllocation(5 * 1024 ** 3), { text: "5", unit: "GB" });
-  assert.deepEqual(splitAllocation(1536 * 1024 ** 2), { text: "1536", unit: "MB" });
+test("an existing allowance is shown in the unit that reads best", () => {
+  assert.deepEqual(splitAllowance(null), { text: "", unit: "GB" });
+  assert.deepEqual(splitAllowance(1024 ** 3), { text: "1", unit: "GB" });
+  assert.deepEqual(splitAllowance(512 * 1024 ** 2), { text: "512", unit: "MB" });
+  assert.deepEqual(splitAllowance(5 * 1024 ** 3), { text: "5", unit: "GB" });
+  assert.deepEqual(splitAllowance(1536 * 1024 ** 2), { text: "1536", unit: "MB" });
 });
 
 test("ids are shortened, the system actor is named, engine states have words", () => {

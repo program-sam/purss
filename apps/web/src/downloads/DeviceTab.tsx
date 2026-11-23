@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { OFFICIAL_WORKSPACE_ORIGIN, parseWorkspaceAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
+import { OFFICIAL_PURSS_ORIGIN, parsePurssAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
 import { Button, Check, Icon, SelectInput } from "@purss/ui";
 import { outboxAsText } from "../annotations/outbox.ts";
 import { useOtherAccountsUnsent, useWaitingCount } from "../annotations/use-annotations.ts";
@@ -12,7 +12,7 @@ import { DesktopAppSection } from "../shell/DesktopApp.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
 import { LIMIT_CHOICES } from "./types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.deviceTab;
 
@@ -42,9 +42,9 @@ export function DeviceTab() {
     await conn!.disconnect();
   }
 
-  const address = parseWorkspaceAddress(conn.origin);
+  const address = parsePurssAddress(conn.origin);
   const unencrypted = address.ok && address.unencrypted;
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   const isOfficial = official.kind === "official" && official.origin === conn.origin;
   const otherCount = others.entries.length;
   const otherWords = t.otherWords(otherCount);

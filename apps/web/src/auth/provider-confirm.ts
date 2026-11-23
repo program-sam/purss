@@ -3,7 +3,7 @@ import { platform } from "../platform/index.ts";
 import { withinApp } from "../app-base.ts";
 import { pkce, readAppCode } from "../platform/native/connect.ts";
 import { rememberConfirming } from "./confirm-marker.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.providerConfirm;
 

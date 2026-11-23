@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CollectionStatsRow, StatsNumbers } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { countWithShare, firstDirection, gapLabel, sharePercent, sortRows, sparklineLabel, weeklyAverage } from "./stats.ts";
 
 const t = app.lib.stats;
@@ -9,7 +9,7 @@ const t = app.lib.stats;
 function numbers(over: Partial<StatsNumbers> = {}): StatsNumbers {
   return {
     totalItems: 0, weekly: new Array<number>(26).fill(0), lastItemAt: null, longestGapDays: null,
-    workflow: { new: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
+    workflow: { undecided: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
     opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, filteredOut: 0, ...over,
   };
 }
@@ -33,7 +33,7 @@ test("average, label and gap are plain numbers", () => {
 });
 
 test("rows sort by the chosen column and fall back to the name on ties", () => {
-  const rows = [row("Bravo", { totalItems: 5, kept: 1 }), row("alpha", { totalItems: 5, kept: 3, lastItemAt: "2026-10-01T00:00:00.000Z" }), row("Charlie", { totalItems: 9, workflow: { new: 0, toread: 0, inprogress: 0, finished: 4, ignored: 0 } })];
+  const rows = [row("Bravo", { totalItems: 5, kept: 1 }), row("alpha", { totalItems: 5, kept: 3, lastItemAt: "2026-10-01T00:00:00.000Z" }), row("Charlie", { totalItems: 9, workflow: { undecided: 0, toread: 0, inprogress: 0, finished: 4, ignored: 0 } })];
   const names = (key: Parameters<typeof sortRows>[1], dir: "asc" | "desc") => sortRows(rows, key, dir).map((r) => r.title);
   assert.deepEqual(names("name", "asc"), ["alpha", "Bravo", "Charlie"]);
   assert.deepEqual(names("name", "desc"), ["Charlie", "Bravo", "alpha"]);

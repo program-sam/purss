@@ -9,11 +9,11 @@ import { getItemDetail, insertItem, listItems } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { reconcile } from "./storage.ts";
 import { completeIconCheck, readIcon, scheduleIconChecks } from "./icons.ts";
-import { discoverSources, followSource, getSource, patchSource, unfollowSource } from "./sources.ts";
+import { lookupSources, followSource, getSource, patchSource, unfollowSource } from "./sources.ts";
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, createNewsPost, deleteNewsPost, deliverNews, newsAdmin, renderNewsAtom, renderNewsBody, updateNewsPost } from "./news.ts";
 
 type Owner = ReturnType<typeof makeOwner>;
-const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE workspace_id = ? AND builtin = 'news'", p.workspaceId);
+const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE account_id = ? AND builtin = 'news'", p.accountId);
 const copies = (app: App, p: Owner) => listItems(app, p, { scope: "all" }).items.filter((i) => i.sourceTitle === NEWS_TITLE);
 const publish = (app: App, admin: Owner, title: string, body = `About ${title}.`) => createNewsPost(app, admin, { title, body, publish: true });
 const follow = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
@@ -31,7 +31,7 @@ test("no PURSS gets a news source before anything is published; then every PURSS
   for (const p of [admin, reader]) {
     const items = copies(app, p);
     assert.deepEqual(items.map((i) => i.title), ["Hello"], "the post is in every PURSS");
-    assert.equal(items[0]!.fresh, true, "as New");
+    assert.equal(items[0]!.isNew, true, "as New");
     assert.equal(items[0]!.url, `${app.config.publicOrigin}/news/${post.id}`);
   }
   const s = getSource(app, reader, newsSource(app, reader)!.id);
@@ -58,10 +58,10 @@ test("an unfollowed news source stays unfollowed; following its address again ta
   publish(app, admin, "Second");
   deliverNews(app);
   assert.equal(newsSource(app, reader)!.followed, 0, "not added back");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND source_id = ?", reader.workspaceId, id)!.n, 1, "and nothing new arrives");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE account_id = ? AND source_id = ?", reader.accountId, id)!.n, 1, "and nothing new arrives");
 
   // Pasting the news address finds it without a fetch (the engine and discovery never fetch this server's own address).
-  const found = await discoverSources(app, reader, `${app.config.publicOrigin}/news`);
+  const found = await lookupSources(app, reader, `${app.config.publicOrigin}/news`);
   assert.ok(found.ok);
   const again = followSource(app, reader, { ...follow, token: found.candidates[0]!.token });
   assert.equal(again.id, id, "the same source");
@@ -76,15 +76,15 @@ test("a paused news source or a full account catches up later; nothing fails", (
   const reader = makeOwner(app, { admin: false });
   publish(app, admin, "First");
   patchSource(app, reader, newsSource(app, reader)!.id, { paused: true });
-  const full = makeOwner(app, { admin: false, allocationBytes: 1 });
+  const full = makeOwner(app, { admin: false, allowanceBytes: 1 });
   publish(app, admin, "Second");
   assert.deepEqual(copies(app, reader).map((i) => i.title), ["First"], "paused: nothing new");
   assert.equal(copies(app, full).length, 0, "a full account gets nothing");
-  assert.equal(app.db.get<{ paused_reason: string }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", full.accountId)!.paused_reason, "quota");
+  assert.equal(app.db.get<{ paused_reason: string }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", full.accountId)!.paused_reason, "allowance");
   patchSource(app, reader, newsSource(app, reader)!.id, { paused: false });
   deliverNews(app);
   assert.deepEqual(copies(app, reader).map((i) => i.title).sort(), ["First", "Second"], "resumed: it catches up");
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = NULL, paused_reason = NULL WHERE account_id = ?", full.accountId);
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = NULL, paused_reason = NULL WHERE account_id = ?", full.accountId);
   deliverNews(app);
   assert.deepEqual(copies(app, full).map((i) => i.title).sort(), ["First", "Second"], "with room again, the full account gets what it missed, its first posts included");
 });
@@ -99,14 +99,14 @@ test("a copy the PURSS already has (brought back by an import) is recorded, not 
   patchSource(app, reader, source, { paused: true });
   const post = publish(app, admin, "Second");
   const imported = insertItem(app, {
-    accountId: reader.accountId, workspaceId: reader.workspaceId, sourceId: source, kind: "article", title: "Second", url: post.url, author: null,
+    accountId: reader.accountId, sourceId: source, kind: "article", title: "Second", url: post.url, author: null,
     summaryHtml: null, contentHtml: "<p>About Second.</p>", imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: post.publishedAt, discoveredAt: post.publishedAt!, enclosures: [], fresh: true, reason: "test import",
+    publishedAt: post.publishedAt, discoveredAt: post.publishedAt!, enclosures: [], isNew: true, reason: "test import",
   }).id;
   patchSource(app, reader, source, { paused: false });
   deliverNews(app);
   assert.deepEqual(copies(app, reader).map((i) => i.title).sort(), ["First", "Second"]);
-  assert.equal(app.db.get<{ item_id: string }>("SELECT item_id FROM news_deliveries WHERE post_id = ? AND workspace_id = ?", post.id, reader.workspaceId)!.item_id, imported);
+  assert.equal(app.db.get<{ item_id: string }>("SELECT item_id FROM news_deliveries WHERE post_id = ? AND account_id = ?", post.id, reader.accountId)!.item_id, imported);
 });
 
 test("editing a published post changes every copy, except the version someone kept; deleting it leaves only kept copies", (t) => {
@@ -165,12 +165,12 @@ test("an edit a full account couldn't take reaches its copy once it has room; a 
   const reader = makeOwner(app, { admin: false });
   const post = publish(app, admin, "Short", "Brief.");
   assert.equal(getItemDetail(app, reader, copies(app, reader)[0]!.id).summaryOnly, false, "a short post is the whole post");
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = 1 WHERE account_id = ?", reader.accountId);
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = 1 WHERE account_id = ?", reader.accountId);
   updateNewsPost(app, admin, post.id, { title: "Longer", body: "A longer text this time.", publish: false });
   assert.equal(copies(app, reader)[0]!.title, "Short", "no room: the copy waits");
   deliverNews(app);
   assert.equal(copies(app, reader)[0]!.title, "Short", "and keeps waiting while the account is full");
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = NULL, paused_reason = NULL WHERE account_id = ?", reader.accountId);
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = NULL, paused_reason = NULL WHERE account_id = ?", reader.accountId);
   deliverNews(app);
   assert.equal(copies(app, reader)[0]!.title, "Longer", "with room again it is brought up to date");
   assert.equal(copies(app, admin)[0]!.title, "Longer");

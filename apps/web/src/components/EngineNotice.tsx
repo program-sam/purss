@@ -1,12 +1,12 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.components.engineNotice;
 
 /** A calm banner when the collection engine is starting or unavailable. Everything already here stays usable. */
 export function EngineNotice() {
-  const { data } = useWorkspace();
+  const { data } = usePurss();
   const e = data.engine;
   if (e.status === "ok") return null;
   const text = e.status === "starting"

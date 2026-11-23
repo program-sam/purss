@@ -6,7 +6,7 @@
  * with the verifier at /api/connect/token for the device token.
  */
 
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { appUrl } from "@purss/domain/paths";
 
 const b64url = (bytes: Uint8Array): string => {

@@ -25,7 +25,7 @@ export type { PageListRecipe, RecipeCheck, RecipeRefusal } from "./page-xpath.ts
 
 export type PageListConfidence = "high" | "medium" | "low";
 
-/** Why a list was chosen or doubted. Codes only; the words belong to the copy catalog. */
+/** Why a list was chosen or doubted. Codes only; the words belong to the translation files. */
 export type PageListReason =
   | "dated" | "undated" | "inMain" | "headingTitles" | "slugUrls" | "sharedUrlPattern"
   | "inNav" | "inFooter" | "inSidebar" | "inChrome"

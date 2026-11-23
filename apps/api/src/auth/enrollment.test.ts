@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
+import { OPERATOR_EMAIL, makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
@@ -34,7 +34,7 @@ function insertSession(app: ReturnType<typeof makeTestApp>["app"], accountId: st
 /** Hosted open sign-up needs working outgoing email: a mail server that answers and sends nowhere. */
 async function hostedSignup(env: Record<string, string>) {
   const made = makeTestApp({ PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>", ...env });
-  makeOperator(made.app); // claimed by its operator first (mail/mailer.ts signupOpen)
+  makeAdministrator(made.app); // claimed by its administrator first (mail/mailer.ts signupOpen)
   useTransport(made.app, { send: async () => {}, verify: async () => {} });
   await checkMail(made.app);
   return { app: made.app, cleanup: async () => { await settleMail(made.app); made.cleanup(); } };
@@ -205,7 +205,7 @@ test("a zero installation signup cap fails closed without a misleading retry tim
   const first = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, options);
   assert.equal(first.status, 429);
   assert.equal(first.json.error.code, "signup_full");
-  assert.equal(first.headers.get("retry-after"), null, "an operator pause has no automatic release time");
+  assert.equal(first.headers.get("retry-after"), null, "an administrator pause has no automatic release time");
 
   let last = first;
   for (let i = 1; i < 31; i++) last = await call(app, server.base, "POST", "/api/signup/start", null, { email: "new@example.org" }, options);

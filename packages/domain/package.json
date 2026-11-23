@@ -6,7 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./workspace-address": "./src/workspace-address.ts",
+    "./purss-address": "./src/purss-address.ts",
     "./distribution": "./src/distribution.ts",
     "./app-bundle": "./src/app-bundle.ts",
     "./paths": "./src/paths.ts",
@@ -15,7 +15,7 @@
     "./version": "./src/version.ts"
   },
   "dependencies": {
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "zod": "^4.6.7"
   }
 }

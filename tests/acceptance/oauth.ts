@@ -17,8 +17,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
-import { app } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
+import { app } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode, setInstallation } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -49,7 +49,7 @@ const env: Record<string, string> = {
   PURSS_ASSISTANT_OAUTH: "on",
 };
 const EMAIL = "reader@example.test";
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const consentCopy = app.assistant.authorizePage;
 const assistantsCopy = app.assistant.assistantSettings;
@@ -65,11 +65,10 @@ function prepare(): void {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
+        const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     makeSource(app, p, "Tidal Notes", "feed/1");
     applySyncBatch(app, eu.id, batch([entry("feed/1", { title: "Tidal flats and sediment" })]));
     setInstallation(app, "assistant_access", "on");

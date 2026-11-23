@@ -11,7 +11,7 @@ import { addDays, localDate, validTimezone } from "./reminders.ts";
 import { boxesBySource } from "./home.ts";
 import { settledCopy } from "./capture-state.ts";
 import type { BoxLink } from "./home.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { shownTitle } from "./content.ts";
 
 /*
@@ -47,14 +47,13 @@ function boxesFor(prefs: Preferences, boxes: BoxLink[] | undefined, homeOther: b
 }
 
 /**
- * Record arrival notifications for followed sources (only items that are New: a source's back catalogue is not
+ * Record arrival notifications for followed sources (only items that are New: a source's backlog is not
  * passed in). Only sources set to "Notify me" tell at once; the rest wait for a digest, made later from what is still
  * New. Delivery timing depends on engine polling.
  */
 /** `fromItems`: take each source's preview title from these posts only (a Smart filter's kept posts). */
-export function notifyArrivals(app: App, workspaceId: string, perSource: [string, number][], _dedupBase?: string, fromItems?: readonly string[]): void {
-  const prefs = getPreferences(app, workspaceId);
-  const account = app.db.get<{ account_id: string }>("SELECT account_id FROM workspaces WHERE id = ?", workspaceId)!;
+export function notifyArrivals(app: App, accountId: string, perSource: [string, number][], _dedupBase?: string, fromItems?: readonly string[]): void {
+  const prefs = getPreferences(app, accountId);
   let changed = 0;
   for (const [sourceId, count] of perSource) {
     const s = app.db.get<Sourcey>("SELECT id, title, notify, is_private FROM sources WHERE id = ?", sourceId);
@@ -62,32 +61,32 @@ export function notifyArrivals(app: App, workspaceId: string, perSource: [string
     // The item stored last that the person will see: the one that just arrived (an engine's crawl times needn't follow
     // arrival order), among an AI filter's kept posts when it ran, else among what isn't Ignored.
     const newest = fromItems
-      ? app.db.get<{ id: string; title: string }>("SELECT i.id, i.title FROM json_each(?) j JOIN items i ON i.id = j.value WHERE i.workspace_id = ? AND i.source_id = ? ORDER BY i.seq DESC LIMIT 1", JSON.stringify(fromItems), workspaceId, sourceId)
-      : app.db.get<{ id: string; title: string }>("SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? AND i.source_id = ? AND st.workflow <> 'ignored' ORDER BY i.seq DESC LIMIT 1", workspaceId, sourceId);
+      ? app.db.get<{ id: string; title: string }>("SELECT i.id, i.title FROM json_each(?) j JOIN items i ON i.id = j.value WHERE i.account_id = ? AND i.source_id = ? ORDER BY i.seq DESC LIMIT 1", JSON.stringify(fromItems), accountId, sourceId)
+      : app.db.get<{ id: string; title: string }>("SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? AND i.source_id = ? AND st.workflow <> 'ignored' ORDER BY i.seq DESC LIMIT 1", accountId, sourceId);
     // Private sources' item titles never go into notifications (they can show on a lock screen).
     const latest = prefs.notifications.previews && !s.is_private ? newest?.title ?? null : null;
-    changed += upsertArrival(app, workspaceId, s, count, latest, newest?.id ?? null);
+    changed += upsertArrival(app, accountId, s, count, latest, newest?.id ?? null);
   }
-  if (changed) emit(app, account.account_id, { type: "notification" });
+  if (changed) emit(app, accountId, { type: "notification" });
 }
 
 const arrivalTitle = (title: string, count: number) => (count === 1 ? server.api.notifications.newFrom(title) : server.api.notifications.newCountFrom(count, title));
 
 /** One new item opens that item; several open their source. */
-function upsertArrival(app: App, workspaceId: string, s: Sourcey, count: number, latest: string | null, newestId: string | null): number {
+function upsertArrival(app: App, accountId: string, s: Sourcey, count: number, latest: string | null, newestId: string | null): number {
   const since = new Date(Date.now() - COALESCE_MINUTES * 60_000).toISOString();
   const open = app.db.get<{ id: string; data: string | null }>(
-    "SELECT id, data FROM notifications WHERE workspace_id = ? AND source_id = ? AND kind = 'arrivals' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", workspaceId, s.id, since);
+    "SELECT id, data FROM notifications WHERE account_id = ? AND source_id = ? AND kind = 'arrivals' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", accountId, s.id, since);
   if (open) {
     const total = (open.data ? (JSON.parse(open.data) as { count: number }).count : 1) + count;
-    // More arrived within the hour: the one notification grows (and is unread again) instead of a second one appearing.
+    // More arrived within the hour: the one notification grows (and is unseen again) instead of a second one appearing.
     // Its new text is news to a phone that was handed the old one (changed_at, services/push.ts).
-    return app.db.run("UPDATE notifications SET title = ?, body = COALESCE(?, body), data = ?, item_id = NULL, read_at = NULL, changed_at = ? WHERE id = ?",
+    return app.db.run("UPDATE notifications SET title = ?, body = COALESCE(?, body), data = ?, item_id = NULL, seen_at = NULL, changed_at = ? WHERE id = ?",
       arrivalTitle(s.title, total), latest, JSON.stringify({ count: total }), nowIso(), open.id).changes;
   }
   return app.db.run(
-    "INSERT INTO notifications (id, workspace_id, kind, title, body, item_id, source_id, dedup_key, data, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?, ?, ?, ?)",
-    newId("ntf"), workspaceId, arrivalTitle(s.title, count), latest, count === 1 ? newestId : null, s.id, `arrivals:${s.id}:${newId("k")}`, JSON.stringify({ count }), nowIso()).changes;
+    "INSERT INTO notifications (id, account_id, kind, title, body, item_id, source_id, dedup_key, data, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?, ?, ?, ?)",
+    newId("ntf"), accountId, arrivalTitle(s.title, count), latest, count === 1 ? newestId : null, s.id, `arrivals:${s.id}:${newId("k")}`, JSON.stringify({ count }), nowIso()).changes;
 }
 
 // ---------- digests ----------
@@ -106,14 +105,14 @@ export type Digest = { window: DigestWindow; total: number; boxes: DigestBox[] }
  * always are. Neither ever holds an item of a private source. A source in two collections is counted in both, and once in
  * `total`.
  */
-export function digestFor(app: App, workspaceId: string, window: DigestWindow): Digest {
-  const prefs = getPreferences(app, workspaceId);
+export function digestFor(app: App, accountId: string, window: DigestWindow): Digest {
+  const prefs = getPreferences(app, accountId);
   const rows = app.db.all<{ source_id: string; n: number; is_private: number; notify: string; source_title: string }>(
     `SELECT i.source_id, COUNT(*) AS n, s.is_private, s.notify, s.title AS source_title FROM items i
        JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id
-     WHERE i.workspace_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND s.followed = 1 AND s.notify <> 'muted'
-     GROUP BY i.source_id`, workspaceId, window.from, window.to);
-  const links = boxesBySource(app, workspaceId);
+     WHERE i.account_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.is_new = 1 AND s.followed = 1 AND s.notify <> 'muted'
+     GROUP BY i.source_id`, accountId, window.from, window.to);
+  const links = boxesBySource(app, accountId);
   const boxes = new Map<string, DigestBox>();
   let total = 0;
   for (const r of rows) {
@@ -122,8 +121,8 @@ export function digestFor(app: App, workspaceId: string, window: DigestWindow): 
     total += r.n;
     const newest = r.is_private ? [] : app.db.all<{ id: string; number: number; title: string; discovered_at: string }>(
       `SELECT i.id, i.number, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
-       WHERE i.workspace_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND st.workflow <> 'ignored'
-       ORDER BY i.discovered_at DESC LIMIT ?`, workspaceId, r.source_id, window.from, window.to, TEASERS);
+       WHERE i.account_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.is_new = 1 AND st.workflow <> 'ignored'
+       ORDER BY i.discovered_at DESC LIMIT ?`, accountId, r.source_id, window.from, window.to, TEASERS);
     const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => shownTitle(t.title)) : [];
     const teasers = newest.map((t) => ({ id: t.id, number: t.number, title: shownTitle(t.title), source: r.source_title, at: t.discovered_at }));
     for (const b of mine) {
@@ -233,26 +232,26 @@ export function lastScheduled(now: number, tzName: string | null, time: string, 
  * The digest also goes by email when the person keeps that on and the account's address is confirmed.
  * Returns whether a notification was created.
  */
-export function runDigest(app: App, workspaceId: string, accountId: string, now: Date = new Date()): boolean {
-  const prefs = getPreferences(app, workspaceId);
+export function runDigest(app: App, accountId: string, now: Date = new Date()): boolean {
+  const prefs = getPreferences(app, accountId);
   const freq = prefs.notifications.frequency;
   if (freq !== "daily" && freq !== "weekly") return false;
   const made = app.db.tx(() => {
-    const state = app.db.get<{ window_end: string }>("SELECT window_end FROM notification_state WHERE workspace_id = ?", workspaceId);
+    const state = app.db.get<{ window_end: string }>("SELECT window_end FROM notification_state WHERE account_id = ?", accountId);
     if (!state) {
-      app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?)", workspaceId, now.toISOString());
+      app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?)", accountId, now.toISOString());
       return false;
     }
     const due = lastScheduled(now.getTime(), prefs.timezone, prefs.notifications.digestTime, freq === "weekly" ? prefs.notifications.digestDay : null);
     if (due <= Date.parse(state.window_end)) return false;
     const window = { from: state.window_end, to: now.toISOString() };
-    const d = digestFor(app, workspaceId, window);
-    app.db.run("UPDATE notification_state SET window_end = ? WHERE workspace_id = ?", window.to, workspaceId);
+    const d = digestFor(app, accountId, window);
+    app.db.run("UPDATE notification_state SET window_end = ? WHERE account_id = ?", window.to, accountId);
     if (!d.total) return false;
     const text = digestText(d, freq);
     // Named by the window it covers: the same window can only be recorded once.
-    const recorded = app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
-      newId("ntf"), workspaceId, text.title, text.body, `digest:${freq}:${window.from}`, window.to).changes > 0;
+    const recorded = app.db.run("INSERT OR IGNORE INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
+      newId("ntf"), accountId, text.title, text.body, `digest:${freq}:${window.from}`, window.to).changes > 0;
     return recorded ? d : null;
   });
   if (!made) return false;
@@ -276,28 +275,28 @@ const CAPTURE_NEWS_MS = 48 * 3_600_000;
  * however old notifications are pruned. A new attempt that fails is a new failure and is told about; a source that
  * recovered and fails again is too, after a day.
  */
-export function runProblemCheck(app: App, workspaceId: string, accountId: string, now: Date = new Date()): number {
-  const prefs = getPreferences(app, workspaceId);
+export function runProblemCheck(app: App, accountId: string, now: Date = new Date()): number {
+  const prefs = getPreferences(app, accountId);
   const inc = prefs.notifications.include;
   const iso = now.toISOString();
   const made = app.db.tx(() => {
     let n = 0;
     if (inc.problems) {
       // A source that works again is forgotten, so its next failure is a new one.
-      app.db.run("UPDATE sources SET problem_notified_for = NULL WHERE workspace_id = ? AND problem_notified_for IS NOT NULL AND health NOT IN ('error', 'reconnect')", workspaceId);
+      app.db.run("UPDATE sources SET problem_notified_for = NULL WHERE account_id = ? AND problem_notified_for IS NOT NULL AND health NOT IN ('error', 'reconnect')", accountId);
       const rested = new Date(now.getTime() - PROBLEM_COOLDOWN_MS).toISOString();
       for (const s of app.db.all<{ id: string; title: string; health_text: string | null; episode: string }>(
         `SELECT id, title, health_text, health || ':' || COALESCE(last_success_at, created_at) AS episode FROM sources
-         WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual' AND health IN ('error', 'reconnect') AND notify <> 'muted'
+         WHERE account_id = ? AND followed = 1 AND kind <> 'manual' AND health IN ('error', 'reconnect') AND notify <> 'muted'
            AND (problem_notified_for IS NULL OR problem_notified_for <> health || ':' || COALESCE(last_success_at, created_at))
-           AND (problem_notified_at IS NULL OR problem_notified_at < ?)`, workspaceId, rested)) {
+           AND (problem_notified_at IS NULL OR problem_notified_at < ?)`, accountId, rested)) {
         n += app.db.run(
-          "INSERT INTO notifications (id, workspace_id, kind, title, body, source_id, dedup_key, created_at) VALUES (?, ?, 'source', ?, ?, ?, ?, ?)",
-          newId("ntf"), workspaceId, server.api.notifications.sourceNotWorking(s.title), s.health_text, s.id, `source:${s.id}:${iso}`, iso).changes;
+          "INSERT INTO notifications (id, account_id, kind, title, body, source_id, dedup_key, created_at) VALUES (?, ?, 'source', ?, ?, ?, ?, ?)",
+          newId("ntf"), accountId, server.api.notifications.sourceNotWorking(s.title), s.health_text, s.id, `source:${s.id}:${iso}`, iso).changes;
         app.db.run("UPDATE sources SET problem_notified_for = ?, problem_notified_at = ? WHERE id = ?", s.episode, iso, s.id);
       }
     }
-    if (inc.captures) n += notifyCaptureFailures(app, workspaceId, prefs.timezone, now);
+    if (inc.captures) n += notifyCaptureFailures(app, accountId, prefs.timezone, now);
     return n;
   });
   if (made) emit(app, accountId, { type: "notification" });
@@ -311,22 +310,22 @@ export function runProblemCheck(app: App, workspaceId: string, accountId: string
  * source no longer followed) is told about under the basket that holds it. Only where the person asked for text: the copy was
  * asked for (Keep in a basket that keeps text, "Keep readable text too" on a link, Try again), the source has full articles on,
  * or a basket that keeps readable text holds the item. An item that has a copy by now (or one on the way) is not news. A later
- * failure the same day grows that day's notification and makes it unread again. Each failure is told about once, however
+ * failure the same day grows that day's notification and makes it unseen again. Each failure is told about once, however
  * often this runs or notifications are pruned.
  */
-function notifyCaptureFailures(app: App, workspaceId: string, timezone: string | null, now: Date): number {
+function notifyCaptureFailures(app: App, accountId: string, timezone: string | null, now: Date): number {
   const recent = new Date(now.getTime() - CAPTURE_NEWS_MS).toISOString();
   const failed = app.db.all<{ id: string; item_id: string; source_id: string | null; source_title: string | null; kind: string | null; followed: number | null; basket_id: string | null }>(
     `SELECT c.id, c.item_id, s.id AS source_id, s.title AS source_title, s.kind, s.followed,
        (SELECT b.basket_id FROM basket_items b JOIN baskets k ON k.id = b.basket_id WHERE b.item_id = i.id ORDER BY (k.capture_mode = 'text') DESC, b.kept_at LIMIT 1) AS basket_id
      FROM captures c JOIN items i ON i.id = c.item_id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE c.workspace_id = ? AND c.status = 'failed' AND c.completed_at >= ? AND c.completed_at <= ?
+     WHERE c.account_id = ? AND c.status = 'failed' AND c.completed_at >= ? AND c.completed_at <= ?
        AND (c.failure_notified_for IS NULL OR c.failure_notified_for <> c.completed_at)
        AND COALESCE(s.notify, 'default') <> 'muted'
        AND NOT ${settledCopy("c.item_id")}
        AND (c.requested = 1 OR (s.full_text = 1 AND s.followed = 1)
          OR EXISTS (SELECT 1 FROM basket_items b JOIN baskets k ON k.id = b.basket_id WHERE b.item_id = i.id AND k.capture_mode = 'text'))
-     LIMIT 500`, workspaceId, recent, now.toISOString());
+     LIMIT 500`, accountId, recent, now.toISOString());
   if (!failed.length) return 0;
   const { y, m, d } = localDate(now, validTimezone(timezone));
   const day = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -347,7 +346,7 @@ function notifyCaptureFailures(app: App, workspaceId: string, timezone: string |
   let changed = 0;
   for (const g of groups.values()) {
     const dedup = `capture-failures:${g.key}:${day}`;
-    const earlier = app.db.get<{ id: string; data: string | null }>("SELECT id, data FROM notifications WHERE workspace_id = ? AND dedup_key = ?", workspaceId, dedup);
+    const earlier = app.db.get<{ id: string; data: string | null }>("SELECT id, data FROM notifications WHERE account_id = ? AND dedup_key = ?", accountId, dedup);
     const before = earlier?.data ? (JSON.parse(earlier.data) as { items: string[]; links?: boolean }) : null;
     const items = new Set<string>([...(before?.items ?? []), ...g.items]);
     const links = g.links && (before?.links ?? true);
@@ -356,21 +355,21 @@ function notifyCaptureFailures(app: App, workspaceId: string, timezone: string |
     const body = server.api.notifications.captureFailedBody;
     const data = JSON.stringify({ items: [...items], filter: "capture-failed", ...(g.basketId ? { basketId: g.basketId, links } : {}) });
     changed += earlier
-      ? app.db.run("UPDATE notifications SET title = ?, body = ?, data = ?, read_at = NULL WHERE id = ?", title, body, data, earlier.id).changes
-      : app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)",
-        newId("ntf"), workspaceId, title, body, g.sourceId, dedup, data, now.toISOString()).changes;
+      ? app.db.run("UPDATE notifications SET title = ?, body = ?, data = ?, seen_at = NULL WHERE id = ?", title, body, data, earlier.id).changes
+      : app.db.run("INSERT INTO notifications (id, account_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)",
+        newId("ntf"), accountId, title, body, g.sourceId, dedup, data, now.toISOString()).changes;
   }
-  app.db.run(`UPDATE captures SET failure_notified_for = completed_at WHERE workspace_id = ? AND id IN (${failed.map(() => "?").join(",")})`, workspaceId, ...failed.map((f) => f.id));
+  app.db.run(`UPDATE captures SET failure_notified_for = completed_at WHERE account_id = ? AND id IN (${failed.map(() => "?").join(",")})`, accountId, ...failed.map((f) => f.id));
   return changed;
 }
 
 /** Delete notifications older than 90 days and any beyond the newest 500. */
-export function pruneNotifications(app: App, workspaceId: string, now: Date = new Date()): number {
+export function pruneNotifications(app: App, accountId: string, now: Date = new Date()): number {
   const cutoff = new Date(now.getTime() - NOTIFICATION_KEEP_DAYS * 86_400_000).toISOString();
-  let n = app.db.run("DELETE FROM notifications WHERE workspace_id = ? AND created_at < ?", workspaceId, cutoff).changes;
+  let n = app.db.run("DELETE FROM notifications WHERE account_id = ? AND created_at < ?", accountId, cutoff).changes;
   n += app.db.run(
-    `DELETE FROM notifications WHERE workspace_id = ? AND id IN (
-       SELECT id FROM notifications WHERE workspace_id = ? ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)`, workspaceId, workspaceId, NOTIFICATION_KEEP_COUNT).changes;
+    `DELETE FROM notifications WHERE account_id = ? AND id IN (
+       SELECT id FROM notifications WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)`, accountId, accountId, NOTIFICATION_KEEP_COUNT).changes;
   return n;
 }
 
@@ -388,20 +387,20 @@ function captureFailureLink(data: string | null): { listFilter?: "capture-failed
 }
 
 export function listNotifications(app: App, p: Principal, limit = 50): NotificationDTO[] {
-  return app.db.all<{ id: string; kind: NotificationDTO["kind"]; title: string; body: string | null; item_id: string | null; source_id: string | null; data: string | null; created_at: string; read_at: string | null }>(
-    "SELECT id, kind, title, body, item_id, source_id, data, created_at, read_at FROM notifications WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?", p.workspaceId, limit,
-  ).map((n) => ({ id: n.id, kind: n.kind, title: n.title, body: n.body, itemId: n.item_id, sourceId: n.source_id, createdAt: n.created_at, read: n.read_at !== null,
+  return app.db.all<{ id: string; kind: NotificationDTO["kind"]; title: string; body: string | null; item_id: string | null; source_id: string | null; data: string | null; created_at: string; seen_at: string | null }>(
+    "SELECT id, kind, title, body, item_id, source_id, data, created_at, seen_at FROM notifications WHERE account_id = ? ORDER BY created_at DESC LIMIT ?", p.accountId, limit,
+  ).map((n) => ({ id: n.id, kind: n.kind, title: n.title, body: n.body, itemId: n.item_id, sourceId: n.source_id, createdAt: n.created_at, read: n.seen_at !== null,
     ...captureFailureLink(n.data) }));
 }
 
-/** Unread notifications for the bell. Digest frequency does not hide independent notices. */
-export function unreadCount(app: App, workspaceId: string): number {
-  return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE workspace_id = ? AND read_at IS NULL", workspaceId)!.n;
+/** Unseen notifications for the bell. Digest frequency does not hide independent notices. */
+export function unseenCount(app: App, accountId: string): number {
+  return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ? AND seen_at IS NULL", accountId)!.n;
 }
 
 export function markNotificationsRead(app: App, p: Principal, ids: string[] | "all"): number {
-  if (ids === "all") return app.db.run("UPDATE notifications SET read_at = ? WHERE workspace_id = ? AND read_at IS NULL", nowIso(), p.workspaceId).changes;
+  if (ids === "all") return app.db.run("UPDATE notifications SET seen_at = ? WHERE account_id = ? AND seen_at IS NULL", nowIso(), p.accountId).changes;
   let n = 0;
-  for (const id of ids) n += app.db.run("UPDATE notifications SET read_at = ? WHERE id = ? AND workspace_id = ? AND read_at IS NULL", nowIso(), id, p.workspaceId).changes;
+  for (const id of ids) n += app.db.run("UPDATE notifications SET seen_at = ? WHERE id = ? AND account_id = ? AND seen_at IS NULL", nowIso(), id, p.accountId).changes;
   return n;
 }

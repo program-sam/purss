@@ -19,7 +19,7 @@
     "@fontsource-variable/nunito": "^5.3.0",
     "@mediagrid/capacitor-native-audio": "3.0.0",
     "@mozilla/readability": "0.6.0",
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "@purss/domain": "*",
     "@purss/ui": "*",
     "@simplewebauthn/browser": "^14.0.0",

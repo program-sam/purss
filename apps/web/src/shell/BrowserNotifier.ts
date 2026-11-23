@@ -4,7 +4,7 @@ import { notificationsQuery } from "../api/queries.ts";
 import { platform } from "../platform/index.ts";
 import { inQuietHours } from "@purss/domain";
 import { useNav } from "../nav.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 /**
  * Shows operating-system notifications for new arrivals while the page is open, when the person
@@ -15,7 +15,7 @@ import { useWorkspace } from "../state/workspace.tsx";
  */
 export function useBrowserNotifications(): () => void {
   const qc = useQueryClient();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const started = useRef(Date.now());
   const shown = useRef(new Set<string>());

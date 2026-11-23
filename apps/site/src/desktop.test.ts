@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { desktopOs, pickDesktopDownload } from "./desktop.ts";
 
 test("the visitor's system picks the main download; Android gets the app; iPhones, iPads and the unknown keep the list", () => {

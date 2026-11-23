@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { SourceHealth } from "@purss/domain";
 import { canRetrySource } from "../lib/sources.ts";
 import { retrySource } from "../state/source-actions.ts";

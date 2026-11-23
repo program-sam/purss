@@ -10,7 +10,7 @@
  * Pure text rules, no network, so the same answer comes whatever fetched the page.
  */
 
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export type PartialReason = "gated" | "references" | "short";
 export type CaptureAssessment = { full: true } | { full: false; reason: PartialReason };

@@ -1,5 +1,5 @@
 import type { ConnectClientKind } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The first-party clients that may connect, fixed in code: no registration, nothing for an
@@ -75,7 +75,7 @@ const EXTENSION_ROUTES = new Set([
   "POST /api/items/manual",
   "POST /api/items/browser-capture",
   "GET /api/search",
-  "POST /api/discover",
+  "POST /api/link-lookup",
   "POST /api/sources",
   "DELETE /api/connect/device",
 ]);

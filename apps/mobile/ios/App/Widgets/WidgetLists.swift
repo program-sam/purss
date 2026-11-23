@@ -9,7 +9,7 @@ import Foundation
 /// The `kind` of each widget the extension offers. The first widget's kind stays as it was, so a copy placed before
 /// the panels existed keeps working as the To read panel.
 enum WidgetKinds {
-    static let toRead = "WorkspaceWidget"
+    static let toRead = "PurssWidget"
     static let toListen = "ToListenWidget"
     static let new = "NewWidget"
     static let collection = "CollectionWidget"
@@ -81,10 +81,10 @@ enum WidgetLists {
         guard isKey(key) else { return nil }
         let tail = "&limit=\(limit)&exceptPrivate=1"
         switch key {
-        case "toread": return "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos" + tail
-        case "tolisten": return "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts" + tail
-        case "new": return "/api/items?scope=all&filter=fresh&sort=newest" + tail
-        default: return "/api/items?scope=" + key.replacingOccurrences(of: ":", with: "%3A") + "&filter=active&sort=newest" + tail
+        case "toread": return "/api/items?scope=toread&filter=all&sort=newest&type=articles,videos" + tail
+        case "tolisten": return "/api/items?scope=toread&filter=all&sort=oldest&type=podcasts" + tail
+        case "new": return "/api/items?scope=all&filter=new&sort=newest" + tail
+        default: return "/api/items?scope=" + key.replacingOccurrences(of: ":", with: "%3A") + "&filter=all&sort=newest" + tail
         }
     }
 
@@ -122,7 +122,7 @@ enum WidgetLists {
             let title = (item["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let listed = item["listedAt"] as? String ?? ""
             let at: String? = listed.isEmpty ? nil : listed
-            found.append(Row(id: id, title: clip(title.isEmpty ? NativeCopy.Ios.Widget.untitled : title), sourceTitle: clip(item["sourceTitle"] as? String ?? ""), at: at))
+            found.append(Row(id: id, title: clip(title.isEmpty ? NativeTranslations.Ios.Widget.untitled : title), sourceTitle: clip(item["sourceTitle"] as? String ?? ""), at: at))
             if found.count == rows { break }
         }
         return (found, (page["total"] as? NSNumber)?.int64Value)
@@ -172,7 +172,7 @@ enum WidgetLists {
     /// What the PURSS's `/api/bootstrap` says about collections and followed sources, reduced to keys and names:
     /// the widgets' setup lists and the check that a chosen one still exists. Private sources are kept here (in
     /// `privateSources`) so a chosen source that became private can say so; setup leaves them out.
-    struct Catalog {
+    struct WidgetChoices {
         let collections: [Choice]
         let sources: [Choice]
         let privateSources: Set<String>
@@ -187,7 +187,7 @@ enum WidgetLists {
         }
     }
 
-    static func parseCatalog(_ data: Data) -> Catalog? {
+    static func parseChoices(_ data: Data) -> WidgetChoices? {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
         let rawCollections = object["collections"] as? [[String: Any]] ?? []
         let rawSources = object["sources"] as? [[String: Any]] ?? []
@@ -211,13 +211,13 @@ enum WidgetLists {
             let x = a.name.lowercased(), y = b.name.lowercased()
             return x == y ? a.key < b.key : x < y
         }
-        return Catalog(collections: collections, sources: sources, privateSources: privateSources)
+        return WidgetChoices(collections: collections, sources: sources, privateSources: privateSources)
     }
 
-    /// A chosen list's state from the catalog: gone when the PURSS no longer has it, private for a private source.
-    static func chosenState(_ key: String, _ catalog: Catalog) -> String {
-        if catalog.name(key) == nil { return "gone" }
-        if catalog.privateSources.contains(key) { return "private" }
+    /// A chosen list's state from the choices: gone when the PURSS no longer has it, private for a private source.
+    static func chosenState(_ key: String, _ choices: WidgetChoices) -> String {
+        if choices.name(key) == nil { return "gone" }
+        if choices.privateSources.contains(key) { return "private" }
         return "ok"
     }
 
@@ -230,11 +230,11 @@ enum WidgetLists {
     }
 
     /// `{"generation": n, "collections": [{key, name}], "sources": [{key, name}]}`, the private sources left out.
-    static func encodeChoices(generation: Int, catalog: Catalog) -> Data? {
+    static func encodeChoices(generation: Int, choices: WidgetChoices) -> Data? {
         func list(_ choices: [Choice]) -> [[String: String]] {
             choices.map { ["key": $0.key, "name": $0.name] }
         }
-        let object: [String: Any] = ["generation": generation, "collections": list(catalog.choices("collection")), "sources": list(catalog.choices("source"))]
+        let object: [String: Any] = ["generation": generation, "collections": list(choices.choices("collection")), "sources": list(choices.choices("source"))]
         return try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 

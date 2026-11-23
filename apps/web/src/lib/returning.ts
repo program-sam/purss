@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ActivityDTO, HomeOverview, ItemDTO, Preferences } from "@purss/domain";
 import { dateFormat, formatCount, interfaceLocale, plural, timeAgo } from "./format.ts";
 
@@ -12,12 +12,12 @@ export const WEEKDAYS = app.lib.returning.weekdays;
 export const FREQUENCY_LABELS: Record<Preferences["notifications"]["frequency"], { label: string; blurb: string }> = app.lib.returning.frequency;
 
 export const FRESH_DAYS_CHOICES: { value: number; label: string }[] = [
-  { value: 7, label: app.lib.returning.freshDays.week }, { value: 14, label: app.lib.returning.freshDays.fortnight }, { value: 30, label: app.words.n30Days }, { value: 90, label: app.words.n90Days }, { value: 0, label: app.lib.returning.freshDays.never },
+  { value: 7, label: app.lib.returning.newDays.week }, { value: 14, label: app.lib.returning.newDays.fortnight }, { value: 30, label: app.words.n30Days }, { value: 90, label: app.words.n90Days }, { value: 0, label: app.lib.returning.newDays.never },
 ];
 
 /** The choices for how long items stay New, plus the saved value when it isn't one of them (set elsewhere). */
-export function freshDaysChoices(current: number): { value: number; label: string }[] {
-  return FRESH_DAYS_CHOICES.some((c) => c.value === current) ? FRESH_DAYS_CHOICES : [...FRESH_DAYS_CHOICES, { value: current, label: app.lib.returning.freshDays.other(current) }].sort((a, b) => (a.value || Infinity) - (b.value || Infinity));
+export function newDaysChoices(current: number): { value: number; label: string }[] {
+  return FRESH_DAYS_CHOICES.some((c) => c.value === current) ? FRESH_DAYS_CHOICES : [...FRESH_DAYS_CHOICES, { value: current, label: app.lib.returning.newDays.other(current) }].sort((a, b) => (a.value || Infinity) - (b.value || Infinity));
 }
 
 /** The queue: what the person put aside (To read) and what they started (In progress). */
@@ -33,9 +33,9 @@ export const isToListen = (i: Aside) => inQueue(i) && i.kind === "podcast";
  * What Home says when nothing is marked New. It follows the facts: while older items nobody has looked at are still on Home it
  * says nothing is new, not that everything is done; "up to date" is only for a Home with nothing waiting.
  */
-export function calmLine(o: Pick<HomeOverview, "unread">, f: { visited: boolean; items: number; showCounts: boolean }): string {
-  if (o.unread > 0) {
-    const older = f.showCounts ? app.lib.returning.olderNotLookedAt(plural(o.unread, app.lib.nouns.olderItem)) : "";
+export function calmLine(o: Pick<HomeOverview, "unseen">, f: { visited: boolean; items: number; showCounts: boolean }): string {
+  if (o.unseen > 0) {
+    const older = f.showCounts ? app.lib.returning.olderNotLookedAt(plural(o.unseen, app.lib.nouns.olderItem)) : "";
     return `${f.visited ? app.lib.returning.nothingNewSince : app.lib.returning.nothingMarkedNew}${older}`;
   }
   return f.items ? app.lib.returning.upToDate : app.lib.returning.nothingArrived;

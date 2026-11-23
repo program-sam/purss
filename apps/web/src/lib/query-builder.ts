@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CollectionDTO, ItemKind, QueryNode, WorkflowState } from "@purss/domain";
 import { KIND_LABELS, WORKFLOW_LABELS } from "./constants.ts";
 import { interfaceLocale } from "./format.ts";
@@ -115,7 +115,7 @@ export function describeQuery(query: QueryNode | null, names: { source: (id: str
  * disappears from the collection's board, and the person should be told why. Null when it stays.
  */
 export function excludesWorkflow(collection: Pick<CollectionDTO, "mode" | "query">, workflow: WorkflowState): string | null {
-  if (collection.mode !== "query") return null;
+  if (collection.mode !== "filter") return null;
   const parsed = queryToDraft(collection.query);
   if (!parsed.editable || !parsed.draft.workflows.length || parsed.draft.workflows.includes(workflow)) return null;
   return app.lib.queryBuilder.onlyShowsMarked(joinOr(parsed.draft.workflows.map((w) => WORKFLOW_LABELS[w])));

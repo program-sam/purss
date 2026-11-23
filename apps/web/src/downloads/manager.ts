@@ -6,7 +6,7 @@ import type { BackgroundState } from "./background.ts";
 import { PAGE_MAX_BYTES } from "./readable-page.ts";
 import type { ReadableArticle } from "./readable-page.ts";
 import type { DeviceArticle, DeviceDownloads, DownloadOrigin, DownloadProgress, DownloadRecord } from "./types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.manager;
 

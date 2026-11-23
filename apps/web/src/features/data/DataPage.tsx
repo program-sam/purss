@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import type { ImportPreview, OpmlPreview, SourceDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Avatar, Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural } from "../../lib/format.ts";
 import { useFocusResult } from "../../lib/use-focus.ts";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { Note, Page, Section } from "../shared/bits.tsx";
 import { downloadFile } from "../shared/download.ts";
 import { ImportDialog } from "./ImportDialog.tsx";
@@ -175,7 +175,7 @@ function ReconnectSection({ sources }: { sources: SourceDTO[] }) {
 }
 
 export function DataPage() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const needs = ws.data.sources.filter((s) => s.health === "reconnect");
   return (
     <Page title={app.words.yourData} lead={t.lead}>

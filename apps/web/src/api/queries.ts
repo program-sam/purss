@@ -229,7 +229,7 @@ export function putBasket(qc: QueryClient, dto: BasketDTO): void {
 }
 
 /** After changes the server owns the truth: refresh everything that shows items or counts. */
-export function refreshWorkspace(qc: QueryClient, opts: { items?: boolean } = { items: true }): void {
+export function refreshPurss(qc: QueryClient, opts: { items?: boolean } = { items: true }): void {
   void qc.invalidateQueries({ queryKey: keys.bootstrap });
   if (opts.items !== false) {
     void qc.invalidateQueries({ queryKey: keys.items });

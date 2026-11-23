@@ -7,12 +7,12 @@ import { listItemIds, listItems } from "./items.ts";
 test("the source chips narrow a list to the sources picked, or leave the ones switched off out", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const first = makeSource(app, p, "First", "feed/1");
   const second = makeSource(app, p, "Second", "feed/2");
   const third = makeSource(app, p, "Third", "feed/3");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
-  const from = (q: { source?: string; without?: string }) => listItems(app, p, { scope: "all", filter: "all", ...q }).items.map((i) => i.sourceId).sort();
+  const from = (q: { source?: string; without?: string }) => listItems(app, p, { scope: "all", filter: "all_with_ignored", ...q }).items.map((i) => i.sourceId).sort();
   assert.deepEqual(from({ source: `${first},${third}` }), [first, third].sort());
   assert.deepEqual(from({ without: second }), [first, third].sort());
   assert.deepEqual(from({ without: `${first},${second}` }), [third]);

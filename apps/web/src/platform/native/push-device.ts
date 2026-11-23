@@ -4,7 +4,7 @@ import { api } from "../../api/client.ts";
 import type { PhonePush } from "../types.ts";
 import { PushController } from "./push.ts";
 import type { PushPermission } from "./push.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const words = app.platform.pushDevice;
 

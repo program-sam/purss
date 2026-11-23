@@ -29,7 +29,7 @@ function rng(seed: number): () => number {
   };
 }
 
-const STATES: WorkflowState[] = ["new", "toread", "inprogress", "finished", "ignored"];
+const STATES: WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
 
 type World = { app: App; p: Principal & { engineUserId: string }; sources: string[]; collections: string[]; queryCollection: string; baskets: string[]; cleanup: () => void };
 
@@ -47,23 +47,23 @@ function build(seed: number): World {
   // Items without a source, and items of the hand-kept source.
   for (let i = 0; i < 6; i++) {
     insertItem(app, {
-      accountId: p.accountId, workspaceId: p.workspaceId, sourceId: i < 3 ? null : manual, kind: "article", title: `Kept by hand ${i}`, url: `https://example.org/hand/${i}`,
+      accountId: p.accountId, sourceId: i < 3 ? null : manual, kind: "article", title: `Kept by hand ${i}`, url: `https://example.org/hand/${i}`,
       author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-      publishedAt: null, discoveredAt: new Date().toISOString(), enclosures: [], fresh: r() < 0.5, reason: "keep",
+      publishedAt: null, discoveredAt: new Date().toISOString(), enclosures: [], isNew: r() < 0.5, reason: "keep",
     });
   }
-  const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((x) => x.id);
-  // The back catalogue of sources followed from now arrives Ignored and not New (sync.ts arrivalOf); the actions below act on some of them.
-  const backCatalogue = ids().filter(() => r() < 0.3);
-  bulk(app, p, backCatalogue, { type: "clearFresh" });
-  app.db.run(`UPDATE item_state SET workflow = 'ignored' WHERE item_id IN (SELECT i.id FROM items i WHERE i.id IN (SELECT value FROM json_each(?)) AND i.source_id IS NOT NULL)`, JSON.stringify(backCatalogue));
+  const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((x) => x.id);
+  // The backlog of sources followed from now arrives Ignored and not New (sync.ts arrivalOf); the actions below act on some of them.
+  const backlog = ids().filter(() => r() < 0.3);
+  bulk(app, p, backlog, { type: "clearNew" });
+  app.db.run(`UPDATE item_state SET workflow = 'ignored' WHERE item_id IN (SELECT i.id FROM items i WHERE i.id IN (SELECT value FROM json_each(?)) AND i.source_id IS NOT NULL)`, JSON.stringify(backlog));
   // Workflow states and cleared New markers, at random.
   for (const workflow of ["toread", "inprogress", "finished", "ignored"] as const) {
     const some = ids().filter(() => r() < 0.12);
     if (some.length) bulk(app, p, some, { type: "workflow", workflow });
   }
   const cleared = ids().filter(() => r() < 0.4);
-  if (cleared.length) bulk(app, p, cleared, { type: "clearFresh" });
+  if (cleared.length) bulk(app, p, cleared, { type: "clearNew" });
   changeState(app, p, ids()[0]!, { workflow: "finished", expectedRevision: app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", ids()[0]!)!.revision });
   // Keep some items, then stop following two sources: their items leave the lists unless kept.
   for (const id of ids().filter(() => r() < 0.1)) keepItem(app, p, id, pick(baskets));
@@ -72,7 +72,7 @@ function build(seed: number): World {
     createCollection(app, p, { name: "B", emoji: null, mode: "sources", sourceIds: sources.slice(3, 8), query: null, view: "list" }).id,
     createCollection(app, p, { name: "Empty", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id,
   ];
-  const queryCollection = createCollection(app, p, { name: "Unread", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["new"] }, view: "list" }).id;
+  const queryCollection = createCollection(app, p, { name: "Unseen", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" }).id;
   unfollowSource(app, p, sources[1]!);
   unfollowSource(app, p, sources[5]!);
   // Some more arrivals after the changes.
@@ -82,11 +82,11 @@ function build(seed: number): World {
 
 /** The queries the counts replaced. */
 function referenceTotal(app: App, p: Principal, scope: string, filter: string): number {
-  const params: SqlParam[] = [p.workspaceId];
-  const where = ["i.workspace_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
-  if (filter === "fresh") where.push("st.fresh = 1");
-  else if (filter === "active") where.push("st.workflow <> 'ignored'");
-  else if (filter !== "all") { where.push("st.workflow = ?"); params.push(filter); }
+  const params: SqlParam[] = [p.accountId];
+  const where = ["i.account_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
+  if (filter === "new") where.push("st.is_new = 1");
+  else if (filter === "all") where.push("st.workflow <> 'ignored'");
+  else if (filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(filter); }
   return app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")}`, ...params)!.n;
 }
 
@@ -100,16 +100,16 @@ test("source and collection counts equal the queries they replaced, in every awk
       const listed = listSources(w.app, w.p);
       assert.ok(listed.length >= 6);
       for (const s of listed) {
-        const fresh = w.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.source_id = ? AND st.fresh = 1", s.id)!.n;
+        const fresh = w.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.source_id = ? AND st.is_new = 1", s.id)!.n;
         const items = w.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items i WHERE i.source_id = ?", s.id)!.n;
-        assert.deepEqual([s.freshCount, s.itemCount], [fresh, items], `seed ${seed}, ${s.title}`);
+        assert.deepEqual([s.newCount, s.itemCount], [fresh, items], `seed ${seed}, ${s.title}`);
       }
       for (const c of listCollections(w.app, w.p)) {
         if (c.mode !== "sources") continue;
-        const row = w.app.db.get<{ fresh: number; items: number }>(
-          `SELECT COALESCE(SUM(st.fresh), 0) AS fresh, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
-           WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.workspaceId, c.id)!;
-        assert.deepEqual([c.freshCount, c.itemCount], [row.fresh, row.items], `seed ${seed}, ${c.name}`);
+        const row = w.app.db.get<{ isNew: number; items: number }>(
+          `SELECT COALESCE(SUM(st.is_new), 0) AS isNew, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
+           WHERE i.account_id = ? AND st.workflow <> 'ignored' AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.accountId, c.id)!;
+        assert.deepEqual([c.newCount, c.itemCount], [row.isNew, row.items], `seed ${seed}, ${c.name}`);
       }
     } finally { w.cleanup(); }
   }
@@ -132,10 +132,10 @@ function everyListTotal(): number {
   for (const seed of SEEDS) {
     const w = build(seed);
     try {
-      const scopes = ["all", "home", "fresh", "toread", "loose", `collection:${w.collections[0]}`, `collection:${w.collections[1]}`, `collection:${w.collections[2]}`, `collection:${w.queryCollection}`,
+      const scopes = ["all", "home", "new", "toread", "loose", `collection:${w.collections[0]}`, `collection:${w.collections[1]}`, `collection:${w.collections[2]}`, `collection:${w.queryCollection}`,
         `source:${w.sources[0]}`, `source:${w.sources[1]}`, `basket:${w.baskets[0]}`];
       for (const scope of scopes) {
-        for (const filter of ["all", "active", "fresh", ...STATES]) {
+        for (const filter of ["all_with_ignored", "all", "new", ...STATES]) {
           const total = listItems(w.app, w.p, { scope, filter: filter as never, limit: 5 }).total;
           assert.equal(total, referenceTotal(w.app, w.p, scope, filter), `seed ${seed}, ${scope}, filter ${filter}`);
           compared++;
@@ -151,10 +151,10 @@ function everyListTotal(): number {
 test("counts are reused until something is written, and never kept from inside a transaction that rolls back", () => {
   const w = build(7);
   try {
-    const first = itemCounts(w.app, w.p.workspaceId);
-    assert.equal(itemCounts(w.app, w.p.workspaceId), first, "nothing written: the same counts");
+    const first = itemCounts(w.app, w.p.accountId);
+    assert.equal(itemCounts(w.app, w.p.accountId), first, "nothing written: the same counts");
     applySyncBatch(w.app, w.p.engineUserId, batch([entry("feed/0")]));
-    const second = itemCounts(w.app, w.p.workspaceId);
+    const second = itemCounts(w.app, w.p.accountId);
     assert.notEqual(second, first, "a write: counted again");
     assert.equal(second.items(w.sources[0]!), first.items(w.sources[0]!) + 1);
 
@@ -162,10 +162,10 @@ test("counts are reused until something is written, and never kept from inside a
     const before = second.items(w.sources[0]!);
     assert.throws(() => w.app.db.tx(() => {
       applySyncBatch(w.app, w.p.engineUserId, batch([entry("feed/0"), entry("feed/0")]));
-      assert.equal(itemCounts(w.app, w.p.workspaceId).items(w.sources[0]!), before + 2);
+      assert.equal(itemCounts(w.app, w.p.accountId).items(w.sources[0]!), before + 2);
       throw new Error("roll back");
     }), /roll back/);
-    assert.equal(itemCounts(w.app, w.p.workspaceId).items(w.sources[0]!), before, "the rolled-back items are not counted");
+    assert.equal(itemCounts(w.app, w.p.accountId).items(w.sources[0]!), before, "the rolled-back items are not counted");
   } finally { w.cleanup(); }
 });
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { assessCapture, isNoticeOnly, partialReasonText } from "./capture-quality.ts";
 
 // The first three are invented text shaped like real captures: a journal paper that came out as its reference list,

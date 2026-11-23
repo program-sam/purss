@@ -1,5 +1,5 @@
 import { BlockList, isIP } from "node:net";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Destination address rules shared by product discovery, readable capture and the

@@ -55,8 +55,8 @@ export type Config = {
   dataDir: string;
   secretsDir: string;
   dbFile: string;
-  /** Discovery's catalog of popular sources (hosted only): an editorial file put on the server by hand, absent elsewhere. */
-  catalogFile: string;
+  /** Discovery's catalogue of popular sources (hosted only): an editorial file put on the server by hand, absent elsewhere. */
+  catalogueFile: string;
   publicHost: string;
   publicPort: number;
   internalHost: string;
@@ -73,7 +73,7 @@ export type Config = {
   diskReserveBytes: number;
   /** The most memory checking one import may use, in MB (services/portability.ts checkUploadApart); larger files are refused. */
   importCheckHeapMb: number;
-  defaultAllocationBytes: number | null;
+  defaultAllowanceBytes: number | null;
   oidc: OidcProviderConfig[];
   webDist: string;
   /** The public website, served at the root in hosted mode. */
@@ -102,7 +102,7 @@ export type Config = {
    * (or localhost); nothing else to configure.
    */
   assistantOAuth: boolean;
-  /** Jev, for Smart filters: the operator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
+  /** Jev, for Smart filters: the administrator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
   jev: JevConfig;
   /**
    * The push relay that wakes connected phones, or null for no phone notifications. The
@@ -117,7 +117,7 @@ export type Config = {
   billing: { url: string; secret: string } | null;
 };
 
-/** A number from the environment; unset or empty (Compose passes a variable the operator didn't set as "") means the default. */
+/** A number from the environment; unset or empty (Compose passes a variable the administrator didn't set as "") means the default. */
 function int(v: string | undefined, d: number): number {
   const n = v === undefined || v.trim() === "" ? NaN : Number(v);
   return Number.isFinite(n) ? n : d;
@@ -203,12 +203,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       return { ...p, issuer, stepUp: p.stepUp ?? (issuerKey(issuer) === GOOGLE_ISSUER ? "choose-account" : "reauthenticate") };
     });
   }
-  const alloc = env.PURSS_DEFAULT_ALLOCATION_BYTES;
+  const alloc = env.PURSS_DEFAULT_ALLOWANCE_BYTES;
   return {
     dataDir,
     secretsDir: path.join(dataDir, "secrets"),
     dbFile: env.PURSS_DB_FILE ?? path.join(dataDir, "product.db"),
-    catalogFile: path.join(dataDir, "discover-catalog.sqlite"),
+    catalogueFile: path.join(dataDir, "discovery-catalogue.sqlite"),
     publicHost: env.PURSS_HOST ?? "127.0.0.1",
     publicPort,
     internalHost: env.PURSS_INTERNAL_HOST ?? "127.0.0.1",
@@ -219,7 +219,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mode,
     diskReserveBytes: int(env.PURSS_DISK_RESERVE_BYTES, 1024 ** 3),
     importCheckHeapMb: Math.max(64, int(env.PURSS_IMPORT_CHECK_HEAP_MB, 384)),
-    defaultAllocationBytes: alloc ? int(alloc, 0) : null,
+    defaultAllowanceBytes: alloc ? int(alloc, 0) : null,
     oidc,
     webDist: env.PURSS_WEB_DIST ?? path.join(REPO, "apps/web/dist"),
     siteDist: env.PURSS_SITE_DIST ?? path.join(REPO, "apps/site/dist"),

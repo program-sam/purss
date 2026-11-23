@@ -31,13 +31,13 @@ export function exactQuery(text: string): string | null {
  * before 26.12.10 and 26.12.11, which also begin with those numbers), newest first within each group; the rest follow.
  */
 export function searchItems(app: App, p: Principal, query: string, limit = SEARCH_FIRST): ItemDTO[] {
-  const found = listItems(app, p, { scope: "all", filter: "all", q: query, limit }).items;
+  const found = listItems(app, p, { scope: "all", filter: "all_with_ignored", q: query, limit }).items;
   const exact = exactQuery(query);
   if (!exact) return found;
   const ids = app.db.all<{ id: string }>(
     `SELECT i.id FROM items i LEFT JOIN sources s ON s.id = i.source_id
-      WHERE i.workspace_id = ? AND ${VISIBLE_SOURCE} AND i.seq IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)
-      ORDER BY i.listed_at DESC, i.id DESC LIMIT ?`, p.workspaceId, exact, limit).map((r) => r.id);
+      WHERE i.account_id = ? AND ${VISIBLE_SOURCE} AND i.seq IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)
+      ORDER BY i.listed_at DESC, i.id DESC LIMIT ?`, p.accountId, exact, limit).map((r) => r.id);
   const first = ids.map((id) => getItem(app, p, id));
   const seen = new Set(ids);
   return [...first, ...found.filter((i) => !seen.has(i.id))].slice(0, limit);
@@ -51,8 +51,8 @@ export function noteSnippets(app: App, p: Principal, itemIds: string[], query: s
   const terms = searchTerms(query).map((t) => indexedWord(t));
   if (!itemIds.length || !terms.length) return {};
   const rows = app.db.all<{ item_id: string; body: string }>(
-    `SELECT item_id, body FROM annotations WHERE workspace_id = ? AND deleted_at IS NULL AND body IS NOT NULL AND item_id IN (${itemIds.map(() => "?").join(",")})
-      ORDER BY created_at, id`, p.workspaceId, ...itemIds);
+    `SELECT item_id, body FROM annotations WHERE account_id = ? AND deleted_at IS NULL AND body IS NOT NULL AND item_id IN (${itemIds.map(() => "?").join(",")})
+      ORDER BY created_at, id`, p.accountId, ...itemIds);
   const out: Record<string, string> = {};
   for (const r of rows) {
     if (out[r.item_id]) continue;

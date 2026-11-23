@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
+import { app as copy } from "@purss/translations/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -39,10 +39,10 @@ const shots = os.tmpdir();
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this check.
+// The words the page shows come from the translation files, so rewording one never breaks this check.
 const { display, general } = copy.dialogs.settings;
 const { up, down } = copy.components.pageNav;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
 /** The sidebar's Add source button, or the tab bar's on a phone. */
 const ADD_SOURCE = new RegExp(`${esc(copy.words.addSource)}|${esc(copy.words.addSource)}`);
@@ -79,11 +79,10 @@ function prepare(): { sourceId: string; longItemId: string } {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId: row.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Tidal Notes", "feed/1");
     const paragraph = (n: number) => `<p>Paragraph ${n}. The tide leaves thin layers of silt across the flats, and each layer tells the story of one storm. Walking out at low water, the surface is firm, ribbed, and cold underfoot.</p>`;
     const long = Array.from({ length: 60 }, (_, i) => paragraph(i + 1)).join("");

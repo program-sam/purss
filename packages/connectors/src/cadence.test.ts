@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { cadenceText, POSTS } from "./cadence.ts";
 import type { FeedItem } from "./feed.ts";
 

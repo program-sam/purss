@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 declare const __PURSS_VERSION__: string | null | undefined;
 

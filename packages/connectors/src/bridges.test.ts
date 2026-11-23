@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { BRIDGE_SERVICES, bridgeDescriptor, bridgeKeyValid, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
-import { discover } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
 import { decodePageKey, encodePageKey } from "./page-feeds.ts";
 import { parseFeed } from "./feed.ts";
-import type { BridgeClient } from "./discover.ts";
+import type { BridgeClient } from "./link-lookup.ts";
 
 const copy = server.sources.connectors;
 
@@ -120,7 +120,7 @@ test("post ids come from the post address and belong to the source", () => {
   assert.equal(id("vkvideo", "thoisoi", "https://example.com/video-22629421_456240181"), null);
 });
 
-test("descriptors carry no host, backend or credential, and only catalogued keys parse", () => {
+test("descriptors carry no host, backend or credential, and only listed keys parse", () => {
   assert.equal(bridgeDescriptor("telegram", "durov"), "bridge:telegram/durov");
   assert.equal(parseBridgeDescriptor("bridge:telegram/durov")?.key, "durov");
   for (const bad of ["bridge:telegram/Du rov", "bridge:tiktok/nasa", "bridge:instagram/.nasa", "bridge:telegram/a", "bridge:telegram/durov/x", "telegram/durov", "bridge:telegram/durov?x=1"]) {
@@ -145,7 +145,7 @@ const RSS = `<?xml version="1.0"?><rss version="2.0"><channel><title>Durov's Cha
 test("with a bridge, a page address becomes a source previewed through the router, followed as its descriptor", async () => {
   const asked: string[] = [];
   const bridge: BridgeClient = async (t) => { asked.push(`${t.service.id}/${t.key}`); return { status: 200, body: Buffer.from(RSS) }; };
-  const r = await discover("https://t.me/s/durov", { bridge });
+  const r = await lookupLink("https://t.me/s/durov", { bridge });
   assert.ok(r.ok);
   assert.deepEqual(asked, ["telegram/durov"]);
   const c = r.candidates[0]!;
@@ -155,27 +155,27 @@ test("with a bridge, a page address becomes a source previewed through the route
   assert.equal(c.title, "Durov's Channel");
   assert.equal(c.samples[0]!.title, "Hello");
   assert.ok(c.note);
-  const again = await discover("bridge:telegram/durov", { bridge });
+  const again = await lookupLink("bridge:telegram/durov", { bridge });
   assert.ok(again.ok && again.candidates[0]!.feedUrl === "bridge:telegram/durov");
 });
 
 test("without a bridge, those services keep the honest no-feed answer, and a descriptor can't be followed", async () => {
-  const r = await discover("https://t.me/durov");
+  const r = await lookupLink("https://t.me/durov");
   assert.ok(!r.ok && r.reason === "unsupported" && r.message === copy.platforms.noFeed("Telegram"));
-  const d = await discover("bridge:telegram/durov");
+  const d = await lookupLink("bridge:telegram/durov");
   assert.ok(!d.ok && d.reason === "unsupported");
 });
 
 test("a failing router is a plain 'try again', never an empty source", async () => {
-  const r = await discover("https://www.twitch.tv/shroud", { bridge: async () => ({ status: 503, body: Buffer.from("x") }) });
+  const r = await lookupLink("https://www.twitch.tv/shroud", { bridge: async () => ({ status: 503, body: Buffer.from("x") }) });
   assert.ok(!r.ok && r.reason === "unreachable" && r.message === copy.discover.bridgeNoPostsCheck("Twitch", "shroud"));
-  const t = await discover("https://www.twitch.tv/shroud", { bridge: async () => ({ failed: true }) });
+  const t = await lookupLink("https://www.twitch.tv/shroud", { bridge: async () => ({ failed: true }) });
   assert.ok(!t.ok && t.reason === "unreachable");
 });
 
 test("a service's pages that name no source still get the no-feed answer with a bridge", async () => {
   const bridge: BridgeClient = async () => { throw new Error("must not be asked"); };
-  const r = await discover("https://t.me/joinchat/AbCdEf", { bridge });
+  const r = await lookupLink("https://t.me/joinchat/AbCdEf", { bridge });
   assert.ok(!r.ok && r.reason === "unsupported");
 });
 
@@ -203,7 +203,7 @@ test("a MangaDex title page and a VK Video channel page become sources previewed
     ["https://vk.com/video/@Thoisoi", "bridge:vkvideo/thoisoi", "https://vkvideo.ru/@thoisoi", copy.bridges.vkvideo],
   ] as const) {
     const asked: string[] = [];
-    const r = await discover(page, { bridge: async (t) => { asked.push(`bridge:${t.service.id}/${t.key}`); return { status: 200, body: Buffer.from(rss) }; } });
+    const r = await lookupLink(page, { bridge: async (t) => { asked.push(`bridge:${t.service.id}/${t.key}`); return { status: 200, body: Buffer.from(rss) }; } });
     assert.ok(r.ok, page);
     assert.deepEqual(asked, [descriptor], page);
     assert.equal(r.candidates[0]!.feedUrl, descriptor, page);
@@ -275,10 +275,10 @@ test("bridged discovery keeps discovery's deadline: cancelled, it asks nothing a
   let asked = 0;
   const controller = new AbortController();
   controller.abort();
-  const r = await discover("https://t.me/durov", { signal: controller.signal, bridge: async () => { asked++; return { status: 200, body: Buffer.from(RSS) }; } });
+  const r = await lookupLink("https://t.me/durov", { signal: controller.signal, bridge: async () => { asked++; return { status: 200, body: Buffer.from(RSS) }; } });
   assert.ok(!r.ok && r.reason === "timeout");
   assert.equal(asked, 0);
-  const slow = await discover("https://t.me/durov", { timeoutMs: 50, bridge: (_t, signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve({ failed: true }))) });
+  const slow = await lookupLink("https://t.me/durov", { timeoutMs: 50, bridge: (_t, signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve({ failed: true }))) });
   assert.ok(!slow.ok && slow.reason === "timeout");
 });
 

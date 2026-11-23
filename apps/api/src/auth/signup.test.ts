@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bootDeletion, setCookie } from "../deletion-testing.ts";
-import { OPERATOR_EMAIL, makeOperator } from "../testing.ts";
+import { OPERATOR_EMAIL, makeAdministrator } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 import type { Message } from "../mail/mailer.ts";
 import { checkPassword } from "./passwords.ts";
@@ -17,7 +17,7 @@ let n = 0;
 
 async function boot(env: Record<string, string> = HOSTED) {
   const b = await bootDeletion(env);
-  makeOperator(b.app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
+  makeAdministrator(b.app); // claimed by its administrator first: nobody signs up before (mail/mailer.ts signupOpen)
   const sent: Message[] = [];
   useTransport(b.app, { send: async (m) => { sent.push(m); }, verify: async () => undefined });
   await checkMail(b.app);
@@ -146,8 +146,8 @@ test("a new hosted account has no storage limit", async (t) => {
   t.after(b.close);
   await start("ana7@example.org");
   assert.equal((await finish({ token: await linkFor("ana7@example.org") })).status, 200);
-  const rows = b.app.db.all<{ allocation_bytes: number | null }>("SELECT s.allocation_bytes FROM storage_accounts s JOIN accounts a ON a.id = s.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL);
-  assert.deepEqual(rows.map((r) => r.allocation_bytes), [null], "no allocation unless an administrator sets one");
+  const rows = b.app.db.all<{ allowance_bytes: number | null }>("SELECT s.allowance_bytes FROM storage_accounts s JOIN accounts a ON a.id = s.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL);
+  assert.deepEqual(rows.map((r) => r.allowance_bytes), [null], "no allowance unless an administrator sets one");
 });
 
 test("nobody can sign up before the installation is claimed: the setup code's administrator must come first", async (t) => {

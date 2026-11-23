@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog } from "@purss/ui";
 import { platform } from "../platform/index.ts";
 import { useOverlays } from "../state/overlays.tsx";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ImportResult } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { plural } from "../../lib/format.ts";
 import { effects, inFile, resultLines } from "./import-summary.ts";
 

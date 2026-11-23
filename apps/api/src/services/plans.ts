@@ -1,9 +1,9 @@
 import { PLAN_LIMITS, PLAN_NAMES } from "@purss/domain";
-import type { Capacity, Plan } from "@purss/domain";
+import type { PlanUsage, Plan } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError } from "../http.ts";
-import { allocation, usedBytes } from "./storage.ts";
-import { server } from "@purss/copy/server";
+import { allowance, usedBytes } from "./storage.ts";
+import { server } from "@purss/translations/server";
 
 /**
  * Hosted plans (packages/domain/src/plans.ts): the number of followed sources and of collections an
@@ -12,7 +12,7 @@ import { server } from "@purss/copy/server";
  */
 
 const FOLLOWED_SOURCES = "SELECT COUNT(*) AS n FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual'";
-const COLLECTIONS = "SELECT COUNT(*) AS n FROM collections c JOIN workspaces w ON w.id = c.workspace_id WHERE w.account_id = ?";
+const COLLECTIONS = "SELECT COUNT(*) AS n FROM collections c WHERE c.account_id = ?";
 
 const isPlan = (v: string | null): v is Plan => v !== null && (PLAN_NAMES as readonly string[]).includes(v);
 
@@ -40,14 +40,14 @@ export function assignMissingPlans(app: App): void {
   app.db.run("UPDATE accounts SET plan = 'free' WHERE plan IS NULL");
 }
 
-export function capacity(app: App, accountId: string): Capacity {
+export function planUsage(app: App, accountId: string): PlanUsage {
   const plan = planOf(app, accountId);
   const limits = plan ? PLAN_LIMITS[plan] : { sources: null, collections: null };
   return {
     plan,
     sources: { used: app.db.get<{ n: number }>(FOLLOWED_SOURCES, accountId)!.n, limit: limits.sources },
     collections: { used: app.db.get<{ n: number }>(COLLECTIONS, accountId)!.n, limit: limits.collections },
-    storage: { used: usedBytes(app, accountId), limit: allocation(app, accountId) },
+    storage: { used: usedBytes(app, accountId), limit: allowance(app, accountId) },
   };
 }
 
@@ -65,7 +65,7 @@ export class PlanLimit extends HttpError {
 /** Refuse when `adding` more sources or collections would take the account over its plan. */
 export function assertRoom(app: App, accountId: string, what: "sources" | "collections", adding = 1): void {
   if (adding <= 0) return;
-  const c = capacity(app, accountId);
+  const c = planUsage(app, accountId);
   const { used, limit } = c[what];
   if (limit !== null && used + adding > limit) throw new PlanLimit(what, limit, c.plan!);
 }

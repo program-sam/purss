@@ -1,13 +1,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO, ItemKind, KeptCopy } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";
 import { isTimeBased, isYouTube, itemExcerpt, itemPicture, lengthText, manualSiteName, safeHref } from "../lib/items.ts";
 import { usePendingMark } from "../outbox/hooks.ts";
-import { useRowLookups } from "../state/workspace.tsx";
+import { useRowLookups } from "../state/purss.tsx";
 
 const t = app.components.itemBits;
 
@@ -38,8 +38,8 @@ export function useFace(item: ItemDTO): Face {
   return { ...nameFace(name), iconUrl: null, name, curator: null };
 }
 
-export function FreshDot({ fresh }: { fresh: boolean }) {
-  return fresh ? <><i className="dot" title={t.freshTitle} /><span className="sr">New. </span></> : null;
+export function NewDot({ isNew }: { isNew: boolean }) {
+  return isNew ? <><i className="dot" title={t.freshTitle} /><span className="sr">New. </span></> : null;
 }
 
 const COPY: Record<KeptCopy, { text: string; icon: IconName }> = {
@@ -71,11 +71,11 @@ export function useItemLabel(item: ItemDTO, o: { source: string; when: string; s
   const lookups = useRowLookups();
   const n = item.basketIds.length;
   const kept = o.showKept && n ? `Kept in ${n === 1 ? lookups.basketName(item.basketIds[0]!) ?? t.oneBasket : t.baskets(n)}` : null;
-  return [item.fresh ? "New" : null, item.title, o.source, o.when, item.workflow !== "new" ? workflowLabel(item.workflow, item.kind) : null, kept, o.showCopy && item.kept ? COPY[item.kept.copy].text : null].filter(Boolean).join(", ");
+  return [item.isNew ? "New" : null, item.title, o.source, o.when, item.workflow !== "undecided" ? workflowLabel(item.workflow, item.kind) : null, kept, o.showCopy && item.kept ? COPY[item.kept.copy].text : null].filter(Boolean).join(", ");
 }
 
 export function WfTag({ workflow, kind }: { workflow: ItemDTO["workflow"]; kind?: ItemKind }) {
-  return workflow !== "new" ? <span className="wf" data-wf={workflow}>{workflowLabel(workflow, kind)}</span> : null;
+  return workflow !== "undecided" ? <span className="wf" data-wf={workflow}>{workflowLabel(workflow, kind)}</span> : null;
 }
 
 /**
@@ -98,7 +98,7 @@ export function KeptTag({ item }: { item: ItemDTO }) {
 
 /**
  * One resize observer for every text card. Its callback gets all the cards that changed at once, so every card
- * measures before any of them re-renders; one observer per card made each measurement force a fresh layout.
+ * measures before any of them re-renders; one observer per card made each measurement force a isNew layout.
  */
 const artWatchers = new Map<Element, () => void>();
 let artObserver: ResizeObserver | null = null;

@@ -3,7 +3,7 @@ import type { JobKind, LeasedJob } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 import { isAccountUsable, usableAccountSql } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export const LEASE_SECONDS = 120;
 
@@ -14,7 +14,7 @@ export const LEASE_SECONDS = 120;
  */
 export const RUNNABLE_JOB_SQL = `(jobs.account_id IS NULL OR jobs.kind = 'engine.delete_user' OR ${usableAccountSql("jobs.account_id")})`;
 
-export type EnqueueOpts = { accountId?: string | null; workspaceId?: string | null; idempotencyKey?: string; runAfter?: string; maxAttempts?: number };
+export type EnqueueOpts = { accountId?: string | null; idempotencyKey?: string; runAfter?: string; maxAttempts?: number };
 
 /** Enqueue a durable job. Call inside the transaction that requires it (outbox). */
 export function enqueue<K extends JobKind>(app: App, kind: K, payload: unknown, opts: EnqueueOpts = {}): string {
@@ -36,9 +36,9 @@ export function enqueue<K extends JobKind>(app: App, kind: K, payload: unknown, 
   }
   const id = newId("job");
   app.db.run(
-    `INSERT INTO jobs (id, account_id, workspace_id, kind, payload, run_after, max_attempts, idempotency_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, opts.accountId ?? null, opts.workspaceId ?? null, kind, JSON.stringify(parsed), opts.runAfter ?? now, opts.maxAttempts ?? 6, opts.idempotencyKey ?? null, now, now,
+    `INSERT INTO jobs (id, account_id, kind, payload, run_after, max_attempts, idempotency_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, opts.accountId ?? null, kind, JSON.stringify(parsed), opts.runAfter ?? now, opts.maxAttempts ?? 6, opts.idempotencyKey ?? null, now, now,
   );
   return id;
 }
@@ -64,8 +64,8 @@ export function leaseJobs(app: App, kinds: string[], max: number): LeasedJob[] {
 }
 
 /** Returns the job row when the lease is still current and the job may run, otherwise null (lost lease). */
-export function currentLease(app: App, jobId: string, leaseId: string): { id: string; kind: string; account_id: string | null; workspace_id: string | null; payload: string } | null {
-  return app.db.get(`SELECT id, kind, account_id, workspace_id, payload FROM jobs WHERE id = ? AND lease_id = ? AND status = 'leased' AND ${RUNNABLE_JOB_SQL}`, jobId, leaseId) ?? null;
+export function currentLease(app: App, jobId: string, leaseId: string): { id: string; kind: string; account_id: string | null; payload: string } | null {
+  return app.db.get(`SELECT id, kind, account_id, payload FROM jobs WHERE id = ? AND lease_id = ? AND status = 'leased' AND ${RUNNABLE_JOB_SQL}`, jobId, leaseId) ?? null;
 }
 
 export function heartbeat(app: App, jobId: string, leaseId: string): boolean {

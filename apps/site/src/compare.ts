@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { ic } from "./kit.ts";
 
 // The "algorithmic feeds against your PURSS" panel: one line runs across the top, tangled over the feed's column and straight over PURSS's.

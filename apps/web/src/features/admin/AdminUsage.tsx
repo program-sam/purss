@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { UsageReport } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural, timeAgo } from "../../lib/format.ts";

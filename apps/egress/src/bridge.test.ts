@@ -208,7 +208,7 @@ test("the fetch log keeps 30 days and reports failing keys with their streak", (
   assert.equal((log.db.prepare("SELECT COUNT(*) AS n FROM bridge_fetches").get() as { n: number }).n, 0);
 });
 
-test("the running listener serves the signed route only and asks RSS-Bridge for the catalogued bridge", async () => {
+test("the running listener serves the signed route only and asks RSS-Bridge for the listed bridge", async () => {
   const upstream = await startUpstream((_req, res) => {
     res.writeHead(200, { "content-type": "application/atom+xml" });
     res.end(telegramAtom("durov", [1]));
@@ -406,7 +406,7 @@ test("a MangaDex answer without entries is a title it doesn't know, or a misread
   assert.deepEqual(log.summary().failing.map((f) => [f.service, f.outcome]), [[service, "no_posts"]]);
 });
 
-test("each service's example, asked of RSS-Bridge as the catalogue says, comes back through the router as entries with ids", async () => {
+test("each service's example, asked of RSS-Bridge as the bridge list says, comes back through the router as entries with ids", async () => {
   const files = new Map<string, string>([...RECORDED.map((n) => [n.service, n.file] as const), ["page", "xpath-anthropic-news"]]);
   const asked: { bridge: string; params: Record<string, string> }[] = [];
   const upstream = await startUpstream((req, res) => {

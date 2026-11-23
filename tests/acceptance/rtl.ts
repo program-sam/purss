@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
+import { app as copy } from "@purss/translations/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -44,7 +44,7 @@ const EMAIL = "dalia@example.test";
 const NAME = "داليا Dalia Lekhal";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const HOME = copy.pages.home;
 /** What some publishers send: every word of a paragraph joined to the next with a no-break space. */
 const joined = (text: string) => text.replaceAll(" ", "&nbsp;");
@@ -73,10 +73,9 @@ function prepare(): void {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, NAME, testPassword());
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: ws, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     const ids = SOURCES.map((title, i) => makeSource(app, p, title, `feed/${i + 1}`));
     applySyncBatch(app, eu, batch([

@@ -1,6 +1,6 @@
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { deepLink, isWebPage } from "./lib/address.ts";
-import { signedOut, workspace, WorkspaceError } from "./lib/api.ts";
+import { signedOut, purssClient, PurssError } from "./lib/api.ts";
 import { BADGE_DELAY_MS, Debouncer, KEPT_MARK, KeptCache, mayLookUp } from "./lib/badge.ts";
 import { ext } from "./lib/browser.ts";
 import type { Tab } from "./lib/browser.ts";
@@ -34,7 +34,7 @@ async function refreshBaskets(): Promise<void> {
   const conn = await getConnection();
   if (!conn) return;
   try {
-    await setBaskets(await workspace(conn).baskets());
+    await setBaskets(await purssClient(conn).baskets());
   } catch (err) {
     if (signedOut(err)) await forgetConnection();
   }
@@ -67,14 +67,14 @@ api.contextMenus?.onClicked.addListener((info, tab) => void (async () => {
   // Firefox tells the link's text; Chrome doesn't, and the PURSS then names the link by its address.
   const title = (action.what === "page" ? tab?.title : info.linkText)?.trim().slice(0, 300) || undefined;
   try {
-    await workspace(conn).keep({ url, basketId: action.basketId, ...(title ? { title } : {}) });
+    await purssClient(conn).keep({ url, basketId: action.basketId, ...(title ? { title } : {}) });
     if (action.what === "page") kept.set(url, true, Date.now());
     await mark(tab?.id, action.what === "page" ? "kept" : "none", extension.background.kept(action.what, basket?.name));
   } catch (err) {
     if (signedOut(err)) await forgetConnection();
     await mark(tab?.id, "error", err instanceof Error ? err.message : extension.background.couldntKeep);
     // Keeping answers not_found only for a basket that is gone: the list is read again.
-    if (err instanceof WorkspaceError && err.code === "not_found") await refreshBaskets();
+    if (err instanceof PurssError && err.code === "not_found") await refreshBaskets();
   }
 })());
 
@@ -105,7 +105,7 @@ async function markIfKept(tabId: number, tab: Tab): Promise<void> {
   if (known !== undefined) { await mark(tabId, known ? "kept" : "none"); return; }
   settle.run(tabId, () => void (async () => {
     try {
-      const r = await workspace(conn).lookup(url);
+      const r = await purssClient(conn).lookup(url);
       const isKept = !!r.item?.baskets.length;
       kept.set(url, isKept, Date.now());
       // Only if the tab still shows that page.

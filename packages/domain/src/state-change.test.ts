@@ -16,11 +16,11 @@ test("the player's own change carries its three playback fields together, moves 
     const { [field]: _left, ...rest } = playback;
     assert.equal(stateChangeSchema.safeParse(rest).success, false, `without ${field}`);
   }
-  for (const workflow of ["new", "toread", "ignored"]) assert.equal(stateChangeSchema.safeParse({ ...playback, workflow }).success, false, workflow);
+  for (const workflow of ["undecided", "toread", "ignored"]) assert.equal(stateChangeSchema.safeParse({ ...playback, workflow }).success, false, workflow);
   assert.equal(stateChangeSchema.safeParse({ ...playback, workflow: undefined }).success, false, "no workflow");
   assert.equal(stateChangeSchema.safeParse({ ...playback, progress: 0.5 }).success, false, "reading progress is not the player's to set");
   assert.equal(stateChangeSchema.safeParse({ ...playback, opened: true }).success, false);
-  assert.equal(stateChangeSchema.safeParse({ ...playback, fresh: false }).success, false);
+  assert.equal(stateChangeSchema.safeParse({ ...playback, isNew: false }).success, false);
   assert.equal(stateChangeSchema.safeParse({ ...playback, playbackSessionId: "" }).success, false);
   assert.equal(stateChangeSchema.safeParse({ ...playback, expectedWorkflowRevision: -1 }).success, false);
 });

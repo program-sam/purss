@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { after, before, describe, test } from "node:test";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { APNS_TOKEN, call, FCM_TOKEN, SCOPE, sha256, startHarness, type Harness } from "./testing.ts";
 
 const EXPECTED_APNS = {

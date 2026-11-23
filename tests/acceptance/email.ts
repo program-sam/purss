@@ -12,8 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
+import { app as copy } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
@@ -27,16 +27,16 @@ const PORT = 19980;
 const origin = `http://localhost:${PORT}`;
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page and the emails show come from the copy catalog, so rewording one never breaks this journey.
+// The words the page and the emails show come from the translation files, so rewording one never breaks this journey.
 const auth = copy.auth;
 const mails = server.api.mailTemplates;
 const question = copy.dialogs.firstVisitQuestion;
 const notifications = copy.dialogs.notificationSettings;
 const never = copy.lib.returning.frequency.off;
 const emailSection = auth.accountEmailSection;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with its one value, which the journey does not care about, left open. */
+/** A catalogue message with its one value, which the journey does not care about, left open. */
 const withAny = (message: (value: string) => string) => message("\u0000").split("\u0000").map(esc).join(".*");
 /** The Subject line of a message, whatever product name it carries. */
 const subjectLine = (subject: string) => new RegExp(`^Subject: ${subject}`, "m");
@@ -109,7 +109,7 @@ async function main(sink: SmtpSink): Promise<void> {
     PURSS_WEB_DIST: path.join(repo, "apps/web/dist"), PURSS_DISK_RESERVE_BYTES: "0", PURSS_MODE: "hosted", PURSS_SIGNUP: "open",
     PURSS_SMTP_HOST: "127.0.0.1", PURSS_SMTP_PORT: String(sink.port), PURSS_SMTP_SECURITY: "none", PURSS_MAIL_FROM: "PURSS <ws@example.org>",
   };
-  // The operator's own account exists; the journey is about a stranger signing up.
+  // The administrator's own account exists; the journey is about a stranger signing up.
   const app = createApp(loadConfig(env));
   try { claim(app, ensureClaimCode(app)!, "operator@example.test", "Operator", testPassword()); } finally { app.db.close(); }
   startApi(env);
@@ -175,7 +175,7 @@ async function main(sink: SmtpSink): Promise<void> {
     }), 5000);
     step("Never leaves reminder, source-problem and saved-text controls enabled, including reminder email");
 
-    // The operator account is hosted too. Saving the unticked choice changes its preference.
+    // The administrator account is hosted too. Saving the unticked choice changes its preference.
     const operatorContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
       const operatorPage = await operatorContext.newPage();

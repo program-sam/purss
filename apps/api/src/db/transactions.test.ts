@@ -74,11 +74,11 @@ test("refreshPause keeps a pause that still holds and clears one that no longer 
   const { refreshPause } = await import("../services/storage.ts");
   const { app, cleanup } = makeTestApp();
   try {
-    const p = makeOwner(app, { allocationBytes: 1000 });
+    const p = makeOwner(app, { allowanceBytes: 1000 });
     const pause = () => app.db.get<{ paused_reason: string | null }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", p.accountId)!.paused_reason;
-    app.db.run("UPDATE storage_accounts SET used_bytes = 1000, paused_reason = 'quota' WHERE account_id = ?", p.accountId);
+    app.db.run("UPDATE storage_accounts SET used_bytes = 1000, paused_reason = 'allowance' WHERE account_id = ?", p.accountId);
     refreshPause(app, p.accountId);
-    assert.equal(pause(), "quota", "still full: still paused, and no error");
+    assert.equal(pause(), "allowance", "still full: still paused, and no error");
     app.db.run("UPDATE storage_accounts SET used_bytes = 0 WHERE account_id = ?", p.accountId);
     // The database ends the transaction the moment the pause is cleared: that is not "still paused", and it is not swallowed.
     app.db.exec("CREATE TRIGGER stop_clearing BEFORE UPDATE OF paused_reason ON storage_accounts BEGIN SELECT RAISE(ROLLBACK, 'ended by the database'); END");

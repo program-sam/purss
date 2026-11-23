@@ -16,8 +16,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
-import { app } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
+import { app } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -51,7 +51,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_DISK_RESERVE_BYTES: "0",
 };
 const EMAIL = "reader@example.test";
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
 const tabsCopy = app.dialogs.settings.dialog.tabs;
@@ -96,11 +96,10 @@ function prepare(): void {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
+        const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const src = makeSource(app, p, "Tidal Notes", "feed/1");
     app.db.run("UPDATE sources SET site_url = 'https://tidal.example/notes/' WHERE id = ?", src);
     applySyncBatch(app, eu.id, batch([entry("feed/1", { title: "Tidal flats and sediment", url: KEPT_URL })]));

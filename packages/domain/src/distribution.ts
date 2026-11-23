@@ -6,8 +6,8 @@
  * website can import it.
  */
 
-// The catalog file by path, not "@purss/copy/common": the desktop release job runs this file without installing packages.
-import { common } from "../../copy/src/en/common.ts";
+// The translation file by path, not "@purss/translations/common": the desktop release job runs this file without installing packages.
+import { common } from "../../translations/src/en/common.ts";
 
 const copy = common.distribution;
 
@@ -30,7 +30,7 @@ export const STORE_NAMES: Readonly<Record<StoreId, string>> = copy.stores;
  * person chooses another server. Change this value to move the official server; an empty string means
  * there is none, and the apps and the extension ask for an address instead.
  */
-export const OFFICIAL_WORKSPACE_ORIGIN = "https://purss.app";
+export const OFFICIAL_PURSS_ORIGIN = "https://purss.app";
 
 /** The source code and its documentation. */
 export const SOURCE_URL = "https://github.com/program-sam/purss";
@@ -100,7 +100,7 @@ export function publishedStores(what: Distributed, listings: Readonly<Record<Sto
 /**
  * The project's push relay (apps/push-relay). It holds the phone apps' Firebase and Apple push
  * credentials and wakes a phone when its PURSS has something new, never with any content. The apps
- * register with it; every PURSS sends through it unless its operator sets PURSS_PUSH_RELAY_URL. The value
+ * register with it; every PURSS sends through it unless its administrator sets PURSS_PUSH_RELAY_URL. The value
  * to change once the owner has deployed the relay at its final address.
  */
 export const OFFICIAL_PUSH_RELAY = "https://push.purss.app";

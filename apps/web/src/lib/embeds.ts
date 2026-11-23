@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 /**
  * A video page's own embedded player: YouTube (its no-cookie player), Vimeo, Dailymotion, Odysee and Twitch; and an Instagram
  * post's own embed, the only way its pictures and videos can be shown here (Instagram's picture servers refuse other sites).

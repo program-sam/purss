@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 import { APPS_GUIDE_URL, DISTRIBUTION, SOURCE_URL, STORE_LISTINGS, STORE_NAMES, publishedStores } from "./distribution.ts";
 import type { StoreId } from "./distribution.ts";
 

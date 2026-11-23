@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon, Segmented } from "@purss/ui";
 import { useSession } from "../../api/hooks.ts";
 import { AdminAccountsPanel, AdminInvitesPanel } from "./AdminAccounts.tsx";

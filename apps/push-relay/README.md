@@ -1,15 +1,15 @@
 # Push relay
 
-A small service that wakes phone apps. A phone app registers its FCM (Android) or APNs
-(iOS) device token and gets back an unguessable **handle**. A PURSS, self-hosted or
+A small service that delivers phone notifications to the mobile app by waking it. The mobile app registers its FCM (Android) or APNs
+(iOS) device token and gets back an unguessable **handle**. An installation, self-hosted or
 official, asks the relay to wake the device by handle only. The relay holds the
-project's FCM and APNs credentials so a self-hosted PURSS never needs its own, and nobody who
-self-hosts needs an account with Google or Apple. How the apps and the PURSS use it, and what each party
+project's FCM and APNs credentials so a self-hosted installation never needs its own, and nobody who
+self-hosts needs an account with Google or Apple. How the mobile app and the installation use it, and what each party
 sees, is in [the mobile README](../mobile/README.md#phone-notifications).
 
 Pushes carry **no content**: FCM gets `{"purss":"1"}`, APNs gets a neutral alert ("You have
-something new in your PURSS.", from `@purss/copy/server`) that the app's notification extension replaces with the
-real text it fetches from the PURSS. There are no user accounts.
+something new in your PURSS.", from `@purss/translations/server`) that the app's notification extension replaces with the
+real text it fetches from the installation. There are no accounts.
 
 Run it with `node apps/push-relay/src/main.ts` (tests: `node --test apps/push-relay/src/*.test.ts`,
 also part of `npm test`).
@@ -24,18 +24,18 @@ All bodies are JSON objects with exactly the listed keys, at most 4096 bytes, se
 | --- | --- | --- |
 | `POST /v1/register` `{"platform":"fcm"\|"apns","token":…,"scope":…}` | 200 `{"handle":"rh_…"}` | 400, 429 |
 | `POST /v1/unregister` `{"handle":…}` | 204, also for an unknown handle | 400, 429 |
-| `POST /v1/notify` `{"handle":…}` | 202 `{"ok":true}` once the push service accepted it | 404 `gone`, 429 `slow_down`, 502 `provider`, 503 `unavailable` |
+| `POST /v1/notify` `{"handle":…}` | 202 `{"ok":true}` once the push service accepted it | 404 `gone`, 429 `slow_down`, 502 `provider` (the push service failed), 503 `unavailable` |
 | `GET /healthz` | 200 `{"ok":true,"fcm":bool,"apns":bool}` | |
 
 - `token`: FCM `[A-Za-z0-9_:-]{20,512}`; APNs 64 to 200 hex digits (stored lower-case).
 - `scope`: 22 to 64 characters `[A-Za-z0-9_-]`, picked at random by the app for each
-  connection to a PURSS.
+  connection to an installation.
 - The handle is `rh_` plus the base64url HMAC-SHA256 of `platform\ntoken\nscope` under a
   secret only the relay knows. Registering the same triple again returns the same handle;
-  a new connection (new scope) gets a new handle, so two PURSSes cannot tell that they
+  a new connection (new scope) gets a new handle, so two installations cannot tell that they
   reach the same phone. At most five handles are kept per device token; the oldest go.
 - `notify` answers 404 when the handle is unknown or the push service reported the token
-  dead (the entry is then deleted). The app registers again on its next start. 429 and
+  dead (the device is then deleted). The app registers again on its next start. 429 and
   `Retry-After` come from the limits below; 503 means that platform has no credentials here.
 - `register` and `unregister` answer CORS only for the origins `capacitor://localhost`,
   `https://localhost` and `http://localhost` (the app's web view). `notify` has no CORS.
@@ -70,7 +70,7 @@ on the lock screen.
 A platform without credentials is simply unavailable (503, `false` in `/healthz`); the
 relay still starts. A credential file that is set but unreadable stops it with a message.
 When APNs rejects a production token as bad, the relay tries the sandbox once and
-remembers the environment if that works; otherwise the entry is deleted.
+remembers the environment if that works; otherwise the device is deleted.
 
 ## Credentials
 
@@ -84,14 +84,14 @@ A platform is on when its credentials are named. Whoever publishes the app owns 
    `PURSS_RELAY_APNS_TEAM_ID`. Push Notifications and the keychain group must be enabled on the App ID (see the
    iOS steps in [the mobile README](../mobile/README.md#ios-what-to-do-on-a-mac)).
 3. **Address.** The relay's https address is `OFFICIAL_PUSH_RELAY` in `packages/domain/src/distribution.ts`; set it
-   before building the apps and the PURSS image. A PURSS sends through it unless its operator sets
+   before building the apps and the product image. An installation sends through it unless its administrator sets
    `PURSS_PUSH_RELAY_URL` (empty or `off` turns phone notifications off; another https address is for a fork with its
    own app build). The apps register only with `OFFICIAL_PUSH_RELAY`.
 
 ## Deploy
 
 `compose.yaml` builds `Containerfile` (build context: the repository root; the image holds `apps/push-relay` and
-the text catalog `packages/copy`, linked as `node_modules/@purss/copy`) and binds
+the translation files in `packages/translations`, linked as `node_modules/@purss/translations`) and binds
 `${PURSS_RELAY_BIND:-127.0.0.1}:8950`. Put an HTTPS reverse proxy in front of it and set
 `PURSS_RELAY_TRUST_PROXY=1` there (the compose file's default). The proxy must append the client's
 address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`,
@@ -110,7 +110,7 @@ PURSS_RELAY_APNS_TEAM_ID=TEAM123456
 docker compose -f apps/push-relay/compose.yaml up -d --build
 ```
 
-The project's own relay runs beside the official PURSS and is updated by every deploy of it (see
+The project's own relay runs beside the official installation and is updated by every deploy of it (see
 [infra/README.md](../../infra/README.md#deploying-from-github)). The secrets directory is mounted read-only at `/run/relay-secrets`. A platform whose variables are
 left empty stays off (a relay with only Android, or only iOS, credentials works); a path that points at a missing file
 stops the relay. The data volume holds `relay.db` and `handle-secret`; back up
@@ -119,16 +119,16 @@ stops the relay. The data volume holds `relay.db` and `handle-secret`; back up
 ## What it stores and sees
 
 - Stored: per device the SHA-256 of the handle, platform, device token, APNs environment,
-  and created and last-seen times. The handle itself is never stored, so a database copy
-  cannot wake devices. Entries not seen for 180 days are deleted by an hourly sweep; a
+  and created and last-seen times. The handle itself is never stored, so a copy of the database
+  cannot wake devices. Devices not seen for 180 days are deleted by an hourly sweep; a
   successful push refreshes the time.
 - Seen: the sending address of each request and the handle in a notify call, in memory only
   for rate limiting. Logs hold start and stop, push-service failures by status code and an
   hourly count of outcomes; never tokens, handles, scopes or addresses.
 - Never seen: PURSS addresses (apart from the sending server's IP address on a wake), accounts, item titles or any
   content. The push services themselves see the device token and the neutral wake-up payload: that the app on that phone
-  received a push, and when, and on iOS the fixed alert text.
+  received a push, and when, and on iOS the fixed alert text. The component map is in [architecture](../../docs/architecture.md#components).
 
-A phone's push address goes only to the relay, never to a PURSS: the PURSS holds the handle and nothing else about the
-phone. The relay knows nothing of what a handle's PURSS sends; the text of a notification is fetched by the phone from
-its own PURSS after the wake.
+A phone's push address goes only to the relay, never to an installation: the installation holds the handle and nothing else about the
+phone. The relay knows nothing of what a handle's installation sends; the text of a notification is fetched by the phone from
+its installation after the wake.

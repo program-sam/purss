@@ -127,11 +127,11 @@ export function internalRouter(app: App): Router<{ app: App }> {
 
   /** Stream ids the product follows for an engine user (paused sources are skipped by the worker). */
   r.get("/internal/engine-users/:id/streams", (req) => {
-    const eu = app.db.get<{ workspace_id: string }>("SELECT workspace_id FROM engine_users WHERE id = ?", req.params.id!);
+    const eu = app.db.get<{ account_id: string }>("SELECT account_id FROM engine_users WHERE id = ?", req.params.id!);
     if (!eu) throw new HttpError(404, "not_found", "Unknown engine user.");
     return {
       streams: app.db.all<{ engine_stream_id: string; paused: number }>(
-        "SELECT engine_stream_id, paused FROM sources WHERE workspace_id = ? AND followed = 1 AND engine_stream_id IS NOT NULL", eu.workspace_id,
+        "SELECT engine_stream_id, paused FROM sources WHERE account_id = ? AND followed = 1 AND engine_stream_id IS NOT NULL", eu.account_id,
       ).map((s) => ({ streamId: s.engine_stream_id, paused: s.paused === 1 })),
     };
   });

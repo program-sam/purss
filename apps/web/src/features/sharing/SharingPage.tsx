@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ShareDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { shortDate } from "../../lib/format.ts";
 import { useSession } from "../../api/hooks.ts";
 import { useNav } from "../../nav.ts";
 import { useOverlays } from "../../state/overlays.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { sharesQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Page } from "../shared/bits.tsx";
 import { LinkRow } from "./LinkRow.tsx";
@@ -24,7 +24,7 @@ function status(s: ShareDTO, hosted: boolean): { label: string; tone: string; te
 }
 
 function Card({ share }: { share: ShareDTO }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const hosted = useSession().data?.installation.mode === "hosted";
   const nav = useNav();
   const overlays = useOverlays();

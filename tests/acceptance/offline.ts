@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
+import { app as copy } from "@purss/translations/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -43,15 +43,15 @@ const env: NodeJS.ProcessEnv = {
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow } = copy.lib.constants;
 const { highlightDialog, notes: noteCopy, noteEditor, syncNote, reader, selectionBar } = copy.annotations;
 const settingsCopy = copy.offline.settings;
 const savedCopy = copy.offline.summary;
 const tabs = copy.dialogs.settings.dialog.tabs;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+/** A catalogue message with values in it as a regular expression source, each value given as a pattern of its own. */
 const source = (message: (...values: string[]) => string, ...values: string[]) => {
   const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
@@ -100,10 +100,9 @@ function prepare(): { accountId: string } {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
-    const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: row.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu.id };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu.id };
     const tidal = makeSource(app, p, "Tidal Notes", "feed/1");
     const radio = makeSource(app, p, "Slow Radio", "feed/2");
     const long = (n: number) => `<p>The tide leaves thin layers of silt across the flats, and each layer tells the story of one storm (${n}).</p><p>Walking out at low water, the surface is firm, ribbed, and cold underfoot.</p>`;
@@ -404,7 +403,7 @@ async function main(): Promise<void> {
     await page.getByText(copy.shell.header.offlineSaved).waitFor({ state: "detached", timeout: 20_000 });
     await page.locator("#panel-in .p-pend").waitFor({ state: "detached", timeout: 20_000 });
     const sent = await page.evaluate(async () => {
-      const r = await fetch("/api/items?scope=all&filter=all&limit=200", { credentials: "same-origin" });
+      const r = await fetch("/api/items?scope=all&filter=all_with_ignored&limit=200", { credentials: "same-origin" });
       const body = await r.json() as { items: { title: string; workflow: string }[] };
       return body.items.find((i) => i.title.includes("Tidal flats and sediment"))?.workflow ?? null;
     });

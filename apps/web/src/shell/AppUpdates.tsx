@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@purss/ui";
 import { platform } from "../platform/index.ts";

@@ -13,9 +13,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { app } from "@purss/copy/app";
-import { common } from "@purss/copy/common";
-import { server } from "@purss/copy/server";
+import { app } from "@purss/translations/app";
+import { common } from "@purss/translations/common";
+import { server } from "@purss/translations/server";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createCollection } from "../../apps/api/src/services/collections.ts";
@@ -42,7 +42,7 @@ const env: NodeJS.ProcessEnv = {
 };
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const newCollectionCopy = app.dialogs.collections.newCollection;
 const addSourceCopy = app.dialogs.addSource;
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
     step("at the limit, New collection says so before asking for a name, and links to the plan");
 
     // ---------- Add source ----------
-    await page.route("**/api/discover", (route) => route.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
+    await page.route("**/api/link-lookup", (route) => route.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
     await page.getByRole("button", { name: app.words.addSource }).first().click();
     await page.getByLabel(addSourceCopy.linkOrName).fill("https://shows.example.test/quiet.xml");
     await page.getByRole("button", { name: addSourceCopy.find, exact: true }).click();

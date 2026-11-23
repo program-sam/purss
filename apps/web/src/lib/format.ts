@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 /** Small, pure formatting helpers. Everything takes `now` and a time zone so results are testable. */
 

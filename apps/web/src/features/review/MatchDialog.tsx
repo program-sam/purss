@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReconcileEntryDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon, TextInput } from "@purss/ui";
 import { messageOf } from "../../api/client.ts";
 import { searchQuery } from "../../api/queries.ts";
 import { shortDate } from "../../lib/format.ts";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 
 const copy = app.review.matchDialog;
 
 /** Pick which existing item an incoming entry is. Searches your own library. */
 export function MatchDialog({ entry, onPick, onClose }: { entry: ReconcileEntryDTO; onPick: (itemId: string) => void; onClose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const [text, setText] = useState(entry.entry.title);
   const [term, setTerm] = useState(entry.entry.title);
   useEffect(() => { const t = setTimeout(() => setTerm(text.trim()), 250); return () => clearTimeout(t); }, [text]);

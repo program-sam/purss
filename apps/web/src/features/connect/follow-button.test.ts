@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { followButtonHtml } from "./follow-button.ts";
 
 test("the button is one plain link with no script, and its address can't break out of the attribute", () => {

@@ -9,9 +9,9 @@ import { createBasket, createCollection, deleteItems, deletePreview, listBaskets
 import { completeCapture, failCapture } from "./captures.ts";
 import { HttpError } from "../http.ts";
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Sediment Letters", "feed/1");
   return { app, p, src, cleanup };
 }
@@ -25,11 +25,11 @@ test("sync batch imports items once and replays idempotently", (t) => {
   assert.equal(r1.unknownStreams, 1);
   const r2 = applySyncBatch(app, p.engineUserId, b);
   assert.equal(r2.accepted, 2, "replay returns the original result");
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).items.length, 2);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items.length, 2);
   // A different batch carrying the same entries does not duplicate them.
   const again = applySyncBatch(app, p.engineUserId, batch(b.entries));
   assert.equal(again.accepted, 0);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 2);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 2);
   const cp = app.db.get<{ engine_identity: string; last_success_at: string }>("SELECT engine_identity, last_success_at FROM sync_checkpoints WHERE engine_user_id = ?", p.engineUserId)!;
   assert.equal(cp.engine_identity, "engine-A");
   assert.ok(cp.last_success_at);
@@ -42,13 +42,13 @@ test("an author's address is not shown, in the list or the panel, while search a
     entry("feed/1", { title: "Perdus en mer", author: "podcast@radiofrance.com (Radio France); Sonia Kronlund" }),
     entry("feed/1", { title: "Mail only", author: "editor@repair.example" }),
   ]));
-  const items = listItems(app, p, { scope: "all", filter: "all" }).items;
+  const items = listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items;
   const sea = items.find((i) => i.title === "Perdus en mer")!;
   assert.equal(sea.author, "Radio France; Sonia Kronlund");
   assert.equal(getItemDetail(app, p, sea.id).author, "Radio France; Sonia Kronlund");
   assert.equal(items.find((i) => i.title === "Mail only")!.author, null, "an address with no name leaves no byline");
   assert.equal(app.db.get<{ author: string }>("SELECT author FROM items WHERE id = ?", sea.id)!.author, "podcast@radiofrance.com (Radio France); Sonia Kronlund", "what the feed sent stays stored");
-  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all", q: "radiofrance" }).items.map((i) => i.title), ["Perdus en mer"], "search still reads the stored line");
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all_with_ignored", q: "radiofrance" }).items.map((i) => i.title), ["Perdus en mer"], "search still reads the stored line");
 });
 
 test("upstream edit creates a new version and never alters a kept snapshot", (t) => {
@@ -99,7 +99,7 @@ test("multi-basket keeps never double count", (t) => {
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 
-test("full quota pauses imports without advancing the checkpoint; reading, keeping and deleting still work", (t) => {
+test("full storage allowance pauses imports without advancing the checkpoint; reading, keeping and deleting still work", (t) => {
   const { app, p, cleanup } = setup(5_000);
   t.after(cleanup);
   const big = (n: number) => entry("feed/1", { summaryHtml: `<p>${"word ".repeat(n)}</p>` });
@@ -115,16 +115,16 @@ test("full quota pauses imports without advancing the checkpoint; reading, keepi
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   keepItem(app, p, item.id, basket.id);
   changeState(app, p, item.id, { workflow: "finished", expectedRevision: item.revision });
-  // Deleting is never blocked by quota.
+  // Deleting is never blocked by the storage allowance.
   const preview = deletePreview(app, p, [item.id]);
   assert.equal(preview.keptItems.length, 1);
   assert.ok(preview.releasesBytes > 0);
   deleteItems(app, p, preview.confirmToken);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 0);
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 
-test("disk reserve blocks growth even with quota remaining", (t) => {
+test("disk reserve blocks growth even with storage allowance remaining", (t) => {
   const { app, p, cleanup } = setup(null);
   t.after(() => { diskOverride.freeBytes = null; cleanup(); });
   diskOverride.freeBytes = 10; // config reserve is 0 in tests; bytes needed exceed free
@@ -141,7 +141,7 @@ test("deleted items are tombstoned and not re-imported", (t) => {
   const item = listItems(app, p, { scope: "all" }).items[0]!;
   deleteItems(app, p, deletePreview(app, p, [item.id]).confirmToken);
   assert.equal(applySyncBatch(app, p.engineUserId, batch([e])).accepted, 0);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 0);
 });
 
 test("replacement engine entries go to reconciliation instead of duplicating", (t) => {
@@ -151,7 +151,7 @@ test("replacement engine entries go to reconciliation instead of duplicating", (
   applySyncBatch(app, p.engineUserId, batch([e], undefined, "engine-A"));
   const r = applySyncBatch(app, p.engineUserId, batch([{ ...e, externalId: "different-id" }], undefined, "engine-B"));
   assert.equal(r.queuedForReview, 1);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 1);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 1);
   const q = app.db.get<{ candidate_item_id: string }>("SELECT candidate_item_id FROM reconciliation_queue")!;
   assert.ok(q.candidate_item_id, "suggests the existing item by source + original GUID");
 });
@@ -165,13 +165,13 @@ test("workflow revisions prevent silent overwrites; undo restores", (t) => {
   assert.throws(() => changeState(app, p, item.id, { workflow: "finished", expectedRevision: item.revision }), (err: unknown) => err instanceof HttpError && err.status === 409);
   applyUndo(app, p, first.undoToken);
   const back = listItems(app, p, { scope: "all" }).items[0]!;
-  assert.equal(back.workflow, "new");
-  assert.equal(back.fresh, true, "freshness independent of workflow");
+  assert.equal(back.workflow, "undecided");
+  assert.equal(back.isNew, true, "freshness independent of workflow");
   // Finishing mirrors read state to the engine through the outbox.
   changeState(app, p, item.id, { workflow: "finished", expectedRevision: back.revision });
   assert.ok(app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.mark_read'"));
   // Ignored items drop out of the default view but stay recoverable.
-  const cur = listItems(app, p, { scope: "all", filter: "all" }).items[0]!;
+  const cur = listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items[0]!;
   changeState(app, p, item.id, { workflow: "ignored", expectedRevision: cur.revision });
   assert.equal(listItems(app, p, { scope: "all" }).total, 0);
   assert.equal(listItems(app, p, { scope: "all", filter: "ignored" }).total, 1);
@@ -186,13 +186,13 @@ test("the Undecided filter leaves out what was put aside, started, finished or i
   bulk(app, p, [ids[1]!], { type: "workflow", workflow: "ignored" });
   bulk(app, p, [ids[2]!], { type: "workflow", workflow: "toread" });
   bulk(app, p, [ids[3]!], { type: "workflow", workflow: "inprogress" });
-  const listed = listItems(app, p, { scope: "all", filter: "new" });
+  const listed = listItems(app, p, { scope: "all", filter: "undecided" });
   assert.deepEqual(listed.items.map((i) => i.id), [ids[4]]);
   assert.equal(listed.total, 1);
-  assert.deepEqual(listItems(app, p, { scope: "all", filter: "new", q: "post" }).items.map((i) => i.id), [ids[4]]);
-  const home = listItems(app, p, { scope: "home", filter: "new", mix: "home", limit: 10 });
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "undecided", q: "post" }).items.map((i) => i.id), [ids[4]]);
+  const home = listItems(app, p, { scope: "home", filter: "undecided", mix: "home", limit: 10 });
   assert.deepEqual(home.items.map((i) => i.id), [ids[4]]);
-  assert.equal(listItems(app, p, { scope: "all", filter: "active" }).total, 4, "active still shows finished");
+  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 4, "active still shows finished");
 });
 
 test("bulk actions and keep produce one undo token", (t) => {
@@ -205,9 +205,9 @@ test("bulk actions and keep produce one undo token", (t) => {
   assert.equal(kept.changed, 3);
   applyUndo(app, p, kept.undoToken);
   assert.equal(listItems(app, p, { scope: `basket:${basket.id}` }).total, 0);
-  const cleared = bulk(app, p, ids, { type: "clearFresh" });
+  const cleared = bulk(app, p, ids, { type: "clearNew" });
   assert.equal(cleared.changed, 3);
-  assert.equal(listItems(app, p, { scope: "all", filter: "fresh" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "new" }).total, 0);
   const single = keepWithUndo(app, p, ids[0]!, basket.id, true);
   applyUndo(app, p, single.undoToken);
   assert.deepEqual(listItems(app, p, { scope: "all" }).items.find((i) => i.id === ids[0])!.basketIds, []);
@@ -248,10 +248,10 @@ test("scopes, search and cursor pagination", (t) => {
   const inCol = listItems(app, p, { scope: `collection:${col.id}` });
   assert.equal(inCol.total, 1);
   assert.equal(inCol.items[0]!.kind, "video");
-  const q = createCollection(app, p, { name: "Q", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [src] }, { field: "text", value: "tidal" }] }, view: "list" });
+  const q = createCollection(app, p, { name: "Q", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "source", value: [src] }, { field: "text", value: "tidal" }] }, view: "list" });
   assert.equal(listItems(app, p, { scope: `collection:${q.id}` }).total, 7);
   // A filter can refer to a source collection; the item's detail names the collections its source is in.
-  const viaCollection = createCollection(app, p, { name: "Via", emoji: null, mode: "query", sourceIds: [], query: { field: "collection", value: [col.id] }, view: "list" });
+  const viaCollection = createCollection(app, p, { name: "Via", emoji: null, mode: "filter", sourceIds: [], query: { field: "collection", value: [col.id] }, view: "list" });
   assert.equal(listItems(app, p, { scope: `collection:${viaCollection.id}` }).total, 1);
   assert.equal(listItems(app, p, { scope: `collection:${col.id}` }).total, 1);
   assert.deepEqual(getItemDetail(app, p, inCol.items[0]!.id).collections.map((c) => c.name), ["Making"]);
@@ -273,7 +273,7 @@ test("PURSSes are isolated", (t) => {
   const other = makeOwner(app, { admin: false });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const item = listItems(app, p, { scope: "all" }).items[0]!;
-  assert.equal(listItems(app, other, { scope: "all", filter: "all" }).total, 0);
+  assert.equal(listItems(app, other, { scope: "all", filter: "all_with_ignored" }).total, 0);
   assert.throws(() => getItemDetail(app, other, item.id), (e: unknown) => e instanceof HttpError && e.status === 404);
   const basket = createBasket(app, other, { name: "Mine", captureMode: "metadata" });
   assert.throws(() => keepItem(app, other, item.id, basket.id), (e: unknown) => e instanceof HttpError && e.status === 404);
@@ -300,11 +300,11 @@ test("re-following an imported feed attaches mappings instead of duplicating", (
   t.after(cleanup);
   const e = entry("feed/1");
   // An imported item: same source and link, but no engine mapping.
-  app.db.tx(() => insertItem(app, { accountId: p.accountId, workspaceId: p.workspaceId, sourceId: src, kind: "article", title: e.title, url: e.url, author: null,
-    summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: e.publishedAt, discoveredAt: e.crawledAt, enclosures: [], fresh: false, reason: "import" }));
+  app.db.tx(() => insertItem(app, { accountId: p.accountId, sourceId: src, kind: "article", title: e.title, url: e.url, author: null,
+    summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: e.publishedAt, discoveredAt: e.crawledAt, enclosures: [], isNew: false, reason: "import" }));
   const r = applySyncBatch(app, p.engineUserId, batch([{ ...e, originalGuid: null }]));
   assert.equal(r.accepted, 0);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 1);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 1);
   assert.ok(app.db.get("SELECT 1 FROM external_ids WHERE external_id = ?", e.externalId));
 });
 
@@ -314,7 +314,7 @@ test("paused sources collect nothing new until resumed", (t) => {
   app.db.run("UPDATE sources SET paused = 1 WHERE id = ?", src);
   const r = applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   assert.equal(r.skippedPaused, 1);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).total, 0);
   app.db.run("UPDATE sources SET paused = 0 WHERE id = ?", src);
   assert.equal(applySyncBatch(app, p.engineUserId, batch([entry("feed/1")])).accepted, 1);
 });
@@ -429,7 +429,7 @@ test("private sources never put item titles in notifications", (t) => {
   t.after(cleanup);
   const patron = makeSource(app, p, "Patron feed", "feed/9", { isPrivate: true });
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", patron);
-  app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ notifications: { mode: "browser", previews: true, quietStart: null, quietEnd: null } }), "x");
+  app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?)", p.accountId, JSON.stringify({ notifications: { mode: "browser", previews: true, quietStart: null, quietEnd: null } }), "x");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/9", { title: "Secret patron-only episode" })]));
   const n = app.db.get<{ title: string; body: string | null }>("SELECT title, body FROM notifications")!;
   assert.equal(n.body, null);
@@ -444,10 +444,10 @@ test("an expired reservation is not subtracted twice when its capture settles la
   const basket = createBasket(app, p, { name: "Text", captureMode: "text" });
   keepItem(app, p, item.id, basket.id);
   app.db.run("UPDATE reservations SET expires_at = '2000-01-01T00:00:00.000Z'");
-  app.db.tx(() => admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: "filler", bytes: 1_200_000, reason: "test", control: true }));
+  app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "filler", bytes: 1_200_000, reason: "test", control: true }));
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures")!;
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "x".repeat(2_500_000), html: "<p>x</p>", finalUrl: "https://example.org/", bytes: 1 }));
-  assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures")!.status, "failed", "over the allocation, so the copy is refused");
+  assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures")!.status, "failed", "over the allowance, so the copy is refused");
   assert.ok(usedBytes(app, p.accountId) <= 3_000_000);
 });
 
@@ -503,7 +503,7 @@ test("a source set to notify still notifies when the PURSS setting is off; other
   t.after(cleanup);
   const loud = makeSource(app, p, "Loud", "feed/5");
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", loud);
-  app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ notifications: { mode: "off" } }), "x");
+  app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?)", p.accountId, JSON.stringify({ notifications: { mode: "off" } }), "x");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/5")]));
   const rows = app.db.all<{ source_id: string }>("SELECT source_id FROM notifications");
   assert.deepEqual(rows.map((r) => r.source_id), [loud]);
@@ -524,11 +524,3 @@ test("claiming makes the owner with a password and removes the setup-code file",
   assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", owner.accountId) !== undefined, true);
 });
 
-test("an installed app interface that still asks Home for the open filter gets the Undecided items", (t) => {
-  const { app, p, cleanup } = setup();
-  t.after(cleanup);
-  applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
-  const ids = listItems(app, p, { scope: "all" }).items.map((i) => i.id);
-  bulk(app, p, [ids[0]!], { type: "workflow", workflow: "toread" });
-  assert.deepEqual(listItems(app, p, { scope: "home", filter: "open", mix: "home", limit: 10 }).items.map((i) => i.id), [ids[1]]);
-});

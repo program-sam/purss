@@ -6,7 +6,7 @@ import { emit } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import { admitObject, releaseObject } from "./storage.ts";
 import { foldForSearch } from "./search-text.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The person's own highlights and notes on items. An annotation is not workflow, not
@@ -27,12 +27,12 @@ import { server } from "@purss/copy/server";
 export const HAS_ANNOTATIONS = "EXISTS (SELECT 1 FROM annotations a WHERE a.item_id = i.id AND a.deleted_at IS NULL)";
 
 type Row = {
-  seq: number; id: string; workspace_id: string; item_id: string; kind: "highlight" | "note";
+  seq: number; id: string; account_id: string; item_id: string; kind: "highlight" | "note";
   quote_exact: string | null; quote_prefix: string | null; quote_suffix: string | null; pos_start: number | null; pos_end: number | null;
   target_kind: "capture" | "version" | null; target_id: string | null; body: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
 };
-const COLUMNS = "seq, id, workspace_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end, target_kind, target_id, body, created_at, updated_at, deleted_at";
+const COLUMNS = "seq, id, account_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end, target_kind, target_id, body, created_at, updated_at, deleted_at";
 
 /** Put an annotation's text into the search index, folded like the items' (search-text.ts). Every writer of `annotations_fts` goes through here. */
 export function indexAnnotation(app: App, seq: number, quote: string | null, body: string | null): void {
@@ -51,14 +51,14 @@ export function toAnnotationDTO(r: Row): AnnotationDTO {
 }
 
 function ownItem(app: App, p: Principal, itemId: string): void {
-  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound(server.api.shared.thatItem);
+  if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND account_id = ?", itemId, p.accountId)) throw notFound(server.api.shared.thatItem);
 }
 
 /** The row with this id, only when it belongs to this PURSS and item; another's is "not found", never overwritten. */
 function ownRow(app: App, p: Principal, itemId: string, id: string): Row | null {
   const row = app.db.get<Row>(`SELECT ${COLUMNS} FROM annotations WHERE id = ?`, id);
   if (!row) return null;
-  if (row.workspace_id !== p.workspaceId || row.item_id !== itemId) throw notFound(server.api.annotations.thatNote);
+  if (row.account_id !== p.accountId || row.item_id !== itemId) throw notFound(server.api.annotations.thatNote);
   return row;
 }
 
@@ -70,7 +70,7 @@ function writeTime(raw: string): string {
 /** Live annotations of one item, in the order they were made. */
 export function listAnnotations(app: App, p: Principal, itemId: string): AnnotationList {
   ownItem(app, p, itemId);
-  const rows = app.db.all<Row>(`SELECT ${COLUMNS} FROM annotations WHERE item_id = ? AND workspace_id = ? AND deleted_at IS NULL ORDER BY created_at, id`, itemId, p.workspaceId);
+  const rows = app.db.all<Row>(`SELECT ${COLUMNS} FROM annotations WHERE item_id = ? AND account_id = ? AND deleted_at IS NULL ORDER BY created_at, id`, itemId, p.accountId);
   return { itemId, annotations: rows.map(toAnnotationDTO) };
 }
 
@@ -110,9 +110,9 @@ export function putAnnotation(app: App, p: Principal, itemId: string, id: string
         body = ?, created_at = ?, updated_at = ?, deleted_at = NULL, received_at = ? WHERE seq = ?`, ...values, nowIso(), existing.seq);
       seq = existing.seq;
     } else {
-      seq = app.db.run(`INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end,
-        target_kind, target_id, body, created_at, updated_at, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        id, p.accountId, p.workspaceId, itemId, ...values, nowIso()).lastInsertRowid;
+      seq = app.db.run(`INSERT INTO annotations (id, account_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end,
+        target_kind, target_id, body, created_at, updated_at, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, p.accountId, itemId, ...values, nowIso()).lastInsertRowid;
     }
     indexAnnotation(app, seq, h?.quote.exact ?? null, body);
     recordBytes(app, p, itemId, id, annotationBytes({ kind: input.kind, quote: h?.quote ?? null, position: h?.position ?? null, target, body, createdAt, updatedAt: at }));
@@ -158,7 +158,7 @@ function recordBytes(app: App, p: Principal, itemId: string, id: string, bytes: 
   const cur = app.db.get<{ bytes: number }>("SELECT bytes FROM stored_objects WHERE kind = 'record' AND ref_id = ? AND released_at IS NULL", key);
   if (cur?.bytes === bytes) return;
   if (cur) releaseObject(app, "record", key, "annotation changed");
-  admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, itemId, bytes, reason: "annotation", control: true });
+  admitObject(app, { accountId: p.accountId, kind: "record", refId: key, itemId, bytes, reason: "annotation", control: true });
 }
 
 /** Inside deleteItemNow's transaction: the item's annotations and their search entries go with it (their ledger records are released there). */

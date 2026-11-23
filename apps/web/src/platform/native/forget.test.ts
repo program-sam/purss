@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { forgetDevice } from "./forget.ts";
 import type { ForgetDeps } from "./forget.ts";
 

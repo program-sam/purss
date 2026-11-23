@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
@@ -195,7 +195,7 @@ test("a token acts only for its own account", async (t) => {
   const change = await callTool(b, otherToken, "set_item_state", { itemIds: [lib.pinnedOld.itemId], state: "ignored" });
   assert.equal(change.json.result.isError, true);
   assert.equal((await callTool(b, otherToken, "list_sources")).json.result.structuredContent.sources.length, 0);
-  assert.equal(b.app.db.get<{ workflow: string }>("SELECT workflow FROM item_state WHERE item_id = ?", lib.pinnedOld.itemId)!.workflow, "new");
+  assert.equal(b.app.db.get<{ workflow: string }>("SELECT workflow FROM item_state WHERE item_id = ?", lib.pinnedOld.itemId)!.workflow, "undecided");
 });
 
 test("writing tools organise items and sources through the same rules as the app, and are audited", async (t) => {
@@ -222,7 +222,7 @@ test("writing tools organise items and sources through the same rules as the app
   // A candidate from find_sources (held as discovery holds it) is followed into a new collection;
   // full articles stay off, even for a summary-only feed, unless the assistant asks for them.
   const followToken = "dsc_mcptest";
-  holdCandidate(followToken, b.owner.workspaceId, { feedUrl: "https://quiet.example/feed.xml", siteUrl: "https://quiet.example/", title: "Quiet Harbour", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
+  holdCandidate(followToken, b.owner.accountId, { feedUrl: "https://quiet.example/feed.xml", siteUrl: "https://quiet.example/", title: "Quiet Harbour", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
   const followed = await ok("follow_source", { followToken, newCollectionName: "Harbours" });
   assert.deepEqual([followed.title, followed.fullArticles, followed.collectionIds.length], ["Quiet Harbour", false, 1]);
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe'"), "the engine is asked to subscribe, as from the app");

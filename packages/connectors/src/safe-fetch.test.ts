@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { brotliCompressSync, constants, deflateSync, gzipSync } from "node:zlib";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { boundLookup, HARD_STREAM_BYTES, resolveDestination, safeFetch, USER_AGENT, userAgentFor, WIKIMEDIA_USER_AGENT } from "./safe-fetch.ts";
 import type { Resolver } from "./safe-fetch.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";

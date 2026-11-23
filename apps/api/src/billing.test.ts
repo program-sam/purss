@@ -84,7 +84,7 @@ test("the billing service sets Free, Plus or Pro with a fresh signature, once", 
   app.db.run("UPDATE accounts SET plan = 'unlimited' WHERE id = ?", me.accountId);
   const kept = await planRequest(app, base, { accountId: me.accountId, plan: "free", at: now() + 5 });
   assert.deepEqual(await kept.json(), { plan: "unlimited", changed: false });
-  assert.equal(planOfRow(app, me.accountId), "unlimited", "the operator's Unlimited stays");
+  assert.equal(planOfRow(app, me.accountId), "unlimited", "the administrator's Unlimited stays");
 });
 
 test("without billing configured there is no hand-off and no plan route", async (t) => {

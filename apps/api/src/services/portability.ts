@@ -15,7 +15,7 @@ import { audit, emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, conflict, notFound, nowIso } from "../http.ts";
 import { randomToken, removeSecret, writeSecret } from "../secrets.ts";
 import { enqueue } from "./jobs.ts";
-import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allocation } from "./storage.ts";
+import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allowance } from "./storage.ts";
 import { NO_TITLE, contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
 import { indexText, versionBytes } from "./items.ts";
 import { markMembershipChanged } from "./state.ts";
@@ -36,12 +36,12 @@ import { PlanLimit, assertRoom } from "./plans.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM } from "./images.ts";
 import { isNewsFeed } from "./news-address.ts";
 import { pictureType } from "@purss/connectors";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * PURSS export and import. The archive format is documented
  * in archive-format.ts. Export is a streamed, snapshot-consistent read that never touches the
- * storage ledger, so it works while an account is over quota. Import runs in one transaction
+ * storage ledger, so it works while an account is over its storage allowance. Import runs in one transaction
  * with a single admission check: it either lands completely or not at all.
  */
 
@@ -88,12 +88,12 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     snap.prepare("SELECT 1 FROM sqlite_master LIMIT 1").get(); // pin the snapshot
     const all = <T>(sql: string, ...params: (string | number | null)[]) => snap.prepare(sql).all(...params) as T[];
     const iterate = <T>(sql: string, ...params: (string | number | null)[]) => snap.prepare(sql).iterate(...params) as Iterable<T>;
-    const ws = p.workspaceId;
+    const ws = p.accountId;
 
     const sources = all<SourceRow>(
-      "SELECT id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, full_text, created_at, last_item_at FROM sources WHERE workspace_id = ? ORDER BY created_at, id", ws);
+      "SELECT id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, full_text, created_at, last_item_at FROM sources WHERE account_id = ? ORDER BY created_at, id", ws);
     const privateIds = new Set(sources.filter(isPrivateSource).map((s) => s.id));
-    const pendingCaptures = all<{ n: number }>("SELECT COUNT(*) AS n FROM captures WHERE workspace_id = ? AND status = 'pending'", ws)[0]!.n;
+    const pendingCaptures = all<{ n: number }>("SELECT COUNT(*) AS n FROM captures WHERE account_id = ? AND status = 'pending'", ws)[0]!.n;
     const omitted = [...ARCHIVE_OMITTED];
     if (privateIds.size) omitted.push(server.api.portability.privateSourcesExported(privateIds.size));
     if (pendingCaptures) omitted.push(server.api.portability.capturesNotIncluded(pendingCaptures));
@@ -145,7 +145,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
 
     await array("collections", (function* () {
       for (const c of iterate<{ id: string; name: string; emoji: string | null; mode: string; view: string; query: string | null; show_on_home: number; position: number; created_at: string }>(
-        "SELECT id, name, emoji, mode, view, query, show_on_home, position, created_at FROM collections WHERE workspace_id = ? ORDER BY position, created_at", ws)) {
+        "SELECT id, name, emoji, mode, view, query, show_on_home, position, created_at FROM collections WHERE account_id = ? ORDER BY position, created_at", ws)) {
         yield {
           id: c.id, name: c.name, emoji: c.emoji, mode: c.mode, view: c.view, query: c.query ? JSON.parse(c.query) : null, showOnHome: c.show_on_home === 1,
           position: c.position, createdAt: c.created_at,
@@ -155,20 +155,20 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     })());
 
     await array("baskets", all<{ id: string; name: string; capture_mode: string; view: string; position: number; created_at: string }>(
-      "SELECT id, name, capture_mode, view, position, created_at FROM baskets WHERE workspace_id = ? ORDER BY position, created_at", ws)
+      "SELECT id, name, capture_mode, view, position, created_at FROM baskets WHERE account_id = ? ORDER BY position, created_at", ws)
       .map((b) => ({ id: b.id, name: b.name, captureMode: b.capture_mode, view: b.view, position: b.position, createdAt: b.created_at })));
 
     await array("memberships", all<{ basket_id: string; item_id: string; version_id: string; kept_at: string }>(
-      "SELECT basket_id, item_id, version_id, kept_at FROM basket_items WHERE workspace_id = ? ORDER BY kept_at, basket_id, item_id", ws)
+      "SELECT basket_id, item_id, version_id, kept_at FROM basket_items WHERE account_id = ? ORDER BY kept_at, basket_id, item_id", ws)
       .map((m) => ({ basketId: m.basket_id, itemId: m.item_id, versionId: m.version_id, keptAt: m.kept_at })));
 
     await array("items", (function* () {
       type ItemRow = { id: string; number: number; source_id: string | null; kind: string; title: string; url: string | null; author: string | null; image_url: string | null; duration_seconds: number | null; doi: string | null;
-        curator_note: string | null; published_at: string | null; discovered_at: string; listed_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; fresh: number; progress: number; opened_at: string | null };
+        curator_note: string | null; published_at: string | null; discovered_at: string; listed_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; is_new: number; progress: number; opened_at: string | null };
       for (const i of iterate<ItemRow>(
         `SELECT i.id, i.number, i.source_id, i.kind, i.title, i.url, i.author, i.image_url, i.duration_seconds, i.doi, i.curator_note, i.published_at, i.discovered_at, i.listed_at, i.created_at,
-                i.enclosures, i.current_version_id, st.workflow, st.fresh, st.progress, st.opened_at
-         FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.workspace_id = ? ORDER BY i.seq`, ws)) {
+                i.enclosures, i.current_version_id, st.workflow, st.is_new, st.progress, st.opened_at
+         FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? ORDER BY i.seq`, ws)) {
         const priv = i.source_id !== null && privateIds.has(i.source_id);
         const link = (u: string | null) => (u && (priv || hasCredentialShape(u)) ? null : u);
         const html = (h: string | null) => (priv ? stripAddresses(h) : h);
@@ -186,19 +186,19 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
           publishedAt: i.published_at, discoveredAt: i.discovered_at, listedAt: i.listed_at, createdAt: i.created_at, enclosures, currentVersionId: i.current_version_id,
           versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), createdAt: v.created_at })),
           captures: captures.map((c) => ({ id: c.id, kind: c.kind, status: c.status, title: c.title, text: c.text, html: html(c.html), finalUrl: link(c.final_url), error: c.error, quality: c.quality, partialReason: c.partial_reason, createdAt: c.created_at, completedAt: c.completed_at })),
-          state: { workflow: i.workflow, fresh: i.fresh === 1, progress: i.progress, openedAt: i.opened_at },
+          state: { workflow: i.workflow, isNew: i.is_new === 1, progress: i.progress, openedAt: i.opened_at },
           originalGuids: guids,
         };
       }
     })());
 
-    const prefRow = all<{ value: string }>("SELECT value FROM preferences WHERE workspace_id = ?", ws)[0];
+    const prefRow = all<{ value: string }>("SELECT value FROM preferences WHERE account_id = ?", ws)[0];
     const stored = prefRow ? (JSON.parse(prefRow.value) as Record<string, unknown>) : {};
     await object("preferences", { ...DEFAULT_PREFERENCES, ...stored });
 
     await array("stateLog", (function* () {
       for (const l of iterate<{ item_id: string; from_state: string; to_state: string; at: string }>(
-        "SELECT item_id, from_state, to_state, at FROM state_log WHERE workspace_id = ? ORDER BY seq", ws)) {
+        "SELECT item_id, from_state, to_state, at FROM state_log WHERE account_id = ? ORDER BY seq", ws)) {
         yield { itemId: l.item_id, from: l.from_state, to: l.to_state, at: l.at };
       }
     })());
@@ -208,7 +208,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
         target_kind: string | null; target_id: string | null; body: string | null; created_at: string; updated_at: string };
       for (const a of iterate<Row>(
         `SELECT id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end, target_kind, target_id, body, created_at, updated_at
-         FROM annotations WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY seq`, ws)) {
+         FROM annotations WHERE account_id = ? AND deleted_at IS NULL ORDER BY seq`, ws)) {
         yield {
           id: a.id, itemId: a.item_id, kind: a.kind,
           quote: a.quote_exact !== null ? { exact: a.quote_exact, prefix: a.quote_prefix ?? "", suffix: a.quote_suffix ?? "" } : null,
@@ -220,11 +220,11 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     })());
 
     // The pictures kept with items. Items of private sources keep none, and none of their addresses leave the server.
-    if (all("SELECT 1 FROM item_images WHERE workspace_id = ? LIMIT 1", ws).length) {
+    if (all("SELECT 1 FROM item_images WHERE account_id = ? LIMIT 1", ws).length) {
       await array("images", (function* () {
         for (const im of iterate<{ item_id: string; source_id: string | null; url: string; role: string; content_type: string; sha256: string; data: Uint8Array }>(
           `SELECT g.item_id, i.source_id, g.url, g.role, g.content_type, g.sha256, g.data FROM item_images g JOIN items i ON i.id = g.item_id
-           WHERE g.workspace_id = ? ORDER BY i.seq, g.created_at, g.id`, ws)) {
+           WHERE g.account_id = ? ORDER BY i.seq, g.created_at, g.id`, ws)) {
           if (im.source_id !== null && privateIds.has(im.source_id)) continue;
           yield { itemId: im.item_id, url: im.url, role: im.role, contentType: im.content_type, sha256: im.sha256, data: Buffer.from(im.data).toString("base64") };
         }
@@ -232,9 +232,9 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     }
 
     // Sharing settings of baskets and collections, with their public notes.
-    if (all("SELECT 1 FROM shares WHERE workspace_id = ? LIMIT 1", ws).length) {
+    if (all("SELECT 1 FROM shares WHERE account_id = ? LIMIT 1", ws).length) {
       await array("shares", all<{ id: string; target_kind: string; target_id: string; curator_name: string; description: string | null; listed: number }>(
-        "SELECT id, target_kind, target_id, curator_name, description, listed FROM shares WHERE workspace_id = ? ORDER BY created_at, id", ws)
+        "SELECT id, target_kind, target_id, curator_name, description, listed FROM shares WHERE account_id = ? ORDER BY created_at, id", ws)
         .map((sh) => ({
           targetKind: sh.target_kind, targetId: sh.target_id, curatorName: sh.curator_name, description: sh.description, listed: sh.listed === 1,
           notes: all<{ item_id: string; note: string }>("SELECT item_id, note FROM share_notes WHERE share_id = ? ORDER BY item_id", sh.id).map((n) => ({ itemId: n.item_id, note: n.note })),
@@ -242,9 +242,9 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
     }
 
     // The days set with "Remind me" on kept items, with their notes.
-    if (all("SELECT 1 FROM item_reminders WHERE workspace_id = ? LIMIT 1", ws).length) {
+    if (all("SELECT 1 FROM item_reminders WHERE account_id = ? LIMIT 1", ws).length) {
       await array("itemReminders", (function* () {
-        for (const r of iterate<{ item_id: string; remind_on: string; note: string | null }>("SELECT item_id, remind_on, note FROM item_reminders WHERE workspace_id = ? ORDER BY remind_on, id", ws)) {
+        for (const r of iterate<{ item_id: string; remind_on: string; note: string | null }>("SELECT item_id, remind_on, note FROM item_reminders WHERE account_id = ? ORDER BY remind_on, id", ws)) {
           yield { itemId: r.item_id, remindOn: r.remind_on, note: r.note };
         }
       })());
@@ -352,7 +352,7 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
       bytes: done ? measureBytes({ title: c.title, text: c.text ?? "", html: html ?? "", finalUrl }) : 0,
     };
   });
-  const nonDefault = item.state.workflow !== "new" || item.state.progress > 0 || item.state.openedAt !== null;
+  const nonDefault = item.state.workflow !== "undecided" || item.state.progress > 0 || item.state.openedAt !== null;
   const stateBytes = nonDefault ? STATE_RECORD_BYTES : 0;
   const summaryText = toText(current.summaryHtml);
   return {
@@ -372,24 +372,24 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   const conflicts: string[] = [];
   const counts: Record<string, number> = {};
   const bump = (k: string, n = 1) => { counts[k] = (counts[k] ?? 0) + n; };
-  const ws = p.workspaceId;
+  const ws = p.accountId;
 
   // ---- sources
   const sources = new Map<string, SourceDecision>();
   const existingByFeed = new Map<string, { id: string; followed: boolean }>();
-  for (const s of app.db.all<{ id: string; feed_url: string; followed: number }>("SELECT id, feed_url, followed FROM sources WHERE workspace_id = ? AND feed_url IS NOT NULL ORDER BY followed ASC", ws)) {
+  for (const s of app.db.all<{ id: string; feed_url: string; followed: number }>("SELECT id, feed_url, followed FROM sources WHERE account_id = ? AND feed_url IS NOT NULL ORDER BY followed ASC", ws)) {
     const href = httpUrlOrNull(s.feed_url) ?? bridgeAddress(s.feed_url);
     if (href) existingByFeed.set(canonicalFeedKey(href), { id: s.id, followed: s.followed === 1 });
   }
-  const existingPrivate = app.db.all<{ id: string; title: string; followed: number }>("SELECT id, title, followed FROM sources WHERE workspace_id = ? AND is_private = 1", ws);
-  const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND kind = 'manual'", ws)?.id ?? null;
+  const existingPrivate = app.db.all<{ id: string; title: string; followed: number }>("SELECT id, title, followed FROM sources WHERE account_id = ? AND is_private = 1", ws);
+  const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
   const planned = new Map<string, string>(); // feed key / private title -> planned source id (duplicates inside one archive)
   let reusedSources = 0;
   let manual: SourceDecision | null = null;
   /** The PURSS's "Saved links" source: reused when present, created once when an import needs it. */
   const manualDecision = (src?: ArchiveSource): SourceDecision => {
     if (manual) return manual;
-    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand, siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
+    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: server.api.shared.keptLinks, origin: server.api.portability.keptByHand, siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
     manual = existingManual
       ? { action: "reuse", id: existingManual, refollow: false, src: shown, feedUrl: null }
       : { action: "create", id: newId("src"), mode: "manual", src: shown, feedUrl: null };
@@ -435,7 +435,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
 
   // ---- baskets
   const baskets = new Map<string, { id: string; create: Archive["baskets"][number] | null }>();
-  const basketByName = new Map(app.db.all<{ id: string; name: string }>("SELECT id, name FROM baskets WHERE workspace_id = ?", ws).map((b) => [lower(b.name), b.id]));
+  const basketByName = new Map(app.db.all<{ id: string; name: string }>("SELECT id, name FROM baskets WHERE account_id = ?", ws).map((b) => [lower(b.name), b.id]));
   const mergedBaskets: string[] = [];
   for (const b of doc.baskets) {
     const existing = basketByName.get(lower(b.name));
@@ -452,11 +452,9 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
 
   // ---- collections
   const collections = new Map<string, { id: string; create: ArchiveCollection | null; skip: boolean; src: ArchiveCollection }>();
-  const collectionByKey = new Map(app.db.all<{ id: string; name: string; mode: string }>("SELECT id, name, mode FROM collections WHERE workspace_id = ?", ws).map((c) => [`${c.mode}:${lower(c.name)}`, c.id]));
+  const collectionByKey = new Map(app.db.all<{ id: string; name: string; mode: string }>("SELECT id, name, mode FROM collections WHERE account_id = ?", ws).map((c) => [`${c.mode}:${lower(c.name)}`, c.id]));
   const mergedCollections: string[] = [];
-  let handPicked = 0;
   for (const c of doc.collections) {
-    if (c.mode === "manual") { handPicked++; continue; }
     const key = `${c.mode}:${lower(c.name)}`;
     const existing = collectionByKey.get(key);
     if (existing) {
@@ -469,11 +467,9 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     }
   }
   for (const name of mergedCollections) conflicts.push(server.api.portability.collectionExists(name));
-  if (doc.savedQueries.length) conflicts.push(server.api.portability.savedSearchesNotRestored(doc.savedQueries.length));
-  if (handPicked) conflicts.push(server.api.portability.handPickedNotRestored(handPicked));
   const maps = { sources: new Map([...sources].map(([k, v]) => [k, v.id])), baskets: new Map([...baskets].map(([k, v]) => [k, v.id])), collections: new Map([...collections].map(([k, v]) => [k, v.id])) };
   for (const entry of collections.values()) {
-    if (entry.create?.mode !== "query") continue;
+    if (entry.create?.mode !== "filter") continue;
     const q = checkQuery(remapQuery(entry.create.query, maps));
     if (!q.ok) { entry.skip = true; conflicts.push(server.api.portability.filterNotRestored(entry.create.name)); }
   }
@@ -486,11 +482,11 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     const ids = new Set<string>();
     for (const g of it.originalGuids) {
       for (const r of app.db.all<{ item_id: string }>(
-        "SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id WHERE e.workspace_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2", ws, sourceId, g)) ids.add(r.item_id);
+        "SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id WHERE e.account_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2", ws, sourceId, g)) ids.add(r.item_id);
     }
-    if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ? LIMIT 2", ws, sourceId, url)) ids.add(r.id);
+    if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ? LIMIT 2", ws, sourceId, url)) ids.add(r.id);
     if (!url && !it.originalGuids.length) {
-      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ? LIMIT 2", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
+      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ? LIMIT 2", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
     }
     return ids;
   };
@@ -667,7 +663,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   const reminders: ImportPlan["reminders"] = [];
   const today = todayFor(app, ws, new Date());
   const keptInFile = new Set(doc.memberships.map((m) => m.itemId));
-  const reminded = new Set(app.db.all<{ item_id: string }>("SELECT item_id FROM item_reminders WHERE workspace_id = ?", ws).map((r) => r.item_id));
+  const reminded = new Set(app.db.all<{ item_id: string }>("SELECT item_id FROM item_reminders WHERE account_id = ?", ws).map((r) => r.item_id));
   for (const r of doc.itemReminders) {
     const decision = items.get(r.itemId);
     if (!decision) continue;
@@ -680,11 +676,10 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
 
   // ---- sharing, preferences
   if (doc.shares.length) conflicts.push(server.api.portability.sharingSwitchedOff);
-  if (doc.publications.length) conflicts.push(server.api.portability.sharedCollectionsOld);
-  const hasPrefs = !!app.db.get("SELECT 1 FROM preferences WHERE workspace_id = ?", ws);
+  const hasPrefs = !!app.db.get("SELECT 1 FROM preferences WHERE account_id = ?", ws);
   if (hasPrefs) conflicts.push(server.api.portability.settingsKept);
 
-  bump("sources", doc.sources.length); bump("collections", doc.collections.length - handPicked); bump("baskets", doc.baskets.length);
+  bump("sources", doc.sources.length); bump("collections", doc.collections.length); bump("baskets", doc.baskets.length);
   bump("items", doc.items.length); bump("keptItems", doc.memberships.length); bump("shares", doc.shares.length);
   bump("captures", doc.items.reduce((n, i) => n + i.captures.filter((c) => c.status === "done").length, 0));
   bump("annotations", doc.annotations.length); bump("itemReminders", doc.itemReminders.length);
@@ -763,7 +758,7 @@ export function wouldFit(app: App, accountId: string, bytes: number): boolean {
   if (bytes <= 0) return true;
   const free = diskOverride.freeBytes ?? diskInfo(app).freeBytes;
   if (free !== null && free - bytes < app.config.diskReserveBytes) return false;
-  const alloc = allocation(app, accountId);
+  const alloc = allowance(app, accountId);
   return alloc === null || usedBytes(app, accountId) + reservedBytes(app, accountId) + bytes <= alloc;
 }
 
@@ -788,11 +783,11 @@ export function purgeUploads(app: App, olderThanMs: number): void {
   }
 }
 
-export function purgeStages(app: App, workspaceId?: string): number {
+export function purgeStages(app: App, accountId?: string): number {
   // Uploads still arriving are written to at least every 20 s (UPLOAD_PACE); one untouched for an hour was abandoned.
-  if (!workspaceId) purgeUploads(app, 3600_000);
-  const rows = workspaceId
-    ? app.db.all<{ token: string }>("SELECT token FROM import_stages WHERE workspace_id = ?", workspaceId)
+  if (!accountId) purgeUploads(app, 3600_000);
+  const rows = accountId
+    ? app.db.all<{ token: string }>("SELECT token FROM import_stages WHERE account_id = ?", accountId)
     : app.db.all<{ token: string }>("SELECT token FROM import_stages WHERE expires_at < ?", nowIso());
   for (const r of rows) {
     rmSync(stageFile(app, r.token), { force: true });
@@ -835,7 +830,7 @@ export function checkUpload(app: App, p: Principal, upload: unknown): UploadChec
 /** Records a checked upload as this PURSS's one staged import; `place` puts the file's text at the path it's given. */
 export function stageChecked(app: App, p: Principal, check: UploadCheck, file: { bytes: number; sha256: string; place: (dest: string) => void }): ImportPreview {
   purgeStages(app);
-  purgeStages(app, p.workspaceId); // one staged import per PURSS
+  purgeStages(app, p.accountId); // one staged import per PURSS
   const token = randomToken(18);
   mkdirSync(path.join(app.config.dataDir, "staging"), { recursive: true, mode: 0o700 });
   const dest = stageFile(app, token);
@@ -846,8 +841,8 @@ export function stageChecked(app: App, p: Principal, check: UploadCheck, file: {
     fits: wouldFit(app, p.accountId, check.requiredBytes),
     overPlan: check.overPlan,
   };
-  app.db.run("INSERT INTO import_stages (token, account_id, workspace_id, bytes, sha256, summary, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    token, p.accountId, p.workspaceId, file.bytes, file.sha256, JSON.stringify(preview), nowIso(), addSeconds(STAGE_TTL_SECONDS));
+  app.db.run("INSERT INTO import_stages (token, account_id, bytes, sha256, summary, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    token, p.accountId, file.bytes, file.sha256, JSON.stringify(preview), nowIso(), addSeconds(STAGE_TTL_SECONDS));
   return preview;
 }
 
@@ -922,7 +917,7 @@ export function oneImportAtATime<T>(fn: () => T | Promise<T>): Promise<T> {
 
 /** Apply a staged import in one transaction. Over the limit: nothing is written and the staged file stays for a retry. */
 export function applyImport(app: App, p: Principal, token: string): ImportResult {
-  const stage = app.db.get<{ token: string; sha256: string }>("SELECT token, sha256 FROM import_stages WHERE token = ? AND workspace_id = ? AND expires_at > ?", token, p.workspaceId, nowIso());
+  const stage = app.db.get<{ token: string; sha256: string }>("SELECT token, sha256 FROM import_stages WHERE token = ? AND account_id = ? AND expires_at > ?", token, p.accountId, nowIso());
   const file = stage ? stageFile(app, stage.token) : null;
   if (!stage || !file || !existsSync(file)) throw badRequest(server.api.portability.previewExpired, "expired");
   const json = readFileSync(file, "utf8");
@@ -937,7 +932,7 @@ export function applyImport(app: App, p: Principal, token: string): ImportResult
     audit(app, p.accountId, "import", null, "failure", err instanceof HttpError ? err.code : "error");
     throw err;
   }
-  purgeStages(app, p.workspaceId);
+  purgeStages(app, p.accountId);
   audit(app, p.accountId, "import", null, "success", `${result.created.items} items, ${result.created.keptPins} kept`);
   emit(app, p.accountId, { type: "items", sourceIds: [], count: result.created.items });
   emit(app, p.accountId, { type: "storage" });
@@ -953,8 +948,8 @@ function ledgerInsert(app: App, p: Principal, spec: { kind: "item_version" | "ca
   const id = newId("obj");
   const at = nowIso();
   app.db.run(
-    "INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, p.accountId, p.workspaceId, spec.kind, spec.refId, spec.itemId, spec.sourceId, spec.bytes, at);
+    "INSERT INTO stored_objects (id, account_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    id, p.accountId, spec.kind, spec.refId, spec.itemId, spec.sourceId, spec.bytes, at);
   app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     newId("use"), p.accountId, `admit:${id}`, id, spec.bytes, "import", at);
   addUsedBytes(app, p.accountId, spec.bytes);
@@ -962,7 +957,7 @@ function ledgerInsert(app: App, p: Principal, spec: { kind: "item_version" | "ca
 
 function runImport(app: App, p: Principal, doc: Archive, token: string): ImportResult {
   const plan = planImport(app, p, doc);
-  const ws = p.workspaceId;
+  const ws = p.accountId;
   const now = nowIso();
   checkGrowth(app, p.accountId, plan.requiredBytes); // throws a 507 "storage full" before anything is written
   assertPlanRoom(app, p, plan); // and a 403 when it would follow more sources or add more collections than the plan allows
@@ -977,7 +972,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
 
   // ---- sources
   const subscribe = (sourceId: string, feedUrl: string, title: string) => {
-    enqueue(app, "engine.subscribe", { engineUserId: engineUser!.id, sourceId, feedUrl, title }, { accountId: p.accountId, workspaceId: ws, idempotencyKey: `subscribe:${sourceId}` });
+    enqueue(app, "engine.subscribe", { engineUserId: engineUser!.id, sourceId, feedUrl, title }, { accountId: p.accountId, idempotencyKey: `subscribe:${sourceId}` });
     result.following++;
   };
   const created = new Set<string>();
@@ -998,21 +993,21 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const createdAt = ISO_FALLBACK(s.createdAt, now);
     const lastItemAt = s.lastItemAt ? ISO_FALLBACK(s.lastItemAt, "") || null : null;
     if (d.mode === "manual") {
-      app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, ws, server.api.shared.savedLinks, server.api.portability.keptByHand, s.hue, createdAt);
+      app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, server.api.shared.keptLinks, server.api.portability.keptByHand, s.hue, createdAt);
     } else if (d.mode === "reconnect" || (d.mode === "unfollowed" && d.feedUrl === null)) {
       const reconnect = d.mode === "reconnect";
       app.db.run(
-        `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, health, health_text, last_item_at, created_at)
-         VALUES (?, ?, ?, 'private', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        d.id, p.accountId, ws, s.title, s.origin, s.curator, s.hue, reconnect ? 1 : 0, reconnect ? 1 : s.paused ? 1 : 0, s.notify,
+        `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, health, health_text, last_item_at, created_at)
+         VALUES (?, ?, 'private', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        d.id, p.accountId, s.title, s.origin, s.curator, s.hue, reconnect ? 1 : 0, reconnect ? 1 : s.paused ? 1 : 0, s.notify,
         reconnect ? "reconnect" : "ok", reconnect ? PRIVATE_NOTE : null, lastItemAt, createdAt);
       if (reconnect) result.reconnectRequired++;
     } else {
       const follow = d.mode === "follow";
       app.db.run(
-        `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, full_text, health, health_text, last_item_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        d.id, p.accountId, ws, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
+        `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, full_text, health, health_text, last_item_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        d.id, p.accountId, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
         s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }) ? 1 : 0,
         follow ? "pending" : "ok", null, lastItemAt, createdAt);
       if (follow) subscribe(d.id, d.feedUrl!, s.title);
@@ -1021,18 +1016,18 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
 
   // ---- baskets and collections
-  let basketPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM baskets WHERE workspace_id = ?", ws)!.n;
+  let basketPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM baskets WHERE account_id = ?", ws)!.n;
   for (const b of plan.baskets.values()) {
     if (!b.create) continue;
-    app.db.run("INSERT INTO baskets (id, workspace_id, name, capture_mode, view, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", b.id, ws, b.create.name, b.create.captureMode, b.create.view, basketPos++, ISO_FALLBACK(b.create.createdAt, now));
+    app.db.run("INSERT INTO baskets (id, account_id, name, capture_mode, view, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", b.id, ws, b.create.name, b.create.captureMode, b.create.view, basketPos++, ISO_FALLBACK(b.create.createdAt, now));
     result.created.baskets++;
   }
   const maps: Maps = { sources: new Map([...plan.sources].map(([k, v]) => [k, v.id])), baskets: new Map([...plan.baskets].map(([k, v]) => [k, v.id])), collections: new Map([...plan.collections].map(([k, v]) => [k, v.id])) };
-  let collectionPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM collections WHERE workspace_id = ?", ws)!.n;
+  let collectionPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM collections WHERE account_id = ?", ws)!.n;
   for (const c of plan.collections.values()) {
     if (!c.create || c.skip) continue;
-    const q = c.create.mode === "query" ? checkQuery(remapQuery(c.create.query, maps)) : null;
-    app.db.run("INSERT INTO collections (id, workspace_id, name, emoji, mode, view, query, show_on_home, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    const q = c.create.mode === "filter" ? checkQuery(remapQuery(c.create.query, maps)) : null;
+    app.db.run("INSERT INTO collections (id, account_id, name, emoji, mode, view, query, show_on_home, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       c.id, ws, c.create.name, c.create.emoji, c.create.mode, c.create.view, q?.ok ? JSON.stringify(q.query) : null, c.create.showOnHome ? 1 : 0, collectionPos++, ISO_FALLBACK(c.create.createdAt, now));
     result.created.collections++;
   }
@@ -1045,9 +1040,9 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
 
   // ---- items
-  // An item keeps its number from the file when this workspace never gave that number (restoring into a new workspace keeps
+  // An item keeps its number from the file when this account never gave that number (restoring into a new account keeps
   // every short link); otherwise it gets the next one. The counter moves past the kept numbers first, so none is given twice.
-  const nextNumber = app.db.get<{ n: number }>("SELECT next_item_number AS n FROM workspaces WHERE id = ?", ws)!.n;
+  const nextNumber = app.db.get<{ n: number }>("SELECT next_item_number AS n FROM accounts WHERE id = ?", ws)!.n;
   const keptNumbers = new Map<string, number>();
   const taken = new Set<number>();
   let highest = 0;
@@ -1055,27 +1050,27 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const n = d.action === "create" ? d.item.number : undefined;
     if (n !== undefined && n >= nextNumber && !taken.has(n)) { keptNumbers.set(d.id, n); taken.add(n); highest = Math.max(highest, n); }
   }
-  if (highest) app.db.run("UPDATE workspaces SET next_item_number = MAX(next_item_number, ?) WHERE id = ?", highest + 1, ws);
+  if (highest) app.db.run("UPDATE accounts SET next_item_number = MAX(next_item_number, ?) WHERE id = ?", highest + 1, ws);
   for (const d of plan.items.values()) {
     if (d.action !== "create") continue;
     const { item: it, prepared: pr } = d;
     const cur = pr.versions.find((v) => v.id === pr.currentId)!;
     const row = app.db.run(
-      `INSERT INTO items (id, number, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
+      `INSERT INTO items (id, number, account_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
          published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      d.id, keptNumbers.get(d.id) ?? null, p.accountId, ws, d.sourceId, d.sourceId, pr.kind, it.title.trim() || NO_TITLE, pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
+       VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      d.id, keptNumbers.get(d.id) ?? null, p.accountId, d.sourceId, d.sourceId, pr.kind, it.title.trim() || NO_TITLE, pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
       it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.listedAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
     for (const v of pr.versions) {
-      app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         v.id, d.id, ws, v.title, v.url, v.summaryHtml, v.contentHtml, v.hash, v.createdAt);
       ledgerInsert(app, p, { kind: "item_version", refId: v.id, itemId: d.id, sourceId: d.sourceId, bytes: v.bytes });
     }
-    app.db.run("INSERT INTO item_state (item_id, workspace_id, source_id, workflow, fresh, progress, opened_at, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
-      d.id, ws, d.sourceId, it.state.workflow, it.state.fresh ? 1 : 0, it.state.progress, it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null, now);
+    app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, progress, opened_at, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+      d.id, ws, d.sourceId, it.state.workflow, it.state.isNew ? 1 : 0, it.state.progress, it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null, now);
     if (pr.stateBytes) ledgerInsert(app, p, { kind: "record", refId: `state:${d.id}`, itemId: null, sourceId: null, bytes: pr.stateBytes });
     for (const c of pr.captures) {
-      app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         c.id, ws, d.id, c.kind, c.status, c.title, c.text, c.html, c.finalUrl, c.error, c.quality, c.partialReason, c.createdAt, c.completedAt);
       if (c.status === "done") { ledgerInsert(app, p, { kind: "capture", refId: c.id, itemId: d.id, sourceId: null, bytes: c.bytes }); result.created.captures++; }
     }
@@ -1084,14 +1079,14 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
   // ---- workflow history (after the items it refers to exist)
   for (const l of plan.stateLog) {
-    app.db.run("INSERT INTO state_log (account_id, workspace_id, item_id, from_state, to_state, at) VALUES (?, ?, ?, ?, ?, ?)", p.accountId, ws, l.itemId, l.from, l.to, l.at);
+    app.db.run("INSERT INTO state_log (account_id, item_id, from_state, to_state, at) VALUES (?, ?, ?, ?, ?)", p.accountId, l.itemId, l.from, l.to, l.at);
   }
   for (const id of plan.stateRecords) ledgerInsert(app, p, { kind: "record", refId: `state:${id}`, itemId: null, sourceId: null, bytes: STATE_RECORD_BYTES });
   // ---- highlights and notes
   for (const a of plan.annotations) {
-    const seq = app.db.run(`INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end,
-      target_kind, target_id, body, created_at, updated_at, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      a.id, p.accountId, ws, a.itemId, a.kind, a.quote?.exact ?? null, a.quote?.prefix ?? null, a.quote?.suffix ?? null, a.position?.start ?? null, a.position?.end ?? null,
+    const seq = app.db.run(`INSERT INTO annotations (id, account_id, item_id, kind, quote_exact, quote_prefix, quote_suffix, pos_start, pos_end,
+      target_kind, target_id, body, created_at, updated_at, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      a.id, p.accountId, a.itemId, a.kind, a.quote?.exact ?? null, a.quote?.prefix ?? null, a.quote?.suffix ?? null, a.position?.start ?? null, a.position?.end ?? null,
       a.target?.kind ?? null, a.target?.id ?? null, a.body, a.createdAt, a.updatedAt, nowIso()).lastInsertRowid;
     indexAnnotation(app, seq, a.quote?.exact ?? null, a.body);
     ledgerInsert(app, p, { kind: "record", refId: `annotation:${a.id}`, itemId: a.itemId, sourceId: null, bytes: a.bytes });
@@ -1100,13 +1095,13 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
 
   // ---- "Remind me" days
   for (const r of plan.reminders) {
-    result.created.reminders += app.db.run("INSERT OR IGNORE INTO item_reminders (id, account_id, workspace_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      newId("irm"), p.accountId, ws, r.itemId, r.remindOn, r.note, now).changes;
+    result.created.reminders += app.db.run("INSERT OR IGNORE INTO item_reminders (id, account_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      newId("irm"), p.accountId, r.itemId, r.remindOn, r.note, now).changes;
   }
 
   // ---- pictures kept with items
   for (const g of plan.pictures) {
-    app.db.run("INSERT INTO item_images (id, item_id, workspace_id, url, role, content_type, bytes, sha256, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    app.db.run("INSERT INTO item_images (id, item_id, account_id, url, role, content_type, bytes, sha256, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       g.id, g.itemId, ws, g.url, g.role, g.contentType, g.bytes, g.sha256, g.data, now);
     ledgerInsert(app, p, { kind: "image", refId: g.id, itemId: g.itemId, sourceId: null, bytes: g.bytes });
   }
@@ -1129,14 +1124,14 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
       if (!versionId && v.insert) {
         versionId = newId("ver");
         const owner = app.db.get<{ source_id: string | null }>("SELECT source_id FROM items WHERE id = ?", base.id);
-        app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           versionId, base.id, ws, v.insert.title, v.insert.url, v.insert.summaryHtml, v.insert.contentHtml, v.insert.hash, v.insert.createdAt);
         ledgerInsert(app, p, { kind: "item_version", refId: versionId, itemId: base.id, sourceId: owner?.source_id ?? null, bytes: v.insert.bytes });
       }
       versionId ??= app.db.get<{ current_version_id: string }>("SELECT current_version_id FROM items WHERE id = ?", base.id)?.current_version_id ?? null;
     }
     if (!versionId) continue;
-    const r = app.db.run("INSERT OR IGNORE INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", m.basketId, m.itemId, ws, versionId, m.keptAt);
+    const r = app.db.run("INSERT OR IGNORE INTO basket_items (basket_id, item_id, account_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", m.basketId, m.itemId, ws, versionId, m.keptAt);
     if (r.changes) {
       markMembershipChanged(app, ws, m.itemId);
       ledgerInsert(app, p, { kind: "record", refId: `basket:${m.basketId}:${m.itemId}`, itemId: m.itemId, sourceId: null, bytes: measureBytes({ basketId: m.basketId, itemId: m.itemId, keptAt: m.keptAt }) });
@@ -1145,7 +1140,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
 
   // ---- preferences (only when the PURSS has none of its own)
-  if (!app.db.get("SELECT 1 FROM preferences WHERE workspace_id = ?", ws)) {
+  if (!app.db.get("SELECT 1 FROM preferences WHERE account_id = ?", ws)) {
     const prefs = { ...doc.preferences } as Record<string, unknown>;
     if (Array.isArray(prefs.homeCollectionIds)) prefs.homeCollectionIds = prefs.homeCollectionIds.flatMap((id) => { const t = maps.collections.get(String(id)); return t ? [t] : []; });
     const parsed = preferencesPatchSchema.safeParse(prefs);
@@ -1158,7 +1153,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     if (!targetId || app.db.get("SELECT 1 FROM shares WHERE target_kind = ? AND target_id = ?", sh.targetKind, targetId)) continue;
     const name = app.db.get<{ name: string }>(`SELECT name FROM ${sh.targetKind === "basket" ? "baskets" : "collections"} WHERE id = ?`, targetId)?.name ?? "shared";
     const sid = newId("shr");
-    app.db.run("INSERT INTO shares (id, workspace_id, target_kind, target_id, slug, curator_name, description, listed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    app.db.run("INSERT INTO shares (id, account_id, target_kind, target_id, slug, curator_name, description, listed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       sid, ws, sh.targetKind, targetId, makeSlug(name), sh.curatorName, sh.description, sh.listed ? 1 : 0, now, now);
     for (const n of sh.notes) {
       const item = plan.items.get(n.itemId);
@@ -1169,7 +1164,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   }
 
   const summaryLine = server.api.portability.importSummary(result.created.items, result.created.keptPins) + (result.reconnectRequired ? server.api.portability.reconnectSuffix(result.reconnectRequired) : "");
-  app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)",
+  app.db.run("INSERT OR IGNORE INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)",
     newId("ntf"), ws, server.api.portability.importFinished, summaryLine, `import:${token}`, now);
   return result;
 }
@@ -1178,18 +1173,18 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
 
 /** Restore a private source that came back from an export with "Reconnect required": the owner supplies the link again. */
 export function reconnectSource(app: App, p: Principal, sourceId: string, discoveryToken: string): { ok: true; sourceId: string } {
-  const s = app.db.get<{ id: string; title: string; is_private: number; health: string; followed: number }>("SELECT id, title, is_private, health, followed FROM sources WHERE id = ? AND workspace_id = ?", sourceId, p.workspaceId);
+  const s = app.db.get<{ id: string; title: string; is_private: number; health: string; followed: number }>("SELECT id, title, is_private, health, followed FROM sources WHERE id = ? AND account_id = ?", sourceId, p.accountId);
   if (!s) throw notFound(server.api.shared.thatSource);
   if (!s.is_private || s.health !== "reconnect" || !s.followed) throw conflict(server.api.portability.noReconnectNeeded);
-  const candidate = peekCandidate(discoveryToken, p.workspaceId);
+  const candidate = peekCandidate(discoveryToken, p.accountId);
   if (!candidate) throw badRequest(server.api.shared.lookupExpired, "expired");
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
   if (!engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
   writeSecret(app.config.secretsDir, `source-urls/${s.id}`, candidate.feedUrl);
   try {
     app.db.tx(() => {
-      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = NULL, site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.workspaceId, candidate.feedUrl), s.id);
-      enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: s.id, feedUrl: `secret:source-urls/${s.id}`, title: s.title }, { accountId: p.accountId, workspaceId: p.workspaceId, idempotencyKey: `subscribe:${s.id}` });
+      app.db.run("UPDATE sources SET paused = 0, health = 'pending', health_text = NULL, site_url = COALESCE(site_url, ?), feed_key = ? WHERE id = ?", candidate.siteUrl, privateFeedKey(app, p.accountId, candidate.feedUrl), s.id);
+      enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: s.id, feedUrl: `secret:source-urls/${s.id}`, title: s.title }, { accountId: p.accountId, idempotencyKey: `subscribe:${s.id}` });
     });
     dropCandidate(discoveryToken);
   } catch (err) {

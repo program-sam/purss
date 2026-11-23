@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WorkspaceError, exchangeCode, fetchInfo, signedOut, workspace } from "./api.ts";
+import { PurssError, exchangeCode, fetchInfo, signedOut, purssClient } from "./api.ts";
 
 type Seen = { url: string; init: RequestInit };
 function fakeFetch(reply: (url: string, init: RequestInit) => Response | Promise<Response>) {
@@ -16,15 +16,15 @@ const info = (origin: string) => ({ service: "purss", name: "PURSS", origin, hos
 
 test("connect info must come from a PURSS that calls itself by this address", async () => {
   assert.equal((await fetchInfo("https://ws.example", fakeFetch(() => json(200, info("https://ws.example"))).f)).name, "PURSS");
-  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => json(200, info("https://other.example"))).f), (e: WorkspaceError) => e.code === "other_origin" && /https:\/\/other.example/.test(e.message));
-  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => json(200, { hello: "world" })).f), (e: WorkspaceError) => e.code === "not_workspace");
-  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => new Response("<html>", { status: 404 })).f), (e: WorkspaceError) => e.code === "not_workspace");
-  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => { throw new TypeError("network"); }).f), (e: WorkspaceError) => e.code === "offline");
+  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => json(200, info("https://other.example"))).f), (e: PurssError) => e.code === "other_origin" && /https:\/\/other.example/.test(e.message));
+  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => json(200, { hello: "world" })).f), (e: PurssError) => e.code === "not_purss");
+  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => new Response("<html>", { status: 404 })).f), (e: PurssError) => e.code === "not_purss");
+  await assert.rejects(fetchInfo("https://ws.example", fakeFetch(() => { throw new TypeError("network"); }).f), (e: PurssError) => e.code === "offline");
 });
 
 test("requests carry the device token, never cookies, and only go to the PURSS", async () => {
   const { f, seen } = fakeFetch((url) => url.includes("lookup") ? json(200, { item: null, followedSources: [] }) : json(200, { itemId: "itm_1" }));
-  const ws = workspace({ origin: "https://ws.example", token: "purss_dev_secret" }, f);
+  const ws = purssClient({ origin: "https://ws.example", token: "purss_dev_secret" }, f);
   await ws.lookup("https://news.example/a?b=1&c=2#x");
   await ws.keep({ url: "https://news.example/a", basketId: "bsk_1", title: "A" });
   assert.equal(seen[0]!.url, "https://ws.example/api/items/lookup?url=https%3A%2F%2Fnews.example%2Fa%3Fb%3D1%26c%3D2%23x");
@@ -37,7 +37,7 @@ test("requests carry the device token, never cookies, and only go to the PURSS",
 });
 
 test("a revoked token, a refusal and an oversized page are told apart", async () => {
-  const ws = (r: Response) => workspace({ origin: "https://ws.example", token: "t" }, fakeFetch(() => r).f);
+  const ws = (r: Response) => purssClient({ origin: "https://ws.example", token: "t" }, fakeFetch(() => r).f);
   const revoked = await ws(json(401, { error: { code: "device_signed_out", message: "Connect it again." } })).baskets().catch((e) => e);
   assert.ok(signedOut(revoked));
   const refused = await ws(json(403, { error: { code: "not_for_apps", message: "The extension can't do that." } })).baskets().catch((e) => e);

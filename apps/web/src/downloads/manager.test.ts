@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { DeviceConnection as Connection, DownloadPlanRequest, ItemDetail } from "@purss/domain";
 import { chooseDownloads, downloadCandidate, expectedBytes, MAX_DOWNLOAD_BYTES, mediaToDownload } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import type { BackgroundState } from "./background.ts";
 import { DownloadError, DownloadManager, MAX_TRIES } from "./manager.ts";
@@ -58,7 +58,7 @@ class MemoryKv implements KeyValue {
 function detail(id: string, over: Partial<ItemDetail> = {}): ItemDetail {
   return {
     id, number: 1, sourceId: "src_1", sourceTitle: "Slow Radio", keptByHand: false, kind: "podcast", title: `Episode ${id}`, url: `https://pub.example/${id}`, author: null, excerpt: null, imageUrl: null,
-    durationSeconds: 600, readMinutes: null, doi: null, publishedAt: "2026-11-01T00:00:00Z", discoveredAt: "2026-11-01T00:00:00Z", listedAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, fresh: false,
+    durationSeconds: 600, readMinutes: null, doi: null, publishedAt: "2026-11-01T00:00:00Z", discoveredAt: "2026-11-01T00:00:00Z", listedAt: "2026-11-01T00:00:00Z", workflow: "toread", revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, isNew: false,
     progress: 0, opened: false, basketIds: [], curatorNote: null, annotatedAt: null,
     media: { url: `https://cdn.pub.example/${id}.mp3?size=${20 * MB}`, kind: "audio", type: "audio/mpeg", length: 20 * MB },
     contentHtml: "<p>Notes</p>", contentOmitted: false, summaryOnly: false, renamable: false, changedSinceKept: false, latestHtml: null, contentRef: null, latestRef: null, captures: [], keptVersionAt: null, enclosures: [], collections: [], playback: null, partialCopy: null, keptPicture: null, gallery: [],

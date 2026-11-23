@@ -69,7 +69,7 @@ export const DISCOVERY_ROUTES = [
   /** A Mastodon or other fediverse account's feed. */
   "fediverse",
   "bluesky",
-  // Source bridges (bridges.ts), for a bridged service's own address or a bridge descriptor. One id per service of the catalogue.
+  // Source bridges (bridges.ts), for a bridged service's own address or a bridge descriptor. One id per service of the bridge list.
   "bridge:telegram",
   "bridge:bandcamp",
   "bridge:soundcloud",
@@ -100,7 +100,7 @@ export const DISCOVERY_ROUTES = [
 export type DiscoveryRoute = (typeof DISCOVERY_ROUTES)[number];
 
 type BridgeIdOf<T> = T extends `bridge:${infer S}` ? S : never;
-/** The ids of the bridged services the routes name: the catalogue's services are typed by it, so a service the routes don't name does not compile. */
+/** The ids of the bridged services the routes name: the bridge list's services are typed by it, so a service the routes don't name does not compile. */
 export type BridgeServiceId = BridgeIdOf<DiscoveryRoute>;
 
 const ROUTES: ReadonlySet<string> = new Set(DISCOVERY_ROUTES);
@@ -118,7 +118,7 @@ const ENTRIES: ReadonlySet<string> = new Set(DISCOVERY_ENTRIES);
 export const isDiscoveryEntry = (v: unknown): v is DiscoveryEntry => typeof v === "string" && ENTRIES.has(v);
 
 /**
- * What the browser says about a lookup (`POST /api/discover`'s `entry`). Only the entries the interface itself starts can be named
+ * What the browser says about a lookup (`POST /api/link-lookup`'s `entry`). Only the entries the interface itself starts can be named
  * there; `reconnect` is a lookup for a private source's link, which follows nothing and is not counted. The others are decided by the
  * server (the extension's token, an assistant, an import).
  */

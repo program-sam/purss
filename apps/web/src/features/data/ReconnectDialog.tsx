@@ -2,10 +2,10 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DiscoveryCandidate, DiscoveryResult, SourceDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
-import { refreshWorkspace } from "../../api/queries.ts";
+import { refreshPurss } from "../../api/queries.ts";
 import { preselect } from "../../lib/discovery.ts";
 import { useToasts } from "../../state/toasts.tsx";
 
@@ -29,7 +29,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
     if (!url.trim()) return;
     setLooking(true); setError(""); setResult(null); setPick(0);
     try {
-      const out = await post<DiscoveryResult>("/api/discover", { url: url.trim(), entry: "reconnect" });
+      const out = await post<DiscoveryResult>("/api/link-lookup", { url: url.trim(), entry: "reconnect" });
       setResult(out);
       // What Add source would choose, and nothing when it wouldn't (a list found through the page's scripts is for the person to pick).
       setPick(out.ok ? preselect(out.candidates) : 0);
@@ -40,7 +40,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
     setBusy(true); setError("");
     try {
       await post(`/api/sources/${encodeURIComponent(source.id)}/reconnect`, { token: cand.token });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       onClose();
       toast(t.reconnected(source.title));
     } catch (err) { setError(messageOf(err)); setBusy(false); }

@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CollectionDTO, Preferences, SourceDTO } from "@purss/domain";
 import type { OTHER_BOX_ID as DomainOtherBoxId } from "@purss/domain";
 
@@ -14,7 +14,7 @@ export function otherSourcesBox(loose: readonly SourceDTO[]): CollectionDTO {
   return {
     id: OTHER_BOX_ID, name: app.words.otherSources, emoji: null, mode: "sources", view: "list", position: Number.MAX_SAFE_INTEGER, showOnHome: true,
     sourceIds: loose.map((s) => s.id), query: null,
-    freshCount: loose.reduce((n, s) => n + s.freshCount, 0), itemCount: loose.reduce((n, s) => n + s.itemCount, 0),
+    newCount: loose.reduce((n, s) => n + s.newCount, 0), itemCount: loose.reduce((n, s) => n + s.itemCount, 0),
     aiFiltered: false,
   };
 }

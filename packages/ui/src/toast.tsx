@@ -1,4 +1,4 @@
-import { ui } from "@purss/copy/ui";
+import { ui } from "@purss/translations/ui";
 import type { ReactNode } from "react";
 import { Icon } from "./icons.tsx";
 

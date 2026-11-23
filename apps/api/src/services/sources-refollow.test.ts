@@ -16,7 +16,7 @@ const base = { collectionId: null, newCollectionName: null, markPrivate: false, 
 
 function hold(p: Principal, over: { feedUrl?: string; title?: string } = {}): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, {
+  holdCandidate(token, p.accountId, {
     feedUrl: over.feedUrl ?? FEED, siteUrl: "https://example.org/", title: over.title ?? "Herman's blog", kind: "feed",
     origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null,
   });
@@ -24,7 +24,7 @@ function hold(p: Principal, over: { feedUrl?: string; title?: string } = {}): st
 }
 
 const rows = (app: ReturnType<typeof makeTestApp>["app"], p: Principal) =>
-  app.db.all<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE workspace_id = ? AND feed_url = ?", p.workspaceId, FEED).map((r) => ({ id: r.id, followed: r.followed }));
+  app.db.all<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE account_id = ? AND feed_url = ?", p.accountId, FEED).map((r) => ({ id: r.id, followed: r.followed }));
 
 test("following an unfollowed feed again takes its source and items up again instead of storing a second copy", (t) => {
   const { app, cleanup } = makeTestApp();

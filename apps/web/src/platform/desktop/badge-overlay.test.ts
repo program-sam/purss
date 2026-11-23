@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { badgeLabel, overlaySize, wantsOverlay } from "./badge-overlay.ts";
 
 test("the overlay says the count up to 99, then 99+", () => {

@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDocument } from "htmlparser2";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { appUrl } from "@purss/domain";
-import { inHtml } from "../copy-testing.ts";
+import { inHtml } from "../translations-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import { basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection } from "../services/collections.ts";
@@ -45,7 +45,7 @@ type Boot = Awaited<ReturnType<typeof boot>>;
 /** Where a hosted installation sends visitors to learn what PURSS is (a self-hosted one has no such place). */
 const homeOf = (b: Boot) => b.app.config.mode === "hosted" ? `${b.app.config.publicOrigin}/` : null;
 
-/** What a shared page says around its list of items, as the catalog's template writes it: the markup before the list and after it. */
+/** What a shared page says around its list of items, as the catalogue's template writes it: the markup before the list and after it. */
 function around(b: Boot, page: Record<string, any>) {
   const home = homeOf(b);
   const [before, after] = shares.pageBody(inHtml(page.title), inHtml(page.curatorName), page.description ? `<p class="about">${inHtml(page.description)}</p>` : "", inHtml(page.followUrl), inHtml(page.feedUrl), "\u0000",
@@ -53,7 +53,7 @@ function around(b: Boot, page: Record<string, any>) {
   return { before, after };
 }
 
-/** The follow page's body as the catalog writes it for `feed`, called `name`, and credited to `by` when it is a page shared from this installation. */
+/** The follow page's body as the catalogue writes it for `feed`, called `name`, and credited to `by` when it is a page shared from this installation. */
 function followBody(b: Boot, feed: string, name: string, by: string | null) {
   const home = homeOf(b);
   return publicPages.followBody(inHtml(name), by === null ? "" : publicPages.sharedBy(inHtml(by)), "PURSS", inHtml(feed), inHtml(`${appUrl("/")}?dialog=add&url=${encodeURIComponent(feed)}`),
@@ -129,7 +129,7 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   assert.ok(!/<script/i.test(page.text) && page.text.includes("&lt;script&gt;alert(1)&lt;/script&gt; Second post"));
   assert.ok(page.text.includes("Third post"), "what was kept after the review shows: the page is live");
   const { before: pageStart, after: pageEnd } = around(b, shared.json);
-  assert.ok(page.text.includes("My own find") && page.text.includes(pageStart) && page.text.includes(pageEnd), "the page is the catalog's page around its items, shared by the chosen name");
+  assert.ok(page.text.includes("My own find") && page.text.includes(pageStart) && page.text.includes(pageEnd), "the page is the catalogue's page around its items, shared by the chosen name");
   assert.ok(!ID_SHAPE.test(page.text), `no internal identifiers: ${page.text.match(ID_SHAPE)?.[0]}`);
   for (const absent of ["Real Name", "real@example.com", "Private note", "Reading", "workflow"]) assert.ok(!page.text.includes(absent), `page must not include ${absent}`);
 
@@ -172,7 +172,7 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   const b = await boot();
   t.after(b.close);
   const lib = seedLibrary(b.app, b.owner);
-  const col = (input: Record<string, unknown>) => createCollection(b.app, b.owner, { emoji: null, sourceIds: [], query: null, view: "list", mode: "query", ...input } as unknown as Parameters<typeof createCollection>[2]);
+  const col = (input: Record<string, unknown>) => createCollection(b.app, b.owner, { emoji: null, sourceIds: [], query: null, view: "list", mode: "filter", ...input } as unknown as Parameters<typeof createCollection>[2]);
   const letters = col({ name: "Letters", mode: "sources", sourceIds: [lib.publicSource, lib.privateSource] });
   const shared = await share(b, "collection", letters.id);
   const page = (await b.anon(`/p/${shared.slug}`)).text;
@@ -185,7 +185,7 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   assert.equal(blocked.blocked, shares.usesReadingState);
   const words = col({ name: "Mud", query: { all: [{ field: "text", value: "secretword" }] } });
   const mud = await share(b, "collection", words.id);
-  b.app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify({ all: [{ field: "fresh", value: true }] }), words.id);
+  b.app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify({ all: [{ field: "new", value: true }] }), words.id);
   assert.equal((await b.anon(`/p/${mud.slug}`)).status, 404, "its rules now read reading state: not shown");
   assert.equal((await b.api("GET", "/api/shares")).json.find((s: { id: string }) => s.id === mud.id).problem, "rules");
 
@@ -368,9 +368,9 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.ok(!JSON.stringify(row).includes("198.51.100.7"), "the reporter's address isn't kept");
   // Every administrator gets one bell entry per page per day, however many reports arrive; the owner gets none.
   await report(b, pub.slug, { reason: "spam", details: "Also it is spam, honestly." }, "198.51.100.8");
-  const adminBell = b.app.db.all<{ title: string }>("SELECT title FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", b.owner.workspaceId);
+  const adminBell = b.app.db.all<{ title: string }>("SELECT title FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-report:%'", b.owner.accountId);
   assert.deepEqual(adminBell.map((n) => n.title), [shares.reportedTitle("Dubious picks")]);
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", member.workspaceId)!.n, 0);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-report:%'", member.accountId)!.n, 0);
 
   // Five reports an hour from one address; then a polite refusal.
   for (let i = 0; i < 3; i++) assert.equal((await report(b, pub.slug, { reason: "other", details: `Report number ${i} here.` }, "198.51.100.9")).status, 200);
@@ -419,7 +419,7 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.equal((await asMember("DELETE", `/api/shares/${pub.id}`)).json.error.code, "taken_down", "a taken-down page can't be removed to share it afresh");
   const { confirmToken } = basketDeletePreview(b.app, member, lib.baskets.later);
   assert.throws(() => deleteBasket(b.app, member, lib.baskets.later, confirmToken), (e: unknown) => e instanceof HttpError && e.code === "taken_down", "nor can its basket be deleted to get rid of it");
-  const told = b.app.db.get<{ title: string; body: string }>("SELECT title, body FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-takedown:%'", member.workspaceId)!;
+  const told = b.app.db.get<{ title: string; body: string }>("SELECT title, body FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-takedown:%'", member.accountId)!;
   assert.equal(told.title, shares.takenDownTitle("Dubious picks"));
   assert.match(told.body, /Copies a photographer's work\./);
 

@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useQuery } from "@tanstack/react-query";
 import type { ActivityDTO, ActivitySource } from "@purss/domain";
 import { Icon } from "@purss/ui";
@@ -9,7 +9,7 @@ import { activityLine, nextCheckLine } from "../lib/returning.ts";
 import { useNow } from "../lib/use-now.ts";
 import { useNav } from "../nav.ts";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import "../pages/home.css";
 
 const t = app.shell.activity;
@@ -29,7 +29,7 @@ function SourceLine({ s, now, tz, onOpen }: { s: ActivitySource; now: number; tz
 
 /** Everything the engine has been doing for this PURSS, from the server's own account of it. */
 export function ActivityPanel({ onClose }: { onClose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const q = useQuery(activityQuery);
   const now = useNow(30_000);
@@ -63,7 +63,7 @@ export function ActivityPanel({ onClose }: { onClose: () => void }) {
 
 /** The sidebar foot's one calm line about the engine; pressing it opens the list behind it. */
 export function ActivityIndicator({ rail = false }: { rail?: boolean }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const popups = usePopups();
   const q = useQuery(activityQuery);
   const now = useNow(30_000);

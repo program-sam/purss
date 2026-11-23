@@ -11,7 +11,7 @@ import { usableAccountSql } from "./deletion.ts";
 import { newItemCount } from "./sources.ts";
 import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Phone notifications. A connected phone app registers the handle the push relay gave it
@@ -79,12 +79,12 @@ export function unregisterPushDevice(app: App, p: Principal): { ok: true } {
   return { ok: true };
 }
 
-const pendingSql = `FROM notifications WHERE workspace_id = ? AND read_at IS NULL AND COALESCE(changed_at, created_at) > ?`;
+const pendingSql = `FROM notifications WHERE account_id = ? AND seen_at IS NULL AND COALESCE(changed_at, created_at) > ?`;
 /** A phone is woken for what it wasn't handed and arrived since its last wake (a wake it didn't answer isn't repeated). */
 const wakeSince = (d: { shown_until: string; pushed_at: string | null }) => (d.pushed_at && d.pushed_at > d.shown_until ? d.pushed_at : d.shown_until);
 
 /**
- * What a woken phone shows: the unread notifications it hasn't been handed yet (newest few, oldest first),
+ * What a woken phone shows: the unseen notifications it hasn't been handed yet (newest few, oldest first),
  * after which they count as handed. Titles as in the bell; the body only when the person shows titles in
  * notifications, as for browser alerts. With them, how many new items there are, for the app's icon.
  * Null when the credential isn't a live phone's.
@@ -92,17 +92,17 @@ const wakeSince = (d: { shown_until: string; pushed_at: string | null }) => (d.p
 export function takePending(app: App, fetchToken: string): PushPending | null {
   if (!fetchToken.startsWith(FETCH_TOKEN_PREFIX)) return null;
   return app.db.tx(() => {
-    const row = app.db.get<{ device_id: string; shown_until: string; workspace_id: string }>(
-      `SELECT pd.device_id, pd.shown_until, w.id AS workspace_id FROM push_devices pd
-         JOIN device_tokens d ON d.id = pd.device_id JOIN workspaces w ON w.account_id = pd.account_id
+    const row = app.db.get<{ device_id: string; shown_until: string; account_id: string }>(
+      `SELECT pd.device_id, pd.shown_until, pd.account_id FROM push_devices pd
+         JOIN device_tokens d ON d.id = pd.device_id
        WHERE pd.fetch_hash = ? AND d.last_used_at > ? AND ${usableAccountSql("pd.account_id")}`, sha256(fetchToken), idleCutoff());
     if (!row) return null;
-    const prefs = getPreferences(app, row.workspace_id);
-    const newItems = newItemCount(app, row.workspace_id);
-    const latest = app.db.get<{ at: string | null }>(`SELECT MAX(COALESCE(changed_at, created_at)) AS at ${pendingSql}`, row.workspace_id, row.shown_until)?.at;
+    const prefs = getPreferences(app, row.account_id);
+    const newItems = newItemCount(app, row.account_id);
+    const latest = app.db.get<{ at: string | null }>(`SELECT MAX(COALESCE(changed_at, created_at)) AS at ${pendingSql}`, row.account_id, row.shown_until)?.at;
     if (!latest) return { notifications: [], newItems };
     const list = app.db.all<{ id: string; title: string; body: string | null; item_id: string | null; source_id: string | null }>(
-      `SELECT id, title, body, item_id, source_id ${pendingSql} ORDER BY COALESCE(changed_at, created_at) DESC, id DESC LIMIT ?`, row.workspace_id, row.shown_until, MAX_PER_FETCH);
+      `SELECT id, title, body, item_id, source_id ${pendingSql} ORDER BY COALESCE(changed_at, created_at) DESC, id DESC LIMIT ?`, row.account_id, row.shown_until, MAX_PER_FETCH);
     app.db.run("UPDATE push_devices SET shown_until = ? WHERE device_id = ?", latest, row.device_id);
     const notifications: PushNotice[] = list.reverse().map((n) => ({ id: n.id, title: n.title, body: prefs.notifications.previews ? n.body : null, itemId: n.item_id, sourceId: n.source_id }));
     return { notifications, newItems };
@@ -158,9 +158,9 @@ export function wakeHeld(app: App, now = Date.now()): void {
   if ((heldCheckedAt.get(app) ?? 0) > now - HELD_EVERY_MS) return;
   heldCheckedAt.set(app, now);
   const accounts = app.db.all<{ account_id: string }>(
-    `SELECT DISTINCT pd.account_id FROM push_devices pd JOIN device_tokens d ON d.id = pd.device_id JOIN workspaces w ON w.account_id = pd.account_id
+    `SELECT DISTINCT pd.account_id FROM push_devices pd JOIN device_tokens d ON d.id = pd.device_id
      WHERE pd.relay = ? AND d.last_used_at > ? AND EXISTS (
-       SELECT 1 FROM notifications n WHERE n.workspace_id = w.id AND n.read_at IS NULL
+       SELECT 1 FROM notifications n WHERE n.account_id = pd.account_id AND n.seen_at IS NULL
          AND COALESCE(n.changed_at, n.created_at) > pd.shown_until AND COALESCE(n.changed_at, n.created_at) > COALESCE(pd.pushed_at, ''))`,
     app.config.pushRelay, idleCutoff());
   // wakePhones itself leaves out accounts still in quiet hours.
@@ -174,9 +174,8 @@ export function wakeHeld(app: App, now = Date.now()): void {
 export async function wakePhones(app: App, accountId: string, now = Date.now()): Promise<number | null> {
   const relay = app.config.pushRelay;
   if (!relay) return null;
-  const ws = app.db.get<{ id: string }>(`SELECT id FROM workspaces WHERE account_id = ? AND ${usableAccountSql("workspaces.account_id")}`, accountId);
-  if (!ws) return null;
-  const prefs = getPreferences(app, ws.id);
+  if (!app.db.get(`SELECT 1 FROM accounts WHERE id = ? AND ${usableAccountSql("accounts.id")}`, accountId)) return null;
+  const prefs = getPreferences(app, accountId);
   const n = prefs.notifications;
   // Held back, as browser alerts are: it waits in the bell.
   if (inQuietHours(new Date(now), n.quietStart, n.quietEnd, validTimezone(prefs.timezone))) return null;
@@ -186,7 +185,7 @@ export async function wakePhones(app: App, accountId: string, now = Date.now()):
   let retry: number | null = null;
   const later = (ms: number) => { retry = retry === null ? ms : Math.min(retry, ms); };
   for (const d of devices) {
-    if (!app.db.get(`SELECT 1 ${pendingSql} LIMIT 1`, ws.id, wakeSince(d))) continue;
+    if (!app.db.get(`SELECT 1 ${pendingSql} LIMIT 1`, accountId, wakeSince(d))) continue;
     const since = d.pushed_at ? now - Date.parse(d.pushed_at) : Infinity;
     if (since < MIN_GAP_MS) { later(MIN_GAP_MS - since); continue; }
     const r = await safeFetch(`${relay}/v1/notify`, {

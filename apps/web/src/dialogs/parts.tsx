@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemKind, SourceDTO, WorkflowState } from "@purss/domain";
 import { Avatar, Icon, SelectInput, TextInput } from "@purss/ui";
 import { ITEM_KINDS, KIND_LABELS, WORKFLOW_LABELS, WORKFLOW_ORDER } from "../lib/constants.ts";
 import type { DateBasis, KeptChoice, QueryDraft } from "../lib/query-builder.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.parts;
 
 /** Checklist of followed sources. A source may sit in several collections, so ticking adds without moving. */
 export function SourcePicks({ selected, onChange, whereLabel }: { selected: string[]; onChange: (ids: string[]) => void; whereLabel?: (s: SourceDTO) => string }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const sources = ws.data.sources;
   if (!sources.length) return <p className="fine">{t.sourcePicks.none}</p>;
   return (

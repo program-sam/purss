@@ -22,7 +22,7 @@ function supported(): boolean {
 let registered: Promise<ServiceWorkerRegistration | null> | null = null;
 
 /** Register the worker once. Does nothing where it can't run (insecure address, the development server). */
-function registerWorker(): Promise<ServiceWorkerRegistration | null> {
+function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   registered ??= (async () => {
     if (!supported()) return null;
     try {
@@ -43,14 +43,14 @@ function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([work, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
 }
 
-async function activeWorker(): Promise<ServiceWorker | null> {
-  if (!(await registerWorker())) return null;
+async function activeServiceWorker(): Promise<ServiceWorker | null> {
+  if (!(await registerServiceWorker())) return null;
   return (await within(navigator.serviceWorker.ready, 8000))?.active ?? null;
 }
 
 /** Send a message to the worker and wait for it to say it has acted. False when there is no worker to tell. */
 async function tell(message: PageMessage): Promise<boolean> {
-  const worker = await activeWorker();
+  const worker = await activeServiceWorker();
   if (!worker) return false;
   const channel = new MessageChannel();
   const acknowledged = new Promise<true>((resolve) => { channel.port1.onmessage = () => resolve(true); });
@@ -59,7 +59,7 @@ async function tell(message: PageMessage): Promise<boolean> {
 }
 
 async function whenControlled(timeoutMs: number): Promise<boolean> {
-  if (!(await registerWorker())) return false;
+  if (!(await registerServiceWorker())) return false;
   await within(navigator.serviceWorker.ready, timeoutMs);
   if (navigator.serviceWorker.controller) return true;
   return (await within(new Promise<true>((resolve) => navigator.serviceWorker.addEventListener("controllerchange", () => resolve(true), { once: true })), timeoutMs)) === true;
@@ -68,7 +68,7 @@ async function whenControlled(timeoutMs: number): Promise<boolean> {
 function onUpdateReady(callback: () => void): () => void {
   let stopped = false;
   let stopWatching = () => {};
-  void registerWorker().then((reg) => {
+  void registerServiceWorker().then((reg) => {
     if (!reg || stopped) return;
     const check = () => { if (reg.waiting && navigator.serviceWorker.controller) callback(); };
     const onFound = () => reg.installing?.addEventListener("statechange", check);
@@ -83,7 +83,7 @@ let reloading = false;
 
 /** Switch to the waiting build and reload once. */
 function applyUpdate(): void {
-  void registerWorker().then((reg) => {
+  void registerServiceWorker().then((reg) => {
     const waiting = reg?.waiting;
     if (!waiting) { location.reload(); return; }
     navigator.serviceWorker.addEventListener("controllerchange", () => {
@@ -98,7 +98,7 @@ function applyUpdate(): void {
 export const webOffline: OfflineHost = {
   supported,
   installed,
-  start: async () => (await registerWorker()) !== null,
+  start: async () => (await registerServiceWorker()) !== null,
   tell,
   whenControlled,
   onUpdateReady,

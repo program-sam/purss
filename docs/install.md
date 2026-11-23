@@ -1,6 +1,6 @@
 # Host it yourself
 
-A step-by-step guide to running your own PURSS on a computer you control: a home server,
+A step-by-step guide to running your own installation of PURSS on a computer you control: a home server,
 a spare machine, or a rented server. It takes about half an hour, most of it waiting for the
 first build. For every option and the details behind each step, see
 [self-hosting](self-hosting.md).
@@ -13,8 +13,8 @@ Read [step 2](#2-choose-who-will-reach-it) before opening it up beyond your own 
 - A Linux machine that stays on, with **Docker Engine** and the **Docker Compose plugin**
   (Compose v2). Check with `docker compose version`.
 - About **1 GiB of free memory** for everyday use, and up to about 1 GiB more while a large export
-  is being imported (the containers are capped at about 1.6 GiB together), and a few GiB of disk. PURSS pauses collecting when less than 1 GiB of disk is left.
-- **Git**, and a copy of this repository.
+  is being imported (the containers are capped at about 1.6 GiB together), and a few GiB of disk. PURSS pauses growth (new items and captures) when less than 1 GiB of disk is left.
+- **Git**, to clone this repository.
 - Internet access from the machine, to fetch feeds.
 
 You don't need Node.js or a database server: everything runs in containers.
@@ -41,7 +41,7 @@ Pick one. You can change it by editing `.env` and starting again (step 5).
 ## 3. Get the code
 
 ```sh
-git clone <address of your copy of this repository> purss
+git clone <address of this repository or of your fork> purss
 cd purss
 ```
 
@@ -74,16 +74,16 @@ PURSS_TRUST_PROXY=<your reverse proxy's container name>
 ```
 
 Find the proxy's network with `docker network ls` and its container name with `docker ps`. Then, in the proxy, add a site for your
-domain that forwards to `http://purss-workspace:8940` and requests an HTTPS certificate. Leave
+domain that forwards to `http://purss-api:8940` and requests an HTTPS certificate. Leave
 buffering off for `/api/events` and allow uploads of at least 128 MiB, for imports. The
 [proxy section](self-hosting.md#behind-an-https-reverse-proxy) has the full list.
 
 `PURSS_PUBLIC_ORIGIN` must be exactly the address people type, including `http` or `https` and
 the port, if any. If it doesn't match, the app refuses changes with "This request didn't come
-from the PURSS page."
+from a PURSS page."
 
 **Optional, for a service run for others:** add `PURSS_MODE=hosted` for plans and per-account
-storage limits an administrator can set (none unless `PURSS_DEFAULT_ALLOCATION_BYTES` gives new
+storage allowances an administrator can set (none unless `PURSS_DEFAULT_ALLOWANCE_BYTES` gives new
 accounts one). Add
 `PURSS_SIGNUP=open` too only if strangers should be able to create accounts; that also needs
 [outgoing email](self-hosting.md#outgoing-email). Leave both out for a household or yourself; see
@@ -114,7 +114,7 @@ docker compose -f infra/compose.yaml ps
 
 ## 6. Claim it with the setup code
 
-The first person to enter the one-time setup code becomes the owner and administrator. Read
+The first person to enter the one-time setup code becomes the administrator. Read
 it on the server:
 
 ```sh
@@ -158,7 +158,7 @@ docker compose -f infra/compose.yaml exec api node scripts/backup.ts
 docker compose -f infra/compose.yaml cp api:/data/backups ./backups
 ```
 
-Keep the copies somewhere other than the server. Restoring is described under
+Keep the backups somewhere other than the server. Restoring is described under
 [backups and restore](self-hosting.md#backups-and-restore).
 
 **Update** by taking a backup, fetching the new code and running the same start command as in
@@ -179,7 +179,7 @@ and is there again on the next start. Never add `-v` unless you mean to delete e
 | What you see | What to do |
 | --- | --- |
 | The page doesn't load | Check `docker compose -f infra/compose.yaml ps` and the logs: `docker compose -f infra/compose.yaml logs --tail 50 api` |
-| "This request didn't come from the PURSS page." | `PURSS_PUBLIC_ORIGIN` doesn't match the address in the browser. Fix `.env` and run the start command again |
+| "This request didn't come from a PURSS page." | `PURSS_PUBLIC_ORIGIN` doesn't match the address in the browser. Fix `.env` and run the start command again |
 | No fingerprint, face or screen lock option | Expected on a plain `http://` address other than `localhost`. Use your email address and password, or set up HTTPS (option C) |
 | Someone forgot their password (or you did, as administrator) | On the server: `docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts password-reset-link "<their email address>"`. It prints a link, shown once and valid for 60 minutes, to give them; it opens a page where they choose a new password (see [forgotten passwords](self-hosting.md#forgotten-passwords)) |
 | You lost the setup code before using it | Read it again with the command in step 6 |

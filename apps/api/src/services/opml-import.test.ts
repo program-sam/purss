@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { OpmlImportRequest } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -54,7 +54,7 @@ test("a list is followed on the server with the titles the file gave, and the re
   assert.deepEqual([done.followed, done.already, done.failed, done.waiting], [2, 0, 1, 0]);
   const titles = listSources(app, p).map((s) => s.title).sort();
   assert.deepEqual(titles, ["Blog", "Node.js releases"], "the file's title is kept; a title that is only the host is replaced by the feed's own name");
-  assert.deepEqual(app.db.all<{ s: string }>("SELECT DISTINCT start_from AS s FROM sources WHERE followed = 1").map((r) => r.s), ["now"], "following a whole list does not fill Home with every feed's back catalogue");
+  assert.deepEqual(app.db.all<{ s: string }>("SELECT DISTINCT start_from AS s FROM sources WHERE followed = 1").map((r) => r.s), ["now"], "following a whole list does not fill Home with every feed's backlog");
   assert.deepEqual(done.entries!.map((e) => [e.title, e.state, e.message]), [
     ["Node.js releases", "followed", null],
     ["blog.example", "followed", null],
@@ -364,7 +364,7 @@ test("forgetting a list takes its link folder first: when that fails, the record
 // ---------- hosted plans (main's rules for imports, carried into the server-side import) ----------
 
 function hostedSetup(t: test.TestContext) {
-  const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://workspace.example" });
+  const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://purss.example" });
   t.after(cleanup);
   return { app, p: makeOwner(app, { admin: false }) };
 }

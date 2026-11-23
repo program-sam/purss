@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { OAuthApproveResult, OAuthRequestSummary } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Check, Icon } from "@purss/ui";
 import { get, messageOf, post, put } from "../../api/client.ts";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";

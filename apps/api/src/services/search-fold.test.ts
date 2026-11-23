@@ -76,9 +76,9 @@ function setup() {
   const src = makeSource(app, p, "Blog", "feed/1");
   const add = (title: string, over: { summaryHtml?: string | null; author?: string | null } = {}) =>
     insertItem(app, {
-      accountId: p.accountId, workspaceId: p.workspaceId, sourceId: src, kind: "article", title, url: `https://example.org/${encodeURIComponent(title)}`, author: over.author ?? null,
+      accountId: p.accountId, sourceId: src, kind: "article", title, url: `https://example.org/${encodeURIComponent(title)}`, author: over.author ?? null,
       summaryHtml: over.summaryHtml ?? null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: null,
-      discoveredAt: new Date().toISOString(), enclosures: [], fresh: false, reason: "test",
+      discoveredAt: new Date().toISOString(), enclosures: [], isNew: false, reason: "test",
     }).id;
   const find = (q: string) => listItems(app, p, { scope: "all", q }).items.map((i) => i.id);
   return { app, p, add, find, cleanup };
@@ -213,7 +213,7 @@ test("the background rebuild ends quietly if the database is closed under it", a
 
 function legacyIndex(app: App, p: Principal): void {
   app.db.exec("INSERT INTO items_fts(items_fts) VALUES ('delete-all')");
-  for (const r of app.db.all<{ seq: number; title: string }>("SELECT seq, title FROM items WHERE workspace_id = ?", p.workspaceId)) {
+  for (const r of app.db.all<{ seq: number; title: string }>("SELECT seq, title FROM items WHERE account_id = ?", p.accountId)) {
     app.db.run("INSERT INTO items_fts (rowid, title, excerpt, author, body) VALUES (?, ?, '', '', '')", r.seq, r.title); // as written, unfolded
   }
   app.db.run("UPDATE search_index_state SET version = 0, cursor = 0");

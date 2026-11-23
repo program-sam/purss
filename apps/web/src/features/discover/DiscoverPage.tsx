@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CatalogCategory, CatalogCategoryList, CatalogSource, DiscoverSuggestion, DiscoveryResult } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import type { CatalogueCategory, CatalogueCategoryList, CatalogueSource, DiscoverSuggestion, DiscoveryResult } from "@purss/domain";
+import { app } from "@purss/translations/app";
 import { Avatar, Button, Check, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
@@ -13,8 +13,8 @@ import { useOverlays } from "../../state/overlays.tsx";
 import { setHints, useHints } from "../../state/ui-store.ts";
 import { useSavePreferences } from "../../state/prefs.ts";
 import { useToasts } from "../../state/toasts.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
-import { catalogQuery, fkeys, suggestionsQuery } from "../shared/api.ts";
+import { usePurss } from "../../state/purss.tsx";
+import { catalogueQuery, fkeys, suggestionsQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Note, Page, Section } from "../shared/bits.tsx";
 
 const copy = app.discover.discoverPage;
@@ -23,14 +23,14 @@ const KIND_LABEL: Record<DiscoverSuggestion["kind"], string> = copy.kind;
 /** Sources a category box shows; the rest are on the category's own page. */
 const BOX_ROWS = 6;
 
-export const catalogPath = (id: CatalogCategory) => `/discover/${id}`;
+export const cataloguePath = (id: CatalogueCategory) => `/discover/${id}`;
 
 function names(titles: string[]): string {
   return titles.length <= 1 ? titles.join("") : copy.and(titles.slice(0, -1).join(", "), titles[titles.length - 1]);
 }
 
 function Reason({ s }: { s: DiscoverSuggestion }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   if (s.reason.kind === "because") {
     const titles = s.reason.sourceIds.map((id) => ws.sourceById.get(id)?.title).filter((t): t is string => !!t);
     return <span className="fine">{titles.length ? <>{copy.followedBy}<span dir="auto">{names(titles)}</span></> : copy.followedByLikeYou}</span>;
@@ -99,11 +99,11 @@ function ForYou() {
   );
 }
 
-/** A catalog source's newest posts, from the same lookup Add source makes. */
-function Preview({ s }: { s: CatalogSource }) {
+/** A catalogue source's newest posts, from the same lookup Add source makes. */
+function Preview({ s }: { s: CatalogueSource }) {
   const q = useQuery({
-    queryKey: ["feature", "catalog-preview", s.feedUrl],
-    queryFn: () => post<DiscoveryResult>("/api/discover", { url: s.feedUrl, entry: "suggestion" }),
+    queryKey: ["feature", "catalogue-preview", s.feedUrl],
+    queryFn: () => post<DiscoveryResult>("/api/link-lookup", { url: s.feedUrl, entry: "suggestion" }),
     staleTime: 10 * 60_000,
     retry: false,
   });
@@ -119,8 +119,8 @@ function Preview({ s }: { s: CatalogSource }) {
   );
 }
 
-/** A catalog source: the arrow opens its latest posts under it, like a collection's arrow opens its sources. */
-function CatalogRow({ s }: { s: CatalogSource }) {
+/** A catalogue source: the arrow opens its latest posts under it, like a collection's arrow opens its sources. */
+function CatalogueRow({ s }: { s: CatalogueSource }) {
   const [open, setOpen] = useState(false);
   const id = `disc-pv-${s.key.replace(/[^a-z0-9]+/gi, "-")}`;
   return (
@@ -152,18 +152,18 @@ function Fold({ shut, name, onToggle }: { shut: boolean; name: string; onToggle:
 }
 
 /** What the reader has since following one, left out at once (the server leaves them out on the next load). */
-function useNotFollowed(): (s: CatalogSource) => boolean {
-  const ws = useWorkspace();
+function useNotFollowed(): (s: CatalogueSource) => boolean {
+  const ws = usePurss();
   const followed = useMemo(() => new Set(ws.data.sources.flatMap((s) => (s.feedUrl ? [s.feedUrl] : []))), [ws.data.sources]);
   return (s) => !followed.has(s.feedUrl);
 }
 
-function CategoryBox({ list }: { list: CatalogCategoryList }) {
+function CategoryBox({ list }: { list: CatalogueCategoryList }) {
   const nav = useNav();
   const open = useNotFollowed();
   const rows = list.sources.filter(open).slice(0, BOX_ROWS);
   const name = copy.categories[list.id];
-  const go = () => nav.goPath(catalogPath(list.id));
+  const go = () => nav.goPath(cataloguePath(list.id));
   const [shut, toggle] = useShut(list.id);
   return (
     <section className={`mod${shut ? " shut" : ""}`} aria-labelledby={`disc-${list.id}`}>
@@ -173,7 +173,7 @@ function CategoryBox({ list }: { list: CatalogCategoryList }) {
       </header>
       {shut ? null : (
         <>
-          {rows.length ? <ul className="mod-b">{rows.map((s) => <CatalogRow key={s.key} s={s} />)}</ul> : <div className="mod-empty"><span>{copy.nothingLeft}</span></div>}
+          {rows.length ? <ul className="mod-b">{rows.map((s) => <CatalogueRow key={s.key} s={s} />)}</ul> : <div className="mod-empty"><span>{copy.nothingLeft}</span></div>}
           {list.total > rows.length ? <button type="button" className="mod-all" onClick={go}>{copy.seeAll(list.total)}<span> · {name}</span><Icon name="chev" size="sm" /></button> : null}
         </>
       )}
@@ -183,20 +183,20 @@ function CategoryBox({ list }: { list: CatalogCategoryList }) {
 
 /** The category boxes, in a new random order on each visit, laid out in columns like Home's boxes. */
 function Categories() {
-  const q = useQuery(catalogQuery());
+  const q = useQuery(catalogueQuery());
   const fits = useColumns();
   const boxes = useMemo(() => shuffled(q.data?.categories ?? []), [q.data]);
   if (q.isPending) return <Loading />;
-  if (q.isError) return <LoadFailed error={q.error} what={copy.catalogName} onRetry={() => void q.refetch()} />;
+  if (q.isError) return <LoadFailed error={q.error} what={copy.catalogueName} onRetry={() => void q.refetch()} />;
   if (!boxes.length) return null;
   const n = Math.max(1, Math.min(fits, boxes.length));
-  const buckets: CatalogCategoryList[][] = Array.from({ length: n }, () => []);
+  const buckets: CatalogueCategoryList[][] = Array.from({ length: n }, () => []);
   boxes.forEach((b, i) => buckets[i % n]!.push(b));
   return <div className="mods">{buckets.map((b, col) => <div className="mcol" key={col}>{b.map((list) => <CategoryBox key={list.id} list={list} />)}</div>)}</div>;
 }
 
 function SharingChoice() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const qc = useQueryClient();
   return (
@@ -209,36 +209,36 @@ function SharingChoice() {
 
 /**
  * Discovery: on a hosted installation first the sources that readers who follow what you follow also follow; then, wherever the
- * installation has a catalog, its popular sources in one box per category.
+ * installation has a catalogue, its popular sources in one box per category.
  */
 export function DiscoverPage() {
   const session = useSession().data;
   if (!session) return <Page title={app.words.discovery}><Loading /></Page>;
   const hosted = session.installation.mode === "hosted";
-  if (!hosted && !session.installation.catalog) return <Page title={app.words.discovery}><Note>{copy.hostedOnly}</Note></Page>;
+  if (!hosted && !session.installation.catalogue) return <Page title={app.words.discovery}><Note>{copy.hostedOnly}</Note></Page>;
   return (
-    <Page title={app.words.discovery} lead={hosted ? copy.lead : copy.catalogLead} wide>
+    <Page title={app.words.discovery} lead={hosted ? copy.lead : copy.catalogueLead} wide>
       {hosted ? <ForYou /> : null}
-      {session.installation.catalog ? <Categories /> : null}
+      {session.installation.catalogue ? <Categories /> : null}
       {hosted ? <Section title={app.words.sharing}><SharingChoice /></Section> : null}
     </Page>
   );
 }
 
 /** One category's popular sources, all of them, most popular first with some chance. */
-export function CatalogCategoryPage({ id }: { id: CatalogCategory }) {
+export function CatalogueCategoryPage({ id }: { id: CatalogueCategory }) {
   const session = useSession().data;
-  const available = !!session?.installation.catalog;
-  const q = useQuery({ ...catalogQuery(id), enabled: available });
+  const available = !!session?.installation.catalogue;
+  const q = useQuery({ ...catalogueQuery(id), enabled: available });
   const open = useNotFollowed();
   const name = copy.categories[id];
-  if (session && !available) return <Page title={name}><Note>{copy.noCatalog}</Note></Page>;
+  if (session && !available) return <Page title={name}><Note>{copy.noCatalogue}</Note></Page>;
   const rows = (q.data?.categories[0]?.sources ?? []).filter(open);
   return (
     <Page title={name} lead={copy.categoryLead}>
-      {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what={copy.catalogName} onRetry={() => void q.refetch()} /> : (
+      {q.isPending ? <Loading /> : q.isError ? <LoadFailed error={q.error} what={copy.catalogueName} onRetry={() => void q.refetch()} /> : (
         <Section title={plural(rows.length, app.words.sourceLower)}>
-          {rows.length ? <ul className="fx-rows">{rows.map((s) => <CatalogRow key={s.key} s={s} />)}</ul> : <p className="fine">{copy.nothingLeft}</p>}
+          {rows.length ? <ul className="fx-rows">{rows.map((s) => <CatalogueRow key={s.key} s={s} />)}</ul> : <p className="fine">{copy.nothingLeft}</p>}
         </Section>
       )}
     </Page>

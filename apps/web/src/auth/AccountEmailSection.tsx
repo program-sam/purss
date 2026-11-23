@@ -9,7 +9,7 @@ import { useToasts } from "../state/toasts.tsx";
 import { platform } from "../platform/index.ts";
 import { tokenFromLink } from "../lib/email-links.ts";
 import { useSession } from "../api/hooks.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.accountEmailSection;
 

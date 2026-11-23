@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ActivityDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { plural } from "./format.ts";
-import { activityLine, calmLine, freshDaysChoices, hasKeyboard, inQueue, isToListen, isToRead, isToWatch, nextCheckLine, pausedUntilLine, sinceLine } from "./returning.ts";
+import { activityLine, calmLine, newDaysChoices, hasKeyboard, inQueue, isToListen, isToRead, isToWatch, nextCheckLine, pausedUntilLine, sinceLine } from "./returning.ts";
 
 const t = app.lib.returning;
 const nouns = app.lib.nouns;
@@ -45,36 +45,36 @@ test("the keyboard hint is for devices that have a keyboard", () => {
 });
 
 test("the New-marker choices keep a saved value that is not one of the usual ones, in order", () => {
-  assert.deepEqual(freshDaysChoices(30).map((c) => c.value), [7, 14, 30, 90, 0]);
-  assert.deepEqual(freshDaysChoices(45).map((c) => c.value), [7, 14, 30, 45, 90, 0]);
-  assert.equal(freshDaysChoices(365).find((c) => c.value === 365)!.label, t.freshDays.other(365));
+  assert.deepEqual(newDaysChoices(30).map((c) => c.value), [7, 14, 30, 90, 0]);
+  assert.deepEqual(newDaysChoices(45).map((c) => c.value), [7, 14, 30, 45, 90, 0]);
+  assert.equal(newDaysChoices(365).find((c) => c.value === 365)!.label, t.newDays.other(365));
 });
 
 test("Home does not say it is up to date while older items nobody has looked at are waiting", () => {
   const facts = { visited: true, items: 120, showCounts: true };
-  assert.equal(calmLine({ unread: 54 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`);
-  assert.equal(calmLine({ unread: 1 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(1, nouns.olderItem))}`);
-  assert.equal(calmLine({ unread: 54 }, { ...facts, showCounts: false }), t.nothingNewSince);
-  assert.equal(calmLine({ unread: 54 }, { ...facts, visited: false }), `${t.nothingMarkedNew}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`, "a first visit has no earlier visit to be new since");
-  assert.equal(calmLine({ unread: 0 }, facts), t.upToDate);
-  assert.equal(calmLine({ unread: 0 }, { ...facts, items: 0 }), t.nothingArrived);
+  assert.equal(calmLine({ unseen: 54 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`);
+  assert.equal(calmLine({ unseen: 1 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(1, nouns.olderItem))}`);
+  assert.equal(calmLine({ unseen: 54 }, { ...facts, showCounts: false }), t.nothingNewSince);
+  assert.equal(calmLine({ unseen: 54 }, { ...facts, visited: false }), `${t.nothingMarkedNew}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`, "a first visit has no earlier visit to be new since");
+  assert.equal(calmLine({ unseen: 0 }, facts), t.upToDate);
+  assert.equal(calmLine({ unseen: 0 }, { ...facts, items: 0 }), t.nothingArrived);
 });
 
 test("what was put aside lands in one row by kind: articles To read, videos To watch, podcasts To listen", () => {
-  const rows = (workflow: "toread" | "inprogress" | "new" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
+  const rows = (workflow: "toread" | "inprogress" | "undecided" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
   assert.deepEqual(rows("toread", "article"), [true, false, false]);
   assert.deepEqual(rows("toread", "paper"), [true, false, false], "every kind that is not a video or a podcast is read");
   assert.deepEqual(rows("toread", "video"), [false, true, false]);
   assert.deepEqual(rows("toread", "podcast"), [false, false, true]);
-  assert.deepEqual(rows("new", "video"), [false, false, false], "only what was put aside");
+  assert.deepEqual(rows("undecided", "video"), [false, false, false], "only what was put aside");
   assert.deepEqual(rows("finished", "podcast"), [false, false, false]);
 });
 
 test("the queue is what was put aside and what was started: an episode half heard stays in its row", () => {
-  const rows = (workflow: "toread" | "inprogress" | "new" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
+  const rows = (workflow: "toread" | "inprogress" | "undecided" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
   assert.deepEqual(rows("inprogress", "podcast"), [false, false, true]);
   assert.deepEqual(rows("inprogress", "video"), [false, true, false]);
   assert.deepEqual(rows("inprogress", "article"), [true, false, false]);
   assert.deepEqual(rows("ignored", "podcast"), [false, false, false]);
-  assert.deepEqual(["new", "toread", "inprogress", "finished", "ignored"].map((workflow) => inQueue({ workflow } as never)), [false, true, true, false, false]);
+  assert.deepEqual(["undecided", "toread", "inprogress", "finished", "ignored"].map((workflow) => inQueue({ workflow } as never)), [false, true, true, false, false]);
 });

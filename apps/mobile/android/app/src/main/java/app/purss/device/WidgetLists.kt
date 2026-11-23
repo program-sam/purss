@@ -23,10 +23,10 @@ object WidgetLists {
         if (!isKey(key)) return null
         val tail = "&limit=$LIMIT&exceptPrivate=1"
         return when (key) {
-            "toread" -> "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos$tail"
-            "tolisten" -> "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts$tail"
-            "new" -> "/api/items?scope=all&filter=fresh&sort=newest$tail"
-            else -> "/api/items?scope=${key.replace(":", "%3A")}&filter=active&sort=newest$tail"
+            "toread" -> "/api/items?scope=toread&filter=all&sort=newest&type=articles,videos$tail"
+            "tolisten" -> "/api/items?scope=toread&filter=all&sort=oldest&type=podcasts$tail"
+            "new" -> "/api/items?scope=all&filter=new&sort=newest$tail"
+            else -> "/api/items?scope=${key.replace(":", "%3A")}&filter=all&sort=newest$tail"
         }
     }
 
@@ -60,12 +60,12 @@ object WidgetLists {
      * the panels' setup lists and the check that a chosen one still exists. Private sources are kept here with
      * `private = true` so a chosen source that became private can say so; setup leaves them out.
      */
-    data class Catalog(val collections: List<Choice>, val sources: List<Choice>, val privateSources: Set<String>) {
+    data class WidgetChoices(val collections: List<Choice>, val sources: List<Choice>, val privateSources: Set<String>) {
         fun name(key: String): String? = (collections + sources).firstOrNull { it.key == key }?.name
         fun choices(kind: String): List<Choice> = if (kind == "collection") collections else sources.filter { it.key !in privateSources }
     }
 
-    fun parseCatalog(text: String): Catalog {
+    fun parseChoices(text: String): WidgetChoices {
         val o = JSONObject(text)
         val cols = o.optJSONArray("collections") ?: JSONArray()
         val srcs = o.optJSONArray("sources") ?: JSONArray()
@@ -86,13 +86,13 @@ object WidgetLists {
             sourcesList += Choice(key, clip(s.optString("title")))
             if (s.optString("kind") == "private") privateSet += key
         }
-        return Catalog(collections, sourcesList.sortedBy { it.name.lowercase() }, privateSet)
+        return WidgetChoices(collections, sourcesList.sortedBy { it.name.lowercase() }, privateSet)
     }
 
-    /** A chosen list's state from the catalog: gone when the PURSS no longer has it, private for a private source. */
-    fun chosenState(key: String, catalog: Catalog): String = when {
-        catalog.name(key) == null -> "gone"
-        key in catalog.privateSources -> "private"
+    /** A chosen list's state from the choices: gone when the PURSS no longer has it, private for a private source. */
+    fun chosenState(key: String, choices: WidgetChoices): String = when {
+        choices.name(key) == null -> "gone"
+        key in choices.privateSources -> "private"
         else -> "ok"
     }
 

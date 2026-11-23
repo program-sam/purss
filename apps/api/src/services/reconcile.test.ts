@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { reconcile } from "./storage.ts";
@@ -72,8 +72,8 @@ test("a genuinely new entry is created through the core item path; ambiguous one
   const created = resolveEntry(app, p, id("Brand new"), "new");
   assert.equal(created.status, "new");
   assert.equal(items(), before + 1);
-  const row = app.db.get<{ title: string; fresh: number }>("SELECT i.title, st.fresh FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ?", created.itemId!)!;
-  assert.deepEqual([row.title, row.fresh], ["Brand new", 0], "restored history is not 'new since you looked'");
+  const row = app.db.get<{ title: string; is_new: number }>("SELECT i.title, st.is_new FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ?", created.itemId!)!;
+  assert.deepEqual([row.title, row.is_new], ["Brand new", 0], "restored history is not 'new since you looked'");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM external_ids WHERE item_id = ?", created.itemId!)!.n, 1);
   assert.equal(reconcile(app, p.accountId).difference, 0, "storage admission went through the ledger");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items_fts WHERE items_fts MATCH '\"brand\"*'")!.n, 1, "and it is searchable");

@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { isForbiddenLiteralHost } from "./addresses.ts";
 import { parseTarget } from "./safe-fetch.ts";
 

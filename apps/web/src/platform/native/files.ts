@@ -6,7 +6,7 @@ import { DownloadError } from "../../downloads/manager.ts";
 import type { DeviceFiles } from "../../downloads/manager.ts";
 import { PurssDevice } from "./device-plugin.ts";
 import type { DownloadFailure } from "./device-plugin.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.files;
 

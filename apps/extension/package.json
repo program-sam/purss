@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "0.6.0",
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "@purss/domain": "*",
     "@purss/ui": "*"
   },

@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@purss/connectors": "*",
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "@purss/domain": "*",
     "@purss/freshrss": "*"
   }

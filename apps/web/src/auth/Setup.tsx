@@ -5,7 +5,7 @@ import { post } from "../api/client.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 import { useNewAccount } from "./new-account.tsx";
 import { usePasswordFields } from "./PasswordForm.tsx";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.setup;
 

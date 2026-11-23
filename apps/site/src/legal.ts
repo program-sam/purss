@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { euros } from "@purss/domain/plans";
 import { footer, nav, PLANS, PLUS, PRO } from "./kit.ts";
 import type { Site } from "./site.ts";

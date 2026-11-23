@@ -53,13 +53,13 @@ object StoredConnection {
 }
 
 /** The token was refused (401 `device_signed_out`): the device isn't connected any more. */
-class Refused : Exception("The workspace refused this device's token")
+class Refused : Exception("The installation refused this device's token")
 
 /**
  * Requests to the connected PURSS with the device token. Only ever to `origin` + an API path: the
  * token never goes anywhere else (files are fetched without it, from publishers).
  */
-class WorkspaceApi(private val conn: StoredConnection.Connection) {
+class PurssApi(private val conn: StoredConnection.Connection) {
     class Answer(val status: Int, val body: ByteArray) {
         val text get() = String(body, Charsets.UTF_8)
     }

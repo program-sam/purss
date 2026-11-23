@@ -1,26 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, isYouTube, itemDate, itemExcerpt, itemPicture, lengthText, matchesFilter, newMarkerCleared, originalLink, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
   id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, isNew: true,
   progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null,
 };
 
 test("filters judge workflow and freshness independently", () => {
-  assert.equal(matchesFilter(base, "active"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "active"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "fresh"), false);
+  assert.equal(matchesFilter(base, "all"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all"), false);
+  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all_with_ignored"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "new"), false);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "toread"), true);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "finished"), false);
-  assert.equal(matchesFilter({ ...base, fresh: false, workflow: "finished" }, "fresh"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "new" }, "new"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "new"), false, "Home's boxes leave out what was put aside");
+  assert.equal(matchesFilter({ ...base, isNew: false, workflow: "finished" }, "new"), false);
+  assert.equal(matchesFilter({ ...base, workflow: "undecided" }, "undecided"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "undecided"), false, "Home's boxes leave out what was put aside");
 });
 
 test("an item's date is its time in lists; the publisher's date is shown apart only when it is more than an hour away", () => {
@@ -28,7 +28,7 @@ test("an item's date is its time in lists; the publisher's date is shown apart o
   assert.equal(itemDate(late), "2026-11-03T17:48:00Z");
   assert.equal(publishedApart(late), "2026-11-03T03:27:00Z");
   assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:00:00Z" }), null, "within the hour: one date is enough");
-  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:48:00Z" }), null, "listed at its publication date (back catalogue)");
+  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:48:00Z" }), null, "listed at its publication date (backlog)");
   assert.equal(publishedApart(base), null, "no publication date");
   // A copy saved on the device by a build whose items had no listedAt.
   const saved = { ...base, publishedAt: "2026-11-01T00:00:00Z" } as Partial<ItemDTO>;
@@ -62,14 +62,14 @@ test("videos and podcasts are told apart from text, and their to-do state has it
   assert.equal(workflowLabel("toread", "paper"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("toread"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("finished", "video"), app.lib.constants.workflow.finished);
-  assert.equal(workflowLabel("new", "podcast"), app.lib.constants.workflow.new);
+  assert.equal(workflowLabel("undecided", "podcast"), app.lib.constants.workflow.undecided);
 });
 
 test("a change that took the New marker away is told apart from one that left it", () => {
-  assert.equal(newMarkerCleared({ fresh: true }, { fresh: false }), true, "opened, or something done with it: the counts must follow");
-  assert.equal(newMarkerCleared({ fresh: true }, { fresh: true }), false);
-  assert.equal(newMarkerCleared({ fresh: false }, { fresh: false }), false);
-  assert.equal(newMarkerCleared({ fresh: false }, { fresh: true }), false);
+  assert.equal(newMarkerCleared({ isNew: true }, { isNew: false }), true, "opened, or something done with it: the counts must follow");
+  assert.equal(newMarkerCleared({ isNew: true }, { isNew: true }), false);
+  assert.equal(newMarkerCleared({ isNew: false }, { isNew: false }), false);
+  assert.equal(newMarkerCleared({ isNew: false }, { isNew: true }), false);
 });
 
 test("copies are ordered by their state version alone", () => {
@@ -100,24 +100,24 @@ test("only a video's excerpt loses its download mark and leading link lines", ()
 });
 
 test("the To read page keeps only To read items, whatever its filter", () => {
-  assert.equal(belongsInList({ ...base, workflow: "toread" }, "toread", "active"), true);
-  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "active"), true, "started: stays on the page, first among what is waiting");
+  assert.equal(belongsInList({ ...base, workflow: "toread" }, "toread", "all"), true);
+  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "all"), true, "started: stays on the page, first among what is waiting");
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "inprogress"), true);
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "toread"), false, "the To read filter is what has not been started");
-  assert.equal(belongsInList({ ...base, workflow: "new" }, "toread", "active"), false, "not put aside or started");
-  assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all"), false);
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "active"), false, "marked Finished: leaves the To read page");
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false);
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "collection:col_1", "active"), true, "other pages go by their filter");
+  assert.equal(belongsInList({ ...base, workflow: "undecided" }, "toread", "all"), false, "not put aside or started");
+  assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all_with_ignored"), false);
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false, "marked Finished: leaves the To read page");
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all_with_ignored"), false);
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "collection:col_1", "all"), true, "other pages go by their filter");
 });
 
 test("a reloaded copy keeps the newer state of the item, and its own content", () => {
-  const finished: ItemDTO = { ...base, workflow: "finished", revision: 2, stateVersion: 6, fresh: false, opened: true, progress: 1 };
+  const finished: ItemDTO = { ...base, workflow: "finished", revision: 2, stateVersion: 6, isNew: false, opened: true, progress: 1 };
   const saved: ItemDTO = { ...base, title: "Renamed", workflow: "toread", revision: 1, stateVersion: 5 };
   const merged = withNewerState(saved, finished);
-  assert.deepEqual([merged.workflow, merged.revision, merged.stateVersion, merged.fresh, merged.opened, merged.progress], ["finished", 2, 6, false, true, 1]);
+  assert.deepEqual([merged.workflow, merged.revision, merged.stateVersion, merged.isNew, merged.opened, merged.progress], ["finished", 2, 6, false, true, 1]);
   assert.equal(merged.title, "Renamed");
-  const fresher: ItemDTO = { ...base, workflow: "new", stateVersion: 7 };
+  const fresher: ItemDTO = { ...base, workflow: "undecided", stateVersion: 7 };
   assert.equal(withNewerState(fresher, finished), fresher, "a newer answer wins as it is");
   assert.equal(withNewerState(saved, undefined), saved);
 });

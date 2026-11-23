@@ -17,7 +17,7 @@ import { authenticationOptions, verifyAuthentication } from "../auth/passkeys.ts
 import { signedIn, takeTry, triesKey } from "../auth/sign-in-limits.ts";
 import { appPasskeys } from "../connect/app-association.ts";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Connected apps. The app opens /connect in the system browser with

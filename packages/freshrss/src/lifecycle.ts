@@ -502,7 +502,7 @@ export class EngineLifecycle {
       await admin.setApiPassword({ username: secret.username, apiPassword: secret.apiPassword });
       if (await login()) return;
     }
-    throw new EngineError("unavailable", "The operator admin could not be created or logged in. Inspect the container logs; `reset-confirm` is the explicit way to start over.", { retryable: false });
+    throw new EngineError("unavailable", "The administrator admin could not be created or logged in. Inspect the container logs; `reset-confirm` is the explicit way to start over.", { retryable: false });
   }
 
   async #reconcileEgress(proxyHostPort: string): Promise<void> {

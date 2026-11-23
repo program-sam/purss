@@ -7,7 +7,7 @@ import { badRequest, nowIso } from "../http.ts";
 import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
 import { urlKey } from "./url-key.ts";
 import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export { canonicalFeedKey };
 
@@ -97,7 +97,7 @@ export function looksPrivateFeed(raw: string): boolean {
 export function previewOpml(app: App, p: Principal, text: string): OpmlPreview {
   const parsed = parseOpml(text);
   const followed = new Map<string, string>();
-  for (const s of app.db.all<{ id: string; feed_url: string }>("SELECT id, feed_url FROM sources WHERE workspace_id = ? AND followed = 1 AND feed_url IS NOT NULL", p.workspaceId)) {
+  for (const s of app.db.all<{ id: string; feed_url: string }>("SELECT id, feed_url FROM sources WHERE account_id = ? AND followed = 1 AND feed_url IS NOT NULL", p.accountId)) {
     // A bridged source is listed by its page, as the export writes it.
     const bridged = parseBridgeDescriptor(s.feed_url);
     const href = bridged ? bridged.service.pageUrl(bridged.key) : httpUrlOrNull(s.feed_url);
@@ -106,13 +106,13 @@ export function previewOpml(app: App, p: Principal, text: string): OpmlPreview {
   }
   // A private source has no address to compare: its keyed hash is compared with the listed address's.
   const privateOnes = new Map<string, string>();
-  for (const s of app.db.all<{ id: string; feed_key: string }>("SELECT id, feed_key FROM sources WHERE workspace_id = ? AND followed = 1 AND feed_key IS NOT NULL", p.workspaceId)) privateOnes.set(s.feed_key, s.id);
+  for (const s of app.db.all<{ id: string; feed_key: string }>("SELECT id, feed_key FROM sources WHERE account_id = ? AND followed = 1 AND feed_key IS NOT NULL", p.accountId)) privateOnes.set(s.feed_key, s.id);
   return {
     feeds: parsed.feeds.map((f) => {
       // The same address written another way (http or https, a trailing slash, tracking parameters) is the source followed; a private
       // source's keyed hash is compared under either scheme.
       const other = otherScheme(f.feedUrl);
-      const privateKeys = privateOnes.size ? [privateFeedKey(app, p.workspaceId, f.feedUrl), other ? privateFeedKey(app, p.workspaceId, other) : null] : [];
+      const privateKeys = privateOnes.size ? [privateFeedKey(app, p.accountId, f.feedUrl), other ? privateFeedKey(app, p.accountId, other) : null] : [];
       const listed = urlKey(f.feedUrl);
       const sourceId = (listed ? followed.get(listed) : undefined) ?? privateKeys.map((k) => (k ? privateOnes.get(k) : undefined)).find(Boolean) ?? null;
       return { ...f, alreadyFollowing: sourceId !== null, sourceId, looksPrivate: looksPrivateFeed(f.feedUrl) };
@@ -128,7 +128,7 @@ export function generateOpml(app: App, p: Principal): { xml: string; included: n
     `SELECT s.id, s.title, s.kind, s.site_url, s.feed_url, s.is_private,
        (SELECT c.name FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id
         WHERE cs.source_id = s.id ORDER BY c.position, c.created_at LIMIT 1) AS collection_name
-     FROM sources s WHERE s.workspace_id = ? AND s.followed = 1 AND s.kind <> 'manual' ORDER BY lower(s.title)`, p.workspaceId);
+     FROM sources s WHERE s.account_id = ? AND s.followed = 1 AND s.kind <> 'manual' ORDER BY lower(s.title)`, p.accountId);
   const groups = new Map<string, string[]>();
   const loose: string[] = [];
   let included = 0;

@@ -7,7 +7,7 @@ import { listItems } from "./items.ts";
 import { searchItems } from "./search.ts";
 
 /*
- * An item's time in lists (migration 071): a post that came after its source was followed is listed when it arrived, whatever date
+ * An item's time in lists: a post that came after its source was followed is listed when it arrived, whatever date
  * its publisher gave it, so a post dated hours before it was in the feed is not listed below posts that came before it. The back
  * catalogue is listed at its publication date. The publication date itself is kept and given with the item.
  */
@@ -34,7 +34,7 @@ test("a post its publisher dated hours before it was in the feed is listed when 
   assert.deepEqual(searchItems(app, p, "post", 10).map((i) => i.title), ["Dated ten hours ago, arrived now", "Arrived an hour ago"], "search lists them the same way");
 });
 
-test("a source's back catalogue is listed at its publication date, what comes after the follow at its arrival", (t) => {
+test("a source's backlog is listed at its publication date, what comes after the follow at its arrival", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
@@ -48,13 +48,13 @@ test("a source's back catalogue is listed at its publication date, what comes af
   for (const i of items) assert.equal(i.listedAt, i.publishedAt ?? now);
 });
 
-test("the rule: arrival after the follow or once the source is settled, the publication date (else arrival) for the back catalogue", () => {
+test("the rule: arrival after the follow or once the source is settled, the publication date (else arrival) for the backlog", () => {
   const followed = "2026-11-10T12:00:00.000Z";
   const crawledAt = "2026-11-16T17:48:00.000Z";
   const source = (settled: boolean) => ({ created_at: followed, backlog_settled_at: settled ? "2026-11-10T13:00:00.000Z" : null });
   assert.equal(listedAtOf(source(false), { publishedAt: "2026-11-16T03:27:00.000Z", crawledAt }), crawledAt, "published after the follow");
   assert.equal(listedAtOf(source(true), { publishedAt: "2026-11-06T15:31:00.000Z", crawledAt }), crawledAt, "an old story put back in the feed of a settled source");
   assert.equal(listedAtOf(source(true), { publishedAt: null, crawledAt }), crawledAt);
-  assert.equal(listedAtOf(source(false), { publishedAt: "2026-10-01T00:00:00.000Z", crawledAt }), "2026-10-01T00:00:00.000Z", "back catalogue");
-  assert.equal(listedAtOf(source(false), { publishedAt: null, crawledAt }), crawledAt, "undated back catalogue");
+  assert.equal(listedAtOf(source(false), { publishedAt: "2026-10-01T00:00:00.000Z", crawledAt }), "2026-10-01T00:00:00.000Z", "backlog");
+  assert.equal(listedAtOf(source(false), { publishedAt: null, crawledAt }), crawledAt, "undated backlog");
 });

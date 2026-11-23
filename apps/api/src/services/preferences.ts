@@ -3,7 +3,7 @@ import type { Preferences } from "@purss/domain";
 import { z } from "zod";
 import type { App } from "../app.ts";
 import { nowIso } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const time = z.string().regex(/^\d{2}:\d{2}$/).nullable();
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -33,10 +33,10 @@ export const preferencesPatchSchema = z.object({
   homeLayout: z.enum(["collections", "feed", "new", "front"]),
   homeCollectionIds: z.array(z.string()).max(200),
   homeOther: z.boolean(),
-  freshMarkers: z.boolean(),
+  newMarkers: z.boolean(),
   showCounts: z.boolean(),
   reminders: z.boolean(),
-  freshDays: z.number().int().min(0).max(365),
+  newDays: z.number().int().min(0).max(365),
   welcomeAsked: z.boolean(),
   notifications: notificationsPatch,
   mutedWords: z.array(z.object({ text: z.string().trim().min(1).max(80), until: z.iso.datetime().nullable() })).max(100).refine(
@@ -47,8 +47,8 @@ export const preferencesPatchSchema = z.object({
 
 export type PreferencesPatch = z.infer<typeof preferencesPatchSchema>;
 
-export function getPreferences(app: App, workspaceId: string): Preferences {
-  const row = app.db.get<{ value: string }>("SELECT value FROM preferences WHERE workspace_id = ?", workspaceId);
+export function getPreferences(app: App, accountId: string): Preferences {
+  const row = app.db.get<{ value: string }>("SELECT value FROM preferences WHERE account_id = ?", accountId);
   const stored = row ? (JSON.parse(row.value) as Partial<Preferences>) : {};
   return merge(DEFAULT_PREFERENCES, stored);
 }
@@ -67,21 +67,21 @@ function merge(base: Preferences, patch: Partial<Preferences> | PreferencesPatch
   return next;
 }
 
-export function setPreferences(app: App, workspaceId: string, patch: PreferencesPatch): Preferences {
-  const before = getPreferences(app, workspaceId);
+export function setPreferences(app: App, accountId: string, patch: PreferencesPatch): Preferences {
+  const before = getPreferences(app, accountId);
   const next = merge(before, patch);
   // Muted words that have ended are dropped when the list is next saved.
   next.mutedWords = next.mutedWords.filter((w) => w.until === null || Date.parse(w.until) > Date.now());
   app.db.tx(() => {
-    app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(workspace_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-      workspaceId, JSON.stringify(next), nowIso());
+    app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+      accountId, JSON.stringify(next), nowIso());
     // Stopping (or starting) sharing for Discover reaches the suggestions at the next rebuild, which then comes soon.
     if (before.discoveryShare !== next.discoveryShare) app.db.run("UPDATE discovery_state SET dirty = 1");
     // A new way of being told starts from now: switching to a digest does not send everything from before the switch.
     if (before.notifications.frequency !== next.notifications.frequency) {
       app.db.run(
-        `INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?)
-         ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end`, workspaceId, nowIso());
+        `INSERT INTO notification_state (account_id, window_end) VALUES (?, ?)
+         ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end`, accountId, nowIso());
     }
   });
   return next;

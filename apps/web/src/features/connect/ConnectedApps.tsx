@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConnectClientKind, DeviceDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { del, get, messageOf } from "../../api/client.ts";
 import { shortDate, timeAgo } from "../../lib/format.ts";
 import { useToasts } from "../../state/toasts.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { AppsAndExtensions } from "./AppsAndExtensions.tsx";
 import { Bookmarklets } from "./Bookmarklets.tsx";
 import { FollowButton } from "./FollowButton.tsx";
@@ -23,7 +23,7 @@ export const KIND_LABEL: Record<ConnectClientKind, string> = { mobile: t.mobile,
 export function ConnectedApps({ onOpen }: { onOpen: (tab: "general" | "assistants") => void }) {
   const qc = useQueryClient();
   const { toast } = useToasts();
-  const tz = useWorkspace().prefs.timezone;
+  const tz = usePurss().prefs.timezone;
   const q = useQuery({ queryKey: devicesKey, queryFn: () => get<DeviceDTO[]>("/api/connect/devices"), staleTime: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

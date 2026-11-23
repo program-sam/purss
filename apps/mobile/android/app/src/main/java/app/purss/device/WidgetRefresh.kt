@@ -124,22 +124,22 @@ object WidgetRefresh {
         val choices = WidgetLists.decodeChoices(DeviceStore.choices(ctx))
         val wanted = placed.mapNotNull { (id, kind) -> if (WidgetLists.isKey(kind)) kind else choices[id] }.distinct()
         if (wanted.isEmpty()) return
-        val api = WorkspaceApi(conn)
+        val api = PurssApi(conn)
         val old = WidgetLists.decode(DeviceStore.lists(ctx))
         try {
             // Names, and whether a chosen collection or source is still there (a removed source stays readable by id).
-            val catalog = if (wanted.any { WidgetLists.configurable(it) }) {
+            val choices = if (wanted.any { WidgetLists.configurable(it) }) {
                 val a = api.get("/api/bootstrap")
-                if (a.status == 200) WidgetLists.parseCatalog(a.text) else null
+                if (a.status == 200) WidgetLists.parseChoices(a.text) else null
             } else null
             val out = mutableMapOf<String, WidgetLists.Stored>()
             for (key in wanted) {
                 if (stopped()) return
                 val chosen = WidgetLists.configurable(key)
-                val name = if (chosen) catalog?.name(key) ?: old[key]?.name else null
+                val name = if (chosen) choices?.name(key) ?: old[key]?.name else null
                 if (chosen) {
-                    if (catalog == null) { old[key]?.let { out[key] = it }; continue }
-                    val state = WidgetLists.chosenState(key, catalog)
+                    if (choices == null) { old[key]?.let { out[key] = it }; continue }
+                    val state = WidgetLists.chosenState(key, choices)
                     // A private source's name never shows on a home screen either.
                     if (state != "ok") { out[key] = WidgetLists.Stored(emptyList(), null, state, if (state == "private") null else name); continue }
                 }
@@ -155,7 +155,7 @@ object WidgetRefresh {
             WidgetData.ifCurrent(since) { DeviceStore.setLists(ctx, WidgetLists.encode(out)) } ?: return
             Panels.redrawAll(ctx)
         } catch (e: Refused) {
-            Log.i(TAG, "The workspace refused the token; removing what the app kept")
+            Log.i(TAG, "The installation refused the token; removing what the app kept")
             WidgetData.lost(ctx, since)
         } catch (e: Exception) {
             // Offline or the PURSS is busy: the last lists stay, and the next run tries again.

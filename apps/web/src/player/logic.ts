@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { PlaybackPosition, WorkflowState } from "@purss/domain";
 
 /** Pure decisions of the player, kept apart so they can be tested without a browser. */
@@ -26,7 +26,7 @@ export const FINISHED_AFTER_PLAYED_SECONDS = 3;
 
 /** States playback may move to In progress by itself. */
 export function canPlaybackStart(workflow: WorkflowState): boolean {
-  return workflow === "new" || workflow === "toread";
+  return workflow === "undecided" || workflow === "toread";
 }
 
 /** States playback may move forward from by itself (to Finished, or to In progress first). Ignored and Finished are left alone. */

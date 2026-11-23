@@ -1,6 +1,6 @@
 import type { PushInfo, PushRegisterResult } from "@purss/domain";
 import type { PushStatus } from "../types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 /*
  * Notifications on this phone, apart from the device APIs, so the rules can be tested without
@@ -64,7 +64,7 @@ export class PushController {
   async #check(): Promise<{ info: PushInfo } | PushStatus> {
     if (!this.#d.ready) return { state: "unavailable", detail: app.words.thisBuildOfTheAppCan };
     const info = await this.#d.api<PushInfo>("/api/push");
-    if (!info.relay) return { state: "unavailable", detail: PUSH_MESSAGES.workspaceOff };
+    if (!info.relay) return { state: "unavailable", detail: PUSH_MESSAGES.purssOff };
     if (info.relay !== this.#d.relay) return { state: "unavailable", detail: PUSH_MESSAGES.otherRelay };
     return { info };
   }

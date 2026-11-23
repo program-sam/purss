@@ -7,11 +7,11 @@ import { findItem, itemDetailQuery, itemListQuery, itemPreviewQuery, keys, putIt
 function item(over: Partial<ItemDTO> = {}): ItemDTO {
   return {
     id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, isNew: true,
     progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }
-const listKey = [...keys.items, "list", { scope: "all", filter: "active", sort: "newest" }] as const;
+const listKey = [...keys.items, "list", { scope: "all", filter: "all", sort: "newest" }] as const;
 
 /** A cache holding a list page (not being watched) and the item's detail. */
 function cacheWith(list: ItemDTO, detail: ItemDTO) {
@@ -24,30 +24,30 @@ const inList = (qc: QueryClient) => (qc.getQueryData(listKey) as { pages: { item
 
 test("of two copies, the one with the higher state version is the one found, whatever the revision", () => {
   // The New marker was cleared (the detail was read afterwards); no revision moved, so only the state version tells which is newer.
-  const stale = item({ fresh: true, stateVersion: 4 });
-  const cleared = item({ fresh: false, opened: true, stateVersion: 5 });
-  assert.equal(findItem(cacheWith(stale, cleared), "itm_a")!.fresh, false, "the list copy is stale, whichever comes first");
-  assert.equal(findItem(cacheWith(cleared, stale), "itm_a")!.fresh, false, "and the other way round");
+  const stale = item({ isNew: true, stateVersion: 4 });
+  const cleared = item({ isNew: false, opened: true, stateVersion: 5 });
+  assert.equal(findItem(cacheWith(stale, cleared), "itm_a")!.isNew, false, "the list copy is stale, whichever comes first");
+  assert.equal(findItem(cacheWith(cleared, stale), "itm_a")!.isNew, false, "and the other way round");
   // Clearing the marker and taking it back can happen within one millisecond and leave the revision alone: the later copy still wins.
-  const restored = item({ fresh: true, opened: false, stateVersion: 6 });
-  assert.equal(findItem(cacheWith(cleared, restored), "itm_a")!.fresh, true, "the Undo is the later copy");
-  assert.equal(findItem(cacheWith(restored, cleared), "itm_a")!.fresh, true, "in either order");
+  const restored = item({ isNew: true, opened: false, stateVersion: 6 });
+  assert.equal(findItem(cacheWith(cleared, restored), "itm_a")!.isNew, true, "the Undo is the later copy");
+  assert.equal(findItem(cacheWith(restored, cleared), "itm_a")!.isNew, true, "in either order");
   // A copy that moved the item on (revision and version both up) beats both.
-  const moved = item({ workflow: "toread", revision: 6, stateVersion: 7, fresh: true });
+  const moved = item({ workflow: "toread", revision: 6, stateVersion: 7, isNew: true });
   assert.equal(findItem(cacheWith(restored, moved), "itm_a")!.revision, 6);
   // The revision is for conflicts only: it does not order copies.
   assert.equal(findItem(cacheWith(item({ revision: 9, stateVersion: 3 }), item({ revision: 5, stateVersion: 4 })), "itm_a")!.stateVersion, 4);
 });
 
 test("a copy from PURSS replaces older copies, and never a newer one", () => {
-  const qc = cacheWith(item({ fresh: true }), item({ fresh: true }));
-  putItem(qc, item({ fresh: false, stateVersion: 5 }));
-  assert.equal(inList(qc).fresh, false, "the stale list copy is replaced");
-  assert.equal(findItem(qc, "itm_a")!.fresh, false);
-  putItem(qc, item({ fresh: true, stateVersion: 4 })); // a late answer that is older
-  assert.equal(inList(qc).fresh, false, "an older copy is ignored");
-  putItem(qc, item({ fresh: true, opened: false, stateVersion: 6 })); // the Undo of the clear: the same revision, a later version
-  assert.equal(inList(qc).fresh, true, "taking the clear back is the latest copy");
+  const qc = cacheWith(item({ isNew: true }), item({ isNew: true }));
+  putItem(qc, item({ isNew: false, stateVersion: 5 }));
+  assert.equal(inList(qc).isNew, false, "the stale list copy is replaced");
+  assert.equal(findItem(qc, "itm_a")!.isNew, false);
+  putItem(qc, item({ isNew: true, stateVersion: 4 })); // a late answer that is older
+  assert.equal(inList(qc).isNew, false, "an older copy is ignored");
+  putItem(qc, item({ isNew: true, opened: false, stateVersion: 6 })); // the Undo of the clear: the same revision, a later version
+  assert.equal(inList(qc).isNew, true, "taking the clear back is the latest copy");
   // What the page itself shows for a change in flight (the same state version as the copy it started from) still goes through.
   putItem(qc, { ...inList(qc), opened: true });
   assert.equal(inList(qc).opened, true);
@@ -67,7 +67,7 @@ test("a keep that leaves the revision alone but moves the state version replaces
 });
 
 test("a list reload answered from an older saved copy doesn't put back a state changed since", () => {
-  const p = { scope: "toread", filter: "active", sort: "newest" };
+  const p = { scope: "toread", filter: "all", sort: "newest" };
   const shown = item({ workflow: "finished", revision: 6, stateVersion: 5 });
   const saved = item({ workflow: "toread", revision: 5, stateVersion: 4 });
   const other = item({ id: "itm_b", workflow: "toread" });
@@ -79,6 +79,6 @@ test("a list reload answered from an older saved copy doesn't put back a state c
   assert.equal(preview.items[0]!.workflow, "finished", "Home's previews too");
   const detail = (itemDetailQuery("itm_a").structuralSharing as (a: unknown, b: unknown) => unknown)({ ...shown, contentHtml: null }, { ...saved, contentHtml: "<p>x</p>" }) as ItemDTO & { contentHtml: string };
   assert.deepEqual([detail.workflow, detail.contentHtml], ["finished", "<p>x</p>"], "and the item itself");
-  const newer = item({ workflow: "new", stateVersion: 9 });
-  assert.equal((share({ pages: [page([shown])], pageParams: [undefined] }, { pages: [page([newer])], pageParams: [undefined] }) as { pages: { items: ItemDTO[] }[] }).pages[0]!.items[0]!.workflow, "new", "a newer answer wins");
+  const newer = item({ workflow: "undecided", stateVersion: 9 });
+  assert.equal((share({ pages: [page([shown])], pageParams: [undefined] }, { pages: [page([newer])], pageParams: [undefined] }) as { pages: { items: ItemDTO[] }[] }).pages[0]!.items[0]!.workflow, "undecided", "a newer answer wins");
 });

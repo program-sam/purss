@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import "./stats.css";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -15,7 +15,7 @@ import { countWithShare, firstDirection, gapLabel, sortRows, weeklyAverage } fro
 import type { StatsSortKey } from "../lib/stats.ts";
 import { pathFor, statsPathFor, useNav } from "../nav.ts";
 import type { StatsPlace } from "../nav.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { Trail } from "../shell/crumbs.tsx";
 
 /*
@@ -40,7 +40,7 @@ function Gone({ place }: { place: StatsPlace }) {
 }
 
 function StatsHead({ place, title, asOf }: { place: StatsPlace; title: string; asOf: string | null }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   return (
     <div className="phead">
@@ -72,7 +72,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function SourceBody({ data }: { data: SourceStatsResponse }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const s = data.stats;
   const when = (iso: string | null) => (iso ? <time dateTime={iso}>{shortDate(iso, Date.now(), ws.prefs.timezone)}</time> : "–");
   return (
@@ -123,7 +123,7 @@ const BASE_COLUMNS: readonly Column[] = [
 const FILTERED_COLUMN: Column = { key: "filtered", label: t.columnFiltered, numeric: true };
 
 function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const total = stats.totalItems;
   return (
     <>
@@ -139,7 +139,7 @@ function Cells({ stats, filtered }: { stats: StatsNumbers; filtered: boolean }) 
 }
 
 function SourceCell({ row }: { row: CollectionStatsRow }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const src = row.sourceId ? ws.sourceById.get(row.sourceId) : undefined;
   return (
@@ -187,7 +187,7 @@ function CollectionBody({ data }: { data: CollectionStatsResponse }) {
 }
 
 export function StatsPage({ place }: { place: StatsPlace }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const exists = place.t === "s" ? ws.sourceById.has(place.id) : ws.collectionById.has(place.id);
   const sourceQ = useQuery({ ...sourceStatsQuery(place.id), enabled: exists && place.t === "s" });
   const collectionQ = useQuery({ ...collectionStatsQuery(place.id), enabled: exists && place.t === "c" });

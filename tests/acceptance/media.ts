@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "@playwright/test";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -48,14 +48,14 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "listener@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // what the app keeps in code: the labels only screen readers announce (the player's buttons and slider, a row's "Actions for").
 const signInCopy = app.auth.signIn;
 const mediaCopy = app.player.media;
 const panelCopy = app.shell.itemPanel;
 const menuCopy = app.state.itemMenus;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** A name that starts with the catalog's words. */
+/** A name that starts with the catalogue's words. */
 const startsWith = (s: string) => new RegExp(`^${escapeRe(s)}`);
 /** What a button that offers or shows a download to this device is called, on a row or in the panel. */
 const downloadButton = new RegExp([app.downloads.downloadSection.download, app.downloads.downloadSection.downloading, ...Object.values(app.components.itemRow.downloadTips)].map(escapeRe).join("|"));
@@ -103,11 +103,10 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
     const code = ensureClaimCode(app)!;
     const { accountId } = claim(app, code, EMAIL, "Listener", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId: ws.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Slow Radio", "feed/1", { kind: "podcast" });
     app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", SHOW_SITE, sourceId);
     // A second show with no website of its own.
@@ -117,8 +116,8 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
     app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", MEMBERS_SITE, membersId);
     // The show has cover art (a one-pixel WebP stands in for it); its episodes have none of their own.
     const art = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
-    app.db.run("INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      sourceId, accountId, ws.id, art, createHash("sha256").update(art).digest("hex"), "https://cdn.example.invalid/art.webp", new Date().toISOString());
+    app.db.run("INSERT INTO source_icons (source_id, account_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      sourceId, accountId, art, createHash("sha256").update(art).digest("hex"), "https://cdn.example.invalid/art.webp", new Date().toISOString());
     applySyncBatch(app, eu.id, batch([
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),
@@ -150,7 +149,7 @@ async function openEpisode(page: Page, sourceId: string, title: string): Promise
 }
 
 const itemDetail = async (page: Page, title: string) => {
-  const list = await (await page.request.get(`${origin}/api/items?scope=all&filter=all&sort=newest`)).json() as { items: { id: string; title: string }[] };
+  const list = await (await page.request.get(`${origin}/api/items?scope=all&filter=all_with_ignored&sort=newest`)).json() as { items: { id: string; title: string }[] };
   const id = list.items.find((i) => i.title === title)!.id;
   return (await page.request.get(`${origin}/api/items/${id}`)).json() as Promise<{ id: string; workflow: string; playback: { positionSeconds: number } | null; media: Record<string, unknown> }>;
 };
@@ -359,7 +358,7 @@ async function main(): Promise<void> {
     // played into its end, never for a jump to the end, and with no message.
     const toasts = page.locator("#toasts");
     await openEpisode(page, sourceId, "Long wave serial");
-    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new");
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "undecided");
     await page.getByRole("button", { name: mediaCopy.listen, exact: true }).click();
     const slider = bar.getByRole("slider", { name: "Position" });
     await waitFor("playback to move", async () => Number(await slider.inputValue()) >= 2, 15_000);
@@ -367,7 +366,7 @@ async function main(): Promise<void> {
     await page.keyboard.press("End");
     await bar.getByRole("button", { name: "Play", exact: true }).waitFor();
     await new Promise((r) => setTimeout(r, 4000));
-    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new", "a jump to the end is not listening to it, and a few seconds are not 30");
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "undecided", "a jump to the end is not listening to it, and a few seconds are not 30");
     step("jumping to the end of an episode changes nothing");
 
     await bar.getByRole("button", { name: "Play", exact: true }).click();

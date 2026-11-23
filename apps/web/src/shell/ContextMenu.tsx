@@ -1,9 +1,9 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MenuEntry } from "@purss/ui";
 import { messageOf, patch } from "../api/client.ts";
-import { findItem, refreshWorkspace } from "../api/queries.ts";
+import { findItem, refreshPurss } from "../api/queries.ts";
 import { workflowLabel } from "../lib/constants.ts";
 import { canRetrySource } from "../lib/sources.ts";
 import { retrySource } from "../state/source-actions.ts";
@@ -13,7 +13,7 @@ import { useItemActions } from "../state/actions.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { platform } from "../platform/index.ts";
 
 const cm = app.shell.contextMenu;
@@ -24,7 +24,7 @@ const cm = app.shell.contextMenu;
  * links inside an article, and whenever Shift is held.
  */
 export function ContextMenus() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const popups = usePopups();
@@ -68,7 +68,7 @@ export function ContextMenus() {
         if (!item) return null;
         const place = placeOf(appPathname());
         const basketId = place && place.t === "b" ? place.id : null;
-        const states = (["new", "toread", "inprogress", "finished"] as const).map<MenuEntry>((k) => ({
+        const states = (["undecided", "toread", "inprogress", "finished"] as const).map<MenuEntry>((k) => ({
           type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k,
           onSelect: () => void actions.setWorkflow([item.id], k),
         }));
@@ -83,7 +83,7 @@ export function ContextMenus() {
         const s = ws.sourceById.get(sourceEl.dataset.source!);
         if (!s) return null;
         const set = async (body: Record<string, unknown>, done: string) => {
-          try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, body); refreshWorkspace(qc, { items: false }); toast(done); } catch (err) { toast(messageOf(err), { tone: "error" }); }
+          try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, body); refreshPurss(qc, { items: false }); toast(done); } catch (err) { toast(messageOf(err), { tone: "error" }); }
         };
         return {
           label: `Actions for ${s.title}`,
@@ -117,8 +117,8 @@ export function ContextMenus() {
             { type: "separator" },
             { label: app.words.collectionSettings, onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
             ...(c.mode === "sources" ? [{ label: app.words.smartFilter, onSelect: () => overlays.open({ kind: "ai-filter", collectionId: c.id }) } as MenuEntry] : []),
-            { label: c.showOnHome ? app.words.hideFromHome : app.words.showOnHome, onSelect: () => void patch(`/api/collections/${encodeURIComponent(c.id)}`, { showOnHome: !c.showOnHome }).then(() => refreshWorkspace(qc, { items: false }), (err) => toast(messageOf(err), { tone: "error" })) },
-            { label: app.words.markAllAsSeen, onSelect: () => void actions.clearFresh(`collection:${c.id}`) },
+            { label: c.showOnHome ? app.words.hideFromHome : app.words.showOnHome, onSelect: () => void patch(`/api/collections/${encodeURIComponent(c.id)}`, { showOnHome: !c.showOnHome }).then(() => refreshPurss(qc, { items: false }), (err) => toast(messageOf(err), { tone: "error" })) },
+            { label: app.words.markAllAsSeen, onSelect: () => void actions.clearNew(`collection:${c.id}`) },
           ],
         };
       }
@@ -136,7 +136,7 @@ export function ContextMenus() {
           ],
         };
       }
-      // Empty space inside PURSS: the common "new" actions.
+      // Empty space inside PURSS: the common "undecided" actions.
       if (!t.closest(".app")) return null;
       return {
         label: "PURSS",

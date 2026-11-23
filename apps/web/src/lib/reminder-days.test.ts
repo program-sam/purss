@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { addDays, dayIn, dayLabel, daysBetween } from "./reminder-days.ts";
 
 const t = app.lib.reminderDays;

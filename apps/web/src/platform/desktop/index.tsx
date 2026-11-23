@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { desktopOffer } from "@purss/domain/app-bundle";
-import { OFFICIAL_WORKSPACE_ORIGIN, startingServer } from "@purss/domain";
+import { OFFICIAL_PURSS_ORIGIN, startingServer } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
 import { api } from "../../api/client.ts";
 import { outbox } from "../../annotations/outbox-store.ts";
@@ -8,12 +8,12 @@ import { clearAnnotationOutbox } from "../../annotations/use-annotations.ts";
 import { clearLateWrites } from "../../lib/late-writes.ts";
 import { DownloadManager } from "../../downloads/manager.ts";
 import { decodePage, readablePage } from "../../downloads/readable-page.ts";
-import { wipeOfflineCopies } from "../../offline/worker-link.ts";
+import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { HtmlMediaBackend } from "../../player/html-backend.ts";
 import { clearHints } from "../../state/ui-store.ts";
-import { OfflineWorker } from "../../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
-import { workspacePolicy } from "../csp.ts";
+import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
 import type { AppConnection, DesktopApp, DesktopUpdate, Intake, Notifier, OfflineHost, Platform, Transport, WebView } from "../types.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "../native/app-start.ts";
@@ -31,7 +31,7 @@ import type { Incoming } from "./bridge.ts";
 import { drawBadgeOverlay, wantsOverlay } from "./badge-overlay.ts";
 import { feedAddress } from "./feed-link.ts";
 import { desktopConnection, desktopFiles } from "./files.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.desktop;
 
@@ -193,7 +193,7 @@ function restartInstalled(): void {
 function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
   const caches = new StoredCaches(new IndexedDbCopyBackend());
   const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
+  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
   const updater = desktopUpdater();
 
   const downloads = conn ? new DownloadManager({
@@ -206,7 +206,7 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
   }) : null;
 
   let player: HtmlMediaBackend | null = null;
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   const updates = conn ? createInterfaceUpdates({
     origin: conn.origin,
     official: official.kind === "official" && official.origin === conn.origin,
@@ -322,7 +322,7 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
 function limitPageTo(origin: string, mediaBase: string): void {
   const meta = document.createElement("meta");
   meta.httpEquiv = "Content-Security-Policy";
-  meta.content = workspacePolicy(origin, [], { media: mediaBase });
+  meta.content = purssPolicy(origin, [], { media: mediaBase });
   document.head.prepend(meta);
 }
 

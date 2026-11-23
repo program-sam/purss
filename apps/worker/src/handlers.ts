@@ -64,7 +64,7 @@ export type HandlerDeps = {
   isLargeFeed?: (url: string, opts: { signal: AbortSignal }) => Promise<boolean | null>;
   /** Absent when the connectors package does not provide icon lookup; such jobs are then not leased at all. */
   icon?: IconFn;
-  /** Jev for Smart filters: the operator's address (keys are read from the secrets folder). Absent: not leased. */
+  /** Jev for Smart filters: the administrator's address (keys are read from the secrets folder). Absent: not leased. */
   jev?: { config: JevConfig; fetch?: (url: string, init: RequestInit) => Promise<Response> };
   syncPageSize: number;
   syncOverlapSeconds: number;

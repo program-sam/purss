@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { normalIssn, resolverUrl } from "./journals.ts";
 import { escapeXml } from "./text.ts";
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { AnnotationList, AnnotationPut, AnnotationWriteResult } from "@purss/domain";
 import { ApiError, del, get, put } from "../api/client.ts";
 import { useSession } from "../api/hooks.ts";

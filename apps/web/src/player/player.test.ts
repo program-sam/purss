@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemMedia } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { BackendState, PlaybackSource, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
 import { Player } from "./player.ts";
@@ -30,7 +30,7 @@ class FakeBackend implements PlayerBackend {
 }
 
 const media: ItemMedia = { url: "https://cdn.example.org/a.mp3", kind: "audio", type: "audio/mpeg", length: null };
-const item = (over: Partial<PlayableItem> = {}): PlayableItem => ({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: "https://img.example.org/c.jpg", media, playback: null, workflow: "new", workflowRevision: 0, ...over });
+const item = (over: Partial<PlayableItem> = {}): PlayableItem => ({ id: "itm_1", title: "Episode", sourceTitle: "Slow Radio", imageUrl: "https://img.example.org/c.jpg", media, playback: null, workflow: "undecided", workflowRevision: 0, ...over });
 const tick = () => new Promise((r) => setImmediate(r));
 
 function make(opts: { now?: () => number; playbackNow?: () => number; setPlaybackWorkflow?: PlayerDeps["setPlaybackWorkflow"] } = {}) {
@@ -201,11 +201,11 @@ test("a seek to the end does not finish an item; playing there does", async () =
 });
 
 test("an item that is New or To listen can be finished without ever being In progress, and a short item is not finished at its start", async () => {
-  const s = session({ workflow: "new" });
+  const s = session({ workflow: "undecided" });
   await s.open();
   await s.seek(540);
   await s.listen(4);
-  assert.deepEqual(s.sent().map((c) => `${c.from}>${c.to}`), ["new>finished"], "played into the end after under 30 seconds: finished, in one step");
+  assert.deepEqual(s.sent().map((c) => `${c.from}>${c.to}`), ["undecided>finished"], "played into the end after under 30 seconds: finished, in one step");
   await s.player.close();
 
   const clip = session({ workflow: "toread", duration: 90 });

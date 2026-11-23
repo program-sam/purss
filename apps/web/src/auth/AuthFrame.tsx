@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "@purss/ui";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.authFrame;
 

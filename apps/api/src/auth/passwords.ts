@@ -3,7 +3,7 @@ import { newId } from "@purss/domain";
 import type { App } from "../app.ts";
 import { audit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Email address and password sign-in: every account has a password made with it, except one made by signing in with a

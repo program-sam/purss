@@ -18,11 +18,11 @@ export function activeMutedWords(words: readonly MutedWord[], now: Date = new Da
 }
 
 /** The PURSS's muted words for `purss_muted` (a JSON string, the one parameter below), or null when none are set. */
-export function workspaceMuted(app: App, workspaceId: string, now: Date = new Date()): string | null {
-  return mutedPatterns(activeMutedWords(getPreferences(app, workspaceId).mutedWords, now).map((w) => w.text));
+export function accountMuted(app: App, accountId: string, now: Date = new Date()): string | null {
+  return mutedPatterns(activeMutedWords(getPreferences(app, accountId).mutedWords, now).map((w) => w.text));
 }
 
-/** Over `items i`: no muted word matches the item. Takes `workspaceMuted` as its parameter. */
+/** Over `items i`: no muted word matches the item. Takes `accountMuted` as its parameter. */
 export const NOT_MUTED = "NOT purss_muted(?, i.title, i.excerpt)";
 /** The same over the columns `title` and `excerpt` of a list's rows (a query around the list). */
 export const NOT_MUTED_ROW = "NOT purss_muted(?, title, excerpt)";

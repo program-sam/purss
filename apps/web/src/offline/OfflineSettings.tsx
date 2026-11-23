@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Check } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { bytesLabel } from "../lib/format.ts";
@@ -9,7 +9,7 @@ import { promptInstall, useInstallState } from "./install.ts";
 import { refreshPackStatus, usePackStatus } from "./pack-status.ts";
 import { storageEstimate } from "./store.ts";
 import { savedSummary } from "./summary.ts";
-import { wipeOfflineCopies } from "./worker-link.ts";
+import { wipeOfflineCopies } from "./service-worker-link.ts";
 
 const t = app.offline.settings;
 

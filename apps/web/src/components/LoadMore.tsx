@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button } from "@purss/ui";
 
 

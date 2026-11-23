@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { REPORT_REASON_LABELS } from "@purss/domain";
 import type { ShareReportDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, Segmented } from "@purss/ui";
 import { get, messageOf, post } from "../../api/client.ts";
 import { timeAgo } from "../../lib/format.ts";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { TextInput } from "@purss/ui";
 import { get, messageOf } from "../../api/client.ts";
 import { platform } from "../../platform/index.ts";

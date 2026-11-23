@@ -1,7 +1,7 @@
 import type { ActivityDTO, ActivityEvent, ActivitySource, SourceHealth } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { syncDelaySeconds } from "./failures.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * What the engine has been doing for this PURSS, in plain words: checking sources, setting new ones up,
@@ -19,7 +19,7 @@ type SourceRow = {
 };
 
 export function activityFor(app: App, p: Principal, now: Date = new Date()): ActivityDTO {
-  const ws = p.workspaceId;
+  const ws = p.accountId;
   const iso = now.toISOString();
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const jobs = (kind: string) => app.db.get<{ n: number }>(
@@ -28,15 +28,15 @@ export function activityFor(app: App, p: Principal, now: Date = new Date()): Act
     `SELECT c.last_success_at, c.last_attempt_at, c.last_error, c.consecutive_failures FROM sync_checkpoints c JOIN engine_users e ON e.id = c.engine_user_id WHERE e.account_id = ?`, p.accountId);
   const sources = app.db.all<SourceRow>(
     `SELECT id, title, health, health_text, paused, paused_until, engine_stream_id, last_item_at, created_at FROM sources
-     WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual' ORDER BY lower(title)`, ws);
+     WHERE account_id = ? AND followed = 1 AND kind <> 'manual' ORDER BY lower(title)`, ws);
   const arrived = new Map(app.db.all<{ source_id: string; n: number; at: string }>(
-    // "New items": a source followed from now does not report its back catalogue as arrivals: it arrives Ignored.
+    // "New items": a source followed from now does not report its backlog as arrivals: it arrives Ignored.
     `SELECT i.source_id, COUNT(*) AS n, MAX(i.discovered_at) AS at FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.workspace_id = ? AND i.discovered_at >= ? AND i.source_id IS NOT NULL AND st.workflow <> 'ignored' GROUP BY i.source_id`, ws, since)
+     WHERE i.account_id = ? AND i.discovered_at >= ? AND i.source_id IS NOT NULL AND st.workflow <> 'ignored' GROUP BY i.source_id`, ws, since)
     .map((r) => [r.source_id, r]));
   const titles = new Map(sources.map((s) => [s.id, s.title]));
 
-  const savingText = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM captures WHERE workspace_id = ? AND status = 'pending'", ws)!.n;
+  const savingText = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM captures WHERE account_id = ? AND status = 'pending'", ws)!.n;
   const lastChecked = cp?.last_success_at ?? null;
 
   const rows: ActivitySource[] = sources.map((s) => {
@@ -59,7 +59,7 @@ export function activityFor(app: App, p: Principal, now: Date = new Date()): Act
     if (s.health === "error" || s.health === "reconnect") events.push({ at: lastChecked ?? s.created_at, kind: "problem", sourceId: s.id, text: server.api.activity.sourceProblem(s.title, s.health_text) });
   }
   for (const c of app.db.all<{ status: string; n: number; at: string }>(
-    "SELECT status, COUNT(*) AS n, MAX(completed_at) AS at FROM captures WHERE workspace_id = ? AND completed_at >= ? AND status IN ('done', 'failed') GROUP BY status", ws, since)) {
+    "SELECT status, COUNT(*) AS n, MAX(completed_at) AS at FROM captures WHERE account_id = ? AND completed_at >= ? AND status IN ('done', 'failed') GROUP BY status", ws, since)) {
     if (c.status === "done") events.push({ at: c.at, kind: "saved", sourceId: null, text: server.api.activity.savedText(c.n) });
     else events.push({ at: c.at, kind: "save_failed", sourceId: null, text: server.api.activity.couldNotSaveText(c.n) });
   }

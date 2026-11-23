@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReconcileEntryDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
-import { refreshWorkspace } from "../../api/queries.ts";
+import { refreshPurss } from "../../api/queries.ts";
 import { plural, shortDate } from "../../lib/format.ts";
 import { safeHref } from "../../lib/items.ts";
 import { useNav } from "../../nav.ts";
 import { useToasts } from "../../state/toasts.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { fkeys, reconcileQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Page } from "../shared/bits.tsx";
 import { MatchDialog } from "./MatchDialog.tsx";
@@ -45,7 +45,7 @@ function AcceptAllDialog({ count, onClose, onDone }: { count: number; onClose: (
 }
 
 function Entry({ e, busy, onAct, onChoose }: { e: ReconcileEntryDTO; busy: boolean; onAct: (a: Action, itemId?: string) => void; onChoose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const tz = ws.prefs.timezone;
   const href = safeHref(e.entry.url);
@@ -84,7 +84,7 @@ export function ReviewPage() {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: fkeys.reconcile });
     void qc.invalidateQueries({ queryKey: fkeys.reconcileBadge });
-    refreshWorkspace(qc);
+    refreshPurss(qc);
   };
 
   async function act(e: ReconcileEntryDTO, action: Action, itemId?: string) {

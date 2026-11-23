@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
 import { plural } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket } from "./collections.ts";
@@ -34,7 +34,7 @@ test("keeping a page the PURSS already has keeps that item instead of making a d
   assert.deepEqual([again.itemId, again.existing, again.alreadyInBasket], [feedItem, true, true]);
   const elsewhere = (await keepLink(app, owner, { url: "https://example.org/post/7", basketId: later }, noLookup));
   assert.equal(elsewhere.itemId, feedItem);
-  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ?", owner.workspaceId), 1, "still one item");
+  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ?", owner.accountId), 1, "still one item");
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM basket_items WHERE item_id = ?", feedItem), 2, "in both baskets");
 
   // A new page becomes a saved link, and keeping it again finds it.
@@ -72,7 +72,7 @@ test("lookup reports the item, its baskets and state, and followed sources whose
   const hit = lookupUrl(app, owner, "http://blog.example/notes/1#x");
   assert.equal(hit.item?.id, kept.itemId);
   assert.equal(hit.item?.title, "Note one");
-  assert.equal(hit.item?.workflow, "new");
+  assert.equal(hit.item?.workflow, "undecided");
   assert.deepEqual(hit.item?.baskets, [{ id: basket, name: "Reading" }]);
   assert.deepEqual(hit.followedSources, [{ id: src, title: "Blog notes" }]);
 
@@ -98,7 +98,7 @@ test("keeping cannot reach another account's items or baskets", async (t) => {
   assert.notEqual(out.itemId, theirItem);
   await assert.rejects(keepLink(app, owner, { url: "https://example.org/a", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
   await assert.rejects(keepLink(app, owner, { url: "https://example.org/b", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
-  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND url_key = 'example.org/b'", owner.workspaceId), 0, "a refused keep leaves nothing behind");
+  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ? AND url_key = 'example.org/b'", owner.accountId), 0, "a refused keep leaves nothing behind");
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM basket_items WHERE basket_id = ?", theirs), 1);
 });
 
@@ -124,7 +124,7 @@ test("a site address matches pages under its path only", () => {
   assert.ok(!underSite(new URL("https://www.youtube.com/watch?v=1"), "https://www.youtube.com/channel/UC123"), "a channel doesn't claim every video");
 });
 
-test("a link kept by hand is marked so, and its source takes the catalog's name at start, whatever an earlier version stored", async (t) => {
+test("a link kept by hand is marked so, and its source takes the catalogue's name at start, whatever an earlier version stored", async (t) => {
   const { app, owner, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, owner, "Sediment Letters", "feed/1");
@@ -133,13 +133,13 @@ test("a link kept by hand is marked so, and its source takes the catalog's name 
   const basket = createBasket(app, owner, { name: "Reading", captureMode: "metadata" }).id;
   const kept = (await keepLink(app, owner, { url: "https://example.org/other", basketId: basket, title: "Other" }, noLookup)).itemId;
   assert.deepEqual([getItem(app, owner, kept).keptByHand, getItem(app, owner, feedItem).keptByHand], [true, false]);
-  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks);
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.keptLinks);
 
   app.db.run("UPDATE sources SET title = 'Old name', origin = 'Old origin' WHERE kind = 'manual'");
   assert.equal(getItem(app, owner, kept).sourceTitle, "Old name");
   nameManualSources(app);
-  assert.deepEqual({ ...app.db.get<{ title: string; origin: string }>("SELECT title, origin FROM sources WHERE kind = 'manual'")! }, { title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand });
-  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks, "its items follow");
-  assert.equal(app.db.get<{ source_title: string }>("SELECT source_title FROM items WHERE id = ?", kept)!.source_title, server.api.shared.savedLinks, "and sort under the new name");
+  assert.deepEqual({ ...app.db.get<{ title: string; origin: string }>("SELECT title, origin FROM sources WHERE kind = 'manual'")! }, { title: server.api.shared.keptLinks, origin: server.api.portability.keptByHand });
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.keptLinks, "its items follow");
+  assert.equal(app.db.get<{ source_title: string }>("SELECT source_title FROM items WHERE id = ?", kept)!.source_title, server.api.shared.keptLinks, "and sort under the new name");
   assert.equal(getItem(app, owner, feedItem).sourceTitle, "Sediment Letters", "other sources keep theirs");
 });

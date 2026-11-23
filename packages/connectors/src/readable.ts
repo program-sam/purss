@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { isNoticeOnly } from "./capture-quality.ts";

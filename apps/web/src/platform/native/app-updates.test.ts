@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ANDROID_APK, desktopDownloadUrl } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { CHECK_EVERY_MS, createAppUpdates, isNewer, manifestVersion, sourceOf, whereToGet } from "./app-updates.ts";
 import type { AppSource } from "../types.ts";
 

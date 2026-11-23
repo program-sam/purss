@@ -17,5 +17,5 @@ export function measureBytes(fields: Record<string, unknown>): number {
   return Buffer.byteLength(JSON.stringify(canonical), "utf8");
 }
 
-/** Small writes (workflow, progress, a basket pin of an existing item) may exceed a full quota by at most this much. */
+/** Small writes (workflow, progress, a basket pin of an existing item) may exceed a full storage allowance by at most this much. */
 export const CONTROL_HEADROOM_BYTES = 2 * 1024 * 1024;

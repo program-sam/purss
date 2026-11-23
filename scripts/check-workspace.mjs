@@ -16,7 +16,7 @@ export const workspacePaths = [
   'packages/freshrss',
   'packages/connectors',
   'packages/ui',
-  'packages/copy',
+  'packages/translations',
 ];
 
 export const docFiles = [

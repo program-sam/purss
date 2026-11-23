@@ -54,7 +54,7 @@ abstract class PanelWidget(private val kind: String) : AppWidgetProvider() {
     }
 }
 
-class WorkspaceWidget : PanelWidget("toread")
+class PurssWidget : PanelWidget("toread")
 class ToListenWidget : PanelWidget("tolisten")
 class NewWidget : PanelWidget("new")
 class CollectionWidget : PanelWidget("collection")
@@ -62,7 +62,7 @@ class SourceWidget : PanelWidget("source")
 
 object Panels {
     private val KINDS = listOf(
-        WorkspaceWidget::class.java to "toread",
+        PurssWidget::class.java to "toread",
         ToListenWidget::class.java to "tolisten",
         NewWidget::class.java to "new",
         CollectionWidget::class.java to "collection",
@@ -129,7 +129,7 @@ object Panels {
 
     /** A row's source tile: its initials, tinted by the source's hue as in the app (Android 12 and later; a plain tile before). */
     private fun avatar(ctx: Context, v: RemoteViews, id: Int, source: String, look: Look?) {
-        val name = source.ifEmpty { ctx.getString(R.string.widget_saved_link) }
+        val name = source.ifEmpty { ctx.getString(R.string.widget_kept_link) }
         v.setTextViewText(id, WidgetLists.initials(name))
         val l = look ?: if (night(ctx)) DARK else LIGHT
         if (android.os.Build.VERSION.SDK_INT < 31) { v.setTextColor(id, if (l.eink) 0xff000000.toInt() else WidgetLists.avatarInk(WidgetLists.hue(name), l.night)); return }

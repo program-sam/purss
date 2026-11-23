@@ -4,7 +4,7 @@
 // blog post that advertises a feed. Covered: a Keep deep link survives signing in; the extension
 // connects through launchWebAuthFlow and the approval page with PKCE; the popup on the post offers its
 // feed, keeps the page with the text as the browser shows it, then shows it as kept (also on the
-// toolbar); PURSS labels that text "Saved from your browser"; "Add as a source" opens Add
+// toolbar); PURSS labels that text "Kept from your browser"; "Add as a source" opens Add
 // source filled in without looking anything up; Settings offers the bookmarklets, and running one opens
 // Add source; disconnecting stops the token. The right-click menu and the address-bar keyword can't be
 // driven by Playwright and are covered by unit tests (apps/extension/src/lib/background.test.ts).
@@ -18,9 +18,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
-import { app } from "@purss/copy/app";
-import { extension } from "@purss/copy/extension";
-import { server } from "@purss/copy/server";
+import { app } from "@purss/translations/app";
+import { extension } from "@purss/translations/extension";
+import { server } from "@purss/translations/server";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { setPreferences } from "../../apps/api/src/services/preferences.ts";
@@ -28,7 +28,7 @@ import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createBasket } from "../../apps/api/src/services/collections.ts";
 import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
-import { OFFICIAL_WORKSPACE_ORIGIN } from "../../packages/domain/src/distribution.ts";
+import { OFFICIAL_PURSS_ORIGIN } from "../../packages/domain/src/distribution.ts";
 
 declare const chrome: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- evaluated inside extension pages
 
@@ -55,7 +55,7 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // code and data: ids, the toolbar's check mark, the basket names and page titles the journey makes up.
 const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
@@ -65,12 +65,12 @@ const popupCopy = extension.popup;
 /** The name the extension suggests for this browser (the options page and the approval page start from it). */
 const DEVICE = extension.connect.deviceName("Chrome", "Linux");
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** The words of a catalog entry, to be found anywhere in what the popup shows. */
+/** The words of a catalogue entry, to be found anywhere in what the popup shows. */
 const words = (s: string) => new RegExp(escapeRe(s));
-/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+/** A pattern for a catalogue function's words, with its values (called with U+E000) left open. */
 const OPEN = "\uE000";
 const pattern = (s: string, open = ".+?") => new RegExp(escapeRe(s).replaceAll(OPEN, open));
-/** How the popup joins what happened into one line (the extension's own wording is in the catalog, the full stops are its). */
+/** How the popup joins what happened into one line (the extension's own wording is in the catalogue, the full stops are its). */
 const line = (...parts: string[]) => parts.join(". ").replace(/\.\./g, ".");
 
 let api: ChildProcess | null = null;
@@ -104,9 +104,8 @@ function prepare(): void {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    setPreferences(app, accountId, { welcomeAsked: true });
+        const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     createBasket(app, p, { name: "Read later", captureMode: "metadata" });
     createBasket(app, p, { name: "Papers", captureMode: "metadata" });
   } finally {
@@ -169,7 +168,7 @@ async function main(): Promise<void> {
     const sw: Worker = ctx.serviceWorkers()[0] ?? await ctx.waitForEvent("serviceworker");
     const extId = new URL(sw.url()).host;
     const discoverCalls: string[] = [];
-    ctx.on("request", (r) => { if (r.url().includes("/api/discover")) discoverCalls.push(r.url()); });
+    ctx.on("request", (r) => { if (r.url().includes("/api/link-lookup")) discoverCalls.push(r.url()); });
     const errors: string[] = [];
 
     // 1. A "Keep this page" deep link opened while signed out survives signing in.
@@ -192,7 +191,7 @@ async function main(): Promise<void> {
     options.on("pageerror", (e) => errors.push(`options: ${e.message}`));
     await options.goto(`chrome-extension://${extId}/options/options.html`);
     // The official server is preselected; another one is a small "Change server" away.
-    await options.locator("#server").getByText(extension.options.connect.server(new URL(OFFICIAL_WORKSPACE_ORIGIN).host)).waitFor();
+    await options.locator("#server").getByText(extension.options.connect.server(new URL(OFFICIAL_PURSS_ORIGIN).host)).waitFor();
     assert.ok(!(await options.locator("#address").isVisible()), "no address field until the person changes server");
     await options.locator("#change-server").click();
     await options.locator("#address").fill(origin.replace("http://", ""));
@@ -256,7 +255,7 @@ async function main(): Promise<void> {
     await item.getByText(server.api.items.browserCaptureNote, { exact: false }).waitFor();
     await item.locator(".prose").getByText("record of storms", { exact: false }).first().waitFor();
     assert.equal(await item.locator(".prose").getByText("Copyright").count(), 0, "only the readable part");
-    step("PURSS shows the kept text, labelled “Saved from your browser” with its date");
+    step("PURSS shows the kept text, labelled “Kept from your browser” with its date");
 
     // 6. "Add as a source" hands the feed to Add source, filled in, and nothing is looked up.
     await openPopup(post);

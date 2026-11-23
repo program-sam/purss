@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { newId } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -68,10 +68,10 @@ test("the user's time zone decides the date", (t) => {
   t.after(cleanup);
   // 23:30 UTC on Nov 3 is already Nov 4 in Auckland (UTC+13 in November).
   keptOn(app, p, basket, "2024-11-03T23:30:00.000Z", "Late keep");
-  setPreferences(app, p.workspaceId, { timezone: "Pacific/Auckland" });
+  setPreferences(app, p.accountId, { timezone: "Pacific/Auckland" });
   assert.equal(listReminders(app, p, new Date("2026-11-03T09:00:00.000Z")).length, 0, "still Nov 3 locally at 22:00 NZDT");
   assert.equal(listReminders(app, p, new Date("2026-11-04T09:00:00.000Z")).length, 1, "Nov 4 locally");
-  setPreferences(app, p.workspaceId, { timezone: "UTC" });
+  setPreferences(app, p.accountId, { timezone: "UTC" });
   assert.equal(listReminders(app, p, new Date("2026-11-03T12:00:00.000Z")).length, 1, "in UTC the keep date is Nov 3");
   assert.equal(listReminders(app, p, new Date("2026-11-04T09:00:00.000Z")).length, 0);
 });
@@ -80,7 +80,7 @@ test("an unknown time zone falls back to UTC instead of failing", (t) => {
   const { app, p, basket, cleanup } = setup();
   t.after(cleanup);
   keptOn(app, p, basket, "2024-11-03T10:00:00.000Z", "Fine");
-  app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ timezone: "Mars/Olympus" }), "x");
+  app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?)", p.accountId, JSON.stringify({ timezone: "Mars/Olympus" }), "x");
   assert.equal(listReminders(app, p, NOW).length, 1);
 });
 
@@ -143,10 +143,10 @@ test("switching anniversary reminders off returns nothing; Never still creates t
   const { app, p, basket, cleanup } = setup();
   t.after(cleanup);
   keptOn(app, p, basket, "2024-11-03T10:00:00.000Z", "Quiet");
-  setPreferences(app, p.workspaceId, { reminders: false });
+  setPreferences(app, p.accountId, { reminders: false });
   assert.deepEqual(listReminders(app, p, NOW), []);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reminders")!.n, 0);
-  setPreferences(app, p.workspaceId, { reminders: true, notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } });
+  setPreferences(app, p.accountId, { reminders: true, notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } });
   assert.equal(listReminders(app, p, NOW).length, 1);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'reminder'")!.n, 1);
 });
@@ -158,9 +158,9 @@ test("capture label reflects what was actually kept, and no network is involved"
   const id = app.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'With feed content'")!.id;
   keepItem(app, p, id, basket);
   app.db.run("UPDATE basket_items SET kept_at = '2024-11-03T10:00:00.000Z' WHERE item_id = ?", id);
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, shared.labelFeed);
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'done', ?)", newId("cap"), p.workspaceId, id, "2024-11-03T10:05:00.000Z");
-  assert.equal(remindersForToday(app, p.workspaceId, p.accountId, NOW)[0]!.captureLabel, shared.labelFulltext);
+  assert.equal(remindersForToday(app, p.accountId, NOW)[0]!.captureLabel, shared.labelFeed);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'done', ?)", newId("cap"), p.accountId, id, "2024-11-03T10:05:00.000Z");
+  assert.equal(remindersForToday(app, p.accountId, NOW)[0]!.captureLabel, shared.labelFulltext);
 });
 
 test("date arithmetic helper rolls over months and years", () => {

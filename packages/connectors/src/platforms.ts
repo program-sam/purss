@@ -5,7 +5,7 @@
  * next to it (a channel, blog or newsletter) and may still keep the link itself.
  */
 
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 type Platform = {
   name: string;

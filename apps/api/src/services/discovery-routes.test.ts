@@ -3,7 +3,7 @@ import test from "node:test";
 import { DISCOVERY_ENTRIES, DISCOVERY_ROUTES, isDiscoveryEntry, isDiscoveryRoute } from "@purss/domain";
 import type { DiscoveryEntry, DiscoveryRoute } from "@purss/domain";
 import { BRIDGE_SERVICES } from "@purss/connectors";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { App, Principal } from "../app.ts";
 import { callTool } from "../mcp/tools.ts";
 import { publicRouter } from "../routes/public.ts";
@@ -15,7 +15,7 @@ import { generateOpml } from "./opml.ts";
 import { streamExport } from "./portability.ts";
 import { KEEP_DAYS, discoveryRouteStats, recordFollowed, recordOffered } from "./discovery-routes.ts";
 import { adminHealth } from "./admin.ts";
-import { discoverSources, followSource, presentCandidates, unfollowSource } from "./sources.ts";
+import { lookupSources, followSource, presentCandidates, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 
 const follow = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
@@ -36,7 +36,7 @@ test("the routes and entries are closed lists of short, unique ids, and every br
   for (const id of [...DISCOVERY_ROUTES, ...DISCOVERY_ENTRIES]) assert.match(id, /^[a-z]+(?:[-:][a-z]+)*$/, id);
   assert.ok(isDiscoveryRoute("page-list") && !isDiscoveryRoute("made-up") && !isDiscoveryRoute(null));
   assert.ok(isDiscoveryEntry("opml-import") && !isDiscoveryEntry("reconnect"), "a reconnect lookup is no entry: it follows nothing");
-  assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort(), "the routes name the catalogue's services, no more and no fewer");
+  assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort(), "the routes name the bridge list's services, no more and no fewer");
 });
 
 test("what is shown is counted per route and entry, a reconnect lookup is not, and a count that can't be written never changes the answer", (t) => {
@@ -60,7 +60,7 @@ test("what is shown is counted per route and entry, a reconnect lookup is not, a
   app.db.exec("DROP TABLE discovery_routes");
   const again = presentCandidates(app, p, [draft("https://a.example/feed", "alternate-link")], { entry: "paste" });
   assert.equal(again.length, 1, "the person still gets the candidates");
-  assert.equal(warnings.length, 1, "and the operator is told");
+  assert.equal(warnings.length, 1, "and the administrator is told");
   assert.ok(!JSON.stringify(warnings).includes("a.example"), "without saying what was looked up");
 });
 
@@ -113,12 +113,12 @@ test("following stores the route and the entry on the source and counts it; foll
 test("a follow that is refused counts nothing, and sources made before the record or by an archive have no route", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   // A token held for another PURSS is no token of this one's: following it is refused.
   holdCandidate("dsc_elsewhere", "wsp_other", { ...draft("https://example.org/feed.xml", "alternate-link"), entry: "paste" });
   assert.throws(() => followSource(app, p, { ...follow, token: "dsc_elsewhere" }), { message: copy.api.shared.lookupExpired });
   assert.deepEqual(rows(app), []);
-  app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_old', ?, ?, 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')", p.accountId, p.workspaceId);
+  app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, health, created_at) VALUES ('src_old', ?, 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')", p.accountId);
   assert.deepEqual({ ...app.db.get("SELECT discovery_route, discovery_entry, unfollowed_at FROM sources WHERE id = 'src_old'")! }, { discovery_route: null, discovery_entry: null, unfollowed_at: null });
 });
 
@@ -135,8 +135,8 @@ test("the counts: per route and per entry, the sources followed in the window th
   counter(10, "extension", "wikidata", 2, 0);
   const source = (id: string, route: string | null, entry: string | null, startedDaysAgo: number, unfollowedAfterDays: number | null) => {
     const started = ago(startedDaysAgo);
-    app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, followed, created_at, discovery_route, discovery_entry, unfollowed_at) VALUES (?, ?, ?, 'feed', ?, 'RSS feed', 'ok', ?, ?, ?, ?, ?)",
-      id, p.accountId, p.workspaceId, id, unfollowedAfterDays === null ? 1 : 0, started.toISOString(), route, entry, unfollowedAfterDays === null ? null : new Date(started.getTime() + unfollowedAfterDays * DAY).toISOString());
+    app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, health, followed, created_at, discovery_route, discovery_entry, unfollowed_at) VALUES (?, ?, 'feed', ?, 'RSS feed', 'ok', ?, ?, ?, ?, ?)",
+      id, p.accountId, id, unfollowedAfterDays === null ? 1 : 0, started.toISOString(), route, entry, unfollowedAfterDays === null ? null : new Date(started.getTime() + unfollowedAfterDays * DAY).toISOString());
   };
   source("a-new", "alternate-link", "paste", 3, null); // too young to say anything about a month
   source("a-kept", "alternate-link", "paste", 60, null); // old and still followed
@@ -175,7 +175,7 @@ test("the administrator's health holds the counts, and nothing in the counters n
   const health = await adminHealth(app);
   assert.deepEqual(health.discoveryRoutes.routes, [{ id: "alternate-link", offered: 1, followed: 1, following: 1, aged: 0, agedStill: 0 }]);
   const stored = JSON.stringify(app.db.all("SELECT * FROM discovery_routes"));
-  for (const secret of ["secret-name", "sekrit", "Private Title", admin.accountId, admin.workspaceId]) assert.ok(!stored.includes(secret), `the counters don't hold ${secret}`);
+  for (const secret of ["secret-name", "sekrit", "Private Title", admin.accountId, admin.accountId]) assert.ok(!stored.includes(secret), `the counters don't hold ${secret}`);
   assert.deepEqual(app.db.all<{ name: string }>("SELECT name FROM pragma_table_info('discovery_routes') ORDER BY cid").map((c) => c.name), ["day", "entry", "route", "offered", "followed"]);
   assert.equal(app.db.all("SELECT 1 FROM pragma_foreign_key_list('discovery_routes')").length, 0, "no link to an account");
   assert.ok(!JSON.stringify(health.discoveryRoutes).includes(admin.accountId));
@@ -186,7 +186,7 @@ test("the lookup's answer to the browser and to an assistant carries neither the
   t.after(cleanup);
   const p = makeOwner(app);
   const news = `${app.config.publicOrigin}/news`;
-  const found = await discoverSources(app, p, news, "assistant");
+  const found = await lookupSources(app, p, news, "assistant");
   assert.ok(found.ok);
   for (const c of found.candidates) {
     assert.deepEqual(Object.keys(c).filter((k) => /route|entry/i.test(k)), [], "no route or entry among the candidate's fields");
@@ -207,7 +207,7 @@ test("a lookup from the browser says how the person got there; the extension's t
   t.after(async () => { await srv.close(); cleanup(); });
   const s = signIn(app, owner.accountId);
   const news = `${app.config.publicOrigin}/news`;
-  const ask = (entry?: string) => call(app, srv.base, "POST", "/api/discover", s, { url: news, ...(entry === undefined ? {} : { entry }) }, { headers: { "x-forwarded-for": "198.51.100.7" } });
+  const ask = (entry?: string) => call(app, srv.base, "POST", "/api/link-lookup", s, { url: news, ...(entry === undefined ? {} : { entry }) }, { headers: { "x-forwarded-for": "198.51.100.7" } });
   const counted = () => rows(app).map((r) => `${r.entry}:${r.offered}`);
 
   assert.equal((await ask()).status, 200);
@@ -222,7 +222,7 @@ test("a lookup from the browser says how the person got there; the extension's t
   for (const refused of ["opml-import", "extension", "assistant", "Paste", ""]) assert.equal((await ask(refused)).status, 400, `${refused || "empty"}: the browser cannot name an entry the server decides`);
 
   const token = createDeviceToken(app, owner.accountId, "extension", "Firefox").secret;
-  const viaExtension = await fetch(`${srv.base}/api/discover`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: "moz-extension://abc-123", "content-type": "application/json", "x-forwarded-for": "198.51.100.8" }, body: JSON.stringify({ url: news, entry: "site-search" }) });
+  const viaExtension = await fetch(`${srv.base}/api/link-lookup`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: "moz-extension://abc-123", "content-type": "application/json", "x-forwarded-for": "198.51.100.8" }, body: JSON.stringify({ url: news, entry: "site-search" }) });
   assert.equal(viaExtension.status, 200);
   assert.ok(!/route|entry/.test(await viaExtension.text()));
   assert.ok(counted().includes("extension:1") && counted().includes("site-search:1"), counted().join(" "));

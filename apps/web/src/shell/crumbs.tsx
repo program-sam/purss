@@ -1,8 +1,8 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useBreakpoint } from "@purss/ui";
 import { statsPlaceOf, useNav } from "../nav.ts";
 import { TO_READ_TITLE } from "../lib/constants.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { pageFor } from "../plugins.ts";
 import { useCurrentPlace, usePathname } from "./place.ts";
 
@@ -11,7 +11,7 @@ export type Crumb = { label: string; to?: () => void };
 
 /** Where the current page sits: its ancestors, then the page itself. */
 export function useCrumbs(): Crumb[] {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const place = useCurrentPlace();
   const pathname = usePathname();

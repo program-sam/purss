@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { App, Principal } from "../app.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import type { Library, TestSession } from "../features-testing.ts";
@@ -24,12 +24,12 @@ function setup(env: Record<string, string> = {}) {
   const { app, cleanup } = makeTestApp(env);
   const p: Owner = makeOwner(app);
   const lib = seedLibrary(app, p);
-  setPreferences(app, p.workspaceId, { timezone: "UTC" });
+  setPreferences(app, p.accountId, { timezone: "UTC" });
   return { app, p, lib, cleanup };
 }
 const kept = (lib: Library) => lib.keptIds[0]!;
 const notes = (app: App, p: Principal) => app.db.all<{ kind: string; title: string; body: string | null; item_id: string | null }>(
-  "SELECT kind, title, body, item_id FROM notifications WHERE workspace_id = ? AND kind = 'reminder' ORDER BY created_at, rowid", p.workspaceId);
+  "SELECT kind, title, body, item_id FROM notifications WHERE account_id = ? AND kind = 'reminder' ORDER BY created_at, rowid", p.accountId);
 
 test("a kept item gets one reminder: a day and a note, changed or removed later", (t) => {
   const { app, p, lib, cleanup } = setup();
@@ -67,12 +67,12 @@ test("the day is the person's own: today is decided by their time zone", (t) => 
   const { app, p, lib, cleanup } = setup();
   t.after(cleanup);
   const lateEvening = new Date("2026-11-10T23:30:00.000Z"); // already the 11th in Auckland, still the 10th in UTC
-  setPreferences(app, p.workspaceId, { timezone: "Pacific/Auckland" });
+  setPreferences(app, p.accountId, { timezone: "Pacific/Auckland" });
   assert.throws(() => setItemReminder(app, p, kept(lib), { remindOn: "2026-11-10", note: null }, lateEvening), (e: unknown) => e instanceof HttpError && e.code === "past_date");
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-11", note: null }, lateEvening);
   assert.equal(comingUp(app, p, lateEvening).today, "2026-11-11");
   assert.deepEqual(comingUp(app, p, lateEvening).reminders.map((r) => r.remindOn), ["2026-11-11"]);
-  setPreferences(app, p.workspaceId, { timezone: "UTC" });
+  setPreferences(app, p.accountId, { timezone: "UTC" });
   assert.equal(comingUp(app, p, lateEvening).today, "2026-11-10");
 });
 
@@ -98,21 +98,21 @@ test("on the day the bell says so once, however often the check runs; a new day 
   const { app, p, lib, cleanup } = setup();
   t.after(cleanup);
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-12", note: "Call the gallery" }, NOW);
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-11T23:59:00.000Z")), 0, "not before its day");
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T00:05:00.000Z")), 1);
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T00:10:00.000Z")), 0, "not twice");
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T18:00:00.000Z")), 0);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-11T23:59:00.000Z")), 0, "not before its day");
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-12T00:05:00.000Z")), 1);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-12T00:10:00.000Z")), 0, "not twice");
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-12T18:00:00.000Z")), 0);
   const list = notes(app, p);
   assert.equal(list.length, 1);
   assert.equal(list[0]!.kind, "reminder");
   assert.equal(list[0]!.item_id, kept(lib), "it opens the item");
   // Moving the day to another one tells again on that day.
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-13", note: null }, new Date("2026-11-12T10:00:00.000Z"));
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T08:00:00.000Z")), 1);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-13T08:00:00.000Z")), 1);
   assert.equal(notes(app, p).length, 2);
   // The same day with a different note is not a new reminder.
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-13", note: "different" }, new Date("2026-11-13T09:00:00.000Z"));
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T10:00:00.000Z")), 0);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-13T10:00:00.000Z")), 0);
 });
 
 test("titles and notes stay out of the bell unless titles are on, and never for a private source", (t) => {
@@ -120,22 +120,22 @@ test("titles and notes stay out of the bell unless titles are on, and never for 
   t.after(cleanup);
   const day = new Date("2026-11-12T08:00:00.000Z");
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-12", note: "Secret errand" }, NOW);
-  runItemReminders(app, p.workspaceId, p.accountId, day);
+  runItemReminders(app, p.accountId, day);
   assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]), [[copy.api.shared.reminderSubjectOne, null]]);
   // With titles on: the title and the note.
-  setPreferences(app, p.workspaceId, { notifications: { previews: true } });
+  setPreferences(app, p.accountId, { notifications: { previews: true } });
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-13", note: "Secret errand" }, day);
-  runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T08:00:00.000Z"));
+  runItemReminders(app, p.accountId, new Date("2026-11-13T08:00:00.000Z"));
   assert.deepEqual(notes(app, p).map((n) => [n.title, n.body]).at(-1), [copy.api.itemReminders.reminderTitle("Tidal flats (corrected)"), "Secret errand"]);
   // A private source's item says nothing about itself even then.
   setItemReminder(app, p, lib.privateItemId, { remindOn: "2026-11-14", note: "Private errand" }, new Date("2026-11-13T09:00:00.000Z"));
-  runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-14T08:00:00.000Z"));
+  runItemReminders(app, p.accountId, new Date("2026-11-14T08:00:00.000Z"));
   const last = notes(app, p).at(-1)!;
   assert.deepEqual([last.title, last.body], [copy.api.shared.reminderSubjectOne, null]);
   // Several on one day become one line with a count.
   setItemReminder(app, p, lib.keptIds[0]!, { remindOn: "2026-11-15", note: null }, new Date("2026-11-14T09:00:00.000Z"));
   setItemReminder(app, p, lib.keptIds[1]!, { remindOn: "2026-11-15", note: null }, new Date("2026-11-14T09:00:00.000Z"));
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-15T08:00:00.000Z")), 2);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-15T08:00:00.000Z")), 2);
   const group = notes(app, p).at(-1)!;
   assert.deepEqual([group.title, group.body, group.item_id], [copy.api.shared.reminderSubjectMany(2), null, null]);
 });
@@ -146,15 +146,15 @@ test("Never still tells about due reminders; Reminders off does not tell later",
   const [a, b] = lib.keptIds as [string, string, string];
   setItemReminder(app, p, a, { remindOn: "2026-11-12", note: null }, NOW);
   setItemReminder(app, p, b, { remindOn: "2026-11-12", note: null }, NOW);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T08:00:00.000Z")), 2);
+  setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-12T08:00:00.000Z")), 2);
   assert.equal(notes(app, p).length, 1, "the due reminders are grouped into one notice while digests are off");
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-12T09:00:00.000Z")), 0, "switching them back on does not tell about a day that has gone");
+  setPreferences(app, p.accountId, { notifications: { frequency: "daily" } });
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-12T09:00:00.000Z")), 0, "switching them back on does not tell about a day that has gone");
   assert.equal(notes(app, p).length, 1);
-  setPreferences(app, p.workspaceId, { notifications: { include: { reminders: false } } });
+  setPreferences(app, p.accountId, { notifications: { include: { reminders: false } } });
   setItemReminder(app, p, a, { remindOn: "2026-11-13", note: null }, new Date("2026-11-12T10:00:00.000Z"));
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-13T08:00:00.000Z")), 0);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-13T08:00:00.000Z")), 0);
   assert.equal(notes(app, p).length, 1);
 });
 
@@ -166,11 +166,11 @@ test("a day missed by more than three days (the server was off) is not announced
   setItemReminder(app, p, b, { remindOn: "2026-11-12", note: null }, NOW);
   const basket = app.db.get<{ basket_id: string }>("SELECT basket_id FROM basket_items WHERE item_id = ?", b)!.basket_id;
   unkeepItem(app, p, b, basket);
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-20T08:00:00.000Z")), 0);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-20T08:00:00.000Z")), 0);
   assert.equal(notes(app, p).length, 0);
   // Three days late still counts.
   setItemReminder(app, p, a, { remindOn: "2026-11-21", note: null }, new Date("2026-11-20T09:00:00.000Z"));
-  assert.equal(runItemReminders(app, p.workspaceId, p.accountId, new Date("2026-11-24T08:00:00.000Z")), 1);
+  assert.equal(runItemReminders(app, p.accountId, new Date("2026-11-24T08:00:00.000Z")), 1);
 });
 
 test("the returning pass tells about reminders and prunes old ones", (t) => {
@@ -179,8 +179,8 @@ test("the returning pass tells about reminders and prunes old ones", (t) => {
   setItemReminder(app, p, kept(lib), { remindOn: "2026-11-10", note: null }, NOW);
   runReturningPass(app, NOW, { force: true });
   assert.equal(notes(app, p).length, 1);
-  assert.equal(pruneItemReminders(app, p.workspaceId, new Date("2026-12-09T00:00:00.000Z")), 0, "30 days later is not yet");
-  assert.equal(pruneItemReminders(app, p.workspaceId, new Date("2026-12-11T00:00:00.000Z")), 1);
+  assert.equal(pruneItemReminders(app, p.accountId, new Date("2026-12-09T00:00:00.000Z")), 0, "30 days later is not yet");
+  assert.equal(pruneItemReminders(app, p.accountId, new Date("2026-12-11T00:00:00.000Z")), 1);
 });
 
 test("a reminder goes with its item", (t) => {
@@ -202,21 +202,21 @@ test("email: only when allowed, with outgoing email set up and a confirmed addre
   // Not allowed: the bell only.
   app.db.run("UPDATE accounts SET email = 'me@example.org', email_verified_at = ? WHERE id = ?", nowIso(), p.accountId);
   remind(kept(lib), 12, 10);
-  runItemReminders(app, p.workspaceId, p.accountId, day(12));
+  runItemReminders(app, p.accountId, day(12));
   await settleMail(app);
   assert.equal(sent.length, 0, "reminders by email are off until the person allows them");
   // Allowed, but the address isn't confirmed.
-  setPreferences(app, p.workspaceId, { notifications: { emailReminders: true } });
+  setPreferences(app, p.accountId, { notifications: { emailReminders: true } });
   app.db.run("UPDATE accounts SET email_verified_at = NULL WHERE id = ?", p.accountId);
   remind(kept(lib), 13, 12);
-  runItemReminders(app, p.workspaceId, p.accountId, day(13));
+  runItemReminders(app, p.accountId, day(13));
   await settleMail(app);
   assert.equal(sent.length, 0, "an unconfirmed address gets nothing");
   // Allowed and confirmed: one message, links alone, no title while titles are off.
   app.db.run("UPDATE accounts SET email_verified_at = ? WHERE id = ?", nowIso(), p.accountId);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
+  setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
   remind(kept(lib), 14, 13);
-  runItemReminders(app, p.workspaceId, p.accountId, day(14));
+  runItemReminders(app, p.accountId, day(14));
   await settleMail(app);
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.to, "me@example.org");
@@ -226,15 +226,15 @@ test("email: only when allowed, with outgoing email set up and a confirmed addre
   const number = app.db.get<{ number: number }>("SELECT number FROM items WHERE id = ?", kept(lib))!.number;
   assert.equal(link, `https://ws.example.org/app/i/${number}`, "the link is a line of its own: the item's short link");
   // Titles on: title and note appear, still when digest frequency remains off.
-  setPreferences(app, p.workspaceId, { notifications: { previews: true } });
+  setPreferences(app, p.accountId, { notifications: { previews: true } });
   remind(kept(lib), 15, 14);
-  runItemReminders(app, p.workspaceId, p.accountId, day(15));
+  runItemReminders(app, p.accountId, day(15));
   await settleMail(app);
   assert.equal(sent.length, 2);
   assert.match(sent[1]!.text, /Tidal flats \(corrected\): Ask about the loan/);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE kind = 'reminder'")!.n, 2);
   // Running the check again sends nothing more.
-  runItemReminders(app, p.workspaceId, p.accountId, day(15));
+  runItemReminders(app, p.accountId, day(15));
   await settleMail(app);
   assert.equal(sent.length, 2);
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import type { Embed } from "../lib/embeds.ts";
 import { Art, type Face } from "./item-bits.tsx";

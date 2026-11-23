@@ -6,20 +6,20 @@ import type { App } from "../app.ts";
  *
  * The source list, the collection list and the totals of item lists all need these numbers, and computing each from the
  * item rows costs a probe per item. Here the cost follows what is rare: most items are in the default cell (workflow
- * "new", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
+ * "undecided", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
  * other nine are found through a partial index on `item_state` that holds only those rows: a few New items, the items a person
- * has moved to To read, In progress, Finished or Ignored, and the back catalogue of sources followed from now, which arrives Ignored
+ * has moved to To read, In progress, Finished or Ignored, and the backlog of sources followed from now, which arrives Ignored
  * (in a PURSS that has just followed many sources that is most of the items). `item_state.source_id` is there for that: the counts never
- * join to `items` for the source of a state row (migration 070).
+ * join to `items` for the source of a state row.
  */
 
-const STATES: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished", "ignored"];
-const cellOf = (workflow: string, fresh: number): number => STATES.indexOf(workflow as WorkflowState) * 2 + fresh;
+const STATES: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
+const cellOf = (workflow: string, isNew: number): number => STATES.indexOf(workflow as WorkflowState) * 2 + isNew;
 
-export type CellFilter = (workflow: WorkflowState, fresh: boolean) => boolean;
+export type CellFilter = (workflow: WorkflowState, isNew: boolean) => boolean;
 
 export class ItemCounts {
-  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, fresh)`. Every item the source holds. */
+  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, isNew)`. Every item the source holds. */
   readonly bySource: Map<string | null, number[]>;
 
   constructor(bySource: Map<string | null, number[]>) {
@@ -43,8 +43,8 @@ export class ItemCounts {
   }
 
   /** Items with the New marker, whatever their workflow state. */
-  fresh(source: string): number {
-    return this.sum([source], (_w, fresh) => fresh);
+  isNew(source: string): number {
+    return this.sum([source], (_w, isNew) => isNew);
   }
 }
 
@@ -66,18 +66,18 @@ export function dbStamp(app: App): string {
  * bootstrap) reuses the first. Nothing is kept from inside a transaction: its rows may still be rolled back, and a
  * rollback does not move the stamp.
  */
-export function itemCounts(app: App, workspaceId: string): ItemCounts {
+export function itemCounts(app: App, accountId: string): ItemCounts {
   const stamp = dbStamp(app);
-  let byWorkspace = remembered.get(app);
-  if (!byWorkspace) remembered.set(app, (byWorkspace = new Map()));
-  const hit = byWorkspace.get(workspaceId);
+  let byAccount = remembered.get(app);
+  if (!byAccount) remembered.set(app, (byAccount = new Map()));
+  const hit = byAccount.get(accountId);
   if (hit && hit.stamp === stamp) return hit.value;
-  const value = computeCounts(app, workspaceId);
-  if (!app.db.raw.isTransaction) byWorkspace.set(workspaceId, { stamp, value });
+  const value = computeCounts(app, accountId);
+  if (!app.db.raw.isTransaction) byAccount.set(accountId, { stamp, value });
   return value;
 }
 
-function computeCounts(app: App, workspaceId: string): ItemCounts {
+function computeCounts(app: App, accountId: string): ItemCounts {
   const bySource = new Map<string | null, number[]>();
   const cells = (source: string | null) => {
     let c = bySource.get(source);
@@ -85,18 +85,18 @@ function computeCounts(app: App, workspaceId: string): ItemCounts {
     return c;
   };
   // Each source's items, from an index alone.
-  for (const r of app.db.all<{ source_id: string | null; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE workspace_id = ? GROUP BY source_id", workspaceId)) {
-    cells(r.source_id)[cellOf("new", 0)] = r.n;
+  for (const r of app.db.all<{ source_id: string | null; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE account_id = ? GROUP BY source_id", accountId)) {
+    cells(r.source_id)[cellOf("undecided", 0)] = r.n;
   }
-  // The other cells: the items a person has acted on, the New ones and the Ignored ones (the back catalogue of a source followed from now
+  // The other cells: the items a person has acted on, the New ones and the Ignored ones (the backlog of a source followed from now
   // arrives so). The partial index holds exactly those rows and each one's source, so they are counted from it alone, however many there are.
-  for (const r of app.db.all<{ source_id: string | null; workflow: string; fresh: number; n: number }>(
+  for (const r of app.db.all<{ source_id: string | null; workflow: string; is_new: number; n: number }>(
     // The condition is the partial index's own, which lets the planner use it.
-    `SELECT source_id, workflow, fresh, COUNT(*) AS n FROM item_state
-     WHERE workspace_id = ? AND NOT (workflow = 'new' AND fresh = 0) GROUP BY source_id, workflow, fresh`, workspaceId)) {
+    `SELECT source_id, workflow, is_new, COUNT(*) AS n FROM item_state
+     WHERE account_id = ? AND NOT (workflow = 'undecided' AND is_new = 0) GROUP BY source_id, workflow, is_new`, accountId)) {
     const c = cells(r.source_id);
-    c[cellOf(r.workflow, r.fresh)] = r.n;
-    c[cellOf("new", 0)]! -= r.n;
+    c[cellOf(r.workflow, r.is_new)] = r.n;
+    c[cellOf("undecided", 0)]! -= r.n;
   }
   return new ItemCounts(bySource);
 }

@@ -4,7 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { deviceMayUse, isClientOrigin } from "./clients.ts";
 import { DEVICE_TOKEN_PREFIX, resolveDeviceToken } from "./devices.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * How a request to /api/* is authenticated. Decided before cookies are read:

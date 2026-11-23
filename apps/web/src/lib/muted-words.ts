@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { MutedWord } from "@purss/domain";
 
 /** How long a muted word mutes: a week, a month, or until it is removed. */

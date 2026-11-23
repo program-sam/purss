@@ -9,10 +9,10 @@ import { composeBridge } from "./bridge-config.ts";
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const env = new Map(composeBridge(repo).env);
 
-test("the bridges Compose enables are the RSS-Bridge bridges the catalogue uses, no more and no fewer", () => {
-  const catalogued = BRIDGE_SERVICES.flatMap((s) => (needsRssBridge(s) && s.backend.kind === "rss-bridge" ? [s.backend.bridge] : []));
-  assert.ok(catalogued.length > 0);
-  assert.deepEqual([...new Set(catalogued)].sort(), (env.get("RSSBRIDGE_system_enabled_bridges") ?? "").split(",").sort());
+test("the bridges Compose enables are the RSS-Bridge bridges the bridge list uses, no more and no fewer", () => {
+  const listed = BRIDGE_SERVICES.flatMap((s) => (needsRssBridge(s) && s.backend.kind === "rss-bridge" ? [s.backend.bridge] : []));
+  assert.ok(listed.length > 0);
+  assert.deepEqual([...new Set(listed)].sort(), (env.get("RSSBRIDGE_system_enabled_bridges") ?? "").split(",").sort());
 });
 
 test("RSS-Bridge follows redirects only through the egress proxy, which checks every hop it makes", () => {

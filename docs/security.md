@@ -2,20 +2,20 @@
 
 How PURSS protects accounts, content and the network around it, as the code does today, and what
 the people who run it can see. [Self-hosting](self-hosting.md#security-notes) lists the settings an
-operator chooses and the deployment notes; [Architecture](architecture.md) describes the
+administrator chooses and the deployment notes; [Architecture](architecture.md) describes the
 components; the [user guide](user-guide.md) describes the same controls from the person's side. This
 page describes controls. It is not an independent security review.
 
 PURSS is not end-to-end encrypted. The server reads the text it stores, and so does anyone who
 controls the machine it runs on. The controls below limit what people, apps and assistants can do
-through PURSS; none of them limits someone with access to the host ([What the operator
-can see](#what-the-operator-can-see)).
+through PURSS; none of them limits someone with access to the host ([What the administrator
+can see](#what-the-administrator-can-see)).
 
 To report a vulnerability, see [Reporting a vulnerability](#reporting-a-vulnerability).
 
 ## Threat model
 
-**Assets.** Each account's library (items, saved text, notes, highlights, baskets), the credentials
+**Assets.** Each account's PURSS (items, readable copies, notes, highlights, baskets), the credentials
 that reach it, the installation's secrets, and the server's position on the network.
 
 **Untrusted input.** Everything that arrives from outside: pasted addresses, feeds and the pages they
@@ -31,7 +31,7 @@ the text of publishers that an assistant or a Smart filter reads.
 - Someone who steals a session cookie, a device token, an assistant token or a backup.
 - Someone who sees a private feed link, a sign-in link or a one-time code.
 - A publisher whose text reaches an assistant or a Smart filter.
-- A hostile server that a phone or desktop app is connected to.
+- A hostile installation that the mobile or desktop app is connected to.
 
 **Not defended against.** Someone who controls the host; malware on a person's own device; and,
 beyond the isolation described below, a compromised FreshRSS, which holds the subscriptions and
@@ -41,13 +41,13 @@ entries of every account.
 
 | Component | Holds | Boundary |
 | --- | --- | --- |
-| Browser, phone and desktop apps, extension | A session cookie or a device token | Untrusted. Every request is authenticated and scoped to the account's workspace by the API |
+| Browser, mobile and desktop apps, extension | A session cookie or a device token | Untrusted. Every request is authenticated and scoped to the account by the API |
 | API (`apps/api`) | The product database (its only writer) and the secrets folder | A public listener for people, apps and assistants, and an internal listener that accepts only the service token and serves only the worker's routes |
 | Worker (`apps/worker`) | The secrets folder, read and write | Leases jobs from the internal listener and never opens the database. It fetches and parses untrusted pages for readable text, so it is not a sandbox |
 | Egress (`apps/egress`) | The service token, the bridge key and the feed-trim key | Forward proxy that is the only way out for FreshRSS and RSS-Bridge; feed gateway and bridge router that answer only signed addresses; a control listener that accepts only the service token |
-| FreshRSS | Every account's subscriptions and entries, the operator account's credentials and the admin helper's token | Parses hostile feeds in PHP. Internal network only, no published port, no route out except egress, administered only through a fixed helper |
-| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the catalogued bridges enabled. Its XPathBridge runs only the recipes the router passes it ([Page lists](sources.md#page-lists)) |
-| Push relay (`apps/push-relay`) | The project's FCM and APNs credentials and each phone's push address | Run by the project, apart from any PURSS. Wakes a phone by handle and carries no content |
+| FreshRSS | Every account's subscriptions and entries, the engine administrator's credentials and the admin helper's token | Parses hostile feeds in PHP. Internal network only, no published port, no route out except egress, administered only through a fixed helper |
+| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the listed bridges enabled. Its XPathBridge runs only the recipes the router passes it ([Page lists](sources.md#page-lists)) |
+| Push relay (`apps/push-relay`) | The project's FCM and APNs credentials and each phone's push address | Run by the project, apart from any installation. Wakes a phone by handle and carries no content |
 
 Under Compose the containers sit on four networks. All but `outside` have no route to the internet.
 
@@ -67,18 +67,18 @@ with arguments restricted to a safe character set. [`infra/README.md`](../infra/
 [engine operation](../infra/engine/README.md) have the packaging; a local run without Compose
 confines FreshRSS less ([self-hosting](self-hosting.md#security-notes)).
 
-Tenancy is one workspace per account, each with its own FreshRSS user. Product queries start from the
-principal resolved from the session or token and enforce its ownership (`account_id` or
-`workspace_id`, directly or through an owned parent row). Tests cover the boundary feature by feature
+Each account's data is its own, and each account has its own FreshRSS user. Product queries start from the
+principal resolved from the session or token and enforce its ownership (`account_id`,
+directly or through an owned parent row). Tests cover the boundary feature by feature
 (listing, reading, keeping, annotations, sync and imports). FreshRSS
-shares its fetch cache across its users, keyed by feed address, so accounts that follow one public
+shares its fetch cache across its engine users, keyed by feed address, so accounts that follow one public
 feed cost one request per refresh while each stores its own entries.
 
 ## Fetching addresses on behalf of people
 
 Every request the server makes to an address that a person, a feed or a page supplied goes through one
 fetcher (`safeFetch`, `packages/connectors/src/safe-fetch.ts`), or, for FreshRSS and RSS-Bridge,
-through the egress proxy. That covers discovery and previews, readable-text capture, link metadata,
+through the egress proxy. That covers link lookup and previews, readable-text capture, link metadata,
 source icons, kept pictures, frame checks, assistants' client documents, the push relay wake, and the
 Wikidata, Crossref, podcast-directory and Bluesky lookups.
 
@@ -106,7 +106,7 @@ redirect hop (which reaches it as a separate request), pins the outgoing connect
 address again. By default it allows 256 connections, 60 seconds and 32 MiB per response, and 120
 seconds and 64 MiB per tunnel. It binds only loopback or a private address, and logs a redacted path (no user
 information, query string, fragment or token-like path piece). The only exceptions are exact
-host-and-port pairs the operator lists, which map to a fixed address and can't be tunnelled, and which the
+host-and-port pairs the administrator lists, which map to a fixed address and can't be tunnelled, and which the
 proxy on RSS-Bridge's network doesn't have (RSS-Bridge follows redirects and checks only its first address, so a
 redirect to the feed gateway's or the bridge router's alias is refused there like one to any private address). The feed
 gateway and the bridge router answer only addresses signed with a key (`feed-trim-key`, `bridge-key`)
@@ -120,10 +120,10 @@ or internal host, none that looks to carry a key), and expressions inside a fixe
 union or one `concat`; no `document()`, variable, extension function or regular expression). It is given no cookie, header, content or other XPathBridge parameter. It
 fetches the page once per check through the egress proxy, which resolves and checks every hop, and RSS-Bridge's own refusal of a private or reserved first
 address stays on. The key is made only by the detector, and a descriptor pasted from an archive is read the same way, so a hand-made one can only select text and links
-from a public page. XPathBridge's answer is parsed by the router as an untrusted feed, like any other. No script of the page runs, in discovery or in the bridge.
+from a public page. XPathBridge's answer is parsed by the router as an untrusted feed, like any other. No script of the page runs, in link lookup or in the bridge.
 
-Addresses the operator fixes (the SMTP server, OIDC issuers, the Jev address, the billing service)
-are not user input and are not subject to these rules. The push relay's address is one of them but is
+Addresses the administrator fixes (the SMTP server, OIDC issuers, the Jev address, the billing service)
+are not supplied by people and are not subject to these rules. The push relay's address is one of them but is
 still reached through the fetcher, so it can't be a local or private address. Jev requests refuse
 redirects.
 
@@ -136,7 +136,7 @@ that only warns; the per-source private flag, set when the source is followed, d
 ## Accounts and sign-in
 
 Sign-in is an email address and password for every account except one made by signing in with a
-provider. A passkey and linked providers are optional extra ways in. There are no user names. Each
+sign-in provider. A passkey and linked sign-in providers are optional extra ways in. There are no separate login names. Each
 address belongs to one account, compared without regard to case, and the account's internal id stays
 the key, so the address can change. Email never links accounts or grants a role.
 
@@ -145,20 +145,20 @@ the key, so the address can change. Email never links accounts or grants a role.
   The password can be changed or reset but never removed.
 - **Passkeys.** WebAuthn discoverable credentials, attestation not requested, user verification
   preferred. The relying party is the host name of `PURSS_PUBLIC_ORIGIN`: changing that host makes
-  passkeys unusable until they are added again, and the password keeps working. The phone apps use
-  the PURSS's passkeys only where the operator vouches for them (`PURSS_APP_ANDROID_CERT_SHA256`,
+  passkeys unusable until they are added again, and the password keeps working. The mobile app uses
+  the installation's passkeys only where the administrator vouches for it (`PURSS_APP_ANDROID_CERT_SHA256`,
   `PURSS_APP_IOS_APP_ID`), through `/.well-known/assetlinks.json` and
   `apple-app-site-association`.
-- **Providers (OpenID Connect).** Authorization code with PKCE (S256), `state` and `nonce`. A random
+- **Sign-in providers (OpenID Connect).** Authorization code with PKCE (S256), `state` and `nonce`. A random
   value is also kept in an HttpOnly cookie in the starting browser, and the callback must present it,
   so a callback address replayed in another browser fails. Identities bind by validated issuer and
-  subject, never by email. Provider tokens are not stored: only the issuer, subject and label are.
+  subject, never by email. Sign-in provider tokens are not stored: only the issuer, subject and label are.
   Linking is an action of a signed-in account with a recent sign-in. Where open sign-up is on, an
-  unlinked identity makes an account only if the provider says `email_verified` and no account has
-  that address; otherwise nothing is made or linked. A provider-created account has no password and
+  unlinked identity makes an account only if the sign-in provider says `email_verified` and no account has
+  that address; otherwise nothing is made or linked. An account a sign-in provider created has no password and
   no administrator role.
-- **Last way in.** A passkey can be removed only while a password or a configured provider remains; a
-  provider only while a password remains. A stored sign-in for a provider no longer in `PURSS_OIDC`
+- **Last way in.** A passkey can be removed only while a password or a configured sign-in provider remains; a
+  sign-in provider only while a password remains. A stored sign-in for a sign-in provider no longer in `PURSS_OIDC`
   counts as nothing.
 
 **Guessing.** Password sign-in allows 10 attempts per 10 minutes per network address and 10 tries per
@@ -191,17 +191,17 @@ a signed-in person changing their own address to one another account uses, and a
 inviting an address that has an account.
 
 **Confirm it's you.** Sensitive actions need a sign-in within the last 10 minutes. The password, a
-passkey or a linked provider confirms it; a phone app's connection has its own clock. These need it:
-adding a passkey; removing a sign-in method; linking a provider; adding a first password to a
-provider-only account; changing the account's address; deleting the account; connecting an app or an
+passkey or a linked sign-in provider confirms it; the mobile app's connection has its own clock. These need it:
+adding a passkey; removing a sign-in method; linking a sign-in provider; adding a first password to an account that
+has only a sign-in provider; changing the account's address; deleting the account; connecting an app or an
 assistant; creating an assistant token; and the administrator actions that change accounts, access
 or what reaches every account (invitations, account changes, the administrator role, the Smart
 filter key, the assistant switch, takedowns, publishing news). Changing a password takes the current
 password however recent the sign-in. Password guesses here are limited to 10 per 10 minutes per
 session and 50 an hour per account.
 
-Providers confirm in one of two modes, set per provider in `PURSS_OIDC` (`stepUp`). `reauthenticate`
-(the default) forces the provider to ask again (`prompt=login`, `max_age=0`) and refuses an ID token
+Sign-in providers confirm in one of two modes, set per sign-in provider in `PURSS_OIDC` (`stepUp`). `reauthenticate`
+(the default) forces the sign-in provider to ask again (`prompt=login`, `max_age=0`) and refuses an ID token
 without a fresh `auth_time`. `choose-account` (the default for Google, which can't be made to ask
 again) only shows the account chooser, which proves less than a password does, so it confirms an
 account only when that account has no password and no passkey.
@@ -211,18 +211,18 @@ account only when that account has no password and no passkey.
 - *By email*, where the installation sends email: a single-use link, valid for an hour, sent to the
   account's confirmed address. It works for accounts with a password and not for administrators. At
   most 10 requests an hour per network address, 5 per email address and 3 links per account.
-- *From the operator*, for installations without email, accounts without a confirmed address and
+- *From the administrator*, for installations without email, accounts without a confirmed address and
   administrators: `node apps/api/src/cli.ts password-reset-link <account>` prints a single-use link,
   valid for 60 minutes and tied to no address, and records a host-level audit event. It refuses an
   account without a password or one whose removal has started.
 
 Choosing a password through either link signs the account out everywhere (browser sessions, connected
 apps, assistant tokens and OAuth grants, pending codes and unused email links) and tells the confirmed
-address. An account made by a provider has no password to reset: its recovery is a password it added
+address. An account made by a sign-in provider has no password to reset: its recovery is a password it added
 beforehand. Changing the password in Settings ends the same, except the browser session or connected app
 the change is made from.
 
-**Deleting an account.** The owner confirms with a recent sign-in. The account is signed out
+**Deleting an account.** The person confirms with a recent sign-in. The account is signed out
 everywhere, its public pages stop, and signing in during the following 7 days offers to keep it. After
 that the product data and files are removed and the worker removes the FreshRSS user. Only the audit
 log keeps the bare account id.
@@ -234,14 +234,14 @@ log keeps the bare account id.
   it is used. Choosing "This is a shared computer" makes a session that ends when the browser closes
   or after 8 hours and is not extended. Settings → Security lists sessions (with the browser's own
   description) and ends others.
-- **Return paths.** After signing in, a person is sent on only to a path on the PURSS itself: an
+- **Return paths.** After signing in, a person is sent on only to a path on the installation itself: an
   address that starts `//` or holds a backslash or control character is refused.
 - **Mutations.** Every `POST`, `PUT`, `PATCH` and `DELETE` from a browser needs an `Origin` header equal
   to the public origin (a missing one is refused) and, when signed in, the session's `X-PURSS-CSRF`
   value, compared in constant time.
 - **Response headers.** `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
   `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, and a `Permissions-Policy` that
-  denies camera, microphone and location. The API does not send HSTS; the operator's proxy can.
+  denies camera, microphone and location. The API does not send HSTS; the administrator's proxy can.
 - **Content-Security-Policy** on the app's pages: scripts, styles, fonts and API calls from the same
   origin only (no inline or eval scripts; inline styles are allowed); images from any https address
   and `data:`; audio and video from https; frames from `https:` and `http:` for the reader's players
@@ -261,7 +261,7 @@ log keeps the bare account id.
 ## Administrators and the audit log
 
 The administrator role is separate from owning an account. The first account claims it with the
-setup code; invitations and provider sign-up never grant it. An administrator grants or removes it
+setup code; invitations and signing up through a sign-in provider never grant it. An administrator grants or removes it
 for another account with a recent sign-in. An administrator can't suspend their own account or remove
 their own role, and the last active administrator can't be removed or suspended. A suspended
 account can't sign in and its sessions, apps and codes end at once (assistants stop being accepted and
@@ -272,7 +272,7 @@ The Administration area has fixed, audited operations: health, jobs (retry or ca
 Smart filter and assistant switches, the installation's news and the audit log. It shows no item
 titles, reading history, notes, tokens or sign-in details; the one trace of what accounts follow is
 the bridge log's list of failing public sources (a Telegram channel name, for instance), kept with no
-account, and the counts of which discovery routes were used (the way a source was found and the way the person got to the
+account, and the counts of which routes link lookup used (the way a source was found and the way the person got to the
 lookup, as two ids from fixed lists, with how many were offered and followed; no account, address or title). It has no impersonation, content browser, database console, shell, generic fetch proxy or
 token viewer. The one piece of content an administrator sees is a reported public page, shown as
 visitors saw it in a sandboxed frame with its links disabled.
@@ -281,22 +281,22 @@ visitors saw it in a sandboxed frame with its links disabled.
 an action, a target, an outcome and an optional detail. It covers sign-ins and failures, changes to
 sign-in methods, password and address changes, app connections and revocations, assistant tokens and
 grants, invitations, administrator changes, exports and imports, sharing, reports and takedowns,
-account deletion, and operator CLI commands (`cli_*`). It holds no content, secrets or IP addresses;
+account deletion, and administrator CLI commands (`cli_*`). It holds no content, secrets or IP addresses;
 addresses are masked and error texts are redacted. PURSS never deletes audit events, and they keep
 the bare account id after an account is deleted.
 
 ## Connected apps
 
-The phone and desktop apps (client kind `mobile`) and the browser extension (`extension`) are other
+The mobile and desktop apps (client kind `mobile`) and the browser extension (`extension`) are other
 programs, so they can't use the session cookie and its same-origin and CSRF checks. They connect with
 a code and PKCE, then use a device token. The kinds, return addresses and permissions are fixed in
-code: there is no client registration or setup for an operator.
+code: there is no client registration or setup for an administrator.
 
 1. The app makes a random verifier and sends only its SHA-256 challenge (`S256`; no other method) to
    `/connect` in the system browser, with its kind, return address, state and device name.
 2. The person signs in there, checks the kind, return address and name, and approves with a POST that
    passes the browser checks above and needs a recent sign-in. The page can't be framed.
-3. The browser goes to the app's return address with a one-time code, `state` and `iss` (the PURSS's
+3. The browser goes to the app's return address with a one-time code, `state` and `iss` (the installation's
    origin, so an app that knows several can tell which answered).
 4. The app posts the code and its verifier to `/api/connect/token` and receives the device token once.
 
@@ -317,8 +317,8 @@ code: there is no client registration or setup for an operator.
   stream. A token stops working 90 days after its last use (the last use is written at most hourly),
   and an account has at most 20. There are no refresh tokens: PURSS doesn't rotate a device token, so
   one lasts until it is revoked or goes 90 days unused. Revocation: Settings → Connected apps, the app
-  itself, suspension, a password reset (by email or from the operator), and deleting the account.
-- **Reach.** The phone and desktop token is a full sign-in: a token of an administrator's account acts
+  itself, suspension, a password reset (by email or from the administrator), and deleting the account.
+- **Reach.** The mobile and desktop app's token is a full sign-in: a token of an administrator's account acts
   as an administrator, and it has its own "confirm it's you" clock that confirming refreshes. The one
   thing it can't do is approve another app's connection or an assistant's sign-in; those belong to the
   browser that app opened. The extension's token reaches an exact list of routes (read its session, baskets and
@@ -337,20 +337,20 @@ code: there is no client registration or setup for an operator.
   exchange, signing in and creating an account), and never with credentials. The list grants nothing
   by itself: without a token, a request from an app origin is an ordinary cookie request and fails the
   Origin check.
-- **Storage.** The phone app keeps the token in the Keychain (this device only) or the Android
-  Keystore; the desktop app in the system credential store (a file readable only by the user where
-  there is none); the extension in its local storage, never synced and sent only as a bearer header.
-- **Addresses.** The apps and the extension use `https` for a PURSS, and plain `http` only for this
+- **Storage.** The mobile app keeps the token in the Keychain (this device only) or the Android
+  Keystore; the desktop app in the system credential store (a file readable only by the person's own
+  operating-system account where there is none); the extension in its local storage, never synced and sent only as a bearer header.
+- **Addresses.** The apps and the extension use `https` for an installation, and plain `http` only for this
   device, private and shared ranges and local-only names, with a warning when it isn't loopback.
 - **Phishing and persuasion.** A link that starts a connection for someone else's app meets an approval
   page that names the kind and the return address, needs a recent sign-in and says to connect only what
   you started. A code is bound to the challenge of whoever started the request, so reading one out to
   someone else gains them nothing unless they hold its verifier.
-- **Providers in an app.** An app can't show a provider's page (Google refuses embedded web views),
+- **Sign-in providers in an app.** An app can't show a sign-in provider's page (Google refuses embedded web views),
   so it asks for a single-use ticket (5 minutes) and opens the system browser. That browser changes
   nothing: it hands a single-use code back to `purss://connect`, and the app redeems it with its own
   token and a verifier only it holds. A ticket address handed to someone else can't attach their
-  identity, and a stolen token can't have the owner confirm for it.
+  identity, and a stolen token can't have the person confirm for it.
 
 ## Browser extension
 
@@ -359,16 +359,16 @@ The manifest asks for `activeTab`, `scripting`, `storage`, `contextMenus` and (n
 toolbar mark. It has no host permissions, declares no content scripts and has no cookies or web
 request access. A page is read only when the person opens the popup or the right-click menu on it.
 
-- The extension sends addresses, never feed contents, and only to the PURSS it is connected to. The
+- The extension sends addresses, never feed contents, and only to the installation it is connected to. The
   server does the fetching, through the rules above.
-- Deep links and bookmarklets only open a PURSS page: Add source fills in an address and waits for
+- Deep links and bookmarklets only open a page of your PURSS: Add source fills in an address and waits for
   Find; Keep asks which basket and waits for a press. A site that links to a deep link can't make the
   server fetch anything.
 - The toolbar mark, which looks up each page opened in a normal window, is off by default, skips
   private windows, and caches answers for 10 minutes.
-- Connecting checks that the answer carries the attempt's `state` and names the PURSS it was started
-  against (`iss`), and that the server's own information names the address typed, so a code from
-  another attempt or another PURSS is not exchanged.
+- Connecting checks that the answer carries the attempt's `state` and names the installation it was started
+  against (`iss`), and that the installation's own information names the address typed, so a code from
+  another attempt or another installation is not exchanged.
 - A browser capture sends the readable text of a page as the browser showed it, which can include
   pages behind the person's own sign-in. It is on request only, at most 2,000,000 characters and 8 MB
   of body, 60 per 10 minutes per account. The server fetches nothing, sanitizes the HTML again with its
@@ -418,7 +418,7 @@ this is the security model.
   instructions tell the assistant to treat it as data. Write tools exist only for read-and-organise
   grants. One of them, `find_sources`, makes the server fetch an address the assistant supplies
   (`follow_source` then has FreshRSS poll what it found), within the address rules above. What an
-  assistant reads leaves the server for its provider.
+  assistant reads leaves the server for its AI provider.
 
 ## Stored content, frames and public pages
 
@@ -432,14 +432,14 @@ publisher sees the reader's address (not the page they came from).
 
 **Originals in the reader.** A browser refuses a frame when the page's headers say so, and the frame
 can't report it, so `GET /api/frame-check` reads the headers on the server (through the fetcher, 16 KB,
-8 seconds) and judges them against the PURSS's origin the way a browser would. Only a successful answer
+8 seconds) and judges them against the installation's origin the way a browser would. Only a successful answer
 counts, a download is never framed, and an https PURSS never frames plain http. Answers are kept 6
 hours (5,000 at most), per account, and a check that has to read a page is limited to 300 per 10 minutes
 per account. A frame is sandboxed (`allow-scripts allow-same-origin allow-forms allow-popups
 allow-popups-to-escape-sandbox`, never `allow-top-navigation`); it is another origin, so it can't reach
 PURSS, and PURSS's own pages refuse to be framed. A video player loads in a frame after the person
 presses play, with a similar sandbox; an Instagram post's embed loads when the post opens. In the
-phone apps the page policy narrows frames to the video players, and originals open in the system
+mobile app the page policy narrows frames to the video players, and originals open in the system
 browser's tab.
 
 The desktop app shows other pages in a second web view that reaches no app command (no capability
@@ -447,31 +447,31 @@ names a remote address, and the command handler refuses every web view but the m
 `http` and `https` pages on hosts other than `localhost`, and keeps its storage in memory only, so
 sites start signed out and nothing outlives the app. Downloads go to the default browser.
 
-**Public pages and feeds.** A basket or collection is private until its owner chooses Share. The
+**Public pages and feeds.** A basket or collection is private until the person who made it chooses Share. The
 review shows the exact page and what becomes public before anything is published.
 
 - Visitors see each item's title, link, a short plain-text summary, source name and date, and the
-  owner's public note. Never reading state, annotations, saved text or anything else of the account.
+  person's public note. Never reading state, annotations, readable copies or anything else of the account.
   Items of private sources and links that carry a key never show, and filter collections whose rules
   read reading state can't be shared.
 - The address is the title plus 12 random letters (60 bits). An unlisted page is not access control.
-  Pages ask search engines not to index them unless the owner chose listing, which asks for its own
+  Pages ask search engines not to index them unless the person chose listing, which asks for its own
   confirmation. Item links are `nofollow`.
 - Pages and feeds load no scripts, images or outside resources (`default-src 'none'`), set no cookies,
   and are cached for at most 60 seconds, so pausing, stopping or a takedown reaches visitors within a
-  minute. Copies already fetched can't be recalled. Suspending or deleting an account pauses its
+  minute. Pages already fetched can't be recalled. Suspending or deleting an account pauses its
   pages.
 - Reads are limited to 120 a minute per address. Each page links to a report form that posts only to
   itself and keeps the reason, the explanation and an optional contact, never the visitor's address:
   5 reports an hour per address and 50 open per page, past which reports are thanked but not stored.
-  Every administrator gets one bell entry per page a day.
+  Every administrator gets one bell notification per page a day.
 - An administrator reviews the page as visitors saw it. Taking it down needs a recent sign-in and a
-  reason, pauses it at once, closes its open reports and tells the owner, who keeps the basket but can't
+  reason, pauses it at once, closes its open reports and tells the person who shared it, who keeps the basket but can't
   share it again until an administrator restores it. Each step is audited.
 
 ## Email
 
-Outgoing email is optional and off unless the operator sets an SMTP server. STARTTLS is required by
+Outgoing email is optional and off unless the administrator sets an SMTP server. STARTTLS is required by
 default (`PURSS_SMTP_SECURITY` can be `tls` or, for a relay on a private network, `none`).
 
 - Links are 32 random bytes, stored as SHA-256 hashes, single use, and tied to the address they were
@@ -488,27 +488,27 @@ default (`PURSS_SMTP_SECURITY` can be `tls` or, for a relay on a private network
 - Digests and reminders are sent only when the person keeps them on and to a confirmed address. They
   carry titles from the account's own library (a digest leaves out private sources' titles).
 
-## Updates of the phone and desktop interface
+## Updates of the mobile and desktop interface
 
-The phone apps (and the desktop app, at its own native level) show an interface they download from
-the PURSS they are connected to, so small changes reach them without a store release. The server image
+The mobile app (and the desktop app, at its own native level) shows an interface they download from
+the installation they are connected to, so small changes reach them without a store release. The product image
 packs the build of the interface it runs, and `GET /api/app/bundle` offers it with its version,
 native level, SHA-256 and size; only the zip on offer is served.
 
-- **Who may push code.** Any server the app is connected to. Bundles are not signed. The official
-  server's updates install without a question. Any other server is asked about once, the first time it
-  offers an update (closing the question counts as *Don't allow*), and the answer, kept per server, can
+- **Who may push code.** Any installation the app is connected to. Bundles are not signed. The official
+  installation's updates install without a question. Any other installation is asked about once, the first time it
+  offers an update (closing the question counts as *Don't allow*), and the answer, kept per installation, can
   be changed in Settings → This device.
 - **What that means.** A downloaded interface is code that runs in the app with the app's access: a
-  malicious server's interface can read what is typed into the app's screens and use the connection's
-  token. It can't use another server's data by itself, because the app holds one connection's token at
+  malicious installation's interface can read what is typed into the app's screens and use the connection's
+  token. It can't use another installation's data by itself, because the app holds one connection's token at
   a time. Reinstalling the app or clearing its data removes a downloaded interface.
 - **Fit.** Each build records the native level of the app it was made for, and the app installs a
   build only when that level equals its own. A fingerprint of the native side (the Android and iOS
   projects, the plugins and the Capacitor configuration) is stored next to the level, and a test fails
   whenever it changes until a person decides whether the interface depends on the change.
 - **Integrity.** The plugin checks the zip against the offered SHA-256, which catches a damaged
-  download but not a malicious server. Plain `http` is allowed for a server on the local network, where
+  download but not a malicious installation. Plain `http` is allowed for an installation on the local network, where
   anyone on it could swap the download.
 - **Rollback.** An interface must report that it started within 15 seconds or the previous one is
   restored and that version is never installed again. Updates switch in at start, or when the app is
@@ -531,80 +531,80 @@ On the official hosted service (`PURSS_MODE=hosted`):
   signed ticket valid for 10 minutes; the service's callback is an HMAC-SHA256 signature with a shared
   secret of at least 32 characters, accepted within 5 minutes of its timestamp and only once. It can
   never change an administrator or an unlimited account.
-- The operator can technically read stored content, as for any installation. The administrator
-  tools show health, jobs and storage use, not items.
+- An administrator with host access can technically read stored content, as for any installation. The administrator
+  tools in the app show health, jobs and storage use, not items.
 
 ## Optional features and what they send
 
-- **Discovery** (hosted only) suggests sources that readers who share follow together. Only accounts
+- **Discovery** (hosted only) suggests sources that people who share follow together. Only accounts
   with sharing on (`discoveryShare`, on unless switched off) count, and an account that doesn't share
   gets no suggestions. Private sources, manual sources and shared collections never count. A source
   enters the aggregate only when at least 10 accounts follow it and a pair when 10 follow both; the
-  tables hold counts with no account or workspace, counts never leave the server, and a suggested
+  tables hold counts with no account, counts never leave the server, and a suggested
   title and site must each be used by at least 10 followers.
 - **Smart filters** send, for each post of a filtered source (and for the latest posts when the person
   tries a filter), the post's title, source name, author, stored excerpt (about 300 characters) and the
-  person's own words to the Jev address the operator fixed (TypeSafe's by default, or OpenRouter's),
+  person's own words to the Jev address the administrator fixed (TypeSafe's by default, or OpenRouter's),
   with redirects refused. Pages are never fetched for it. The key is set only by an administrator (with
   a recent sign-in), kept in `secrets/jev-server-key` and shown by its last four characters; people
   never hand the server a key. A filter on a private source sends that source's post text too, because
   filters are turned on per source. Jev has no tools and answers only probabilities.
-- **Phone notifications.** A phone registers a random handle from the push relay with its PURSS. When
-  a notice reaches the bell, the PURSS asks the relay to wake that handle (a POST through the fetcher,
+- **Phone notifications.** A phone registers a random handle from the push relay with its installation. When
+  a notice reaches the bell, the installation asks the relay to wake that handle (a POST through the fetcher,
   10 seconds) and the relay asks Google or Apple for a push with no text. The phone then fetches the
-  text from its PURSS with a credential (`purss_push_…`, stored hashed) that reaches only that phone's
-  waiting notifications. The relay, Google and Apple learn that a server has something for that phone,
+  text from its installation with a credential (`purss_push_…`, stored hashed) that reaches only that phone's
+  waiting notifications. The relay, Google and Apple learn that an installation has something for that phone,
   never what. A handle is the only credential `notify` needs, so anyone who learns one can wake that
   phone, within the relay's rate limits. `PURSS_PUSH_RELAY_URL=` turns it off.
-- **Lookups for discovery.** When no feed is found, a page's address (without query string, and not one
+- **Lookups for finding sources.** When no feed is found, a page's address (without query string, and not one
   that looks private) can be asked of Wikidata, an ISSN of Crossref, and a name typed into Add
   source's search of Wikidata (for websites) and of Apple's podcast directory. Requests to Wikimedia's
-  sites name the project's public website in their User-Agent (`PURSS/0.1 (https://purss.app; feed
+  sites name the project's public site in their User-Agent (`PURSS/0.1 (https://purss.app; feed
   reader)`), as Wikimedia's API rules ask of clients; it names the software, not the installation or a
   person. Every other request sends the generic `PURSS/0.1 (self-hosted feed reader)`.
 
-## What the operator can see
+## What the administrator can see
 
 Anyone with access to the machine that runs PURSS (the server's file system, its containers, its
 database, its backups) can read:
 
 - **The product database**, in plain SQLite: every account's email address and display name, items,
-  saved text, browser captures, notes, highlights, baskets, sources, reading state and settings.
+  readable copies, browser captures, notes, highlights, baskets, sources, reading state and settings.
   It holds only hashes of passwords, setup codes, invitations, sessions, tokens, codes and email
   links, and public keys of passkeys.
 - **The secrets folder:** the signing and encryption keys, the service token, the Jev key, the
   private feed addresses and the FreshRSS credentials, as plain files readable by the services
   (modes 0600 and 0640).
-- **FreshRSS's data volume**, which holds each account's subscriptions (private feed links included)
+- **The engine's data volume**, which holds each account's subscriptions (private feed links included)
   and recent entries.
 
 PURSS doesn't encrypt the database, the FreshRSS volume or backups. `scripts/backup.ts` copies a
 consistent snapshot of the database, and with `--include-secrets` the secrets folder too; such a backup
 must be protected like a password ([Backups](storage-and-retention.md#backups)). Disk encryption and
-file permissions are the operator's to set.
+file permissions are the administrator's to set.
 
-An operator with host access can also make a password reset link for any account that has a password,
+An administrator with host access can also make a password reset link for any account that has a password,
 administrators included, and sign in as it. That is recorded as a host-level audit event with no actor,
 and the account's confirmed address gets a "password changed" message once the link is used, but
-nothing stops it. The dashboard's limits (no content, no impersonation) are product rules, not
+nothing stops it. The Administration area's limits (no content, no impersonation) are product rules, not
 protection against the person who runs the server.
 
-What an operator can see through the application is limited to the administrators' tools above.
-A visitor's network address is visible to the operator's reverse proxy and network; PURSS doesn't store it.
+Through the application, an administrator sees only what the administrator tools above show.
+A visitor's network address is visible to the administrator's reverse proxy and network; PURSS doesn't store it.
 
 Data leaves the server in these cases:
 
 | What | Goes to | Controlled by |
 | --- | --- | --- |
 | Feeds, pages, icons and pictures the person follows or keeps | The publisher, which sees the server's address | The person following the source |
-| Article images, audio and video | The publisher, which sees the reader's address; a video player loads from its platform after play | The reader |
-| Wake requests | The push relay, then Google or Apple, by handle without content | The person, per phone; the operator |
+| Article images, audio and video | The publisher, which sees the person's address; a video player loads from its platform after play | The person |
+| Wake requests | The push relay, then Google or Apple, by handle without content | The person, per phone; the administrator |
 | Post text for Smart filters | Jev (TypeSafe or OpenRouter) | The administrator's key and the person's filter |
-| What an assistant reads | The assistant's provider | The person's switch and grant |
-| Email | The operator's SMTP server | The operator |
-| Sign-in | The configured OpenID Connect provider, which learns that a sign-in happened | The operator |
+| What an assistant reads | The assistant's AI provider | The person's switch and grant |
+| Email | The administrator's SMTP server | The administrator |
+| Sign-in | The configured OpenID Connect sign-in provider, which learns that a sign-in happened | The administrator |
 | Lookups when no feed is found, and names typed into Add source's search | Wikidata, Crossref, Apple's podcast directory | Automatic, only as described above; a search only when the person presses *Search* |
-| Changes to a subscription (hosted) | The billing service | The operator |
+| Changes to a subscription (hosted) | The billing service | The administrator |
 
 PURSS sends no telemetry. It calls an AI service only when an administrator has set a Smart filter key and someone has turned a filter on.
 
@@ -615,10 +615,10 @@ exports, logs or job payloads:
 
 | File | Used for | Read by |
 | --- | --- | --- |
-| `setup-code` | The first account's one-time code, until it is claimed | The operator |
+| `setup-code` | The first account's one-time code, until it is claimed | The administrator |
 | `service-token` | The worker to the API's internal listener, the API to egress control | API, worker, egress |
 | `engine-helper-token` (0640) | The worker's key to FreshRSS's admin helper | Worker, engine setup, FreshRSS |
-| `engine-admin` (0640) | FreshRSS's operator account | FreshRSS, engine setup |
+| `engine-admin` (0640) | FreshRSS's administrator account | FreshRSS, engine setup |
 | `engine-users/<id>` | Each account's FreshRSS API password | Worker only |
 | `source-urls/<source>` | Private feed links | API, worker |
 | `bridge-key` | Signing the addresses FreshRSS is given for bridged sources | API, worker, egress |
@@ -640,12 +640,12 @@ leaves queued mail unreadable.
 - **The API, worker and egress share the data and secrets volumes**, the worker and egress parse
   hostile pages and feeds, and FreshRSS holds every account's subscriptions. Isolation is by network
   and file permission, not by a sandbox.
-- **Device tokens aren't rotated.** A stolen phone or desktop token works until it is revoked or goes
+- **Device tokens aren't rotated.** A stolen mobile or desktop token works until it is revoked or goes
   90 days unused; it can do what the account's person can do, except the changes that need a recent
   sign-in.
-- **Export needs no recent sign-in** (6 an hour per account), so a stolen session or phone or desktop
+- **Export needs no recent sign-in** (6 an hour per account), so a stolen session or mobile or desktop
   token can export the library.
-- **Interface updates aren't signed**, so connecting an app to a server means trusting that server's
+- **Interface updates aren't signed**, so connecting an app to an installation means trusting that installation's
   interface.
 - **`find_sources`** lets an assistant with organise access choose addresses the server fetches.
 

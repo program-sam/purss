@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { backoffSeconds, classify, judgeConflict, notChangedMessage, overlayItem, removedFromBasket, scopeOf } from "./entries.ts";
 import type { Entry } from "./entries.ts";
 
 const item: ItemDTO = {
   id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, isNew: true,
   progress: 0, opened: false, basketIds: ["bkt_1"], curatorNote: null, media: null, annotatedAt: null,
 };
 const base = { id: "e", installation: "https://purss.test", accountId: "acc", seq: 1, createdAt: "2026-11-03T08:00:00Z", attempts: 0, notBefore: 0 };
@@ -16,7 +16,7 @@ test("after a conflict the item is read: it already has the target workflow, or 
   assert.equal(judgeConflict({ to: "toread" }, { workflow: "toread" }), "done");
   assert.equal(judgeConflict({ to: "toread" }, { workflow: "finished" }), "drop");
   // The workflow the change started from plays no part: an item that went new, finished, new elsewhere is still dropped.
-  assert.equal(judgeConflict({ to: "toread" }, { workflow: "new" }), "drop");
+  assert.equal(judgeConflict({ to: "toread" }, { workflow: "undecided" }), "drop");
 });
 
 test("a queued change of the player's counts as made only when it is that change that is there", () => {
@@ -36,17 +36,17 @@ test("an entry is filed under its installation and account", () => {
 
 test("pending changes are shown on an item in the order they were made", () => {
   const entries: Entry[] = [
-    { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "new", to: "toread", revision: 3 },
+    { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "undecided", to: "toread", revision: 3 },
     { ...base, seq: 2, kind: "workflow", itemId: "itm_a", from: "toread", to: "finished", revision: 3 },
     { ...base, seq: 3, kind: "keep", itemId: "itm_a", basketId: "bkt_2", on: true },
     { ...base, seq: 4, kind: "keep", itemId: "itm_a", basketId: "bkt_1", on: false },
-    { ...base, seq: 5, kind: "workflow", itemId: "itm_other", from: "new", to: "ignored", revision: 1 },
-    { ...base, seq: 6, kind: "clearFresh", itemIds: ["itm_a", "itm_z"] },
+    { ...base, seq: 5, kind: "workflow", itemId: "itm_other", from: "undecided", to: "ignored", revision: 1 },
+    { ...base, seq: 6, kind: "clearNew", itemIds: ["itm_a", "itm_z"] },
   ];
   const out = overlayItem(item, entries);
   assert.equal(out.workflow, "finished");
   assert.deepEqual(out.basketIds, ["bkt_2"]);
-  assert.equal(out.fresh, false);
+  assert.equal(out.isNew, false);
   assert.equal(out.workflowRevision, 2, "each pending workflow change moves the workflow revision, as PURSS will");
   assert.equal(out.playbackWorkflowSessionId, null, "a change by hand has no playback session");
   assert.equal(out.revision, 3, "the revision is PURSS's to move");
@@ -55,9 +55,9 @@ test("pending changes are shown on an item in the order they were made", () => {
 
 test("the player's pending changes are shown with their session, and a change by hand after them takes it away", () => {
   const playback = { sessionId: "play-1", expectedWorkflowRevision: 0, startedWorkflowRevision: 0 };
-  const own: Entry = { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "new", to: "inprogress", revision: 3, playback };
+  const own: Entry = { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "undecided", to: "inprogress", revision: 3, playback };
   const shown = overlayItem(item, [own]);
-  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId, shown.fresh], ["inprogress", 1, "play-1", true]);
+  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId, shown.isNew], ["inprogress", 1, "play-1", true]);
   const byHand = overlayItem(item, [own, { ...base, seq: 2, kind: "workflow", itemId: "itm_a", from: "inprogress", to: "ignored", revision: 3 }]);
   assert.deepEqual([byHand.workflow, byHand.workflowRevision, byHand.playbackWorkflowSessionId], ["ignored", 2, null]);
 });
@@ -81,7 +81,7 @@ test("failures are told apart by what to do next", () => {
   assert.equal(classify({ status: 409, code: "storage_full", message: "" }), "rejected");
   assert.equal(classify({ status: 500, code: "error", message: "" }), "later");
   assert.equal(classify({ status: 429, code: "rate_limited", message: "" }), "later");
-  assert.equal(classify({ status: 507, code: "quota_full", message: "" }), "rejected");
+  assert.equal(classify({ status: 507, code: "allowance_full", message: "" }), "rejected");
   assert.equal(classify({ status: 404, code: "not_found", message: "" }), "rejected");
   assert.equal(classify({ status: 400, code: "bad_request", message: "" }), "rejected");
 });

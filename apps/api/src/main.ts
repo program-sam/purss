@@ -114,16 +114,16 @@ export function tick(app: App): void {
   deliverNews(app);
   expireLeases(app, (job) => settleFailedJob(app, job, { finalFailure: true }));
   expireReservations(app);
-  const users = app.db.all<{ id: string; account_id: string; workspace_id: string }>(`SELECT id, account_id, workspace_id FROM engine_users WHERE status = 'ready' AND ${usableAccountSql("engine_users.account_id")}`);
+  const users = app.db.all<{ id: string; account_id: string; }>(`SELECT id, account_id FROM engine_users WHERE status = 'ready' AND ${usableAccountSql("engine_users.account_id")}`);
   for (const u of users) {
     const active = app.db.get("SELECT 1 FROM jobs WHERE idempotency_key = ? AND status IN ('queued', 'leased')", `sync:${u.id}`);
     const cp = app.db.get<{ last_attempt_at: string | null; consecutive_failures: number }>("SELECT last_attempt_at, consecutive_failures FROM sync_checkpoints WHERE engine_user_id = ?", u.id);
     // A run that keeps failing waits longer each time (1, 5, 15, then 60 minutes) instead of starting again every interval.
     const wait = syncDelaySeconds(app.config.syncIntervalSeconds, cp?.consecutive_failures ?? 0);
     const due = !cp?.last_attempt_at || Date.parse(cp.last_attempt_at) < Date.now() - wait * 1000;
-    const hasSources = app.db.get("SELECT 1 FROM sources WHERE workspace_id = ? AND engine_stream_id IS NOT NULL AND followed = 1 LIMIT 1", u.workspace_id);
+    const hasSources = app.db.get("SELECT 1 FROM sources WHERE account_id = ? AND engine_stream_id IS NOT NULL AND followed = 1 LIMIT 1", u.account_id);
     if (!active && due && hasSources) {
-      enqueue(app, "engine.sync", { engineUserId: u.id }, { accountId: u.account_id, workspaceId: u.workspace_id, idempotencyKey: `sync:${u.id}` });
+      enqueue(app, "engine.sync", { engineUserId: u.id }, { accountId: u.account_id, idempotencyKey: `sync:${u.id}` });
     }
     refreshPause(app, u.account_id);
   }
@@ -152,7 +152,7 @@ export function tick(app: App): void {
   app.db.run("DELETE FROM jobs WHERE status = 'done' AND updated_at < ?", addSeconds(-7 * 86400));
 }
 
-/** Tell the operator whether outgoing email works, and why open sign-up stays closed when it doesn't. */
+/** Tell the administrator whether outgoing email works, and why open sign-up stays closed when it doesn't. */
 async function reportMail(app: App): Promise<void> {
   const wantsSignup = app.config.mode === "hosted" && app.config.signup === "open";
   if (!app.config.mail) {
@@ -170,7 +170,7 @@ export async function start(config = loadConfig()) {
   void startSearchIndexRebuild(app); // only does anything after an upgrade that changed how search folds text
   void startCaptureCheck(app); // only does anything for readable copies saved before captures were checked
   purgeUploads(app, 0); // nothing is uploading yet: whatever a stop left half-written goes
-  nameManualSources(app); // the saved-links source takes the catalog's current name
+  nameManualSources(app); // the saved-links source takes the catalogue's current name
   const code = ensureClaimCode(app);
   watchTrustedProxies(config.trustProxy);
   const pub = publicServer(app, [publicRouter(), ...extraRouters.api()], { publicPages: extraRouters.pages(), events: eventStream });

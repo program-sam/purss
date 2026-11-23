@@ -8,7 +8,7 @@ export * from "./api.ts";
 export * from "./features.ts";
 export * from "./media.ts";
 export * from "./annotations.ts";
-export * from "./workspace-address.ts";
+export * from "./purss-address.ts";
 export * from "./distribution.ts";
 export * from "./paths.ts";
 export * from "./ai-limits.ts";

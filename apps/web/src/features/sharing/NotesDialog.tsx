@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ShareDTO, ShareItemDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { get, messageOf, put } from "../../api/client.ts";
 import { shortDate } from "../../lib/format.ts";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { fkeys } from "../shared/api.ts";
 
 const t = app.sharing.notesDialog;
@@ -45,7 +45,7 @@ function NoteEditor({ share, item, onDone, onNotice }: { share: ShareDTO; item: 
 
 /** The items a shared page shows now, each with an optional public note. */
 export function NotesDialog({ share, onClose }: { share: ShareDTO; onClose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const q = useQuery({ queryKey: [...fkeys.shares, "items", share.id], queryFn: () => get<ShareItemDTO[]>(`/api/shares/${encodeURIComponent(share.id)}/items`), staleTime: 0 });
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState("");

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { MutedWord } from "@purss/domain";
 import { Button, Icon, IconButton, SelectInput, TextInput } from "@purss/ui";
 import { shortDate } from "../lib/format.ts";
 import { muteUntil, withMutedWord } from "../lib/muted-words.ts";
 import type { MuteFor } from "../lib/muted-words.ts";
 import { useSavePreferences } from "../state/prefs.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.mutedWords;
 
@@ -14,7 +14,7 @@ const FOR_LABELS: Record<MuteFor, string> = t.forLabels;
 
 /** Settings → Muted words: words or phrases whose items Home and lists leave out, for a week, a month or until removed. */
 export function MutedWordsField() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const [text, setText] = useState("");
   const [length, setLength] = useState<MuteFor>("month");

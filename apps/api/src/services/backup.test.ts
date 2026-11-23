@@ -85,9 +85,9 @@ test("restore brings back everything into a fresh directory, rebuilds search and
   const restored = { db, config: loadConfig({ PURSS_DATA_DIR: target }), events: app.events, serviceToken: "" };
   try {
     assert.equal(usedBytes(restored, p.accountId), before, "reference accounting survives the restore");
-    const found = listItems(restored, p, { scope: "all", filter: "all", q: "readable sediment" });
+    const found = listItems(restored, p, { scope: "all", filter: "all_with_ignored", q: "readable sediment" });
     assert.equal(found.items[0]?.id, lib.pinnedOld.itemId, "captured text is searchable again");
-    assert.equal(listItems(restored, p, { scope: "all", filter: "all", q: "corrected" }).items.length, 1);
+    assert.equal(listItems(restored, p, { scope: "all", filter: "all_with_ignored", q: "corrected" }).items.length, 1);
     const pinned = db.get<{ title: string }>("SELECT v.title FROM basket_items b JOIN item_versions v ON v.id = b.version_id WHERE b.item_id = ?", lib.pinnedOld.itemId)!;
     assert.equal(pinned.title, "Tidal flats and sediment", "the kept version is the original");
   } finally { db.close(); }
@@ -137,7 +137,7 @@ test("a damaged backup, a backup from a newer version, or one with broken refere
 
   // Broken references: a database that passes the page-level check but not the foreign-key check is not kept.
   app.db.exec("PRAGMA foreign_keys = OFF");
-  app.db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES ('bsk_missing', 'itm_missing', 'wsp_missing', 'ver_missing', 'x')");
+  app.db.run("INSERT INTO basket_items (basket_id, item_id, account_id, version_id, kept_at) VALUES ('bsk_missing', 'itm_missing', 'wsp_missing', 'ver_missing', 'x')");
   app.db.exec("PRAGMA foreign_keys = ON");
   const broken = await createBackup({ dataDir: app.config.dataDir, outDir: out, now: new Date("2026-11-03T10:00:03.000Z") });
   const occupied = tmp("occupied-ok");
@@ -175,7 +175,7 @@ test("a manifest naming files outside the backup or the data folder is refused b
   }
 });
 
-test("secrets are restored only when the backup holds them and the operator hasn't skipped them", async (t) => {
+test("secrets are restored only when the backup holds them and the administrator hasn't skipped them", async (t) => {
   const { app, cleanup } = source();
   t.after(cleanup);
   const withSecrets = await createBackup({ dataDir: app.config.dataDir, outDir: tmp("out"), includeSecrets: true });

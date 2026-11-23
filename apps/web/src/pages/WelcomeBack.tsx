@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import { calmLine, isToListen, isToRead, isToWatch, sinceLine } from "../lib/ret
 import { useNav } from "../nav.ts";
 import { useItemActions } from "../state/actions.ts";
 import { setHints, useHints } from "../state/ui-store.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import "./home.css";
 
 const t = app.pages.welcomeBack;
@@ -42,12 +42,12 @@ function useLive(items: readonly ItemDTO[]): ItemDTO[] {
 
 /** The line under the Home title: today's date, and what is New, since the last visit when there was one. */
 export function HomeBand() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const q = useHomeOverview();
   if (!ws.data.sources.length) return null;
   const o = q.data;
-  const fresh = ws.data.sources.reduce((n, s) => n + s.freshCount, 0);
+  const fresh = ws.data.sources.reduce((n, s) => n + s.newCount, 0);
   const today = new Intl.DateTimeFormat(interfaceLocale(), { weekday: "long", day: "numeric", month: "long", timeZone: ws.prefs.timezone }).format(new Date());
   const showCounts = ws.prefs.showCounts;
   const top = o?.since?.boxes.slice(0, 3) ?? [];
@@ -75,7 +75,7 @@ export function HomeBand() {
 
 function RowBox({ id, title, count, children }: { id: string; title: string; count?: number; children: ReactNode }) {
   const hints = useHints();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const key = `home:${id}`;
   // Closed until the user opens it; opening it is remembered on this browser.
   const shut = !hints.opened.includes(key);
@@ -99,7 +99,7 @@ function RowBox({ id, title, count, children }: { id: string; title: string; cou
 const PROBLEM_HEALTH: ReadonlySet<SourceDTO["health"]> = new Set(["error", "login", "reconnect", "paused"]);
 
 function Attention() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const sources = ws.data.sources.filter((s) => PROBLEM_HEALTH.has(s.health));
   if (!sources.length) return null;
@@ -124,7 +124,7 @@ function Attention() {
 
 /** Under Home's rows: how many items the muted words left out of Home, and a way to see them. */
 export function MutedLine() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const o = useHomeOverview().data;
   const showing = (useSearch({ strict: false }) as { muted?: string }).muted === "show" && ws.prefs.mutedWords.length > 0;
   return <MutedNotice hidden={o?.mutedHidden ?? 0} atLeast={o?.mutedHiddenAtLeast} showing={showing} />;
@@ -156,25 +156,25 @@ function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: strin
 
 /** To read, To watch, To listen, Needs attention and Mark all as seen. Each row shows only when it has items. */
 export function WelcomeRows() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const actions = useItemActions();
   const o = useHomeOverview().data;
-  const fresh = o?.fresh ?? 0;
+  const fresh = o?.isNew ?? 0;
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
-  const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
+  const offerFresh = fresh > 0 && ws.prefs.newMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
     <PutAsideRow key="toread" id="toread" title={app.words.toRead} row={o?.toRead} keeps={isToRead} type="articles" />,
     <PutAsideRow key="towatch" id="towatch" title={app.words.toWatch} row={o?.toWatch} keeps={isToWatch} type="videos" />,
     <PutAsideRow key="tolisten" id="tolisten" title={app.words.toListen} row={o?.toListen} keeps={isToListen} type="podcasts" />,
     <Attention key="attention" />,
     offerFresh ? (
-      <section key="fresh" className="mod wb wb-fresh" aria-label={app.words.markAllAsSeen}>
-        <div className="wb-fresh-in">
+      <section key="new" className="mod wb wb-new" aria-label={app.words.markAllAsSeen}>
+        <div className="wb-new-in">
           <div>
             <b>{app.words.markAllAsSeen}</b>
             <p className="fine">{ws.prefs.showCounts ? t.takesOffCount(plural(fresh, app.words.item)) : t.takesOffEvery}{t.nothingChanged}</p>
           </div>
-          <Button onClick={() => void actions.clearFresh("all")}>{app.words.markAllAsSeen}</Button>
+          <Button onClick={() => void actions.clearNew("all")}>{app.words.markAllAsSeen}</Button>
         </div>
       </section>
     ) : null,

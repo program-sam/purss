@@ -1,6 +1,6 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { DiscoveryRoute } from "@purss/domain";
-import type { DraftCandidate } from "./discover.ts";
+import type { DraftCandidate } from "./link-lookup.ts";
 import type { ParsedFeed } from "./feed.ts";
 import { WHOLE_SITE_FALLBACK_NOTE, WHOLE_SITE_NOTE, isSiteWideFeed, sameEntries } from "./feed-choice.ts";
 import { crossrefWorkUrl, planJournal, readCrossrefWork } from "./journals.ts";

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { BROWSER_CAPTURE_MAX_CHARS, browserCaptureSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
@@ -16,9 +16,9 @@ import { applySyncBatch } from "./sync.ts";
 const PAGE = "https://quiet.example/essays/tides?utm_source=feed";
 const HTML = '<article><h1>Tides</h1><p onclick="steal()">Neap tides follow the quarter moons.</p><script>alert(1)</script><img src="javascript:alert(1)"><a href="javascript:alert(2)">x</a></article>';
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const owner = makeOwner(app, { allocationBytes });
+  const owner = makeOwner(app, { allowanceBytes });
   const basket = createBasket(app, owner, { name: "Reading", captureMode: "metadata" }).id;
   return { app, owner, basket, cleanup };
 }
@@ -48,7 +48,7 @@ test("a page kept with its browser text becomes one item with a sanitized, label
   assert.deepEqual(detail.contentRef, { kind: "capture", id: cap!.id }, "the reader shows the captured text");
   assert.match(detail.contentHtml!, /quarter moons/);
 
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "neap quarter" }).items[0]?.id, out.itemId, "search finds the captured text");
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "neap quarter" }).items[0]?.id, out.itemId, "search finds the captured text");
   const objects = liveCaptureObjects(app, out.itemId);
   assert.equal(objects.length, 1);
   assert.ok(usedBytes(app, owner.accountId) - before >= objects[0]!.bytes, "counted against storage");
@@ -82,7 +82,7 @@ test("capturing again replaces the text in place and releases the earlier copy's
   assert.match(rows[0]!.text, /Second, longer/);
   assert.equal(liveCaptureObjects(app, first.itemId).length, 1, "one live ledger object");
   assert.equal(reconcile(app, owner.accountId).difference, 0);
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "First version" }).items.length, 0, "the old text left the index");
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "First version" }).items.length, 0, "the old text left the index");
 });
 
 test("a server capture and a browser capture of the same item live side by side", (t) => {
@@ -91,7 +91,7 @@ test("a server capture and a browser capture of the same item live side by side"
   const src = makeSource(app, owner, "Quiet Essays", "feed/1");
   applySyncBatch(app, owner.engineUserId, batch([entry("feed/1", { url: "https://quiet.example/essays/tides", title: "Tides" })]));
   const item = one<{ id: string }>(app, "SELECT id FROM items WHERE source_id = ?", src)!.id;
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, text, html, created_at, completed_at) VALUES ('cap_server', ?, ?, 'fulltext', 'done', 'server text', '<p>server text</p>', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')", owner.workspaceId, item);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, created_at, completed_at) VALUES ('cap_server', ?, ?, 'fulltext', 'done', 'server text', '<p>server text</p>', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')", owner.accountId, item);
   const out = keepWithBrowserCapture(app, owner, { url: PAGE, basketId: basket, html: "<p>Browser text.</p>" });
   assert.equal(out.itemId, item, "the feed item, not a duplicate");
   assert.deepEqual(getItemDetail(app, owner, item).captures.map((c) => c.level), ["metadata", "fulltext", "browser"]);
@@ -128,7 +128,7 @@ test("nothing is kept when no readable text survives, or the basket isn't the pe
   assert.throws(() => keepWithBrowserCapture(app, owner, { url: PAGE, basketId: theirs, html: HTML }), (e) => e instanceof HttpError && e.status === 404);
   assert.throws(() => keepWithBrowserCapture(app, owner, { url: "ftp://quiet.example/x", basketId: theirs, html: HTML }), (e) => e instanceof HttpError && e.status === 400);
   for (const table of ["captures", "basket_items"]) assert.equal(one<{ n: number }>(app, `SELECT COUNT(*) AS n FROM ${table}`)!.n, 0, table);
-  assert.equal(one<{ n: number }>(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ?", owner.workspaceId)!.n, 0, "no stray item");
+  assert.equal(one<{ n: number }>(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ?", owner.accountId)!.n, 0, "no stray item");
 });
 
 test("another PURSS's copy of the page is never touched", (t) => {
@@ -141,7 +141,7 @@ test("another PURSS's copy of the page is never touched", (t) => {
   assert.notEqual(mine.itemId, theirs.itemId);
   assert.equal(mine.existing, false);
   assert.match(captureRows(app, theirs.itemId)[0]!.text, /Their private text/);
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "private" }).items.length, 0);
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "private" }).items.length, 0);
 });
 
 test("the request schema caps the HTML", () => {

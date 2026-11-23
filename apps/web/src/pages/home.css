@@ -20,9 +20,9 @@
 .wb-src:hover{background:var(--hover)}
 .wb-src .t{display:grid;gap:2px;min-width:0;flex:1}
 .wb-src .title{font-weight:700;font-size:0.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wb-fresh-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;flex-wrap:wrap}
-.wb-fresh-in b{font-weight:800}
-.wb-fresh-in .fine{margin-top:2px;max-width:60ch}
+.wb-new-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;flex-wrap:wrap}
+.wb-new-in b{font-weight:800}
+.wb-new-in .fine{margin-top:2px;max-width:60ch}
 .mod-plain{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 8px;min-width:0}
 .end-of-new{margin-top:14px;text-align:center}
 

@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { PLANS, appCards, billingToggle, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";
@@ -46,14 +46,14 @@ ${terminal(site)}
 </section>
 </div>`;
 
-type Mine = { l: string; h: number; title: string; source: string; when: string; box: number; fresh?: true };
+type Mine = { l: string; h: number; title: string; source: string; when: string; box: number; isNew?: true };
 type Junk = { tag: string; title: string; sub: string; c: string };
 const POSTS = copy.home.picture.posts;
 const MINE: Mine[] = [
-  { l: initialsFor(POSTS.cyclePath.source), h: 210, ...POSTS.cyclePath, box: 0, fresh: true },
+  { l: initialsFor(POSTS.cyclePath.source), h: 210, ...POSTS.cyclePath, box: 0, isNew: true },
   { l: initialsFor(POSTS.handPlane.source), h: 18, ...POSTS.handPlane, box: 1 },
   { l: initialsFor(POSTS.smallLibraries.source), h: 280, ...POSTS.smallLibraries, box: 1 },
-  { l: initialsFor(POSTS.nightSky.source), h: 228, ...POSTS.nightSky, box: 2, fresh: true },
+  { l: initialsFor(POSTS.nightSky.source), h: 228, ...POSTS.nightSky, box: 2, isNew: true },
   { l: initialsFor(POSTS.tomatoSauce.source), h: 12, ...POSTS.tomatoSauce, box: 3 },
 ];
 const ADS = copy.home.picture.junk;
@@ -146,7 +146,7 @@ const css = `
 .pf-boxes{padding-top:2px}
 .pf-box .mod-t{display:flex;align-items:center;gap:8px;min-width:0}
 .pf-box .mod-t .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.pf-box .mod-fresh{margin-left:8px;flex:none}
+.pf-box .mod-new{margin-left:8px;flex:none}
 .pf-ghosts{position:absolute;inset:0;pointer-events:none;z-index:1}
 .pf-stage.fly .pf-box,.pf-stage.fly .pf-box .mod-b{overflow:visible!important}
 .pf-ghosts>*{position:absolute;margin:0!important}
@@ -219,9 +219,9 @@ const css = `
 @media (max-width:480px){.pf-nav{padding:10px 18px}.pf-h1{font-size:29px;line-height:1.04}.pf-lead{font-size:15px;line-height:1.42}.pf-sw{font-size:13px}.pf-stage{height:clamp(420px,calc(100svh - 300px),560px)!important}.pf-hero{gap:12px;padding-top:2px}}
 `;
 
-const mineEl = (k: number): string => { const m = MINE[k]!; return `<div class="pf-slot"><div class="pf-m" data-k="${k}"><span class="av" style="--ah:${m.h}" aria-hidden="true">${m.l}</span><span><b>${m.fresh ? '<i class="fd"></i>' : ""}${m.title}</b><small>${m.source} · ${m.when}</small></span></div></div>`; };
+const mineEl = (k: number): string => { const m = MINE[k]!; return `<div class="pf-slot"><div class="pf-m" data-k="${k}"><span class="av" style="--ah:${m.h}" aria-hidden="true">${m.l}</span><span><b>${m.isNew ? '<i class="fd"></i>' : ""}${m.title}</b><small>${m.source} · ${m.when}</small></span></div></div>`; };
 const junkEl = (j: number): string => { const x = JUNK[j]!; return `<div class="pf-c junk" style="--c:${x.c}" data-dir="${j % 2 ? 1 : -1}"><span class="th"></span><span><b>${x.title}</b><small><em>${x.tag}</em>${x.sub}</small></span></div>`; };
-const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flatMap((m, k) => (m.box === n ? [k] : [])); return `<section class="mod pf-box"><div class="mod-h"><div class="mod-t"><button type="button"><span class="stack">${b.stack.map(([l, h]) => av(l, h, 22)).join("")}</span><span class="t">${b.title}</span></button></div>${ks.some((k) => MINE[k]!.fresh) ? `<span class="mod-fresh"><span class="dot"></span>${copy.home.picture.newCount(ks.filter((k) => MINE[k]!.fresh).length)}</span>` : ""}</div><div class="mod-b" data-box="${n}">${ks.map(mineEl).join("")}</div></section>`; };
+const boxEl = (n: number): string => { const b = BOXES[n]!; const ks = MINE.flatMap((m, k) => (m.box === n ? [k] : [])); return `<section class="mod pf-box"><div class="mod-h"><div class="mod-t"><button type="button"><span class="stack">${b.stack.map(([l, h]) => av(l, h, 22)).join("")}</span><span class="t">${b.title}</span></button></div>${ks.some((k) => MINE[k]!.isNew) ? `<span class="mod-new"><span class="dot"></span>${copy.home.picture.newCount(ks.filter((k) => MINE[k]!.isNew).length)}</span>` : ""}</div><div class="mod-b" data-box="${n}">${ks.map(mineEl).join("")}</div></section>`; };
 
 export const home = {
   render: (site: Site) => `<style>${css}${COMPARISON_CSS}</style>

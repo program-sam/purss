@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { ContextMenus } from "./ContextMenu.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
@@ -36,7 +36,7 @@ import { PageNav } from "../components/PageNav.tsx";
 import { useDisplayMode } from "../lib/display.ts";
 import { SelectionProvider, useSelection } from "../state/selection.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
-import { WorkspaceProvider, useWorkspace } from "../state/workspace.tsx";
+import { PurssProvider, usePurss } from "../state/purss.tsx";
 import { PlayerProvider, usePlayer } from "../player/PlayerProvider.tsx";
 import { DeviceRunner } from "../device/DeviceRunner.tsx";
 import { PlayerBar, focusPlayer } from "../player/PlayerBar.tsx";
@@ -69,7 +69,7 @@ export function Shell() {
     );
   }
   return (
-    <WorkspaceProvider data={q.data}>
+    <PurssProvider data={q.data}>
       <SelectionProvider>
         <PopupProvider>
           <PlayerProvider>
@@ -77,12 +77,12 @@ export function Shell() {
           </PlayerProvider>
         </PopupProvider>
       </SelectionProvider>
-    </WorkspaceProvider>
+    </PurssProvider>
   );
 }
 
 function ShellFrame() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const qc = useQueryClient();
   const bp = useBreakpoint();
@@ -107,7 +107,7 @@ function ShellFrame() {
   useEffect(() => { if (zoneUnset) void savePrefs({ timezone: ws.prefs.timezone }); }, [zoneUnset]); // eslint-disable-line react-hooks/exhaustive-deps
   const onNotification = useBrowserNotifications();
   // The new items, as the sidebar counts them, on the app's icon; the system decides whether it shows the number or a dot.
-  const newItems = ws.data.sources.reduce((n, s) => n + s.freshCount, 0);
+  const newItems = ws.data.sources.reduce((n, s) => n + s.newCount, 0);
   useEffect(() => { platform.badge?.(newItems); }, [newItems]);
   useEffect(() => () => { platform.badge?.(0); }, []);
   useLiveUpdates(onNotification);

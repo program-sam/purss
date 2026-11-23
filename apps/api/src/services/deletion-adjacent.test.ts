@@ -23,7 +23,7 @@ const MAIL = { ...OAUTH, PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "
 const ASSISTANT = "https://assistant.example/client";
 
 const principal = (m: Member): Principal & { engineUserId: string } =>
-  ({ accountId: m.accountId, workspaceId: m.workspaceId, isAdmin: false, sessionId: "seed", csrf: "", authAt: nowIso(), engineUserId: m.engineUserId });
+  ({ accountId: m.accountId, isAdmin: false, sessionId: "seed", csrf: "", authAt: nowIso(), engineUserId: m.engineUserId });
 
 async function requested(b: DeletionBoot, m: Member, name: string): Promise<void> {
   const r = await b.api(signIn(b.app, m.accountId), "POST", "/api/account/deletion", { confirm: name });
@@ -111,14 +111,14 @@ test("removal deletes playback, annotations and their search rows, browser captu
   assert.equal(search("goneword"), 0, "the account's highlights and notes are gone from search");
   assert.ok(search("keepword") > 0, "the other account's are still found");
   for (const table of ["playback_positions", "annotations", "device_tokens", "push_devices", "connect_codes", "oauth_grants", "oauth_refreshes", "email_tokens", "mail_queue", "mail_log"]) {
-    const scope = table === "playback_positions" || table === "annotations" ? "workspace_id" : "account_id";
-    assert.equal(count(b, `SELECT COUNT(*) AS n FROM ${table} WHERE ${scope} = ?`, scope === "account_id" ? m.accountId : m.workspaceId), 0, table);
+    const scope = table === "playback_positions" || table === "annotations" ? "account_id" : "account_id";
+    assert.equal(count(b, `SELECT COUNT(*) AS n FROM ${table} WHERE ${scope} = ?`, scope === "account_id" ? m.accountId : m.accountId), 0, table);
   }
-  assert.equal(count(b, "SELECT COUNT(*) AS n FROM captures WHERE workspace_id = ?", m.workspaceId), 0, "browser captures");
+  assert.equal(count(b, "SELECT COUNT(*) AS n FROM captures WHERE account_id = ?", m.accountId), 0, "browser captures");
   assert.equal(count(b, "SELECT COUNT(*) AS n FROM oauth_access_tokens"), ownerGrants - 1, "only the other account's access token is left");
   assert.equal(count(b, "SELECT COUNT(*) AS n FROM mail_log WHERE account_id IS NULL AND recipient = 'a•••@example.org'"), 1, "the mail log keeps a masked line, no longer tied to the account");
   assert.deepEqual({ ...b.app.db.get<{ email: string | null; email_verified_at: string | null }>("SELECT email, email_verified_at FROM accounts WHERE id = ?", m.accountId) }, { email: null, email_verified_at: null }, "the address goes before the account row");
-  assert.deepEqual(rowsMentioning(b.app, [m.accountId, m.workspaceId]).filter((r) => !/^(accounts|workspaces|engine_users|account_deletions|jobs)\./.test(r)), [], "only what phase 2 removes is left");
+  assert.deepEqual(rowsMentioning(b.app, [m.accountId]).filter((r) => !/^(accounts|engine_users|account_deletions|jobs)\./.test(r)), [], "only what phase 2 removes is left");
 });
 
 test("during the grace period a password reset by email works and signing in offers to keep the account; once removal starts it is refused", async (t) => {

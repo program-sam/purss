@@ -16,7 +16,7 @@ async function boot() {
   return { app, owner, server, close: async () => { await server.close(); cleanup(); } };
 }
 const visitColumns = (b: Awaited<ReturnType<typeof boot>>) =>
-  b.app.db.get<{ a: string | null; b: string | null; c: string | null }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM workspaces WHERE id = ?", b.owner.workspaceId)!;
+  b.app.db.get<{ a: string | null; b: string | null; c: string | null }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM accounts WHERE id = ?", b.owner.accountId)!;
 
 test("reading Home changes nothing; the visit is recorded by a protected POST that moves both timestamps together", async (t) => {
   const b = await boot();
@@ -35,7 +35,7 @@ test("reading Home changes nothing; the visit is recorded by a protected POST th
   assert.ok(after.b && after.c && after.a === null);
 
   // Half an hour of quiet, then the next call (from whatever page): the visit that ended becomes the last one.
-  b.app.db.run("UPDATE workspaces SET visit_started_at = ?, last_activity_at = ? WHERE id = ?", "2026-11-01T09:00:00.000Z", "2026-11-01T09:20:00.000Z", b.owner.workspaceId);
+  b.app.db.run("UPDATE accounts SET visit_started_at = ?, last_activity_at = ? WHERE id = ?", "2026-11-01T09:00:00.000Z", "2026-11-01T09:20:00.000Z", b.owner.accountId);
   const second = await call(b.app, b.server.base, "POST", "/api/activity/visit", s, {});
   assert.deepEqual(second.json, { lastVisitAt: "2026-11-01T09:00:00.000Z", started: true });
   const moved = visitColumns(b);
@@ -63,9 +63,9 @@ test("the visit call needs a signed-in session, the CSRF token and this site as 
 
 function addItem(b: Awaited<ReturnType<typeof boot>>, sourceId: string, title: string, over: Partial<NewItem> = {}): string {
   return b.app.db.tx(() => insertItem(b.app, {
-    accountId: b.owner.accountId, workspaceId: b.owner.workspaceId, sourceId, kind: "article", title, url: `https://example.org/${title.replace(/\W+/g, "-")}`, author: null,
+    accountId: b.owner.accountId, sourceId, kind: "article", title, url: `https://example.org/${title.replace(/\W+/g, "-")}`, author: null,
     summaryHtml: `<p>${title}.</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: null, discoveredAt: nowIso(),
-    enclosures: [], fresh: false, reason: "test", ...over,
+    enclosures: [], isNew: false, reason: "test", ...over,
   })).id;
 }
 
@@ -84,7 +84,7 @@ test("lists take the type, length and source filters and Home's order; muted wor
   assert.equal((await list("scope=all&limit=10&length=long")).items.length, 0);
   assert.deepEqual((await list(`scope=all&limit=10&without=${a}`)).items.map((i) => i.id), [plain]);
   assert.equal((await call(b.app, b.server.base, "GET", "/api/items?scope=all&type=books", s)).status, 400);
-  assert.equal((await list("scope=home&limit=10&mix=home&filter=open")).items.length, 2);
+  assert.equal((await list("scope=home&limit=10&mix=home&filter=undecided")).items.length, 2);
 
   const saved = await call(b.app, b.server.base, "PATCH", "/api/preferences", s, { mutedWords: [{ text: "football", until: null }] });
   assert.equal(saved.status, 200);
@@ -115,9 +115,9 @@ test("a Home list narrowed by type, length, source or a failed copy still shows 
   const clipHidden = video(hidden, "clip hidden", 9, 100);
   const otherClip = video(other, "clip other", 6, 60), otherText = item(other, "text other", 12);
   const failing = item(a, "failing", 5);
-  b.app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f1', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.workspaceId, failing, at(5), at(5));
+  b.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f1', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.accountId, failing, at(5), at(5));
   const hiddenFailing = item(hidden, "failing hidden", 5);
-  b.app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f2', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.workspaceId, hiddenFailing, at(5), at(5));
+  b.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f2', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.accountId, hiddenFailing, at(5), at(5));
 
   const get = async (query: string) => {
     const r = await call(b.app, b.server.base, "GET", `/api/items?mix=home&limit=50&${query}`, s);
@@ -134,7 +134,7 @@ test("a Home list narrowed by type, length, source or a failed copy still shows 
   assert.deepEqual(await get(`scope=home&source=${hidden}`), new Set(), "a source of a collection hidden on Home is not Home's, even asked for by name");
   assert.deepEqual(await get("scope=home&capture=failed"), new Set([failing]), "failed copies: Home's only");
   assert.deepEqual(await get("scope=home&type=articles&capture=failed&length=short"), new Set([failing]), "and together: a failed copy of an article with no text to read is short");
-  assert.deepEqual(await get("scope=home&type=videos&filter=all"), new Set([clipA, filmA, otherClip]), "whatever the state filter");
+  assert.deepEqual(await get("scope=home&type=videos&filter=all_with_ignored"), new Set([clipA, filmA, otherClip]), "whatever the state filter");
   // The list view of the same request (not mix=home) shows them all: the narrowing is what Home does, not what lists do.
   const plain = await call(b.app, b.server.base, "GET", "/api/items?scope=home&limit=50&type=videos", s);
   assert.ok((plain.json.items as { id: string }[]).some((i) => i.id === clipHidden), "an ordinary list still has the hidden collection's video");
@@ -156,7 +156,7 @@ test("Home's one feed narrowed by type or length keeps Home's sources, and pages
   addItem(b, vids, "text", { publishedAt: at(12), discoveredAt: at(12) });
   addItem(b, plain, "plain text", { publishedAt: at(20), discoveredAt: at(20) });
   addItem(b, hidden, "hidden video", { kind: "video", durationSeconds: 60, publishedAt: at(7), discoveredAt: at(7) });
-  const get = async (query: string) => (await call(b.app, b.server.base, "GET", `/api/items?scope=home&mix=home&filter=open&${query}`, s)).json as { items: { id: string }[]; nextCursor: string | null };
+  const get = async (query: string) => (await call(b.app, b.server.base, "GET", `/api/items?scope=home&mix=home&filter=undecided&${query}`, s)).json as { items: { id: string }[]; nextCursor: string | null };
   assert.deepEqual((await get("limit=50&type=videos")).items.map((i) => i.id), [v1, v0], "Home's sources, newest first");
   const first = await get("limit=1");
   assert.equal(first.items.length, 1);

@@ -1,12 +1,12 @@
 # Assistants (MCP)
 
 PURSS runs an [MCP](https://modelcontextprotocol.io) server, so an AI assistant can work with one
-person's library: search and read it and, if allowed, organise it. The server is `POST /mcp` on
+person's PURSS: search and read it and, if allowed, organise it. The server is `POST /mcp` on
 the public address (`<PURSS_PUBLIC_ORIGIN>/mcp`), in the API process, so every tool runs as the
 person's account through the same services as the web app: the same scoping, plan limits, storage
 rules and audit. The [user guide](user-guide.md#assistants-mcp) walks a person through connecting
 one; this page describes what is on offer, how it is switched on and limited, and what a client
-author or operator can rely on. The threat model is in [Security](security.md).
+author or administrator can rely on. The threat model is in [Security](security.md).
 
 ## Two switches
 
@@ -18,7 +18,7 @@ Assistant access works only while both are on. Both are off by default.
 | Account | *Settings → Assistants → Let assistants use my PURSS* | The person; can't be turned on while the installation switch is off | The account's tokens are revoked and its connected assistants disconnected |
 
 Other things that end or pause an assistant's access: a password reset (by email or with the
-operator's `password-reset-link`) and signing out everywhere revoke the account's tokens and
+administrator's `password-reset-link`) and signing out everywhere revoke the account's tokens and
 connected assistants; suspending the account stops them at once and resuming brings them back;
 deleting the account deletes them.
 
@@ -47,25 +47,25 @@ Assistants* warns about it.
 
 A token or connected assistant is *read* or *write*. A read assistant is shown only the reading
 tools in `tools/list`; calling a writing tool answers a tool error saying that it can only read.
-Failures an assistant can act on (invalid arguments, a plan limit, a full allowance, an item that
+Failures an assistant can act on (invalid arguments, a plan limit, a full storage allowance, an item that
 doesn't exist) come back as results with `isError: true` and a message, not as protocol errors.
 
 | Tool | Level | What it does |
 | --- | --- | --- |
-| `search_items` | read | Full-text search over titles, summaries, authors, feed content, saved article text and the person's own highlights and notes, including finished and ignored items. `query` 1 to 200 characters, `limit` 1 to 50 (20) |
+| `search_items` | read | Full-text search over titles, summaries, authors, feed content, readable copies and the person's own highlights and notes, including finished and ignored items. `query` 1 to 200 characters, `limit` 1 to 50 (20) |
 | `list_items` | read | Items, newest first unless `sort` is `oldest`, `source` or `title`, optionally in one collection, source or basket (`place` and `id`, or `all`, or `new` for items marked New) and one workflow state. Without a state, ignored items are left out. `limit` 1 to 100 (30), paged with `nextCursor` |
-| `get_item` | read | One item with its text: the saved full article when there is one, otherwise what the feed carried (`textSource` says which). `maxChars` 500 to 60,000 (20,000) cuts the text and the annotations that go with it; `textTruncated` and `annotationsTruncated` say so. Also the person's highlights and notes on it, the collections it is in and when it was kept |
+| `get_item` | read | One item with its text: the readable copy when there is one, otherwise what the feed carried (`textSource` says which). `maxChars` 500 to 60,000 (20,000) cuts the text and the annotations that go with it; `textTruncated` and `annotationsTruncated` say so. Also the person's highlights and notes on it, the collections it is in and when it was kept |
 | `list_sources` | read | The followed sources with their collections, health, whether full articles are fetched, notification setting and item counts |
-| `list_collections` | read | Collections, whether they group sources or match a saved filter, with counts |
+| `list_collections` | read | Collections, whether they group sources or match a filter, with counts |
 | `list_baskets` | read | Baskets, whether each keeps readable text, and counts |
 | `set_item_state` | write | Moves up to 100 items to one workflow state: `undecided`, `toread`, `inprogress`, `finished` or `ignored`. Nothing is deleted |
 | `clear_new` | write | Removes the New marker from up to 100 items without changing their state |
-| `keep_items` | write | Keeps up to 100 items in a basket. The copy of each item as it is, and in a basket that keeps readable text the page's text when it can be fetched and there is room, are saved under the normal storage rules |
+| `keep_items` | write | Keeps up to 100 items in a basket. The kept version of each item as it is now, and in a basket that keeps readable text the page's readable copy when it can be fetched and there is room, are saved under the normal storage rules |
 | `remove_from_basket` | write | Takes up to 100 items out of a basket; the items stay in PURSS |
 | `create_basket` | write | Creates a basket (`name` 1 to 80 characters, `keepReadableText`) |
 | `create_collection` | write | Creates a collection of sources (`name`, up to 500 `sourceIds`) |
 | `find_sources` | write | Looks up what can be followed at a link (website, feed, YouTube channel or video, podcast, Mastodon or Bluesky account) and returns candidates, each with a `followToken`. Nothing is followed. A token is held in memory for an hour and is forgotten when the API restarts |
-| `follow_source` | write | Follows a candidate, optionally into an existing collection or one it creates, with full articles on or off. The posts the feed already has stay on the source's page and in search and are left out of Home and its counts, as in the app. Subject to the account's plan |
+| `follow_source` | write | Follows a candidate, optionally into an existing collection or one it creates, with full articles on or off. The posts the feed already has stay on the source's page and in search and are left out of Home and its counts, as in the app. Subject to the account's plan limits |
 | `update_source` | write | Renames, pauses or resumes a source, turns full articles on or off, sets its notifications (`default`, `on`, `muted`) or sets its collections (up to 20, replacing the list) |
 | `unfollow_source` | write | Stops following a source. Items kept in baskets stay; its other items drop out of lists and search without being deleted, and following it again brings them back |
 
@@ -92,9 +92,9 @@ the person highlighted), and the person's own words in `writtenByThePerson`. Ite
 and authors are publisher text too and keep their plain names. The server's instructions, sent when
 the assistant connects, tell it to treat all of this as data and never as instructions, and to confirm
 with the person before changing many items at once or unfollowing a source. Nothing in PURSS enforces
-that on the assistant's side: what an assistant reads leaves the server for its provider.
+that on the assistant's side: what an assistant reads leaves the server for its AI provider.
 
-Links of items from private sources, any link carrying credentials (a user name, or a query value under
+Links of items from private sources, any link carrying credentials (a login name, or a query value under
 a secret-looking name such as `api_key`) and private feed addresses are left out of every answer.
 
 ## Limits
@@ -167,7 +167,7 @@ address with a path, in normal form; the document there is JSON that must:
 PURSS fetches the document with the same safe fetcher as source lookups: https only, public addresses
 only, no redirects, status 200 only, at most 5 kB and 5 seconds. Valid documents are cached for their
 `max-age` (an hour when unstated, at most a day; `no-store` and `no-cache` are not cached; up to 1,000
-entries), and failures are never cached. Only a signed-in person's consent page triggers a fetch, at
+documents), and failures are never cached. Only a signed-in person's consent page triggers a fetch, at
 most 30 uncached fetches per account per 10 minutes. PURSS stores nothing about a client beyond the
 grants people approve.
 
@@ -261,5 +261,5 @@ tools.
 ## See also
 
 - [User guide: Assistants (MCP)](user-guide.md#assistants-mcp): connecting an assistant, step by step.
-- [Self-hosting](self-hosting.md): `PURSS_ASSISTANT_OAUTH`, the reverse proxy paths, the operator CLI.
+- [Self-hosting](self-hosting.md): `PURSS_ASSISTANT_OAUTH`, the reverse proxy paths, the administrator CLI.
 - [Security](security.md): the threat model for tokens, grants and untrusted text.

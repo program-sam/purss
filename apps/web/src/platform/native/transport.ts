@@ -1,16 +1,16 @@
-import type { OfflineWorker } from "../../sw/offline-worker.ts";
+import type { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { classifyRequest } from "../../sw/policy.ts";
 import { NO_COPY_HEADER } from "../../sw/protocol.ts";
 import { createPictureCache } from "../pictures.ts";
 import { followEvents } from "../sse.ts";
 import type { Transport } from "../types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.transport;
 
 /**
  * How the apps reach PURSS: every API request goes to the connected server with the device
- * token, and never with cookies; a request for any other origin is refused. Reads worth keeping go through the same OfflineWorker the web's service
+ * token, and never with cookies; a request for any other origin is refused. Reads worth keeping go through the same OfflineServiceWorker the web's service
  * worker runs (network first, this device's copy when there is no network); when neither answers, an
  * item downloaded to the device still does. Pictures PURSS serves (icons, pictures kept with copies) are fetched the same
  * way, kept on the device by the same worker, and shown from this page's own copies (platform/pictures.ts).
@@ -18,7 +18,7 @@ const t = app.platform.transport;
 export type AppTransportDeps = {
   origin: string;
   token: string;
-  worker: Pick<OfflineWorker, "handle">;
+  worker: Pick<OfflineServiceWorker, "handle">;
   /** A downloaded copy of an API read, or null. */
   downloaded: ((path: string) => Promise<Response | null>) | null;
   fetch: (request: Request) => Promise<Response>;

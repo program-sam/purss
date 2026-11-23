@@ -6,7 +6,7 @@
  * and http(s)/mailto links. The reader's display pass (lib/article-html.ts) runs on it again.
  */
 
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.readablePage;
 

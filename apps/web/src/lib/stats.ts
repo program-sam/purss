@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CollectionStatsRow, StatsNumbers, WorkflowState } from "@purss/domain";
 
 /** Plain presentation of the statistics numbers. Nothing here ranks or judges; it only formats and orders. */

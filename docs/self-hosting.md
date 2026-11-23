@@ -4,7 +4,7 @@ How to run and operate PURSS. [Host it yourself](install.md) is the step-by-step
 a first installation; this page is the reference. [Architecture](architecture.md) explains the
 parts named here, [Security](security.md) the threat model and the controls behind the
 [Security notes](#security-notes) below, and [Storage and retention](storage-and-retention.md) what the
-server keeps and how allocations work.
+server keeps and how allowances work.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ npm run dev
 `data/secrets/bridge-key` and `data/secrets/feed-trim-key` if needed, starts RSS-Bridge in podman (`node scripts/bridge.ts up`; on
 127.0.0.1:8944, the image and settings Compose uses), the egress proxy and bridge router, starts
 or resumes FreshRSS in podman (`node scripts/engine.ts up`), then the API and the worker. If
-RSS-Bridge doesn't start, the stack runs without it and the services it collects (Telegram,
+RSS-Bridge doesn't start, the stack runs without it and the services it fetches (Telegram,
 Bandcamp and the rest) say they have no feeds; journals through Crossref
 need only the bridge router and still work (see [Sources](sources.md)). Their logs share the terminal, each line prefixed with the process name.
 Ctrl+C stops everything and removes the FreshRSS and RSS-Bridge containers (FreshRSS's data stays in `data/engine`).
@@ -56,7 +56,7 @@ Local listeners, all on 127.0.0.1:
 | Port | Service |
 | --- | --- |
 | 8940 | PURSS: web app, `/api`, public share pages |
-| 8941 | FreshRSS (operator web UI and GReader API) |
+| 8941 | FreshRSS (administrator web UI and GReader API) |
 | 8944 | RSS-Bridge (development only; reached by the bridge router) |
 | 8945 | Bridge router (signed source addresses for FreshRSS and the API's previews) |
 | 8946 | Egress proxy (FreshRSS's only way out) |
@@ -79,13 +79,13 @@ and runs:
 | `egress` | Egress proxy, feed gateway, bridge router, control listener; on the bridge network also the proxy and a DNS resolver for RSS-Bridge | internal, bridge-net, outside |
 | `bridge` | RSS-Bridge, pinned by digest, with only the bridges PURSS uses; its only way out is egress | bridge-net only |
 | `engine` | FreshRSS with the fixed admin helper | internal only |
-| `engine-setup` | Checks the proxy setting and operator sign-in once FreshRSS is healthy, then exits | internal |
+| `engine-setup` | Checks the proxy setting and administrator sign-in once FreshRSS is healthy, then exits | internal |
 | `api` | Web app and API | internal, outside (plus the proxy network in proxy mode) |
 | `worker` | Background jobs | internal, outside |
 
 Volumes: `data` (product database, bridge fetch log, backups), `secrets` (service
-token, engine helper token, bridge key, engine operator credentials, engine-user passwords, private source links, the setup code) and
-`engine-data` (FreshRSS). FreshRSS can read only its admin helper's token and its operator secret.
+token, engine helper token, bridge key, engine administrator credentials, engine-user passwords, private source links, the setup code) and
+`engine-data` (FreshRSS). FreshRSS can read only its admin helper's token and its administrator secret.
 
 Settings go in a `.env` file at the repository root (ignored by Git). Compose reads only the
 variables `compose.yaml` refers to:
@@ -96,17 +96,17 @@ variables `compose.yaml` refers to:
 | `PURSS_HOST_PORT` | `8940` | Host port in localhost mode; change `PURSS_PUBLIC_ORIGIN` to match |
 | `PURSS_BIND_ADDRESS` | `127.0.0.1` | Host address the port is published on; a LAN address opens it to the home network |
 | `PURSS_PROXY_NETWORK` | `nginx_default` | Proxy mode: the reverse proxy's Docker network |
-| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allocations and optional open sign-up |
+| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allowances and optional open sign-up |
 | `PURSS_SIGNUP` | `invite` | `open` (hosted mode only, needs outgoing email): anyone can create an account |
 | `PURSS_SIGNUP_DAILY_LIMIT` | `50` | Most open sign-ups accepted per day |
-| `PURSS_DEFAULT_ALLOCATION_BYTES` | empty | Hosted mode's allocation for new accounts; empty means no limit |
+| `PURSS_DEFAULT_ALLOWANCE_BYTES` | empty | Hosted mode's allowance for new accounts; empty means no limit |
 | `PURSS_SMTP_HOST` … `PURSS_MAIL_FROM` | empty | Optional outgoing email; see [Outgoing email](#outgoing-email) |
 | `PURSS_ASSISTANT_OAUTH` | empty | Assistants signing in with OAuth: on in hosted mode; `on` opts in when self-hosted (needs https) |
 | `PURSS_PUSH_RELAY_URL` | unset | Phone notifications go through the project's relay; set it empty (`PURSS_PUSH_RELAY_URL=`) or `off` to turn them off |
-| `PURSS_APP_ANDROID_CERT_SHA256`, `PURSS_APP_ANDROID_PACKAGE`, `PURSS_APP_IOS_APP_ID` | empty | The phone apps this PURSS vouches for, so they can use its passkeys; see [Configuration](#configuration) |
+| `PURSS_APP_ANDROID_CERT_SHA256`, `PURSS_APP_ANDROID_PACKAGE`, `PURSS_APP_IOS_APP_ID` | empty | The mobile app builds this installation vouches for, so they can use its passkeys; see [Configuration](#configuration) |
 | `PURSS_DISK_RESERVE_BYTES` | empty | Free disk kept in reserve; empty means 1 GiB |
 | `PURSS_API_MEMORY`, `PURSS_API_HEAP_MB`, `PURSS_IMPORT_CHECK_HEAP_MB` | `1g`, `640`, empty (384) | The API container's memory limit, its JavaScript heap in MB, and the memory one import check may use; lower all three on a small server (see [Requirements](#requirements)) |
-| `PURSS_OIDC` | empty | Sign-in with other providers, such as Google; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
+| `PURSS_OIDC` | empty | Sign-in through sign-in providers such as Google; see [Signing in with Google or another sign-in provider](#signing-in-with-google-or-another-sign-in-provider) |
 | `PURSS_SYNC_INTERVAL` | empty | Seconds between scheduled syncs per account; empty means 120 |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | empty | Jev's address and model for Smart filters; empty means TypeSafe's and the newest Jev |
 
@@ -156,9 +156,9 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.proxy.yaml
 ```
 
 [compose.proxy.yaml](../infra/compose.proxy.yaml) removes the host port, joins the API to the
-proxy's (external) network under the alias `purss-workspace`, and requires `PURSS_PUBLIC_ORIGIN` and
+proxy's (external) network under the alias `purss-api`, and requires `PURSS_PUBLIC_ORIGIN` and
 `PURSS_TRUST_PROXY`, the proxy's container name (`docker ps` shows it): only that container, not others on
-the same network, can say which address a visitor has. Point the proxy at `http://purss-workspace:8940`. The proxy should:
+the same network, can say which address a visitor has. Point the proxy at `http://purss-api:8940`. The proxy should:
 
 - serve HTTPS at exactly `PURSS_PUBLIC_ORIGIN` and pass the `Host` and `Origin` headers through;
 - append the client's address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For
@@ -170,7 +170,7 @@ the same network, can say which address a visitor has. Point the proxy at `http:
   with assistant OAuth on also `/.well-known/oauth-protected-resource…`,
   `/.well-known/oauth-authorization-server` and `/oauth/…`;
 - pass `Authorization` headers and `OPTIONS` requests on `/api` through unchanged, and add no CORS
-  headers of its own: the phone app and browser extension use them (there is nothing to configure);
+  headers of its own: the mobile app and browser extension use them (there is nothing to configure);
 - allow request bodies large enough for imports (the import endpoint accepts up to 128 MiB) and for
   pages kept with their text from the browser extension (up to 8 MiB);
 - add HSTS if you want it; the API doesn't;
@@ -200,8 +200,8 @@ redacted. FreshRSS's access log is off. The API logs plain lines.
 ## The first administrator
 
 On start, an API with no accounts writes a one-time **setup code** to `secrets/setup-code`
-(mode 0600) and stores only its hash. Whoever enters it at `/app/setup` becomes the owner and the
-administrator. The setup page asks for the code, the owner's **email address** and a **password** (typed twice),
+(mode 0600) and stores only its hash. Whoever enters it at `/app/setup` becomes the
+administrator. The setup page asks for the code, the administrator's **email address** and a **password** (typed twice),
 and then, where the browser supports it, offers fingerprint, face or screen lock (a passkey), which
 can be skipped and added later in *Settings → Security*. The code works once; the
 file is removed the next time the API starts. There is no first-visitor-wins page and no other
@@ -210,13 +210,13 @@ way to become administrator: invitations never grant administration.
 ## Forgotten passwords
 
 Every account made with a password keeps one: it can be changed (*Settings → Security*)
-or reset but never removed. (An account made by [signing in with a provider](#signing-in-with-google-or-another-provider)
+or reset but never removed. (An account made by [signing in with a sign-in provider](#signing-in-with-google-or-another-sign-in-provider)
 has no password until it adds one there, so it has none to forget or reset.) Someone who has forgotten theirs gets back in in one of two ways:
 
 - **By email**, where the installation has [outgoing email](#outgoing-email) and the account has a
   confirmed address: **Can't sign in?** on the sign-in page leads to a page that emails a link to
   that address. The link works once, for an hour.
-- **With a link from the operator**, for a server without email, an account without a confirmed
+- **With a link from the administrator**, for a server without email, an account without a confirmed
   address, and administrators (who don't reset by email). On the server:
 
   ```sh
@@ -225,7 +225,7 @@ has no password until it adds one there, so it has none to forget or reset.) Som
 
   (Locally: `node apps/api/src/cli.ts password-reset-link "Alex"`, with `PURSS_DATA_DIR` set if the
   data isn't in `./data`.) The account is an id (`acc_…`), its email address, or a unique display name. The command needs only the data
-  directory, like the other [operator commands](#operator-cli). It
+  directory, like the other [administrator commands](#administrator-cli). It
   prints a single-use link such as `https://purss.example/app/reset-password?token=…`, which is
   shown once and valid for 60 minutes. Give it only to the person it is for, by a channel you
   trust. Opening the link shows the ordinary **Choose a new password** page: they keep their
@@ -237,41 +237,41 @@ has no password until it adds one there, so it has none to forget or reset.) Som
 When the sign-in page can't offer the email reset, it tells the person to ask the server's
 administrator for a password reset link.
 
-## Signing in with Google or another provider
+## Signing in with Google or another sign-in provider
 
 `PURSS_OIDC` lets people sign in with an OpenID Connect provider instead of an email address and password.
-PURSS ships no provider and needs none: Google is just one entry in the list. Each entry shows a
+PURSS ships no sign-in provider and needs none: Google is just one sign-in provider in the list. Each one shows a
 **Continue with …** button on the sign-in page (and the sign-up page when sign-up is open), and in
-the phone and desktop apps, where it opens the system browser, because Google refuses to sign
+the mobile and desktop apps, where it opens the system browser, because Google refuses to sign
 anyone in inside an app's embedded web view. Signed in there, the person presses *Connect* and the
 browser hands the app back to itself.
 
-What a provider can do:
+What a sign-in provider can do:
 
 - **Sign in** to an account that linked it in *Settings → Security* (*Link Google*, which asks the
-  person to confirm it's them first). Accounts are matched by the provider's issuer and its
+  person to confirm it's them first). Accounts are matched by the sign-in provider's issuer and its
   account id, never by email address, and nothing is ever linked automatically.
 - **Make an account**, when [open sign-up](#self-and-hosted-mode) is on (hosted mode with outgoing email) and the
-  provider account isn't linked yet. The provider must vouch for the email address (`email_verified`).
-  The account has that address already confirmed (no mail is sent), the provider's name as its display
-  name, the provider as its way to sign in, and no password. It counts against the same limits as
+  sign-in provider account isn't linked yet. The sign-in provider must vouch for the email address (`email_verified`).
+  The account has that address already confirmed (no mail is sent), the sign-in provider's name as its display
+  name, the sign-in provider as its way to sign in, and no password. It counts against the same limits as
   signing up with a password (30 attempts an hour and 10 accounts an hour per address,
   `PURSS_SIGNUP_DAILY_LIMIT` a day). If an account with that email address exists, confirmed or not, no
   second account is made and nothing is linked: the person is told to sign in with their email address and
-  password and connect the provider in *Settings → Security*. Where sign-up is closed, a provider account
+  password and connect the sign-in provider in *Settings → Security*. Where sign-up is closed, a sign-in provider account
   that isn't linked signs in to nothing.
 - **Confirm it's you.** An account made this way has no password and perhaps no passkey, so for sensitive
   changes (adding a sign-in method, deleting the account, connecting an app) *Confirm with Google* sends the
-  person to the provider again in the same browser and returns them. In the apps it opens the system browser,
-  which sends the app a one-time code that only that app can redeem. The provider must be the one linked to that account, and only the
+  person to the sign-in provider again in the same browser and returns them. In the apps it opens the system browser,
+  which sends the app a one-time code that only that app can redeem. The sign-in provider must be the one linked to that account, and only the
   browser session (or app) that asked is confirmed. Google can only show its account chooser, so it confirms an
   account that has no password and no passkey; accounts that have one confirm with it (see `stepUp` below).
 
-A person without a password can add one in *Settings → Security* (*Add a password*). A provider can be
+A person without a password can add one in *Settings → Security* (*Add a password*). A sign-in provider can be
 removed only while a password remains (a passkey on its own is not a way in), and so can't be removed from an account
-that has none; a provider you stop configuring stops counting as a way in. Their data can always be exported and the account
-deleted, whatever their sign-in. There is no email recovery for an account without a password: an owner who
-loses the provider account loses the way in, so tell people to add a password if the account matters to them.
+that has none; a sign-in provider you stop configuring stops counting as a way in. Their data can always be exported and the account
+deleted, whatever their sign-in. There is no email recovery for an account without a password: a person who
+loses the sign-in provider account loses the way in, so tell people to add a password if the account matters to them.
 
 ### Setting up Google
 
@@ -294,16 +294,16 @@ loses the provider account loses the way in, so tell people to add a password if
    with Google**; the apps show it the next time they open the sign-in screen.
 
 Use the id `google` for Google: it is what gives the button Google's own look. Any other OpenID Connect
-provider is the same entry with its own `issuer` (the address that serves `/.well-known/openid-configuration`),
-`clientId` and `clientSecret`; a provider that registers an app per redirect address wants
+sign-in provider is set up the same way, with its own `issuer` (the address that serves `/.well-known/openid-configuration`),
+`clientId` and `clientSecret`; a sign-in provider that registers an app per redirect address wants
 `<PURSS_PUBLIC_ORIGIN>/api/auth/oidc/<id>/callback`.
 
-`stepUp` (optional) says how *Confirm it's you* asks the provider to check the person again. `"reauthenticate"`
+`stepUp` (optional) says how *Confirm it's you* asks the sign-in provider to check the person again. `"reauthenticate"`
 sends `prompt=login&max_age=0` and refuses an ID token whose `auth_time` is missing or older than the request:
-right for providers that follow OpenID Connect, and the default for them; it lets any account that linked the
-provider confirm with it. Google offers neither (its documented `prompt` values are `none`, `consent` and
-`select_account`), so an entry with Google's issuer defaults to `"choose-account"`: Google's account chooser opens in
-that browser, and only the account linked to this PURSS account can confirm it. That proves the person has a
+right for sign-in providers that follow OpenID Connect, and the default for them; it lets any account that linked the
+sign-in provider confirm with it. Google offers neither (its documented `prompt` values are `none`, `consent` and
+`select_account`), so a sign-in provider with Google's issuer defaults to `"choose-account"`: Google's account chooser opens in
+that browser, and only the account linked to this account can confirm it. That proves the person has a
 signed-in Google account in that browser, not that they typed its password just now, so it confirms only accounts
 that have no password and no passkey; accounts that have one confirm with it. Set `"stepUp"` yourself to override
 either default.
@@ -316,22 +316,22 @@ and each account has its own PURSS and FreshRSS user, isolated from the others.
 
 | | `self` (default) | `hosted` |
 | --- | --- | --- |
-| Accounts | The owner plus people an administrator invites | The same, plus optional open sign-up |
+| Accounts | The first administrator plus people an administrator invites | The same, plus optional open sign-up |
 | Plans | None: no source or collection limits | Free (100 sources, 5 collections) for new accounts, Plus (1,000 sources), Pro (5,000 sources) or Unlimited; see [Plans](#plans-in-hosted-mode). Administrators are Unlimited |
-| Space allocation | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOCATION_BYTES`, per invitation or per account; a safeguard users don't see |
+| Storage allowance | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOWANCE_BYTES`, per invitation or per account; a safeguard people don't see |
 | Sharing baskets and collections | Available, with a report link and takedowns | Plus and above, with a report link and takedowns |
-| Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together; see [Discover](#discover-hosted-only) |
+| Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together; see [Discovery](#discovery-hosted-only) |
 | Smart filters | Every account, on the server's Jev key | Pro and above, within a weekly allowance; see [Smart filters](#smart-filters) |
 | Assistants signing in with OAuth | Off unless `PURSS_ASSISTANT_OAUTH=on` | On when `PURSS_PUBLIC_ORIGIN` is https; see [Assistants](assistants.md) |
-| Administration | Health, jobs, audit log, usage check, accounts (suspend, admin role), invitations, assistant access, reports about shared pages and news | Also plans and allocations |
+| Administration | Health, jobs, audit log, usage check, accounts (suspend, admin role), invitations, assistant access, reports about shared pages and news | Also plans and storage allowances |
 
 **Administration → News** is where administrators write posts for everyone on the installation.
 A draft stays there; publishing (which asks to confirm it's you) puts the post on the public
-page `/news`, in the Atom feed `/news/feed.atom`, and into every PURSS's *PURSS
-news* source, which each PURSS gets with the first published post. Nothing is fetched for
-this: the API writes the posts into each PURSS itself, so it works behind any firewall. Editing
-a published post updates every copy (a kept copy keeps its version); deleting one removes the
-copies nobody kept. Each post shows how many PURSSes it reached and how many opened, kept,
+page `/news`, in the Atom feed `/news/feed.atom`, and into every account's *PURSS
+news* source, which each account gets with the first published post. Nothing is fetched for
+this: the API writes the posts into each account itself, so it works behind any firewall. Editing
+a published post updates every item (a kept item keeps its version); deleting one removes the
+items nobody kept. Each post shows how many accounts it reached and how many opened, kept,
 ignored or deleted it, as counts only.
 
 **Administration → Health** shows the engine, jobs, disk, database, followed sources, egress and, when it is
@@ -375,7 +375,7 @@ to finish the deletion. Administrators can't delete other people's accounts. Bac
 a deletion still contain the account.
 
 Open sign-up exists only in hosted mode and is off by default, and stays closed until the installation is
-claimed with its setup code (so the operator's account is always the first, and its administrator).
+claimed with its setup code (so the first account is always the administrator's).
 `PURSS_SIGNUP=open` adds *create an account* to the sign-in page; attempts are limited to 30 per address an hour, successful
 account creations to 10 per address an hour, and the installation-wide daily cap is
 `PURSS_SIGNUP_DAILY_LIMIT` (50 a day by default). When every blocking limit has a known release,
@@ -398,9 +398,9 @@ reveal whether an address has an account are described in [Security](security.md
 A new account starts on Free. Administrators are Unlimited while they hold the role; the plan stored for
 them applies again if they stop being administrators. An administrator sets another account's plan under
 **Administration → Accounts → Plan…** (it asks to confirm it's you) or with `set-plan`, and where a
-[billing service](#billing-service) is connected it sets the plan after a payment. Saved links don't count
+[billing service](#billing-service) is connected it sets the plan after a payment. Kept links don't count
 as followed sources. The people themselves see their sources used of their plan under *Settings → Plan*;
-the storage allocation stays an administrator's safeguard that they don't see.
+the storage allowance stays an administrator's safeguard that they don't see.
 
 The limits are checked inside the write transaction of every path that adds a followed source or a
 collection: following (including following a source again), OPML import, data import and the assistant
@@ -438,48 +438,48 @@ The two sides meet in two places, both signed with HMAC-SHA256 under the shared 
 - **Plan.** The service sets Free, Plus or Pro with `POST /api/billing/plan` (`{accountId, plan, at}`,
   signature in the `X-PURSS-Billing-Signature` header, no cookies). A request more than 5 minutes
   off the server's clock, or one already used, is refused. The service can't change an administrator or an
-  account an operator made Unlimited (answered `200` with no change), and an account that no longer exists
+  account an administrator made Unlimited (answered `200` with no change), and an account that no longer exists
   answers `404`, so the service can stop charging for it. A cancelled subscription lasts to the end of the
   period paid for, after which the service sets Free; nothing is removed (see above).
 
 The proxy must pass `/api/billing/plan` to the API unchanged. The route reads no cookies and needs no CSRF
 token; the signature is its only credential.
 
-### Discover (hosted only)
+### Discovery (hosted only)
 
 Hosted installations can suggest sources a person doesn't follow yet: if many accounts that follow A also
 follow B, someone who follows A is shown B, with A named as the reason. A self-hosted installation builds,
-keeps and serves none of it and has no Discover page.
+keeps and serves none of it and has no Discovery page.
 
 - **Who counts.** Only accounts that share (*Settings → General → Share my sources*, on by default and
-  also offered on the Discover page) count, and only they get suggestions. Followed public feeds, YouTube
-  channels and podcasts count; private sources, saved links, followed shared collections and addresses
+  also offered on the Discovery page) count, and only they get suggestions. Followed public feeds, YouTube
+  channels and podcasts count; private sources, kept links, followed shared collections and addresses
   with a name or password in them never do.
 - **Thresholds.** A source enters the graph only when at least 10 accounts follow it, and a pair of
   sources only when at least 10 accounts follow both. Thinner data is dropped, never shown. The title and
   site shown for a suggestion must themselves be used by at least 10 of its followers, otherwise the
-  feed's host shows, so a name someone gave their own copy never reaches anyone else.
+  feed's host shows, so a name someone gave their own version never reaches anyone else.
 - **Name search.** Add source's search by name lists the graph's sources whose shown name or site
-  contains the name, first, for a reader who shares. It shows what a suggestion would (the shared name
+  contains the name, first, for a person who shares. It shows what a suggestion would (the shared name
   and site, never a count, never a private source).
-- **What is kept.** Two tables of counts, with no account or workspace in them. Counts are never shown: a
-  suggestion names the reader's own sources that led to it, or says *Popular with readers here*. *Not
+- **What is kept.** Two tables of counts, with no account in them. Counts are never shown: a
+  suggestion names the person's own sources that led to it, or says *Popular here*. *Not
   interested* is stored per account and deleted with it.
 - **When.** The graph is rebuilt every 6 hours, and within a minute after someone changes the sharing
   setting, in the API process. Until at least one source reaches the threshold the page says *Coming soon*.
   Scoring is described in [Architecture](architecture.md).
-- **Popular sources by topic.** Below the suggestions, the Discover page shows one box per topic with
-  popular sources, read from `discover-catalog.sqlite` in the data directory. The hosted service's
-  catalog is its own editorial choice, put on its server by hand and not part of this repository.
+- **Popular sources by topic.** Below the suggestions, the Discovery page shows one box per topic with
+  popular sources, read from `discovery-catalogue.sqlite` in the data directory. The hosted service's
+  catalogue is its own editorial choice, put on its server by hand and not part of this repository.
   Without the file the page shows no topic boxes. Add source's name search also lists the file's
   sources of that name.
 
-### A catalog of popular sources
+### A catalogue of popular sources
 
-Any installation can show popular sources by topic on its Discover page: put a SQLite file named
-`discover-catalog.sqlite` in the data directory (the `data` volume, `/data` in the containers). PURSS
+Any installation can show popular sources by topic on its Discovery page: put a SQLite file named
+`discovery-catalogue.sqlite` in the data directory (the `data` volume, `/data` in the containers). PURSS
 reads it read-only, picks up a changed file without a restart, and leaves out a file it can't read
-(the API log says why). The Discover page then appears in the menu even on a self-hosted
+(the API log says why). The Discovery page then appears in the menu even on a self-hosted
 installation, without the suggestions. The file needs one table:
 
 ```sql
@@ -492,12 +492,12 @@ CREATE TABLE sources (
   kind TEXT NOT NULL,          -- feed, youtube or podcast
   language TEXT NOT NULL,      -- a language code; only "en" rows are shown
   description TEXT,
-  weight REAL NOT NULL,        -- popularity on a log scale, e.g. ln(1 + subscribers)
+  weight REAL NOT NULL,        -- popularity on a log scale, e.g. ln(1 + followers)
   icon BLOB                    -- optional: a WebP of at most 64 KiB
 );
 ```
 
-Other tables in the file are ignored. Icons are served by PURSS itself, so readers' browsers load
+Other tables in the file are ignored. Icons are served by PURSS itself, so people's browsers load
 nothing from other sites for the page.
 
 ## Outgoing email
@@ -509,7 +509,7 @@ With one set, the API proves addresses with links and sends a few account messag
 server you name:
 
 - **Invitations:** the code goes only by email, to the address the administrator typed (neither the
-  dashboard nor `create-invite` shows it); the person types that address again to accept it, and it
+  Administration area nor `create-invite` shows it); the person types that address again to accept it, and it
   counts as confirmed. One that can't be sent is withdrawn, and the administrator is told.
 - **Open sign-up** (hosted only) starts with the address: the account is made only when the link
   sent there is used. An address that already has an account is sent a note with sign-in and reset
@@ -519,7 +519,7 @@ server you name:
   account made before email was set up confirms its address from there. A forgotten password can be
   reset with a link sent to a confirmed address (**Can't sign in?** on the sign-in page). Resetting
   signs the account out everywhere, revokes its assistant tokens and tells the address.
-  Administrators don't get reset links by email: the operator makes one with `password-reset-link`
+  Administrators don't get reset links by email: the administrator makes one with `password-reset-link`
   ([forgotten passwords](#forgotten-passwords)). The address is never used to link accounts or grant
   anything.
 - **Reminders:** a person can ask for the days they set with *Remind me* to be emailed too
@@ -554,7 +554,7 @@ Links in messages are single-use: a confirmation works for 48 hours, a reset lin
 
 ## Smart filters
 
-A source or collection can have a Smart filter that marks the posts its owner doesn't want
+A source or collection can have a Smart filter that marks the posts the person who set it doesn't want
 as Ignored. Filters are off until someone adds one, and they ask
 [Jev](https://docs.typesafe.ai), TypeSafe AI's decision model, about each new post: its title,
 summary excerpt, author and source name, with the person's words about what to keep or drop, are sent to
@@ -579,10 +579,10 @@ source and can't run on your own server.
 Each judged post costs about 200 to 500 input tokens (output is free), so a week's allowance is
 roughly 50,000 posts. Jev is reached at TypeSafe (`https://api.typesafe.ai`) by default; to use
 an OpenRouter key instead, set `PURSS_JEV_URL=https://openrouter.ai/api`. Keys must come from the
-provider set here, and the key field in Admin says which one. The model is the newest Jev
+AI provider set here, and the key field in Admin says which one. The model is the newest Jev
 (`jev-latest`, or `~typesafe/jev-latest` on OpenRouter); pin one with `PURSS_JEV_MODEL` (for
 example `jev-1.13.0`, or `typesafe/jev-1.13` on OpenRouter) if a new release judges worse. The
-address is always the operator's, never a person's. When Jev refuses the
+address is always the administrator's, never a person's. When Jev refuses the
 key, the Admin page says so, and filters stop using it until it is replaced.
 
 ## Big feeds
@@ -592,14 +592,14 @@ podcast feed that lists every episode since it began, with the show notes repeat
 tens of megabytes (The Daily's is 20.7 MB for 3,039 episodes) and would take several times the limit, so the
 engine fails the request itself. PURSS follows such feeds through its own feed gateway instead:
 the gateway reads the feed as a stream, keeps its channel details and
-its newest 50 items exactly as written, and gives FreshRSS that smaller copy of the same public feed. FreshRSS
-stays the only thing that collects items. (It keeps a feed's items for 90 days, at least its newest 50 and at most 1,000,
+its newest 50 items exactly as written, and gives FreshRSS that trimmed version of the same public feed. FreshRSS
+stays the only thing that fetches items. (It keeps a feed's items for 90 days, at least its newest 50 and at most 1,000,
 so 50 is what the engine would keep of any feed at the least; a feed that publishes more than fifty items between
 two of its refreshes, every 15 minutes or so, would lose some, and none does.) A person following a big feed is told nothing about
 its size: the source is an ordinary one, and its page starts at the newest items.
 
 - **When.** A feed larger than 4 MiB when it is looked up (the part a lookup reads), or with more than 1,000 items,
-  is followed through the gateway from the start. A subscription the engine itself fails on (an HTTP 500 or a dropped connection, not an
+  is followed through the gateway from the start. A feed the engine itself fails on (an HTTP 500 or a dropped connection, not an
   answer about the feed's site; an import or a retry) is checked once, and moved there if the feed really is that big.
   The source keeps its own address: it is what the person sees, what an export names and what is compared.
 - **What the engine is given.** `http://feed-gateway.internal:8947/t/<signature>/<address>`, reached through the
@@ -607,7 +607,7 @@ its size: the source is an ordinary one, and its page starts at the newest items
   `<data>/secrets/feed-trim-key`, which `npm run dev` and Compose's `init` make. The worker signs, the gateway checks,
   and anything unsigned is a 404, so a public feed that redirects FreshRSS to the alias gets nothing. Without the
   key (`EGRESS_TRIM_KEY_FILE` pointing nowhere, or the file missing) a feed goes to the engine as it is: one the engine can't read fails there, the source says
-  *The collection engine couldn't follow this feed*, and the worker's log for the job says that the installation has no feed gateway key.
+  *PURSS couldn't follow this feed. Try again later or check the link.*, and the worker's log for the job says that the installation has no feed gateway key.
 - **What the gateway does.** Every fetch goes through the same address, redirect, time and size rules as any other
   feed fetch. It reads the whole feed, nothing in a feed saying that its later items are older than its first (at most
   64 MiB, two feeds at once), and keeps the 50 newest. Items bigger than 1 MiB are left out whole. A feed longer than the
@@ -620,21 +620,21 @@ its size: the source is an ordinary one, and its page starts at the newest items
   (`If-None-Match` / `If-Modified-Since` from what the publisher last sent): a `304` costs a small request and renews the answer, and only a changed feed is read
   again (at most once in ten minutes, however many accounts follow it). A feed from a publisher that sends neither ETag nor Last-Modified is read in full each time
   it is asked for. Only a request signed for that exact address is given an answer.
-- **Links.** The copy is served from the gateway's address, so its root element carries `xml:base` with the address the feed was read from (after
+- **Links.** The trimmed feed is served from the gateway's address, so its root element carries `xml:base` with the address the feed was read from (after
   redirects) and relative links in the feed keep resolving against the publisher.
 - **Under `npm run dev` and Compose alike:** the same code runs in the egress process; nothing to configure
   beyond the key, which both create. FreshRSS's only way out is still the egress proxy.
 
-## Operator CLI
+## Administrator CLI
 
-For the operator, including when the web app can't be used. It works on the database file directly and needs
+For the administrator, including when the web app can't be used. It works on the database file directly and needs
 only the data directory; every change is written to the audit log as a host-level action.
 
 ```sh
 node apps/api/src/cli.ts status
-node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
+node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allowance <bytes>] [--days <n>]
 node apps/api/src/cli.ts set-email <account> <address>
-node apps/api/src/cli.ts set-allocation <account> <bytes|none>
+node apps/api/src/cli.ts set-allowance <account> <bytes|none>
 node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
 node apps/api/src/cli.ts password-reset-link <account>
 node apps/api/src/cli.ts reconcile-usage
@@ -645,15 +645,15 @@ node apps/api/src/cli.ts test-email <address>
 
 - `status`: data directory, mode, database and log size, migrations, counts of accounts
   (administrators, suspended, being deleted), sources, items, kept items, jobs and open review
-  entries, and the outgoing email server if any.
+  entries (incoming items), and the outgoing email server if any.
 - `create-invite`: makes an invitation for an address that has no account. With outgoing email set up
-  it is emailed there and the code isn't printed; otherwise the code is printed once. `--allocation` only takes effect in hosted
+  it is emailed there and the code isn't printed; otherwise the code is printed once. `--allowance` only takes effect in hosted
   mode; the CLI warns when it is given elsewhere.
 - `set-email`: gives an account the address it signs in with, refused when another account has it.
   With outgoing email set up, an account that has an address keeps it until the new one's confirmation
   link is used, as in Settings; one without an address gets it at once, with a link to confirm it. Use it for an account that has no
-  address, or one whose owner can no longer use theirs.
-- `set-allocation`: changes an account's allocation; over the new limit, growth pauses and
+  address, or one whose person can no longer use theirs.
+- `set-allowance`: changes an account's storage allowance; over the new limit, growth pauses and
   nothing is deleted. Refused for an account that is being deleted.
 - `set-plan` (hosted only): changes an account's plan. Over the new plan's limits nothing is
   removed; new follows and collections wait until the account is under them.
@@ -664,17 +664,17 @@ node apps/api/src/cli.ts test-email <address>
   still waiting for their code. Use it for someone who forgot their password on a server without
   email, and for administrators ([forgotten passwords](#forgotten-passwords)). It is refused for an
   account that has no password. During an account's deletion grace period the new password lets
-  its owner sign in and keep the account; once removal has started it is refused.
+  the person sign in and keep the account; once removal has started it is refused.
 - `reconcile-usage`: compares each account's storage ledger with its stored objects and reports
   differences without changing them; exits 1 if any differ. It also recounts the used-bytes
-  total the quota check reads and corrects it if it has drifted.
+  total the storage allowance check reads and corrects it if it has drifted.
 - `test-email`: checks the mail server and sends a test message to the address, with the
   server's error code if it fails. Needs the same `PURSS_SMTP_*` and `PURSS_MAIL_FROM` settings as
   the API (under Compose, `exec api` has them).
 
 Locally run it from the repository; set `PURSS_DATA_DIR` if the data isn't in `./data`. Under
 Compose: `docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts status`. The
-CLI reads `PURSS_MODE` from its own environment, so the allocation warning only reflects the
+CLI reads `PURSS_MODE` from its own environment, so the allowance warning only reflects the
 running service when both see the same value. Opening the database applies any pending
 migrations.
 
@@ -686,7 +686,7 @@ node scripts/backup.ts [--data-dir <dir>] [--out <dir>] [--include-secrets]
 
 The backup uses SQLite's online backup API, so the app can keep running. It writes
 `<out>/<timestamp>/product.db` and `manifest.json` (counts, migrations, sizes and SHA-256 of every
-file), checks integrity, and refuses to start without room for a full copy. `--out` defaults
+file), checks integrity, and refuses to start without room for a full backup. `--out` defaults
 to `<data>/backups`. Never copy `product.db` by hand while the app runs.
 
 - `--include-secrets` adds the secrets directory (service token, bridge key, feed-trim key, the keys that sign
@@ -694,15 +694,15 @@ to `<data>/backups`. Never copy `product.db` by hand while the app runs.
   server's Jev key for Smart filters). Such a backup must be protected like a
   password, and a restore puts the keys back. Without it, private sources need reconnecting, the Jev
   key adding again and connected assistants connecting again after a restore. Data exports from the app never contain keys.
-- FreshRSS's data is **not** included. Back it up separately (`data/engine` locally, the
+- The engine's data is **not** included. Back it up separately (`data/engine` locally, the
   `engine-data` volume under Compose) while the engine is stopped.
 - For a full recovery keep all three together: the product database, the secrets directory
-  (it holds each account's engine password in `engine-users/`) and FreshRSS's data. Restoring
+  (it holds each account's engine password in `engine-users/`) and the engine's data. Restoring
   only the database brings back your product data, but nothing rebuilds the engine users,
-  their passwords or their subscriptions automatically, so collection stops until that is
-  done by hand. Restoring the same FreshRSS data keeps its identity. If FreshRSS is replaced by
+  their passwords or their subscriptions automatically, so fetching stops until that is
+  done by hand. Restoring the same engine data keeps its identity. If FreshRSS is replaced by
   an installation with a different identity while PURSS already has items from the old
-  one, incoming entries wait in the **Review** queue.
+  one, incoming items wait in the **Review** queue.
 
 Under Compose the backup lands inside the `data` volume; copy it out:
 
@@ -740,17 +740,17 @@ docker compose --env-file .env -f infra/compose.yaml up -d --build   # add -f in
 ```
 
 The image takes its version from your clone's history (the commit's UTC day and its place among that
-day's commits), so it changes with every update you pull; Settings shows it at the bottom. A copy
-downloaded without history has none.
+day's commits), so it changes with every update you pull; Settings shows it at the bottom. A checkout
+without history has none.
 
 Locally, restart `npm run dev`. Database migrations apply automatically when the API opens
 the database; there are no down migrations, so rolling back an image does not roll back its
 migrations: go back to an older version only by restoring a backup made with it. FreshRSS is pinned by digest and changes only when the repository changes
 the pin. `init` never overwrites existing secrets. Browsers that have the app open pick up the new
 build in the background and show **A new version is ready**; people press *Reload* to switch.
-The phone apps connected to your server take its new interface too: the image packs it for them, they
-download it and switch the next time they're opened (after asking once whether your server may update
-them). A build made for a newer version of the app's native code waits until the app itself is updated
+The mobile app connected to your installation takes its new interface too: the image packs it for it, it
+downloads it and switches the next time it's opened (after asking once whether your installation may update
+it). A build made for a newer version of the app's native code waits until the app itself is updated
 from the store. See the [mobile app](../apps/mobile/README.md).
 
 ## Configuration
@@ -766,7 +766,7 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_HOST`, `PURSS_PORT` | `127.0.0.1`, `8940` | Public listener |
 | `PURSS_PUBLIC_ORIGIN` | `http://localhost:<PURSS_PORT>` | Exact public origin: request origin checks, passkey host, `Secure` cookies when https, share and OIDC callback links |
 | `PURSS_INTERNAL_HOST`, `PURSS_INTERNAL_PORT` | `127.0.0.1`, `8948` | Internal job listener (service token) |
-| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allocations and optional open sign-up, and links public share and follow pages to the website |
+| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allowances and optional open sign-up, and links public share and follow pages to the public site |
 | `PURSS_SIGNUP` | `invite` | `open` (hosted mode only, with working outgoing email): anyone can create an account; attempts are limited to 30/hour/address and successful creations to 10/hour/address |
 | `PURSS_SIGNUP_DAILY_LIMIT` | `50` | Most open sign-ups accepted per day installation-wide |
 | `PURSS_SMTP_HOST`, `PURSS_SMTP_PORT`, `PURSS_SMTP_SECURITY`, `PURSS_SMTP_USER`, `PURSS_SMTP_PASSWORD`, `PURSS_MAIL_FROM` | off | Optional outgoing email; see [Outgoing email](#outgoing-email) |
@@ -774,20 +774,20 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_PUSH_RELAY_URL` | the project's relay | Where the API asks for connected phones to be woken (see the [push relay](../apps/push-relay/README.md)). Unset or `official`: the project's relay; empty or `off`: no phone notifications; or the https address of another relay that holds your own app build's push credentials. Nothing to set up for the official apps |
 | `PURSS_APP_ANDROID_CERT_SHA256` | empty | SHA-256 fingerprints (`AB:CD:…`, comma-separated) of the keys that sign the Android app you hand out. PURSS then serves `/.well-known/assetlinks.json` for it, and the app can sign in and confirm it's you with the phone's passkeys (the same passkeys as in a browser on this address). Get one with `keytool -list -v -keystore release.jks` (or from Play Console → App signing). Needs https |
 | `PURSS_APP_ANDROID_PACKAGE` | `app.purss` | The Android app's package name, if you build it under another one |
-| `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this PURSS's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
-| `PURSS_DEFAULT_ALLOCATION_BYTES` | none | Allocation for new hosted accounts; empty means no limit; not used in self mode |
+| `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this installation's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
+| `PURSS_DEFAULT_ALLOWANCE_BYTES` | none | Allowance for new hosted accounts; empty means no limit; not used in self mode |
 | `PURSS_DISK_RESERVE_BYTES` | 1 GiB | Free disk below which growth pauses |
 | `PURSS_IMPORT_CHECK_HEAP_MB` | `384` | Memory in MB one import check may use; an export needing more is refused as too large to import here |
-| `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |
+| `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another sign-in provider](#signing-in-with-google-or-another-sign-in-provider) |
 | `PURSS_ENGINE_URL` | `http://127.0.0.1:8941` | FreshRSS address handed to the worker |
 | `PURSS_EGRESS_CONTROL_URL` | `http://127.0.0.1:8949/status` | Egress status for admin health |
 | `PURSS_BRIDGE_URL` | none | The bridge router (`http://127.0.0.1:8945` in development). Unset, the bridged services (Telegram, Bandcamp and the rest, and journals through Crossref; see [Sources](sources.md)) get the "no feeds" answer |
-| `PURSS_RSS_BRIDGE` | off | `1` when the bridge router has RSS-Bridge behind it (Compose sets it): only then are the services RSS-Bridge collects offered. Crossref needs only the router |
+| `PURSS_RSS_BRIDGE` | off | `1` when the bridge router has RSS-Bridge behind it (Compose sets it): only then are the services RSS-Bridge fetches offered. Crossref needs only the router |
 | `PURSS_SYNC_INTERVAL` | `120` | Seconds between scheduled syncs per account |
 | `PURSS_JEV_URL`, `PURSS_JEV_MODEL` | `https://api.typesafe.ai`, the newest Jev | Jev's address (`https://openrouter.ai/api` for OpenRouter keys) and the model Smart filters use (API and worker) |
 | `PURSS_TRUST_PROXY` | off | A comma-separated list of the reverse proxy's addresses or host names (looked up every 30 seconds): the client address is taken from the right-most `X-Forwarded-For` hop only on connections from them. `1` accepts it from any private-network peer, which is safe only when nothing but the proxy can reach the API's port |
 | `PURSS_WEB_DIST` | `apps/web/dist` | Built web app, served at `/app/` |
-| `PURSS_SITE_DIST` | `apps/site/dist` | Built public website, served at `/` in hosted mode (signed in, `/` opens the app); self-hosted, `/` opens the app |
+| `PURSS_SITE_DIST` | `apps/site/dist` | Built public site, served at `/` in hosted mode (signed in, `/` opens the app); self-hosted, `/` opens the app |
 
 **Worker** (`apps/worker/src/config.ts`; details in the [worker README](../apps/worker/README.md)):
 `PURSS_INTERNAL_URL` (`http://127.0.0.1:8948`), `PURSS_DATA_DIR`, `PURSS_ENGINE_EXEC`
@@ -829,7 +829,7 @@ FreshRSS uses, with the internal aliases that Compose's proxy for RSS-Bridge doe
 **Web dev server** (`apps/web/vite.config.ts`): `PURSS_API_URL` (`http://127.0.0.1:8940`),
 `PURSS_WEB_PORT` (5173).
 
-Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGINE_DATA_DIR`
+Set internally and not meant for administrators: `PURSS_ENGINE_PROXY` and `PURSS_ENGINE_DATA_DIR`
 (Compose setup steps), `PURSS_ENGINE_ADMIN_PASSWORD` and `PURSS_ENGINE_ADMIN_API_PASSWORD`
 (handed to FreshRSS's first-run install).
 
@@ -837,7 +837,7 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
 
 - **Exposure:** run PURSS on localhost, over an SSH tunnel, or behind an HTTPS proxy you control (see
   [Docker Compose](#docker-compose)). The threat model, what each control defends against and what it
-  doesn't are in [Security](security.md); the notes below are what an operator needs to know.
+  doesn't are in [Security](security.md); the notes below are what an administrator needs to know.
 - **HTTPS:** use it for anything but localhost or a trusted home network. Passkeys need it, and
   session cookies get the `Secure` flag only when `PURSS_PUBLIC_ORIGIN` is https.
 - **Offline copies:** with "Offline reading on this device" on, a browser keeps the person's reading
@@ -849,29 +849,29 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   access tokens, and OAuth access tokens where Assistant OAuth is on; stored as SHA-256 hashes, and
   cookies are ignored there), acts as that one account, never as an administrator, and offers no permanent
   deletion, sharing, export or account-security actions. Calls are limited to 120 a minute per token; write
-  calls are in the audit log. What an assistant reads leaves the server for the assistant's provider. See
+  calls are in the audit log. What an assistant reads leaves the server for the assistant's AI provider. See
   [Assistants](assistants.md).
-- **Phone notifications:** when a connected phone app turns on *Notifications on this phone*, it
-  registers a handle from the project's push relay with this server. When a notice reaches the
+- **Phone notifications:** when the connected mobile app turns on *Notifications on this phone*, it
+  registers a handle from the project's push relay with this installation. When a notice reaches the
   bell (outside quiet hours), the API asks the relay, by that handle only, to wake the phone: a POST
   through the same safe fetcher (https, public addresses only, no
-  redirects, 10 seconds). The relay, Google and Apple learn that this server has something new for that
-  phone, never what; the phone then fetches the texts from this server. Nothing is sent while no phone
+  redirects, 10 seconds). The relay, Google and Apple learn that this installation has something new for that
+  phone, never what; the phone then fetches the texts from this installation. Nothing is sent while no phone
   has registered. `PURSS_PUSH_RELAY_URL=` (empty) or `off` turns it off. See the
   [push relay](../apps/push-relay/README.md).
 - **Assistant OAuth:** off when self-hosted unless `PURSS_ASSISTANT_OAUTH=on`; personal access tokens
   work either way. When on, the same two switches apply, a person allows each assistant on a
   consent page (recent sign-in, can't be framed), and *Settings → Assistants* lists and disconnects
   them. The API then fetches an assistant's public client metadata document (its `client_id` URL)
-  through the same safe fetcher as source discovery: https only, public addresses only, no
+  through the same safe fetcher as link lookup: https only, public addresses only, no
   redirects, 5 kB, 5 seconds. Access tokens last an hour; refresh tokens rotate, and an earlier one
   presented again ends that assistant's access (it is recognised with `secrets/oauth-refresh-key`;
   restored without that key, assistants connected before must connect again). Refreshes are limited to 30 an hour per assistant and 120 per
   account. Changing `PURSS_PUBLIC_ORIGIN` ends every OAuth connection. See
   [Assistants](assistants.md#signing-in-with-oauth).
-- **Connected apps:** the phone app and browser extension connect with a one-time code and PKCE
+- **Connected apps:** the mobile app and browser extension connect with a one-time code and PKCE
   approved in the browser, then use a device token (stored as a SHA-256 hash) instead of cookies.
-  Return addresses are fixed in code, so no client registration or OAuth setup is needed. The phone
+  Return addresses are fixed in code, so no client registration or OAuth setup is needed. The mobile
   and desktop app's token is a full sign-in (an administrator's included) with its own *confirm it's
   you* clock, except that it can't approve another app's connection or an assistant's sign-in; the
   extension's token reaches only the few routes the extension uses. A token stops after 90 days unused,
@@ -885,11 +885,11 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   and per email address, and an unknown address takes as long to refuse as a wrong password.
 - **Egress:** FreshRSS fetches every feed through the egress proxy, which refuses loopback,
   private, link-local, metadata and other internal destinations on every request and redirect,
-  and pins each connection to the address it checked. Discovery (in the API) and readable-text
+  and pins each connection to the address it checked. Link lookup (in the API) and readable-text
   capture (in the worker) fetch directly with the same address rules. No setting turns these rules off.
 - **Media:** the server stores and serves no audio or video files. The page's CSP allows
   `media-src https:`, so playing an episode streams it from the publisher, who sees the listener's
-  address; the mobile apps' downloads also come straight from the publisher, only over `https`.
+  address; the mobile app's downloads also come straight from the publisher, only over `https`.
 - **FreshRSS isolation:** under Compose, FreshRSS sits on an internal network with no route out
   except egress, has no published port, and is administered only through a helper that runs a
   fixed list of commands and requires its own token (`secrets/engine-helper-token`, the only product
@@ -919,7 +919,7 @@ Set internally and not meant for operators: `PURSS_ENGINE_PROXY` and `PURSS_ENGI
   /64) to 1 MiB. That keeps the API's memory bounded; the price is that someone holding several accounts or
   dozens of networks can briefly make others' changes answer "busy, try again".
 - **Secrets on disk:** the database holds only hashes of the setup code and
-  invitations (the setup code's plain text is the operator's file). Private source links and
+  invitations (the setup code's plain text is the administrator's file). Private source links and
   engine passwords are files under `secrets/` (0600), never in the database or job payloads.
 - **Notifications in browsers:** a browser shows notices only while PURSS is open in it; there is no Web
   Push. Connected phones are woken through the push relay (see above).

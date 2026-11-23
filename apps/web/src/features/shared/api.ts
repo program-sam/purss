@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { AdminAccountDTO, AdminHealth, AdminJob, AuditEventDTO, CatalogCategory, CatalogResponse, DiscoverResponse, ReconcileList, ShareDTO, ShareReportDTO, ShareTarget } from "@purss/domain";
+import type { AdminAccountDTO, AdminHealth, AdminJob, AuditEventDTO, CatalogueCategory, CatalogueResponse, DiscoverResponse, ReconcileList, ShareDTO, ShareReportDTO, ShareTarget } from "@purss/domain";
 import { get } from "../../api/client.ts";
 
 /** Query keys and fetchers for the feature pages (data, sharing, review, admin). */
@@ -14,14 +14,14 @@ export const fkeys = {
   adminAccounts: ["feature", "admin", "accounts"] as const,
   adminReports: (status: string) => ["feature", "admin", "reports", status] as const,
   suggestions: ["feature", "suggestions"] as const,
-  catalog: (category?: CatalogCategory) => ["feature", "catalog", category ?? "all"] as const,
+  catalogue: (category?: CatalogueCategory) => ["feature", "catalogue", category ?? "all"] as const,
 };
 
 export const suggestionsQuery = queryOptions({ queryKey: fkeys.suggestions, queryFn: () => get<DiscoverResponse>("/api/suggestions"), staleTime: 60_000 });
 /** Discovery's popular sources: every category's top ones, or all of one category's, in the order the server drew. Asked anew on each visit and not while the page is open, so the order holds until then. */
-export const catalogQuery = (category?: CatalogCategory) => queryOptions({
-  queryKey: fkeys.catalog(category),
-  queryFn: () => get<CatalogResponse>(category ? `/api/suggestions/catalog/${category}` : "/api/suggestions/catalog"),
+export const catalogueQuery = (category?: CatalogueCategory) => queryOptions({
+  queryKey: fkeys.catalogue(category),
+  queryFn: () => get<CatalogueResponse>(category ? `/api/suggestions/catalogue/${category}` : "/api/suggestions/catalogue"),
   staleTime: Infinity,
   gcTime: 0,
 });

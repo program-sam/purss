@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ANNOTATION_BODY_MAX, ANNOTATION_CONTEXT_MAX, ANNOTATION_QUOTE_MAX, ITEM_KINDS, WORKFLOW_STATES } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * PURSS export archive, schema version 1.
  *
  * One JSON document, written as a stream. Top-level fields, in order:
- *   format           "purss-workspace-export"
+ *   format           "purss-export"
  *   schemaVersion    1; an importer rejects a newer version instead of guessing
  *   exportedAt       ISO time
  *   omitted          plain-language list of what is deliberately not in the file
@@ -17,10 +17,10 @@ import { server } from "@purss/copy/server";
  *   memberships      basket -> item pins with the kept version and keep time
  *   items            items with every stored version (current and kept), captured text (fetched
  *                    by the server or sent by the person's browser, by `kind`),
- *                    workflow / progress / fresh state, and original publisher GUIDs
+ *                    workflow / progress / isNew state, and original publisher GUIDs
  *   preferences      one object
  *   stateLog         the account's own workflow changes (item, from, to, time), oldest first;
- *                    optional on import so older files still load
+ *                    optional on import
  *   annotations      the person's own highlights and notes (item, kind, quoted passage with its
  *                    context and position, the text it was made on, comment or note, times);
  *                    removed ones are not exported; optional on import like stateLog
@@ -41,10 +41,10 @@ import { server } from "@purss/copy/server";
  * addresses and collection-engine identifiers are never written.
  */
 
-export const ARCHIVE_FORMAT = "purss-workspace-export";
+export const ARCHIVE_FORMAT = "purss-export";
 export const ARCHIVE_SCHEMA_VERSION = 1;
 export const SECTION_NAMES = ["sources", "collections", "baskets", "memberships", "items", "preferences"] as const;
-/** Sections an older export lacks; when present they are checked against the manifest like the others. */
+/** Sections a file may leave out; when present they are checked against the manifest like the others. */
 export const OPTIONAL_SECTION_NAMES = ["stateLog", "annotations", "images", "itemReminders", "shares"] as const;
 export type SectionName = (typeof SECTION_NAMES)[number] | (typeof OPTIONAL_SECTION_NAMES)[number];
 
@@ -90,8 +90,7 @@ const collectionSchema = z.object({
   id,
   name: text(80),
   emoji: text(8).nullable().default(null),
-  // "manual" is only ever read, from files made when hand-picked collections existed; an import skips those.
-  mode: z.enum(["sources", "manual", "query"]),
+  mode: z.enum(["sources", "filter"]),
   view: z.enum(["list", "cards", "board", "table", "timeline"]).default("list"),
   query: z.unknown().default(null),
   showOnHome: z.boolean().default(true),
@@ -139,7 +138,7 @@ const captureSchema = z.object({
 
 const itemSchema = z.object({
   id,
-  /** The item's number in the workspace it came from (its short link); files made before items had numbers lack it. */
+  /** The item's number in the account it came from (its short link). */
   number: z.number().int().min(1).max(999_999_999_999_999).optional(), // 15 digits, as the short link takes
   sourceId: id.nullable().default(null),
   kind: z.string().max(20).default("article"),
@@ -161,14 +160,12 @@ const itemSchema = z.object({
   versions: z.array(versionSchema).max(50).default([]),
   captures: z.array(captureSchema).max(50).default([]),
   state: z.object({
-    workflow: z.enum(WORKFLOW_STATES).default("new"),
-    fresh: z.boolean().default(false),
+    workflow: z.enum(WORKFLOW_STATES).default("undecided"),
+    isNew: z.boolean().default(false),
     progress: z.number().min(0).max(1).default(0),
     openedAt: iso,
-  }).default({ workflow: "new", fresh: false, progress: 0, openedAt: null }),
+  }).default({ workflow: "undecided", isNew: false, progress: 0, openedAt: null }),
   originalGuids: z.array(text(2000)).max(5).default([]),
-  /** Only ever read, from files made when a source's back catalogue was marked this way instead of Ignored; `parseArchive` turns it into the workflow state and nothing keeps it. */
-  backlog: z.boolean().optional(),
 });
 
 const shareSchema = z.object({
@@ -218,11 +215,7 @@ export const archiveSchema = z.object({
   baskets: z.array(basketSchema).max(2000),
   memberships: z.array(membershipSchema).max(1_000_000),
   items: z.array(itemSchema).max(500_000),
-  // Only ever read, from files made when saved searches existed; an import skips them.
-  savedQueries: z.array(z.unknown()).max(2000).default([]),
   preferences: z.record(z.string(), z.unknown()),
-  // Only ever read, from files made when shared collections were separate lists; an import skips them.
-  publications: z.array(z.unknown()).max(500).default([]),
   stateLog: z.array(stateLogSchema).max(2_000_000).default([]),
   annotations: z.array(annotationSchema).max(1_000_000).default([]),
   images: z.array(imageSchema).max(1_000_000).default([]),
@@ -333,23 +326,7 @@ export function parseArchive(raw: unknown): Archive {
     const where = issue?.path.length ? ` (${issue.path.slice(0, 3).join(".")})` : "";
     throw new ArchiveError("invalid", server.api.archiveFormat.unreadableDetails(where));
   }
-  return ignoreMarkedBackCatalogue(parsed.data);
-}
-
-/**
- * A file made when the back catalogue of a source followed from now was marked `backlog: true` (and its items left `workflow: "new"`) is read
- * the way those items are stored now: Ignored. Only an item still in the default state was ever marked (the old version cleared the mark when
- * the item was opened, started, made New or changed in state, kept in a basket or annotated), so one that is no longer in it is left as the person had it.
- */
-function ignoreMarkedBackCatalogue(doc: Archive): Archive {
-  const touched = new Set<string>([...doc.memberships.map((m) => m.itemId), ...doc.annotations.map((a) => a.itemId)]);
-  for (const item of doc.items) {
-    const marked = item.backlog === true;
-    delete item.backlog;
-    const { workflow, fresh, progress, openedAt } = item.state;
-    if (marked && workflow === "new" && !fresh && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
-  }
-  return doc;
+  return parsed.data;
 }
 
 export const KNOWN_KINDS: readonly string[] = ITEM_KINDS;

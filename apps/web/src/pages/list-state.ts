@@ -7,7 +7,7 @@ import type { ListSearch, Place } from "../nav.ts";
 import { defaultFilterFor, filterFor } from "../lib/list-filters.ts";
 import type { ItemTypeFilter } from "../lib/list-filters.ts";
 import { useOpenHold } from "../state/open-hold.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 export type ListState = {
   scope: string;
@@ -45,7 +45,7 @@ export function modesFor(place: Place | null, xs: boolean): ViewMode[] {
 /** View, filter, sort and scope for the current list page, read from the URL with sensible defaults. */
 export function useListState(place: Place | null): ListState {
   const search = useSearch({ strict: false }) as ListSearch;
-  const ws = useWorkspace();
+  const ws = usePurss();
   const xs = useBreakpoint() === "xs";
   const modes = modesFor(place, xs);
   const dflt: ViewMode = place?.t === "c" ? ws.collectionById.get(place.id)?.view ?? "list" : place?.t === "b" ? ws.basketById.get(place.id)?.view ?? "list" : "list";
@@ -53,8 +53,8 @@ export function useListState(place: Place | null): ListState {
   const view = modes.includes(wanted) ? wanted : "list";
   // The open item that was New still counts as New here until the panel closes, so the list behind does not switch.
   const held = useOpenHold();
-  const freshCount = place?.t === "c" ? ws.collectionById.get(place.id)?.freshCount ?? 0 : 0;
-  const defaultFilter = defaultFilterFor(place, view, freshCount + (held && held === search.item ? 1 : 0));
+  const newCount = place?.t === "c" ? ws.collectionById.get(place.id)?.newCount ?? 0 : 0;
+  const defaultFilter = defaultFilterFor(place, view, newCount + (held && held === search.item ? 1 : 0));
   return {
     scope: place ? scopeOf(place) : "all",
     modes,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
@@ -21,7 +21,7 @@ test("a failed readable copy can be tried again: the new attempt replaces the fa
   t.after(cleanup);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
-  queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! });
+  queueCapture(app, { accountId: p.accountId, itemId: item.id, url: item.url! });
   const first = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", item.id)!;
   failCapture(app, first.id, "The page couldn't be read.");
   assert.equal(getItemDetail(app, p, item.id).captures.filter((c) => c.level === "failed").length, 1);
@@ -39,7 +39,7 @@ test("trying again needs a failed copy, a page, and an item that is yours", (t) 
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1", { url: null })]));
   const [a, b] = listItems(app, p, { scope: `source:${src}`, sort: "oldest" }).items;
   assert.throws(() => retryCapture(app, p, a!.id), (err: unknown) => err instanceof HttpError && err.status === 400, "nothing failed here");
-  const cap = (id: string) => app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?)", `cap_${id}`, p.workspaceId, id, new Date().toISOString());
+  const cap = (id: string) => app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?)", `cap_${id}`, p.accountId, id, new Date().toISOString());
   cap(b!.id);
   assert.throws(() => retryCapture(app, p, b!.id), (err: unknown) => err instanceof HttpError && err.message === copy.api.captures.noPageToRead);
   const other = makeOwner(app, { admin: false });
@@ -52,7 +52,7 @@ test("a readable copy replaces the reading time that followed the feed's summary
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { summaryHtml: `<p>${words(90)}</p>` })]));
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
   assert.equal(item.readMinutes, 1, "90 words of summary read as one minute");
-  queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! });
+  queueCapture(app, { accountId: p.accountId, itemId: item.id, url: item.url! });
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", item.id)!;
   const text = words(2300);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text, html: `<p>${text}</p>`, finalUrl: item.url!, bytes: text.length }));
@@ -66,8 +66,8 @@ test("a video's length is never replaced by a reading time", (t) => {
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
   assert.equal(item.kind, "video");
   // A feed's video is not queued for a copy by keeping it any more; one that already has a copy on its way (kept earlier, or tried again) still completes.
-  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! }), false);
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES ('cap_video', ?, ?, 'fulltext', 'pending', ?)", p.workspaceId, item.id, new Date().toISOString());
+  assert.equal(queueCapture(app, { accountId: p.accountId, itemId: item.id, url: item.url! }), false);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, created_at) VALUES ('cap_video', ?, ?, 'fulltext', 'pending', ?)", p.accountId, item.id, new Date().toISOString());
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", item.id)!;
   const text = words(900);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text, html: `<p>${text}</p>`, finalUrl: item.url!, bytes: text.length }));
@@ -100,7 +100,7 @@ test("the item detail says when the feed gave only a summary, and stops saying i
   assert.equal(getItemDetail(app, p, fullItem!.id).summaryOnly, false, "the feed carried the whole text");
   assert.equal(getItemDetail(app, p, shortContent!.id).summaryOnly, true, "short text in the engine's single content field is still a teaser");
   assert.equal(getItemDetail(app, p, empty!.id).summaryOnly, false, "nothing shown is not a summary");
-  queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: summaryItem!.id, url: summaryItem!.url! });
+  queueCapture(app, { accountId: p.accountId, itemId: summaryItem!.id, url: summaryItem!.url! });
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ?", summaryItem!.id)!;
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "The full article", html: "<p>The full article</p>", finalUrl: summaryItem!.url!, bytes: 20 }));
   assert.equal(getItemDetail(app, p, summaryItem!.id).summaryOnly, false);
@@ -112,7 +112,7 @@ test("over HTTP, a failed copy is retried through the mounted route, and only fo
   const { app, p, src, cleanup } = setup();
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at) VALUES ('cap_failed', ?, ?, 'fulltext', 'failed', 'x', ?)", p.workspaceId, item.id, new Date().toISOString());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at) VALUES ('cap_failed', ?, ?, 'fulltext', 'failed', 'x', ?)", p.accountId, item.id, new Date().toISOString());
   const server = await startTestServer(app, extraRouters.api(), extraRouters.pages());
   t.after(async () => { await server.close(); cleanup(); });
   const mine = signIn(app, p.accountId);
@@ -130,7 +130,7 @@ test("a feed's post (Instagram, Bluesky) is whole in its feed: neither keeping n
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { url: "https://www.instagram.com/p/DfxGoxTl16O/" })]));
   const item = listItems(app, p, { scope: `source:${src}` }).items[0]!;
   assert.equal(item.kind, "post");
-  const target = { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! };
+  const target = { accountId: p.accountId, itemId: item.id, url: item.url! };
   assert.equal(queueCapture(app, target), false);
   assert.equal(queueAutoCapture(app, target), false);
   assert.equal(app.db.get("SELECT 1 FROM captures WHERE item_id = ?", item.id), undefined);

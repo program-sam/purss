@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdminJob } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Segmented } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { timeAgo } from "../../lib/format.ts";

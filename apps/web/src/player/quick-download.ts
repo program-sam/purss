@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import { useDownload } from "../downloads/hooks.ts";
 import { useDownloadMovesToRead } from "../downloads/to-read.ts";

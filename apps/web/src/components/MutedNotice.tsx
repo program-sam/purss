@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useNav } from "../nav.ts";
 import { formatCount } from "../lib/format.ts";
 import { hiddenByMuted, mutedNoticeShown } from "../lib/muted-words.ts";

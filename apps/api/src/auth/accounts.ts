@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { hasCatalog } from "../services/discover-catalog.ts";
+import { hasCatalogue } from "../services/discovery-catalogue.ts";
 import { newId } from "@purss/domain";
 import type { SessionInfo } from "@purss/domain";
 import { STEP_UP_SECONDS } from "../app.ts";
@@ -17,7 +17,7 @@ import { isAccountUsable, refuseDeletingSignIn } from "../services/deletion.ts";
 import { initialPlan } from "../services/plans.ts";
 import { runAccountCreated } from "../services/account-hooks.ts";
 import { DEVICE_SESSION_PREFIX, IDLE_DAYS, idleCutoff } from "../connect/devices.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export const SESSION_COOKIE = "purss_session";
 const SESSION_DAYS = 30;
@@ -39,7 +39,7 @@ export function hasAccounts(app: App): boolean {
 
 /**
  * First-run protection: an unclaimed installation has a one-time setup code written
- * to the secrets directory (readable only by the operator), never a first-visitor-wins page.
+ * to the secrets directory (readable only by the administrator), never a first-visitor-wins page.
  */
 export function ensureClaimCode(app: App): string | null {
   if (hasAccounts(app)) {
@@ -70,25 +70,23 @@ export function emailInUse(app: App, email: string): boolean {
  * whether the address was proven (a link it received, or a provider that vouched for it). An address another account
  * has is refused (409 email_in_use).
  */
-export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string; workspaceId: string } {
+export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allowanceBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string } {
   const accountId = newId("acc");
-  const workspaceId = newId("wsp");
   const now = nowIso();
   if (emailInUse(app, opts.email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseSignInOrReset);
   app.db.run("INSERT INTO accounts (id, display_name, email, email_verified_at, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     accountId, opts.displayName, opts.email.trim(), opts.emailConfirmed ? now : null, initialPlan(app), now);
   if (opts.password) storePassword(app, accountId, opts.password);
-  app.db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES (?, ?, ?)", workspaceId, accountId, now);
-  app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?)", accountId, opts.allocationBytes);
+  app.db.run("INSERT INTO storage_accounts (account_id, allowance_bytes) VALUES (?, ?)", accountId, opts.allowanceBytes);
   if (opts.admin) app.db.run("INSERT INTO role_grants (account_id, role, granted_at, granted_by) VALUES (?, 'admin', ?, ?)", accountId, now, opts.grantedBy);
   // Each account gets its own engine user (never one shared upstream user).
   const engineUserId = newId("eng");
   const username = `purss${engineUserId.slice(-12)}`;
-  app.db.run("INSERT INTO engine_users (id, account_id, workspace_id, username, created_at) VALUES (?, ?, ?, ?, ?)", engineUserId, accountId, workspaceId, username, now);
-  enqueue(app, "engine.provision", { engineUserId, username }, { accountId, workspaceId, idempotencyKey: `provision:${engineUserId}`, maxAttempts: 20 });
+  app.db.run("INSERT INTO engine_users (id, account_id, username, created_at) VALUES (?, ?, ?, ?)", engineUserId, accountId, username, now);
+  enqueue(app, "engine.provision", { engineUserId, username }, { accountId, idempotencyKey: `provision:${engineUserId}`, maxAttempts: 20 });
   // Such as the installation's news source with its newest posts (services/news.ts), from the first visit on.
-  runAccountCreated(app, accountId, workspaceId);
-  return { accountId, workspaceId };
+  runAccountCreated(app, accountId);
+  return { accountId };
 }
 
 // ---------- sessions ----------
@@ -183,9 +181,9 @@ export function recentAuthAvailable(app: App, accountId: string, sessionId: stri
 export function resolvePrincipal(app: App, cookieToken: string | undefined): Principal | null {
   if (!cookieToken) return null;
   const id = sha256(cookieToken);
-  const row = app.db.get<{ id: string; account_id: string; csrf: string; expires_at: string; auth_at: string; last_seen_at: string; status: string; workspace_id: string; session_class: string }>(
-    `SELECT s.id, s.account_id, s.csrf, s.expires_at, s.auth_at, s.last_seen_at, s.session_class, a.status, w.id AS workspace_id
-     FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN workspaces w ON w.account_id = a.id WHERE s.id = ?`, id);
+  const row = app.db.get<{ id: string; account_id: string; csrf: string; expires_at: string; auth_at: string; last_seen_at: string; status: string; session_class: string }>(
+    `SELECT s.id, s.account_id, s.csrf, s.expires_at, s.auth_at, s.last_seen_at, s.session_class, a.status
+     FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?`, id);
   if (!row || row.expires_at <= nowIso() || !isAccountUsable(app, row.account_id)) return null;
   let renewed = false;
   if (Date.now() - Date.parse(row.last_seen_at) > 60_000) {
@@ -194,7 +192,7 @@ export function resolvePrincipal(app: App, cookieToken: string | undefined): Pri
     renewed = true;
   }
   const isAdmin = !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", row.account_id);
-  return { accountId: row.account_id, workspaceId: row.workspace_id, isAdmin, sessionId: row.id, csrf: row.csrf, authAt: row.auth_at, renewed };
+  return { accountId: row.account_id, isAdmin, sessionId: row.id, csrf: row.csrf, authAt: row.auth_at, renewed };
 }
 
 export function sessionInfo(ctx: Ctx): SessionInfo {
@@ -207,7 +205,7 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
     version: app.config.version?.version ?? null,
     accountEmail: accountEmailAvailable(app),
     billing: app.config.billing !== null,
-    catalog: hasCatalog(app),
+    catalogue: hasCatalogue(app),
   };
   if (!hasAccounts(app)) return { state: "unclaimed", csrf: null, account: null, installation };
   const p = ctx.principal;
@@ -239,7 +237,7 @@ export function claim(app: App, code: string, email: string, displayName: string
       audit(app, null, "claim", null, "failure");
       throw new HttpError(403, "bad_code", server.api.accounts.badSetupCode);
     }
-    const { accountId } = createAccount(app, { email, emailConfirmed: false, displayName, admin: true, allocationBytes: app.config.mode === "hosted" ? app.config.defaultAllocationBytes : null, grantedBy: null, password });
+    const { accountId } = createAccount(app, { email, emailConfirmed: false, displayName, admin: true, allowanceBytes: app.config.mode === "hosted" ? app.config.defaultAllowanceBytes : null, grantedBy: null, password });
     app.db.run("DELETE FROM installation WHERE key = 'claim_hash'");
     removeSecret(app.config.secretsDir, "setup-code");
     audit(app, accountId, "claim", accountId, "success");
@@ -250,11 +248,11 @@ export function claim(app: App, code: string, email: string, displayName: string
 }
 
 /** An invitation for one address, typed by the administrator; invites never grant administration. */
-export function createInvite(app: App, adminId: string, email: string, note: string | null, allocationBytes: number | null, days = 14): string {
+export function createInvite(app: App, adminId: string, email: string, note: string | null, allowanceBytes: number | null, days = 14): string {
   if (emailInUse(app, email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUse);
   const code = humanCode(5);
-  app.db.run("INSERT INTO invites (id, created_by, email, note, allocation_bytes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    sha256(normalizeCode(code)), adminId, email.trim(), note, allocationBytes, nowIso(), addSeconds(days * 86400));
+  app.db.run("INSERT INTO invites (id, created_by, email, note, allowance_bytes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    sha256(normalizeCode(code)), adminId, email.trim(), note, allowanceBytes, nowIso(), addSeconds(days * 86400));
   audit(app, adminId, "invite_create", null, "success");
   return code;
 }
@@ -274,13 +272,13 @@ export function inviteDelivered(app: App, code: string, sent: boolean): void {
 export function acceptInvite(app: App, code: string, email: string, displayName: string | null, password: PreparedPassword): { accountId: string } {
   return app.db.tx(() => {
     const id = sha256(normalizeCode(code));
-    const inv = app.db.get<{ id: string; email: string; emailed_at: string | null; allocation_bytes: number | null }>(
-      "SELECT id, email, emailed_at, allocation_bytes FROM invites WHERE id = ? AND used_at IS NULL AND expires_at > ? AND email IS NOT NULL", id, nowIso());
+    const inv = app.db.get<{ id: string; email: string; emailed_at: string | null; allowance_bytes: number | null }>(
+      "SELECT id, email, emailed_at, allowance_bytes FROM invites WHERE id = ? AND used_at IS NULL AND expires_at > ? AND email IS NOT NULL", id, nowIso());
     if (!inv) throw new HttpError(403, "bad_invite", server.api.accounts.invitationInvalid);
     if (normalizeEmail(inv.email) !== normalizeEmail(email)) throw new HttpError(403, "invite_email", server.api.accounts.invitationOtherEmail);
     // Storage allowances are a hosted-service feature; self-hosted accounts have no limit.
-    const allocationBytes = app.config.mode === "hosted" ? inv.allocation_bytes ?? app.config.defaultAllocationBytes : null;
-    const { accountId } = createAccount(app, { email: inv.email, emailConfirmed: inv.emailed_at !== null, displayName, admin: false, allocationBytes, grantedBy: null, password });
+    const allowanceBytes = app.config.mode === "hosted" ? inv.allowance_bytes ?? app.config.defaultAllowanceBytes : null;
+    const { accountId } = createAccount(app, { email: inv.email, emailConfirmed: inv.emailed_at !== null, displayName, admin: false, allowanceBytes, grantedBy: null, password });
     app.db.run("UPDATE invites SET used_at = ?, used_by = ? WHERE id = ?", nowIso(), accountId, id);
     audit(app, accountId, "invite_accept", accountId, "success");
     return { accountId };
@@ -306,7 +304,7 @@ export function signupCapacityStatus(app: App, address: string, now = Date.now()
     };
 
     // Read all blocking counts and release rows from one snapshot, including on a throttled attempt.
-    // A non-positive installation cap is an operator pause, with no automatic release time.
+    // A non-positive installation cap is an administrator pause, with no automatic release time.
     if (app.config.signupDailyLimit <= 0) blockUntil(null);
     // Address hashes have no use after their rolling window; don't retain them indefinitely.
     app.db.run("DELETE FROM signup_creations WHERE created_at <= ?", new Date(now - 60 * 60_000).toISOString());
@@ -383,7 +381,7 @@ export function signupWithProvider(
     if (emailInUse(app, who.email)) {
       throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseConnectProvider(who.label));
     }
-    const { accountId } = createAccount(app, { email: who.email, emailConfirmed: true, displayName: who.displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password: null });
+    const { accountId } = createAccount(app, { email: who.email, emailConfirmed: true, displayName: who.displayName, admin: false, allowanceBytes: app.config.defaultAllowanceBytes, grantedBy: null, password: null });
     const now = nowIso();
     app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at, last_used_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?, ?)",
       newId("sim"), accountId, who.label, who.issuer, who.subject, now, now);

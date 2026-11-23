@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { CURRENCIES, currencyName, show, type Money } from "./currency.ts";
 import { links, type Site } from "./site.ts";
 

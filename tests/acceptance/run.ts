@@ -11,9 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
-import { ui } from "@purss/copy/ui";
+import { app as copy } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
+import { ui } from "@purss/translations/ui";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const dataDir = mkdtempSync(path.join(os.tmpdir(), "purss-acceptance-"));
@@ -72,14 +72,14 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow, views, filters } = copy.lib.constants;
 const add = copy.dialogs.addSource;
 const basketForm = copy.dialogs.baskets.form;
 const tabs = copy.dialogs.settings.dialog.tabs;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** What a catalog message says before and after its one value. */
+/** What a catalogue message says before and after its one value. */
 const around = (message: (value: string) => string) => message("\u0000").split("\u0000") as [string, string];
 const ADD_SOURCE = copy.words.addSource;
 const SOURCES_FOUND = new RegExp(`${esc(add.oneSourceFound)}|${esc(add.sourcesFound(7)).replace("7", "\\d+")}`);
@@ -345,7 +345,7 @@ async function main(): Promise<void> {
     assert.equal(await row.getByRole("button", { name: /^Remove from Read later:/ }).count(), 1);
     const listing = copy.pages.listing;
     assert.equal(await page.getByText(new RegExp(`${esc(listing.ignoredHidden.trim())}|${esc(listing.ignoredShowing.trim())}`)).count(), 0, "no show or hide ignored note in a basket");
-    await page.getByRole("button", { name: new RegExp(`^Filter: ${esc(filters.active)}`) }).click();
+    await page.getByRole("button", { name: new RegExp(`^Filter: ${esc(filters.all)}`) }).click();
     const filterMenu = page.getByRole("menu", { name: "Filter items" });
     await filterMenu.waitFor();
     assert.equal(await filterMenu.getByRole("menuitemradio", { name: copy.words.ignored }).count(), 0, "no Ignored filter in a basket");
@@ -377,8 +377,8 @@ async function main(): Promise<void> {
     const meter = page.locator(".side-foot .stor");
     assert.match(await meter.innerText(), new RegExp(`^[1-9]\\d* ${esc(copy.words.sourceLower)}s?$`), "the sidebar counts the followed sources");
     await meter.click();
-    const capacity = copy.shell.capacity;
-    await page.getByText(new RegExp(`^${esc(capacity.noLimit(capacity.listWords([copy.words.sourcesLower, copy.words.collectionsLower, capacity.unlimitedStorage])))}`)).waitFor();
+    const planUsage = copy.shell.planUsage;
+    await page.getByText(new RegExp(`^${esc(planUsage.noLimit(planUsage.listWords([copy.words.sourcesLower, copy.words.collectionsLower, planUsage.unlimitedStorage])))}`)).waitFor();
     await page.keyboard.press("Escape");
     step("the sidebar shows the followed sources, without limits on a self-hosted PURSS");
 

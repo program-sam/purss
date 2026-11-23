@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ApiError as ApiErrorBody } from "@purss/domain";
 import { noteAnswer } from "../offline/status.ts";
 import { platform } from "../platform/index.ts";

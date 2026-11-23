@@ -265,7 +265,7 @@ test("a feed bigger than the ceiling is served from what was read: its newest it
     const read = [...readPart.slice(0, readPart.lastIndexOf("</item>")).matchAll(/<title>Episode (\d+)<\/title>/g)].map((m) => Number(m[1])).sort((a, b) => b - a).slice(0, 50);
     assert.deepEqual(parsed.items.map((i) => i.title), read.map((n) => `Episode ${n}`));
     const served = h.logs.find((e) => e.event === "gateway.trim" && e.outcome === "ok")!;
-    assert.deepEqual([served.kept, served.bytes, served.complete, served.capped], [50, 200_000, 0, 1], "the operator's log says what was read and that it was cut");
+    assert.deepEqual([served.kept, served.bytes, served.complete, served.capped], [50, 200_000, 0, 1], "the administrator's log says what was read and that it was cut");
     for (const e of h.logs) assert.doesNotMatch(JSON.stringify(e), /large|big/i);
   } finally {
     await h.stop();

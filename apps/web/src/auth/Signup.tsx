@@ -10,7 +10,7 @@ import { useNewAccount } from "./new-account.tsx";
 import { usePasswordFields } from "./PasswordForm.tsx";
 import { ProviderButton } from "./ProviderButton.tsx";
 import { tryAgainAfter } from "./retry.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.signup;
 

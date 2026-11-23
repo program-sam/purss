@@ -1,22 +1,22 @@
-import { app } from "@purss/copy/app";
-import type { Capacity, CollectionDTO, SourceDTO } from "@purss/domain";
+import { app } from "@purss/translations/app";
+import type { PlanUsage, CollectionDTO, SourceDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { formatCount, plural } from "../lib/format.ts";
 import { setHints, toggleGroup, useHints, useOpenGroups } from "../state/ui-store.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useSession } from "../api/hooks.ts";
 import { useNav } from "../nav.ts";
 import type { Place } from "../nav.ts";
-import { workspacePages } from "../plugins.ts";
+import { purssPages } from "../plugins.ts";
 import { hasKeyboard } from "../lib/returning.ts";
 import { FirstVisitQuestion } from "../dialogs/FirstVisitQuestion.tsx";
 import { InterfaceUpdateQuestion } from "./InterfaceUpdates.tsx";
 import { ActivityIndicator } from "./ActivityIndicator.tsx";
 import { VisitTracker } from "./VisitTracker.tsx";
-import { CapacityMeter, CapacityPanel, capacityLine } from "./Capacity.tsx";
+import { PlanUsageMeter, PlanUsagePanel, planUsageLine } from "./PlanUsage.tsx";
 import { useCurrentPlace, usePathname } from "./place.ts";
 
 const isMac = typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent);
@@ -58,7 +58,7 @@ function SourceRow({ s, place }: { s: SourceDTO; place: Place | null }) {
         <span className="sp" />
         {s.aiFiltered ? <FilterMark /> : null}
         <HealthMark source={s} />
-        {s.freshCount ? <span className="cnt" title={t.newCount(formatCount(s.freshCount))}>{formatCount(s.freshCount)}<span className="u">{app.words.newSpaced}</span></span> : null}
+        {s.newCount ? <span className="cnt" title={t.newCount(formatCount(s.newCount))}>{formatCount(s.newCount)}<span className="u">{app.words.newSpaced}</span></span> : null}
       </button>
     </li>
   );
@@ -69,7 +69,7 @@ function Group({ id, label, sources, collection, place }: { id: string; label: s
   const hints = useHints();
   const open = useOpenGroups().includes(id);
   const here = !!collection && place?.t === "c" && place.id === collection.id;
-  const fresh = collection ? collection.freshCount : sources.reduce((n, s) => n + s.freshCount, 0);
+  const fresh = collection ? collection.newCount : sources.reduce((n, s) => n + s.newCount, 0);
   const expandable = !collection || collection.mode === "sources";
   // A closed group holding the source you're on marks its name, so you can still see where you are.
   const within = !open && place?.t === "s" && sources.some((s) => s.id === place.id);
@@ -112,26 +112,26 @@ const GROUP_PREVIEW = 6;
  * onClose: a drawer carries a Close button, as the page behind it can't be reached while it is open.
  */
 export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; onToggle?: () => void; onClose?: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const place = useCurrentPlace();
   const pathname = usePathname();
   const overlays = useOverlays();
   const popups = usePopups();
   const session = useSession().data;
-  // A copy saved offline by an earlier version has no capacity; the meter waits for the next refresh.
-  const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
+  // A copy saved offline by an earlier version has no planUsage; the meter waits for the next refresh.
+  const planUsage = (ws.data as { planUsage?: PlanUsage }).planUsage ?? null;
   const paused = ws.data.paused ?? null;
   const hosted = session?.installation.mode === "hosted";
-  const pages = workspacePages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
+  const pages = purssPages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
   // A single administrator page sits under More rather than under a heading with the same name.
   const adminOnly = pages.filter((p) => p.adminOnly);
   const morePages = pages.filter((p) => !p.adminOnly || adminOnly.length === 1);
   const adminPages = adminOnly.length > 1 ? adminOnly : [];
   const addTo = place?.t === "c" ? place.id : place?.t === "s" ? ws.sourceById.get(place.id)?.collectionIds[0] : undefined;
   const openAdd = () => overlays.open({ kind: "add-source", collectionId: addTo });
-  const openCapacity = (anchor: HTMLElement, up: boolean) => { if (capacity) popups.panel(anchor, hosted ? "Your plan" : "Your limits", () => <CapacityPanel capacity={capacity} paused={paused} onPlan={hosted ? () => overlays.open({ kind: "settings", tab: "plan" }) : undefined} />, { up }); };
-  const capacityLabel = capacity ? `${capacityLine(capacity)}${paused ? ". New items are paused" : ""}. Show your ${hosted ? "plan" : "limits"}` : "";
+  const openPlanUsage = (anchor: HTMLElement, up: boolean) => { if (planUsage) popups.panel(anchor, hosted ? "Your plan" : "Your limits", () => <PlanUsagePanel planUsage={planUsage} paused={paused} onPlan={hosted ? () => overlays.open({ kind: "settings", tab: "plan" }) : undefined} />, { up }); };
+  const planUsageLabel = planUsage ? `${planUsageLine(planUsage)}${paused ? ". New items are paused" : ""}. Show your ${hosted ? "plan" : "limits"}` : "";
   const homeHere = place?.t === "home";
   const readHere = place?.t === "r";
 
@@ -151,12 +151,12 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
             const sel = (place?.t === "c" && place.id === c.id) || (place?.t === "s" && ws.sourceById.get(place.id)?.collectionIds.includes(c.id));
             return (
               <button key={c.id} type="button" className={`rbtn${sel ? " sel" : ""}`} data-tip={c.name} aria-current={place?.t === "c" && place.id === c.id ? "page" : undefined}
-                aria-label={`${c.name}, ${plural(c.sourceIds.length, "source")}${c.freshCount ? `, ${c.freshCount} new` : ""}`} data-collection={c.id} onClick={() => nav.go({ t: "c", id: c.id })}>
+                aria-label={`${c.name}, ${plural(c.sourceIds.length, "source")}${c.newCount ? `, ${c.newCount} new` : ""}`} data-collection={c.id} onClick={() => nav.go({ t: "c", id: c.id })}>
                 {/* The collection's own emoji, else its first source's icon, so collections are told apart in the rail. */}
                 {/* The tile, then the collection's name under it, so a collection never reads as one of its sources. */}
                 {c.emoji || !ws.sourcesOf(c)[0] ? <span className="rtile" aria-hidden="true">{c.emoji || c.name[0]?.toUpperCase()}</span>
                   : <span className="rtile src" aria-hidden="true"><Avatar hue={ws.sourcesOf(c)[0]!.hue} initials={ws.sourcesOf(c)[0]!.initials} src={ws.sourcesOf(c)[0]!.iconUrl} size={24} /></span>}
-                <span className="rname" aria-hidden="true" dir="auto">{c.name}</span>{c.freshCount ? <i className="dot" /> : null}
+                <span className="rname" aria-hidden="true" dir="auto">{c.name}</span>{c.newCount ? <i className="dot" /> : null}
               </button>
             );
           })}
@@ -173,7 +173,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
           {pages.map((p) => <button key={p.path} type="button" className={`rbtn${pathname === p.path ? " sel" : ""}`} data-tip={p.nav!.label} aria-label={p.nav!.label} onClick={() => nav.goPath(p.path)}><Icon name={p.nav!.icon} /></button>)}
         </div>
         <ActivityIndicator rail />
-        {capacity ? <button type="button" className="rbtn" data-tip={capacityLine(capacity)} aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, false)}><CapacityMeter capacity={capacity} /></button> : null}
+        {planUsage ? <button type="button" className="rbtn" data-tip={planUsageLine(planUsage)} aria-haspopup="dialog" aria-label={planUsageLabel} onClick={(e) => openPlanUsage(e.currentTarget, false)}><PlanUsageMeter planUsage={planUsage} /></button> : null}
         <button type="button" className="rbtn" data-tip={app.words.settings} aria-label={app.words.settings} onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" /></button>
       </div>
     );
@@ -237,7 +237,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
       </nav>
       <div className="side-act"><ActivityIndicator /></div>
       <div className="side-foot">
-        {capacity ? <button type="button" className="stor" aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, true)}><CapacityMeter capacity={capacity} /><span>{capacityLine(capacity)}</span>{paused ? <Icon name="alert" /> : null}</button> : <span className="stor" />}
+        {planUsage ? <button type="button" className="stor" aria-haspopup="dialog" aria-label={planUsageLabel} onClick={(e) => openPlanUsage(e.currentTarget, true)}><PlanUsageMeter planUsage={planUsage} /><span>{planUsageLine(planUsage)}</span>{paused ? <Icon name="alert" /> : null}</button> : <span className="stor" />}
         <button type="button" className="set" onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" />{app.words.settings}</button>
       </div>
     </>

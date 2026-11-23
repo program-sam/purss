@@ -8,13 +8,13 @@ import { webPlatform } from "./web.ts";
  */
 export let platform: Platform = webPlatform;
 
-/** The Android and iOS shells put their bridge on window before the page's scripts run. */
+/** The Android and iOS shells put their native API on window before the page's scripts run. */
 export function inNativeShell(): boolean {
   const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return typeof cap?.isNativePlatform === "function" && cap.isNativePlatform();
 }
 
-/** The desktop app's Tauri shell puts its bridge on window before the page's scripts run. */
+/** The desktop app's Tauri shell puts its native API on window before the page's scripts run. */
 export function inDesktopShell(): boolean {
   return typeof (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ === "object";
 }

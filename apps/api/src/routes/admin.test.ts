@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { encodePageKey } from "@purss/connectors";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -61,7 +61,7 @@ test("sensitive admin actions need a recent strong sign-in; reads and job contro
   const fresh = signIn(b.app, b.admin.accountId);
   const other = makeOwner(b.app, { admin: false });
 
-  for (const [method, path, body] of [["POST", "/api/admin/invites", { email: "alex@example.org" }], ["PATCH", `/api/admin/accounts/${other.accountId}`, { allocationBytes: 5 }]] as const) {
+  for (const [method, path, body] of [["POST", "/api/admin/invites", { email: "alex@example.org" }], ["PATCH", `/api/admin/accounts/${other.accountId}`, { allowanceBytes: 5 }]] as const) {
     const denied = await call(b.app, b.server.base, method, path, stale, body);
     assert.equal(denied.status, 403, `${path} with a stale sign-in`);
     assert.equal(denied.json.error.code, "step_up");
@@ -69,15 +69,15 @@ test("sensitive admin actions need a recent strong sign-in; reads and job contro
   assert.equal((await b.as(stale).get("/api/admin/health")).status, 200, "reads don't need step-up");
   assert.equal((await b.as(stale).get("/api/admin/accounts")).status, 200);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM invites")!.n, 0, "nothing was issued");
-  assert.equal(b.app.db.get<{ allocation_bytes: number | null }>("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", other.accountId)!.allocation_bytes, null);
+  assert.equal(b.app.db.get<{ allowance_bytes: number | null }>("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", other.accountId)!.allowance_bytes, null);
 
-  const invite = await b.as(fresh).post("/api/admin/invites", { email: "alex@example.org", note: "for Alex", allocationBytes: 123_456, days: 7 });
+  const invite = await b.as(fresh).post("/api/admin/invites", { email: "alex@example.org", note: "for Alex", allowanceBytes: 123_456, days: 7 });
   assert.equal(invite.status, 200);
   assert.match(invite.json.code, /^[a-z0-9]{4}(-[a-z0-9]{4}){4}$/);
   assert.equal(JSON.stringify(b.app.db.all("SELECT * FROM invites")).includes(invite.json.code), false, "only a hash of the code is stored");
   assert.equal(JSON.stringify(b.app.db.all("SELECT * FROM audit_events")).includes(invite.json.code), false, "and it is not logged");
   const joined = acceptInvite(b.app, invite.json.code, "alex@example.org", "Alex", testPassword());
-  assert.equal(b.app.db.get<{ allocation_bytes: number }>("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allocation_bytes, 123_456);
+  assert.equal(b.app.db.get<{ allowance_bytes: number }>("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allowance_bytes, 123_456);
   assert.equal(b.app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", joined.accountId), undefined, "an invitation never grants administration");
 });
 
@@ -94,13 +94,13 @@ test("self-hosted: admins manage accounts and invite family members, without sto
   assert.equal(listed.json[0].email, "sister@example.org", "the administrator sees who it is for");
   assert.ok(!JSON.stringify(listed.json).includes(invite.json.code), "codes are never listed");
   // Storage allowances are a hosted feature.
-  const alloc = await b.as(s).post("/api/admin/invites", { email: "other@example.org", allocationBytes: 1000 });
+  const alloc = await b.as(s).post("/api/admin/invites", { email: "other@example.org", allowanceBytes: 1000 });
   assert.equal(alloc.status, 400);
   assert.equal(alloc.json.error.code, "not_available");
   // The invitation creates an ordinary account with no limit; it can be made an administrator and back.
   const { acceptInvite } = await import("../auth/accounts.ts");
   const fam = acceptInvite(b.app, invite.json.code, "sister@example.org", "Sister", testPassword());
-  assert.equal(b.app.db.get<{ allocation_bytes: number | null }>("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", fam.accountId)!.allocation_bytes, null);
+  assert.equal(b.app.db.get<{ allowance_bytes: number | null }>("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", fam.accountId)!.allowance_bytes, null);
   assert.equal((await b.as(s).patch(`/api/admin/accounts/${fam.accountId}`, { isAdmin: true })).json.isAdmin, true);
   assert.equal((await b.as(s).patch(`/api/admin/accounts/${fam.accountId}`, { isAdmin: false })).json.isAdmin, false);
   const self = await b.as(s).patch(`/api/admin/accounts/${b.admin.accountId}`, { isAdmin: false });
@@ -126,17 +126,17 @@ test("hosted with open signup: anyone can create an ordinary account, rate-limit
   assert.deepEqual(first.json, { ok: true }, "no recovery codes");
   const acct = b.app.db.get<{ id: string }>("SELECT id FROM accounts WHERE display_name = 'Ana'")!;
   assert.ok(!b.app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", acct.id), "never an admin");
-  assert.equal(b.app.db.get<{ allocation_bytes: number | null }>("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", acct.id)!.allocation_bytes, null, "no storage limit");
+  assert.equal(b.app.db.get<{ allowance_bytes: number | null }>("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", acct.id)!.allowance_bytes, null, "no storage limit");
   const second = await b.as(null).post("/api/signup", { token: token(1), displayName: "Ben", password: "a long enough password" });
   assert.equal(second.status, 429, "daily cap");
   assert.equal((await b.as(null).post("/api/signup/start", { email: "cy@example.org" })).status, 429, "and starting says so too");
 });
 
-test("hosted accounts: minimal metadata, allocation changes, suspension, and the last administrator is protected", async (t) => {
+test("hosted accounts: minimal metadata, allowance changes, suspension, and the last administrator is protected", async (t) => {
   const b = await boot({ PURSS_MODE: "hosted" });
   t.after(b.close);
   const s = signIn(b.app, b.admin.accountId);
-  const pa = makeOwner(b.app, { admin: false, allocationBytes: 10_000_000 });
+  const pa = makeOwner(b.app, { admin: false, allowanceBytes: 10_000_000 });
   b.app.db.run("UPDATE accounts SET display_name = 'Pat' WHERE id = ?", pa.accountId);
   const lib = seedLibrary(b.app, pa);
   shareRow(b.app, pa, "basket", lib.baskets.reading);
@@ -145,18 +145,18 @@ test("hosted accounts: minimal metadata, allocation changes, suspension, and the
   const list = await b.as(s).get("/api/admin/accounts");
   assert.equal(list.status, 200);
   const pat = list.json.find((a: any) => a.id === pa.accountId);
-  assert.deepEqual(Object.keys(pat).sort(), ["allocationBytes", "capacity", "createdAt", "deletion", "displayName", "email", "id", "isAdmin", "plan", "smartFilterTokens", "status", "usedBytes"]);
+  assert.deepEqual(Object.keys(pat).sort(), ["allowanceBytes", "createdAt", "deletion", "displayName", "email", "id", "isAdmin", "plan", "planUsage", "smartFilterTokens", "status", "usedBytes"]);
   assert.equal(pat.usedBytes, usedBytes(b.app, pa.accountId));
   assert.equal(pat.smartFilterTokens, 0, "Smart filters: only the tokens used, nothing about filters or posts");
   assert.ok(!JSON.stringify(list.json).includes("Tidal"), "no content in the account list");
 
-  // Lowering the allocation below usage keeps the data and pauses new growth.
-  const lowered = await b.as(s).patch(`/api/admin/accounts/${pa.accountId}`, { allocationBytes: 1000 });
+  // Lowering the allowance below usage keeps the data and pauses new growth.
+  const lowered = await b.as(s).patch(`/api/admin/accounts/${pa.accountId}`, { allowanceBytes: 1000 });
   assert.equal(lowered.status, 200);
-  assert.equal(b.app.db.get("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", pa.accountId)!.paused_reason, "quota");
+  assert.equal(b.app.db.get("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", pa.accountId)!.paused_reason, "allowance");
   assert.ok(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE account_id = ?", pa.accountId)!.n > 0, "nothing deleted");
-  const raised = await b.as(s).patch(`/api/admin/accounts/${pa.accountId}`, { allocationBytes: 50_000_000 });
-  assert.equal(raised.json.allocationBytes, 50_000_000);
+  const raised = await b.as(s).patch(`/api/admin/accounts/${pa.accountId}`, { allowanceBytes: 50_000_000 });
+  assert.equal(raised.json.allowanceBytes, 50_000_000);
   assert.equal(b.app.db.get("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", pa.accountId)!.paused_reason, null, "more room lifts the pause");
 
   // Suspension signs the account out everywhere and stops its public pages.
@@ -171,7 +171,7 @@ test("hosted accounts: minimal metadata, allocation changes, suspension, and the
   // Audited, with who/what but no content.
   const audit = b.app.db.all<{ action: string; actor_account_id: string; target: string; outcome: string; detail: string }>("SELECT * FROM audit_events WHERE action = 'admin_account_update' ORDER BY at");
   assert.ok(audit.length >= 4 && audit.every((e) => e.actor_account_id === b.admin.accountId && e.target === pa.accountId && e.outcome === "success"));
-  assert.ok(audit.some((e) => /allocation 10000000 -> 1000/.test(e.detail)));
+  assert.ok(audit.some((e) => /allowance 10000000 -> 1000/.test(e.detail)));
 
   // Nobody can suspend themselves, and the last active administrator is protected even from a caller that isn't that account.
   const own = await b.as(s).patch(`/api/admin/accounts/${b.admin.accountId}`, { status: "suspended" });
@@ -283,7 +283,7 @@ const SUMMARY = {
   ],
 };
 
-test("health shows the bridge's last week from the egress log: every catalogued service, success rates, and the keys failing now", async (t) => {
+test("health shows the bridge's last week from the egress log: every listed service, success rates, and the keys failing now", async (t) => {
   const egress = await fakeEgress(t, { "/status": json({ blockedLastHour: 2 }), "/bridge/summary?days=7": json(SUMMARY) });
   const b = await boot({ PURSS_EGRESS_CONTROL_URL: `${egress.url}/status`, PURSS_BRIDGE_URL: "http://172.31.88.10:8945" });
   t.after(b.close);
@@ -429,7 +429,7 @@ test("usage reconciliation reports differences per account, changes no object, a
   const clean = (await b.as(s).post("/api/admin/usage/reconcile")).json;
   assert.equal(clean.mismatched, 0);
   assert.equal(clean.accounts[0].differenceBytes, 0);
-  b.app.db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, ?, 'record', 'orphan', 777, 'x')", p.accountId, p.workspaceId);
+  b.app.db.run("INSERT INTO stored_objects (id, account_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, 'record', 'orphan', 777, 'x')", p.accountId);
   const bad = (await b.as(s).post("/api/admin/usage/reconcile")).json;
   assert.equal(bad.mismatched, 1);
   assert.equal(bad.accounts[0].differenceBytes, -777);

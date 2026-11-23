@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { ApiError } from "../../api/client.ts";
 import { platform } from "../../platform/index.ts";
 

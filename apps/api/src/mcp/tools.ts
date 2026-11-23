@@ -8,12 +8,12 @@ import { getItemDetail, listItems } from "../services/items.ts";
 import { listAnnotations } from "../services/annotations.ts";
 import { bulk } from "../services/state.ts";
 import { createBasket, createCollection, listBaskets, listCollections } from "../services/collections.ts";
-import { discoverSources, followSource, listSources, patchSource, unfollowSource } from "../services/sources.ts";
+import { lookupSources, followSource, listSources, patchSource, unfollowSource } from "../services/sources.ts";
 import { toText } from "../services/content.ts";
 import { StorageFull, markPaused } from "../services/storage.ts";
 import { hasCredentialShape } from "../services/text-safety.ts";
 import type { AssistantAccessLevel } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The tools an assistant can call. Every tool runs as the token's account through the same
@@ -32,8 +32,8 @@ export const SERVER_INSTRUCTIONS = [
 
 const STATE_NAMES = ["undecided", "toread", "inprogress", "finished", "ignored"] as const;
 type StateName = (typeof STATE_NAMES)[number];
-const toWorkflow = (s: StateName): WorkflowState => (s === "undecided" ? "new" : s);
-const fromWorkflow = (w: WorkflowState): StateName => (w === "new" ? "undecided" : w);
+const toWorkflow = (s: StateName): WorkflowState => (s === "undecided" ? "undecided" : s);
+const fromWorkflow = (w: WorkflowState): StateName => (w === "undecided" ? "undecided" : w);
 
 const DEFAULT_TEXT_CHARS = 20_000;
 const MAX_TEXT_CHARS = 60_000;
@@ -41,7 +41,7 @@ const MAX_TEXT_CHARS = 60_000;
 type Ctx = { app: App; p: Principal; privateSources: Set<string> };
 
 function privateSourceIds(app: App, p: Principal): Set<string> {
-  return new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND is_private = 1", p.workspaceId).map((r) => r.id));
+  return new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND is_private = 1", p.accountId).map((r) => r.id));
 }
 
 /** Links of private sources can carry their secret, and links with credentials never leave. */
@@ -61,7 +61,7 @@ function itemSummary(ctx: Ctx, it: ItemDTO) {
     author: it.author,
     publishedAt: it.publishedAt,
     state: fromWorkflow(it.workflow),
-    isNew: it.fresh,
+    isNew: it.isNew,
     basketIds: it.basketIds,
     excerptFromPublisher: it.excerpt,
   };
@@ -73,7 +73,7 @@ function sourceSummary(s: SourceDTO) {
     siteUrl: s.kind === "private" || !s.siteUrl || hasCredentialShape(s.siteUrl) ? null : s.siteUrl,
     feedUrl: !s.feedUrl || hasCredentialShape(s.feedUrl) ? null : s.feedUrl, collectionIds: s.collectionIds, health: s.health, healthText: s.healthText, paused: s.paused,
     fullArticles: s.fullText, fullArticlesAvailable: s.fullTextAvailable, notifications: s.notify,
-    itemCount: s.itemCount, newCount: s.freshCount, lastItemAt: s.lastItemAt,
+    itemCount: s.itemCount, newCount: s.newCount, lastItemAt: s.lastItemAt,
   };
 }
 
@@ -95,7 +95,7 @@ const placeSchema = z.object({
 });
 function scopeOf(a: { place: "all" | "new" | "collection" | "source" | "basket"; id?: string | undefined }): string {
   if (a.place === "all") return "all";
-  if (a.place === "new") return "fresh";
+  if (a.place === "new") return "new";
   if (!a.id) throw new HttpError(400, "invalid", `Give the ${a.place}'s id.`);
   return `${a.place}:${a.id}`;
 }
@@ -112,7 +112,7 @@ export const TOOLS: Tool[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({ query: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(50).default(20) }),
     run: (ctx, a) => {
-      const page = listItems(ctx.app, ctx.p, { scope: "all", filter: "all", sort: "newest", q: a.query, limit: a.limit });
+      const page = listItems(ctx.app, ctx.p, { scope: "all", filter: "all_with_ignored", sort: "newest", q: a.query, limit: a.limit });
       return { total: page.total, items: page.items.map((it) => itemSummary(ctx, it)) };
     },
   }),
@@ -127,7 +127,7 @@ export const TOOLS: Tool[] = [
       cursor: z.string().max(200).optional(),
     }),
     run: (ctx, a) => {
-      const page = listItems(ctx.app, ctx.p, { scope: scopeOf(a), filter: a.state ? toWorkflow(a.state) : "active", sort: a.sort, limit: a.limit, cursor: a.cursor });
+      const page = listItems(ctx.app, ctx.p, { scope: scopeOf(a), filter: a.state ? toWorkflow(a.state) : "all", sort: a.sort, limit: a.limit, cursor: a.cursor });
       return { total: page.total, nextCursor: page.nextCursor, items: page.items.map((it) => itemSummary(ctx, it)) };
     },
   }),
@@ -172,11 +172,11 @@ export const TOOLS: Tool[] = [
   }),
   tool({
     name: "list_collections", title: server.api.mcpTools.listCollectionsTitle, access: "read",
-    description: "Collections group sources (mode 'sources') or match a saved filter (mode 'query'). They decide what is shown together; they keep nothing.",
+    description: "Collections group sources (mode 'sources') or match a saved filter (mode 'filter'). They decide what is shown together; they keep nothing.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
     run: (ctx) => ({
-      collections: listCollections(ctx.app, ctx.p).map((c) => ({ id: c.id, name: c.name, mode: c.mode, sourceIds: c.sourceIds, itemCount: c.itemCount, newCount: c.freshCount, onHome: c.showOnHome })),
+      collections: listCollections(ctx.app, ctx.p).map((c) => ({ id: c.id, name: c.name, mode: c.mode, sourceIds: c.sourceIds, itemCount: c.itemCount, newCount: c.newCount, onHome: c.showOnHome })),
     }),
   }),
   tool({
@@ -200,7 +200,7 @@ export const TOOLS: Tool[] = [
     description: "Remove the New marker from up to 100 items without changing their workflow state.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100) }),
-    run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "clearFresh" }).changed }),
+    run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "clearNew" }).changed }),
   }),
   tool({
     name: "keep_items", title: server.api.mcpTools.keepInBasketTitle, access: "write",
@@ -242,7 +242,7 @@ export const TOOLS: Tool[] = [
     input: z.object({ url: z.string().trim().min(1).max(2000) }),
     run: async (ctx, a) => {
       rateLimit(`discover:${ctx.p.accountId}`, 120);
-      const r = await discoverSources(ctx.app, ctx.p, a.url, "assistant");
+      const r = await lookupSources(ctx.app, ctx.p, a.url, "assistant");
       if (!r.ok) return { found: false, reason: r.reason, message: r.message };
       return {
         found: true,

@@ -1,11 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { server } from "@purss/copy/server";
-import { Database } from "../db/database.ts";
+import { server } from "@purss/translations/server";
 import { OTHER_BOX_ID, newId } from "@purss/domain";
 import type { Preferences, SyncEntry } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
@@ -16,14 +11,14 @@ import type { Message } from "../mail/mailer.ts";
 import { applySyncBatch } from "./sync.ts";
 import { insertItem, listItems } from "./items.ts";
 import type { NewItem } from "./items.ts";
-import { applyUndo, bulk, changeState, clearFreshAll } from "./state.ts";
+import { applyUndo, bulk, changeState, clearNewAll } from "./state.ts";
 import { createCollection } from "./collections.ts";
 import { followSource, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "./preferences.ts";
-import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotifications, runDigest, runProblemCheck, unreadCount } from "./notifications.ts";
+import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotifications, runDigest, runProblemCheck, unseenCount } from "./notifications.ts";
 import { homeOverview, touchVisit } from "./home.ts";
-import { expireFreshMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
+import { expireNewMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
 import { activityFor } from "./activity.ts";
 
 const { activity, notifications, mailTemplates, shared, sources } = server.api;
@@ -43,23 +38,23 @@ let serial = 0;
 function addItem(app: App, p: Owner, sourceId: string | null, over: Partial<NewItem> = {}): string {
   serial++;
   return app.db.tx(() => insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/r/${serial}`, author: null,
+    accountId: p.accountId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/r/${serial}`, author: null,
     summaryHtml: `<p>About ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: true, reason: "test", ...over,
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: true, reason: "test", ...over,
   })).id;
 }
 
-const fresh = (app: App, id: string) => app.db.get<{ fresh: number }>("SELECT fresh FROM item_state WHERE item_id = ?", id)!.fresh === 1;
+const fresh = (app: App, id: string) => app.db.get<{ is_new: number }>("SELECT is_new FROM item_state WHERE item_id = ?", id)!.is_new === 1;
 const revision = (app: App, id: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", id)!.revision;
-const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; read_at: string | null }>("SELECT title, body, source_id, kind, read_at FROM notifications ORDER BY created_at, id");
+const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; seen_at: string | null }>("SELECT title, body, source_id, kind, seen_at FROM notifications ORDER BY created_at, id");
 
-// ---------- F22 back catalogue ----------
+// ---------- F22 backlog ----------
 
 const settled = (app: App, id: string) => app.db.get<{ s: string | null }>("SELECT backlog_settled_at AS s FROM sources WHERE id = ?", id)!.s;
 /** A sync walk that ends, as the worker reports it: a last batch that says it is done (empty or not). */
 const walk = (app: App, p: Owner, entries: SyncEntry[] = []) => applySyncBatch(app, p.engineUserId, batch(entries));
 
-test("a source's back catalogue is not New and tells no one; what comes after is", (t) => {
+test("a source's backlog is not New and tells no one; what comes after is", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Old podcast", "feed/1", { settled: false });
@@ -74,7 +69,7 @@ test("a source's back catalogue is not New and tells no one; what comes after is
   assert.equal(fresh(app, byUrl(undated)), false, "undated entries on the first sync were already there");
   assert.equal(fresh(app, byUrl(newer)), true, "published after the follow");
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Old podcast")], "one notification, for the one New item");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1);
   assert.equal(settled(app, src), null, "this walk began before anything said the source was ready: the next one settles it");
 
   walk(app, p);
@@ -92,16 +87,16 @@ test("one new item's notification opens that item; once more arrive it opens the
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", src);
   addItem(app, p, src, { discoveredAt: ago(DAY) });
   const first = addItem(app, p, src, { discoveredAt: ago(2 * DAY) }); // stored last, though crawled earlier: it is what arrived
-  notifyArrivals(app, p.workspaceId, [[src, 1]]);
+  notifyArrivals(app, p.accountId, [[src, 1]]);
   const link = () => app.db.get<{ item_id: string | null; source_id: string | null; changed_at: string | null }>("SELECT item_id, source_id, changed_at FROM notifications")!;
   assert.deepEqual({ ...link(), changed_at: null }, { item_id: first, source_id: src, changed_at: null });
   addItem(app, p, src);
-  notifyArrivals(app, p.workspaceId, [[src, 1]]);
+  notifyArrivals(app, p.accountId, [[src, 1]]);
   assert.equal(link().item_id, null, "two new: the source");
   assert.ok(link().changed_at, "and the grown notification is marked as changed, for phones");
 });
 
-test("a first sync that takes several batches stays back catalogue until a later walk has finished", (t) => {
+test("a first sync that takes several batches stays backlog until a later walk has finished", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Long archive", "feed/1", { settled: false });
@@ -109,7 +104,7 @@ test("a first sync that takes several batches stays back catalogue until a later
   const second = entry("feed/1", { publishedAt: null });
   applySyncBatch(app, p.engineUserId, { ...batch([first]), done: false });
   applySyncBatch(app, p.engineUserId, batch([second]));
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0);
   assert.equal(notes(app).length, 0, "following an archive never says '2 new'");
   assert.equal(settled(app, src), null);
   applySyncBatch(app, p.engineUserId, { ...batch([entry("feed/1", { publishedAt: null })]), done: false });
@@ -128,7 +123,7 @@ test("a feed that starts empty is settled too: its first genuinely new undated e
   assert.ok(settled(app, src), "nothing to enumerate is still an enumeration");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 0);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1);
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Slow start")]);
 });
 
@@ -145,7 +140,7 @@ test("a walk that ended before a source was ready does not settle it, and the bo
   walk(app, p, [entry("feed/2", { publishedAt: null })]);
   assert.ok(settled(app, early));
   assert.equal(settled(app, late), null, "the walk that just ended began before the engine had finished subscribing to it");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0, "what it brought is still its back catalogue");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "what it brought is still its backlog");
   const boundary = app.db.get<{ at: string }>("SELECT last_walk_done_at AS at FROM sync_checkpoints WHERE engine_user_id = ?", p.engineUserId)!.at;
   assert.ok(boundary > "2026-01-01T00:00:01.000Z", "the boundary moved to where this walk ended");
   walk(app, p);
@@ -158,7 +153,7 @@ test("following a source again starts a new episode: the old confirmation does n
   const src = makeSource(app, p, "Back again", "feed/1");
   walk(app, p);
   unfollowSource(app, p, src);
-  holdCandidate("dsc_again", p.workspaceId, { feedUrl: "https://example.org/feed/1.xml", siteUrl: null, title: "Back again", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
+  holdCandidate("dsc_again", p.accountId, { feedUrl: "https://example.org/feed/1.xml", siteUrl: null, title: "Back again", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   followSource(app, p, { token: "dsc_again", collectionId: null, newCollectionName: null, markPrivate: false, fullText: false });
   const row = app.db.get<{ id: string; s: string | null; b: string | null; f: number }>("SELECT id, subscribed_at AS s, backlog_settled_at AS b, followed AS f FROM sources WHERE id = ?", src)!;
   assert.deepEqual({ ...row }, { id: src, s: null, b: null, f: 1 }, "the same source, followed from now, not yet confirmed by the engine");
@@ -169,19 +164,19 @@ test("following a source again starts a new episode: the old confirmation does n
   const confirmed = app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s;
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0, "the walk that began before the confirmation brought back catalogue, and so did the next one that settled it");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "the walk that began before the confirmation brought backlog, and so did the next one that settled it");
   assert.ok(settled(app, src));
   onSubscribed(app, src, "feed/1");
   assert.equal(app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s, confirmed, "confirming again in the same episode changes nothing");
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1, "after that, New");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1, "after that, New");
 });
 
 test("the engine confirming a subscription records when, once", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const id = newId("src");
-  app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES (?, ?, ?, 'feed', 'Fresh follow', 'RSS feed', 'pending', ?)", id, p.accountId, p.workspaceId, nowIso());
+  app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, health, created_at) VALUES (?, ?, 'feed', 'Fresh follow', 'RSS feed', 'pending', ?)", id, p.accountId, nowIso());
   assert.equal(app.db.get<{ s: string | null }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", id)!.s, null);
   onSubscribed(app, id, "feed/77");
   const first = app.db.get<{ s: string | null }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", id)!.s;
@@ -224,16 +219,16 @@ test("opening an item or changing its state clears its New marker, and Undo brin
   const [a, b, c] = [addItem(app, p, src), addItem(app, p, src), addItem(app, p, src)] as [string, string, string];
 
   const opened = changeState(app, p, a, { opened: true, expectedRevision: revision(app, a) });
-  assert.equal(opened.item.fresh, false, "the response carries the updated item");
+  assert.equal(opened.item.isNew, false, "the response carries the updated item");
   assert.equal(opened.item.opened, true);
-  assert.equal(opened.item.workflow, "new", "opening changes nothing else");
+  assert.equal(opened.item.workflow, "undecided", "opening changes nothing else");
   applyUndo(app, p, opened.undoToken);
   assert.equal(fresh(app, a), true);
 
   const finished = changeState(app, p, b, { workflow: "finished", expectedRevision: revision(app, b) });
-  assert.equal(finished.item.fresh, false);
+  assert.equal(finished.item.isNew, false);
   applyUndo(app, p, finished.undoToken);
-  assert.deepEqual([fresh(app, b), app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", b)!.w], [true, "new"]);
+  assert.deepEqual([fresh(app, b), app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", b)!.w], [true, "undecided"]);
 
   const out = bulk(app, p, [b, c], { type: "workflow", workflow: "ignored" });
   assert.equal(out.changed, 2);
@@ -256,22 +251,22 @@ test("New markers expire after the chosen number of days, and only the marker ch
   const recent = addItem(app, p, src, { discoveredAt: ago(10 * DAY) });
   const staleToRead = addItem(app, p, src, { discoveredAt: ago(50 * DAY) });
   changeState(app, p, staleToRead, { workflow: "toread", expectedRevision: revision(app, staleToRead) });
-  app.db.run("UPDATE item_state SET fresh = 1 WHERE item_id = ?", staleToRead); // still New, as an item set before markers followed state
+  app.db.run("UPDATE item_state SET is_new = 1 WHERE item_id = ?", staleToRead); // still New, as an item set before markers followed state
   const rev = revision(app, stale);
 
-  assert.equal(getPreferences(app, p.workspaceId).freshDays, 30, "30 days unless chosen");
-  setPreferences(app, p.workspaceId, { freshDays: 0 });
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 0, "never expires");
+  assert.equal(getPreferences(app, p.accountId).newDays, 30, "30 days unless chosen");
+  setPreferences(app, p.accountId, { newDays: 0 });
+  assert.equal(expireNewMarkers(app, p.accountId), 0, "never expires");
   assert.equal(fresh(app, stale), true);
 
-  setPreferences(app, p.workspaceId, { freshDays: 30 });
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 2);
+  setPreferences(app, p.accountId, { newDays: 30 });
+  assert.equal(expireNewMarkers(app, p.accountId), 2);
   assert.deepEqual([fresh(app, stale), fresh(app, recent), fresh(app, staleToRead)], [false, true, false]);
   assert.equal(app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", staleToRead)!.w, "toread", "workflow untouched");
   assert.equal(revision(app, stale), rev, "no conflict for a tab that still shows it");
 
-  setPreferences(app, p.workspaceId, { freshDays: 7 });
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 1);
+  setPreferences(app, p.accountId, { newDays: 7 });
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.equal(fresh(app, recent), false);
 });
 
@@ -281,12 +276,12 @@ test("what arrived since the previous visit began keeps its marker, so a long ab
   const src = makeSource(app, p, "S", "feed/1");
   const whileAway = addItem(app, p, src, { discoveredAt: ago(40 * DAY) });
   const before = addItem(app, p, src, { discoveredAt: ago(80 * DAY) });
-  app.db.run("UPDATE workspaces SET last_visit_at = ? WHERE id = ?", ago(60 * DAY), p.workspaceId);
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 1);
+  app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(60 * DAY), p.accountId);
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.deepEqual([fresh(app, whileAway), fresh(app, before)], [true, false]);
   // The next visit moves the line forward, and those expire too.
-  app.db.run("UPDATE workspaces SET last_visit_at = ? WHERE id = ?", ago(1 * DAY), p.workspaceId);
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 1);
+  app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(1 * DAY), p.accountId);
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.equal(fresh(app, whileAway), false);
 });
 
@@ -298,7 +293,7 @@ test("expiry works in batches and stays inside one PURSS", (t) => {
   const theirs = makeSource(app, other, "Theirs", "feed/9");
   for (let i = 0; i < 2300; i++) addItem(app, p, src, { discoveredAt: ago(60 * DAY) });
   const otherItem = addItem(app, other, theirs, { discoveredAt: ago(60 * DAY) });
-  assert.equal(expireFreshMarkers(app, p.workspaceId), 2300);
+  assert.equal(expireNewMarkers(app, p.accountId), 2300);
   assert.equal(fresh(app, otherItem), true, "another account's markers are not touched");
 });
 
@@ -313,15 +308,15 @@ test("Start fresh clears every New marker past the page size in one go, with one
   for (let i = 0; i < 1250; i++) ids.push(addItem(app, p, src));
   const kept = addItem(app, p, src);
   changeState(app, p, kept, { workflow: "inprogress", progress: 0.4, expectedRevision: revision(app, kept) });
-  app.db.run("UPDATE item_state SET fresh = 1 WHERE item_id = ?", kept); // New again, so Start fresh has it to clear
-  const out = clearFreshAll(app, p, "all");
+  app.db.run("UPDATE item_state SET is_new = 1 WHERE item_id = ?", kept); // New again, so Start fresh has it to clear
+  const out = clearNewAll(app, p, "all");
   assert.equal(out.changed, 1251);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND fresh = 1", p.workspaceId)!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 1", p.accountId)!.n, 0);
   assert.equal(fresh(app, theirItem), true);
   assert.equal(app.db.get<{ w: string; pr: number }>("SELECT workflow AS w, progress AS pr FROM item_state WHERE item_id = ?", kept)!.w, "inprogress", "only freshness changes");
-  assert.deepEqual(clearFreshAll(app, p, "all"), { changed: 0, undoToken: null });
+  assert.deepEqual(clearNewAll(app, p, "all"), { changed: 0, undoToken: null });
   applyUndo(app, p, out.undoToken!);
-  assert.equal(listItems(app, p, { scope: "all", filter: "fresh", limit: 1 }).total, 1251, "every marker is back, including the one on the item in progress");
+  assert.equal(listItems(app, p, { scope: "all", filter: "new", limit: 1 }).total, 1251, "every marker is back, including the one on the item in progress");
   assert.equal(ids.length, 1250);
 });
 
@@ -331,47 +326,14 @@ test("a visit starts after 30 minutes of quiet, and 'last visit' holds still wit
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const at = (min: number) => new Date(Date.UTC(2026, 10, 1, 9, 0) + min * 60_000);
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(0)), { lastVisitAt: null, started: true }, "a first visit has no earlier one");
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(10)), { lastVisitAt: null, started: false });
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(35)), { lastVisitAt: null, started: false }, "25 minutes after the last activity: still the same visit");
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(66)), { lastVisitAt: at(0).toISOString(), started: true }, "31 minutes of quiet: a new visit; the last one began at 9:00");
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(80)), { lastVisitAt: at(0).toISOString(), started: false });
-  assert.deepEqual(touchVisit(app, p.workspaceId, at(60 * 24 * 3)), { lastVisitAt: at(66).toISOString(), started: true }, "three days later: the visit that began at 10:06");
-  const row = app.db.get<{ a: string; b: string; c: string }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM workspaces WHERE id = ?", p.workspaceId)!;
+  assert.deepEqual(touchVisit(app, p.accountId, at(0)), { lastVisitAt: null, started: true }, "a first visit has no earlier one");
+  assert.deepEqual(touchVisit(app, p.accountId, at(10)), { lastVisitAt: null, started: false });
+  assert.deepEqual(touchVisit(app, p.accountId, at(35)), { lastVisitAt: null, started: false }, "25 minutes after the last activity: still the same visit");
+  assert.deepEqual(touchVisit(app, p.accountId, at(66)), { lastVisitAt: at(0).toISOString(), started: true }, "31 minutes of quiet: a new visit; the last one began at 9:00");
+  assert.deepEqual(touchVisit(app, p.accountId, at(80)), { lastVisitAt: at(0).toISOString(), started: false });
+  assert.deepEqual(touchVisit(app, p.accountId, at(60 * 24 * 3)), { lastVisitAt: at(66).toISOString(), started: true }, "three days later: the visit that began at 10:06");
+  const row = app.db.get<{ a: string; b: string; c: string }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM accounts WHERE id = ?", p.accountId)!;
   assert.deepEqual({ ...row }, { a: at(66).toISOString(), b: at(60 * 24 * 3).toISOString(), c: at(60 * 24 * 3).toISOString() }, "previous and current move together");
-});
-
-test("migration 019 starts existing workspaces from their last session, settles sources that have items, and turns 'off' into a frequency", (t) => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "purss-migrate-"));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const db = new Database(path.join(dir, "old.db"));
-  t.after(() => db.close());
-  const folder = fileURLToPath(new URL("../db/migrations/", import.meta.url));
-  const files = readdirSync(folder).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
-  for (const f of files.filter((f) => f < "019")) db.exec(readFileSync(path.join(folder, f), "utf8"));
-  const at = "2026-09-01T10:00:00.000Z";
-  db.run("INSERT INTO accounts (id, created_at) VALUES ('acc_a', ?), ('acc_b', ?)", at, at);
-  db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES ('ws_a', 'acc_a', ?), ('ws_b', 'acc_b', ?)", at, at);
-  db.run("INSERT INTO sessions (id, account_id, csrf, created_at, expires_at, last_seen_at, auth_at, method) VALUES ('s1', 'acc_a', 'c', ?, ?, ?, ?, 'passkey'), ('s2', 'acc_a', 'c', ?, ?, ?, ?, 'passkey')",
-    at, at, "2026-09-02T08:00:00.000Z", at, at, at, "2026-09-05T20:00:00.000Z", at);
-  db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, engine_stream_id, created_at) VALUES ('src_full', 'acc_a', 'ws_a', 'feed', 'Has items', 'RSS', 'feed/1', ?), ('src_new', 'acc_a', 'ws_a', 'feed', 'No items', 'RSS', NULL, ?)", at, at);
-  db.run("INSERT INTO engine_users (id, account_id, workspace_id, username, created_at) VALUES ('eng_a', 'acc_a', 'ws_a', 'u_a', ?)", at);
-  db.run("INSERT INTO sync_checkpoints (engine_user_id, last_success_at) VALUES ('eng_a', '2026-09-04T00:00:00.000Z')");
-  db.run("INSERT INTO items (id, account_id, workspace_id, source_id, kind, title, discovered_at, created_at, updated_at) VALUES ('itm_1', 'acc_a', 'ws_a', 'src_full', 'article', 'T', ?, ?, ?)", at, at, at);
-  db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES ('ws_a', ?, ?), ('ws_b', ?, ?)", JSON.stringify({ notifications: { mode: "off", previews: true } }), at, JSON.stringify({ notifications: { mode: "browser" } }), at);
-  db.exec(readFileSync(path.join(folder, "019_returning_users.sql"), "utf8"));
-
-  const a = db.get<{ last_visit_at: string; visit_started_at: string; last_activity_at: string }>("SELECT last_visit_at, visit_started_at, last_activity_at FROM workspaces WHERE id = 'ws_a'")!;
-  assert.deepEqual({ ...a }, { last_visit_at: "2026-09-05T20:00:00.000Z", visit_started_at: "2026-09-05T20:00:00.000Z", last_activity_at: "2026-09-05T20:00:00.000Z" });
-  assert.equal(db.get<{ v: string | null }>("SELECT last_visit_at AS v FROM workspaces WHERE id = 'ws_b'")!.v, null);
-  assert.equal(db.get<{ s: string | null }>("SELECT backlog_settled_at AS s FROM sources WHERE id = 'src_full'")!.s, at);
-  assert.equal(db.get<{ s: string | null }>("SELECT backlog_settled_at AS s FROM sources WHERE id = 'src_new'")!.s, null);
-  assert.equal(db.get<{ s: string | null }>("SELECT subscribed_at AS s FROM sources WHERE id = 'src_full'")!.s, at, "a source the engine already follows was ready when it was created");
-  assert.equal(db.get<{ s: string | null }>("SELECT subscribed_at AS s FROM sources WHERE id = 'src_new'")!.s, null);
-  assert.equal(db.get<{ w: string | null }>("SELECT last_walk_done_at AS w FROM sync_checkpoints WHERE engine_user_id = 'eng_a'")!.w, "2026-09-04T00:00:00.000Z");
-  const pref = (ws: string) => JSON.parse(db.get<{ value: string }>("SELECT value FROM preferences WHERE workspace_id = ?", ws)!.value) as { notifications: Record<string, unknown> };
-  assert.deepEqual({ ...pref("ws_a").notifications }, { mode: "inapp", previews: true, frequency: "off" });
-  assert.deepEqual({ ...pref("ws_b").notifications }, { mode: "browser" });
 });
 
 test("Home's overview: what is New since the last visit, what to pick up, what was kept — and only this PURSS's", (t) => {
@@ -387,17 +349,17 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   const stranger = makeOwner(app, { admin: false });
   addItem(app, stranger, makeSource(app, stranger, "Theirs", "feed/9"), { discoveredAt: ago(1000) });
 
-  app.db.run("UPDATE workspaces SET last_visit_at = ? WHERE id = ?", ago(3 * DAY), p.workspaceId);
+  app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(3 * DAY), p.accountId);
   addItem(app, p, essays, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, essays, { discoveredAt: ago(2 * DAY) });
   addItem(app, p, news, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, loose, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, quiet, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, essays, { discoveredAt: ago(5 * DAY) });
-  addItem(app, p, essays, { discoveredAt: ago(1 * DAY), fresh: false });
+  addItem(app, p, essays, { discoveredAt: ago(1 * DAY), isNew: false });
 
   const o = homeOverview(app, p);
-  assert.equal(o.lastVisitAt, app.db.get<{ v: string }>("SELECT last_visit_at AS v FROM workspaces WHERE id = ?", p.workspaceId)!.v);
+  assert.equal(o.lastVisitAt, app.db.get<{ v: string }>("SELECT last_visit_at AS v FROM accounts WHERE id = ?", p.accountId)!.v);
   assert.equal(o.since!.total, 4, "essays 2 + news 1 + loose 1; hidden sources and older or seen items are left out");
   assert.deepEqual(o.since!.boxes.map((b) => [b.id, b.count]), [[col.id, 3], ["other", 1]]);
 
@@ -429,24 +391,24 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   changeState(app, p, idle, { opened: true, expectedRevision: revision(app, idle) });
   assert.deepEqual(homeOverview(app, p).toWatch.items.map((i) => i.id), [v1, v2]);
 
-  assert.equal(homeOverview(app, p).fresh, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE workspace_id = ? AND fresh = 1", p.workspaceId)!.n);
+  assert.equal(homeOverview(app, p).isNew, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 1", p.accountId)!.n);
 });
 
 test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, isNew: 0, unseen: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------
 
 /** Every page of a Home list, one request after another, with something allowed to change between requests. */
-function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "fresh"; limit: number }, between: (page: number) => void = () => {}): string[] {
+function pages(app: App, p: Owner, query: { scope: string; filter?: "undecided" | "new"; limit: number }, between: (page: number) => void = () => {}): string[] {
   const out: string[] = [];
   let cursor: string | undefined;
   for (let n = 0; n < 400; n++) {
-    const page = listItems(app, p, { filter: "new", ...query, cursor, mix: "home" });
+    const page = listItems(app, p, { filter: "undecided", ...query, cursor, mix: "home" });
     out.push(...page.items.map((i) => i.id));
     between(n);
     if (!page.nextCursor) break;
@@ -478,8 +440,8 @@ test("Home lists only Undecided items, newest first; nothing put aside, started,
     assert.deepEqual(pages(app, p, { scope, limit }), expected, `${scope}, ${limit} a page: Undecided newest first`);
   }
   // The New-only layout keeps its own filter: New items still Undecided first, then those put aside, each newest first.
-  app.db.run("UPDATE item_state SET fresh = CASE WHEN item_id IN (?, ?) THEN 1 ELSE 0 END", today[5]!, old);
-  assert.deepEqual(pages(app, p, { scope: "home", filter: "fresh", limit: 10 }), [today[5], old]);
+  app.db.run("UPDATE item_state SET is_new = CASE WHEN item_id IN (?, ?) THEN 1 ELSE 0 END", today[5]!, old);
+  assert.deepEqual(pages(app, p, { scope: "home", filter: "new", limit: 10 }), [today[5], old]);
   assert.throws(() => listItems(app, p, { scope: "home", cursor: "garbage", mix: "home" }), /expired/);
 });
 
@@ -511,7 +473,7 @@ test("Home lists only the sources that have a box on Home", (t) => {
   for (const [src, n] of [[shown, 3], [hidden, 3], [both, 2], [loose, 2]] as const) for (let i = 0; i < n; i++) feedItem(app, p, src, 10 + i);
   const titles = () => new Set(pages(app, p, { scope: "home", limit: 4 }).map((id) => app.db.get<{ t: string }>("SELECT s.title AS t FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ?", id)!.t));
   assert.deepEqual(titles(), new Set(["Shown", "Both", "Loose"]), "a source only in a hidden box is not on Home");
-  setPreferences(app, p.workspaceId, { homeOther: false });
+  setPreferences(app, p.accountId, { homeOther: false });
   assert.deepEqual(titles(), new Set(["Shown", "Both"]), "Other sources is hidden from Home too");
   app.db.run("UPDATE collections SET show_on_home = 1 WHERE id = ?", b.id);
   assert.ok(titles().has("Hidden"), "and shown again");
@@ -523,9 +485,9 @@ test("Home lists of scopes that are not a set of sources keep Home's filter and 
   const a = makeSource(app, p, "A", "feed/1");
   const ids = [feedItem(app, p, a, 5), feedItem(app, p, a, 4), feedItem(app, p, a, 3)];
   for (const id of ids.slice(0, 2)) setWorkflow(app, p, id, "toread");
-  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
-  const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
-  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
+  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
+  const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
+  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
   assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), { message: server.api.http.notFound(shared.thatCollection) });
 });
 
@@ -573,9 +535,9 @@ test("a 'Notify me' source's arrivals within the hour share one notification tha
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", chatty);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Chatty")]);
-  app.db.run("UPDATE notifications SET read_at = ?", nowIso());
+  app.db.run("UPDATE notifications SET seen_at = ?", nowIso());
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
-  assert.deepEqual(notes(app).map((n) => [n.title, n.read_at]), [[notifications.newCountFrom(3, "Chatty"), null]], "one notification, unread again");
+  assert.deepEqual(notes(app).map((n) => [n.title, n.seen_at]), [[notifications.newCountFrom(3, "Chatty"), null]], "one notification, unseen again");
   // An hour later it starts a new one.
   app.db.run("UPDATE notifications SET created_at = ?", ago(61 * 60_000));
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
@@ -594,8 +556,8 @@ test("with a daily digest, arrivals wait and one digest counts what is still New
   const col = createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", sourceIds: [essays, news, muted], query: null, view: "list" });
   const hid = createCollection(app, p, { name: "Shelf", emoji: null, mode: "sources", sourceIds: [shelved], query: null, view: "list" });
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", hid.id);
-  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00", previews: false } });
-  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-11-03T08:00:00.000Z");
+  setPreferences(app, p.accountId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00", previews: false } });
+  app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end", p.accountId, "2026-11-03T08:00:00.000Z");
 
   const mk = (src: string, at: string, over: Partial<NewItem> = {}) => addItem(app, p, src, { discoveredAt: at, ...over });
   mk(essays, "2026-11-04T10:00:00.000Z", { title: "Essay one" });
@@ -604,22 +566,22 @@ test("with a daily digest, arrivals wait and one digest counts what is still New
   mk(lone, "2026-11-04T12:00:00.000Z");
   mk(muted, "2026-11-04T12:00:00.000Z");
   mk(shelved, "2026-11-04T12:00:00.000Z");
-  mk(essays, "2026-11-04T13:00:00.000Z", { fresh: false });
+  mk(essays, "2026-11-04T13:00:00.000Z", { isNew: false });
   mk(essays, "2026-11-02T13:00:00.000Z");
-  notifyArrivals(app, p.workspaceId, [[essays, 2]]);
+  notifyArrivals(app, p.accountId, [[essays, 2]]);
   assert.equal(notes(app).length, 0, "digest mode: nothing at once");
 
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-04T07:00:00.000Z")), false, "before 08:00 nothing is due");
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T08:05:00.000Z")), true);
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-04T07:00:00.000Z")), false, "before 08:00 nothing is due");
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-05T08:05:00.000Z")), true);
   const [digest] = notes(app);
   assert.equal(digest!.title, notifications.digestTitle("daily", 4, notifications.collections(2)));
   assert.equal(digest!.body, [notifications.digestLine("Reading", 3, ""), notifications.digestLine(shared.otherSources, 1, "")].join("\n"), "no titles while previews are off; hidden and muted left out");
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T09:00:00.000Z")), false, "one per day");
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-05T09:00:00.000Z")), false, "one per day");
   assert.equal(notes(app).length, 1);
 
   // Chosen collections only.
-  setPreferences(app, p.workspaceId, { notifications: { include: { newItems: [hid.id] } } });
-  const d = digestFor(app, p.workspaceId, { from: "2026-11-03T08:00:00.000Z", to: "2026-11-05T09:00:00.000Z" });
+  setPreferences(app, p.accountId, { notifications: { include: { newItems: [hid.id] } } });
+  const d = digestFor(app, p.accountId, { from: "2026-11-03T08:00:00.000Z", to: "2026-11-05T09:00:00.000Z" });
   assert.deepEqual(d.boxes.map((b) => [b.name, b.count]), [["Shelf", 1]], "a hidden collection counts when chosen");
   void col;
 });
@@ -641,17 +603,17 @@ test("a digest never shows the titles of a private source, with titles on or off
   const window = { from: "2026-11-04T00:00:00.000Z", to: "2026-11-05T00:00:00.000Z" };
   const everyTitle = (d: ReturnType<typeof digestFor>) => d.boxes.flatMap((b) => b.titles);
 
-  assert.deepEqual(everyTitle(digestFor(app, p.workspaceId, window)), [], "titles are off until the person turns them on");
-  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { previews: true, frequency: "daily", digestTime: "08:00" } });
-  const on = digestFor(app, p.workspaceId, window);
+  assert.deepEqual(everyTitle(digestFor(app, p.accountId, window)), [], "titles are off until the person turns them on");
+  setPreferences(app, p.accountId, { timezone: "UTC", notifications: { previews: true, frequency: "daily", digestTime: "08:00" } });
+  const on = digestFor(app, p.accountId, window);
   assert.deepEqual(everyTitle(on).sort(), ["Second visible", "Visible title"], "public titles only");
   assert.equal(on.total, 4, "private items are still counted");
   assert.deepEqual(on.boxes.find((b) => b.id === hidden.id)!.titles, [], "a collection of private sources has counts and no titles");
   assert.deepEqual(on.boxes.find((b) => b.id === mixed.id)!.titles, ["Visible title"]);
 
   // The notification made from it carries the same.
-  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, window.from);
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T09:00:00.000Z")), true);
+  app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end", p.accountId, window.from);
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-05T09:00:00.000Z")), true);
   const text = notes(app).map((n) => `${n.title}\n${n.body}`).join("\n");
   assert.match(text, /Visible title/);
   for (const secretTitle of ["Patron only", "Another private title"]) assert.ok(!text.includes(secretTitle), `${secretTitle} stays out`);
@@ -666,17 +628,17 @@ test("choosing \"Other sources\" tells about the sources that are in no collecti
   const window = { from: "2026-11-04T00:00:00.000Z", to: "2026-11-05T00:00:00.000Z" };
   for (let i = 0; i < 8; i++) addItem(app, p, loose, { discoveredAt: "2026-11-04T10:00:00.000Z" });
   addItem(app, p, inBox, { discoveredAt: "2026-11-04T10:00:00.000Z" });
-  const boxes = () => digestFor(app, p.workspaceId, window).boxes.map((b) => [b.id, b.count]);
+  const boxes = () => digestFor(app, p.accountId, window).boxes.map((b) => [b.id, b.count]);
 
   for (const homeOther of [true, false]) {
-    setPreferences(app, p.workspaceId, { homeOther, notifications: { include: { newItems: [OTHER_BOX_ID] } } });
+    setPreferences(app, p.accountId, { homeOther, notifications: { include: { newItems: [OTHER_BOX_ID] } } });
     assert.deepEqual(boxes(), [[OTHER_BOX_ID, 8]], `only Other sources was chosen (shown on Home: ${homeOther})`);
   }
-  setPreferences(app, p.workspaceId, { homeOther: false, notifications: { include: { newItems: [col.id] } } });
+  setPreferences(app, p.accountId, { homeOther: false, notifications: { include: { newItems: [col.id] } } });
   assert.deepEqual(boxes(), [[col.id, 1]], "not chosen: left out");
-  setPreferences(app, p.workspaceId, { homeOther: false, notifications: { include: { newItems: "all" } } });
+  setPreferences(app, p.accountId, { homeOther: false, notifications: { include: { newItems: "all" } } });
   assert.deepEqual(boxes(), [[col.id, 1]], "all of Home, and Other sources is hidden from Home");
-  setPreferences(app, p.workspaceId, { homeOther: true, notifications: { include: { newItems: "all" } } });
+  setPreferences(app, p.accountId, { homeOther: true, notifications: { include: { newItems: "all" } } });
   assert.deepEqual(boxes(), [[OTHER_BOX_ID, 8], [col.id, 1]]);
 });
 
@@ -713,13 +675,13 @@ test("a weekly digest is made once, on or after its day", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
-  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "weekly", digestDay: 1, digestTime: "08:00" } });
-  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-10-29T00:00:00.000Z");
+  setPreferences(app, p.accountId, { timezone: "UTC", notifications: { frequency: "weekly", digestDay: 1, digestTime: "08:00" } });
+  app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end", p.accountId, "2026-10-29T00:00:00.000Z");
   addItem(app, p, src, { discoveredAt: "2026-11-01T10:00:00.000Z" });
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-01T12:00:00.000Z")), false, "Sunday: Monday has not come");
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-05T12:00:00.000Z")), true, "Thursday: Monday's digest, late, still comes");
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-01T12:00:00.000Z")), false, "Sunday: Monday has not come");
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-05T12:00:00.000Z")), true, "Thursday: Monday's digest, late, still comes");
   assert.equal(notes(app)[0]!.title, notifications.digestTitle("weekly", 1, notifications.yourOtherSources));
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-06T12:00:00.000Z")), false);
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-06T12:00:00.000Z")), false);
 });
 
 test("a digest goes by email too, to a confirmed address, unless the person turns that off; it teases new titles, never a private source's", async (t) => {
@@ -730,13 +692,13 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   const open = makeSource(app, p, "Open", "feed/1");
   const secret = makeSource(app, p, "Secret", "feed/2", { isPrivate: true });
   createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", sourceIds: [open, secret], query: null, view: "list" });
-  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { digestDay: 1, digestTime: "08:00" } });
-  assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly", "weekly is the default");
+  setPreferences(app, p.accountId, { timezone: "UTC", notifications: { digestDay: 1, digestTime: "08:00" } });
+  assert.equal(getPreferences(app, p.accountId).notifications.frequency, "weekly", "weekly is the default");
   const week = async (n: number, monday: string) => {
     addItem(app, p, open, { title: `Open post ${n}`, discoveredAt: `${monday}T06:00:00.000Z` });
     addItem(app, p, secret, { title: `Patron post ${n}`, discoveredAt: `${monday}T06:00:00.000Z` });
-    app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, `${monday}T00:00:00.000Z`);
-    assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date(`${monday}T08:05:00.000Z`)), true);
+    app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end", p.accountId, `${monday}T00:00:00.000Z`);
+    assert.equal(runDigest(app, p.accountId, new Date(`${monday}T08:05:00.000Z`)), true);
     await settleMail(app);
   };
 
@@ -765,7 +727,7 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.ok(!/post/.test(notes(app).at(-1)!.body ?? ""), "the bell's digest has no titles while titles are off");
 
   // Titles on: the bell gets public titles too; the email is the same.
-  setPreferences(app, p.workspaceId, { notifications: { previews: true } });
+  setPreferences(app, p.accountId, { notifications: { previews: true } });
   await week(4, "2026-11-02");
   assert.equal(sent.length, 2);
   assert.match(sent[1]!.text, /Open post 4/);
@@ -773,47 +735,47 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.ok(!/Patron/.test(sent[1]!.text) && !/Patron/.test(sent[1]!.html) && !/Patron/.test(notes(app).at(-1)!.body ?? ""), "a private source's titles never show");
 
   // Turned off: the bell keeps getting it, email stops.
-  setPreferences(app, p.workspaceId, { notifications: { emailDigest: false } });
+  setPreferences(app, p.accountId, { notifications: { emailDigest: false } });
   await week(5, "2026-11-09");
   assert.equal(sent.length, 2);
   assert.equal(notes(app).length, 5, "every digest is in the bell");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE kind = 'digest'")!.n, 2);
 });
 
-test("switching digest frequency starts from now; Never doesn't hide other unread notices", (t) => {
+test("switching digest frequency starts from now; Never doesn't hide other unseen notices", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
   addItem(app, p, src, { discoveredAt: ago(2 * DAY) });
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
+  setPreferences(app, p.accountId, { notifications: { frequency: "daily" } });
   const end = app.db.get<{ w: string }>("SELECT window_end AS w FROM notification_state")!.w;
   assert.ok(Date.now() - Date.parse(end) < 5000, "nothing from before the switch is sent");
-  app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('n1', ?, 'arrivals', 'x', 'k', ?)", p.workspaceId, nowIso());
-  assert.equal(unreadCount(app, p.workspaceId), 1);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
-  assert.equal(unreadCount(app, p.workspaceId), 1, "a frequency choice doesn't hide an existing notification");
+  app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at) VALUES ('n1', ?, 'arrivals', 'x', 'k', ?)", p.accountId, nowIso());
+  assert.equal(unseenCount(app, p.accountId), 1);
+  setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
+  assert.equal(unseenCount(app, p.accountId), 1, "a frequency choice doesn't hide an existing notification");
   assert.equal(listNotifications(app, p).length, 1, "what is already there can still be read");
 });
 
 test("legacy 'off' mode reads as the frequency off, legacy 'arrivals' as a weekly digest, and the new fields validate", () => {
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } }).success, true);
-  assert.equal(preferencesPatchSchema.safeParse({ freshDays: 366 }).success, false);
+  assert.equal(preferencesPatchSchema.safeParse({ newDays: 366 }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { digestTime: "25:00" } }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { digestDay: 7 } }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { include: { newItems: ["col_a"] } } }).success, true);
   const { app, p, cleanup } = setup();
   try {
-    setPreferences(app, p.workspaceId, { notifications: { mode: "off" } } as never);
-    const n = getPreferences(app, p.workspaceId).notifications;
+    setPreferences(app, p.accountId, { notifications: { mode: "off" } } as never);
+    const n = getPreferences(app, p.accountId).notifications;
     assert.deepEqual([n.mode, n.frequency], ["inapp", "off"]);
     // Told as items arrive is no longer offered: an older export, or a choice stored before, reads as a weekly digest.
-    setPreferences(app, p.workspaceId, { notifications: { frequency: "arrivals" } } as never);
-    assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly");
-    app.db.run("UPDATE preferences SET value = json_set(value, '$.notifications.frequency', 'arrivals') WHERE workspace_id = ?", p.workspaceId);
-    assert.equal(getPreferences(app, p.workspaceId).notifications.frequency, "weekly");
+    setPreferences(app, p.accountId, { notifications: { frequency: "arrivals" } } as never);
+    assert.equal(getPreferences(app, p.accountId).notifications.frequency, "weekly");
+    app.db.run("UPDATE preferences SET value = json_set(value, '$.notifications.frequency', 'arrivals') WHERE account_id = ?", p.accountId);
+    assert.equal(getPreferences(app, p.accountId).notifications.frequency, "weekly");
     // Changing one include switch keeps the others.
-    setPreferences(app, p.workspaceId, { notifications: { frequency: "daily", include: { problems: false } } });
-    const after: Preferences["notifications"] = getPreferences(app, p.workspaceId).notifications;
+    setPreferences(app, p.accountId, { notifications: { frequency: "daily", include: { problems: false } } });
+    const after: Preferences["notifications"] = getPreferences(app, p.accountId).notifications;
     assert.deepEqual(after.include, { newItems: "all", problems: false, reminders: true, captures: true });
   } finally { cleanup(); }
 });
@@ -824,29 +786,29 @@ test("a source that stops working is told about once for that failure, however o
   const src = makeSource(app, p, "Broken", "feed/1");
   const at = (min: number) => new Date(Date.UTC(2026, 10, 5, 10, 0) + min * 60_000);
   app.db.run("UPDATE sources SET health = 'error', health_text = 'The site refused us.' WHERE id = ?", src);
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(0)), 1);
+  assert.equal(runProblemCheck(app, p.accountId, at(0)), 1);
   assert.deepEqual(notes(app).map((n) => [n.kind, n.title, n.body]), [["source", notifications.sourceNotWorking("Broken"), "The site refused us."]]);
-  for (let i = 1; i <= 50; i++) runProblemCheck(app, p.workspaceId, p.accountId, at(i * 5));
+  for (let i = 1; i <= 50; i++) runProblemCheck(app, p.accountId, at(i * 5));
   assert.equal(notes(app).length, 1, "every five minutes for four hours: still one");
   // Pruning (or deleting) the notification does not make it come back.
   app.db.run("DELETE FROM notifications");
-  for (let i = 51; i <= 60; i++) runProblemCheck(app, p.workspaceId, p.accountId, at(i * 5));
+  for (let i = 51; i <= 60; i++) runProblemCheck(app, p.accountId, at(i * 5));
   assert.equal(notes(app).length, 0, "the failure was told about; the memory of it is on the source, not in the notification");
 
   // It recovers, and fails again the next day: a new failure.
   app.db.run("UPDATE sources SET health = 'ok', health_text = NULL WHERE id = ?", src);
-  runProblemCheck(app, p.workspaceId, p.accountId, at(400));
+  runProblemCheck(app, p.accountId, at(400));
   app.db.run("UPDATE sources SET health = 'error', health_text = 'Gone again.' WHERE id = ?", src);
-  runProblemCheck(app, p.workspaceId, p.accountId, at(410));
+  runProblemCheck(app, p.accountId, at(410));
   assert.equal(notes(app).length, 0, "a flap within the day is not a second notification");
-  runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 26));
+  runProblemCheck(app, p.accountId, at(60 * 26));
   assert.deepEqual(notes(app).map((n) => n.body), ["Gone again."]);
 
-  setPreferences(app, p.workspaceId, { notifications: { include: { problems: false } } });
+  setPreferences(app, p.accountId, { notifications: { include: { problems: false } } });
   app.db.run("UPDATE sources SET problem_notified_for = NULL, problem_notified_at = NULL WHERE id = ?", src);
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 60)), 0, "switched off");
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off", include: { problems: true } } });
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, at(60 * 60)), 1, "the problem notice still arrives when digests are off");
+  assert.equal(runProblemCheck(app, p.accountId, at(60 * 60)), 0, "switched off");
+  setPreferences(app, p.accountId, { notifications: { frequency: "off", include: { problems: true } } });
+  assert.equal(runProblemCheck(app, p.accountId, at(60 * 60)), 1, "the problem notice still arrives when digests are off");
 });
 
 test("a failed text save is told about once; a new attempt that fails is told about again", (t) => {
@@ -855,30 +817,30 @@ test("a failed text save is told about once; a new attempt that fails is told ab
   const src = makeSource(app, p, "S", "feed/1");
   app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
   const item = addItem(app, p, src);
-  const failure = (id: string, completedAt: string) => app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?, ?)", id, p.workspaceId, item, completedAt, completedAt);
+  const failure = (id: string, completedAt: string) => app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?, ?)", id, p.accountId, item, completedAt, completedAt);
   const now = new Date();
   failure("cap1", new Date(now.getTime() - 60_000).toISOString());
   failure("cap2", new Date(now.getTime() - 120_000).toISOString());
   failure("old", new Date(now.getTime() - 3 * DAY).toISOString());
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, now), 1);
+  assert.equal(runProblemCheck(app, p.accountId, now), 1);
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.captureFailedFromSource(1, "S")], "two attempts on one item are one item; the one from three days ago is not news");
-  for (let i = 1; i <= 30; i++) runProblemCheck(app, p.workspaceId, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
+  for (let i = 1; i <= 30; i++) runProblemCheck(app, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
   app.db.run("DELETE FROM notifications");
-  for (let i = 31; i <= 40; i++) runProblemCheck(app, p.workspaceId, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
+  for (let i = 31; i <= 40; i++) runProblemCheck(app, p.accountId, new Date(now.getTime() + i * 5 * 60_000));
   assert.equal(notes(app).length, 0, "a capture that stays failed is not told about every five minutes, nor again after pruning");
 
   // Trying again re-arms the capture; failing again is a new failure.
   const later = new Date(now.getTime() + 3_600_000);
   app.db.run("UPDATE captures SET status = 'pending', completed_at = NULL WHERE id = 'cap1'");
-  runProblemCheck(app, p.workspaceId, p.accountId, new Date(later.getTime() - 1000));
+  runProblemCheck(app, p.accountId, new Date(later.getTime() - 1000));
   assert.equal(notes(app).length, 0, "pending is not a failure");
   app.db.run("UPDATE captures SET status = 'failed', completed_at = ? WHERE id = 'cap1'", new Date(later.getTime() - 500).toISOString());
-  runProblemCheck(app, p.workspaceId, p.accountId, later);
+  runProblemCheck(app, p.accountId, later);
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.captureFailedFromSource(1, "S")]);
 
-  setPreferences(app, p.workspaceId, { notifications: { include: { captures: false } } });
+  setPreferences(app, p.accountId, { notifications: { include: { captures: false } } });
   failure("cap3", new Date(later.getTime() + 1000).toISOString());
-  runProblemCheck(app, p.workspaceId, p.accountId, new Date(later.getTime() + 5000));
+  runProblemCheck(app, p.accountId, new Date(later.getTime() + 5000));
   assert.equal(notes(app).length, 1, "switched off");
 });
 
@@ -887,35 +849,35 @@ test("a digest is made once: its window moves with it in one transaction, and pr
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
   createCollection(app, p, { name: "All", emoji: null, mode: "sources", sourceIds: [src], query: null, view: "list" });
-  setPreferences(app, p.workspaceId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00" } });
-  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET window_end = excluded.window_end", p.workspaceId, "2026-11-03T08:00:00.000Z");
+  setPreferences(app, p.accountId, { timezone: "UTC", notifications: { frequency: "daily", digestTime: "08:00" } });
+  app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET window_end = excluded.window_end", p.accountId, "2026-11-03T08:00:00.000Z");
   addItem(app, p, src, { discoveredAt: "2026-11-04T10:00:00.000Z" });
   const windowEnd = () => app.db.get<{ w: string }>("SELECT window_end AS w FROM notification_state")!.w;
   const due = new Date("2026-11-05T08:05:00.000Z");
 
   // If recording the notification fails, the window has not moved and nothing was made.
   app.db.exec("CREATE TRIGGER digest_fails BEFORE INSERT ON notifications WHEN NEW.dedup_key LIKE 'digest:%' BEGIN SELECT RAISE(ABORT, 'disk full'); END");
-  assert.throws(() => runDigest(app, p.workspaceId, p.accountId, due), /disk full/);
+  assert.throws(() => runDigest(app, p.accountId, due), /disk full/);
   assert.equal(windowEnd(), "2026-11-03T08:00:00.000Z", "the window did not move");
   assert.equal(notes(app).length, 0);
   app.db.exec("DROP TRIGGER digest_fails");
 
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, due), true);
+  assert.equal(runDigest(app, p.accountId, due), true);
   assert.equal(windowEnd(), due.toISOString());
   assert.equal(notes(app).length, 1);
 
   // Pruned, deleted or restored without it: the window still says it was covered.
   app.db.run("DELETE FROM notifications");
-  assert.equal(pruneNotifications(app, p.workspaceId), 0);
-  for (const minutes of [1, 30, 600]) assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date(due.getTime() + minutes * 60_000)), false);
+  assert.equal(pruneNotifications(app, p.accountId), 0);
+  for (const minutes of [1, 30, 600]) assert.equal(runDigest(app, p.accountId, new Date(due.getTime() + minutes * 60_000)), false);
   assert.equal(notes(app).length, 0, "nothing comes again");
   // Another day's window makes another digest, named for its own window.
   addItem(app, p, src, { discoveredAt: "2026-11-05T12:00:00.000Z" });
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-06T08:05:00.000Z")), true);
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-06T08:05:00.000Z")), true);
   assert.equal(app.db.get<{ k: string }>("SELECT dedup_key AS k FROM notifications")!.k, `digest:daily:${due.toISOString()}`);
 
   // A digest with nothing New still closes its window, without a notification.
-  assert.equal(runDigest(app, p.workspaceId, p.accountId, new Date("2026-11-07T08:05:00.000Z")), false);
+  assert.equal(runDigest(app, p.accountId, new Date("2026-11-07T08:05:00.000Z")), false);
   assert.equal(windowEnd(), "2026-11-07T08:05:00.000Z");
   assert.equal(notes(app).length, 1);
 });
@@ -926,12 +888,12 @@ test("old notifications are pruned: past 90 days, or beyond the newest 500; and 
   const src = makeSource(app, p, "Gone soon", "feed/1");
   app.db.tx(() => {
     for (let i = 0; i < 560; i++) {
-      app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at, source_id) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
-        `n${i}`, p.workspaceId, `t${i}`, `k${i}`, ago(i * 60_000), i % 2 ? null : src);
+      app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at, source_id) VALUES (?, ?, 'arrivals', ?, ?, ?, ?)",
+        `n${i}`, p.accountId, `t${i}`, `k${i}`, ago(i * 60_000), i % 2 ? null : src);
     }
-    for (let i = 0; i < 5; i++) app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'old', ?, ?)", `o${i}`, p.workspaceId, `ok${i}`, ago(100 * DAY + i));
+    for (let i = 0; i < 5; i++) app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'old', ?, ?)", `o${i}`, p.accountId, `ok${i}`, ago(100 * DAY + i));
   });
-  assert.equal(pruneNotifications(app, p.workspaceId), 5 + 60);
+  assert.equal(pruneNotifications(app, p.accountId), 5 + 60);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications")!.n, 500);
   assert.ok(app.db.get("SELECT 1 FROM notifications WHERE id = 'n0'"), "the newest stay");
   assert.equal(app.db.get("SELECT 1 FROM notifications WHERE id = 'n559'"), undefined);
@@ -948,10 +910,10 @@ test("only a source set to 'Notify me' tells as items arrive, with a digest or w
   const plain = makeSource(app, p, "Plain", "feed/3");
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", loud);
   app.db.run("UPDATE sources SET notify = 'muted' WHERE id = ?", mute);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "daily" } });
+  setPreferences(app, p.accountId, { notifications: { frequency: "daily" } });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
   assert.deepEqual(notes(app).map((n) => n.source_id), [loud]);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
+  setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/2"), entry("feed/3")]));
   assert.deepEqual(notes(app).map((n) => [n.source_id, n.title]), [[loud, notifications.newCountFrom(2, "Loud")]]);
 });
@@ -985,14 +947,14 @@ test("a PURSS's Home, digest and activity never include another's", (t) => {
   addItem(app, p, mine);
   const secret = addItem(app, other, theirs, { discoveredAt: ago(1000) });
   changeState(app, other, secret, { workflow: "toread", expectedRevision: 0 });
-  app.db.run("UPDATE workspaces SET last_visit_at = ? WHERE id = ?", ago(DAY), p.workspaceId);
+  app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(DAY), p.accountId);
   const o = homeOverview(app, p);
   assert.deepEqual(o.since!.boxes.map((b) => b.name), [shared.otherSources]);
   assert.equal(o.since!.total, 1);
   assert.equal(o.toRead.total, 0);
-  assert.deepEqual(listItems(app, p, { scope: "home", filter: "new", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
+  assert.deepEqual(listItems(app, p, { scope: "home", filter: "undecided", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
   assert.deepEqual(activityFor(app, p).sources.map((s) => s.title), ["Mine"]);
-  assert.equal(digestFor(app, p.workspaceId, { from: ago(DAY), to: ahead(DAY) }).total, 1);
+  assert.equal(digestFor(app, p.accountId, { from: ago(DAY), to: ahead(DAY) }).total, 1);
 });
 
 // ---------- F109 activity ----------
@@ -1009,10 +971,10 @@ test("activity: checking, setting up, saving text, what arrived and what went wr
   const crawled = nowIso();
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { crawledAt: crawled }), entry("feed/1", { crawledAt: crawled })]));
   const item = app.db.get<{ id: string }>("SELECT id FROM items LIMIT 1")!.id;
-  app.db.run("INSERT INTO jobs (id, account_id, workspace_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j1', ?, ?, 'engine.sync', '{}', 'leased', ?, ?, ?)", p.accountId, p.workspaceId, nowIso(), nowIso(), nowIso());
-  app.db.run("INSERT INTO jobs (id, account_id, workspace_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j2', ?, ?, 'engine.subscribe', '{}', 'queued', ?, ?, ?)", p.accountId, p.workspaceId, nowIso(), nowIso(), nowIso());
-  app.db.run("INSERT INTO jobs (id, account_id, workspace_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j3', ?, ?, 'engine.subscribe', '{}', 'queued', ?, ?, ?)", p.accountId, p.workspaceId, ahead(DAY), nowIso(), nowIso());
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES ('c1', ?, ?, 'fulltext', 'pending', ?)", p.workspaceId, item, nowIso());
+  app.db.run("INSERT INTO jobs (id, account_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j1', ?, 'engine.sync', '{}', 'leased', ?, ?, ?)", p.accountId, nowIso(), nowIso(), nowIso());
+  app.db.run("INSERT INTO jobs (id, account_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j2', ?, 'engine.subscribe', '{}', 'queued', ?, ?, ?)", p.accountId, nowIso(), nowIso(), nowIso());
+  app.db.run("INSERT INTO jobs (id, account_id, kind, payload, status, run_after, created_at, updated_at) VALUES ('j3', ?, 'engine.subscribe', '{}', 'queued', ?, ?, ?)", p.accountId, ahead(DAY), nowIso(), nowIso());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, created_at) VALUES ('c1', ?, ?, 'fulltext', 'pending', ?)", p.accountId, item, nowIso());
   const busy = activityFor(app, p);
   assert.deepEqual([busy.checking, busy.subscribing, busy.savingText], [true, 1, 1], "a retry that is not due yet is not 'subscribing'");
   assert.ok(busy.lastCheckedAt && busy.nextCheckAt && busy.nextCheckAt > busy.lastCheckedAt);
@@ -1031,30 +993,30 @@ test("the new queries use indexes, not whole-table scans", (t) => {
   t.after(cleanup);
   const plan = (sql: string, ...params: (string | number | null)[]) => app.db.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`, ...params).map((r) => r.detail);
   const scans = (lines: string[]) => lines.filter((l) => /^SCAN (i|st|items|item_state|s|sources|basket_items|b|notifications|captures)\b/.test(l) && !/USING (COVERING )?INDEX/.test(l));
-  const ws = p.workspaceId;
-  const expiry = plan(`UPDATE item_state SET fresh = 0 WHERE workspace_id = ? AND item_id IN (
-     SELECT st.item_id FROM item_state st JOIN items i ON i.id = st.item_id WHERE st.workspace_id = ? AND st.fresh = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT 10)`, ws, ws, "x", null, null);
+  const ws = p.accountId;
+  const expiry = plan(`UPDATE item_state SET is_new = 0 WHERE account_id = ? AND item_id IN (
+     SELECT st.item_id FROM item_state st JOIN items i ON i.id = st.item_id WHERE st.account_id = ? AND st.is_new = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT 10)`, ws, ws, "x", null, null);
   assert.deepEqual(scans(expiry), [], expiry.join("\n"));
-  assert.ok(expiry.some((l) => /item_state_fresh/.test(l)), expiry.join("\n"));
+  assert.ok(expiry.some((l) => /item_state_new/.test(l)), expiry.join("\n"));
   const fromVisible = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id";
-  const since = plan(`SELECT i.source_id, COUNT(*) ${fromVisible} WHERE i.workspace_id = ? AND i.discovered_at > ? AND st.fresh = 1 AND s.followed = 1 GROUP BY i.source_id`, ws, "x");
+  const since = plan(`SELECT i.source_id, COUNT(*) ${fromVisible} WHERE i.account_id = ? AND i.discovered_at > ? AND st.is_new = 1 AND s.followed = 1 GROUP BY i.source_id`, ws, "x");
   assert.deepEqual(scans(since), [], since.join("\n"));
-  const inProgress = plan(`SELECT i.id ${fromVisible} WHERE i.workspace_id = ? AND st.workflow = 'inprogress' ORDER BY st.updated_at DESC LIMIT 6`, ws);
+  const inProgress = plan(`SELECT i.id ${fromVisible} WHERE i.account_id = ? AND st.workflow = 'inprogress' ORDER BY st.updated_at DESC LIMIT 6`, ws);
   assert.deepEqual(scans(inProgress), [], inProgress.join("\n"));
-  const opened = plan(`SELECT i.id ${fromVisible} WHERE i.workspace_id = ? AND st.opened_at IS NOT NULL AND st.opened_at >= ? ORDER BY st.opened_at DESC LIMIT 6`, ws, "x");
+  const opened = plan(`SELECT i.id ${fromVisible} WHERE i.account_id = ? AND st.opened_at IS NOT NULL AND st.opened_at >= ? ORDER BY st.opened_at DESC LIMIT 6`, ws, "x");
   assert.deepEqual(scans(opened), [], opened.join("\n"));
-  const freshCount = plan(`SELECT COUNT(*) ${fromVisible} WHERE st.workspace_id = ? AND st.fresh = 1`, ws);
-  assert.deepEqual(scans(freshCount), [], freshCount.join("\n"));
-  const kept = plan("SELECT item_id FROM basket_items WHERE workspace_id = ? AND kept_at >= ? ORDER BY kept_at DESC LIMIT 30", ws, "x");
+  const newCount = plan(`SELECT COUNT(*) ${fromVisible} WHERE st.account_id = ? AND st.is_new = 1`, ws);
+  assert.deepEqual(scans(newCount), [], newCount.join("\n"));
+  const kept = plan("SELECT item_id FROM basket_items WHERE account_id = ? AND kept_at >= ? ORDER BY kept_at DESC LIMIT 30", ws, "x");
   assert.deepEqual(scans(kept), [], kept.join("\n"));
-  const feed = plan(`SELECT i.id, i.listed_at AS k ${fromVisible} WHERE i.workspace_id = ? AND st.workflow <> 'ignored'
+  const feed = plan(`SELECT i.id, i.listed_at AS k ${fromVisible} WHERE i.account_id = ? AND st.workflow <> 'ignored'
      ORDER BY i.listed_at DESC, i.id DESC LIMIT 201`, ws);
   assert.deepEqual(scans(feed), [], feed.join("\n"));
   assert.ok(!feed.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), `the default order reads the index:\n${feed.join("\n")}`);
-  const pending = plan("SELECT COUNT(*) FROM captures WHERE workspace_id = ? AND status = 'pending'", ws);
+  const pending = plan("SELECT COUNT(*) FROM captures WHERE account_id = ? AND status = 'pending'", ws);
   assert.deepEqual(scans(pending), [], pending.join("\n"));
-  const sameLink = plan("SELECT id, url, title FROM items WHERE workspace_id = ? AND source_id = ? AND discovered_at >= ? AND url IS NOT NULL AND instr(lower(url), ?) > 0 LIMIT 20", ws, "s", "x", "y");
+  const sameLink = plan("SELECT id, url, title FROM items WHERE account_id = ? AND source_id = ? AND discovered_at >= ? AND url IS NOT NULL AND instr(lower(url), ?) > 0 LIMIT 20", ws, "s", "x", "y");
   assert.deepEqual(scans(sameLink), [], sameLink.join("\n"));
-  const prune = plan("DELETE FROM notifications WHERE workspace_id = ? AND created_at < ?", ws, "x");
+  const prune = plan("DELETE FROM notifications WHERE account_id = ? AND created_at < ?", ws, "x");
   assert.deepEqual(scans(prune), [], prune.join("\n"));
 });

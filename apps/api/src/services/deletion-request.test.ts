@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import { signIn } from "../features-testing.ts";
 import { HttpError } from "../http.ts";
@@ -81,7 +81,7 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   const pat = await member(b.app, "Pat");
   const other = signIn(b.app, pat.accountId);
   const current = signIn(b.app, pat.accountId);
-  const patP = { accountId: pat.accountId, workspaceId: pat.workspaceId, isAdmin: false, sessionId: "x", csrf: "", authAt: new Date().toISOString() };
+  const patP = { accountId: pat.accountId, isAdmin: false, sessionId: "x", csrf: "", authAt: new Date().toISOString() };
 
   // An assistant token, a published collection, a failed job and a running one.
   await b.api(as, "PUT", "/api/admin/assistant", { enabled: true });
@@ -89,10 +89,10 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   const secret = (await b.api(current, "POST", "/api/assistant/tokens", { name: "Claude", access: "read" })).json.secret as string;
   assert.ok(!("error" in resolveToken(b.app, `Bearer ${secret}`)));
   const pub = { id: shareRow(b.app, patP, "collection", "col_00000000000000000000000000") };
-  const failed = enqueue(b.app, "engine.sync", { engineUserId: pat.engineUserId }, { accountId: pat.accountId, workspaceId: pat.workspaceId, idempotencyKey: "sync-failed" });
+  const failed = enqueue(b.app, "engine.sync", { engineUserId: pat.engineUserId }, { accountId: pat.accountId, idempotencyKey: "sync-failed" });
   b.app.db.run("UPDATE jobs SET status = 'failed' WHERE id = ?", failed);
   b.app.db.run("DELETE FROM jobs WHERE kind = 'engine.provision'");
-  const queued = enqueue(b.app, "engine.rename", { engineUserId: pat.engineUserId, streamId: "feed/1", title: "x" }, { accountId: pat.accountId, workspaceId: pat.workspaceId });
+  const queued = enqueue(b.app, "engine.rename", { engineUserId: pat.engineUserId, streamId: "feed/1", title: "x" }, { accountId: pat.accountId});
 
   const r = await b.api(current, "POST", "/api/account/deletion", { confirm: "Pat" });
   assert.equal(r.status, 200, r.text);
@@ -103,7 +103,7 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   assert.deepEqual(resolveToken(b.app, `Bearer ${secret}`), { error: "invalid" });
   assert.equal(b.app.db.get<{ status: string }>("SELECT status FROM shares WHERE id = ?", pub.id)!.status, "paused", "public pages stop");
 
-  assert.throws(() => enqueue(b.app, "engine.sync", { engineUserId: pat.engineUserId }, { accountId: pat.accountId, workspaceId: pat.workspaceId }),
+  assert.throws(() => enqueue(b.app, "engine.sync", { engineUserId: pat.engineUserId }, { accountId: pat.accountId}),
     (e: unknown) => e instanceof HttpError && e.code === "account_unavailable", "nothing new can be queued");
   assert.deepEqual(leaseJobs(b.app, ["engine.rename", "engine.sync"], 10).map((j) => j.id), [], "its jobs aren't leased");
   assert.equal(b.app.db.get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", queued)!.status, "queued", "but they aren't cancelled either");
@@ -111,7 +111,7 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   assert.equal(retry.status, 409, "an administrator can't restart them");
   assert.equal(retry.json.error.message, server.api.admin.jobAccountUnavailable);
 
-  for (const patch of [{ status: "suspended" }, { status: "active" }, { isAdmin: true }, { allocationBytes: 1_000_000 }]) {
+  for (const patch of [{ status: "suspended" }, { status: "active" }, { isAdmin: true }, { allowanceBytes: 1_000_000 }]) {
     const out = await b.api(as, "PATCH", `/api/admin/accounts/${pat.accountId}`, patch);
     assert.equal(out.status, 409, `admin change ${JSON.stringify(patch)} is refused`);
   }
@@ -120,8 +120,8 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   assert.equal(listed.deletion.dueAt, r.json.dueAt);
 
   // Maintenance leaves it alone: no syncs, icon checks or reminders for a deleting account.
-  b.app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, feed_url, engine_stream_id, health, created_at) VALUES ('src_pat', ?, ?, 'feed', 'Feed', 'RSS feed', 'https://example.org/f.xml', 'feed/9', 'ok', ?)",
-    pat.accountId, pat.workspaceId, new Date().toISOString());
+  b.app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, feed_url, engine_stream_id, health, created_at) VALUES ('src_pat', ?, 'feed', 'Feed', 'RSS feed', 'https://example.org/f.xml', 'feed/9', 'ok', ?)",
+    pat.accountId, new Date().toISOString());
   tick(b.app);
   assert.equal(b.app.db.get("SELECT 1 FROM jobs WHERE account_id = ? AND kind IN ('engine.sync', 'source.icon') AND status = 'queued'", pat.accountId), undefined);
 });
@@ -132,7 +132,7 @@ test("jobs resume intact when the account is kept, including one leased on its l
   await member(b.app, "Owner", { admin: true });
   const m = await member(b.app, "Mo");
   b.app.db.run("DELETE FROM jobs");
-  const last = enqueue(b.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, workspaceId: m.workspaceId, maxAttempts: 1 });
+  const last = enqueue(b.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, maxAttempts: 1 });
   const [leased] = leaseJobs(b.app, ["engine.rename"], 1);
   assert.equal(leased!.attempts, 1, "its only attempt is running");
 
@@ -167,7 +167,7 @@ test("a job whose account becomes unusable while leased waits instead of using u
   await member(b.app, "Owner", { admin: true });
   const m = await member(b.app, "Sam");
   b.app.db.run("DELETE FROM jobs");
-  const id = enqueue(b.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, workspaceId: m.workspaceId, maxAttempts: 1 });
+  const id = enqueue(b.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, maxAttempts: 1 });
 
   // Suspension keeps the lease: an expired lease goes back to the queue without counting.
   leaseJobs(b.app, ["engine.rename"], 1);

@@ -3,7 +3,7 @@ import type { WorkflowState } from "./workflow.ts";
 import type { ItemKind, QueryNode, Sort } from "./query.ts";
 import { WORKFLOW_STATES } from "./workflow.ts";
 import { SORTS, queryNodeSchema } from "./query.ts";
-import type { Capacity } from "./plans.ts";
+import type { PlanUsage } from "./plans.ts";
 import { LOOKUP_ENTRIES } from "./discovery-routes.ts";
 import type { TextRef } from "./annotations.ts";
 
@@ -55,8 +55,8 @@ export type SessionInfo = {
     accountEmail: boolean;
     /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
     billing: boolean;
-    /** The installation has a catalog of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
-    catalog: boolean;
+    /** The installation has a catalogue of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
+    catalogue: boolean;
   };
 };
 /** The signed-in account's email address. */
@@ -80,7 +80,7 @@ export type SourceDTO = {
   healthText: string | null; // plain words when not ok
   lastItemAt: string | null;
   lastSuccessAt: string | null;
-  freshCount: number;
+  newCount: number;
   itemCount: number;
   paused: boolean;
   /** When a pause for a week or a month ends by itself; null for a pause until resumed, and when not paused. */
@@ -104,13 +104,13 @@ export type CollectionDTO = {
   id: string;
   name: string;
   emoji: string | null;
-  mode: "sources" | "query";
+  mode: "sources" | "filter";
   view: ViewMode;
   position: number;
   showOnHome: boolean;
   sourceIds: string[];
   query: QueryNode | null;
-  freshCount: number;
+  newCount: number;
   itemCount: number;
   /** The collection's Smart filter is on, judging the posts of all its sources. */
   aiFiltered: boolean;
@@ -136,11 +136,11 @@ export type Preferences = {
   density: "comfortable" | "compact";
   homeLayout: "collections" | "feed" | "new" | "front";
   homeCollectionIds: string[]; // order; empty = all in sidebar order
-  freshMarkers: boolean;
+  newMarkers: boolean;
   showCounts: boolean;
   reminders: boolean; // anniversary reminders, on by default
   /** Days an item stays marked New; 0 keeps the marker until it is cleared. */
-  freshDays: number;
+  newDays: number;
   /** Home shows an "Other sources" box for sources that are in no collection. */
   homeOther: boolean;
   /** The one-time question about notifications and New markers has been answered (or skipped). */
@@ -189,10 +189,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   density: "comfortable",
   homeLayout: "collections",
   homeCollectionIds: [],
-  freshMarkers: true,
+  newMarkers: true,
   showCounts: true,
   reminders: true,
-  freshDays: 30,
+  newDays: 30,
   homeOther: true,
   welcomeAsked: false,
   notifications: {
@@ -211,10 +211,10 @@ export type Bootstrap = {
   baskets: BasketDTO[];
   preferences: Preferences;
   /** Sources and collections used of the account's plan, and storage of its allowance. */
-  capacity: Capacity;
+  planUsage: PlanUsage;
   /** Why new items and copies are paused (PURSS is out of space), or null. */
   paused: string | null;
-  unreadNotifications: number;
+  unseenNotifications: number;
   engine: { status: "ok" | "starting" | "unavailable"; lastSyncAt: string | null; message: string | null };
 };
 
@@ -226,7 +226,7 @@ export type Bootstrap = {
 export type CaptureLevel = "metadata" | "feed" | "fulltext" | "partial" | "browser" | "pending" | "failed";
 export type ItemDTO = {
   id: string;
-  /** The item's number in its workspace: short, never given to another item, for its short link (itemPath). */
+  /** The item's number in its account: short, never given to another item, for its short link (itemPath). */
   number: number;
   sourceId: string | null; // null for manual keeps
   sourceTitle: string;
@@ -255,7 +255,7 @@ export type ItemDTO = {
   playbackWorkflowSessionId: string | null;
   /** Moves by one on every change to the item's state, the New marker, opening and keeping it in a basket included. The revision guards workflow and progress against stale writers; this tells which of two copies of the item is newer. */
   stateVersion: number;
-  fresh: boolean;
+  isNew: boolean;
   progress: number; // 0..1 reading progress, separate from workflow
   opened: boolean;
   basketIds: string[];
@@ -336,14 +336,13 @@ export type ItemDetail = ItemDTO & {
   gallery: string[];
 };
 
-export const itemScopeSchema = z.string().regex(/^(home|all|fresh|toread|loose|collection:[a-z0-9_]+|source:[a-z0-9_]+|basket:[a-z0-9_]+)$/);
+export const itemScopeSchema = z.string().regex(/^(home|all|new|toread|loose|collection:[a-z0-9_]+|source:[a-z0-9_]+|basket:[a-z0-9_]+)$/);
 /** Comma-separated source ids, as the source chips pick them. */
 const sourceIdList = z.string().max(4000).regex(/^[a-z0-9_]+(,[a-z0-9_]+)*$/);
 export const itemListQuerySchema = z.object({
   scope: itemScopeSchema.default("all"),
-  // active = everything but ignored. "open" is what interfaces installed in the phone and desktop apps before Home listed only
-  // Undecided items send for Home's lists (such an interface can stay installed indefinitely): it reads as "new", so they follow the same rule.
-  filter: z.enum(["all", "fresh", ...WORKFLOW_STATES, "active", "open"]).default("active").transform((f) => (f === "open" ? "new" : f)),
+  // all = everything but Ignored; all_with_ignored includes it.
+  filter: z.enum(["all", "all_with_ignored", "new", ...WORKFLOW_STATES]).default("all"),
   sort: z.enum(SORTS).default("newest"),
   q: z.string().max(200).optional(),
   /** Only items from these sources (comma separated). */
@@ -380,7 +379,7 @@ export const stateChangeSchema = z.object({
   workflow: z.enum(WORKFLOW_STATES).optional(),
   progress: z.number().min(0).max(1).optional(),
   opened: z.boolean().optional(),
-  fresh: z.literal(false).optional(), // clearing a freshness marker; never sets read/workflow
+  isNew: z.literal(false).optional(), // clearing a freshness marker; never sets read/workflow
   expectedRevision: z.number().int().min(0),
   /** The player's own changes (In progress, Finished) carry these three together and are checked against the workflow revision alone, so reading progress and the New marker cannot block them. */
   expectedWorkflowRevision: z.number().int().min(0).optional(),
@@ -392,7 +391,7 @@ export const stateChangeSchema = z.object({
   if (count === 0) return;
   if (count !== playbackFields.length) ctx.addIssue({ code: "custom", path: ["playbackSessionId"], message: "Playback workflow fields must be provided together." });
   if (value.workflow !== "inprogress" && value.workflow !== "finished") ctx.addIssue({ code: "custom", path: ["workflow"], message: "Playback can only move an item to In progress or Finished." });
-  if (value.progress !== undefined || value.opened !== undefined || value.fresh !== undefined) ctx.addIssue({ code: "custom", path: ["workflow"], message: "A playback change moves the workflow and nothing else." });
+  if (value.progress !== undefined || value.opened !== undefined || value.isNew !== undefined) ctx.addIssue({ code: "custom", path: ["workflow"], message: "A playback change moves the workflow and nothing else." });
 });
 export type StateChange = z.infer<typeof stateChangeSchema>;
 
@@ -400,14 +399,14 @@ export const bulkActionSchema = z.object({
   itemIds: z.array(z.string()).min(1).max(MAX_BULK_ITEMS),
   action: z.discriminatedUnion("type", [
     z.object({ type: z.literal("workflow"), workflow: z.enum(WORKFLOW_STATES) }),
-    z.object({ type: z.literal("clearFresh") }),
+    z.object({ type: z.literal("clearNew") }),
     z.object({ type: z.literal("keep"), basketId: z.string() }),
     z.object({ type: z.literal("unkeep"), basketId: z.string() }),
   ]),
 });
 export type BulkResult = { changed: number; undoToken: string };
 
-export const clearFreshSchema = z.object({ scope: itemScopeSchema });
+export const clearNewSchema = z.object({ scope: itemScopeSchema });
 export const undoSchema = z.object({ undoToken: z.string() });
 
 // ---------- sources / discovery ----------
@@ -452,22 +451,22 @@ export type DiscoveryResult =
   | { ok: false; url: string; reason: "invalid" | "blocked" | "unreachable" | "nofeed" | "unsupported" | "toolarge" | "timeout"; message: string };
 
 /** `entry`: how the person got to this lookup (discovery-routes.ts); left out, it is a pasted link. */
-export const discoverSchema = z.object({ url: z.string().trim().min(1).max(2000), entry: z.enum(LOOKUP_ENTRIES).optional() });
+export const linkLookupSchema = z.object({ url: z.string().trim().min(1).max(2000), entry: z.enum(LOOKUP_ENTRIES).optional() });
 
 // ---------- sources and discovery ----------
-/** POST /api/discover/podcasts and /api/discover/sites: a name typed instead of an address. */
+/** POST /api/source-search/podcasts and /api/source-search/sites: a name typed instead of an address. */
 export const nameSearchSchema = z.object({ query: z.string().trim().min(2).max(100) });
-/** POST /api/discover/podcasts: shows whose name matches, from Apple's podcast directory. */
+/** POST /api/source-search/podcasts: shows whose name matches, from Apple's podcast directory. */
 export type PodcastSearchHit = { name: string; author: string | null; artworkUrl: string | null; feedUrl: string; genre: string | null };
 export type PodcastSearchResponse =
   | { ok: true; query: string; hits: PodcastSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
 /**
- * POST /api/discover/sites: websites whose name matches. `readers`: a public source enough accounts on this hosted installation follow
+ * POST /api/source-search/sites: websites whose name matches. `readers`: a public source enough accounts on this hosted installation follow
  * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
  * looked up when the hit is chosen: the source's feed, or the website.
  */
-export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalog" | "wikidata" };
+export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalogue" | "wikidata" };
 export type SiteSearchResponse =
   | { ok: true; query: string; hits: SiteSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
@@ -480,7 +479,7 @@ export const followSchema = z.object({
   markPrivate: z.boolean().optional(),
   fullText: z.boolean().default(false),
   /**
-   * What the source already had when it was followed (its back catalogue). "now" (the default): it is stored as Ignored, so lists hide it,
+   * What the source already had when it was followed (its backlog). "now" (the default): it is stored as Ignored, so lists hide it,
    * Home and the counts of items not looked at leave it out, and search finds it. "week": the posts published in the week before are
    * also marked New and shown like new posts; the older ones are Ignored as for "now".
    */
@@ -504,7 +503,7 @@ export const sourcePatchSchema = z.object({
 export const collectionCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   emoji: z.string().max(8).nullable().default(null),
-  mode: z.enum(["sources", "query"]).default("sources"),
+  mode: z.enum(["sources", "filter"]).default("sources"),
   sourceIds: z.array(z.string()).max(500).default([]),
   query: queryNodeSchema.nullable().default(null),
   view: z.enum(["list", "cards", "board", "table", "timeline"]).default("list"),
@@ -716,9 +715,9 @@ export type HomeOverview = {
   /** To read podcast episodes ("To listen"), counted the same way. */
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** Every New marker in PURSS, for "Start fresh". */
-  fresh: number;
-  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's back catalogue is not in it when the source was followed from now: that is Ignored. */
-  unread: number;
+  isNew: number;
+  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's backlog is not in it when the source was followed from now: that is Ignored. */
+  unseen: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */
   mutedHidden: number;
   /** `mutedHidden` was counted in part of what Home holds: there may be more. */

@@ -7,7 +7,7 @@ import type { App } from "./app.ts";
 import { HttpError, SIGNED_OUT_PACE, addressSender, clientAddress, parse, readBody, sendJson } from "./http.ts";
 import { safeEqual } from "./secrets.ts";
 import { planOf, storedPlan } from "./services/plans.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Paying for a plan through an external billing service (hosted only, config.billing). PURSS holds no
@@ -17,7 +17,7 @@ import { server } from "@purss/copy/server";
  * - Hand-off: a signed-in person asks for a plan (or to manage the one they pay for); PURSS answers
  *   with the service's address and a signed ticket naming the account, valid for ten minutes.
  * - Plan: the service posts { accountId, plan, at } signed with the same secret. Only Free, Plus and
- *   Pro can be set this way, and never over an administrator or an account the operator made Unlimited.
+ *   Pro can be set this way, and never over an administrator or an account the administrator made Unlimited.
  *
  * Both signatures are HMAC-SHA256 of a purpose-labelled message, so one can never pass as the other.
  */

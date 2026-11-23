@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { makeOwner, makeTestApp } from "../testing.ts";
-import { discoverSources } from "./sources.ts";
+import { lookupSources } from "./sources.ts";
 import { KEEP_DAYS, MISS_REASONS, recordDiscoveryMiss, registrableDomain, siteOfPasted, topDiscoveryMisses } from "./discovery-misses.ts";
 
 const rows = (app: ReturnType<typeof makeTestApp>["app"]) =>
@@ -151,7 +151,7 @@ test("discovery that fails records the site and gives the same answer; a record 
   t.after(cleanup);
   const p = makeOwner(app);
   // TikTok publishes no feeds, so the answer comes from the address alone, without a network request.
-  const first = await discoverSources(app, p, "https://www.tiktok.com/@somebody/video/7123456789");
+  const first = await lookupSources(app, p, "https://www.tiktok.com/@somebody/video/7123456789");
   assert.equal(first.ok, false);
   assert.equal(first.ok === false && first.reason, "unsupported");
   const today = new Date().toISOString().slice(0, 10);
@@ -159,7 +159,7 @@ test("discovery that fails records the site and gives the same answer; a record 
   assert.ok(!JSON.stringify(rows(app)).includes("somebody"), "not the account");
 
   // An address discovery refuses outright says nothing about a site: it is not counted.
-  const blocked = await discoverSources(app, p, "http://192.168.1.1/feed.xml");
+  const blocked = await lookupSources(app, p, "http://192.168.1.1/feed.xml");
   assert.equal(blocked.ok === false && blocked.reason, "blocked");
   assert.equal(rows(app).length, 1);
 
@@ -167,8 +167,8 @@ test("discovery that fails records the site and gives the same answer; a record 
   const warnings: unknown[][] = [];
   t.mock.method(console, "warn", (...args: unknown[]) => { warnings.push(args); });
   app.db.exec("DROP TABLE discovery_misses");
-  const again = await discoverSources(app, p, "https://www.tiktok.com/@somebody/video/7123456789");
+  const again = await lookupSources(app, p, "https://www.tiktok.com/@somebody/video/7123456789");
   assert.deepEqual(again, first);
-  assert.equal(warnings.length, 1, "the failure to count is noted for the operator");
+  assert.equal(warnings.length, 1, "the failure to count is noted for the administrator");
   assert.ok(!JSON.stringify(warnings).includes("tiktok"), "and says nothing of what was pasted");
 });

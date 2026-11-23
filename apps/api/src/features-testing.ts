@@ -115,7 +115,7 @@ export function seedLibrary(app: App, p: Principal & { engineUserId: string }): 
  */
 export function shareRow(app: App, p: Principal, kind: "basket" | "collection", targetId: string, status: "draft" | "published" | "paused" = "published", curatorName = "Me"): string {
   const id = newId("shr");
-  app.db.run("INSERT INTO shares (id, workspace_id, target_kind, target_id, slug, curator_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, p.workspaceId, kind, targetId, `shared-${id.slice(-8)}`, curatorName, status, nowIso(), nowIso());
+  app.db.run("INSERT INTO shares (id, account_id, target_kind, target_id, slug, curator_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, p.accountId, kind, targetId, `shared-${id.slice(-8)}`, curatorName, status, nowIso(), nowIso());
   return id;
 }

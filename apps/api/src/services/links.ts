@@ -14,7 +14,7 @@ const MANUAL_SOURCE_HUE = hueFor("Saved links");
 import { getItem, insertItem, reindex } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Keeping a single link, with or without the text the person's browser captured,
@@ -46,18 +46,18 @@ export function parseWebAddress(raw: string): URL {
 function findByKey(app: App, p: Principal, key: string): { id: string } | undefined {
   return app.db.get<{ id: string }>(
     `SELECT i.id FROM items i LEFT JOIN sources s ON s.id = i.source_id
-     WHERE i.workspace_id = ? AND i.url_key = ?
+     WHERE i.account_id = ? AND i.url_key = ?
      ORDER BY EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) DESC,
               (i.source_id IS NULL OR s.followed = 1 OR s.kind = 'manual') DESC, i.created_at, i.id
-     LIMIT 1`, p.workspaceId, key);
+     LIMIT 1`, p.accountId, key);
 }
 
 /**
- * The source that holds links kept by hand is named from the catalog when it is made; at start, every one takes the catalog's
+ * The source that holds links kept by hand is named from the catalogue when it is made; at start, every one takes the catalogue's
  * current name and origin (its items follow through the sources_title_changed trigger), so a reworded name reaches PURSSes made before.
  */
 export function nameManualSources(app: App): void {
-  const name = server.api.shared.savedLinks, origin = server.api.portability.keptByHand;
+  const name = server.api.shared.keptLinks, origin = server.api.portability.keptByHand;
   app.db.run("UPDATE sources SET title = ?, origin = ? WHERE kind = 'manual' AND (title IS NOT ? OR origin IS NOT ?)", name, origin, name, origin);
 }
 
@@ -66,24 +66,24 @@ function itemForLink(app: App, p: Principal, url: URL, title: string | undefined
   const key = urlKey(url.href);
   const found = key ? findByKey(app, p, key) : undefined;
   if (found) return { id: found.id, existing: true };
-  let src = app.db.get<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND kind = 'manual'", p.workspaceId);
+  let src = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", p.accountId);
   if (!src) {
     const id = newId("src");
-    app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, ?, 'manual', ?, ?, ?, 'ok', ?)",
-      id, p.accountId, p.workspaceId, server.api.shared.savedLinks, server.api.portability.keptByHand, MANUAL_SOURCE_HUE, nowIso());
+    app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)",
+      id, p.accountId, server.api.shared.keptLinks, server.api.portability.keptByHand, MANUAL_SOURCE_HUE, nowIso());
     src = { id };
   }
   const item = insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId: src.id, kind: meta?.kind ?? "link",
+    accountId: p.accountId, sourceId: src.id, kind: meta?.kind ?? "link",
     title: title || meta?.title || url.hostname + url.pathname.replace(/\/$/, ""),
     url: url.href, author: meta?.author ?? meta?.siteName ?? null, summaryHtml: null, contentHtml: null, imageUrl: meta?.imageUrl ?? null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: false, reason: "kept link",
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: false, reason: "kept link",
   });
   return { id: item.id, existing: false };
 }
 
 const inBasket = (app: App, p: Principal, basketId: string, itemId: string) =>
-  !!app.db.get("SELECT 1 FROM basket_items WHERE basket_id = ? AND item_id = ? AND workspace_id = ?", basketId, itemId, p.workspaceId);
+  !!app.db.get("SELECT 1 FROM basket_items WHERE basket_id = ? AND item_id = ? AND account_id = ?", basketId, itemId, p.accountId);
 
 /**
  * Keep a link in a basket. A page the PURSS already has is kept as that item, not a new one; only
@@ -91,7 +91,7 @@ const inBasket = (app: App, p: Principal, basketId: string, itemId: string) =>
  */
 export async function keepLink(app: App, p: Principal, input: { url: string; basketId: string; title?: string; readableText?: boolean }, lookup: MetadataLookup = lookupPage): Promise<ManualKeepResult> {
   const url = parseWebAddress(input.url);
-  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound(server.api.shared.thatBasket);
+  if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND account_id = ?", input.basketId, p.accountId)) throw notFound(server.api.shared.thatBasket);
   const key = urlKey(url.href);
   const meta = key && findByKey(app, p, key) ? null : await lookup(url.href).catch(() => null);
   return app.db.tx(() => {
@@ -106,7 +106,7 @@ export async function keepLink(app: App, p: Principal, input: { url: string; bas
         if (app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", item.id)) {
           keep.captureNote ??= server.api.links.noPrivateCopies;
         } else {
-          keep.captureQueued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: url.href });
+          keep.captureQueued = queueCapture(app, { accountId: p.accountId, itemId: item.id, url: url.href });
         }
       } catch (err) {
         if (!(err instanceof StorageFull)) throw err;
@@ -132,8 +132,8 @@ export function keepWithBrowserCapture(app: App, p: Principal, input: { url: str
     const item = itemForLink(app, p, url, input.title);
     const alreadyInBasket = item.existing && inBasket(app, p, input.basketId, item.id);
     // Check the basket first, so a wrong one stores nothing.
-    if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND workspace_id = ?", input.basketId, p.workspaceId)) throw notFound(server.api.shared.thatBasket);
-    const text = saveBrowserCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: url.href, title: input.title || null, ...clean });
+    if (!app.db.get("SELECT 1 FROM baskets WHERE id = ? AND account_id = ?", input.basketId, p.accountId)) throw notFound(server.api.shared.thatBasket);
+    const text = saveBrowserCapture(app, { accountId: p.accountId, itemId: item.id, url: url.href, title: input.title || null, ...clean });
     const keep = keepItem(app, p, item.id, input.basketId);
     return { itemId: item.id, existing: item.existing, alreadyInBasket, ...keep, textSaved: text.saved, textReplaced: text.replaced, textNote: text.note };
   });
@@ -159,16 +159,16 @@ export function lookupUrl(app: App, p: Principal, raw: string): UrlLookup {
   let item: UrlLookup["item"] = null;
   if (found) {
     const row = app.db.get<{ id: string; title: string; url: string | null; workflow: WorkflowState }>(
-      "SELECT i.id, i.title, i.url, st.workflow FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.workspace_id = ?", found.id, p.workspaceId)!;
+      "SELECT i.id, i.title, i.url, st.workflow FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.account_id = ?", found.id, p.accountId)!;
     const baskets = app.db.all<{ id: string; name: string }>(
-      "SELECT b.id, b.name FROM basket_items bi JOIN baskets b ON b.id = bi.basket_id WHERE bi.item_id = ? AND b.workspace_id = ? ORDER BY b.position, b.name", found.id, p.workspaceId)
+      "SELECT b.id, b.name FROM basket_items bi JOIN baskets b ON b.id = bi.basket_id WHERE bi.item_id = ? AND b.account_id = ? ORDER BY b.position, b.name", found.id, p.accountId)
       .map((b) => ({ id: b.id, name: b.name }));
     const captured = app.db.get<{ at: string | null }>("SELECT completed_at AS at FROM captures WHERE item_id = ? AND kind = 'browser' AND status = 'done'", found.id);
     item = { ...row, baskets, browserCapturedAt: captured?.at ?? null };
   }
   // Private sources have no stored feed address; their site address (if any) is the publisher's public page.
   const followedSources = app.db.all<{ id: string; title: string; site_url: string | null }>(
-    "SELECT id, title, site_url FROM sources WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual' AND site_url IS NOT NULL ORDER BY title", p.workspaceId)
+    "SELECT id, title, site_url FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual' AND site_url IS NOT NULL ORDER BY title", p.accountId)
     .filter((s) => underSite(url, s.site_url!)).map((s) => ({ id: s.id, title: s.title }));
   return { item, followedSources };
 }
@@ -178,7 +178,7 @@ export function renameKeptLink(app: App, p: Principal, itemId: string, title: st
   const clean = title.replace(/\s+/g, " ").trim();
   if (!clean) throw badRequest(server.api.links.titleEmpty);
   const owned = app.db.get<{ kind: string }>(
-    "SELECT s.kind FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?", itemId, p.workspaceId);
+    "SELECT s.kind FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.account_id = ?", itemId, p.accountId);
   if (!owned) throw notFound(server.api.shared.thatItem);
   if (owned.kind !== "manual") throw badRequest(server.api.links.onlyHandKeptRenamed, "not_renamable");
   app.db.tx(() => {

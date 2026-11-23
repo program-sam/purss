@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemKind, Sort, ViewMode, WorkflowState } from "@purss/domain";
 
 /*
@@ -7,7 +7,7 @@ import type { ItemKind, Sort, ViewMode, WorkflowState } from "@purss/domain";
  * the compiler fail if the contract's unions change.
  */
 
-export const WORKFLOW_ORDER: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished", "ignored"];
+export const WORKFLOW_ORDER: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
 /** The stored workflow value `new` is shown as Undecided, and items with the `fresh` flag are shown as New. */
 export const WORKFLOW_LABELS: Record<WorkflowState, string> = app.lib.constants.workflow;
 /** What an item's "to do" state is called: videos are watched and podcasts listened to, everything else is read. */
@@ -17,7 +17,7 @@ export function workflowLabel(workflow: WorkflowState, kind?: ItemKind): string 
 }
 
 /** The board's columns; Ignored is an outcome shown separately. */
-export const BOARD_COLUMNS: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished"];
+export const BOARD_COLUMNS: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished"];
 /** The four states in the panel's segmented control. Ignore is a separate action. */
 export const ACTIVE_STATES: readonly WorkflowState[] = BOARD_COLUMNS;
 
@@ -30,9 +30,9 @@ export const KIND_LABELS: Record<ItemKind, string> = app.lib.constants.kinds;
 export const SORT_LABELS: Record<Sort, string> = app.lib.constants.sorts;
 export const SORT_ORDER: readonly Sort[] = ["newest", "oldest", "source", "title", "kept"];
 
-/** Filters shown in the header menu. "active" (All) is everything except Ignored; "all" includes Ignored. */
-export type ListFilter = "active" | "all" | "fresh" | WorkflowState;
-export const LIST_FILTERS: readonly ListFilter[] = ["active", "all", "fresh", "new", "toread", "inprogress", "finished", "ignored"];
+/** Filters shown in the header menu. "all" (All) is everything except Ignored; "all_with_ignored" includes Ignored. */
+export type ListFilter = "all" | "all_with_ignored" | "new" | WorkflowState;
+export const LIST_FILTERS: readonly ListFilter[] = ["all", "all_with_ignored", "new", "undecided", "toread", "inprogress", "finished", "ignored"];
 export const FILTER_LABELS: Record<ListFilter, string> = app.lib.constants.filters;
 
 /** The reading list's page: To read items, and the videos to watch and podcasts to listen to that share its state. */

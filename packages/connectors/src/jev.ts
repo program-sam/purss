@@ -4,12 +4,12 @@ import type { AiJudgeRequest } from "@purss/domain";
 /*
  * Jev, TypeSafe AI's decision model: one POST /v1/systemone per post, with the post as the state and one yes/no ("noul")
  * question per filter. Jev answers each question with the chance that it is true and bills the input tokens only. The address is
- * the operator's (PURSS_JEV_URL), never a person's: a key someone adds is only ever sent to it.
+ * the administrator's (PURSS_JEV_URL), never a person's: a key someone adds is only ever sent to it.
  */
 
 export const JEV_DEFAULT_URL = "https://api.typesafe.ai";
 /**
- * The newest Jev, by its alias: TypeSafe's, or OpenRouter's when the address is OpenRouter's. An operator who wants filters to keep
+ * The newest Jev, by its alias: TypeSafe's, or OpenRouter's when the address is OpenRouter's. An administrator who wants filters to keep
  * behaving exactly the same pins a version with PURSS_JEV_MODEL (for example jev-1.13.0, or typesafe/jev-1.13 on OpenRouter).
  */
 export function jevDefaultModel(baseUrl: string): string {

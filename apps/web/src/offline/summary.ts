@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { plural, timeAgo } from "../lib/format.ts";
 
 const t = app.offline.summary;

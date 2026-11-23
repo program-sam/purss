@@ -13,7 +13,7 @@ import { bulk, keepItem } from "../apps/api/src/services/state.ts";
 import { completeCapture, failCapture } from "../apps/api/src/services/captures.ts";
 import { createBasket, createCollection } from "../apps/api/src/services/collections.ts";
 import { listNotifications, markNotificationsRead } from "../apps/api/src/services/notifications.ts";
-import { expireFreshMarkers } from "../apps/api/src/services/returning.ts";
+import { expireNewMarkers } from "../apps/api/src/services/returning.ts";
 import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
 
 /*
@@ -24,9 +24,9 @@ import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
  *
  *   node scripts/dataset.ts [--dir <dir>] [--accounts 1] [--sources 300] [--items 100000] [--seed 1] [--start-from all|now]
  *
- * Items follow the sync's own rules: the sources are followed 60 days ago, their back catalogue arrives first (not New),
+ * Items follow the sync's own rules: the sources are followed 60 days ago, their backlog arrives first (not New),
  * the sources settle, and the later 8% arrive as New; New markers older than the default 30 days then expire.
- * `--start-from now` follows the sources from now (the choice every new follow gets): the back catalogue is stored as
+ * `--start-from now` follows the sources from now (the choice every new follow gets): the backlog is stored as
  * Ignored (hidden from lists, left out of Home and the counts), which is most of the account's items; `all`
  * (the default) is how sources followed before that choice behave. Defaults are the size gate: one account with 300 sources and 100,000 items. `--accounts 20`
  * builds the host gate (20 such accounts, about 2 million items: allow an hour and several GB of disk).
@@ -44,7 +44,7 @@ export type DatasetOptions = {
   /** Items per account. */
   items?: number;
   seed?: number;
-  /** What the sources do with the back catalogue they had when followed (sources.start_from): shown as older items (the default), or stored as Ignored. */
+  /** What the sources do with the backlog they had when followed (sources.start_from): shown as older items (the default), or stored as Ignored. */
   startFrom?: "all" | "now";
   /** Progress lines; defaults to silent. */
   log?: (line: string) => void;
@@ -55,7 +55,7 @@ export type Dataset = { app: App; dir: string; accounts: DatasetAccount[]; close
 
 /** Entries the engine hands over in one sync batch; a batch touches a few dozen of the account's sources. */
 const BATCH_ENTRIES = 100;
-/** The account followed its sources this long ago, and this share of its items arrived since (the rest is back catalogue). */
+/** The account followed its sources this long ago, and this share of its items arrived since (the rest is backlog). */
 const FOLLOWED_DAYS_AGO = 60;
 const ARRIVAL_SHARE = 0.08;
 
@@ -168,13 +168,13 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     return lo;
   };
   // The account followed its sources 60 days ago. What each source already had then (two years of posts) arrives in the
-  // first walk as back catalogue and is not New; once a walk that began after the follow has ended, the sources are
+  // first walk as backlog and is not New; once a walk that began after the follow has ended, the sources are
   // settled and what comes later arrives as New. The sync's own rules decide which is which.
   const end = Date.now();
   const start = end - 2 * 365 * 86_400_000;
   const followed = end - FOLLOWED_DAYS_AGO * 86_400_000;
   const arrivals = Math.max(1, Math.round(opts.items * ARRIVAL_SHARE));
-  const backCatalogue = opts.items - arrivals;
+  const backlog = opts.items - arrivals;
   let counter = 0;
   const entryFor = (sourceIndex: number, published: number, crawled: number): SyncEntry => {
     counter++;
@@ -212,8 +212,8 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
       if (Math.floor(from / BATCH_ENTRIES) % 100 === 99) log(`${tag}: ${label} ${from + BATCH_ENTRIES} of ${count}`);
     }
   };
-  // First walk: the back catalogue, found by the engine when the sources were followed.
-  walk(backCatalogue, (i) => ({ published: start + Math.floor((i / backCatalogue) * (followed - start)), crawled: followed + i }), "back catalogue");
+  // First walk: the backlog, found by the engine when the sources were followed.
+  walk(backlog, (i) => ({ published: start + Math.floor((i / backlog) * (followed - start)), crawled: followed + i }), "backlog");
   // A walk that begins after the engine confirmed the subscriptions finds nothing new and settles the sources.
   deliver([], followed, true);
   // From then on items arrive as they are published.
@@ -221,7 +221,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     const published = followed + Math.floor((i / arrivals) * (end - followed));
     return { published, crawled: published + 60_000 };
   }, "arrivals");
-  const itemIds = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((row) => row.id);
+  const itemIds = app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((row) => row.id);
 
   // A returning reader: some items are in a workflow state, and some of the new arrivals have been looked at (their New
   // marker cleared). New markers last 30 days by default: older ones have expired, as the product's maintenance pass clears them.
@@ -234,8 +234,8 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     }
   }
   const looked = itemIds.slice(itemIds.length - arrivals).filter(() => r() < 0.4);
-  for (let from = 0; from < looked.length; from += 500) bulk(app, p, looked.slice(from, from + 500), { type: "clearFresh" });
-  expireFreshMarkers(app, p.workspaceId);
+  for (let from = 0; from < looked.length; from += 500) bulk(app, p, looked.slice(from, from + 500), { type: "clearNew" });
+  expireNewMarkers(app, p.accountId);
   log(`${tag}: states set`);
 
   // Kept items (about 1.5%), most of them in "Read later" with a readable-text capture that finished.
@@ -244,7 +244,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     const itemId = itemIds[Math.floor(r() * itemIds.length)]!;
     keepItem(app, p, itemId, r() < 0.7 ? readLater.id : reference.id);
   }
-  for (const cap of app.db.all<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE workspace_id = ? AND status = 'pending'", p.workspaceId)) {
+  for (const cap of app.db.all<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE account_id = ? AND status = 'pending'", p.accountId)) {
     if (r() < 0.1) { failCapture(app, cap.id, "The page couldn't be captured."); continue; }
     if (r() < 0.2) continue; // still waiting
     const text = sentence(r, LANGUAGES[0]!.lang, 800 + Math.floor(r() * 3000));

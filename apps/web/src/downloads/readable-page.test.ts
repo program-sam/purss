@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { cleanArticleHtml, decodePage, readablePage } from "./readable-page.ts";
 
 const parser = new DOMParser() as unknown as globalThis.DOMParser;

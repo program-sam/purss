@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { linkIsMediaFile, sameAddress } from "@purss/domain";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
@@ -14,9 +14,9 @@ export function belongsInList(item: ItemDTO, scope: string, filter: ListFilter):
 /** Whether an item belongs in a list with this filter, judged on the client so a change shows at once. */
 export function matchesFilter(item: ItemDTO, filter: ListFilter): boolean {
   switch (filter) {
-    case "active": return item.workflow !== "ignored";
-    case "all": return true;
-    case "fresh": return item.fresh && item.workflow !== "ignored";
+    case "all": return item.workflow !== "ignored";
+    case "all_with_ignored": return true;
+    case "new": return item.isNew && item.workflow !== "ignored";
     default: return item.workflow === filter;
   }
 }
@@ -79,13 +79,13 @@ export function isNewerCopy(a: Pick<ItemDTO, "stateVersion">, b: Pick<ItemDTO, "
  */
 export function withNewerState<T extends ItemDTO>(next: T, known: ItemDTO | undefined): T {
   if (!known || known.id !== next.id || !isNewerCopy(known, next)) return next;
-  const { workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, fresh, progress, opened, basketIds } = known;
-  return { ...next, workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, fresh, progress, opened, basketIds };
+  const { workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, isNew, progress, opened, basketIds } = known;
+  return { ...next, workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion, isNew, progress, opened, basketIds };
 }
 
 /** Whether a change took an item's New marker away (PURSS does that when an item is opened or anything is done with it). */
-export function newMarkerCleared(before: Pick<ItemDTO, "fresh">, after: Pick<ItemDTO, "fresh">): boolean {
-  return before.fresh && !after.fresh;
+export function newMarkerCleared(before: Pick<ItemDTO, "isNew">, after: Pick<ItemDTO, "isNew">): boolean {
+  return before.isNew && !after.isNew;
 }
 
 /** Videos and podcasts are watched or listened to; their length is a duration, and scrolling says nothing about progress. */

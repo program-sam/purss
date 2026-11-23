@@ -4,7 +4,7 @@ import type { BackendState, PlaybackSource, PlayerBackend } from "../../player/b
 import { IDLE_STATE } from "../../player/backend.ts";
 import { HtmlMediaBackend } from "../../player/html-backend.ts";
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from "../../player/logic.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.audioBackend;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { PAGES, render, sitemap, type PageKey } from "./pages.ts";
 import { siteFrom } from "./site.ts";
 
@@ -101,7 +101,7 @@ test("the mock screens use everyday examples next to the research one", () => {
   assert.doesNotMatch(t, /\d+ new since yesterday/);
 });
 
-test("every question in the catalog is answered on the home page", () => {
+test("every question in the catalogue is answered on the home page", () => {
   const h = html("index");
   const questions = [...h.matchAll(/<summary>(.*?)<svg/g)].map((m) => m[1] ?? "");
   assert.deepEqual(questions, copy.kit.faq.map((f) => f.question));

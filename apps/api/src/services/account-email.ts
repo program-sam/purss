@@ -9,7 +9,7 @@ import { HttpError, addSeconds, nowIso, parse } from "../http.ts";
 import { maskAddress, mailConfigured, sendLater } from "../mail/mailer.ts";
 import { emailChangedMail, passwordChangedMail, resetMail, verifyMail } from "../mail/templates.ts";
 import { randomToken, sha256 } from "../secrets.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * An account's email address: every account has one, it is what the account signs in with, and each
@@ -166,7 +166,7 @@ function hostResetTarget(app: App, accountId: string): { id: string; email: stri
 }
 
 /**
- * A single-use reset link for an account, made at the server by its operator (cli.ts `password-reset-link`) for someone who
+ * A single-use reset link for an account, made at the server by its administrator (cli.ts `password-reset-link`) for someone who
  * can't sign in and has no email to receive one: on installations without outgoing email, and for administrators, who don't
  * reset by email. It is the same link the email flow sends, and works without email being set up. Run inside the caller's transaction.
  */

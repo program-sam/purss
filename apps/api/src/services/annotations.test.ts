@@ -16,9 +16,9 @@ import { deleteAnnotation, listAnnotations, putAnnotation } from "./annotations.
 
 type Owner = Principal & { engineUserId: string };
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Sediment Letters", "feed/1");
   applySyncBatch(app, p.engineUserId, batch([
     entry("feed/1", { title: "Tidal flats", contentHtml: "<p>Mud moves with every tide. The estuary keeps a record of storms.</p>" }),
@@ -93,7 +93,7 @@ test("removal leaves a text-free tombstone; late older writes don't bring it bac
   assert.ok(row.deleted_at);
   for (const col of ["quote_exact", "quote_prefix", "quote_suffix", "body", "pos_start", "target_id"]) assert.equal(row[col], null, `${col} cleared`);
   assert.equal(live(app, p, itemId).length, 0);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all", q: "secret thought" }).total, 0, "removed text is not searchable");
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored", q: "secret thought" }).total, 0, "removed text is not searchable");
 
   assert.equal(putAnnotation(app, p, itemId, id, highlight("Mud moves with every tide.", 1, "older edit")).applied, false, "an edit made before the removal stays removed");
   assert.equal(live(app, p, itemId).length, 0);
@@ -103,7 +103,7 @@ test("removal leaves a text-free tombstone; late older writes don't bring it bac
   const back = putAnnotation(app, p, itemId, id, highlight("Mud moves with every tide.", 4, "restored from another device"));
   assert.equal(back.applied, true, "a later write wins over the removal");
   assert.equal(back.annotation?.createdAt, at(4));
-  assert.equal(listItems(app, p, { scope: "all", filter: "all", q: "restored" }).total, 1);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored", q: "restored" }).total, 1);
   assert.equal(reconcile(app, p.accountId).difference, 0);
 
 });
@@ -157,7 +157,7 @@ test("another PURSS can't read, write or remove annotations on this item, or tak
   const other = makeOwner(app, { admin: false });
   makeSource(app, other, "Their source", "feed/9");
   applySyncBatch(app, other.engineUserId, batch([entry("feed/9", { title: "Their item" })]));
-  const theirItem = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ?", other.workspaceId)!.id;
+  const theirItem = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ?", other.accountId)!.id;
   const id = newId("ann");
   putAnnotation(app, p, itemId, id, highlight("Mud moves with every tide.", 0, "mine"));
   const notFound = (e: HttpError) => e.status === 404;
@@ -168,7 +168,7 @@ test("another PURSS can't read, write or remove annotations on this item, or tak
   assert.throws(() => deleteAnnotation(app, other, theirItem, id, at(9)), notFound);
   assert.throws(() => putAnnotation(app, p, theirItem, newId("ann"), note("on their item", 1)), notFound);
   assert.equal(live(app, p, itemId)[0]!.body, "mine");
-  assert.equal(listItems(app, other, { scope: "all", filter: "all", q: "mine" }).total, 0, "search never crosses PURSSes");
+  assert.equal(listItems(app, other, { scope: "all", filter: "all_with_ignored", q: "mine" }).total, 0, "search never crosses PURSSes");
   // A target naming another item's (or another PURSS's) text is stored as unknown, not trusted.
   const theirVersion = app.db.get<{ id: string }>("SELECT current_version_id AS id FROM items WHERE id = ?", theirItem)!.id;
   const a = putAnnotation(app, p, itemId, newId("ann"), highlight("Mud moves", 2, null, { kind: "version", id: theirVersion }));
@@ -183,15 +183,15 @@ test("search finds items by comment, note and highlighted passage, in lists, sea
   t.after(cleanup);
   putAnnotation(app, p, itemId, newId("ann"), highlight("The estuary keeps a record of storms.", 0, "Relevant to chapter three"));
   putAnnotation(app, p, otherItemId, newId("ann"), note("Ask Priya about bioturbation", 0));
-  const find = (q: string) => listItems(app, p, { scope: "all", filter: "all", q }).items.map((i) => i.id);
+  const find = (q: string) => listItems(app, p, { scope: "all", filter: "all_with_ignored", q }).items.map((i) => i.id);
   assert.deepEqual(find("chapter three"), [itemId]);
   assert.deepEqual(find("bioturbation"), [otherItemId]);
   assert.deepEqual(find("Priya"), [otherItemId]);
-  const col = createCollection(app, p, { name: "Notes on Priya", emoji: null, mode: "query", sourceIds: [], query: { field: "text", value: "priya" }, view: "list" });
-  assert.deepEqual(listItems(app, p, { scope: `collection:${col.id}`, filter: "all" }).items.map((i) => i.id), [otherItemId]);
+  const col = createCollection(app, p, { name: "Notes on Priya", emoji: null, mode: "filter", sourceIds: [], query: { field: "text", value: "priya" }, view: "list" });
+  assert.deepEqual(listItems(app, p, { scope: `collection:${col.id}`, filter: "all_with_ignored" }).items.map((i) => i.id), [otherItemId]);
 });
 
-test("each live annotation is one small record; edits re-measure it and the ledger stays exact, even over quota", (t) => {
+test("each live annotation is one small record; edits re-measure it and the ledger stays exact, even over its storage allowance", (t) => {
   const { app, p, itemId, cleanup } = setup();
   t.after(cleanup);
   const used0 = usedBytes(app, p.accountId);
@@ -203,8 +203,8 @@ test("each live annotation is one small record; edits re-measure it and the ledg
   assert.ok(usedBytes(app, p.accountId) > used1);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM stored_objects WHERE ref_id = ? AND released_at IS NULL", `annotation:${id}`)!.n, 1);
   assert.equal(reconcile(app, p.accountId).difference, 0);
-  // A full quota still lets the person write a note (bounded headroom, like workflow changes).
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
+  // A full storage allowance still lets the person write a note (bounded headroom, like workflow changes).
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
   assert.equal(putAnnotation(app, p, itemId, newId("ann"), note("written while full", 2)).applied, true);
 });
 
@@ -212,8 +212,8 @@ test("an item holds a bounded number of annotations", (t) => {
   const { app, p, itemId, cleanup } = setup();
   t.after(cleanup);
   for (let i = 0; i < ANNOTATIONS_PER_ITEM; i++) {
-    app.db.run(`INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, body, created_at, updated_at) VALUES (?, ?, ?, ?, 'note', 'n', ?, ?)`,
-      newId("ann"), p.accountId, p.workspaceId, itemId, at(0), at(0));
+    app.db.run(`INSERT INTO annotations (id, account_id, item_id, kind, body, created_at, updated_at) VALUES (?, ?, ?, 'note', 'n', ?, ?)`,
+      newId("ann"), p.accountId, itemId, at(0), at(0));
   }
   assert.throws(() => putAnnotation(app, p, itemId, newId("ann"), note("one too many", 1)), (e: HttpError) => e.code === "too_many");
 });
@@ -249,8 +249,8 @@ test("unfollowing never deletes an annotated item; a confirmed delete names it a
   // Unfollowing with "delete what you haven't kept" leaves annotated items, and they stay visible and findable.
   const out = unfollowSource(app, p, src, { deleteUnkept: true });
   assert.equal(out.deletedItems, 0);
-  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all" }).items.map((i) => i.id).sort(), [itemId, otherItemId].sort());
-  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all", q: "tides" }).items.map((i) => i.id), [itemId]);
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items.map((i) => i.id).sort(), [itemId, otherItemId].sort());
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "all_with_ignored", q: "tides" }).items.map((i) => i.id), [itemId]);
 
   // An explicit permanent delete warns about the person's writing and removes it with the item.
   const dp = deletePreview(app, p, [itemId]);
@@ -258,7 +258,7 @@ test("unfollowing never deletes an annotated item; a confirmed delete names it a
   deleteItems(app, p, dp.confirmToken);
   assert.equal(app.db.get("SELECT 1 FROM annotations WHERE id = ?", annId), undefined);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM stored_objects WHERE ref_id = ? AND released_at IS NULL", `annotation:${annId}`)!.n, 0);
-  assert.equal(listItems(app, p, { scope: "all", filter: "all", q: "tides" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "all_with_ignored", q: "tides" }).total, 0);
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 

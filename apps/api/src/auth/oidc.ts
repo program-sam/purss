@@ -12,7 +12,7 @@ import { openSignupAttempt, refreshAuth, sessionWrite, signupWithProvider } from
 import { canConfirm, linkedProviders } from "./providers.ts";
 import { signupOpen } from "../mail/mailer.ts";
 import { DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * External sign-in via OpenID Connect (authorization code + PKCE + state + nonce). Identities bind by validated

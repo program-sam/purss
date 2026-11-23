@@ -1,7 +1,7 @@
 import { KeychainAccess, SecureStorage } from "@aparajita/capacitor-secure-storage";
 import { parseConnection } from "./connect.ts";
 import type { Connection } from "./connect.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.connectionStore;
 

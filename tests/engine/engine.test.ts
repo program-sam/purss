@@ -85,13 +85,13 @@ async function subscribeAndFetch(user: { username: string; client: GReaderClient
 }
 
 describe("provisioning and lifecycle", () => {
-  test("the engine is up and healthy, the operator can log in, and only the operator user exists", async () => {
+  test("the engine is up and healthy, the administrator can log in, and only the administrator user exists", async () => {
     const s = await engine.life.status();
     assert.equal(s.healthy, true, s.problems.join("; "));
     assert.equal(s.api.adminLogin, true);
     assert.equal(s.egress.enforced, "ok");
     assert.match(s.identity ?? "", /^freshrss:[0-9a-f]{32}$/);
-    assert.equal(s.users?.length, 1, "only the operator admin exists before any product user");
+    assert.equal(s.users?.length, 1, "only the administrator admin exists before any product user");
   });
 
   test("provisioning an API user is idempotent and re-running keeps the identity and the credentials working", async () => {

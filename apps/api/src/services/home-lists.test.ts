@@ -37,9 +37,9 @@ let serial = 0;
 function addItem(app: App, p: Owner, sourceId: string | null, over: Partial<NewItem> = {}): string {
   serial++;
   return app.db.tx(() => insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/h/${serial}`, author: null,
+    accountId: p.accountId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/h/${serial}`, author: null,
     summaryHtml: `<p>About ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: false, reason: "test", ...over,
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: false, reason: "test", ...over,
   })).id;
 }
 const at = (app: App, p: Owner, src: string, iso: string, over: Partial<NewItem> = {}) => addItem(app, p, src, { publishedAt: iso, discoveredAt: iso, ...over });
@@ -68,7 +68,7 @@ function twoCollections(app: App, p: Owner) {
   return { work, fun, workBox, funBox };
 }
 
-const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }));
+const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "undecided" }));
 
 test("Home leaves out items of collections hidden on Home, and brings them back when the collection is shown", (t) => {
   const { app, p, cleanup } = setup();
@@ -97,7 +97,7 @@ test("an item of a source in no collection follows 'Other sources'; one kept by 
   app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", gone);
 
   assert.deepEqual(homeFeed(app, p), new Set([a, b, c]));
-  setPreferences(app, p.workspaceId, { homeOther: false });
+  setPreferences(app, p.accountId, { homeOther: false });
   assert.deepEqual(homeFeed(app, p), new Set([b, c]), "Other sources is hidden on Home");
 });
 
@@ -106,16 +106,16 @@ test("a filter collection on Home leaves out items of collections hidden on Home
   t.after(cleanup);
   const { work, fun, workBox } = twoCollections(app, p);
   const w = addItem(app, p, work, { title: "road works" }), f = addItem(app, p, fun, { title: "road trip" });
-  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
-  assert.deepEqual(ids(listItems(app, p, { scope: `collection:${filter.id}`, filter: "new", limit: 10, mix: "home" }).items), [f]);
+  assert.deepEqual(ids(listItems(app, p, { scope: `collection:${filter.id}`, filter: "undecided", limit: 10, mix: "home" }).items), [f]);
   assert.deepEqual(new Set(ids(listItems(app, p, { scope: `collection:${filter.id}`, limit: 10 }).items)), new Set([w, f]));
 });
 
 test("a new filter collection starts off Home; a collection of sources starts on it", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
   const sources = createCollection(app, p, { name: "News", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
   assert.equal(filter.showOnHome, false);
   assert.equal(sources.showOnHome, true);
@@ -149,7 +149,7 @@ test("the queue is what was put aside and what was started: In progress items ar
 
   // The page: started items first, then what is waiting, each newest first.
   assert.deepEqual(pageAll(app, p, { scope: "toread", limit: 2 }), [half, halfRead, recent, mid, old], "started first, across pages");
-  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "all", limit: 10 }), [half, halfRead, recent, mid, old]);
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "all_with_ignored", limit: 10 }), [half, halfRead, recent, mid, old]);
   assert.deepEqual(pageAll(app, p, { scope: "toread", sort: "oldest", limit: 10 }), [halfRead, half, old, mid, recent], "each in the list's own order");
   assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "inprogress", limit: 10 }), [half, halfRead], "its In progress filter shows what was started");
   assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "toread", limit: 10 }), [recent, mid, old], "and To read what was not");
@@ -157,10 +157,10 @@ test("the queue is what was put aside and what was started: In progress items ar
   assert.deepEqual(pageAll(app, p, { scope: "toread", type: "podcasts", limit: 10 }), [half], "the phone widget's list, limited to a type");
   assert.deepEqual(pageAll(app, p, { scope: "toread", type: "articles", sort: "oldest", limit: 10 }), [halfRead, old, mid, recent]);
   // Select all takes the same items.
-  assert.deepEqual(new Set(listItemIds(app, p, { scope: "toread", filter: "active" }).ids), new Set([half, halfRead, recent, mid, old]));
+  assert.deepEqual(new Set(listItemIds(app, p, { scope: "toread", filter: "all" }).ids), new Set([half, halfRead, recent, mid, old]));
 
   // Its totals are those of the rows, from the counts and from the rows.
-  for (const [filter, expected] of [["active", 5], ["all", 5], ["inprogress", 2], ["toread", 3], ["finished", 0], ["new", 0]] as const) {
+  for (const [filter, expected] of [["all", 5], ["all_with_ignored", 5], ["inprogress", 2], ["toread", 3], ["finished", 0], ["undecided", 0]] as const) {
     assert.equal(listItems(app, p, { scope: "toread", filter, limit: 3 }).total, expected, filter);
   }
 
@@ -190,7 +190,7 @@ test("a row of the queue holds the started items before the rest even when there
   assert.equal(o.toRead.total, 9);
 });
 
-test("the queue is each person's own: another workspace's started and put-aside items are never in it", (t) => {
+test("the queue is each person's own: another account's started and put-aside items are never in it", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const mine = addItem(app, p, makeSource(app, p, "Mine", "feed/mine"));
@@ -209,17 +209,17 @@ test("the queue is each person's own: another workspace's started and put-aside 
 
 // ---------- what Home can say about the pile ----------
 
-test("Home counts the older unread items it holds, not the ones in hidden collections or already dealt with", (t) => {
+test("Home counts the older unseen items it holds, not the ones in hidden collections or already dealt with", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const { work, fun, workBox } = twoCollections(app, p);
   addItem(app, p, work); addItem(app, p, work); addItem(app, p, fun);
   const read = addItem(app, p, fun);
   workflow(app, p, read, "finished");
-  addItem(app, p, fun, { fresh: true });
-  assert.equal(homeOverview(app, p).unread, 3, "undecided and no longer New, on Home");
+  addItem(app, p, fun, { isNew: true });
+  assert.equal(homeOverview(app, p).unseen, 3, "undecided and no longer New, on Home");
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
-  assert.equal(homeOverview(app, p).unread, 1);
+  assert.equal(homeOverview(app, p).unseen, 1);
 });
 
 // ---------- Home's lists ----------
@@ -234,11 +234,11 @@ test("Home's one feed leaves out hidden collections and what was dealt with, and
   workflow(app, p, done, "finished");
   workflow(app, p, dropped, "ignored");
   workflow(app, p, later, "toread");
-  const feed = () => pageAll(app, p, { scope: "home", limit: 2, mix: "home", filter: "new" });
+  const feed = () => pageAll(app, p, { scope: "home", limit: 2, mix: "home", filter: "undecided" });
   assert.deepEqual(feed(), [w, f, l], "Undecided newest first; what was put aside is in its row");
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
   assert.deepEqual(feed(), [f, l]);
-  setPreferences(app, p.workspaceId, { homeOther: false });
+  setPreferences(app, p.accountId, { homeOther: false });
   assert.deepEqual(feed(), [f]);
 });
 
@@ -249,7 +249,7 @@ test("a Home list reads the items that existed when paging began: a backdated ar
   const day = (hour: number) => `2026-05-01T${String(hour).padStart(2, "0")}:00:00.000Z`;
   const early = at(app, p, work, day(1)), five = at(app, p, work, day(5));
   const late = at(app, p, fun, day(20)), mid = at(app, p, fun, day(10));
-  const query = { scope: "home", mix: "home", filter: "new", limit: 1 } as const;
+  const query = { scope: "home", mix: "home", filter: "undecided", limit: 1 } as const;
   const first = listItems(app, p, query);
   assert.deepEqual(ids(first.items), [late]);
   // Between the pages an item arrives dated after the item the next page starts from.
@@ -341,7 +341,7 @@ test("items that match a muted word stay stored but are left out of Home and lis
   assert.deepEqual(lists(), everything);
   assert.equal(listItems(app, p, { scope: "all", limit: 50 }).mutedHidden, undefined, "nothing muted, nothing to say");
 
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }, { text: "CAFE", until: null }, { text: "bake off", until: ago(-7 * DAY) }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }, { text: "CAFE", until: null }, { text: "bake off", until: ago(-7 * DAY) }] });
   assert.deepEqual(lists(), new Set([stays, bakeSeparate]), "title, summary, accents, a phrase; not other words nor the same words apart");
   const page = listItems(app, p, { scope: "all", limit: 50 });
   assert.equal(page.mutedHidden, 5);
@@ -355,19 +355,19 @@ test("items that match a muted word stay stored but are left out of Home and lis
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 7, "all stored");
 
   // Home: a box, the one feed, and the sections above them.
-  const box = pageAll(app, p, { scope: `collection:${app.db.get<{ id: string }>("SELECT id FROM collections WHERE name = 'Fun'")!.id}`, limit: 10, mix: "home", filter: "new" });
+  const box = pageAll(app, p, { scope: `collection:${app.db.get<{ id: string }>("SELECT id FROM collections WHERE name = 'Fun'")!.id}`, limit: 10, mix: "home", filter: "undecided" });
   assert.deepEqual(box, [bakeSeparate], "the To read item that stays is in its row");
-  assert.deepEqual(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }), [bakeSeparate]);
+  assert.deepEqual(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "undecided" }), [bakeSeparate]);
   const o = homeOverview(app, p);
   assert.deepEqual(ids(o.toRead.items), [stays], "To read leaves out a To read item that matches too");
   assert.equal(o.toRead.total, 1);
   assert.equal(o.mutedHidden, 5 - 0, "Home says how many it left out");
 
   // A word that has ended no longer mutes, and is dropped the next time the list is saved.
-  app.db.run("UPDATE preferences SET value = ? WHERE workspace_id = ?", JSON.stringify({ ...getPreferences(app, p.workspaceId), mutedWords: [{ text: "football", until: ago(1000) }] }), p.workspaceId);
+  app.db.run("UPDATE preferences SET value = ? WHERE account_id = ?", JSON.stringify({ ...getPreferences(app, p.accountId), mutedWords: [{ text: "football", until: ago(1000) }] }), p.accountId);
   assert.deepEqual(lists(), everything);
-  setPreferences(app, p.workspaceId, { theme: "dark" });
-  assert.deepEqual(getPreferences(app, p.workspaceId).mutedWords, []);
+  setPreferences(app, p.accountId, { theme: "dark" });
+  assert.deepEqual(getPreferences(app, p.accountId).mutedWords, []);
 });
 
 test("a muted Arabic word matches after Arabic punctuation, with or without its article", (t) => {
@@ -378,7 +378,7 @@ test("a muted Arabic word matches after Arabic punctuation, with or without its 
   const summary = addItem(app, p, work, { title: "مقال", summaryHtml: "<p>عن المدرسة؛ والمكتبة</p>" });
   const keep = addItem(app, p, work, { title: "حديقة", summaryHtml: "<p>زهور</p>" });
   for (const word of ["المدينة", "مدينة", "المكتبة"]) {
-    setPreferences(app, p.workspaceId, { mutedWords: [{ text: word, until: null }] });
+    setPreferences(app, p.accountId, { mutedWords: [{ text: word, until: null }] });
     const shown = new Set(ids(listItems(app, p, { scope: "all", limit: 10 }).items));
     assert.ok(!shown.has(word === "المكتبة" ? summary : hit), `${word} is left out`);
     assert.ok(shown.has(keep));
@@ -391,7 +391,7 @@ test("the count of items muted words left out looks at a bounded number of candi
   const { work } = twoCollections(app, p);
   const garden = addItem(app, p, work, { title: "Garden" });
   for (let i = 0; i < 8; i++) addItem(app, p, work, { title: `Football ${i}`, summaryHtml: "<p>x</p>" });
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
   const whole = listItems(app, p, { scope: "all", limit: 10 });
   assert.deepEqual([ids(whole.items), whole.mutedHidden, whole.mutedHiddenAtLeast], [[garden], 8, undefined], "a list within the bound is counted whole");
   assert.deepEqual([homeOverview(app, p).mutedHidden, homeOverview(app, p).mutedHiddenAtLeast], [8, false]);
@@ -417,7 +417,7 @@ test("Home's To read neither asks the muted words about every To read item nor c
     workflow(app, p, id, "toread");
     read.push(id);
   }
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
   // Every question put to the muted words, counted where the database asks it.
   let asked = 0;
   app.db.raw.function("purss_muted", { deterministic: true }, (patterns, title, excerpt) => { asked++; return matchesMuted(String(patterns), title, excerpt) ? 1 : 0; });
@@ -445,7 +445,7 @@ test("muted words are the PURSS's own", (t) => {
   const theirs = makeSource(app, other, "Theirs", "feed/theirs");
   addItem(app, p, mine, { title: "football" });
   const t2 = addItem(app, other, theirs, { title: "football" });
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
   assert.deepEqual(listItems(app, p, { scope: "all", limit: 10 }).items, []);
   assert.deepEqual(ids(listItems(app, other, { scope: "all", limit: 10 }).items), [t2]);
 });
@@ -466,9 +466,9 @@ test("Home's one feed and a list that leaves out muted items read the date index
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   twoCollections(app, p);
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
   const seen = statements(app, () => {
-    listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
+    listItems(app, p, { scope: "home", mix: "home", filter: "undecided", limit: 50 });
     listItems(app, p, { scope: "all", limit: 50 });
     homeOverview(app, p);
   });
@@ -478,7 +478,7 @@ test("Home's one feed and a list that leaves out muted items read the date index
   assert.equal(pages.length, 3, "Home's two runs (New, then To read) and the other list");
   for (const q of pages) {
     const plan = app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));
-    assert.ok(plan.some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_sortkey/.test(l)), `the page reads the date index in order:\n${plan.join("\n")}`);
+    assert.ok(plan.some((l) => /^SEARCH i USING (COVERING )?INDEX items_account_sortkey/.test(l)), `the page reads the date index in order:\n${plan.join("\n")}`);
     assert.ok(!plan.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), plan.join("\n"));
     assert.ok(!plan.some((l) => /^SCAN (i|st|s|items|item_state)\b/.test(l) && !/USING (COVERING )?INDEX/.test(l)), plan.join("\n"));
   }

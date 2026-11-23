@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDetail, ItemMedia } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { clock, resumePoint } from "./logic.ts";

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bridgeService, parseBridgeDescriptor } from "./bridges.ts";
 import { crossrefWorksToRss, crossrefWorksUrl, findCrossrefJournal, issnFromInput, issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
-import { CROSSREF_NOTE, CROSSREF_VIA, discover } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { CROSSREF_NOTE, CROSSREF_VIA, lookupLink } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { parseFeed } from "./feed.ts";
 import { periodicalIssnsIn } from "./html-links.ts";
 import { DUKE_MESSAGE } from "./journals.ts";
@@ -162,14 +162,14 @@ test("a Wiley journal whose feed is switched off: its Crossref feed is the choic
     [NDCAD_SEARCH]: json(NDCAD_SEARCH, { message: { items: [NDCAD] } }),
   });
   const { bridge, asked } = crossrefRouter({ "15348687": NDCAD.title });
-  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin, c.via, c.matchesPage, c.alternative]), [[NDCAD.title, "bridge:crossref/15348687", "Crossref", CROSSREF_VIA, true, undefined]]);
   assert.equal(d.candidates[0]!.note, CROSSREF_NOTE);
   assert.equal(d.candidates[0]!.siteUrl, "https://portal.issn.org/resource/ISSN/1534-8687");
   assert.deepEqual(asked, ["crossref/15348687"], "the electronic ISSN");
   // Without the bridge (or where it doesn't serve Crossref) the answer is what it was.
-  assert.ok(!(await discover(pageUrl, { fetch, now: NOW })).ok);
-  assert.ok(!(await discover(pageUrl, { fetch, bridge, bridgeServes: (s) => s.id !== "crossref", now: NOW })).ok);
+  assert.ok(!(await lookupLink(pageUrl, { fetch, now: NOW })).ok);
+  assert.ok(!(await lookupLink(pageUrl, { fetch, bridge, bridgeServes: (s) => s.id !== "crossref", now: NOW })).ok);
 });
 
 test("a Wiley journal with a working feed: the publisher's feed first, Crossref after it as an alternative", async () => {
@@ -177,7 +177,7 @@ test("a Wiley journal with a working feed: the publisher's feed first, Crossref 
   const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: feed(feedUrl, "Wiley: Oceania: Table of Contents") });
   const { bridge, asked } = crossrefRouter({ "18344461": "Oceania" });
-  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.alternative]), [["Oceania", feedUrl, undefined], ["Oceania", "bridge:crossref/18344461", true]]);
   assert.deepEqual(asked, ["crossref/18344461"], "the ISSN in the address, without asking Crossref's search");
 });
@@ -187,7 +187,7 @@ test("a journal whose feed carries the same DOI links as Crossref keeps both cho
   const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
   const sameLinks = `<?xml version="1.0"?><rss version="2.0"><channel><title>Wiley: Oceania: Table of Contents</title><link>x</link><description>x</description><item><title>A</title><link>https://doi.org/10.1155/cad/8705978</link></item></channel></rss>`;
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: fakeResponse(feedUrl, sameLinks, "application/rss+xml") });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "18344461": "Oceania" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "18344461": "Oceania" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [feedUrl, "bridge:crossref/18344461"]);
 });
 
@@ -200,7 +200,7 @@ test("a Taylor & Francis journal: Crossref found by the journal's name with Tayl
     [feedUrl]: feed(feedUrl, "tandf: Human Organization: Table of Contents"),
     [search]: json(search, { message: { items: [{ title: "Human Organization", publisher: "Informa UK (Taylor & Francis)", ISSN: ["0018-7259", "1938-3525"], "issn-type": [{ type: "print", value: "0018-7259" }, { type: "electronic", value: "1938-3525" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "19383525": "Human Organization" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "19383525": "Human Organization" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.alternative]), [[feedUrl, undefined], ["bridge:crossref/19383525", true]]);
 });
 
@@ -211,10 +211,10 @@ test("Duke University Press: its journal through Crossref, found by the address'
     [pageUrl]: forbidden(pageUrl),
     [search]: json(search, { message: { items: [{ title: "Public Culture", publisher: "Duke University Press", ISSN: ["0899-2363", "1527-8018"], "issn-type": [{ type: "print", value: "0899-2363" }, { type: "electronic", value: "1527-8018" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "15278018": "Public Culture" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "15278018": "Public Culture" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["Public Culture", "bridge:crossref/15278018", true]]);
   const missing = "https://read.dukeupress.edu/no-such-journal";
-  const unknown = await discover(missing, { fetch: stub({ [missing]: forbidden(missing) }).fetch, bridge: crossrefRouter({}).bridge, now: NOW });
+  const unknown = await lookupLink(missing, { fetch: stub({ [missing]: forbidden(missing) }).fetch, bridge: crossrefRouter({}).bridge, now: NOW });
   assert.ok(!unknown.ok && unknown.message === DUKE_MESSAGE);
 });
 
@@ -225,7 +225,7 @@ test("a bare DOI: the journal's own feed and its Crossref choice, from the ISSNs
     [work]: json(work, { message: { publisher: "Wiley", "container-title": ["American Anthropologist"], "issn-type": [{ type: "print", value: "0002-7294" }, { type: "electronic", value: "1548-1433" }] } }),
     [feedUrl]: feed(feedUrl, "Wiley: American Anthropologist: Table of Contents"),
   });
-  const d = ok(await discover("10.1111/aman.70137", { fetch, bridge: crossrefRouter({ "15481433": "American Anthropologist" }).bridge, now: NOW }));
+  const d = ok(await lookupLink("10.1111/aman.70137", { fetch, bridge: crossrefRouter({ "15481433": "American Anthropologist" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.alternative]), [[feedUrl, undefined], ["bridge:crossref/15481433", true]]);
 });
 
@@ -237,11 +237,11 @@ test("an Open Journal Systems journal without a feed of its own: Crossref by the
     [pageUrl]: fakeResponse(pageUrl, html, "text/html; charset=utf-8"),
     [search]: json(search, { message: { items: [{ title: "Cultural Anthropology", publisher: "American Anthropological Association", ISSN: ["0886-7356", "1548-1360"], "issn-type": [{ type: "print", value: "0886-7356" }, { type: "electronic", value: "1548-1360" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "15481360": "Cultural Anthropology" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "15481360": "Cultural Anthropology" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["Cultural Anthropology", "bridge:crossref/15481360", true]]);
   // An ordinary site whose name happens to be a journal's is not looked up.
   const blog = stub({ [pageUrl]: fakeResponse(pageUrl, html.replace(/<meta name="generator"[^>]*>/, ""), "text/html; charset=utf-8"), [search]: json(search, { message: { items: [] } }) });
-  assert.ok(!(await discover(pageUrl, { fetch: blog.fetch, bridge: crossrefRouter({ "15481360": "Cultural Anthropology" }).bridge, now: NOW })).ok);
+  assert.ok(!(await lookupLink(pageUrl, { fetch: blog.fetch, bridge: crossrefRouter({ "15481360": "Cultural Anthropology" }).bridge, now: NOW })).ok);
   assert.ok(!blog.calls.includes(search));
 });
 
@@ -252,9 +252,9 @@ test("a pasted ISSN: the publisher's ISSN-made feed when there is one, and the C
     [record]: json(record, { message: { ...NDCAD, publisher: "Wiley" } }),
     [wileyFeed]: fakeResponse(wileyFeed, SWITCHED_OFF, "application/xml", 404),
   });
-  const d = ok(await discover("ISSN 1534-8687", { fetch, bridge: crossrefRouter({ "15348687": NDCAD.title }).bridge, now: NOW }));
+  const d = ok(await lookupLink("ISSN 1534-8687", { fetch, bridge: crossrefRouter({ "15348687": NDCAD.title }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.matchesPage]), [["bridge:crossref/15348687", true]]);
-  const unknown = await discover("1534-8687", { fetch: stub({}).fetch, bridge: crossrefRouter({}).bridge, now: NOW });
+  const unknown = await lookupLink("1534-8687", { fetch: stub({}).fetch, bridge: crossrefRouter({}).bridge, now: NOW });
   assert.ok(!unknown.ok && unknown.reason === "nofeed");
 });
 
@@ -263,10 +263,10 @@ test("Crossref not answering just now leaves the result as it was; the ISSN port
   const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: feed(feedUrl, "Wiley: Oceania: Table of Contents") });
   const down: BridgeClient = async () => ({ status: 503, body: Buffer.from("x") });
-  assert.deepEqual(ok(await discover(pageUrl, { fetch, bridge: down, now: NOW })).candidates.map((c) => c.feedUrl), [feedUrl]);
+  assert.deepEqual(ok(await lookupLink(pageUrl, { fetch, bridge: down, now: NOW })).candidates.map((c) => c.feedUrl), [feedUrl]);
   const { bridge } = crossrefRouter({ "18344461": "Oceania" });
   for (const input of ["https://portal.issn.org/resource/ISSN/1834-4461", "bridge:crossref/18344461"]) {
-    const d = ok(await discover(input, { fetch: stub({}).fetch, bridge, now: NOW }));
+    const d = ok(await lookupLink(input, { fetch: stub({}).fetch, bridge, now: NOW }));
     assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.note]), [["Oceania", "bridge:crossref/18344461", CROSSREF_VIA, CROSSREF_NOTE]], input);
   }
 });
@@ -274,9 +274,9 @@ test("Crossref not answering just now leaves the result as it was; the ISSN port
 test("an installation without RSS-Bridge offers Crossref but not RSS-Bridge's services", async () => {
   const bridge: BridgeClient = async () => ({ status: 200, body: Buffer.from(rss("x", "https://t.me/durov/")) });
   const noRssBridge = { bridge, bridgeServes: (s: { backend: { kind: string } }) => s.backend.kind === "crossref", now: NOW, fetch: stub({}).fetch };
-  const t = await discover("https://t.me/durov", noRssBridge);
+  const t = await lookupLink("https://t.me/durov", noRssBridge);
   assert.ok(!t.ok || !t.candidates.some((c) => c.feedUrl.startsWith("bridge:")), "Telegram isn't offered through the bridge");
-  const described = await discover("bridge:telegram/durov", noRssBridge);
+  const described = await lookupLink("bridge:telegram/durov", noRssBridge);
   assert.ok(!described.ok && described.reason === "unsupported");
 });
 
@@ -289,7 +289,7 @@ test("a Wiley journal named by a code whose feed works: that feed first, Crossre
     [feedUrl]: feed(feedUrl, "Wiley: American Anthropologist: Table of Contents"),
     [search]: json(search, { message: { items: [{ title: "American Anthropologist", publisher: "Wiley", ISSN: ["0002-7294", "1548-1433"], "issn-type": [{ type: "print", value: "0002-7294" }, { type: "electronic", value: "1548-1433" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "15481433": "American Anthropologist" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "15481433": "American Anthropologist" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.alternative]), [[feedUrl, undefined], ["bridge:crossref/15481433", true]]);
 });
 
@@ -304,7 +304,7 @@ test("a journal with announcements but no articles feed of its own: Crossref fir
     [news]: fakeResponse(news, `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Journal X</title><entry><title>Call for papers</title><id>n1</id><link href="${news}/n1"/><updated>2026-11-01T00:00:00Z</updated></entry></feed>`, "application/atom+xml"),
     [search]: json(search, { message: { items: [{ title: "Journal X", publisher: "Society", ISSN: ["1234-5679"], "issn-type": [{ type: "electronic", value: "1234-5679" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "12345679": "Journal X" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "12345679": "Journal X" }).bridge, now: NOW }));
   assert.equal(d.candidates[0]!.feedUrl, "bridge:crossref/12345679");
   assert.equal(d.candidates[0]!.matchesPage, true);
   assert.ok(d.candidates.some((c) => c.feedUrl === news), "the announcements are still offered");
@@ -318,7 +318,7 @@ test("an Elsevier DOI: ScienceDirect's feed takes the print ISSN, Crossref the e
     [sdFeed]: feed(sdFeed, "ScienceDirect Publication: Neuropsychologia"),
   });
   const { bridge, asked } = crossrefRouter({ "18733514": "Neuropsychologia" });
-  const d = ok(await discover("10.1016/j.neuropsychologia.2026.1", { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink("10.1016/j.neuropsychologia.2026.1", { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [sdFeed, "bridge:crossref/18733514"]);
   assert.deepEqual(asked, ["crossref/18733514"]);
 });
@@ -329,7 +329,7 @@ test("a journal's own site that states its ISSN only in schema.org data: Crossre
   const html = `<html><head><title>The Open Psychology Journal - Home Page</title><script type="application/ld+json">${ld}</script></head><body>ISSN (Online): 1874-3501</body></html>`;
   const { fetch } = stub({ [pageUrl]: fakeResponse(pageUrl, html, "text/html; charset=utf-8") });
   const { bridge, asked } = crossrefRouter({ "18743501": "The Open Psychology Journal" });
-  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["The Open Psychology Journal", "bridge:crossref/18743501", true]]);
   assert.deepEqual(asked, ["crossref/18743501"]);
 });
@@ -354,7 +354,7 @@ test("a journal whose works Crossref files under its other ISSN: the Crossref ch
     asked.push(t.key);
     return { status: 200, body: Buffer.from(crossrefWorksToRss(works(t.key === "00298077" ? [ARTICLE] : [], "Oceania"), t.key)) };
   };
-  const d = ok(await discover("10.1111/ocea.1", { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink("10.1111/ocea.1", { fetch, bridge, now: NOW }));
   assert.deepEqual(asked, ["18344461", "00298077"], "the electronic first, then the other");
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [feedUrl, "bridge:crossref/00298077"]);
 });
@@ -369,6 +369,6 @@ test("a journal's own feed found on its page comes before its Crossref choice, w
     [ownFeed]: feed(ownFeed, "Journal X"),
     [search]: json(search, { message: { items: [{ title: "Journal X", publisher: "Society", ISSN: ["1234-5679"], "issn-type": [{ type: "electronic", value: "1234-5679" }] }] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, bridge: crossrefRouter({ "12345679": "Journal X" }).bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge: crossrefRouter({ "12345679": "Journal X" }).bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.alternative ?? false]), [[ownFeed, false], ["bridge:crossref/12345679", true]]);
 });

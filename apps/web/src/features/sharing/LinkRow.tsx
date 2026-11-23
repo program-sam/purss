@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { CopyButton } from "../shared/bits.tsx";
 
 /** One public address with a copy button. */

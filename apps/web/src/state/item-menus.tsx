@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { itemPath } from "@purss/domain/paths";
 import { useCallback } from "react";
 import type { ItemDTO } from "@purss/domain";
@@ -13,13 +13,13 @@ import { useItemActions } from "./actions.ts";
 import { useOverlays } from "./overlays.tsx";
 import { usePopups } from "./popups.tsx";
 import { useToasts } from "./toasts.tsx";
-import { useWorkspace } from "./workspace.tsx";
+import { usePurss } from "./purss.tsx";
 
 const t = app.state.itemMenus;
 
 /** The baskets list shown from the bookmark button, a menu of checkable items. Stays open so several baskets can be ticked. */
 function KeepList({ itemId, onClose }: { itemId: string; onClose: (restore?: boolean) => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const actions = useItemActions();
   const overlays = useOverlays();
   const item = useCachedItem(itemId);
@@ -48,14 +48,14 @@ export function useItemMenus() {
   const popups = usePopups();
   const overlays = useOverlays();
   const { toast } = useToasts();
-  const { sourceById } = useWorkspace();
+  const { sourceById } = usePurss();
 
   const copy = useCallback(async (text: string, message: string) => {
     try { await navigator.clipboard.writeText(text); toast(message); } catch { toast(t.couldntCopy); }
   }, [toast]);
   /** "Copy link to the original" and "Copy your private link to this item". */
   const linkEntries = useCallback((item: ItemDTO): MenuEntry[] => copyLinkEntries(item, {
-    workspaceLink: `${platform.publicOrigin()}${itemPath(item.number)}`,
+    purssLink: `${platform.publicOrigin()}${itemPath(item.number)}`,
     copy: (text, message) => void copy(text, message),
   }), [copy]);
 
@@ -88,7 +88,7 @@ export function useItemMenus() {
 
   /** Board cards put "Move to" first: the keyboard and touch alternative to dragging. */
   const openBoardMenu = useCallback((item: ItemDTO, anchor: HTMLElement) => {
-    const moves: MenuEntry[] = (["new", "toread", "inprogress", "finished"] as const).map((k) => ({
+    const moves: MenuEntry[] = (["undecided", "toread", "inprogress", "finished"] as const).map((k) => ({
       type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
     }));
     popups.menu(anchor, [

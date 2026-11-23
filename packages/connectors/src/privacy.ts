@@ -4,7 +4,7 @@
  * address that matches nothing is never "known public".
  */
 
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** Query parameter names that are secrets whatever their value looks like (a word under `pass` or `auth` is a password): the whole name. */
 const SECRET_NAME = /^(?:auth|authkey|sig|sign|pass|passwd|pwd|session|sessionid|sid|bearer|jwt|private|passkey|pk)$/;

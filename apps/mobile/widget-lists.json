@@ -3,28 +3,28 @@
   "lists": [
     {
       "key": "toread",
-      "path": "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos&limit=10&exceptPrivate=1",
+      "path": "/api/items?scope=toread&filter=all&sort=newest&type=articles,videos&limit=10&exceptPrivate=1",
       "open": { "place": { "t": "r", "id": "toread" }, "search": { "type": "articles,videos" } }
     },
     {
       "key": "tolisten",
-      "path": "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts&limit=10&exceptPrivate=1",
+      "path": "/api/items?scope=toread&filter=all&sort=oldest&type=podcasts&limit=10&exceptPrivate=1",
       "open": { "place": { "t": "r", "id": "toread" }, "search": { "type": "podcasts", "sort": "oldest" } }
     },
     {
       "key": "new",
-      "path": "/api/items?scope=all&filter=fresh&sort=newest&limit=10&exceptPrivate=1",
+      "path": "/api/items?scope=all&filter=new&sort=newest&limit=10&exceptPrivate=1",
       "open": { "place": { "t": "home" } }
     },
     {
       "key": "collection:col_01jc8x2v5k7m9n3p4q6r8s0t1w",
-      "path": "/api/items?scope=collection%3Acol_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=active&sort=newest&limit=10&exceptPrivate=1",
-      "open": { "place": { "t": "c", "id": "col_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "active" } }
+      "path": "/api/items?scope=collection%3Acol_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=all&sort=newest&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "c", "id": "col_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "all" } }
     },
     {
       "key": "source:src_01jc8x2v5k7m9n3p4q6r8s0t1w",
-      "path": "/api/items?scope=source%3Asrc_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=active&sort=newest&limit=10&exceptPrivate=1",
-      "open": { "place": { "t": "s", "id": "src_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "active" } }
+      "path": "/api/items?scope=source%3Asrc_01jc8x2v5k7m9n3p4q6r8s0t1w&filter=all&sort=newest&limit=10&exceptPrivate=1",
+      "open": { "place": { "t": "s", "id": "src_01jc8x2v5k7m9n3p4q6r8s0t1w" }, "search": { "filter": "all" } }
     }
   ],
   "invalid": ["", "toread:x", "collection:", "collection:../x", "source:SRC_01JC8X2V5K7M9N3P4Q6R8S0T1W", "basket:bsk_01jc8x2v5k7m9n3p4q6r8s0t1w", "new?x=1"]

@@ -1,0 +1,17 @@
+{
+  "name": "@purss/translations",
+  "private": true,
+  "description": "Every word people read in PURSS, one translation file per audience",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./site": "./src/en/site.ts",
+    "./app": "./src/en/app/index.ts",
+    "./ui": "./src/en/ui.ts",
+    "./extension": "./src/en/extension.ts",
+    "./server": "./src/en/server/index.ts",
+    "./common": "./src/en/common.ts",
+    "./native": "./src/en/native.ts"
+  },
+  "dependencies": {}
+}

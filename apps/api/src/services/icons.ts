@@ -6,7 +6,7 @@ import { emit } from "../app.ts";
 import { addSeconds, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
 import { usableAccountSql } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * Source icons. The worker looks for an icon (feed image, YouTube avatar, the site's own icons)
@@ -21,15 +21,15 @@ const SWEEP_BATCH = 20;
 
 /** Queue icon checks for sources never checked or not checked for a week. */
 export function scheduleIconChecks(app: App): void {
-  const due = app.db.all<{ id: string; account_id: string; workspace_id: string; kind: string; feed_url: string | null; site_url: string | null; is_private: number }>(
-    `SELECT id, account_id, workspace_id, kind, feed_url, site_url, is_private FROM sources
+  const due = app.db.all<{ id: string; account_id: string; kind: string; feed_url: string | null; site_url: string | null; is_private: number }>(
+    `SELECT id, account_id, kind, feed_url, site_url, is_private FROM sources
      WHERE followed = 1 AND kind <> 'manual' AND builtin IS NULL AND (icon_checked_at IS NULL OR icon_checked_at < ?)
        AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'icon:' || sources.id AND j.status IN ('queued', 'leased'))
        AND ${usableAccountSql("sources.account_id")}
      ORDER BY icon_checked_at IS NOT NULL, icon_checked_at LIMIT ?`, addSeconds(-RECHECK_SECONDS), SWEEP_BATCH);
   for (const s of due) {
     enqueue(app, "source.icon", { sourceId: s.id, kind: s.kind, feedUrl: s.is_private || s.feed_url?.startsWith("bridge:") ? null : s.feed_url, siteUrl: s.site_url },
-      { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `icon:${s.id}`, maxAttempts: 2 });
+      { accountId: s.account_id, idempotencyKey: `icon:${s.id}`, maxAttempts: 2 });
   }
 }
 
@@ -41,7 +41,7 @@ const iconResultSchema = z.union([
 /** Store the worker's answer. Bytes that aren't a small WebP are dropped, never stored or served. */
 export function completeIconCheck(app: App, sourceId: string, result: unknown): void {
   // The installation's news source has the app's icon (services/news.ts); nothing found elsewhere replaces it.
-  const s = app.db.get<{ account_id: string; workspace_id: string }>("SELECT account_id, workspace_id FROM sources WHERE id = ? AND builtin IS NULL", sourceId);
+  const s = app.db.get<{ account_id: string; }>("SELECT account_id FROM sources WHERE id = ? AND builtin IS NULL", sourceId);
   if (!s) return;
   const now = nowIso();
   app.db.run("UPDATE sources SET icon_checked_at = ? WHERE id = ?", now, sourceId);
@@ -56,9 +56,9 @@ export function completeIconCheck(app: App, sourceId: string, result: unknown): 
     return;
   }
   app.db.run(
-    `INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO source_icons (source_id, account_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (source_id) DO UPDATE SET bytes = excluded.bytes, digest = excluded.digest, found_url = excluded.found_url, updated_at = excluded.updated_at`,
-    sourceId, s.account_id, s.workspace_id, bytes, digest, parsed.data.from, now);
+    sourceId, s.account_id, bytes, digest, parsed.data.from, now);
   emit(app, s.account_id, { type: "source", sourceId });
 }
 
@@ -73,7 +73,7 @@ export function iconUrl(sourceId: string, digest: string | null): string | null 
 }
 
 export function readIcon(app: App, p: Principal, sourceId: string): { bytes: Uint8Array; digest: string } {
-  const row = app.db.get<{ bytes: Uint8Array; digest: string }>("SELECT bytes, digest FROM source_icons WHERE source_id = ? AND workspace_id = ?", sourceId, p.workspaceId);
+  const row = app.db.get<{ bytes: Uint8Array; digest: string }>("SELECT bytes, digest FROM source_icons WHERE source_id = ? AND account_id = ?", sourceId, p.accountId);
   if (!row) throw notFound(server.api.icons.thatIcon);
   return row;
 }

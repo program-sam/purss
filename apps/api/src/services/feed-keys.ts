@@ -19,14 +19,14 @@ export function otherScheme(feedUrl: string): string | null {
   return null;
 }
 
-/** A bridged source's descriptor (`bridge:telegram/durov`) when it names a catalogued service and key, else null. */
+/** A bridged source's descriptor (`bridge:telegram/durov`) when it names a listed service and key, else null. */
 export function bridgeAddress(value: string | null | undefined): string | null {
   return value && parseBridgeDescriptor(value) ? value.trim() : null;
 }
 
 const KEY_FILE = "feed-key";
-/** What is hashed, so that a change to it (the workspace was added to it) is noticed and every key is made again. */
-const SCHEME = "purss feed key v2: workspace and canonical address";
+/** What is hashed, so that a change to it is noticed and every key is made again. */
+const SCHEME = "purss feed key: account and canonical address";
 /** The database remembers which key made its keys, as a fingerprint that says nothing about the key. */
 const FINGERPRINT_ROW = "feed_key_check";
 /** A whole key is 32 random bytes in base64url. */
@@ -57,7 +57,7 @@ function readOrMakeKey(app: App): string {
 
 const fingerprintOf = (key: string): string => createHmac("sha256", key).update("fingerprint of the key that makes private feed keys").digest("hex");
 
-const hash = (key: string, workspaceId: string, canonical: string): string => createHmac("sha256", key).update(`${SCHEME}\n${workspaceId}\n${canonical}`).digest("hex");
+const hash = (key: string, accountId: string, canonical: string): string => createHmac("sha256", key).update(`${SCHEME}\n${accountId}\n${canonical}`).digest("hex");
 
 /**
  * The key for this process. The first time it is asked for, it is checked against the fingerprint stored in the database. When
@@ -76,10 +76,10 @@ function keyFor(app: App): string {
       console.warn("[api] secrets/feed-key is not the key the private feed keys were made with (it was lost, damaged or replaced); making every private source's key again from its link file");
     }
     app.db.tx(() => {
-      for (const s of app.db.all<{ id: string; workspace_id: string }>("SELECT id, workspace_id FROM sources WHERE is_private = 1")) {
+      for (const s of app.db.all<{ id: string; account_id: string }>("SELECT id, account_id FROM sources WHERE is_private = 1")) {
         const link = readSecret(app.config.secretsDir, `source-urls/${s.id}`);
         let made: string | null = null;
-        if (link) { try { made = hash(key, s.workspace_id, canonicalFeedKey(link)); } catch { made = null; } }
+        if (link) { try { made = hash(key, s.account_id, canonicalFeedKey(link)); } catch { made = null; } }
         app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", made, s.id);
       }
       app.db.run("INSERT INTO installation (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", FINGERPRINT_ROW, fingerprint);
@@ -90,14 +90,14 @@ function keyFor(app: App): string {
 }
 
 /**
- * A keyed hash (HMAC-SHA-256, key from the secrets folder) of a feed address and the workspace that follows it: how a private
+ * A keyed hash (HMAC-SHA-256, key from the secrets folder) of a feed address and the account that follows it: how a private
  * source, which has no address in the database, is found again when the same link is looked up or listed a second time. The
- * workspace is part of it, so two accounts following the same link have unrelated keys. Nobody holding only the database can use
+ * account is part of it, so two accounts following the same link have unrelated keys. Nobody holding only the database can use
  * it to test a guessed link. Null for text that is no address.
  */
-export function privateFeedKey(app: App, workspaceId: string, feedUrl: string): string | null {
+export function privateFeedKey(app: App, accountId: string, feedUrl: string): string | null {
   let canonical: string;
   try { canonical = canonicalFeedKey(feedUrl); } catch { return null; }
-  return hash(keyFor(app), workspaceId, canonical);
+  return hash(keyFor(app), accountId, canonical);
 }
 

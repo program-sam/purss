@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { messageOf } from "../../api/client.ts";
 import { useToasts } from "../../state/toasts.tsx";

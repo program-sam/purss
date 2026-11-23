@@ -2,7 +2,7 @@
 
 One process, three listeners (loopback by default), plus the bridge router when the installation has a
 bridge key (every installation does). It is the only way the feed engine and RSS-Bridge reach the
-internet and the only way big feeds' smaller copies and bridged sources reach the engine.
+internet and the only way trimmed big feeds and bridged sources reach the engine.
 [Sources](../../docs/sources.md) says how a pasted link becomes a source and when each of these is used;
 this page is the service's own reference.
 
@@ -24,7 +24,7 @@ characters); the product database is never touched.
 - Serves absolute-form `GET`/`HEAD http://…` requests and `CONNECT host:port` tunnels.
   Origin-form requests, other methods, request bodies and credentials in the address are
   refused. There is no route other than "proxy this".
-- Every destination is resolved and validated with the same rules as product discovery
+- Every destination is resolved and validated with the same rules as link lookup
   (`@purss/connectors`: loopback, private, link-local, CGNAT, multicast, reserved,
   unspecified, cloud metadata, IPv4-mapped/NAT64/6to4-embedded private addresses, internal
   host names, service ports such as 22/25/6379). One forbidden answer rejects the whole
@@ -38,11 +38,11 @@ characters); the product database is never touched.
   `Accept-Encoding` is not forwarded, so sizes are counted on the real bytes.
 - Logs are JSON lines without query strings, credentials, headers or content; path segments
   that look like tokens are masked.
-- The only exception to the address rules is the operator-fixed list of internal
+- The only exception to the address rules is the administrator-fixed list of internal
   destinations: an exact host name and port mapped to a fixed IP and port, never
   resolved through DNS and never reachable through `CONNECT`. The gateway listener is
   registered automatically as `feed-gateway.internal:8947` (`EGRESS_GATEWAY_ALIAS`); extra
-  entries use `EGRESS_INTERNAL_DESTINATIONS="name:port=ip:port;…"`. No environment variable
+  destinations use `EGRESS_INTERNAL_DESTINATIONS="name:port=ip:port;…"`. No environment variable
   or file can switch the rules off. Test code passes an in-process function instead.
 
 ### How the FreshRSS container reaches the proxy
@@ -82,10 +82,10 @@ in the proxy, not in the container.
 ## Feed trimming (big feeds)
 
 A feed too big for the engine to read whole (tens of megabytes of repeated show notes; the engine parses it in PHP's 128 MB)
-is read here as a stream, and the engine is given a copy with only the newest items.
-FreshRSS stays the only ingestion engine: this serves it a smaller copy of the same public feed and never inserts anything.
+is read here as a stream, and the engine is given a trimmed version with only the newest items.
+FreshRSS stays the only ingestion engine: this serves it a smaller version of the same public feed and never inserts anything.
 Which feeds are sent here, and how a follow decides it, is in [Sources](../../docs/sources.md#big-feeds): the worker gives the
-engine this address for a feed that discovery found larger than 4 MiB or with more than 1,000 items, or that the engine itself failed on.
+engine this address for a feed that link lookup found larger than 4 MiB or with more than 1,000 items, or that the engine itself failed on.
 
 - Route: `GET /t/<signature>/<address>` on the gateway listener, which serves nothing else: every other path is `404`, any
   other method on a `/t` address `405`, and no product, worker, admin or control route exists there. `<address>` is the
@@ -102,7 +102,7 @@ engine this address for a feed that discovery found larger than 4 MiB or with mo
   its first items, so the newest are kept in a bounded list as the items go past. A feed longer than that is served from its first 64 MiB:
   the newest of what was read, an item cut by the ceiling left out (when it is the first, the feed is served as its channel, closed), and the log's `capped` set. Items over 1 MiB are left out whole (a feed
   of nothing but those is served as its channel); the kept items stay under 4 MiB together (the oldest of them go first).
-- The copy is served from this listener's address, so its root element gets an `xml:base` with the address the feed was read from (after
+- The trimmed feed is served from this listener's address, so its root element gets an `xml:base` with the address the feed was read from (after
   redirects; a relative `xml:base` the root already had is resolved against it), and relative links keep resolving against the publisher.
   Nothing else in the head and nothing in the items changes.
 - Bounded work: one fetch per feed at a time (concurrent requests share it), two fetches at once and sixteen waiting, then
@@ -133,7 +133,7 @@ engine this address for a feed that discovery found larger than 4 MiB or with mo
 ## Bridge router
 
 Turns the public pages of a few services without feeds into feeds through RSS-Bridge, and a journal's
-registered articles into a feed through Crossref's API. The catalogue of services, their key patterns and
+registered articles into a feed through Crossref's API. The list of services, their key patterns and
 post-id rules is `packages/connectors/src/bridges.ts`; [Sources](../../docs/sources.md#source-bridges) describes
 what a bridged source is and how one is followed.
 
@@ -149,7 +149,7 @@ what a bridged source is and how one is followed.
   backend it has (Crossref).
 - FreshRSS reaches it as `feed-bridge.internal:8945` (`EGRESS_BRIDGE_ALIAS`), an internal
   destination of the proxy registered automatically; the API calls it directly.
-- Each catalogue entry names the kind of backend that collects it (`rss-bridge` or `crossref`), and the
+- Each service names the kind of backend that fetches it (`rss-bridge` or `crossref`), and the
   router asks the backends of that kind in order. Fetching is bounded: at most four fetches at once
   (64 more may wait, then `503`), one per source at a time with concurrent requests sharing it, good answers
   reused for ten minutes (24 MiB of them at most, least recently used dropped first), and after a failure a
@@ -159,20 +159,20 @@ what a bridged source is and how one is followed.
   lists, whose recipe matches nothing once a page's layout changes): no posts is asked again once at once and
   is otherwise a failure (`no_posts`).
 - Output is RSS whose GUIDs are post ids from the post address (`telegram:durov/552`, `doi:10.1111/…`), so a
-  source keeps its items whichever backend answered; entries without one are dropped, and output with entries
-  none of which is this source's post or one its catalogue entry leaves out on purpose (Mixcloud's
+  source keeps its items whichever backend answered; items without one are dropped, and output with items
+  none of which is this source's post or one its service leaves out on purpose (Mixcloud's
   listened-to shows) is a failure (`no_ids`). A service can tidy what its backend writes: a page list's titles lose the
   whitespace of the page's markup, its source is named by the page's title (or its site's name when the page has no
-  single title), and a changelog's entries keep their `#fragment`. An answer holds at most 50 entries of 256 KiB each. An entry's
-  picture is the backend's, except where the catalogue entry names pictures for keeping only (Instagram's,
+  single title), and a changelog's items keep their `#fragment`. An answer holds at most 50 items of 256 KiB each. An item's
+  picture is the backend's, except where the service names pictures for keeping only (Instagram's,
   `keptPictures`: the post's lasting picture address first, then the rest of a carousel).
 - Each answer is recorded in `<data>/egress/bridge.db` (30 days, at most 200,000 rows) with its service, key,
-  backend, stage, outcome, entry count, time and whether it came from the cache or back-off, and read through
+  backend, stage, outcome, item count, time and whether it came from the cache or back-off, and read through
   `GET /bridge/summary` on the control listener.
 
 ### RSS-Bridge backend
 
-The services RSS-Bridge collects (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music,
+The services RSS-Bridge fetches (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music,
 Instagram, MangaDex, VK Video, and page lists through XPathBridge) are asked from RSS-Bridge's `?action=display&format=Atom&bridge=<name>` with the service's
 parameters, 45 seconds and 8 MiB at most, errors as HTTP statuses. On RSS-Bridge's own network
 (`EGRESS_BRIDGE_NET_HOST`) the proxy listens again and a DNS resolver answers A questions with public addresses
@@ -236,7 +236,7 @@ address it is bound to, each with its port (browser DNS-rebinding guard).
 | `EGRESS_MAX_CONNECTIONS` | 256 |
 | `EGRESS_CONNECT_TIMEOUT_MS` / `EGRESS_IDLE_TIMEOUT_MS` / `EGRESS_REQUEST_TIMEOUT_MS` | 10 s / 30 s / 60 s |
 | `EGRESS_MAX_RESPONSE_BYTES` | 32 MiB |
-| `EGRESS_MAX_TUNNEL_BYTES` / `EGRESS_MAX_TUNNEL_MS` | 64 MiB / 120 s |
+| `EGRESS_MAX_TUNNEL_BYTES` / `EGRESS_MAX_TUNNEL_MS` | 64 MiB / 120 s | The component map is in [architecture](../../docs/architecture.md#components).
 
 Egress on its own does not secure FreshRSS: the engine container must also have no other
 route to the network (internal network or firewall), otherwise it can bypass the proxy.

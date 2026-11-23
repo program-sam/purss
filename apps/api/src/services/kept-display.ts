@@ -24,19 +24,19 @@ export function keptCopyOf(captures: { status: "pending" | "done" | "failed"; qu
  * What a list says about each kept item without opening it: the state of its copy and the first line of the person's
  * note (the first note, else the first comment on a highlight). One read for the whole page.
  */
-export function keptDisplays(app: App, workspaceId: string, itemIds: string[]): Map<string, KeptDisplay> {
+export function keptDisplays(app: App, accountId: string, itemIds: string[]): Map<string, KeptDisplay> {
   const out = new Map<string, KeptDisplay>();
   if (!itemIds.length) return out;
   const marks = itemIds.map(() => "?").join(",");
   const captures = new Map<string, { status: "pending" | "done" | "failed"; quality: string | null }[]>();
   for (const c of app.db.all<{ item_id: string; status: "pending" | "done" | "failed"; quality: string | null }>(
-    `SELECT item_id, status, quality FROM captures WHERE workspace_id = ? AND item_id IN (${marks})`, workspaceId, ...itemIds)) {
+    `SELECT item_id, status, quality FROM captures WHERE account_id = ? AND item_id IN (${marks})`, accountId, ...itemIds)) {
     (captures.get(c.item_id) ?? captures.set(c.item_id, []).get(c.item_id)!).push(c);
   }
   const notes = new Map<string, string>();
   for (const a of app.db.all<{ item_id: string; body: string }>(
-    `SELECT item_id, body FROM annotations WHERE workspace_id = ? AND deleted_at IS NULL AND body IS NOT NULL AND item_id IN (${marks})
-      ORDER BY kind = 'note' DESC, created_at, id`, workspaceId, ...itemIds)) {
+    `SELECT item_id, body FROM annotations WHERE account_id = ? AND deleted_at IS NULL AND body IS NOT NULL AND item_id IN (${marks})
+      ORDER BY kind = 'note' DESC, created_at, id`, accountId, ...itemIds)) {
     const line = notes.has(a.item_id) ? null : firstNoteLine(a.body);
     if (line) notes.set(a.item_id, line);
   }

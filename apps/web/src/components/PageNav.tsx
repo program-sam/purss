@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { RefObject } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
 import { markPaging } from "../lib/reading-progress.ts";
 

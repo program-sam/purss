@@ -16,8 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OAuth2Server } from "oauth2-mock-server";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
-import { app } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
+import { app } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
 import { claim, createAccount, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
@@ -31,7 +31,7 @@ const dataDir = path.join(work, "data");
 const shots = path.join(repo, ".output/google-signin");
 mkdirSync(shots, { recursive: true });
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. "Google" is the label the operator
+// The words people read come from the catalogues, so rewording one cannot break this journey. "Google" is the label the administrator
 // gives the provider in PURSS_OIDC (below).
 const GOOGLE = "Google";
 const continueWithGoogle = app.auth.providerButton.continueWith(GOOGLE);
@@ -40,9 +40,9 @@ const securityCopy = app.dialogs.settings.security;
 const stepUpCopy = app.sharedFeatures.stepUp;
 const passwordCopy = app.auth.passwordForm;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** The words of a catalog entry that holds HTML (the link back to the app), without its tags. */
+/** The words of a catalogue entry that holds HTML (the link back to the app), without its tags. */
 const textOf = (html: string) => html.replace(/<[^>]*>/g, "");
-/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+/** A pattern for a catalogue function's words, with its values (called with U+E000) left open. */
 const OPEN = "\uE000";
 const pattern = (s: string) => new RegExp(escapeRe(s).replaceAll(OPEN, ".+?"));
 const goBackText = textOf(server.api.publicRoute.goBackLink(""));
@@ -114,11 +114,11 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     PURSS_SMTP_HOST: "127.0.0.1", PURSS_SMTP_PORT: String(smtpPort), PURSS_SMTP_SECURITY: "none", PURSS_MAIL_FROM: "PURSS <ws@example.org>",
     PURSS_OIDC: JSON.stringify([{ id: "google", label: GOOGLE, issuer: google.issuer.url, clientId: "purss-acceptance", clientSecret: "not-a-secret", stepUp: "choose-account" }]),
   };
-  // The operator's account, and Dana, who already has an account with a confirmed email address.
+  // The administrator's account, and Dana, who already has an account with a confirmed email address.
   const prepared = createApp(loadConfig(env));
   try {
     claim(prepared, ensureClaimCode(prepared)!, "operator@example.test", "Operator", testPassword());
-    prepared.db.tx(() => createAccount(prepared, { email: "dana@example.org", emailConfirmed: true, displayName: "Dana", admin: false, allocationBytes: null, grantedBy: null, password: testPassword() }));
+    prepared.db.tx(() => createAccount(prepared, { email: "dana@example.org", emailConfirmed: true, displayName: "Dana", admin: false, allowanceBytes: null, grantedBy: null, password: testPassword() }));
   } finally { prepared.db.close(); }
   startApi(env);
   await waitFor("open sign-up", async () => (await (await fetch(`${origin}/api/session`)).json()).installation.signup === "open", 30_000);

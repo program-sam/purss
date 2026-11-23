@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -67,7 +67,7 @@ async function boot() {
     await new Promise((resolve) => setTimeout(resolve, 2));
     return r.json.fetchToken as string;
   };
-  const arrive = (n = 1) => notifyArrivals(app, owner.workspaceId, [[src, n]]);
+  const arrive = (n = 1) => notifyArrivals(app, owner.accountId, [[src, n]]);
   return {
     app, owner, relay, server, phone, src, asPhone, fetchPending, register, arrive,
     close: async () => { await server.close(); await relay.close(); setRelayFetchForTests({}); cleanup(); },
@@ -130,18 +130,18 @@ test("the fetch says how many new items there are, as the sidebar adds them up, 
     const token = await b.register();
     const other = makeSource(b.app, b.owner, "Salt Marsh", "feed/2");
     let n = 0;
-    const add = (sourceId: string | null, fresh: boolean) => b.app.db.tx(() => insertItem(b.app, {
-      accountId: b.owner.accountId, workspaceId: b.owner.workspaceId, sourceId, kind: "article", title: `Item ${++n}`, url: `https://example.org/p/${n}`,
+    const add = (sourceId: string | null, isNew: boolean) => b.app.db.tx(() => insertItem(b.app, {
+      accountId: b.owner.accountId, sourceId, kind: "article", title: `Item ${++n}`, url: `https://example.org/p/${n}`,
       author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-      publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh, reason: "test",
+      publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew, reason: "test",
     }));
     add(b.src, true); add(b.src, true); add(other, true); add(other, false); add(null, false);
-    const sidebar = listSources(b.app, b.owner).reduce((sum, s) => sum + s.freshCount, 0);
+    const sidebar = listSources(b.app, b.owner).reduce((sum, s) => sum + s.newCount, 0);
     assert.equal(sidebar, 3);
     assert.equal((await b.fetchPending(token)).json.newItems, 3);
     b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", other);
     assert.equal((await b.fetchPending(token)).json.newItems, 2, "an unfollowed source isn't in the sidebar");
-    setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "off" } });
+    setPreferences(b.app, b.owner.accountId, { notifications: { frequency: "off" } });
     assert.deepEqual((await b.fetchPending(token)).json, { notifications: [], newItems: 2 });
   } finally { await b.close(); }
 });
@@ -150,21 +150,21 @@ test("bodies follow 'Show item titles in notifications'; read notices aren't han
   const b = await boot();
   try {
     const token = await b.register();
-    setPreferences(b.app, b.owner.workspaceId, { notifications: { previews: true } });
+    setPreferences(b.app, b.owner.accountId, { notifications: { previews: true } });
     b.arrive();
     b.app.db.run("UPDATE notifications SET body = 'Mudflat ecology'"); // the latest item's title, as notifyArrivals writes it with titles on
     assert.equal((await b.fetchPending(token)).json.notifications[0]!.body, "Mudflat ecology");
-    setPreferences(b.app, b.owner.workspaceId, { notifications: { previews: false } });
+    setPreferences(b.app, b.owner.accountId, { notifications: { previews: false } });
     b.app.db.run("UPDATE notifications SET changed_at = ?", new Date(Date.now() + 500).toISOString());
     assert.equal((await b.fetchPending(token)).json.notifications[0]!.body, null, "titles off: no body");
 
-    b.app.db.run("UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'"); // a fresh arrival notification, not a grown one
+    b.app.db.run("UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'"); // a isNew arrival notification, not a grown one
     b.arrive();
-    b.app.db.run("UPDATE notifications SET read_at = ?", new Date().toISOString());
+    b.app.db.run("UPDATE notifications SET seen_at = ?", new Date().toISOString());
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "read in the bell already");
 
-    setPreferences(b.app, b.owner.workspaceId, { notifications: { frequency: "off" } });
-    b.app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES ('reminder', ?, 'reminder', ?, 'reminder:test', ?)", b.owner.workspaceId, copy.api.shared.reminderSubjectOne, new Date(Date.now() + 2000).toISOString());
+    setPreferences(b.app, b.owner.accountId, { notifications: { frequency: "off" } });
+    b.app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at) VALUES ('reminder', ?, 'reminder', ?, 'reminder:test', ?)", b.owner.accountId, copy.api.shared.reminderSubjectOne, new Date(Date.now() + 2000).toISOString());
     assert.equal(await wakePhones(b.app, b.owner.accountId), null, "a successful wake needs no retry");
     assert.equal(b.relay.requests.length, 1, "the reminder wakes the phone under Never");
     const reminder = (await b.fetchPending(token)).json.notifications;
@@ -179,7 +179,7 @@ test("quiet hours hold the wake back; it waits in the bell and comes with the ne
     const token = await b.register();
     const now = new Date();
     const hhmm = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-    setPreferences(b.app, b.owner.workspaceId, { timezone: "UTC", notifications: { quietStart: hhmm(new Date(now.getTime() - 3_600_000)), quietEnd: hhmm(new Date(now.getTime() + 3_600_000)) } });
+    setPreferences(b.app, b.owner.accountId, { timezone: "UTC", notifications: { quietStart: hhmm(new Date(now.getTime() - 3_600_000)), quietEnd: hhmm(new Date(now.getTime() + 3_600_000)) } });
     b.arrive();
     assert.equal(await wakePhones(b.app, b.owner.accountId, now.getTime()), null);
     assert.equal(b.relay.requests.length, 0);
@@ -240,7 +240,7 @@ test("the fetch credential reaches nothing else, and a device token doesn't reac
   } finally { await b.close(); }
 });
 
-test("a phone registered with another relay isn't woken after the operator changes relays", async () => {
+test("a phone registered with another relay isn't woken after the administrator changes relays", async () => {
   const b = await boot();
   try {
     await b.register();
@@ -259,7 +259,7 @@ test("what quiet hours held back wakes the phone once they end, from the mainten
     const token = await b.register();
     const now = new Date();
     const hhmm = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-    setPreferences(b.app, b.owner.workspaceId, { timezone: "UTC", notifications: { quietStart: hhmm(new Date(now.getTime() - 3_600_000)), quietEnd: hhmm(new Date(now.getTime() + 3_600_000)) } });
+    setPreferences(b.app, b.owner.accountId, { timezone: "UTC", notifications: { quietStart: hhmm(new Date(now.getTime() - 3_600_000)), quietEnd: hhmm(new Date(now.getTime() + 3_600_000)) } });
     let stop = startPush(b.app);
     b.arrive();
     wakeHeld(b.app);
@@ -269,7 +269,7 @@ test("what quiet hours held back wakes the phone once they end, from the mainten
     await stop();
     stop = startPush(b.app);
     // Quiet hours are over.
-    setPreferences(b.app, b.owner.workspaceId, { notifications: { quietStart: null, quietEnd: null } });
+    setPreferences(b.app, b.owner.accountId, { notifications: { quietStart: null, quietEnd: null } });
     wakeHeld(b.app, Date.now() + 61_000);
     await waitForRequests(1);
     assert.equal(b.relay.requests.length, 1, "one wake once quiet hours end");

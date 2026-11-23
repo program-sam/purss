@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dataCacheName, foreignDataCaches, pictureItem, isPageMessage, parseWorkerState, shellCacheName, staleShellCaches } from "./protocol.ts";
+import { dataCacheName, foreignDataCaches, pictureItem, isPageMessage, parseServiceWorkerState, shellCacheName, staleShellCaches } from "./protocol.ts";
 
 test("cache names say what they hold and whose", () => {
   assert.equal(dataCacheName("acc_1"), "purss-api:acc_1");
@@ -32,10 +32,10 @@ test("page messages are checked before the worker acts on them", () => {
 });
 
 test("a damaged remembered state means nothing is kept", () => {
-  assert.deepEqual(parseWorkerState(null), { accountId: null, enabled: false });
-  assert.deepEqual(parseWorkerState({ accountId: 7, enabled: "yes" }), { accountId: null, enabled: false });
-  assert.deepEqual(parseWorkerState({ accountId: "a", enabled: true }), { accountId: "a", enabled: true });
-  assert.deepEqual(parseWorkerState({ accountId: "", enabled: true }), { accountId: null, enabled: true });
+  assert.deepEqual(parseServiceWorkerState(null), { accountId: null, enabled: false });
+  assert.deepEqual(parseServiceWorkerState({ accountId: 7, enabled: "yes" }), { accountId: null, enabled: false });
+  assert.deepEqual(parseServiceWorkerState({ accountId: "a", enabled: true }), { accountId: "a", enabled: true });
+  assert.deepEqual(parseServiceWorkerState({ accountId: "", enabled: true }), { accountId: null, enabled: true });
 });
 
 test("an account's pictures are its own data: they stay with it and go with it", () => {

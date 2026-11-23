@@ -1,4 +1,4 @@
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 import { z } from "zod";
 import { WORKFLOW_STATES } from "./workflow.ts";
 
@@ -29,7 +29,7 @@ export const leafSchema = z.discriminatedUnion("field", [
   z.object({ field: z.literal("kind"), value: once(z.enum(ITEM_KINDS), ITEM_KINDS.length) }),
   z.object({ field: z.literal("workflow"), value: once(z.enum(WORKFLOW_STATES), WORKFLOW_STATES.length) }),
   z.object({ field: z.literal("author"), value: z.string().trim().min(1).max(120) }),
-  z.object({ field: z.literal("fresh"), value: z.boolean() }),
+  z.object({ field: z.literal("new"), value: z.boolean() }),
   z.object({ field: z.literal("opened"), value: z.boolean() }),
   z.object({ field: z.literal("kept"), value: z.boolean() }),
   z.object({ field: z.literal("capture"), value: once(z.enum(CAPTURE_LEVELS), CAPTURE_LEVELS.length) }),

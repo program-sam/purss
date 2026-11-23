@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
 
 /**
@@ -23,7 +23,7 @@ export type Change =
   | { kind: "keep"; itemId: string; basketId: string; on: boolean }
   /** An Undo that could not be settled when it was pressed (the item could not be read): when it is sent, the item is read, and only if it still has `applied` is it put back to `restore`. */
   | { kind: "undoWorkflow"; itemId: string; applied: WorkflowState; restore: WorkflowState }
-  | { kind: "clearFresh"; itemIds: string[] };
+  | { kind: "clearNew"; itemIds: string[] };
 
 export type Entry = Change & {
   id: string;
@@ -81,7 +81,7 @@ export function overlayItem<T extends ItemDTO>(item: T, entries: readonly Entry[
       const has = out.basketIds.includes(e.basketId);
       if (e.on && !has) out = { ...out, basketIds: [...out.basketIds, e.basketId] };
       else if (!e.on && has) out = { ...out, basketIds: out.basketIds.filter((b) => b !== e.basketId) };
-    } else if (e.kind === "clearFresh" && e.itemIds.includes(item.id) && out.fresh) out = { ...out, fresh: false };
+    } else if (e.kind === "clearNew" && e.itemIds.includes(item.id) && out.isNew) out = { ...out, isNew: false };
   }
   return out;
 }
@@ -90,7 +90,7 @@ export function overlayItem<T extends ItemDTO>(item: T, entries: readonly Entry[
 export function itemIdsOf(entries: readonly Entry[]): Set<string> {
   const ids = new Set<string>();
   for (const e of entries) {
-    if (e.kind === "clearFresh") e.itemIds.forEach((id) => ids.add(id));
+    if (e.kind === "clearNew") e.itemIds.forEach((id) => ids.add(id));
     else ids.add(e.itemId);
   }
   return ids;

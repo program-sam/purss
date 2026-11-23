@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { plural } from "../lib/format.ts";
 import type { SignOutChoice } from "./sign-out.ts";

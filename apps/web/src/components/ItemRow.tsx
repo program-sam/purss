@@ -1,12 +1,12 @@
 import type { CSSProperties } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";
 import { timeAgo } from "../lib/format.ts";
 import { itemDate, itemExcerpt, itemPicture } from "../lib/items.ts";
 import { memo, useId, useState } from "react";
-import { CopyTag, FreshDot, KeptTag, NoteLine, PendingMark, SharedBy, WfTag, useFace, useItemLabel } from "./item-bits.tsx";
+import { CopyTag, NewDot, KeptTag, NoteLine, PendingMark, SharedBy, WfTag, useFace, useItemLabel } from "./item-bits.tsx";
 import { DownloadedTag } from "../downloads/DownloadedTag.tsx";
 import { DownloadRing, progressFraction } from "../downloads/DownloadRing.tsx";
 import { useDownload } from "../downloads/hooks.ts";
@@ -63,7 +63,7 @@ export function TriageActions({ item, tipAt }: { item: ItemDTO; tipAt?: "above" 
     <>
       <DownloadButton item={item} tipAt={tipAt} />
       <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? t.inQueue(put) : put} data-tip-at={tipAt}
-        aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "new" : "toread")}><Icon name="item" /></button>
+        aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "undecided" : "toread")}><Icon name="item" /></button>
       {c.basket ? (
         <button type="button" className="rq ig" data-tip={t.removeFrom(c.basket.name)} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
       ) : (
@@ -108,7 +108,7 @@ export const ItemRow = memo(function ItemRow({ item, bare = false }: { item: Ite
     <li className={`row irow${item.kind === "video" ? " vid" : ""}${active ? " sel-row" : ""}${picked ? " picked" : ""}${item.workflow === "ignored" && !c.basket ? " dim" : ""}${hasActs ? " has-acts" : ""}`} data-item={item.id} data-wf={item.workflow} data-leaves={c.leaves(item)} style={{ "--sh": face.hue, ...(hasActs ? actionRoom(item) : {}) } as CSSProperties}>
       <button type="button" className="row-main" data-act="open" onClick={() => c.onOpen(item)} aria-label={label} aria-describedby={described}
         aria-pressed={c.selecting ? picked : undefined} aria-current={!c.selecting && active ? "true" : undefined}>
-        <span className="gut">{c.selecting ? <span className="cbx" aria-hidden="true"><Icon name="check" /></span> : <FreshDot fresh={item.fresh} />}</span>
+        <span className="gut">{c.selecting ? <span className="cbx" aria-hidden="true"><Icon name="check" /></span> : <NewDot isNew={item.isNew} />}</span>
         <Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} />
         <span className="row-t">
           <span className="title" dir="auto">{item.title}</span>

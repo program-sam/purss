@@ -39,7 +39,7 @@ test("the player moves an item In progress and then Finished, whatever happens t
   assert.equal(started.item.workflow, "inprogress");
   assert.equal(started.item.workflowRevision, 1);
   assert.equal(started.item.playbackWorkflowSessionId, "play-1");
-  assert.equal(started.item.fresh, false, "it has been seen, as for any change");
+  assert.equal(started.item.isNew, false, "it has been seen, as for any change");
   assert.equal(started.item.progress, 0.5, "progress is untouched");
 
   const moreProgress = changeState(app, p, id, { progress: 0.8, expectedRevision: started.item.revision });
@@ -50,7 +50,7 @@ test("the player moves an item In progress and then Finished, whatever happens t
   assert.equal(finished.item.progress, 0.8);
 
   const log = app.db.all<{ from_state: string; to_state: string }>("SELECT from_state, to_state FROM state_log WHERE item_id = ? ORDER BY rowid", id);
-  assert.deepEqual(log.map((r) => `${r.from_state}>${r.to_state}`), ["new>inprogress", "inprogress>finished"], "logged like any workflow change");
+  assert.deepEqual(log.map((r) => `${r.from_state}>${r.to_state}`), ["undecided>inprogress", "inprogress>finished"], "logged like any workflow change");
 
   applyUndo(app, p, finished.undoToken);
   assert.equal(getItem(app, p, id).workflow, "inprogress", "an automatic change has the same Undo token as any other");
@@ -142,7 +142,7 @@ test("choosing the state an item already has moves nothing", (t) => {
   const { app, p, id, cleanup } = setup();
   t.after(cleanup);
   const before = getItem(app, p, id);
-  const same = changeState(app, p, id, { workflow: "new", expectedRevision: before.revision });
+  const same = changeState(app, p, id, { workflow: "undecided", expectedRevision: before.revision });
   assert.equal(same.item.workflowRevision, before.workflowRevision);
   assert.equal(same.item.stateVersion, before.stateVersion);
 });
@@ -152,5 +152,5 @@ test("another account's item is not there for playback to move", (t) => {
   t.after(cleanup);
   const other = makeOwner(app);
   assert.throws(() => changeState(app, other, id, auto("inprogress", "play-9", 0, 0)), (err: unknown) => err instanceof HttpError && err.status === 404);
-  assert.equal(getItem(app, p, id).workflow, "new");
+  assert.equal(getItem(app, p, id).workflow, "undecided");
 });

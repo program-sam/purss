@@ -1,10 +1,10 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, TextInput } from "@purss/ui";
 import { messageOf, patch } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 
 /** Change the title of a link kept by hand, in place of the heading. The title is the person's own record of the link. */
 export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: string; onDone: () => void }) {
@@ -20,7 +20,7 @@ export function RenameTitle({ itemId, title, onDone }: { itemId: string; title: 
     setBusy(true); setError("");
     try {
       await patch(`/api/items/${encodeURIComponent(itemId)}/title`, { title: draft.trim() });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       onDone();
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }

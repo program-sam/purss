@@ -6,7 +6,7 @@ import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import type { BundleInfo } from "@capgo/capacitor-updater";
-import { APPS_RELEASE_MANIFEST, OFFICIAL_WORKSPACE_ORIGIN, startingServer } from "@purss/domain";
+import { APPS_RELEASE_MANIFEST, OFFICIAL_PURSS_ORIGIN, startingServer } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
 import { CapacitorShareTarget } from "@capgo/capacitor-share-target";
 import { AudioPlayer } from "@mediagrid/capacitor-native-audio";
@@ -18,11 +18,11 @@ import { DownloadManager } from "../../downloads/manager.ts";
 import { decodePage, readablePage } from "../../downloads/readable-page.ts";
 import type { KeyValue } from "../../downloads/manager.ts";
 import { parseWidgetSnapshot } from "../../device/widget.ts";
-import { wipeOfflineCopies } from "../../offline/worker-link.ts";
+import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { clearHints } from "../../state/ui-store.ts";
-import { OfflineWorker } from "../../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
-import { workspacePolicy } from "../csp.ts";
+import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
 import { browserNotifier } from "../web.ts";
 import type { AppConnection, OfflineHost, Platform, Transport } from "../types.ts";
@@ -45,14 +45,14 @@ import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQu
 import type { BundleRef, Updater } from "./live-update.ts";
 import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.native;
 
 /**
  * The Android and iOS apps' platform. The interface is the web app's own build, bundled in
  * the app; it talks to the connected PURSS with the device token from secure storage. Offline
- * copies are kept by the same OfflineWorker the web's service worker runs, here in the page, in
+ * copies are kept by the same OfflineServiceWorker the web's service worker runs, here in the page, in
  * IndexedDB; downloads add the device copies ("Downloaded") on top.
  */
 
@@ -129,7 +129,7 @@ function restartInstalled(): void {
 function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Platform {
   const caches = new StoredCaches(new IndexedDbCopyBackend());
   const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
+  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
 
   const downloads = conn ? new DownloadManager({
     files: deviceFiles,
@@ -145,7 +145,7 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
   const phone = conn && pushConfig ? devicePush(conn.origin, pushConfig) : null;
 
   let player: AppPlayerBackend | null = null;
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   const updates = conn ? createInterfaceUpdates({
     origin: conn.origin,
     official: official.kind === "official" && official.origin === conn.origin,
@@ -294,7 +294,7 @@ const LAUNCH_KEY = "purss:launch-opened";
 function limitPageTo(origin: string, relay: string): void {
   const meta = document.createElement("meta");
   meta.httpEquiv = "Content-Security-Policy";
-  meta.content = workspacePolicy(origin, [relay]);
+  meta.content = purssPolicy(origin, [relay]);
   document.head.prepend(meta);
 }
 

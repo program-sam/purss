@@ -128,7 +128,7 @@ enum ConnectionKeychain {
 
 /// Requests to the connected PURSS with the device token, from the background jobs. The token lives in this object
 /// only, and its requests are never followed to another address.
-final class WorkspaceAPI {
+final class PurssAPI {
     struct Answer {
         let status: Int
         let data: Data
@@ -182,7 +182,7 @@ final class WorkspaceAPI {
 /// One run of the job. The token lives in this object only.
 private final class JobRunner {
     private var connection: Connection!
-    private var client: WorkspaceAPI!
+    private var client: PurssAPI!
 
     func run() async -> RunOutcome {
         // What the panels' data was when this run started: a refusal that comes in after a disconnect is the old connection's.
@@ -192,7 +192,7 @@ private final class JobRunner {
         switch ConnectionKeychain.read() {
         case .found(let found):
             connection = found
-            client = WorkspaceAPI(found)
+            client = PurssAPI(found)
         case .missing:
             DeviceStore.clearState()
             BackgroundJob.cancelRequest()

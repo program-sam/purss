@@ -25,7 +25,7 @@ const sender: Sender = {
     const path = `/api/items/${enc(itemId)}/baskets/${enc(basketId)}`;
     return api<KeepResult>(path, { method: on ? "PUT" : "DELETE", body: on ? {} : undefined, signal: signal() });
   },
-  clearFresh: (itemIds) => api<BulkResult>("/api/items/bulk", { method: "POST", body: { itemIds, action: { type: "clearFresh" } }, signal: signal() }),
+  clearNew: (itemIds) => api<BulkResult>("/api/items/bulk", { method: "POST", body: { itemIds, action: { type: "clearNew" } }, signal: signal() }),
   // A saved copy of the item would show a workflow that may be out of date: only PURSS's own answer counts.
   workflowOf: async (itemId) => {
     const item = await api<ItemDTO>(`/api/items/${enc(itemId)}`, { signal: signal(), live: true });

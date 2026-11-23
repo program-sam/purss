@@ -1,9 +1,9 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useLayoutEffect, useRef } from "react";
 import { Icon, useBreakpoint } from "@purss/ui";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useSession } from "../api/hooks.ts";
 import { HeaderAccount } from "../auth/HeaderAccount.tsx";
 import { useOfflineStatus, showsSavedCopy } from "../offline/status.ts";
@@ -47,7 +47,7 @@ function useColumnAlign(shown: boolean) {
 /**
  * Tells the page how much of its right edge the corner's buttons cover (their width and the gap to the edge), by setting
  * --corner-reserve on the stage, so the page's heading, its tools and the bar keep clear of them whatever the account name's length,
- * the bell's unread count, a Sign out button or the text size.
+ * the bell's unseen count, a Sign out button or the text size.
  */
 function useCornerReserve(shown: boolean) {
   const ref = useRef<HTMLDivElement>(null);
@@ -69,14 +69,14 @@ function useCornerReserve(shown: boolean) {
 /** The top of the page area: the notifications bell in the corner, and on phones and tablets, where the sidebar
  *  is a drawer, a slim bar with its toggle and the way back. Desktop pages carry their own heading and tools. */
 export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawerOpen: boolean; overlaySidebar: boolean; onToggleSidebar: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const place = useCurrentPlace();
   const overlays = useOverlays();
   const popups = usePopups();
   const bp = useBreakpoint();
   const crumbs = useCrumbs();
   const who = useSession().data?.account?.displayName;
-  const unread = ws.data.unreadNotifications;
+  const unseen = ws.data.unseenNotifications;
   const offline = useOfflineStatus();
   const savedCopy = showsSavedCopy(offline);
   const waiting = usePendingCount();
@@ -90,9 +90,9 @@ export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawer
     <div ref={cornerRef} className={`corner${showBar ? "" : " float"}`}>
       <div className="cbtns">
         <HeaderAccount />
-        <button type="button" className="ibtn bell" aria-haspopup="dialog" aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+        <button type="button" className="ibtn bell" aria-haspopup="dialog" aria-label={unseen ? `Notifications, ${unseen} unseen` : "Notifications"}
           onClick={(e) => popups.panel(e.currentTarget, "Notifications", (close) => <NotificationsPanel onClose={() => close()} />, { className: "notif-pop" })}>
-          <Icon name="bell" />{unread ? <span className="bell-n" aria-hidden="true">{unread > 9 ? "9+" : unread}</span> : null}
+          <Icon name="bell" />{unseen ? <span className="bell-n" aria-hidden="true">{unseen > 9 ? "9+" : unseen}</span> : null}
         </button>
       </div>
     </div>

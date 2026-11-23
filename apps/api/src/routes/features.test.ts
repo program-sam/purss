@@ -15,9 +15,9 @@ import { createBasket } from "../services/collections.ts";
 import { keepItem } from "../services/state.ts";
 import { diskOverride, usedBytes } from "../services/storage.ts";
 
-async function boot(env: Record<string, string> = {}, opts: { allocationBytes?: number | null } = {}) {
+async function boot(env: Record<string, string> = {}, opts: { allowanceBytes?: number | null } = {}) {
   const { app, cleanup } = makeTestApp(env);
-  const owner = makeOwner(app, { admin: true, allocationBytes: opts.allocationBytes ?? null });
+  const owner = makeOwner(app, { admin: true, allowanceBytes: opts.allowanceBytes ?? null });
   const server = await startTestServer(app, extraRouters.api(), extraRouters.pages());
   const session = signIn(app, owner.accountId);
   const api = (method: string, path: string, body?: unknown, extra: { contentType?: string } = {}, s: TestSession | null = session) =>
@@ -47,7 +47,7 @@ test("export over HTTP streams a verifiable download with no secrets, and is aud
 test("import over HTTP: preview, apply, and a rejected over-limit apply", async (t) => {
   const a = await boot();
   const b = await boot();
-  const small = await boot({}, { allocationBytes: 300 });
+  const small = await boot({}, { allowanceBytes: 300 });
   t.after(async () => { await a.close(); await b.close(); await small.close(); });
   seedLibrary(a.app, a.owner);
   const archive = (await a.api("GET", "/api/export")).text;
@@ -78,7 +78,7 @@ test("import over HTTP: preview, apply, and a rejected over-limit apply", async 
   assert.equal(tooBig.json.fits, false);
   const refused = await small.api("POST", "/api/import", { token: tooBig.json.token });
   assert.equal(refused.status, 507);
-  assert.equal(refused.json.error.code, "quota_full");
+  assert.equal(refused.json.error.code, "allowance_full");
   assert.equal(small.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 0);
   assert.equal(small.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM import_stages")!.n, 1);
   assert.equal(usedBytes(small.app, small.owner.accountId), 0);

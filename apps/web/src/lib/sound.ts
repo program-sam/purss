@@ -1,5 +1,5 @@
 import { bind, play, setEnabled, setTheme, setVolume, unlock } from "cuelume";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { PlayOptions, SoundName, ThemeName } from "cuelume";
 
 /**

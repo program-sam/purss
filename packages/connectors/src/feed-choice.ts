@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { ParsedFeed } from "./feed.ts";
 
 const feedLabels = server.sources.connectors.labels;

@@ -11,7 +11,7 @@ import { patchSource, unfollowSource } from "./sources.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
 
 /*
- * Lists sorted by when items were kept, and by source, read keys stored with the items (migration 058) instead of working each
+ * Lists sorted by when items were kept, and by source, read keys stored with the items instead of working each
  * one out. These tests pin that such a list is, page by page and cursor by cursor, what the keys as they were defined give: the
  * latest keep of the item's memberships ('' when none), and the source's title, char(1) and the item's time in lists; ties go by id.
  */
@@ -27,7 +27,7 @@ function defined(app: App, p: Principal, sort: Sorted, extra = "1"): { id: strin
   const { key, dir } = DEFINED[sort];
   return app.db.all<{ id: string; key: string }>(
     `SELECT i.id, ${key} AS key FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE i.workspace_id = ? AND ${VISIBLE_SOURCE} AND ${extra} ORDER BY key ${dir}, i.id ${dir}`, p.workspaceId).map((r) => ({ id: r.id, key: r.key }));
+     WHERE i.account_id = ? AND ${VISIBLE_SOURCE} AND ${extra} ORDER BY key ${dir}, i.id ${dir}`, p.accountId).map((r) => ({ id: r.id, key: r.key }));
 }
 
 /** The list page by page, with the key each page's cursor carries. */
@@ -60,11 +60,11 @@ function assertSorted(app: App, p: Principal, what: string, sourceId?: string): 
         const how = `${JSON.stringify(query)} sort ${sort}${below ? "" : " (in index order)"}`;
         const want = defined(app, p, sort, extra);
         for (const limit of [1, 3, 50]) {
-          const got = paged(app, p, { ...query, filter: "all", sort, limit, muted: "show" });
+          const got = paged(app, p, { ...query, filter: "all_with_ignored", sort, limit, muted: "show" });
           assert.deepEqual(got.ids, want.map((r) => r.id), `${what}: ${how}, pages of ${limit}`);
           assert.deepEqual(got.cursorKeys, want.filter((_, i) => (i + 1) % limit === 0 && i + 1 < want.length).map((r) => r.key), `${what}: ${how}, the cursors' keys`);
         }
-        assert.deepEqual(listItemIds(app, p, { ...query, filter: "all", sort, muted: "show" }).ids, want.map((r) => r.id), `${what}: Select all of ${how}`);
+        assert.deepEqual(listItemIds(app, p, { ...query, filter: "all_with_ignored", sort, muted: "show" }).ids, want.map((r) => r.id), `${what}: Select all of ${how}`);
       } finally { listTuning.sortFromRowsBelow = was; }
     }
   }
@@ -72,16 +72,16 @@ function assertSorted(app: App, p: Principal, what: string, sourceId?: string): 
 
 function looseItem(app: App, p: Principal, title: string, publishedAt: string | null): string {
   return insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId: null, kind: "link", title, url: `https://example.org/${newId("x")}`, author: null,
+    accountId: p.accountId, sourceId: null, kind: "link", title, url: `https://example.org/${newId("x")}`, author: null,
     summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt,
-    discoveredAt: "2026-10-02T00:00:00.000Z", enclosures: [], fresh: false, reason: "test",
+    discoveredAt: "2026-10-02T00:00:00.000Z", enclosures: [], isNew: false, reason: "test",
   }).id;
 }
 
 test("lists by kept time and by source follow the keys' definitions through every change to them, ties and odd titles included", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const other = makeOwner(app, { admin: false });
   // Titles that sort in surprising ways: the same title twice, an empty one (which sorts with items that have no source), a control
   // character right where the key puts its separator, uppercase before lowercase, letters outside ASCII.
@@ -95,7 +95,7 @@ test("lists by kept time and by source follow the keys' definitions through ever
   applySyncBatch(app, other.engineUserId, batch([entry("feed/other"), entry("feed/other", { publishedAt: same })]));
   looseItem(app, p, "Loose one", same);
   looseItem(app, p, "Loose two", null);
-  const ids = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((r) => r.id);
+  const ids = app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((r) => r.id);
   assertSorted(app, p, "as synced", sources[1]);
 
   // Keeps at the same instant (ties go by id), and an item kept again later in another basket.
@@ -124,14 +124,14 @@ test("lists by kept time and by source follow the keys' definitions through ever
   assertSorted(app, p, "sources renamed", sources[0]);
   unfollowSource(app, p, sources[6]!);
   assertSorted(app, p, "a source unfollowed (its kept items stay listed)", sources[6]);
-  assert.ok(listItems(app, other, { scope: "all", filter: "all", sort: "source", muted: "show" }).items.every((i) => i.sourceTitle === "Alpha"), "never another PURSS's items");
+  assert.ok(listItems(app, other, { scope: "all", filter: "all_with_ignored", sort: "source", muted: "show" }).items.every((i) => i.sourceTitle === "Alpha"), "never another PURSS's items");
 
   // The other writer of items and memberships: an import into a new PURSS.
   const parts: string[] = [];
   await streamExport(app, p, (c) => { parts.push(c); });
   const { app: second, cleanup: cleanupSecond } = makeTestApp();
   t.after(cleanupSecond);
-  const q = makeOwner(second, { allocationBytes: null });
+  const q = makeOwner(second, { allowanceBytes: null });
   applyImport(second, q, stageImport(second, q, JSON.parse(parts.join(""))).token);
   assert.ok(second.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items")!.n > 0 && second.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE source_title <> ''")!.n > 0, "the import brought kept items and sources");
   assertSorted(second, q, "imported");

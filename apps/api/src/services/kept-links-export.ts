@@ -2,7 +2,7 @@ import { escapeHtml } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { displayAuthor, displayTitle } from "./content.ts";
 import { itemLinkIsMedia } from "./media.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * A readable list of what the person has kept, to read, print or keep beside the machine-readable export:
@@ -59,7 +59,7 @@ function line(format: KeptListFormat, r: KeptRow): string {
 export function* keptLinksChunks(app: App, p: Principal, format: KeptListFormat, now = new Date(), page = PAGE): Generator<string> {
   const today = now.toISOString().slice(0, 10);
   yield format === "html" ? HTML_HEAD(today) : `# ${server.api.keptLinksExport.heading}\n\n${server.api.keptLinksExport.exported(today)} ${NOTE}\n`;
-  for (const b of app.db.all<BasketRow>("SELECT id, name FROM baskets WHERE workspace_id = ? ORDER BY position, created_at", p.workspaceId)) {
+  for (const b of app.db.all<BasketRow>("SELECT id, name FROM baskets WHERE account_id = ? ORDER BY position, created_at", p.accountId)) {
     yield format === "html" ? `<h2 dir="auto">${escapeHtml(b.name)}</h2>\n` : `\n## ${md(b.name)}\n\n`;
     let cursor: [string, string] | null = null;
     let any = false;
@@ -67,9 +67,9 @@ export function* keptLinksChunks(app: App, p: Principal, format: KeptListFormat,
       const rows: KeptRow[] = app.db.all<KeptRow>(
         `SELECT bi.item_id, i.title, i.url, i.author, s.title AS source_title, s.kind AS source_kind, i.published_at, bi.kept_at, s.is_private, i.enclosures
            FROM basket_items bi JOIN items i ON i.id = bi.item_id LEFT JOIN sources s ON s.id = i.source_id
-          WHERE bi.basket_id = ? AND bi.workspace_id = ? ${cursor ? "AND (bi.kept_at < ? OR (bi.kept_at = ? AND bi.item_id < ?))" : ""}
+          WHERE bi.basket_id = ? AND bi.account_id = ? ${cursor ? "AND (bi.kept_at < ? OR (bi.kept_at = ? AND bi.item_id < ?))" : ""}
           ORDER BY bi.kept_at DESC, bi.item_id DESC LIMIT ?`,
-        ...(cursor ? [b.id, p.workspaceId, cursor[0], cursor[0], cursor[1], page] : [b.id, p.workspaceId, page]));
+        ...(cursor ? [b.id, p.accountId, cursor[0], cursor[0], cursor[1], page] : [b.id, p.accountId, page]));
       if (rows.length && !any && format === "html") yield "<ul>\n";
       if (rows.length) yield rows.map((r) => line(format, r)).join("");
       any ||= rows.length > 0;

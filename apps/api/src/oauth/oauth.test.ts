@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -133,7 +133,7 @@ test("with OAuth off (the self-hosted default) none of it exists and tokens work
   assert.equal(b.site.hits("/oauth/client.json"), 0, "nothing was fetched");
   const access = await b.api("GET", "/api/assistant");
   assert.deepEqual([access.json.oauth, access.json.grants], [false, []]);
-  // A token minted while OAuth was on stops when the operator turns it off.
+  // A token minted while OAuth was on stops when the administrator turns it off.
   b.app.config.assistantOAuth = true;
   const tokens = await connect(b);
   assert.equal((await mcp(b, tokens.access_token)).status, 200);

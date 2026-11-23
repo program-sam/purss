@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ImportPreview, ImportResult } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
-import { refreshWorkspace } from "../../api/queries.ts";
+import { refreshPurss } from "../../api/queries.ts";
 import { fkeys } from "../shared/api.ts";
 import { effects, inFile, resultLines } from "./import-summary.ts";
 
@@ -21,7 +21,7 @@ export function ImportDialog({ preview, fileName, onClose }: { preview: ImportPr
     setBusy(true); setError("");
     try {
       setResult(await post<ImportResult>("/api/import", { token: preview.token }));
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       void qc.invalidateQueries({ queryKey: fkeys.shares });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }

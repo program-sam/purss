@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { newId } from "@purss/domain";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
@@ -38,11 +38,11 @@ function rebuild(doc: any): any {
   return { ...doc, manifest: { algorithm: "sha256", sections } };
 }
 
-function twoWorkspaces(allocationB: number | null = null) {
+function twoAccounts(allowanceB: number | null = null) {
   const a = makeTestApp();
   const b = makeTestApp();
   const pa = makeOwner(a.app);
-  const pb = makeOwner(b.app, { allocationBytes: allocationB });
+  const pb = makeOwner(b.app, { allowanceBytes: allowanceB });
   return { a: a.app, b: b.app, pa, pb, cleanup: () => { a.cleanup(); b.cleanup(); } };
 }
 
@@ -59,13 +59,12 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   const { text, doc } = await exportDoc(app, p);
 
   for (const forbidden of [PRIVATE_FEED_URL, "SUPERSECRETTOKEN123", PRIVATE_ITEM_URL, "ITEMSECRET456", "feeds.example", "test-token", "CREDENTIALID123", "Z2tIGr5Ikvymvbvh", "ABCDEF123456",
-    "tag:google.com", '"feed/1"', '"feed/2"', p.accountId, p.workspaceId, p.engineUserId, "engine_stream", "secret_hash", "csrf"]) {
+    "tag:google.com", '"feed/1"', '"feed/2"', p.accountId, p.engineUserId, "engine_stream", "secret_hash", "csrf"]) {
     assert.ok(!text.includes(forbidden), `export must not contain ${forbidden}`);
   }
   parseArchive(doc); // manifest, counts and hashes verify
-  assert.equal(doc.format, "purss-workspace-export");
+  assert.equal(doc.format, "purss-export");
   assert.equal(doc.schemaVersion, 1);
-  assert.ok(!("savedQueries" in doc), "saved searches no longer exist, so an export has no section for them");
   assert.ok(doc.omitted.length >= 5 && doc.omitted.includes(archiveFormat.privateLinksLeftOut), "an omitted section explains the exclusions");
 
   const priv = doc.sources.find((s: any) => s.id === lib.privateSource);
@@ -92,13 +91,13 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   assert.equal(doc.baskets.length, 2);
 });
 
-test("export is a streamed snapshot, works over quota, and never touches the storage ledger", async (t) => {
+test("export is a streamed snapshot, works over its storage allowance, and never touches the storage ledger", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
   makeSource(app, p, "Many", "feed/1");
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: 300 }, (_, i) => entry("feed/1", { title: `Post ${i}`, summaryHtml: `<p>${"words ".repeat(120)}</p>` }))));
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = 10 WHERE account_id = ?", p.accountId); // far over quota
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = 10 WHERE account_id = ?", p.accountId); // far over its storage allowance
   const before = { used: usedBytes(app, p.accountId), events: count(app, "usage_events"), paused: app.db.get("SELECT paused_reason FROM storage_accounts")!.paused_reason };
   const { doc, chunks } = await exportDoc(app, p);
   assert.ok(chunks > 3, "written in pieces, not as one string");
@@ -159,13 +158,13 @@ test("damaged, cut-short, foreign and newer archives are rejected with plain mes
 });
 
 test("import round trip into a fresh PURSS keeps everything, including kept versions and captures", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   changeState(a, pa, lib.pinnedOld.itemId, { workflow: "toread", progress: 0.5, expectedRevision: 0 });
   createCollection(a, pa, { name: "Letters", emoji: "✉️", mode: "sources", sourceIds: [lib.publicSource], query: null, view: "cards" });
   patchBasket(a, pa, lib.baskets.reading, { view: "timeline" });
-  createCollection(a, pa, { name: "Reading filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "basket", value: [lib.baskets.reading] }, { field: "source", value: [lib.publicSource] }] }, view: "list" });
+  createCollection(a, pa, { name: "Reading filter", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "basket", value: [lib.baskets.reading] }, { field: "source", value: [lib.publicSource] }] }, view: "list" });
   const shareId = shareRow(a, pa, "basket", lib.baskets.reading, "published", "Sam Q.");
   a.db.run("UPDATE shares SET listed = 1, description = 'good ones' WHERE id = ?", shareId);
   const noted = a.db.get<{ item_id: string }>(`SELECT b.item_id FROM basket_items b JOIN items i ON i.id = b.item_id JOIN sources s ON s.id = i.source_id
@@ -173,9 +172,9 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   setShareNote(a, pa, shareId, noted, "Worth it for the maps.");
   // An item of a source followed from now that nobody has touched arrives Ignored: it goes in the export as any Ignored item does, and stays so after the move.
   const leftOut = a.db.get<{ id: string; title: string }>(
-    `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'new' AND st.opened_at IS NULL AND st.progress = 0
+    `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'undecided' AND st.opened_at IS NULL AND st.progress = 0
        AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AND NOT EXISTS (SELECT 1 FROM annotations n WHERE n.item_id = i.id) ORDER BY i.seq LIMIT 1`)!;
-  a.db.run("UPDATE item_state SET fresh = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
+  a.db.run("UPDATE item_state SET is_new = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
   const { doc } = await exportDoc(a, pa);
   assert.deepEqual(doc.items.filter((i: { state: { workflow: string } }) => i.state.workflow === "ignored").map((i: { title: string }) => i.title), [leftOut.title]);
   assert.ok(doc.items.every((i: Record<string, unknown>) => !("backlog" in i)), "the export has no mark besides the workflow state");
@@ -213,7 +212,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(pinned.title, "Tidal flats and sediment");
   assert.ok(pinned.content_html.includes("transport"));
   assert.equal(b.db.get<{ text: string }>("SELECT text FROM captures WHERE item_id = ?", item.id)!.text, "Captured readable text about sediment.");
-  assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
+  assert.equal(listItems(b, pb, { scope: "all", filter: "all_with_ignored", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
 
   assert.deepEqual(b.db.all<{ title: string }>("SELECT i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'ignored'").map((r) => r.title), [leftOut.title], "what was Ignored still is");
   // Workflow and progress came across; the private item has no address.
@@ -274,125 +273,8 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(b.db.all("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe'").length, 1);
 });
 
-test("an older export with hand-picked collections imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
-  t.after(cleanup);
-  const lib = seedLibrary(a, pa);
-  createCollection(a, pa, { name: "Letters", emoji: null, mode: "sources", sourceIds: [lib.publicSource], query: null, view: "list" });
-  const { doc } = await exportDoc(a, pa);
-  assert.ok(doc.collections.every((c: any) => c.mode !== "manual" && !("itemIds" in c)), "an export only holds source and filter collections");
-
-  // The shape a file had when hand-picked collections existed: two of them, holding item ids.
-  const legacy = rebuild({
-    ...doc,
-    collections: [
-      ...doc.collections,
-      { id: "col_old1", name: "Picks", emoji: null, mode: "manual", view: "list", query: null, showOnHome: true, position: 5, createdAt: null, sourceIds: [], itemIds: [lib.itemIds[0]] },
-      { id: "col_old2", name: "More picks", emoji: null, mode: "manual", view: "list", query: null, showOnHome: true, position: 6, createdAt: null, sourceIds: [], itemIds: [] },
-    ],
-  });
-  const preview = stageImport(b, pb, legacy);
-  assert.equal(preview.counts.collections, 1, "only the restorable collection is counted");
-  assert.ok(preview.conflicts.includes(portability.handPickedNotRestored(2)), preview.conflicts.join(" | "));
-  const result = applyImport(b, pb, preview.token);
-  assert.equal(result.created.collections, 1);
-  assert.equal(result.created.items, 4, "the items themselves still come across");
-  assert.deepEqual(b.db.all<{ name: string; mode: string }>("SELECT name, mode FROM collections").map((c) => `${c.name}:${c.mode}`), ["Letters:sources"]);
-  assert.equal(reconcile(b, pb.accountId).difference, 0);
-});
-
-test("an older export with saved searches imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
-  t.after(cleanup);
-  seedLibrary(a, pa);
-  const { doc } = await exportDoc(a, pa);
-
-  // The shape a file had when saved searches existed: a savedQueries section, listed in the manifest.
-  const withSavedSearches = (savedQueries: unknown[]) => {
-    const file = rebuild({ ...doc, savedQueries });
-    file.manifest.sections.savedQueries = { count: savedQueries.length, sha256: sha256Hex(JSON.stringify(savedQueries)) };
-    return file;
-  };
-  const two = [
-    { id: "qry_old1", name: "Sediment", query: { field: "text", value: "sediment" }, createdAt: "2026-01-01T00:00:00.000Z" },
-    { id: "qry_old2", name: "Tides", query: { field: "text", value: "tides" }, createdAt: null },
-  ];
-
-  const preview = stageImport(b, pb, withSavedSearches(two));
-  assert.ok(preview.conflicts.includes(portability.savedSearchesNotRestored(2)), preview.conflicts.join(" | "));
-  assert.ok(!("savedQueries" in preview.counts), "saved searches are not counted as something that will be imported");
-  const result = applyImport(b, pb, preview.token);
-  assert.ok(!("savedQueries" in result.created));
-  assert.equal(result.created.items, 4, "the items themselves still come across");
-  assert.equal(reconcile(b, pb.accountId).difference, 0);
-
-  const one = stageImport(b, pb, withSavedSearches(two.slice(0, 1)));
-  assert.ok(one.conflicts.includes(portability.savedSearchesNotRestored(1)), one.conflicts.join(" | "));
-  const none = stageImport(b, pb, doc);
-  assert.ok(![portability.savedSearchesNotRestored(1), portability.savedSearchesNotRestored(2)].some((c) => none.conflicts.includes(c)), "a current export has nothing to skip");
-});
-
-test("an older export that marked back catalogue with `backlog` imports its untouched items as Ignored, and nothing keeps the mark", async (t) => {
-  const a = makeTestApp();
-  t.after(a.cleanup);
-  const pa = makeOwner(a.app);
-  seedLibrary(a.app, pa);
-  const { doc } = await exportDoc(a.app, pa);
-  const by = (title: string) => doc.items.find((i: any) => i.title.startsWith(title)) as any;
-  const untouched = { workflow: "new", fresh: false, progress: 0, openedAt: null };
-  const third = by("Third post").id as string;
-  const kept = by("Second post").id as string; // in a basket in the file
-  const [firstId, privateId] = [by("Tidal flats").id as string, by("Private note").id as string];
-  assert.ok(doc.memberships.some((m: any) => m.itemId === kept));
-  assert.ok(doc.items.every((i: any) => !("backlog" in i)), "a current export has no mark besides the workflow state");
-
-  // What a file looked like when the mark existed: `backlog: true` beside the default state.
-  const legacy = (edit: (items: Record<string, any>) => void, extra: Record<string, unknown> = {}) => {
-    const items = Object.fromEntries(doc.items.map((i: any) => [i.id, { ...i, state: { ...untouched }, backlog: false }]));
-    edit(items);
-    return rebuild({ ...doc, ...extra, items: Object.values(items) });
-  };
-  const imported = (file: unknown) => {
-    const b = makeTestApp();
-    t.after(b.cleanup);
-    const pb = makeOwner(b.app);
-    applyImport(b.app, pb, stageImport(b.app, pb, file).token);
-    return { b: b.app, pb, workflows: Object.fromEntries(b.app.db.all<{ title: string; workflow: string }>("SELECT i.title, st.workflow FROM items i JOIN item_state st ON st.item_id = i.id").map((r) => [r.title, r.workflow])) };
-  };
-
-  const file = legacy((items) => {
-    items[third].backlog = true;
-    items[kept].backlog = true; // kept: the old version cleared the mark when an item was kept
-    items[firstId].backlog = true;
-    items[firstId].state = { workflow: "toread", fresh: false, progress: 0, openedAt: null };
-    items[privateId].backlog = true;
-    items[privateId].state = { ...untouched, fresh: true };
-  });
-  const { b, pb, workflows } = imported(file);
-  assert.equal(workflows["Third post"], "ignored", "an untouched item that was back catalogue arrives the way it is stored now");
-  assert.equal(workflows["Second post"], "new", "one that was kept is an ordinary item");
-  assert.equal(workflows[by("Tidal flats").title], "toread", "one the person had acted on stays as they left it");
-  assert.equal(workflows["Private note"], "new", "and one marked New");
-  assert.equal(b.db.all("SELECT 1 FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0, "the database has no such mark");
-  assert.equal(imported(legacy(() => {})).workflows["Third post"], "new", "an item with no mark is as it was written");
-  assert.equal(imported(legacy((items) => { items[third].backlog = false; })).workflows["Third post"], "new", "so is one marked false");
-
-  // An annotation or a "started" state in the file also means the person had touched it.
-  const noted = legacy((items) => { items[third].backlog = true; }, {
-    annotations: [{ id: "ann_1", itemId: third, kind: "note", quote: null, position: null, target: null, body: "mine", createdAt: "2026-10-30T09:00:00.000Z", updatedAt: "2026-10-30T09:00:00.000Z" }],
-  });
-  assert.equal(imported(noted).workflows["Third post"], "new");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.progress = 0.4; })).workflows["Third post"], "new");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.openedAt = "2026-10-30T09:00:00.000Z"; })).workflows["Third post"], "new");
-
-  // It round-trips as an ordinary Ignored item: the next export has the state and no mark.
-  const { doc: again } = await exportDoc(b, pb);
-  assert.ok(again.items.every((i: any) => !("backlog" in i)));
-  assert.equal(again.items.find((i: any) => i.title === "Third post").state.workflow, "ignored");
-});
-
 test("highlights and notes round-trip: removed ones stay out, text references follow the new ids, and a second import adds none", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const at = "2026-10-30T09:00:00.000Z";
@@ -428,10 +310,10 @@ test("highlights and notes round-trip: removed ones stay out, text references fo
   const capB = b.db.get<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE status = 'done'")!;
   assert.deepEqual([hl.item_id, hl.target_kind, hl.target_id], [capB.item_id, "capture", capB.id], "the reference names the imported capture");
   assert.deepEqual([hl.quote_exact, hl.quote_prefix, hl.body, hl.created_at], ["readable text", "Captured ", "My comment on the capture", at]);
-  assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "bioturbation" }).total, 1, "imported notes are searchable");
+  assert.equal(listItems(b, pb, { scope: "all", filter: "all_with_ignored", q: "bioturbation" }).total, 1, "imported notes are searchable");
 
   // Times from the future in a file are capped at the import, so an imported annotation can't win every later edit.
-  const { b: f, pb: pf, cleanup: cleanupF } = twoWorkspaces();
+  const { b: f, pb: pf, cleanup: cleanupF } = twoAccounts();
   t.after(cleanupF);
   const future = rebuild({ ...doc, annotations: doc.annotations.map((x: Record<string, unknown>) => ({ ...x, createdAt: "2099-01-01T00:00:00.000Z", updatedAt: "2099-01-02T00:00:00.000Z" })) });
   const importedAt = new Date().toISOString();
@@ -446,19 +328,19 @@ test("highlights and notes round-trip: removed ones stay out, text references fo
   assert.equal(count(b, "annotations"), 2);
 
   // An older file without the section still imports; an annotation on an item the file doesn't hold is skipped.
-  const { b: c, pb: pc, cleanup: cleanupC } = twoWorkspaces();
+  const { b: c, pb: pc, cleanup: cleanupC } = twoAccounts();
   t.after(cleanupC);
   const old = rebuild({ ...doc, annotations: undefined });
   delete old.annotations;
   assert.equal(applyImport(c, pc, stageImport(c, pc, old).token).created.annotations, 0);
   const stray = rebuild({ ...doc, annotations: [{ ...doc.annotations[0], itemId: "itm_not_in_file" }] });
-  const { b: d, pb: pd, cleanup: cleanupD } = twoWorkspaces();
+  const { b: d, pb: pd, cleanup: cleanupD } = twoAccounts();
   t.after(cleanupD);
   assert.equal(applyImport(d, pd, stageImport(d, pd, stray).token).created.annotations, 0);
 });
 
 test("import into an occupied PURSS reconciles by source and link, merges baskets, and keeps existing state", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const { doc } = await exportDoc(a, pa);
@@ -501,7 +383,7 @@ test("import into an occupied PURSS reconciles by source and link, merges basket
 });
 
 test("an import that does not fit writes nothing and stays staged until there is room", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces(400);
+  const { a, b, pa, pb, cleanup } = twoAccounts(400);
   t.after(cleanup);
   seedLibrary(a, pa);
   const { doc } = await exportDoc(a, pa);
@@ -514,23 +396,23 @@ test("an import that does not fit writes nothing and stays staged until there is
   assert.deepEqual(snapshot(), before, "not a single row was written");
   assert.equal(b.db.get("SELECT paused_reason FROM storage_accounts")!.paused_reason, null, "the service leaves pause marking to the request boundary, like every other rejected growth");
   assert.equal(count(b, "import_stages"), 1, "still staged");
-  b.db.run("UPDATE storage_accounts SET allocation_bytes = NULL");
+  b.db.run("UPDATE storage_accounts SET allowance_bytes = NULL");
   assert.equal(applyImport(b, pb, preview.token).created.items, 4);
 });
 
 test("space is checked again when the import is applied, not only at preview time", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const preview = stageImport(b, pb, (await exportDoc(a, pa)).doc);
   assert.equal(preview.fits, true);
-  b.db.run("UPDATE storage_accounts SET allocation_bytes = 100"); // the quota shrank in between
+  b.db.run("UPDATE storage_accounts SET allowance_bytes = 100"); // the storage allowance shrank in between
   assert.throws(() => applyImport(b, pb, preview.token), (e: unknown) => e instanceof HttpError && e.status === 507);
   assert.equal(count(b, "items"), 0);
 });
 
 test("a hostile archive cannot smuggle scripts, credentials or private links into the PURSS", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const doc = (await exportDoc(a, pa)).doc;
@@ -561,7 +443,7 @@ test("a hostile archive cannot smuggle scripts, credentials or private links int
 });
 
 test("a private source restored as 'Reconnect required' resumes only when the owner supplies the link again", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   applyImport(b, pb, stageImport(b, pb, (await exportDoc(a, pa)).doc).token);
@@ -571,7 +453,7 @@ test("a private source restored as 'Reconnect required' resumes only when the ow
   assert.throws(() => reconnectSource(b, pb, priv, "no-such-token"), (e: unknown) => e instanceof HttpError && e.status === 400);
 
   const token = newId("dsc");
-  holdCandidate(token, pb.workspaceId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
+  holdCandidate(token, pb.accountId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   reconnectSource(b, pb, priv, token);
   const row = b.db.get<{ paused: number; health: string; feed_url: string | null }>("SELECT paused, health, feed_url FROM sources WHERE id = ?", priv)!;
   assert.deepEqual([row.paused, row.health, row.feed_url], [0, "pending", null], "the address stays outside the database");
@@ -582,7 +464,7 @@ test("a private source restored as 'Reconnect required' resumes only when the ow
 });
 
 test("a staged import belongs to its PURSS and expires", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const preview = stageImport(b, pb, (await exportDoc(a, pa)).doc);
@@ -597,7 +479,7 @@ test("a staged import belongs to its PURSS and expires", async (t) => {
 });
 
 test("imported items are searchable in their folded form, like collected ones", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   makeSource(a, pa, "حبر", "feed/arabic");
   applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/arabic", { title: "الكِتَابُ الجديد في عمّان", url: "https://example.org/kitab" })]));
@@ -608,7 +490,7 @@ test("imported items are searchable in their folded form, like collected ones", 
 });
 
 test("Remind me days round-trip with their notes; days gone by, items not kept and days already set are left alone", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
@@ -631,7 +513,7 @@ test("Remind me days round-trip with their notes; days gone by, items not kept a
   assert.equal(applyImport(b, pb, stageImport(b, pb, doc).token).created.reminders, 0, "the same file again adds none");
 
   // A day that has gone by, and a reminder on an item the file doesn't hold, are skipped.
-  const { b: c, pb: pc, cleanup: cleanupC } = twoWorkspaces();
+  const { b: c, pb: pc, cleanup: cleanupC } = twoAccounts();
   t.after(cleanupC);
   const odd = rebuild({ ...doc, itemReminders: [{ itemId: doc.itemReminders[0].itemId, remindOn: day(-3), note: "too late" }, { itemId: "itm_not_in_file", remindOn: day(4), note: null }] });
   assert.equal(applyImport(c, pc, stageImport(c, pc, odd).token).created.reminders, 0);

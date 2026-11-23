@@ -42,16 +42,16 @@ export function adminRouter(): Router<Ctx> {
     const admin = requireAdmin(ctx, { stepUp: true });
     const body = parse(z.object({
       note: z.string().trim().max(120).nullable().default(null),
-      allocationBytes: z.number().int().min(0).nullable().default(null),
+      allowanceBytes: z.number().int().min(0).nullable().default(null),
       days: z.number().int().min(1).max(60).default(14),
       // The address the account will have; the invitation is emailed there where email is set up.
       email: emailSchema,
     }), req.body);
-    return adminInvite(ctx.app, admin, body.email, body.note, body.allocationBytes, body.days);
+    return adminInvite(ctx.app, admin, body.email, body.note, body.allowanceBytes, body.days);
   });
   r.patch("/api/admin/accounts/:id", (req, ctx) => {
     const admin = requireAdmin(ctx, { stepUp: true });
-    const patch = parse(z.object({ allocationBytes: z.number().int().min(0).nullable().optional(), plan: z.enum(PLAN_NAMES).optional(), status: z.enum(["active", "suspended"]).optional(), isAdmin: z.boolean().optional() }), req.body);
+    const patch = parse(z.object({ allowanceBytes: z.number().int().min(0).nullable().optional(), plan: z.enum(PLAN_NAMES).optional(), status: z.enum(["active", "suspended"]).optional(), isAdmin: z.boolean().optional() }), req.body);
     return updateAccount(ctx.app, admin, req.params.id!, patch);
   });
   // Smart filters: the server's Jev key. Hosted, accounts on Pro use it; self-hosted, every account may.

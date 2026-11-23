@@ -5,7 +5,7 @@ import { notFound, nowIso } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import { FILTERED_OUT } from "./ai-filters.ts";
 import { VISIBLE_SOURCE, scopeClause } from "./items.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Private statistics for one source or one collection: plain counts and dates over the items the
@@ -31,16 +31,16 @@ type Sid = string | null;
 function emptyNumbers(): StatsNumbers {
   return {
     totalItems: 0, weekly: new Array<number>(STATS_WEEKS).fill(0), lastItemAt: null, longestGapDays: null,
-    workflow: { new: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
+    workflow: { undecided: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
     opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, filteredOut: 0,
   };
 }
 
 /** Where-clause and parameters for the items in scope, shared by every query below. */
 function scopeOf(app: App, p: Principal, scope: string): { where: string; params: SqlParam[] } {
-  const params: SqlParam[] = [p.workspaceId];
+  const params: SqlParam[] = [p.accountId];
   const clause = scopeClause(app, p, scope, params);
-  return { where: `i.workspace_id = ? AND ${clause} AND ${VISIBLE_SOURCE}`, params };
+  return { where: `i.account_id = ? AND ${clause} AND ${VISIBLE_SOURCE}`, params };
 }
 
 const isoDaysBefore = (now: string, days: number) => new Date(Date.parse(now) - days * DAY_MS).toISOString();
@@ -86,8 +86,8 @@ function numbersBySource(app: App, p: Principal, scope: string, now: string): Ma
   for (const r of app.db.all<{ sid: Sid; to_state: "finished" | "ignored"; n: number }>(
     `SELECT i.source_id AS sid, l.to_state AS to_state, COUNT(DISTINCT l.item_id) AS n
      FROM state_log l JOIN items i ON i.id = l.item_id JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE l.workspace_id = ? AND l.at >= ? AND l.to_state IN ('finished', 'ignored') AND ${where}
-     GROUP BY i.source_id, l.to_state`, p.workspaceId, isoDaysBefore(now, LOG_WINDOW_DAYS), ...params)) {
+     WHERE l.account_id = ? AND l.at >= ? AND l.to_state IN ('finished', 'ignored') AND ${where}
+     GROUP BY i.source_id, l.to_state`, p.accountId, isoDaysBefore(now, LOG_WINDOW_DAYS), ...params)) {
     const n = at(r.sid);
     if (r.to_state === "finished") n.finishedLast30Days = r.n; else n.ignoredLast30Days = r.n;
   }
@@ -122,18 +122,18 @@ function totalsOf(app: App, p: Principal, scope: string, now: string, rows: Stat
 }
 
 export function sourceStats(app: App, p: Principal, sourceId: string, now = nowIso()): SourceStatsResponse {
-  const source = app.db.get<{ title: string }>("SELECT title FROM sources WHERE id = ? AND workspace_id = ?", sourceId, p.workspaceId);
+  const source = app.db.get<{ title: string }>("SELECT title FROM sources WHERE id = ? AND account_id = ?", sourceId, p.accountId);
   if (!source) throw notFound(server.api.shared.thatSource);
   const stats = numbersBySource(app, p, `source:${sourceId}`, now).get(sourceId) ?? emptyNumbers();
   return { sourceId, title: source.title, asOf: now, stats };
 }
 
 export function collectionStats(app: App, p: Principal, collectionId: string, now = nowIso()): CollectionStatsResponse {
-  const c = app.db.get<{ name: string; mode: string }>("SELECT name, mode FROM collections WHERE id = ? AND workspace_id = ?", collectionId, p.workspaceId);
+  const c = app.db.get<{ name: string; mode: string }>("SELECT name, mode FROM collections WHERE id = ? AND account_id = ?", collectionId, p.accountId);
   if (!c) throw notFound(server.api.shared.thatCollection);
   const scope = `collection:${collectionId}`;
   const bySource = numbersBySource(app, p, scope, now);
-  const titles = new Map(app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE workspace_id = ?", p.workspaceId).map((s) => [s.id, s.title]));
+  const titles = new Map(app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ?", p.accountId).map((s) => [s.id, s.title]));
 
   // A source collection lists every member, including a source that has no items yet; a filter
   // collection lists the sources its matching items come from.
@@ -141,10 +141,10 @@ export function collectionStats(app: App, p: Principal, collectionId: string, no
     ? app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", collectionId).map((r) => r.source_id)
     : [...bySource.keys()];
   const sources: CollectionStatsRow[] = sids
-    .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.savedLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
+    .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.keptLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
     .sort((a, b) => a.title.localeCompare(b.title));
   return {
-    collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "query", asOf: now, sources,
+    collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "filter", asOf: now, sources,
     totals: totalsOf(app, p, scope, now, sources.map((s) => s.stats)),
   };
 }

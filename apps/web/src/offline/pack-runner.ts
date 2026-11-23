@@ -5,7 +5,7 @@ import { PAGE, bootstrapQuery, itemsRequest, notificationsQuery, remindersQuery,
 import type { ListParams } from "../api/queries.ts";
 import { comingUpQuery } from "../api/reminder-queries.ts";
 import { homeRequests } from "../pages/Home.tsx";
-import { orderHome } from "../state/workspace.tsx";
+import { orderHome } from "../state/purss.tsx";
 import { platform } from "../platform/index.ts";
 import { NO_COPY_HEADER, pictureCacheName } from "../sw/protocol.ts";
 import {
@@ -52,16 +52,16 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   await Promise.allSettled([qc.fetchQuery({ ...notificationsQuery, staleTime: 0 }), qc.fetchQuery({ ...remindersQuery, staleTime: 0 }), qc.fetchQuery({ ...comingUpQuery, staleTime: 0 })]);
 
   // The queue itself, looked up without keeping these answers: they aren't a page anyone opens.
-  const found: Record<"toread" | "inprogress" | "fresh", ItemDTO[]> = { toread: [], inprogress: [], fresh: [] };
+  const found: Record<"toread" | "inprogress" | "new", ItemDTO[]> = { toread: [], inprogress: [], new: [] };
   const lookup = (query: Record<string, string | number>) => api<ItemPage>("/api/items", { query: { sort: "newest", limit: PACK_LIMIT, ...query }, signal, headers: { [NO_COPY_HEADER]: "1" } });
-  await pool(["toread", "inprogress", "fresh"] as const, PACK_CONCURRENCY, signal, async (filter) => {
+  await pool(["toread", "inprogress", "new"] as const, PACK_CONCURRENCY, signal, async (filter) => {
     found[filter] = (await lookup({ scope: "all", filter })).items;
   });
   // Kept items worth reading offline: from baskets that keep the readable text, most recently kept first.
   const textBaskets = [...boot.baskets].filter((b) => b.captureMode === "text" && b.itemCount > 0).sort((a, b) => a.position - b.position).slice(0, KEPT_BASKETS_MAX);
   const keptBy = new Map<string, ItemDTO[]>();
   await pool(textBaskets, PACK_CONCURRENCY, signal, async (b) => {
-    try { keptBy.set(b.id, (await lookup({ scope: `basket:${b.id}`, filter: "all", sort: "kept", limit: PACK_KEPT_LIMIT })).items); } catch (err) { if (lostConnection(err)) throw err; }
+    try { keptBy.set(b.id, (await lookup({ scope: `basket:${b.id}`, filter: "all_with_ignored", sort: "kept", limit: PACK_KEPT_LIMIT })).items); } catch (err) { if (lostConnection(err)) throw err; }
   });
   const kept = textBaskets.flatMap((b) => keptBy.get(b.id) ?? []);
   const queue = selectQueue({ ...found, kept });
@@ -70,7 +70,7 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   if (!opts.light) {
     const collections = [...boot.collections].sort((a, b) => a.position - b.position);
     const shown = orderHome(collections, boot.preferences.homeCollectionIds);
-    const place = (scope: string): { params: ListParams; limit: number } => ({ params: { scope, filter: "active", sort: "newest" }, limit: PAGE });
+    const place = (scope: string): { params: ListParams; limit: number } => ({ params: { scope, filter: "all", sort: "newest" }, limit: PAGE });
     const pages = [
       ...homeRequests(boot.preferences.homeLayout, shown),
       ...collections.slice(0, PLACES_MAX).map((c) => place(`collection:${c.id}`)),

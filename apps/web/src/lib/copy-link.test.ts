@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ItemDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { copyLinkEntries } from "./copy-link.ts";
 
 const t = app.lib.copyLink;
 
 function run(url: string | null, media: ItemDTO["media"] = null, linkIsMedia?: boolean) {
   const copied: [string, string][] = [];
-  const entries = copyLinkEntries({ url, media, ...(linkIsMedia === undefined ? {} : { linkIsMedia }) }, { workspaceLink: "https://work.example/app/?item=itm_1", copy: (text, message) => copied.push([text, message]) });
+  const entries = copyLinkEntries({ url, media, ...(linkIsMedia === undefined ? {} : { linkIsMedia }) }, { purssLink: "https://work.example/app/?item=itm_1", copy: (text, message) => copied.push([text, message]) });
   for (const e of entries) if (e.type === undefined || e.type === "item") e.onSelect();
   return { labels: entries.map((e) => ("label" in e ? e.label : "")), copied };
 }

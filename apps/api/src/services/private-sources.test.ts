@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { newId } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
@@ -23,7 +23,7 @@ const base = { collectionId: null, newCollectionName: null, fullText: false };
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: null, title: "Private feed", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: "This link has a secret in it.", ...over } as never);
+  holdCandidate(token, p.accountId, { feedUrl, siteUrl: null, title: "Private feed", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: "This link has a secret in it.", ...over } as never);
   return token;
 }
 const draft = (feedUrl: string) => ({ feedUrl, siteUrl: null, title: "Private feed", kind: "feed" as const, origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address" as const, summariesOnly: false, privateWarning: "This link has a secret in it." });
@@ -103,8 +103,8 @@ test("changing a link's privacy keeps waiting subscriptions working and stops wh
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
   const pending = app.db.all<{ id: string }>("SELECT c.id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.status = 'pending'", src);
   assert.equal(pending.length, 2);
-  app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'arrivals', 'New from Sediment Letters', 'A title', ?, 'k', NULL, ?)",
-    newId("ntf"), p.workspaceId, src, new Date().toISOString());
+  app.db.run("INSERT INTO notifications (id, account_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'arrivals', 'New from Sediment Letters', 'A title', ?, 'k', NULL, ?)",
+    newId("ntf"), p.accountId, src, new Date().toISOString());
   await setSourcePrivacy(app, p, src, true);
   assert.deepEqual(app.db.all<{ status: string }>("SELECT c.status FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ?", src).map((r) => r.status), ["failed", "failed"]);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'capture.fulltext' AND status = 'queued'")!.n, 0);
@@ -227,7 +227,7 @@ test("keys made by an older scheme are made again from the link files the first 
   const p = makeOwner(app);
   const id = makeSource(app, p, "Old", "feed/1", { isPrivate: true });
   writeSecret(app.config.secretsDir, `source-urls/${id}`, SECRET);
-  app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", "aa".repeat(32), id); // as the first scheme made them: no workspace in it
+  app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", "aa".repeat(32), id); // as the first scheme made them: no account in it
   assert.equal(presentCandidates(app, p, [draft(SECRET)])[0]!.alreadyFollowingSourceId, id);
   assert.notEqual(app.db.get<{ feed_key: string }>("SELECT feed_key FROM sources WHERE id = ?", id)!.feed_key, "aa".repeat(32));
   assert.equal(warn.mock.callCount(), 0);

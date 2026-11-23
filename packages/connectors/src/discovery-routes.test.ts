@@ -4,8 +4,8 @@ import { test } from "node:test";
 import { DISCOVERY_ROUTES, isDiscoveryRoute } from "@purss/domain";
 import type { DiscoveryRoute } from "@purss/domain";
 import { BRIDGE_SERVICES } from "./bridges.ts";
-import { discover } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeResponse } from "./testing.ts";
 import { addressVariants, wikidataEntitiesUrl, wikidataSearchUrl } from "./wikidata.ts";
@@ -54,20 +54,20 @@ function site(pageUrl: string, html: string, feeds: string[] = []) {
   return stub({ [pageUrl]: page(pageUrl, html), ...Object.fromEntries(feeds.map((u) => [u, feedRes(u)])) });
 }
 
-const known = (url: string) => () => discover(url, { fetch: everywhereAFeed, now: NOW });
+const known = (url: string) => () => lookupLink(url, { fetch: everywhereAFeed, now: NOW });
 const bridged = (service: string) => () => {
   const s = BRIDGE_SERVICES.find((x) => x.id === service)!;
-  return discover(`bridge:${service}/${s.example}`, { bridge: router, now: NOW });
+  return lookupLink(`bridge:${service}/${s.example}`, { bridge: router, now: NOW });
 };
 
 /** The routes a case may leave out: those a table of cases elsewhere covers (this installation's own news is the API's, and is checked there). */
 type Produced = Exclude<DiscoveryRoute, "installation-news">;
 
 const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
-  "feed-address": () => discover("https://example.org/feed.xml", { fetch: stub({ "https://example.org/feed.xml": feedRes("https://example.org/feed.xml") }).fetch, now: NOW }),
-  "alternate-link": () => discover("https://example.org/", { fetch: site("https://example.org/", `<html><head><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head></html>`, ["https://example.org/feed.xml"]).fetch, now: NOW }),
-  "page-anchor": () => discover("https://example.org/", { fetch: site("https://example.org/", `<html><body><a href="/posts/rss.xml">RSS</a></body></html>`, ["https://example.org/posts/rss.xml"]).fetch, now: NOW }),
-  "copy-address": () => discover("https://example.org/", { fetch: site("https://example.org/", `<html><body><input readonly value="https://example.org/feeds/all.xml"></body></html>`, ["https://example.org/feeds/all.xml"]).fetch, now: NOW }),
+  "feed-address": () => lookupLink("https://example.org/feed.xml", { fetch: stub({ "https://example.org/feed.xml": feedRes("https://example.org/feed.xml") }).fetch, now: NOW }),
+  "alternate-link": () => lookupLink("https://example.org/", { fetch: site("https://example.org/", `<html><head><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head></html>`, ["https://example.org/feed.xml"]).fetch, now: NOW }),
+  "page-anchor": () => lookupLink("https://example.org/", { fetch: site("https://example.org/", `<html><body><a href="/posts/rss.xml">RSS</a></body></html>`, ["https://example.org/posts/rss.xml"]).fetch, now: NOW }),
+  "copy-address": () => lookupLink("https://example.org/", { fetch: site("https://example.org/", `<html><body><input readonly value="https://example.org/feeds/all.xml"></body></html>`, ["https://example.org/feeds/all.xml"]).fetch, now: NOW }),
   "listed-feed": () => {
     const home = "https://example.org/";
     const { fetch } = stub({
@@ -75,12 +75,12 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
       "https://example.org/rss-feeds": page("https://example.org/rss-feeds", `<html><body><a href="/rss/news.xml">News</a></body></html>`),
       "https://example.org/rss/news.xml": feedRes("https://example.org/rss/news.xml"),
     });
-    return discover(home, { fetch, now: NOW });
+    return lookupLink(home, { fetch, now: NOW });
   },
-  "section-path": () => discover("https://example.org/category/gardening/", { fetch: site("https://example.org/category/gardening/", `<html><body>Gardening</body></html>`, ["https://example.org/category/gardening/feed"]).fetch, now: NOW }),
-  "conventional-path": () => discover("https://example.org/", { fetch: site("https://example.org/", `<html><body>Hi</body></html>`, ["https://example.org/feed"]).fetch, now: NOW }),
-  "more-paths": () => discover("https://example.org/", { fetch: site("https://example.org/", `<html><body>Hi</body></html>`, ["https://example.org/rss.php"]).fetch, now: NOW }),
-  "discourse-latest": () => discover("https://forum.example/", { fetch: site("https://forum.example/", `<html><head><meta name="generator" content="Discourse 3.3.0"></head></html>`, ["https://forum.example/latest.rss"]).fetch, now: NOW }),
+  "section-path": () => lookupLink("https://example.org/category/gardening/", { fetch: site("https://example.org/category/gardening/", `<html><body>Gardening</body></html>`, ["https://example.org/category/gardening/feed"]).fetch, now: NOW }),
+  "conventional-path": () => lookupLink("https://example.org/", { fetch: site("https://example.org/", `<html><body>Hi</body></html>`, ["https://example.org/feed"]).fetch, now: NOW }),
+  "more-paths": () => lookupLink("https://example.org/", { fetch: site("https://example.org/", `<html><body>Hi</body></html>`, ["https://example.org/rss.php"]).fetch, now: NOW }),
+  "discourse-latest": () => lookupLink("https://forum.example/", { fetch: site("https://forum.example/", `<html><head><meta name="generator" content="Discourse 3.3.0"></head></html>`, ["https://forum.example/latest.rss"]).fetch, now: NOW }),
   "known:github": known("https://github.com/nodejs/node"),
   "known:apple-podcasts": known("https://podcasts.apple.com/us/podcast/some-show/id1234567890"),
   "known:guardian": known("https://www.theguardian.com/football/series/footballweekly"),
@@ -102,20 +102,20 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
   "known:bbc": known("https://www.bbc.com/news/technology"),
   "known:presscorner": known("https://ec.europa.eu/commission/presscorner/home/en"),
   "known:rijksoverheid": known("https://www.rijksoverheid.nl/actueel/nieuws"),
-  "journal-platform": () => discover("https://muse.jhu.edu/journal/10", { fetch: everywhereAFeed, now: NOW }),
+  "journal-platform": () => lookupLink("https://muse.jhu.edu/journal/10", { fetch: everywhereAFeed, now: NOW }),
   // The publisher's feed made from the ISSNs Crossref gave for a DOI; the same lookup offers Crossref's own list next to it.
   "journal-issn": () => doi(),
   "journal-ojs": () => {
     const pageUrl = "https://ojs.example/index.php/j/index";
     const articles = "https://ojs.example/index.php/j/gateway/plugin/WebFeedGatewayPlugin/atom";
-    return discover(pageUrl, { fetch: site(pageUrl, `<html><head><title>The Journal</title><link rel="alternate" type="application/atom+xml" href="${articles}"></head></html>`, [articles, "https://ojs.example/index.php/j/gateway/plugin/AnnouncementFeedGatewayPlugin/atom"]).fetch, now: NOW });
+    return lookupLink(pageUrl, { fetch: site(pageUrl, `<html><head><title>The Journal</title><link rel="alternate" type="application/atom+xml" href="${articles}"></head></html>`, [articles, "https://ojs.example/index.php/j/gateway/plugin/AnnouncementFeedGatewayPlugin/atom"]).fetch, now: NOW });
   },
   wikidata: () => {
     const url = "https://blog.example.org/";
     const feed = "https://blog.example.org/odd/stream-9.rss";
     const search = wikidataSearchUrl(addressVariants(new URL(url)))!;
     const claim = (value: string) => ({ rank: "normal", mainsnak: { datavalue: { value } } });
-    return discover(url, {
+    return lookupLink(url, {
       fetch: stub({
         [url]: page(url, `<html><body>Nothing here</body></html>`),
         [search]: json(search, { query: { search: [{ title: "Q1" }] } }),
@@ -126,10 +126,10 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
     });
   },
   crossref: () => doi(),
-  youtube: () => discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv", { fetch: everywhereAFeed, now: NOW }),
+  youtube: () => lookupLink("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv", { fetch: everywhereAFeed, now: NOW }),
   fediverse: () => {
     const wf = "https://mastodon.social/.well-known/webfinger?resource=acct%3AMastodon%40mastodon.social";
-    return discover("@Mastodon@mastodon.social", {
+    return lookupLink("@Mastodon@mastodon.social", {
       fetch: stub({
         [wf]: fakeResponse(wf, fixture("social/mastodon-webfinger.json"), "application/jrd+json"),
         "https://mastodon.social/@Mastodon": page("https://mastodon.social/@Mastodon", fixture("social/mastodon-profile.html")),
@@ -138,32 +138,32 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
       now: NOW,
     });
   },
-  bluesky: () => discover("@bsky.app", { fetch: stub({ "https://bsky.app/profile/bsky.app/rss": fakeResponse("https://bsky.app/profile/bsky.app/rss", fixture("social/bluesky.rss"), "application/xml") }).fetch, now: NOW }),
+  bluesky: () => lookupLink("@bsky.app", { fetch: stub({ "https://bsky.app/profile/bsky.app/rss": fakeResponse("https://bsky.app/profile/bsky.app/rss", fixture("social/bluesky.rss"), "application/xml") }).fetch, now: NOW }),
   ...(Object.fromEntries(BRIDGE_SERVICES.map((s) => [`bridge:${s.id}`, bridged(s.id)])) as Record<Extract<Produced, `bridge:${string}`>, () => Promise<DiscoveryDraft>>),
   "script-feed": () => {
     const page = "https://www.rotterdam.nl/nieuws";
-    return discover(page, { fetch: stub({ [page]: scriptsPage(page, "/_next/a.js"), "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `"/feed/rss/nieuws/"`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
+    return lookupLink(page, { fetch: stub({ [page]: scriptsPage(page, "/_next/a.js"), "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `"/feed/rss/nieuws/"`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
   },
   "script-page": () => {
     const page = "https://www.rijksoverheid.nl/actueel/nieuws";
     const sibling = "https://www.rijksoverheid.nl/actueel";
     const listed = fixture("page-lists/anthropic-news.html");
-    return discover(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<head>", `<head><script>window.__routes = { news: "/actueel/nieuws", overview: "/actueel", search: "/zoeken-nope" };</script>`)), [sibling]: page_(sibling, listed) }).fetch, now: NOW, bridge: router });
+    return lookupLink(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<head>", `<head><script>window.__routes = { news: "/actueel/nieuws", overview: "/actueel", search: "/zoeken-nope" };</script>`)), [sibling]: page_(sibling, listed) }).fetch, now: NOW, bridge: router });
   },
   "markup-feed": () => {
     const page = "https://www.rotterdam.nl/nieuws";
     const html = page_(page, `<html><head><title>News</title><script src="/_next/a.js"></script></head><body><div id="root" data-feed="/feed/rss/nieuws/"></div></body></html>`);
-    return discover(page, { fetch: stub({ [page]: html, "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `console.log(1)`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
+    return lookupLink(page, { fetch: stub({ [page]: html, "https://www.rotterdam.nl/_next/a.js": fakeResponse("x", `console.log(1)`, "application/javascript"), "https://www.rotterdam.nl/feed/rss/nieuws/": feedRes("https://www.rotterdam.nl/feed/rss/nieuws/") }).fetch, now: NOW });
   },
   "linked-page": () => {
     const page = "https://www.rijksoverheid.nl/actueel/nieuws";
     const sibling = "https://www.rijksoverheid.nl/actueel";
-    return discover(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<body>", `<body><nav><a href="/actueel">Actueel</a></nav>`)), [sibling]: page_(sibling, fixture("page-lists/anthropic-news.html")) }).fetch, now: NOW, bridge: router });
+    return lookupLink(page, { fetch: stub({ [page]: page_(page, fixture("page-lists/rijksoverheid-nieuws.html").replace("<body>", `<body><nav><a href="/actueel">Actueel</a></nav>`)), [sibling]: page_(sibling, fixture("page-lists/anthropic-news.html")) }).fetch, now: NOW, bridge: router });
   },
   "page-list": () => {
     const url = "https://www.anthropic.com/news";
     const html = fixture("page-lists/anthropic-news.html");
-    return discover(url, { fetch: site(url, html).fetch, now: NOW, bridge: router });
+    return lookupLink(url, { fetch: site(url, html).fetch, now: NOW, bridge: router });
   },
 };
 
@@ -171,7 +171,7 @@ const CASES: Record<Produced, () => Promise<DiscoveryDraft>> = {
 function doi(): Promise<DiscoveryDraft> {
   const work = "https://api.crossref.org/works/10.1111%2Faman.70137";
   const feedUrl = "https://onlinelibrary.wiley.com/feed/15481433/most-recent";
-  return discover("10.1111/aman.70137", {
+  return lookupLink("10.1111/aman.70137", {
     fetch: stub({
       [work]: json(work, { message: { publisher: "Wiley", "container-title": ["American Anthropologist"], "issn-type": [{ type: "print", value: "0002-7294" }, { type: "electronic", value: "1548-1433" }] } }),
       [feedUrl]: feedRes(feedUrl, "Wiley: American Anthropologist: Table of Contents"),
@@ -199,18 +199,18 @@ test("a route is one candidate's way and not the page's: the feeds found on one 
     "https://example.org/feed.xml": fakeResponse("https://example.org/feed.xml", rss("Posts", "https://example.org"), "application/rss+xml"),
     "https://example.org/podcast/rss.xml": fakeResponse("https://example.org/podcast/rss.xml", rss("Podcast", "https://example.org/pod"), "application/rss+xml"),
   });
-  const found = await discover(home, { fetch, now: NOW });
+  const found = await lookupLink(home, { fetch, now: NOW });
   assert.ok(found.ok);
   assert.deepEqual(Object.fromEntries(found.candidates.map((c) => [c.feedUrl, c.route])), { "https://example.org/feed.xml": "alternate-link" });
   // The page advertises its own feed, so the link in the body is not asked for. Without the advertisement, the link is what found it.
-  const bare = await discover(home, { fetch: stub({ [home]: page(home, `<html><body><a href="/podcast/rss.xml">Podcast RSS</a></body></html>`), "https://example.org/podcast/rss.xml": fakeResponse("https://example.org/podcast/rss.xml", rss("Podcast", "https://example.org/pod"), "application/rss+xml") }).fetch, now: NOW });
+  const bare = await lookupLink(home, { fetch: stub({ [home]: page(home, `<html><body><a href="/podcast/rss.xml">Podcast RSS</a></body></html>`), "https://example.org/podcast/rss.xml": fakeResponse("https://example.org/podcast/rss.xml", rss("Podcast", "https://example.org/pod"), "application/rss+xml") }).fetch, now: NOW });
   assert.ok(bare.ok);
   assert.deepEqual(bare.candidates.map((c) => c.route), ["page-anchor"]);
 });
 
-test("the bridged routes are the catalogue's services, and an address that is a descriptor is found by its service's route", async () => {
+test("the bridged routes are the bridge list's services, and an address that is a descriptor is found by its service's route", async () => {
   assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort());
-  const telegram = await discover("https://t.me/durov", { bridge: router, now: NOW });
+  const telegram = await lookupLink("https://t.me/durov", { bridge: router, now: NOW });
   assert.ok(telegram.ok);
   assert.deepEqual(telegram.candidates.map((c) => [c.feedUrl, c.route]), [["bridge:telegram/durov", "bridge:telegram"]]);
 });

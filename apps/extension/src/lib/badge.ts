@@ -35,8 +35,8 @@ export class KeptCache {
 }
 
 /** Whether a tab's page may be looked up for the automatic mark. */
-export function mayLookUp(tab: { url?: string; incognito: boolean }, workspaceOrigin: string | null): boolean {
-  return !tab.incognito && workspaceOrigin !== null && isWebPage(tab.url, workspaceOrigin);
+export function mayLookUp(tab: { url?: string; incognito: boolean }, purssOrigin: string | null): boolean {
+  return !tab.incognito && purssOrigin !== null && isWebPage(tab.url, purssOrigin);
 }
 
 /** Runs the last request per key after `delay` of quiet: a tab that keeps navigating is asked about once it settles. */

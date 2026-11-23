@@ -8,12 +8,12 @@
 // it, and the boxes below list only Undecided items, whether a row is open or closed; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
-// phone the open drawer's Settings and capacity sit at its bottom.
+// phone the open drawer's Settings and planUsage sit at its bottom.
 // Keyboard focus never falls to the page: a row that leaves its list (Ignore, `r`) hands it to a row that stays or to the list's heading,
 // with and without reduced motion; choosing a show in Add source, downloading an export and the open phone drawer move or keep it too (the
 // drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
 // A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
-// has its back catalogue Ignored: off Home, and its own page says so ("Ignored items are hidden") and shows it on request, and search finds it.
+// has its backlog Ignored: off Home, and its own page says so ("Ignored items are hidden") and shows it on request, and search finds it.
 // The queue is what was put aside and what was started: an article In progress is in Home's To read row, first and marked In progress, and on the
 // "To read, watch and listen" page, whose In progress filter shows it; a Home row marked To read keeps focus on a row that stays, and Play here moves
 // focus to the player; the account button, Sign out and the bell never sit on Customise, the page's tools or a row's buttons (desktop with a long
@@ -27,7 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import type { Browser, Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
+import { app as copy } from "@purss/translations/app";
 import type { Principal } from "../../apps/api/src/app.ts";
 import { claim, ensureClaimCode } from "../../apps/api/src/auth/accounts.ts";
 import { loadConfig } from "../../apps/api/src/config.ts";
@@ -56,7 +56,7 @@ const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow, filters, toReadTitle } = copy.lib.constants;
 const { toRead, toWatch, toListen } = copy.words;
 const listing = copy.pages.listing;
@@ -66,9 +66,9 @@ const headerAccount = copy.auth.headerAccount;
 const pageNav = copy.components.pageNav;
 const palette = copy.dialogs.palette;
 const addSourceCopy = copy.dialogs.addSource;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+/** A catalogue message with values in it as a regular expression source, each value given as a pattern of its own. */
 const source = (message: (...values: string[]) => string, ...values: string[]) => {
   const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
@@ -113,10 +113,9 @@ function prepare(): Seed {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: ws, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
     const para = (n: number) => `<p>${Array.from({ length: 60 }, (_, i) => `word${(n * 7 + i) % 97}`).join(" ")}.</p>`;
     const paras = (count: number) => Array.from({ length: count }, (_, i) => para(i)).join("\n");
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
@@ -138,7 +137,7 @@ function prepare(): Seed {
     // A source to triage on without changing what Home says: its posts are not New, and its collection is not on Home.
     const focus = makeSource(app, p, "Focus Notes", "feed/6");
     applySyncBatch(app, eu, batch(["Focus note 1", "Focus note 2", "Focus note 3"].map((title, i) => entry("feed/6", { title, summaryHtml: `<p>${title}.</p>`, publishedAt: at(60 + i), crawledAt: at(59 + i) }))));
-    app.db.run("UPDATE item_state SET fresh = 0 WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", focus);
+    app.db.run("UPDATE item_state SET is_new = 0 WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", focus);
     const focusBox = createCollection(app, p, { name: "Focus", emoji: null, mode: "sources", view: "list", sourceIds: [focus], query: null } as Parameters<typeof createCollection>[2]);
     app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", focusBox.id);
     // A channel with one video whose page YouTube can play in the reader (Play here).
@@ -262,7 +261,7 @@ async function checkCornerRoom(browser: Browser, seed: Seed): Promise<void> {
     await page.locator(".mod").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: Home's heading and Customise clear of the corner`);
     // A list page: its tools.
-    await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: a list's tools and rows clear of the corner`);
     if (c.viewport.width >= 1200) {
@@ -304,10 +303,10 @@ async function main(): Promise<void> {
     await page.locator("main .irow").first().waitFor();
     // A collection with new items opens on them; opened items stop being new, so read from everything.
     const show = page.locator("main").getByRole("button", { name: /^Filter: / }).first();
-    assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.fresh}`, "a collection with new items opens on New");
+    assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.new}`, "a collection with new items opens on New");
     await show.click();
-    await page.getByRole("menuitemradio", { name: filters.active, exact: true }).click();
-    await page.waitForURL(/filter=active/);
+    await page.getByRole("menuitemradio", { name: filters.all, exact: true }).click();
+    await page.waitForURL(/filter=all/);
 
     const long = seed.ids["Long essay"]!;
     await openItem(page, "Long essay");
@@ -423,7 +422,7 @@ async function main(): Promise<void> {
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
     await page.getByRole("button", { name: /^Filter: / }).click();
     assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.words.showIgnoredItems }).count(), 0, "the queue never holds ignored items, so it does not offer them");
-    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.fresh, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.all, filters.new, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
     await page.getByRole("menuitemradio", { name: copy.words.inProgress, exact: true }).click();
     await page.waitForURL(/filter=inprogress/);
     await sleep(600);
@@ -437,10 +436,10 @@ async function main(): Promise<void> {
     await page.getByRole("heading", { name: copy.words.home }).waitFor();
     step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
-    // A source followed from now: its back catalogue is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
+    // A source followed from now: its backlog is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
     const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
     const onHome = await homeTitles(page, "main .irow .title");
-    for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (back catalogue of a source followed from now) is not on Home`);
+    for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (backlog of a source followed from now) is not on Home`);
     assert.match(await page.locator(".home-sum").innerText(), new RegExp(`${esc(copy.pages.welcomeBack.newIn.trim())}|${source(copy.lib.returning.sinceWithCount, ".*", ".*", ".*")}`), "Home still says what is New");
     await page.goto(`${origin}/app/s/${seed.almanac}`);
     await page.getByRole("heading", { name: listing.noNewItems }).waitFor();
@@ -450,13 +449,13 @@ async function main(): Promise<void> {
     await page.getByRole("button", { name: listing.showIgnored }).click();
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "Show ignored has all of it");
-    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
+    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all_with_ignored&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
     assert.deepEqual(found, almanac, "and a search finds it");
     const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
     assert.equal(held, 3, "the source counts what it holds");
     await page.goto(`${origin}/app/`);
     await page.getByRole("heading", { name: copy.words.home }).waitFor();
-    step("a source followed from now has its back catalogue Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
+    step("a source followed from now has its backlog Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
 
     // ---------- muted words, filters ----------
     await page.getByRole("button", { name: SETTINGS }).first().click();
@@ -466,7 +465,7 @@ async function main(): Promise<void> {
     await page.getByRole("button", { name: copy.dialogs.mutedWords.mute, exact: true }).click();
     await page.locator('ul[aria-label="Muted words"] li').waitFor();
     await page.keyboard.press("Escape");
-    await page.goto(`${origin}/app/c/${seed.radio}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.radio}?filter=all`);
     await page.locator(".muted-notice").waitFor();
     assert.match(await page.locator(".muted-notice").innerText(), new RegExp(esc(copy.lib.mutedWords.hidden(3, "3", false))));
     assert.equal(await page.locator("main .irow").count(), 0, "the items stay out of the list");
@@ -475,7 +474,7 @@ async function main(): Promise<void> {
     assert.equal(await page.locator("main .irow").count(), 3, "and come back when asked");
     step("a muted word saved in Settings leaves matching items out of a list, with a count and a way to show them");
 
-    await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await page.locator("main .irow").first().waitFor();
     await page.getByRole("button", { name: `Sources: ${copy.shell.sourceFilter.all}` }).click();
     await page.getByRole("menuitemcheckbox", { name: /Busy Wire/ }).click();
@@ -506,7 +505,7 @@ async function main(): Promise<void> {
     await reader.getByRole("dialog").waitFor();
     await reader.locator("label.chk", { hasText: copy.words.eInkDisplay }).click();
     await reader.keyboard.press("Escape");
-    await reader.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await reader.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await reader.locator("main .irow").first().waitFor();
     await openItem(reader, "Medium note");
     const medium2 = seed.ids["Medium note"]!;
@@ -528,7 +527,7 @@ async function main(): Promise<void> {
     const desk = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const deskPage = await desk.newPage();
     await signIn(deskPage);
-    await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     const deskIgnore = deskPage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / });
     await deskIgnore.hover();
     await deskPage.locator(".tip", { hasText: copy.words.ignore }).waitFor();
@@ -543,13 +542,13 @@ async function main(): Promise<void> {
     const phonePage = await phone.newPage();
     await signIn(phonePage);
     await checkAccountMenu(phonePage);
-    await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
     await phonePage.getByText(copy.words.ignored, { exact: true }).waitFor();
     await sleep(500);
     assert.equal(await phonePage.locator(".tip").count(), 0, "a tap shows no tip next to the button: the undo toast says what happened");
     step("hover and keyboard focus name a row action in a tip; a tap on a phone leaves only the undo toast");
-    // The open drawer covers the tab bar, so its foot (capacity and Settings) sits at the drawer's bottom with no gap kept for the bar.
+    // The open drawer covers the tab bar, so its foot (planUsage and Settings) sits at the drawer's bottom with no gap kept for the bar.
     await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.words.collections }).tap();
     await phonePage.locator(".side-foot .set").waitFor({ state: "visible" });
     await sleep(300);
@@ -558,7 +557,7 @@ async function main(): Promise<void> {
       return { gap: side.bottom - set.bottom };
     });
     assert.ok(foot.gap <= 20, `Settings sits at the bottom of the phone drawer (gap ${foot.gap}px)`);
-    step("on a phone the drawer's Settings and capacity sit at its bottom");
+    step("on a phone the drawer's Settings and planUsage sit at its bottom");
     // The phone drawer starts with Add source: the app's name and who is signed in sit in Home's top bar instead.
     assert.equal(await phonePage.locator("#side .brand").count(), 0, "the phone drawer has no logo row");
     assert.equal(await phonePage.locator("#side").getByText("Reader", { exact: true }).count(), 0, "the phone drawer does not repeat the account name");
@@ -607,7 +606,7 @@ async function main(): Promise<void> {
     await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 0);
     assert.equal((await activeRow()).tag, "H1", "the list emptied: focus is on its heading, not the page");
     step("with reduced motion, Ignore on a row keeps focus on a row that stays, or on the list's heading when none is left");
-    await stillPage.goto(`${origin}/app/c/${seed.reading}?filter=fresh`);
+    await stillPage.goto(`${origin}/app/c/${seed.reading}?filter=new`);
     await stillPage.locator("main .irow").first().waitFor();
     const fresh = await stillPage.locator("main .irow").count();
     const first = stillPage.locator("main .irow").first();
@@ -682,12 +681,12 @@ async function main(): Promise<void> {
     await findPage.getByText(new RegExp(`^${savedExport.source}`)).waitFor();
     assert.notEqual(await findPage.evaluate(() => document.activeElement === document.body), true, "after the export is saved focus is not on the page");
     assert.match(await findPage.evaluate(() => document.activeElement?.textContent ?? ""), savedExport, "it is on what was saved, which is read out");
-    await findPage.route("**/api/discover/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
-    await findPage.route("**/api/discover/sites", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Press", description: "Harbour newspaper", address: "https://quietharbour.example.test/", site: "quietharbour.example.test", from: "wikidata" }] } }));
-    await findPage.route("**/api/discover", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
+    await findPage.route("**/api/source-search/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
+    await findPage.route("**/api/source-search/sites", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Press", description: "Harbour newspaper", address: "https://quietharbour.example.test/", site: "quietharbour.example.test", from: "wikidata" }] } }));
+    await findPage.route("**/api/link-lookup", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
     // What the dialog says about how the person got to a lookup (the administrator's count of discovery routes by entry).
     const lookups: unknown[] = [];
-    findPage.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/discover") lookups.push(req.postDataJSON()); });
+    findPage.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/link-lookup") lookups.push(req.postDataJSON()); });
     await findPage.goto(`${origin}/app/`);
     await findPage.getByRole("button", { name: ADD_SOURCE }).first().click();
     await findPage.getByLabel(addSourceCopy.linkOrName).fill("quiet harbour");
@@ -699,12 +698,12 @@ async function main(): Promise<void> {
     assert.equal(await findPage.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "choosing a show puts focus on the feed that was found");
     step("after the export is saved and after a show is chosen in Add source (a name finds websites and shows), focus is on what the step shows");
     await findPage.keyboard.press("Escape");
-    await findPage.unroute("**/api/discover");
-    await findPage.unroute("**/api/discover/podcasts");
-    await findPage.unroute("**/api/discover/sites");
+    await findPage.unroute("**/api/link-lookup");
+    await findPage.unroute("**/api/source-search/podcasts");
+    await findPage.unroute("**/api/source-search/sites");
 
     // ---------- a basket made from an item's Keep menu: focus goes back to Keep, not to the page ----------
-    await findPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await findPage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await row(findPage, "Second essay").click();
     await findPage.locator("#panel-in .p-title", { hasText: "Second essay" }).waitFor();
     const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: new RegExp(`^${esc(copy.words.keep)}`) }).first();

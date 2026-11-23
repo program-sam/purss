@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
-import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
+import { OPERATOR_EMAIL, makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
 import { call, signIn } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
@@ -15,7 +15,7 @@ import type { OidcCaller, OidcPurpose } from "./oidc.ts";
 import { addSeconds, consumeRateLimit, HttpError, nowIso } from "../http.ts";
 import { createDeviceToken, DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
 import { sha256 } from "../secrets.ts";
-import { escapeRegExp, inHtml } from "../copy-testing.ts";
+import { escapeRegExp, inHtml } from "../translations-testing.ts";
 import type { App } from "../app.ts";
 
 /*
@@ -24,7 +24,7 @@ import type { App } from "../app.ts";
  */
 
 const { publicRoute } = server.api;
-/** The link back to the app on the page that hands over the code: the catalog's markup around any purss://connect address. */
+/** The link back to the app on the page that hands over the code: the catalogue's markup around any purss://connect address. */
 const GO_BACK_LINK = new RegExp(escapeRegExp(publicRoute.goBackLink("\u0000")).replace("\u0000", String.raw`purss://connect\?[^"]+`));
 
 const HOSTED = { PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_TRUST_PROXY: "1", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" };
@@ -66,7 +66,7 @@ const sessionIdOf = (s: TestSession) => sha256(decodeURIComponent(/purss_session
 async function hosted(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}, issuerSuffix = "") {
   const iss = await issuer(t);
   const made = makeTestApp({ ...HOSTED, PURSS_OIDC: provider(iss.url + issuerSuffix, providerExtra), ...env });
-  makeOperator(made.app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
+  makeAdministrator(made.app); // claimed by its administrator first: nobody signs up before (mail/mailer.ts signupOpen)
   useTransport(made.app, { send: async () => {}, verify: async () => {} });
   await checkMail(made.app);
   t.after(async () => { await settleMail(made.app); made.cleanup(); });
@@ -171,7 +171,7 @@ test("sign-up through a provider creates one account: confirmed email, name from
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM mail_queue")!.n, 0, "and no mail sent");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM signup_creations WHERE account_id = ?", account.id)!.n, 1, "counted like any sign-up");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'signup' AND outcome = 'success' AND actor_account_id = ?", account.id)!.n, 1);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM engine_users WHERE account_id = ?", account.id)!.n, 1, "its own workspace and engine user");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM engine_users WHERE account_id = ?", account.id)!.n, 1, "its own account and engine user");
   assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", account.id), undefined, "an ordinary account, never an administrator");
 
   // Signing in again with the same identity signs in the same account.
@@ -483,7 +483,7 @@ test("an app's confirmation is refused at redemption when the account has since 
 async function boot(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}) {
   const iss = await issuer(t);
   const b = await bootDeletion({ ...HOSTED, PURSS_OIDC: provider(iss.url, providerExtra), ...env });
-  makeOperator(b.app);
+  makeAdministrator(b.app);
   useTransport(b.app, { send: async () => {}, verify: async () => {} });
   await checkMail(b.app);
   t.after(async () => { await b.close(); });

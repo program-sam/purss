@@ -21,7 +21,7 @@ export function keepChanges(items: readonly ItemDTO[], ids: readonly string[], b
   return out;
 }
 
-const itemsOf = (c: Change): string[] => (c.kind === "clearFresh" ? c.itemIds : [c.itemId]);
+const itemsOf = (c: Change): string[] => (c.kind === "clearNew" ? c.itemIds : [c.itemId]);
 
 /** How a group of changes ended: what to tell the person, and what Undo has to reach. */
 export type BatchSummary = {

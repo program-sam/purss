@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Outbox } from "./outbox.ts";
 import type { Deps, Outcome, Sender } from "./outbox.ts";
 import { scopeOf } from "./entries.ts";
@@ -16,13 +16,13 @@ const conflict: Fail = { status: 409, code: "conflict", message: "This item chan
 function dto(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = [], workflowRevision = 0, playbackWorkflowSessionId: string | null = null): ItemDTO {
   return {
     id, number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, isNew: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }
 
 /** A PURSS in a box: items with a workflow and a revision, a log of requests, and failures to inject. */
 class Fake {
-  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; fresh: boolean; workflowRevision: number; session: string | null }>();
+  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; isNew: boolean; workflowRevision: number; session: string | null }>();
   /** Requests to hold back: `keep <item>` waits for the promise before it is answered (it has been received, and counts in the log). */
   holds = new Map<string, Promise<void>>();
   log: string[] = [];
@@ -31,7 +31,7 @@ class Fake {
   down = false;
   /** Runs when an item is read, before the request is answered: a test holds the read open here, or makes it fail. */
   beforeRead?: (id: string) => Promise<void>;
-  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), fresh: true, workflowRevision: 0, session: null }); }
+  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), isNew: true, workflowRevision: 0, session: null }); }
   private gate(call: string): void {
     this.log.push(call);
     if (this.down) throw offline;
@@ -51,7 +51,7 @@ class Fake {
       if (playback) {
         // PURSS's rule for the player's own changes (changeState): only if nothing moved the workflow since playback started or since the session's last step.
         const chain = it.workflowRevision === playback.expectedWorkflowRevision && (it.workflowRevision === playback.startedWorkflowRevision || it.session === playback.sessionId);
-        const forward = workflow === "inprogress" ? it.workflow === "new" || it.workflow === "toread" : it.workflow === "new" || it.workflow === "toread" || it.workflow === "inprogress";
+        const forward = workflow === "inprogress" ? it.workflow === "undecided" || it.workflow === "toread" : it.workflow === "undecided" || it.workflow === "toread" || it.workflow === "inprogress";
         if (!chain || !forward) throw conflict;
       } else if (it.revision !== expectedRevision) throw conflict;
       hidden();
@@ -65,10 +65,10 @@ class Fake {
       if (on) it.baskets.add(basketId); else it.baskets.delete(basketId);
       return { item: dto(id, it.workflow, it.revision, [...it.baskets]), undoToken: `und_keep_${id}`, captureNote: null };
     },
-    clearFresh: async (ids) => {
+    clearNew: async (ids) => {
       // Like PURSS: only items that are New change, and the New marker is separate from the revision, which stays put.
-      const apply = () => { let changed = 0; for (const id of ids) { const it = this.items.get(id); if (it?.fresh) { it.fresh = false; changed++; } } return changed; };
-      try { this.gate(`clearFresh ${ids.join(",")}`); } catch (err) { if (this.applyHidden) { this.applyHidden = false; apply(); } throw err; }
+      const apply = () => { let changed = 0; for (const id of ids) { const it = this.items.get(id); if (it?.isNew) { it.isNew = false; changed++; } } return changed; };
+      try { this.gate(`clearNew ${ids.join(",")}`); } catch (err) { if (this.applyHidden) { this.applyHidden = false; apply(); } throw err; }
       return { changed: apply(), undoToken: "und_fresh" };
     },
     workflowOf: async (id) => {
@@ -98,9 +98,9 @@ function make(fake: Fake, store = new MemoryStore(), account: string | null = "a
 const workflow = (itemId: string, from: WorkflowState, to: WorkflowState, revision = 5) => ({ kind: "workflow", itemId, from, to, revision }) as const;
 
 test("a change that reaches PURSS is confirmed and leaves nothing behind", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const { outbox, store } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(out.status, "sent");
   assert.equal(out.status === "sent" && out.result.kind === "workflow" ? out.result.undoToken : null, "und_a_6");
   assert.deepEqual(fake.log, ["workflow a toread @5"]);
@@ -109,23 +109,23 @@ test("a change that reaches PURSS is confirmed and leaves nothing behind", async
 });
 
 test("a change is on disk before it is sent, and stays while PURSS is out of reach", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, store } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(out.status, "deferred");
   assert.deepEqual([...outbox.pendingItemIds()], ["a"]);
   assert.equal((await store.load(scopeOf("https://purss.test", "acc_1"))).length, 1);
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
 });
 
 test("a lost connection stops the pass: nothing is sent out of order and nothing is dropped", async () => {
-  const fake = new Fake({ a: "new", b: "new", c: "new" });
+  const fake = new Fake({ a: "undecided", b: "undecided", c: "undecided" });
   fake.down = true;
   const { outbox } = make(fake);
-  await outbox.submit(workflow("a", "new", "toread"));
-  await outbox.submit(workflow("b", "new", "finished"));
-  await outbox.submit(workflow("c", "new", "ignored"));
+  await outbox.submit(workflow("a", "undecided", "toread"));
+  await outbox.submit(workflow("b", "undecided", "finished"));
+  await outbox.submit(workflow("c", "undecided", "ignored"));
   await outbox.drain();
   assert.equal(outbox.pendingCount(), 3);
   assert.equal(fake.log.filter((l) => l.startsWith("workflow a")).length >= 1, true);
@@ -133,11 +133,11 @@ test("a lost connection stops the pass: nothing is sent out of order and nothing
 });
 
 test("when the connection is back the kept changes are sent in the order they were made", async () => {
-  const fake = new Fake({ a: "new", b: "new" });
+  const fake = new Fake({ a: "undecided", b: "undecided" });
   fake.down = true;
   const { outbox, seen } = make(fake);
-  await outbox.submit(workflow("a", "new", "toread"));
-  await outbox.submit(workflow("b", "new", "finished"));
+  await outbox.submit(workflow("a", "undecided", "toread"));
+  await outbox.submit(workflow("b", "undecided", "finished"));
   await outbox.submit({ kind: "keep", itemId: "a", basketId: "bkt_1", on: true });
   await outbox.settled();
   fake.down = false; fake.log.length = 0;
@@ -149,11 +149,11 @@ test("when the connection is back the kept changes are sent in the order they we
 });
 
 test("changes kept on disk are found and sent after a reload, by a new outbox", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const store = new MemoryStore();
   const first = make(fake, store);
-  await first.outbox.submit(workflow("a", "new", "finished"));
+  await first.outbox.submit(workflow("a", "undecided", "finished"));
   await first.outbox.settled();
   // The tab is closed here. A new page opens later with the same on-disk store.
   fake.down = false; fake.log.length = 0;
@@ -170,11 +170,11 @@ test("changes kept on disk are found and sent after a reload, by a new outbox", 
 
 test("a request lost mid-flight is sent again without being counted as a conflict", async () => {
   // PURSS applied the change but the answer never arrived (tab closed, signal lost).
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: offline, applied: true });
   const store = new MemoryStore();
   const first = make(fake, store);
-  assert.equal((await first.outbox.submit(workflow("a", "new", "toread"))).status, "deferred");
+  assert.equal((await first.outbox.submit(workflow("a", "undecided", "toread"))).status, "deferred");
   assert.equal(fake.items.get("a")!.workflow, "toread", "PURSS has it");
   await first.outbox.settled();
   fake.log.length = 0;
@@ -189,21 +189,21 @@ test("a request lost mid-flight is sent again without being counted as a conflic
 });
 
 test("an item that went new, finished, new elsewhere is not 'unchanged': the stale change is dropped with a message", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.items.get("a")!.revision = 9; // elsewhere: new -> finished -> new
   const { outbox } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread", 5));
+  const out = await outbox.submit(workflow("a", "undecided", "toread", 5));
   assert.equal(out.status, "dropped");
   assert.equal(out.status === "dropped" ? out.message : "", app.outbox.entries.conflict);
   assert.deepEqual(fake.log, ["workflow a toread @5", "get a"], "resent once with its own revision, then the item was read; no second try");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
 });
 
 test("the page's own writes to an item (opening it, progress) carry the waiting change along to the new revision", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox } = make(fake);
-  await outbox.submit(workflow("a", "new", "toread", 5));
+  await outbox.submit(workflow("a", "undecided", "toread", 5));
   await outbox.settled();
   fake.items.get("a")!.revision = 6; // the page opened the item meanwhile
   outbox.noteOwnWrite("a", 5, 6);
@@ -215,10 +215,10 @@ test("the page's own writes to an item (opening it, progress) carry the waiting 
 });
 
 test("a lost answer followed by a second change to the item: the first counts as done, the second goes through", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a toread"), error: offline, applied: true });
   const { outbox, seen } = make(fake);
-  assert.equal((await outbox.submit(workflow("a", "new", "toread"))).status, "deferred");
+  assert.equal((await outbox.submit(workflow("a", "undecided", "toread"))).status, "deferred");
   await outbox.settled();
   fake.down = true; // still no signal when the second change is made
   assert.equal((await outbox.submit(workflow("a", "toread", "inprogress"))).status, "deferred");
@@ -236,7 +236,7 @@ test("a workflow change is dropped, with a plain message, if the workflow change
   const fake = new Fake({ a: "finished" }); // another device finished it
   fake.items.get("a")!.revision = 9;
   const { outbox, store } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread", 5));
+  const out = await outbox.submit(workflow("a", "undecided", "toread", 5));
   assert.equal(out.status, "dropped");
   assert.equal(out.status === "dropped" ? out.message : "", app.outbox.entries.conflict);
   assert.equal(out.status === "dropped" ? out.reason : "", "conflict");
@@ -250,7 +250,7 @@ test("a change that depended on a dropped one is dropped too", async () => {
   fake.items.get("a")!.revision = 9;
   fake.down = true;
   const { outbox, seen } = make(fake);
-  await outbox.submit(workflow("a", "new", "toread"));
+  await outbox.submit(workflow("a", "undecided", "toread"));
   await outbox.submit(workflow("a", "toread", "inprogress"));
   await outbox.settled();
   fake.down = false;
@@ -261,16 +261,16 @@ test("a change that depended on a dropped one is dropped too", async () => {
 });
 
 test("two quick changes to one item are sent in order, each with the revision the last one produced", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const { outbox } = make(fake);
-  const [one, two] = await Promise.all([outbox.submit(workflow("a", "new", "toread")), outbox.submit(workflow("a", "toread", "inprogress"))]);
+  const [one, two] = await Promise.all([outbox.submit(workflow("a", "undecided", "toread")), outbox.submit(workflow("a", "toread", "inprogress"))]);
   assert.equal(one.status, "sent");
   assert.equal(two.status, "sent");
   assert.deepEqual(fake.log, ["workflow a toread @5", "workflow a inprogress @6"]);
 });
 
 test("keep and un-keep are repeated safely and a refusal is reported once, with PURSS's words", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const { outbox, seen } = make(fake);
   assert.equal((await outbox.submit({ kind: "keep", itemId: "a", basketId: "bkt_1", on: true })).status, "sent");
   assert.equal((await outbox.submit({ kind: "keep", itemId: "a", basketId: "bkt_1", on: true })).status, "sent", "keeping again changes nothing");
@@ -282,12 +282,12 @@ test("keep and un-keep are repeated safely and a refusal is reported once, with 
 });
 
 test("a server fault holds back only that item; other items carry on, and it is tried again later", async () => {
-  const fake = new Fake({ a: "new", b: "new" });
+  const fake = new Fake({ a: "undecided", b: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: { status: 503, code: "error", message: "" } });
   const { outbox, timers, advance } = make(fake);
-  const first = await outbox.submit(workflow("a", "new", "toread"));
+  const first = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(first.status, "deferred");
-  const second = await outbox.submit(workflow("b", "new", "finished"));
+  const second = await outbox.submit(workflow("b", "undecided", "finished"));
   assert.equal(second.status, "sent");
   const third = outbox.submit(workflow("a", "toread", "inprogress"));
   await outbox.drain();
@@ -301,10 +301,10 @@ test("a server fault holds back only that item; other items carry on, and it is 
 });
 
 test("a signed-out session sends nothing and drops nothing; signing in sends it", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: () => true, error: { status: 401, code: "unauthorized", message: "" } });
   const { outbox, seen } = make(fake);
-  assert.equal((await outbox.submit(workflow("a", "new", "toread"))).status, "deferred");
+  assert.equal((await outbox.submit(workflow("a", "undecided", "toread"))).status, "deferred");
   assert.equal(outbox.needsSignIn(), true);
   await outbox.drain();
   assert.equal(fake.log.length, 1, "no more attempts while signed out");
@@ -316,11 +316,11 @@ test("a signed-out session sends nothing and drops nothing; signing in sends it"
 });
 
 test("two accounts on one browser never replay each other's changes", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const store = new MemoryStore();
   const one = make(fake, store, "acc_1");
-  await one.outbox.submit(workflow("a", "new", "toread"));
+  await one.outbox.submit(workflow("a", "undecided", "toread"));
   await one.outbox.settled();
   fake.down = false; fake.log.length = 0;
   // Same browser, same page: someone else signs in. Account 1's queue is set aside, untouched.
@@ -341,11 +341,11 @@ test("two accounts on one browser never replay each other's changes", async () =
 });
 
 test("another installation served from the same browser has its own queue", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const store = new MemoryStore();
   const here = make(fake, store, "acc_1", "https://purss.test");
-  await here.outbox.submit(workflow("a", "new", "toread"));
+  await here.outbox.submit(workflow("a", "undecided", "toread"));
   await here.outbox.settled();
   fake.down = false; fake.log.length = 0;
   const there = make(fake, store, "acc_1", "https://other.example");
@@ -355,13 +355,13 @@ test("another installation served from the same browser has its own queue", asyn
 });
 
 test("switching accounts while a change is in flight leaves it filed for its own account, never dropped", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   let release!: () => void;
   const hold = new Promise<void>((r) => { release = r; });
   fake.sender.workflow = async () => { await hold; throw { status: 404, code: "not_found", message: "That item wasn't found." } satisfies Fail; };
   const store = new MemoryStore();
   const { outbox, seen } = make(fake, store, "acc_1");
-  const pending = outbox.submit(workflow("a", "new", "toread"));
+  const pending = outbox.submit(workflow("a", "undecided", "toread"));
   await new Promise((r) => setTimeout(r, 5));
   outbox.setAccount("acc_2"); // the answer will come back under the other session
   release();
@@ -372,11 +372,11 @@ test("switching accounts while a change is in flight leaves it filed for its own
 });
 
 test("signing out asks what to do with changes that were not sent", async () => {
-  const fake = new Fake({ a: "new", b: "new" });
+  const fake = new Fake({ a: "undecided", b: "undecided" });
   fake.down = true;
   const { outbox, store } = make(fake);
-  await outbox.submit(workflow("a", "new", "toread"));
-  await outbox.submit(workflow("b", "new", "finished"));
+  await outbox.submit(workflow("a", "undecided", "toread"));
+  await outbox.submit(workflow("b", "undecided", "finished"));
   await outbox.settled();
   const asked: { count: number; failed: boolean }[] = [];
 
@@ -415,10 +415,10 @@ test("signing out asks what to do with changes that were not sent", async () => 
 });
 
 test("a change that never left can be taken back, once", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, store } = make(fake, new MemoryStore(), "acc_1", "https://purss.test", { online: () => false });
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(out.status, "deferred");
   await outbox.settled();
   const id = out.status === "deferred" ? out.entry.id : "";
@@ -432,7 +432,7 @@ test("a change that never left can be taken back, once", async () => {
 });
 
 test("pending items are shown as they will look, and the view tells its watchers when it changes", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox } = make(fake);
   let views = 0;
@@ -441,65 +441,65 @@ test("pending items are shown as they will look, and the view tells its watchers
   await outbox.submit({ kind: "keep", itemId: "a", basketId: "bkt_1", on: true });
   assert.notEqual(outbox.pendingItemIds(), before);
   assert.equal(views > 0, true);
-  const shown = outbox.overlay([dto("a", "new", 5), dto("other", "new", 5)]);
+  const shown = outbox.overlay([dto("a", "undecided", 5), dto("other", "undecided", 5)]);
   assert.deepEqual(shown[0]!.basketIds, ["bkt_1"]);
   assert.deepEqual(shown[1]!.basketIds, []);
 });
 
 test("without a way to keep changes on disk they are still sent from memory", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const broken = { load: async () => { throw new Error("denied"); }, put: async () => { throw new Error("quota"); }, remove: async () => { throw new Error("denied"); } };
   let t = 0;
   const outbox = new Outbox({ store: broken, sender: fake.sender, now: () => t++ });
   outbox.setAccount("acc_1");
-  const out = await outbox.submit(workflow("a", "new", "finished"));
+  const out = await outbox.submit(workflow("a", "undecided", "finished"));
   assert.equal(out.status, "sent");
 });
 
 // ---------- clearing New, several items, and taking a change back across tabs ----------
 
 test("a clear of the New marker whose answer was lost does not strand a change queued behind it", async () => {
-  const fake = new Fake({ a: "new" });
-  fake.failures.push({ when: (c) => c.startsWith("clearFresh"), error: offline, applied: true }); // it committed, the answer never came
+  const fake = new Fake({ a: "undecided" });
+  fake.failures.push({ when: (c) => c.startsWith("clearNew"), error: offline, applied: true }); // it committed, the answer never came
   const { outbox, seen } = make(fake);
-  assert.equal((await outbox.submit({ kind: "clearFresh", itemIds: ["a"] })).status, "deferred");
+  assert.equal((await outbox.submit({ kind: "clearNew", itemIds: ["a"] })).status, "deferred");
   await outbox.settled();
-  assert.equal(fake.items.get("a")!.fresh, false, "PURSS cleared it");
+  assert.equal(fake.items.get("a")!.isNew, false, "PURSS cleared it");
   assert.equal(fake.items.get("a")!.revision, 5, "and the clear did not move the revision");
   fake.down = true; // still no signal when the second change is made, on the revision from before the clear
-  assert.equal((await outbox.submit(workflow("a", "new", "toread", 5))).status, "deferred");
+  assert.equal((await outbox.submit(workflow("a", "undecided", "toread", 5))).status, "deferred");
   await outbox.settled();
   fake.down = false; fake.log.length = 0;
   outbox.resume();
   await outbox.drain();
-  assert.deepEqual(fake.log, ["clearFresh a", "workflow a toread @5"], "the clear finds nothing left to do, and the change goes out on its own revision");
+  assert.deepEqual(fake.log, ["clearNew a", "workflow a toread @5"], "the clear finds nothing left to do, and the change goes out on its own revision");
   assert.equal(fake.items.get("a")!.workflow, "toread");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "sent"]);
   assert.equal(outbox.pendingCount(), 0);
 });
 
 test("a write made elsewhere is still caught behind a clear of the New marker", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, seen } = make(fake);
-  await outbox.submit({ kind: "clearFresh", itemIds: ["a"] });
-  await outbox.submit(workflow("a", "new", "toread", 5));
+  await outbox.submit({ kind: "clearNew", itemIds: ["a"] });
+  await outbox.submit(workflow("a", "undecided", "toread", 5));
   await outbox.settled();
   fake.items.get("a")!.revision = 8; // elsewhere, the item was changed and came back to Undecided
   fake.down = false; fake.log.length = 0;
   outbox.resume();
   await outbox.drain();
-  assert.deepEqual(fake.log, ["clearFresh a", "workflow a toread @5", "get a"], "the conflict is found and the change dropped");
+  assert.deepEqual(fake.log, ["clearNew a", "workflow a toread @5", "get a"], "the conflict is found and the change dropped");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "dropped"]);
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
 });
 
 test("several changes made at once are each kept on disk with their own revision, and all go out after a lost connection", async () => {
-  const fake = new Fake({ a: "new", b: "toread", c: "new" });
+  const fake = new Fake({ a: "undecided", b: "toread", c: "undecided" });
   fake.items.get("b")!.revision = 9;
   fake.down = true;
   const { outbox, store } = make(fake);
-  const outs = await outbox.submitMany([workflow("a", "new", "finished", 5), workflow("b", "toread", "finished", 9), workflow("c", "new", "finished", 5)]);
+  const outs = await outbox.submitMany([workflow("a", "undecided", "finished", 5), workflow("b", "toread", "finished", 9), workflow("c", "undecided", "finished", 5)]);
   assert.deepEqual(outs.map((o) => o.status), ["deferred", "deferred", "deferred"]);
   const kept = await store.load(scopeOf("https://purss.test", "acc_1"));
   assert.deepEqual(kept.map((e) => (e.kind === "workflow" ? [e.itemId, e.revision] : null)), [["a", 5], ["b", 9], ["c", 5]], "each item's own revision");
@@ -512,11 +512,11 @@ test("several changes made at once are each kept on disk with their own revision
 });
 
 test("one of several changes made against an old revision is dropped on its own, the others go through", async () => {
-  const fake = new Fake({ a: "new", b: "new" });
+  const fake = new Fake({ a: "undecided", b: "undecided" });
   fake.items.get("b")!.revision = 8;
   fake.items.get("b")!.workflow = "ignored"; // changed elsewhere meanwhile
   const { outbox } = make(fake);
-  const outs = await outbox.submitMany([workflow("a", "new", "toread", 5), workflow("b", "new", "toread", 5)]);
+  const outs = await outbox.submitMany([workflow("a", "undecided", "toread", 5), workflow("b", "undecided", "toread", 5)]);
   assert.deepEqual(outs.map((o) => o.status), ["sent", "dropped"]);
   assert.equal(fake.items.get("a")!.workflow, "toread");
   assert.equal(fake.items.get("b")!.workflow, "ignored", "the other device's choice stands");
@@ -539,7 +539,7 @@ function sharedLock() {
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 
 test("taking a change back while another tab is sending it waits for that tab, and then undoes what it did", async () => {
-  const fake = new Fake({ a: "new", x: "new" });
+  const fake = new Fake({ a: "undecided", x: "undecided" });
   const lock = sharedLock();
   const store = new MemoryStore();
   let letGo!: () => void;
@@ -578,10 +578,10 @@ test("taking a change back while another tab is sending it waits for that tab, a
 });
 
 test("an answer lost after the request left is not taken back as if it never went; the item is read to find out", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: offline, applied: true }); // it committed, the answer never came
   const { outbox, store } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(out.status, "deferred");
   await outbox.settled();
   const entryId = out.status === "deferred" ? out.entry.id : "";
@@ -592,15 +592,15 @@ test("an answer lost after the request left is not taken back as if it never wen
   assert.deepEqual(fake.log, ["get a"]);
   assert.equal(outbox.pendingCount(), 0);
   // The opposite change, on that revision, restores the workflow.
-  assert.equal((await outbox.submit(workflow("a", "toread", "new", 6))).status, "sent");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal((await outbox.submit(workflow("a", "toread", "undecided", 6))).status, "sent");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
 });
 
 test("a change that never left is simply cancelled, and nothing is sent for it later", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, store } = make(fake, new MemoryStore(), "acc_1", "https://purss.test", { online: () => false });
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   assert.equal(out.status, "deferred");
   await outbox.settled();
   const entryId = out.status === "deferred" ? out.entry.id : "";
@@ -614,18 +614,18 @@ test("a change that never left is simply cancelled, and nothing is sent for it l
 });
 
 test("an answer lost after a change was sent, where the item turned out not to have it, is cancelled after all", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: offline }); // lost before it committed
   const { outbox } = make(fake);
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   await outbox.settled();
   const entryId = out.status === "deferred" ? out.entry.id : "";
   assert.deepEqual(await outbox.cancel(entryId), { status: "cancelled" }, "the item does not have the workflow, so nothing needs undoing");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
 });
 
 test("Undo in a tab whose queued workflow change another tab already sent reads the item and gets the revision to undo on", async () => {
-  const fake = new Fake({ a: "new", x: "new" });
+  const fake = new Fake({ a: "undecided", x: "undecided" });
   const lock = sharedLock();
   const store = new MemoryStore();
   let letGo!: () => void;
@@ -636,7 +636,7 @@ test("Undo in a tab whose queued workflow change another tab already sent reads 
   // Tab B is busy sending x, so tab A's change waits in the shared queue.
   const first = tabB.outbox.submit({ kind: "keep", itemId: "x", basketId: "bkt_1", on: true });
   await tick();
-  const change = workflow("a", "new", "toread", 5);
+  const change = workflow("a", "undecided", "toread", 5);
   const second = await tabA.outbox.submit(change);
   assert.equal(second.status, "deferred");
   const entryId = second.status === "deferred" ? second.entry.id : "";
@@ -653,8 +653,8 @@ test("Undo in a tab whose queued workflow change another tab already sent reads 
   assert.deepEqual(result, { status: "undo", revision: 6 }, "it has the target workflow, on revision 6");
   assert.deepEqual(fake.log, ["get a"]);
   // The opposite change on that revision restores the workflow (on the page's stale revision 5 it would have conflicted).
-  assert.equal((await tabA.outbox.submit(workflow("a", "toread", "new", 6))).status, "sent");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal((await tabA.outbox.submit(workflow("a", "toread", "undecided", 6))).status, "sent");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
   // And when the item turns out not to have the target workflow, there is nothing to undo.
   fake.items.get("a")!.workflow = "finished";
   assert.deepEqual(await tabA.outbox.cancel("ent_gone", change), { status: "cancelled" });
@@ -662,7 +662,7 @@ test("Undo in a tab whose queued workflow change another tab already sent reads 
 
 /** Tab B sends tab A's queued workflow change (A is left holding a change that is gone from the queue); returns what A needs to Undo it. */
 async function otherTabSent(store: MemoryStore = new MemoryStore()) {
-  const fake = new Fake({ a: "new", x: "new" });
+  const fake = new Fake({ a: "undecided", x: "undecided" });
   const lock = sharedLock();
   let letGo!: () => void;
   fake.holds.set("keep x", new Promise<void>((r) => { letGo = r; }));
@@ -671,7 +671,7 @@ async function otherTabSent(store: MemoryStore = new MemoryStore()) {
   await Promise.all([tabA.outbox.ready, tabB.outbox.ready]);
   const first = tabB.outbox.submit({ kind: "keep", itemId: "x", basketId: "bkt_1", on: true });
   await tick();
-  const change = workflow("a", "new", "toread", 5);
+  const change = workflow("a", "undecided", "toread", 5);
   const queued = await tabA.outbox.submit(change);
   const entryId = queued.status === "deferred" ? queued.entry.id : "";
   void tabB.outbox.drain();
@@ -688,15 +688,15 @@ test("Undo in a tab, with no connection to read the item, is kept and restores t
   const result = await tabA.outbox.cancel(entryId, change);
   assert.deepEqual(result, { status: "pending" }, "the Undo is kept rather than sent on a revision that is now stale");
   const kept = await store.load(scopeOf("https://purss.test", "acc_1"));
-  assert.deepEqual(kept.map((e) => (e.kind === "undoWorkflow" ? [e.itemId, e.applied, e.restore] : e.kind)), [["a", "toread", "new"]], "kept on disk as its own entry");
+  assert.deepEqual(kept.map((e) => (e.kind === "undoWorkflow" ? [e.itemId, e.applied, e.restore] : e.kind)), [["a", "toread", "undecided"]], "kept on disk as its own entry");
   assert.equal(tabA.outbox.pendingCount(), 1);
-  assert.equal(tabA.outbox.overlay([dto("a", "toread", 6)])[0]!.workflow, "new", "meanwhile the item shows as restored");
+  assert.equal(tabA.outbox.overlay([dto("a", "toread", 6)])[0]!.workflow, "undecided", "meanwhile the item shows as restored");
   await tabA.outbox.settled();
   fake.down = false; fake.log.length = 0;
   tabA.outbox.resume();
   await tabA.outbox.drain();
-  assert.deepEqual(fake.log, ["get a", "workflow a new @6"], "read first, then put back on the revision just read");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.deepEqual(fake.log, ["get a", "workflow a undecided @6"], "read first, then put back on the revision just read");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
   assert.equal(tabA.outbox.pendingCount(), 0);
   assert.deepEqual(await store.load(scopeOf("https://purss.test", "acc_1")), []);
 });
@@ -723,14 +723,14 @@ test("changes queued behind a kept Undo are carried to the revision the Undo pro
   fake.down = true;
   assert.deepEqual(await tabA.outbox.cancel(entryId, change), { status: "pending" });
   // Offline, the item shows as restored to New at revision 6, and the person goes on to finish it.
-  assert.equal((await tabA.outbox.submit(workflow("a", "new", "finished", 6))).status, "deferred");
+  assert.equal((await tabA.outbox.submit(workflow("a", "undecided", "finished", 6))).status, "deferred");
   await tabA.outbox.settled();
   fake.down = false; fake.log.length = 0;
   const seen: Outcome[] = [];
   tabA.outbox.onOutcome((o) => seen.push(o));
   tabA.outbox.resume();
   await tabA.outbox.drain();
-  assert.deepEqual(fake.log, ["get a", "workflow a new @6", "workflow a finished @7"], "the later change is sent on the revision the Undo's write produced");
+  assert.deepEqual(fake.log, ["get a", "workflow a undecided @6", "workflow a finished @7"], "the later change is sent on the revision the Undo's write produced");
   assert.equal(fake.items.get("a")!.workflow, "finished");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "sent"], "nothing was dropped");
   assert.equal(tabA.outbox.pendingCount(), 0);
@@ -761,13 +761,13 @@ test("an Undo whose read is out when another account signs in is not done for th
   assert.deepEqual(await cancelling, { status: "away" }, "not kept for the account that is signed in now");
   assert.deepEqual(await store.load(SCOPE_2), [], "nothing lands in the other account's partition");
   assert.equal(tabA.outbox.pendingCount(), 0, "nor in its queue");
-  assert.deepEqual(kept(await store.load(SCOPE_1)), [["a", "toread", "new"]], "the Undo waits for its own account");
+  assert.deepEqual(kept(await store.load(SCOPE_1)), [["a", "toread", "undecided"]], "the Undo waits for its own account");
   // Its own account comes back: the Undo goes out.
   fake.beforeRead = undefined;
   tabA.outbox.setAccount("acc_1");
   await tabA.outbox.ready;
   await tabA.outbox.drain();
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
   assert.deepEqual(await store.load(SCOPE_1), []);
 });
 
@@ -804,18 +804,18 @@ test("an Undo being written to disk when another account signs in does not enter
   assert.equal(tabA.outbox.pendingCount(), 0, "the old account's entry is not in the new account's queue");
   assert.deepEqual(tabA.outbox.entries(), []);
   assert.deepEqual(await store.load(SCOPE_2), []);
-  assert.deepEqual(kept(await store.load(SCOPE_1)), [["a", "toread", "new"]], "it is on disk under its own account");
+  assert.deepEqual(kept(await store.load(SCOPE_1)), [["a", "toread", "undecided"]], "it is on disk under its own account");
 });
 
 test("an Undo waiting for the send lock when another account signs in does nothing for the new account", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const lock = sharedLock();
   const { outbox } = make(fake, new MemoryStore(), "acc_1", "https://purss.test", lock);
   await outbox.ready;
   const busy = holdPoint();
   const otherTab = lock.locked(() => busy.wait()); // another tab is sending
   await busy.arrived;
-  const cancelling = outbox.cancel("gone", workflow("a", "new", "toread", 5));
+  const cancelling = outbox.cancel("gone", workflow("a", "undecided", "toread", 5));
   await tick();
   outbox.setAccount("acc_2");
   busy.release();
@@ -831,11 +831,11 @@ class SlowRemoves extends MemoryStore {
 }
 
 test("an Undo taking a sent change off the disk when another account signs in does not go on to read the item", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: offline, applied: true }); // it committed, the answer never came
   const store = new SlowRemoves();
   const { outbox } = make(fake, store);
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   await outbox.settled();
   const entryId = out.status === "deferred" ? out.entry.id : "";
   fake.log.length = 0;
@@ -849,21 +849,21 @@ test("an Undo taking a sent change off the disk when another account signs in do
 });
 
 test("an Undo pressed when nobody is signed in is not done, and nothing is sent or filed", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   const { outbox, store } = make(fake, new MemoryStore(), "acc_1");
   await outbox.ready;
   outbox.setAccount(null);
-  assert.deepEqual(await outbox.cancel("gone", workflow("a", "new", "toread", 5)), { status: "away" });
+  assert.deepEqual(await outbox.cancel("gone", workflow("a", "undecided", "toread", 5)), { status: "away" });
   assert.deepEqual(fake.log, []);
   assert.deepEqual(await store.load(SCOPE_1), []);
 });
 
 test("an Undo taking a change that never left off the disk when another account signs in is not done for the new account", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const store = new SlowRemoves();
   const { outbox } = make(fake, store, "acc_1", "https://purss.test", { online: () => false });
-  const out = await outbox.submit(workflow("a", "new", "toread"));
+  const out = await outbox.submit(workflow("a", "undecided", "toread"));
   await outbox.settled();
   const entryId = out.status === "deferred" ? out.entry.id : "";
   assert.notEqual((await store.load(SCOPE_1))[0]?.tried, true, "it never left");
@@ -883,17 +883,17 @@ test("an Undo taking a change that never left off the disk when another account 
  * no connection (the Undo is kept) and goes on from the restored state, still on the revision the page had.
  */
 async function undoneWithoutConnection() {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.items.get("a")!.revision = 0;
   fake.failures.push({ when: (c) => c.startsWith("workflow a"), error: offline, applied: true });
   const { outbox, seen, store } = make(fake);
-  const change = workflow("a", "new", "toread", 0);
+  const change = workflow("a", "undecided", "toread", 0);
   const sent = await outbox.submit(change);
   assert.equal(sent.status, "deferred");
   await outbox.settled();
   fake.down = true;
   assert.deepEqual(await outbox.cancel(sent.status === "deferred" ? sent.entry.id : "", change), { status: "pending" });
-  assert.equal((await outbox.submit(workflow("a", "new", "finished", 0))).status, "deferred");
+  assert.equal((await outbox.submit(workflow("a", "undecided", "finished", 0))).status, "deferred");
   await outbox.settled();
   assert.equal(fake.items.get("a")!.revision, 1);
   fake.log.length = 0; seen.length = 0;
@@ -905,7 +905,7 @@ test("changes made after a kept Undo are sent on the revision the Undo produced,
   fake.down = false;
   outbox.resume();
   await outbox.drain();
-  assert.deepEqual(fake.log, ["get a", "workflow a new @1", "workflow a finished @2"], "the later change goes out on the Undo's result, not on the revision it was made against");
+  assert.deepEqual(fake.log, ["get a", "workflow a undecided @1", "workflow a finished @2"], "the later change goes out on the Undo's result, not on the revision it was made against");
   assert.equal(fake.items.get("a")!.workflow, "finished");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "sent"]);
   assert.equal(outbox.pendingCount(), 0);
@@ -924,19 +924,19 @@ test("a write made elsewhere is still caught behind a kept Undo: the Undo does n
 
 // ---------- the player's own changes ----------
 
-const playback = (itemId: string, to: "inprogress" | "finished", expectedWorkflowRevision: number, from: WorkflowState = "new") =>
+const playback = (itemId: string, to: "inprogress" | "finished", expectedWorkflowRevision: number, from: WorkflowState = "undecided") =>
   ({ kind: "workflow", itemId, from, to, revision: 5, playback: { sessionId: "play-1", expectedWorkflowRevision, startedWorkflowRevision: 0 } }) as const;
 
 test("the player's changes made without a connection are kept, shown meanwhile, and sent in order when it is back", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, seen } = make(fake);
   assert.equal((await outbox.submit(playback("a", "inprogress", 0))).status, "deferred");
   assert.equal((await outbox.submit(playback("a", "finished", 1, "inprogress"))).status, "deferred");
   await outbox.settled();
-  const shown = outbox.overlay([dto("a", "new", 5)])[0]!;
+  const shown = outbox.overlay([dto("a", "undecided", 5)])[0]!;
   assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId], ["finished", 2, "play-1"], "what PURSS will have once they are sent");
-  assert.equal(fake.items.get("a")!.workflow, "new");
+  assert.equal(fake.items.get("a")!.workflow, "undecided");
   fake.down = false; fake.log.length = 0;
   outbox.resume();
   await outbox.drain();
@@ -947,7 +947,7 @@ test("the player's changes made without a connection are kept, shown meanwhile, 
 });
 
 test("a state set by hand elsewhere while the player's changes waited is kept: they are dropped, and the person's choice stands", async () => {
-  const fake = new Fake({ a: "new" });
+  const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, seen } = make(fake);
   await outbox.submit(playback("a", "inprogress", 0));
@@ -963,7 +963,7 @@ test("a state set by hand elsewhere while the player's changes waited is kept: t
 });
 
 test("the same state set by hand is not taken for the player's own change, but its own change whose answer was lost is", async () => {
-  const lost = new Fake({ a: "new" });
+  const lost = new Fake({ a: "undecided" });
   lost.failures.push({ when: (c) => c.startsWith("workflow a inprogress"), error: offline, applied: true });
   const first = make(lost);
   assert.equal((await first.outbox.submit(playback("a", "inprogress", 0))).status, "deferred");
@@ -974,7 +974,7 @@ test("the same state set by hand is not taken for the player's own change, but i
   assert.deepEqual(lost.log, ["workflow a inprogress @5", "get a"]);
   assert.deepEqual(first.seen.map((o) => (o.status === "sent" && o.result.kind === "workflow" ? o.result.item : o.status)), [null], "already made by this session: nothing more to do or say");
 
-  const byHand = new Fake({ a: "new" });
+  const byHand = new Fake({ a: "undecided" });
   byHand.down = true;
   const second = make(byHand);
   await second.outbox.submit(playback("a", "inprogress", 0));

@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { AuditEventDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { get } from "../../api/client.ts";
 import { timeAgo } from "../../lib/format.ts";

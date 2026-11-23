@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OfflineWorker } from "../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../sw/offline-worker.ts";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import { fakeNetwork, json } from "../sw/testing.ts";
 import { MemoryCopyBackend, StoredCaches } from "./copies.ts";
 
-const ORIGIN = "https://workspace.example";
+const ORIGIN = "https://purss.example";
 
 test("stored caches answer like Cache Storage: open, put, match, keys, delete, has", async () => {
   const caches = new StoredCaches(new MemoryCopyBackend());
@@ -30,7 +30,7 @@ test("stored caches answer like Cache Storage: open, put, match, keys, delete, h
 test("the offline worker keeps and serves copies in the apps' store the same way as in Cache Storage", async () => {
   const backend = new MemoryCopyBackend();
   const network = fakeNetwork();
-  const worker = new OfflineWorker({ caches: new StoredCaches(backend), fetch: network.fetch, now: () => Date.parse("2026-11-05T10:00:00Z"), origin: ORIGIN, build: "app", networkTimeoutMs: 40 });
+  const worker = new OfflineServiceWorker({ caches: new StoredCaches(backend), fetch: network.fetch, now: () => Date.parse("2026-11-05T10:00:00Z"), origin: ORIGIN, build: "app", networkTimeoutMs: 40 });
   network.routes.set("/api/session", () => json({ state: "signed_in", csrf: null, account: { id: "acc_1" }, installation: {} }));
   network.routes.set("/api/items/itm_1", () => json({ id: "itm_1", title: "Tide tables" }));
   const pending: Promise<unknown>[] = [];

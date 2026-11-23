@@ -1,24 +1,24 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { DeletePreview } from "@purss/domain";
 import { Button, Check, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import type { DeleteResult } from "../api/types.ts";
 import { bytesLabel, plural } from "../lib/format.ts";
 import { useItemActions } from "../state/actions.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useSelection } from "../state/selection.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.items;
 
 /** Keep several items in one or more baskets at once. */
 export function KeepInDialog({ itemIds }: { itemIds: string[] }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const actions = useItemActions();
   const sel = useSelection();
   const [chosen, setChosen] = useState<string[]>([]);
@@ -69,7 +69,7 @@ export function DeleteItemsDialog({ itemIds }: { itemIds: string[] }) {
     setBusy(true); setError("");
     try {
       const out = await post<DeleteResult>("/api/items/delete", { confirmToken: p.confirmToken });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       sel.clear();
       ov.close();
       toast(t.deleteItems.deleted(plural(out.deleted, app.words.item), out.releasedBytes ? t.deleteItems.freed(bytesLabel(out.releasedBytes)) : "").trim());

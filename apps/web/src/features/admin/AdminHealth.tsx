@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { AdminBridgeHealth, AdminHealth, DiscoveryMissDTO, DiscoveryRouteStatDTO, DiscoveryRoutesDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { dateTime, formatCount, plural, timeAgo } from "../../lib/format.ts";

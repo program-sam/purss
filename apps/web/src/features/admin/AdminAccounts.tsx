@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PLAN_LABELS, PLAN_LIMITS, PLAN_NAMES, planHasSmartFilters } from "@purss/domain";
-import type { AdminAccountDTO, Capacity, Plan } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import type { AdminAccountDTO, PlanUsage, Plan } from "@purss/domain";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, patch, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
@@ -11,42 +11,42 @@ import { useToasts } from "../../state/toasts.tsx";
 import { adminAccountsQuery, fkeys } from "../shared/api.ts";
 import { CopyButton, Loading, LoadFailed, Note } from "../shared/bits.tsx";
 import { useStepUp } from "../shared/step-up.tsx";
-import { inviteLink, parseAllocation, shortId, splitAllocation } from "./admin-model.ts";
+import { inviteLink, parseAllowance, shortId, splitAllowance } from "./admin-model.ts";
 import type { Unit } from "./admin-model.ts";
 
 const t = app.admin.adminAccounts;
 
-function AllocationDialog({ account, onClose }: { account: AdminAccountDTO; onClose: () => void }) {
+function AllowanceDialog({ account, onClose }: { account: AdminAccountDTO; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToasts();
   const stepUp = useStepUp();
-  const start = splitAllocation(account.allocationBytes);
+  const start = splitAllowance(account.allowanceBytes);
   const [text, setText] = useState(start.text);
   const [unit, setUnit] = useState<Unit>(start.unit);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const parsed = parseAllocation(text, unit);
+  const parsed = parseAllowance(text, unit);
   const changed = text !== start.text || unit !== start.unit;
 
   async function save() {
     if (parsed === undefined) return;
     setBusy(true); setError("");
     try {
-      const out = await stepUp.run(() => patch<AdminAccountDTO>(`/api/admin/accounts/${encodeURIComponent(account.id)}`, { allocationBytes: parsed }));
-      if (out) { void qc.invalidateQueries({ queryKey: fkeys.adminAccounts }); onClose(); toast(t.allocation.saved); }
+      const out = await stepUp.run(() => patch<AdminAccountDTO>(`/api/admin/accounts/${encodeURIComponent(account.id)}`, { allowanceBytes: parsed }));
+      if (out) { void qc.invalidateQueries({ queryKey: fkeys.adminAccounts }); onClose(); toast(t.allowance.saved); }
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
   return (
     <>
-      <Dialog title={t.allocation.title} size="sm" onClose={onClose} initialFocus="#al-n"
+      <Dialog title={t.allowance.title} size="sm" onClose={onClose} initialFocus="#al-n"
         footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || parsed === undefined || !changed} onClick={() => void save()}>{app.words.save}</Button></>}>
-        <p className="hint">{t.allocation.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), bytesLabel(account.usedBytes))}</p>
-        <Field label={t.allocation.label} htmlFor="al-n" hint={t.allocation.fieldHint}>
+        <p className="hint">{t.allowance.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), bytesLabel(account.usedBytes))}</p>
+        <Field label={t.allowance.label} htmlFor="al-n" hint={t.allowance.fieldHint}>
           <div className="fx-inline">
             <TextInput id="al-n" inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} style={{ width: 120 }} aria-invalid={parsed === undefined} />
             <SelectInput aria-label="Unit" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} style={{ width: 84 }}><option>MB</option><option>GB</option></SelectInput>
           </div>
-          {parsed === undefined ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>{t.allocation.invalid}</p> : null}
+          {parsed === undefined ? <p className="fine" role="alert" style={{ color: "var(--amber)" }}>{t.allowance.invalid}</p> : null}
         </Field>
         {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}
       </Dialog>
@@ -58,7 +58,7 @@ function AllocationDialog({ account, onClose }: { account: AdminAccountDTO; onCl
 const limitText = (n: number | null, what: string) => (n === null ? t.plan.unlimited(what) : t.plan.counted(formatCount(n, "en"), what));
 
 /** "Free · 37 of 100 sources, 2 of 5 collections" */
-function planLine(c: Capacity): string {
+function planLine(c: PlanUsage): string {
   const part = (used: number, limit: number | null, what: string) => (limit === null ? t.plan.counted(formatCount(used, "en"), what) : t.plan.countedOf(formatCount(used, "en"), formatCount(limit, "en"), what));
   return `${c.plan ? `${PLAN_LABELS[c.plan]} · ` : ""}${part(c.sources.used, c.sources.limit, app.words.sourcesLower)}, ${part(c.collections.used, c.collections.limit, app.words.collectionsLower)}`;
 }
@@ -71,7 +71,7 @@ function PlanDialog({ account, onClose }: { account: AdminAccountDTO; onClose: (
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const limits = PLAN_LIMITS[plan];
-  const over = !account.isAdmin && ((limits.sources !== null && account.capacity.sources.used > limits.sources) || (limits.collections !== null && account.capacity.collections.used > limits.collections));
+  const over = !account.isAdmin && ((limits.sources !== null && account.planUsage.sources.used > limits.sources) || (limits.collections !== null && account.planUsage.collections.used > limits.collections));
 
   async function save() {
     setBusy(true); setError("");
@@ -84,7 +84,7 @@ function PlanDialog({ account, onClose }: { account: AdminAccountDTO; onClose: (
     <>
       <Dialog title={t.plan.title} size="sm" onClose={onClose} initialFocus="#pl-s"
         footer={<><Button onClick={onClose}>{app.words.cancel}</Button><Button variant="primary" disabled={busy || plan === account.plan} onClick={() => void save()}>{app.words.save}</Button></>}>
-        <p className="hint">{t.plan.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), planLine(account.capacity))}</p>
+        <p className="hint">{t.plan.hint(account.displayName ?? account.email ?? t.accountOfLower(shortId(account.id)), planLine(account.planUsage))}</p>
         <Field label={app.words.plan} htmlFor="pl-s" hint={t.plan.fieldHint(PLAN_LABELS[plan], limitText(limits.sources, app.words.sourcesLower), limitText(limits.collections, app.words.collectionsLower), planHasSmartFilters(plan))}>
           <SelectInput id="pl-s" value={plan} onChange={(e) => setPlan(e.target.value as Plan)}>{PLAN_NAMES.map((n) => <option key={n} value={n}>{PLAN_LABELS[n]}</option>)}</SelectInput>
         </Field>
@@ -198,7 +198,7 @@ export function AdminAccountsPanel({ hosted }: { hosted: boolean }) {
             <li key={a.id} className="fx-row wrap fx-acct">
               <div className="fx-grow">
                 <b>{a.displayName ?? a.email ?? t.accountOf(shortId(a.id))}{a.isAdmin ? <span className="tag" style={{ marginLeft: 8 }}>{t.panel.administrator}</span> : null}</b>
-                <span className="fine">{t.panel.detail(a.displayName && a.email ? a.email : null, shortDate(a.createdAt), planLine(a.capacity), bytesLabel(a.usedBytes), hosted ? (a.allocationBytes === null ? t.panel.noLimit : bytesLabel(a.allocationBytes)) : null, a.smartFilterTokens ? a.smartFilterTokens.toLocaleString("en") : null)}</span>
+                <span className="fine">{t.panel.detail(a.displayName && a.email ? a.email : null, shortDate(a.createdAt), planLine(a.planUsage), bytesLabel(a.usedBytes), hosted ? (a.allowanceBytes === null ? t.panel.noLimit : bytesLabel(a.allowanceBytes)) : null, a.smartFilterTokens ? a.smartFilterTokens.toLocaleString("en") : null)}</span>
               </div>
               {a.deletion ? (
                 <div className="fx-end">
@@ -208,7 +208,7 @@ export function AdminAccountsPanel({ hosted }: { hosted: boolean }) {
               ) : <div className="fx-end">
                 <span className={`tag fx-status ${a.status === "active" ? "ok" : "failed"}`}>{a.status === "active" ? t.panel.active : t.panel.suspended}</span>
                 {hosted ? <Button onClick={() => setDlg({ kind: "plan", account: a })} aria-label={`Change plan for ${a.displayName ?? a.email ?? shortId(a.id)}`}>{t.panel.plan}</Button> : null}
-                {hosted ? <Button onClick={() => setDlg({ kind: "alloc", account: a })} aria-label={`Change allocation for ${a.displayName ?? a.email ?? shortId(a.id)}`}>{t.panel.allocation}</Button> : null}
+                {hosted ? <Button onClick={() => setDlg({ kind: "alloc", account: a })} aria-label={`Change allowance for ${a.displayName ?? a.email ?? shortId(a.id)}`}>{t.panel.allowance}</Button> : null}
                 {a.id === myId ? <span className="fine">{t.panel.you}</span> : <>
                   <Button onClick={() => setDlg({ kind: "role", account: a })} aria-label={`${a.isAdmin ? "Remove administrator role from" : "Make administrator:"} ${a.displayName ?? a.email ?? shortId(a.id)}`}>{a.isAdmin ? t.panel.removeAdmin : t.panel.makeAdmin}</Button>
                   <Button onClick={() => setDlg({ kind: "status", account: a })} aria-label={`${a.status === "active" ? "Suspend" : "Reactivate"} ${a.displayName ?? a.email ?? shortId(a.id)}`}>{a.status === "active" ? t.panel.suspend : t.panel.reactivate}</Button>
@@ -219,7 +219,7 @@ export function AdminAccountsPanel({ hosted }: { hosted: boolean }) {
         </ul>
       ) : null}
       {dlg?.kind === "plan" ? <PlanDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
-      {dlg?.kind === "alloc" ? <AllocationDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
+      {dlg?.kind === "alloc" ? <AllowanceDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
       {dlg?.kind === "status" ? <StatusDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
       {dlg?.kind === "role" ? <RoleDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
       {dlg?.kind === "engine" ? <EngineReviewDialog account={dlg.account} onClose={() => setDlg(null)} /> : null}
@@ -240,7 +240,7 @@ function InviteDialog({ onClose, hosted, mail }: { onClose: () => void; hosted: 
   // `code` is null where the server emailed it: then only that address ever gets it.
   const [made, setMade] = useState<{ code: string | null; expiresInDays: number } | null>(null);
   const address = email.trim();
-  const parsed = parseAllocation(alloc, unit);
+  const parsed = parseAllowance(alloc, unit);
   const d = /^\d{1,2}$/.test(days.trim()) ? Number(days) : NaN;
   const validDays = d >= 1 && d <= 60;
 
@@ -248,7 +248,7 @@ function InviteDialog({ onClose, hosted, mail }: { onClose: () => void; hosted: 
     if (parsed === undefined || !validDays || !address) return;
     setBusy(true); setError("");
     try {
-      const out = await stepUp.run(() => post<{ code: string | null; expiresInDays: number }>("/api/admin/invites", { note: note.trim() || null, allocationBytes: hosted ? parsed : null, days: d, email: address }));
+      const out = await stepUp.run(() => post<{ code: string | null; expiresInDays: number }>("/api/admin/invites", { note: note.trim() || null, allowanceBytes: hosted ? parsed : null, days: d, email: address }));
       if (out) { setMade(out); void qc.invalidateQueries({ queryKey: ["admin-invites"] }); }
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
@@ -285,7 +285,7 @@ function InviteDialog({ onClose, hosted, mail }: { onClose: () => void; hosted: 
           <div className="fx-inline"><TextInput id="iv-days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} style={{ width: 84 }} aria-invalid={!validDays} /><span>{t.invite.daysRange}</span></div>
         </Field>
         {hosted ? (
-          <Field label={t.invite.allocationLabel} htmlFor="iv-alloc" hint={t.invite.allocationHint}>
+          <Field label={t.invite.allowanceLabel} htmlFor="iv-alloc" hint={t.invite.allowanceHint}>
             <div className="fx-inline">
               <TextInput id="iv-alloc" inputMode="decimal" value={alloc} onChange={(e) => setAlloc(e.target.value)} style={{ width: 120 }} aria-invalid={parsed === undefined} />
               <SelectInput aria-label="Unit" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} style={{ width: 84 }}><option>MB</option><option>GB</option></SelectInput>

@@ -62,8 +62,8 @@ export type OpenDeps = {
  * Opening writes "opened" unless the item is already opened and no longer New. An item can be both opened and New (after a
  * migration, or after Undoing a seen marker), and opening it again must still clear the marker.
  */
-export function itemNeedsOpening(item: Pick<ItemDTO, "opened" | "fresh">): boolean {
-  return !item.opened || item.fresh;
+export function itemNeedsOpening(item: Pick<ItemDTO, "opened" | "isNew">): boolean {
+  return !item.opened || item.isNew;
 }
 
 /**
@@ -102,12 +102,12 @@ export type UndoSeenDeps = {
 export async function undoSeen(notice: SeenNotice, d: UndoSeenDeps): Promise<void> {
   d.seen.clear();
   const item = d.find(notice.itemId);
-  if (item) d.put({ ...item, fresh: true });
+  if (item) d.put({ ...item, isNew: true });
   try {
     await d.undo(notice.undoToken);
     d.refresh();
   } catch (err) {
-    if (item) d.put({ ...item, fresh: false });
+    if (item) d.put({ ...item, isNew: false });
     d.fail(err);
   }
 }

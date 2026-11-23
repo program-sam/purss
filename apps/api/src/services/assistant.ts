@@ -7,7 +7,7 @@ import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { getInstallation, setInstallation } from "../auth/accounts.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Assistant access (MCP): an AI assistant reaches a PURSS through /mcp with a personal
@@ -140,16 +140,16 @@ export function resolveToken(app: App, authorization: string | undefined): Assis
   if (!m) return { error: "missing" };
   const secret = m[1]!;
   if (!secret.startsWith(TOKEN_PREFIX)) return { error: "invalid" };
-  const row = app.db.get<{ id: string; account_id: string; access: AssistantAccessLevel; expires_at: string | null; last_used_at: string | null; assistant_access: number; workspace_id: string }>(
-    `SELECT t.id, t.account_id, t.access, t.expires_at, t.last_used_at, a.assistant_access, w.id AS workspace_id
-     FROM assistant_tokens t JOIN accounts a ON a.id = t.account_id JOIN workspaces w ON w.account_id = a.id WHERE t.token_hash = ?`, sha256(secret));
+  const row = app.db.get<{ id: string; account_id: string; access: AssistantAccessLevel; expires_at: string | null; last_used_at: string | null; assistant_access: number; }>(
+    `SELECT t.id, t.account_id, t.access, t.expires_at, t.last_used_at, a.assistant_access
+     FROM assistant_tokens t JOIN accounts a ON a.id = t.account_id WHERE t.token_hash = ?`, sha256(secret));
   if (!row || !isAccountUsable(app, row.account_id) || (row.expires_at !== null && row.expires_at <= nowIso())) return { error: "invalid" };
   if (!installationEnabled(app) || row.assistant_access !== 1) return { error: "off" };
   if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > LAST_USED_GRANULARITY_MS) {
     app.db.run("UPDATE assistant_tokens SET last_used_at = ? WHERE id = ?", nowIso(), row.id);
   }
   return {
-    principal: { accountId: row.account_id, workspaceId: row.workspace_id, isAdmin: false, sessionId: `${ASSISTANT_SESSION_PREFIX}${row.id}`, csrf: "", authAt: new Date(0).toISOString() },
+    principal: { accountId: row.account_id, isAdmin: false, sessionId: `${ASSISTANT_SESSION_PREFIX}${row.id}`, csrf: "", authAt: new Date(0).toISOString() },
     access: row.access,
     tokenId: row.id,
   };

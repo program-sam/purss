@@ -5,7 +5,7 @@ import { audit } from "../app.ts";
 import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "../services/deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Device tokens for connected apps. A token is a bearer credential like a session cookie:
@@ -75,16 +75,16 @@ export const tooMany = () => new HttpError(409, "too_many_devices", server.api.d
  */
 export function resolveDeviceToken(app: App, secret: string): DeviceCaller | null {
   if (!secret.startsWith(DEVICE_TOKEN_PREFIX)) return null;
-  const row = app.db.get<{ id: string; account_id: string; kind: ConnectClientKind; last_used_at: string; created_at: string; auth_at: string | null; workspace_id: string }>(
-    `SELECT d.id, d.account_id, d.kind, d.last_used_at, d.created_at, d.auth_at, w.id AS workspace_id
-     FROM device_tokens d JOIN workspaces w ON w.account_id = d.account_id WHERE d.token_hash = ?`, sha256(secret));
+  const row = app.db.get<{ id: string; account_id: string; kind: ConnectClientKind; last_used_at: string; created_at: string; auth_at: string | null; }>(
+    `SELECT d.id, d.account_id, d.kind, d.last_used_at, d.created_at, d.auth_at
+     FROM device_tokens d WHERE d.token_hash = ?`, sha256(secret));
   if (!row || !isAccountUsable(app, row.account_id) || row.last_used_at <= idleCutoff()) return null;
   if (Date.now() - Date.parse(row.last_used_at) > LAST_USED_GRANULARITY_MS) {
     app.db.run("UPDATE device_tokens SET last_used_at = ? WHERE id = ?", nowIso(), row.id);
   }
   return {
     principal: {
-      accountId: row.account_id, workspaceId: row.workspace_id, sessionId: `${DEVICE_SESSION_PREFIX}${row.id}`, csrf: "",
+      accountId: row.account_id, sessionId: `${DEVICE_SESSION_PREFIX}${row.id}`, csrf: "",
       isAdmin: row.kind === "mobile" && !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", row.account_id),
       authAt: row.kind === "mobile" ? row.auth_at ?? new Date(0).toISOString() : new Date(0).toISOString(),
     },

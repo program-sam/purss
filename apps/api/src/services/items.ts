@@ -15,17 +15,16 @@ import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text
 import { firstImage } from "./first-image.ts";
 import { looksLikeSummary } from "./teaser.ts";
 import { onHomeItem } from "./home-sources.ts";
-import { NOT_MUTED_ROW, countMuted, workspaceMuted } from "./muted.ts";
+import { NOT_MUTED_ROW, countMuted, accountMuted } from "./muted.ts";
 import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
 import type { PartialReason } from "@purss/connectors";
 import { pictureUrl, postGallery, storedPictures, withStoredPictures } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { keptDisplays } from "./kept-display.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export type NewItem = {
   accountId: string;
-  workspaceId: string;
   sourceId: string | null;
   sourceKindForFts?: string;
   kind: string;
@@ -40,13 +39,13 @@ export type NewItem = {
   curatorNote: string | null;
   publishedAt: string | null;
   discoveredAt: string;
-  /** The item's time in lists (migration 071); its publication date, else its arrival, when not given. */
+  /** The item's time in lists; its publication date, else its arrival, when not given. */
   listedAt?: string;
   enclosures: { url: string; type: string | null; length?: number | null }[];
   /** The feed's full text was too large to send; the item holds its summary only. */
   contentOmitted?: boolean;
-  fresh: boolean;
-  /** Back catalogue of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
+  isNew: boolean;
+  /** Backlog of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
   ignored?: boolean;
   reason: string;
 };
@@ -61,21 +60,21 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const text = toText(contentHtml ?? summaryHtml);
   const ex = excerpt(toText(summaryHtml) || text);
   const r = app.db.run(
-    `INSERT INTO items (id, account_id, workspace_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
+    `INSERT INTO items (id, account_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
        read_minutes, doi, curator_note, published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.workspaceId, n.sourceId, n.sourceId, n.kind, n.title || NO_TITLE, n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
+     VALUES (?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, n.accountId, n.sourceId, n.sourceId, n.kind, n.title || NO_TITLE, n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
     n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, n.listedAt ?? n.publishedAt ?? n.discoveredAt, versionId,
     JSON.stringify(n.enclosures.slice(0, 10)), now, now,
   );
   app.db.run(
-    "INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    versionId, id, n.workspaceId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
+    "INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    versionId, id, n.accountId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
   );
-  app.db.run("INSERT INTO item_state (item_id, workspace_id, source_id, workflow, fresh, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.workspaceId, n.sourceId, n.ignored ? "ignored" : "new", n.fresh ? 1 : 0, now);
+  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.isNew ? 1 : 0, now);
   indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
   admitObject(app, {
-    accountId: n.accountId, workspaceId: n.workspaceId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
+    accountId: n.accountId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
     bytes: versionBytes({ title: n.title, url: n.url, author: n.author, summaryHtml, contentHtml, imageUrl: n.imageUrl, enclosures: n.enclosures, publishedAt: n.publishedAt }),
     reason: n.reason,
   });
@@ -110,7 +109,7 @@ export function indexText(app: App, seq: number, t: { title: string; excerpt: st
 // ---------- listing ----------
 
 export const ITEM_COLUMNS = `i.id, i.number, i.source_id, s.title AS source_title, s.kind AS source_kind, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
-  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
+  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.is_new, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
   (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at,
@@ -119,7 +118,7 @@ export const ITEM_COLUMNS = `i.id, i.number, i.source_id, s.title AS source_titl
 export type ItemRow = {
   id: string; number: number; source_id: string | null; source_title: string | null; source_kind: string | null; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
-  published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
+  published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; is_new: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
   /** the stored copy of the item's own picture (item_images), when there is one */
   image_kept: string | null;
@@ -133,9 +132,9 @@ export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   const linkIsMedia = itemLinkIsMedia(r.url, r.enclosures);
   return {
     // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
-    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.savedLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
+    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.keptLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: shownImage(r), durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
-    publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
+    publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, isNew: r.is_new === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
     linkIsMedia,
@@ -157,10 +156,10 @@ function keptLink(title: string, url: string | null, enclosuresJson: string | nu
 
 /** Compile a validated query tree to a parameterised WHERE fragment over items i / item_state st. */
 /** `itemTextOnly`: a text rule matches the items' own text, never the person's highlights and notes (for shared pages). */
-export function compileQuery(node: QueryNode, params: SqlParam[], workspaceId: string, opts: { itemTextOnly?: boolean } = {}): string {
-  if ("all" in node) return `(${node.all.map((n) => compileQuery(n, params, workspaceId, opts)).join(" AND ")})`;
-  if ("any" in node) return `(${node.any.map((n) => compileQuery(n, params, workspaceId, opts)).join(" OR ")})`;
-  if ("not" in node) return `(NOT ${compileQuery(node.not, params, workspaceId, opts)})`;
+export function compileQuery(node: QueryNode, params: SqlParam[], accountId: string, opts: { itemTextOnly?: boolean } = {}): string {
+  if ("all" in node) return `(${node.all.map((n) => compileQuery(n, params, accountId, opts)).join(" AND ")})`;
+  if ("any" in node) return `(${node.any.map((n) => compileQuery(n, params, accountId, opts)).join(" OR ")})`;
+  if ("not" in node) return `(NOT ${compileQuery(node.not, params, accountId, opts)})`;
   const list = (values: readonly string[]) => { params.push(...values); return values.map(() => "?").join(","); };
   switch (node.field) {
     case "text": return opts.itemTextOnly ? itemTextMatch(node.value, params) : textMatch(node.value, params);
@@ -168,12 +167,12 @@ export function compileQuery(node: QueryNode, params: SqlParam[], workspaceId: s
     case "kind": return `i.kind IN (${list(node.value)})`;
     case "workflow": return `st.workflow IN (${list(node.value)})`;
     case "author": params.push(`%${node.value}%`); return "i.author LIKE ?";
-    case "fresh": return node.value ? "st.fresh = 1" : "st.fresh = 0";
+    case "new": return node.value ? "st.is_new = 1" : "st.is_new = 0";
     case "opened": return node.value ? "st.opened_at IS NOT NULL" : "st.opened_at IS NULL";
     case "kept": return `${node.value ? "" : "NOT "}EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)`;
     // Only this PURSS's own baskets and collections count, whatever ids a filter names.
-    case "basket": { const ids = list(node.value); params.push(workspaceId); return `EXISTS (SELECT 1 FROM basket_items b JOIN baskets bk ON bk.id = b.basket_id WHERE b.item_id = i.id AND b.basket_id IN (${ids}) AND bk.workspace_id = ?)`; }
-    case "collection": { const ids = list(node.value); params.push(workspaceId); return `i.source_id IN (SELECT cs.source_id FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.collection_id IN (${ids}) AND c.workspace_id = ?)`; }
+    case "basket": { const ids = list(node.value); params.push(accountId); return `EXISTS (SELECT 1 FROM basket_items b JOIN baskets bk ON bk.id = b.basket_id WHERE b.item_id = i.id AND b.basket_id IN (${ids}) AND bk.account_id = ?)`; }
+    case "collection": { const ids = list(node.value); params.push(accountId); return `i.source_id IN (SELECT cs.source_id FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.collection_id IN (${ids}) AND c.account_id = ?)`; }
     case "capture": {
       const parts: string[] = [];
       for (const level of node.value) {
@@ -256,10 +255,10 @@ function rawLength(word: string, folded: number): number {
 }
 
 /** Followed sources that are in no collection. */
-function looseSources(app: App, workspaceId: string): string[] {
+function looseSources(app: App, accountId: string): string[] {
   return app.db.all<{ id: string }>(
-    `SELECT o.id FROM sources o WHERE o.workspace_id = ? AND o.followed = 1 AND o.kind <> 'manual'
-       AND NOT EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.source_id = o.id)`, workspaceId).map((r) => r.id);
+    `SELECT o.id FROM sources o WHERE o.account_id = ? AND o.followed = 1 AND o.kind <> 'manual'
+       AND NOT EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.source_id = o.id)`, accountId).map((r) => r.id);
 }
 
 export function scopeClause(app: App, p: Principal, scope: string, params: SqlParam[]): string {
@@ -268,17 +267,17 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
     case "all":
     case "home":
       return "1";
-    case "fresh":
-      return "st.fresh = 1";
+    case "new":
+      return "st.is_new = 1";
     case "toread":
-      // The queue: what is waiting (To read, To watch, To listen) and what is started (In progress). Looked up by state in the workspace's
+      // The queue: what is waiting (To read, To watch, To listen) and what is started (In progress). Looked up by state in the account's
       // own item_state index (the states are rare), not found by probing every item.
-      params.push(p.workspaceId);
-      return `st.workspace_id = ? AND ${QUEUE_STATES_SQL}`;
+      params.push(p.accountId);
+      return `st.account_id = ? AND ${QUEUE_STATES_SQL}`;
     case "loose": {
       // Followed sources that are in no collection (Home's "Other sources"). When there are none, say so: the planner can't
       // tell that the set is empty and would otherwise walk every item looking for a match.
-      const ids = looseSources(app, p.workspaceId);
+      const ids = looseSources(app, p.accountId);
       if (!ids.length) return "0";
       params.push(JSON.stringify(ids));
       return "i.source_id IN (SELECT value FROM json_each(?))";
@@ -290,11 +289,11 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
       params.push(id!);
       return "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id AND b.basket_id = ?)";
     case "collection": {
-      const c = app.db.get<{ mode: string; query: string | null }>("SELECT mode, query FROM collections WHERE id = ? AND workspace_id = ?", id!, p.workspaceId);
+      const c = app.db.get<{ mode: string; query: string | null }>("SELECT mode, query FROM collections WHERE id = ? AND account_id = ?", id!, p.accountId);
       if (!c) throw notFound(server.api.shared.thatCollection);
       if (c.mode === "sources") { params.push(id!); return "i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)"; }
       const q = checkQuery(JSON.parse(c.query ?? "null"));
-      return q.ok ? compileQuery(q.query, params, p.workspaceId) : "0";
+      return q.ok ? compileQuery(q.query, params, p.accountId) : "0";
     }
     default:
       throw badRequest(server.api.items.unknownView);
@@ -315,7 +314,7 @@ export const VISIBLE_SOURCE = `(i.source_id IS NULL OR s.followed = 1 OR s.kind 
 const SORT_SQL = {
   newest: { key: "i.listed_at", dir: "DESC" },
   oldest: { key: "i.listed_at", dir: "ASC" },
-  // The source's title and the kept time are stored with the item (migration 058) and indexed in these orders.
+  // The source's title and the kept time are stored with the item and indexed in these orders.
   source: { key: "i.source_title || char(1) || i.listed_at", dir: "ASC" },
   title: { key: "lower(i.title)", dir: "ASC" },
   kept: { key: "i.kept_key", dir: "DESC" },
@@ -334,11 +333,11 @@ function listSort(app: App, p: Principal, q: { scope: string; source?: string; s
   if (q.scope === "toread") return { ...sort, inOrder: false };
   if (q.sort !== "kept" && q.sort !== "source") return inOrder;
   // The list's sources, if it is limited to some: a source, a collection of sources, those in no collection, the source chips.
-  const params: SqlParam[] = [p.workspaceId];
-  const where = ["i.workspace_id = ?"];
+  const params: SqlParam[] = [p.accountId];
+  const where = ["i.account_id = ?"];
   const [kind, id] = q.scope.split(":") as [string, string | undefined];
   const ofSources = kind === "source" || kind === "loose"
-    || (kind === "collection" && app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND workspace_id = ?", id!, p.workspaceId)?.mode === "sources");
+    || (kind === "collection" && app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND account_id = ?", id!, p.accountId)?.mode === "sources");
   if (ofSources) where.push(scopeClause(app, p, q.scope, params));
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
   if (where.length === 1) return inOrder;
@@ -351,7 +350,7 @@ function listSort(app: App, p: Principal, q: { scope: string; source?: string; s
  * Home's order: Undecided items first, then the rest the filter allows (the Only new layout's New items put aside), newest first within each. Listed as two runs, each
  * in the date order, so each reads the date index in order instead of sorting every candidate.
  */
-const HOME_RUNS = ["st.workflow = 'new'", "st.workflow <> 'new'"] as const;
+const HOME_RUNS = ["st.workflow = 'undecided'", "st.workflow <> 'undecided'"] as const;
 /** The queue's order: what is started first, then what is waiting, each in the list's own order. */
 const QUEUE_RUNS = ["st.workflow = 'inprogress'", "st.workflow = 'toread'"] as const;
 /** The runs a list is read in, or none when it is read in one pass. */
@@ -393,24 +392,24 @@ type ListResult = { items: ItemDTO[]; nextCursor: string | null; total: number |
 export function listItems(app: App, p: Principal, input: ItemListQuery, opts: ListOptions = {}): ListResult {
   const q = itemListQuerySchema.parse(input);
   // Muted words leave items out of lists. Search still finds them, and so do baskets: what someone kept is theirs to see.
-  const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : workspaceMuted(app, p.workspaceId);
+  const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : accountMuted(app, p.accountId);
   return listPage(app, p, q, opts, muted);
 }
 
 /** What a list (its page and its "Select all") is narrowed by: its scope, state filter, chips, search and Home's rules. */
 function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQuerySchema>, "cursor" | "limit">, opts: ListOptions, snapshot: number | null): { where: string[]; params: SqlParam[] } {
-  const params: SqlParam[] = [p.workspaceId];
-  const where: string[] = ["i.workspace_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
-  if (q.filter === "fresh") where.push("st.fresh = 1");
-  else if (q.filter === "active") where.push("st.workflow <> 'ignored'");
-  else if (q.filter !== "all") { where.push("st.workflow = ?"); params.push(q.filter); }
+  const params: SqlParam[] = [p.accountId];
+  const where: string[] = ["i.account_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
+  if (q.filter === "new") where.push("st.is_new = 1");
+  else if (q.filter === "all") where.push("st.workflow <> 'ignored'");
+  else if (q.filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(q.filter); }
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
   if (q.exceptPrivate) where.push("COALESCE(s.is_private, 0) = 0");
   if (q.without) { const ids = q.without.split(","); where.push(`(i.source_id IS NULL OR i.source_id NOT IN (${ids.map(() => "?").join(", ")}))`); params.push(...ids); }
   // the items whose readable copy couldn't be saved (what the bell's "Couldn't save the text of N items" opens).
   if (q.capture === "failed") where.push(CAPTURE_FAILED);
   where.push(...typeLengthConditions(q));
-  if (opts.homeVisible || q.mix === "home") where.push(onHomeItem(app, p.workspaceId, params));
+  if (opts.homeVisible || q.mix === "home") where.push(onHomeItem(app, p.accountId, params));
   if (snapshot !== null) { where.push("i.seq <= ?"); params.push(snapshot); }
   if (q.q) where.push(textMatch(q.q, params));
   return { where, params };
@@ -425,7 +424,7 @@ const LIST_FROM = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOI
  */
 export function listItemIds(app: App, p: Principal, input: ItemIdsQuery, opts: ListOptions = {}): ItemIds {
   const q = itemIdsQuerySchema.parse(input);
-  const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : workspaceMuted(app, p.workspaceId);
+  const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : accountMuted(app, p.accountId);
   const { where, params } = listConditions(app, p, q, opts, null);
   const sort = listSort(app, p, q);
   const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${where.join(" AND ")} ${orderBy(sort, "sort_key")}`;
@@ -456,7 +455,7 @@ function sortedRows(app: App, where: string[], params: SqlParam[], sort: ListSor
     : app.db.all<SortedRow>(`${ordered} LIMIT ?`, ...ps, limit);
 }
 
-/** One page of a list; `muted`: the muted words (see `workspaceMuted`) whose items the list leaves out. */
+/** One page of a list; `muted`: the muted words (see `accountMuted`) whose items the list leaves out. */
 function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>, opts: ListOptions, muted: string | null): ListResult {
   // Home's lists and the queue come in runs (see HOME_RUNS, QUEUE_RUNS). Home's also read the items that existed when paging began
   // (a sequence number), so an arrival, even a backdated one, cannot join a page already past its place.
@@ -491,7 +490,7 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
   const page = rows.slice(0, q.limit);
   const last = page[page.length - 1];
   const nextCursor = rows.length > q.limit && last ? Buffer.from(JSON.stringify(runs ? [last.sort_key, last.id, snapshot, last.run] : [last.sort_key, last.id])).toString("base64url") : null;
-  const kept = keptDisplays(app, p.workspaceId, page.filter((r) => r.basket_ids).map((r) => r.id));
+  const kept = keptDisplays(app, p.accountId, page.filter((r) => r.basket_ids).map((r) => r.id));
   // A list narrowed by more than its scope and state has no total: counting it would read every item the narrowing looks at.
   const narrowed = !!(q.type || q.length || q.without || q.capture || opts.homeVisible || home || muted);
   const total = q.cursor || narrowed ? null
@@ -514,7 +513,7 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
  * counting rows costs in proportion (about 70 ms for a tenth of them). Sources are a cheap stand-in for items here: asking for
  * the items themselves costs about a quarter of the saving.
  *
- * `sortFromRowsBelow`: a list sorted by kept time or by source is read in order from its PURSS-wide index (migration 058) and
+ * `sortFromRowsBelow`: a list sorted by kept time or by source is read in order from its PURSS-wide index and
  * stops once the page is full; a list of a few sources' items would walk most of the PURSS to find them that way (a source of
  * 80 items took 65 to 180 ms instead of 2 at 100,000 items), so one with fewer items than this sorts them instead, as every such
  * list did before the keys were stored. Finding out reads at most this many entries of a source index.
@@ -525,7 +524,7 @@ export const listTuning = { countFromRowsBelowShare: 0.2, sortFromRowsBelow: 200
 
 /** The part of a list's scope that depends on an item's state rather than on its source. */
 const SCOPE_STATE: Record<string, { sql: string; keep: CellFilter }> = {
-  fresh: { sql: "st.fresh = 1", keep: (_w, fresh) => fresh },
+  new: { sql: "st.is_new = 1", keep: (_w, isNew) => isNew },
   toread: { sql: QUEUE_STATES_SQL, keep: (w) => w === "toread" || w === "inprogress" },
 };
 
@@ -542,21 +541,21 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
   const scopeState = SCOPE_STATE[kind];
   let scopeSources: Set<string | null> | null = null; // null: every source
   if (kind === "collection") {
-    const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND workspace_id = ?", id!, p.workspaceId);
+    const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND account_id = ?", id!, p.accountId);
     if (c?.mode !== "sources") return null;
     scopeSources = new Set(app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", id!).map((r) => r.source_id));
-    const followed = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE workspace_id = ? AND followed = 1 AND kind <> 'manual'", p.workspaceId)!.n;
+    const followed = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual'", p.accountId)!.n;
     if (scopeSources.size < followed * listTuning.countFromRowsBelowShare) return null;
   } else if (kind === "loose") {
-    scopeSources = new Set(looseSources(app, p.workspaceId));
+    scopeSources = new Set(looseSources(app, p.accountId));
   } else if (kind !== "all" && kind !== "home" && !scopeState) return null;
 
-  const filterSql = q.filter === "fresh" ? "st.fresh = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "all" ? "1" : "st.workflow = ?";
-  const filterKeep: CellFilter = q.filter === "fresh" ? (_w, fresh) => fresh : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "all" ? () => true : (w) => w === q.filter;
-  const keep: CellFilter = (w, fresh) => filterKeep(w, fresh) && (!scopeState || scopeState.keep(w, fresh));
+  const filterSql = q.filter === "new" ? "st.is_new = 1" : q.filter === "all" ? "st.workflow <> 'ignored'" : q.filter === "all_with_ignored" ? "1" : "st.workflow = ?";
+  const filterKeep: CellFilter = q.filter === "new" ? (_w, isNew) => isNew : q.filter === "all" ? (w) => w !== "ignored" : q.filter === "all_with_ignored" ? () => true : (w) => w === q.filter;
+  const keep: CellFilter = (w, isNew) => filterKeep(w, isNew) && (!scopeState || scopeState.keep(w, isNew));
 
-  const counts = itemCounts(app, p.workspaceId);
-  const followed = new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND (followed = 1 OR kind = 'manual')", p.workspaceId).map((r) => r.id));
+  const counts = itemCounts(app, p.accountId);
+  const followed = new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND (followed = 1 OR kind = 'manual')", p.accountId).map((r) => r.id));
   const inScope = [...counts.bySource.keys()].filter((k) => !scopeSources || scopeSources.has(k));
   const shown = inScope.filter((k) => k === null || followed.has(k));
   const hidden = inScope.filter((k): k is string => k !== null && !followed.has(k));
@@ -564,24 +563,24 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
   if (hidden.length) {
     total += app.db.get<{ n: number }>(
       `SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id
-       WHERE i.workspace_id = ? AND i.source_id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)
+       WHERE i.account_id = ? AND i.source_id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)
          AND ${scopeState ? scopeState.sql : "1"} AND ${filterSql}`,
-      p.workspaceId, JSON.stringify(hidden), ...(filterSql.endsWith("?") ? [q.filter] : []))!.n;
+      p.accountId, JSON.stringify(hidden), ...(filterSql.endsWith("?") ? [q.filter] : []))!.n;
   }
   return total;
 }
 
-/** The item with this number in the person's workspace (its short link, /app/i/<number>). */
+/** The item with this number in the person's account (its short link, /app/i/<number>). */
 export function itemIdByNumber(app: App, p: Principal, number: number): { id: string } {
-  const row = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND number = ?", p.workspaceId, number);
+  const row = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND number = ?", p.accountId, number);
   if (!row) throw notFound(server.api.shared.thatItem);
   return { id: row.id };
 }
 
 export function getItem(app: App, p: Principal, id: string): ItemDTO {
-  const row = app.db.get<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, id, p.workspaceId);
+  const row = app.db.get<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.account_id = ?`, id, p.accountId);
   if (!row) throw notFound(server.api.shared.thatItem);
-  return toDTO(row, keptDisplays(app, p.workspaceId, row.basket_ids ? [id] : []).get(id));
+  return toDTO(row, keptDisplays(app, p.accountId, row.basket_ids ? [id] : []).get(id));
 }
 
 const CAPTURE_LABELS = {
@@ -635,9 +634,9 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     : changedSinceKept && keptVersion ? (keptHtml ? { kind: "version", id: keptVersion.version_id } : null)
     : current ? { kind: "version", id: extra.version_id } : null;
   const collections = app.db.all<{ id: string; name: string }>(
-    `SELECT c.id, c.name FROM collections c WHERE c.workspace_id = ? AND c.mode = 'sources'
+    `SELECT c.id, c.name FROM collections c WHERE c.account_id = ? AND c.mode = 'sources'
        AND EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.collection_id = c.id AND cs.source_id = ?) ORDER BY c.position`,
-    p.workspaceId, dto.sourceId ?? "");
+    p.accountId, dto.sourceId ?? "");
   // Pictures that can't be shown on another site are sent only as their stored copies.
   const enclosures = (JSON.parse(extra.enclosures ?? "[]") as { url: string; type: string | null }[]).filter((e) => !copyOnlyPicture(e.url)).map((e) => ({ url: e.url, type: e.type }));
   return {
@@ -661,7 +660,7 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     keptVersionAt: keptVersion?.kept_at ?? null,
     enclosures: extra.is_private ? [] : enclosures,
     collections,
-    playback: getPlayback(app, p.workspaceId, id),
+    playback: getPlayback(app, p.accountId, id),
     renamable: !!app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.kind = 'manual'", id),
   };
 }

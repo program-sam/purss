@@ -6,11 +6,11 @@ import type { PushDeps, PushPermission } from "./push.ts";
 const RELAY = "https://push.example.org";
 const handleFor = (token: string, scope: string) => `rh_${(token + scope).replace(/[^A-Za-z0-9]/g, "").padEnd(43, "x").slice(0, 43)}`;
 
-function fake(over: Partial<PushDeps> & { workspaceRelay?: string | null } = {}) {
+function fake(over: Partial<PushDeps> & { purssRelay?: string | null } = {}) {
   const kv = new Map<string, string>();
   const calls: string[] = [];
-  const state = { permission: "prompt" as PushPermission, prompts: 0, registered: null as string | null, target: null as string | null, token: "fcm-token-1", relayUp: true, workspaceUp: true };
-  const workspaceRelay = over.workspaceRelay === undefined ? RELAY : over.workspaceRelay;
+  const state = { permission: "prompt" as PushPermission, prompts: 0, registered: null as string | null, target: null as string | null, token: "fcm-token-1", relayUp: true, purssUp: true };
+  const purssRelay = over.purssRelay === undefined ? RELAY : over.purssRelay;
   const deps: PushDeps = {
     platform: "fcm",
     relay: RELAY,
@@ -18,8 +18,8 @@ function fake(over: Partial<PushDeps> & { workspaceRelay?: string | null } = {})
     store: { get: (k) => kv.get(k) ?? null, set: (k, v) => void kv.set(k, v), remove: (k) => void kv.delete(k) },
     api: async <T,>(path: string, init?: { method?: string; body?: unknown }) => {
       calls.push(`${init?.method ?? "GET"} ${path}`);
-      if (!state.workspaceUp) throw new Error("offline");
-      if (path === "/api/push" && !init?.method) return { relay: workspaceRelay, registered: state.registered !== null } as T;
+      if (!state.purssUp) throw new Error("offline");
+      if (path === "/api/push" && !init?.method) return { relay: purssRelay, registered: state.registered !== null } as T;
       if (path === "/api/push/device" && init?.method === "POST") {
         state.registered = (init.body as { handle: string }).handle;
         return { fetchToken: `purss_push_${calls.length}` } as T;
@@ -66,8 +66,8 @@ test("a refused prompt, a build without push and a PURSS without it say why", as
   assert.deepEqual(await denied.c.enable(), { state: "denied", detail: PUSH_MESSAGES.denied });
   assert.equal(denied.state.registered, null);
   assert.deepEqual(await fake({ ready: false }).c.enable(), { state: "unavailable", detail: PUSH_MESSAGES.unavailable });
-  assert.deepEqual(await fake({ workspaceRelay: null }).c.status(), { state: "unavailable", detail: PUSH_MESSAGES.workspaceOff });
-  assert.deepEqual(await fake({ workspaceRelay: "https://other.example" }).c.enable(), { state: "unavailable", detail: PUSH_MESSAGES.otherRelay });
+  assert.deepEqual(await fake({ purssRelay: null }).c.status(), { state: "unavailable", detail: PUSH_MESSAGES.purssOff });
+  assert.deepEqual(await fake({ purssRelay: "https://other.example" }).c.enable(), { state: "unavailable", detail: PUSH_MESSAGES.otherRelay });
 });
 
 test("at start the registration follows a new push address, and a PURSS that forgot the phone gets it again", async () => {
@@ -106,13 +106,13 @@ test("turned off while offline, the phone tells PURSS and the relay at its next 
   const f = fake();
   await f.c.enable();
   f.state.relayUp = false;
-  f.state.workspaceUp = false;
+  f.state.purssUp = false;
   await f.c.disable();
   assert.equal(f.state.target, null, "the native credential goes at once");
   assert.notEqual(f.state.registered, null, "PURSS couldn't be told");
   assert.equal(JSON.parse(f.kv.get("purss:push")!).unsent, true, "so it is remembered");
   f.state.relayUp = true;
-  f.state.workspaceUp = true;
+  f.state.purssUp = true;
   f.calls.length = 0;
   await f.c.refresh();
   assert.deepEqual(f.calls, ["DELETE /api/push/device", "relay /v1/unregister"], "told at the next start, nothing registered again");

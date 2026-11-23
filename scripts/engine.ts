@@ -30,7 +30,7 @@ function printStatus(s: EngineStatus): void {
   console.log(`egress      all feed fetches via ${s.egress.proxy}: ${s.egress.enforced}`);
   const a = s.policy.archiving;
   console.log(`refresh     cron minutes ${s.policy.cronMin}; feed ttl ${s.policy.ttlDefaultSeconds}s`);
-  console.log(`retention   keep newest ${a.keep_min}/feed; purge when unseen > ${a.keep_period} or beyond ${a.keep_max}/feed (favourites, labels, unread not exempt)`);
+  console.log(`retention   keep newest ${a.keep_min}/feed; purge when unseen > ${a.keep_period} or beyond ${a.keep_max}/feed (favourites, labels, unseen not exempt)`);
   console.log(s.healthy ? "healthy" : `UNHEALTHY: ${s.problems.join("; ")}`);
 }
 

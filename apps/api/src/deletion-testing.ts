@@ -28,7 +28,7 @@ import { applySyncBatch } from "./services/sync.ts";
  * sign in with a password, and requests whose body is held back while something else happens.
  */
 
-export type Member = { accountId: string; workspaceId: string; engineUserId: string; email: string; password: string };
+export type Member = { accountId: string; engineUserId: string; email: string; password: string };
 
 export async function bootDeletion(env: Record<string, string> = {}) {
   const { app, cleanup } = makeTestApp(env);
@@ -63,10 +63,10 @@ export async function member(app: App, displayName: string | null, opts: { admin
   const email = `member${++n}${Date.now().toString(36)}@example.test`;
   const password = "correct horse battery";
   const prepared = await preparePassword(password, email);
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { email, emailConfirmed: false, displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null, password: prepared }));
+  const { accountId } = app.db.tx(() => createAccount(app, { email, emailConfirmed: false, displayName, admin: opts.admin ?? false, allowanceBytes: null, grantedBy: null, password: prepared }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-  return { accountId, workspaceId, engineUserId: eu.id, email, password };
+  return { accountId, engineUserId: eu.id, email, password };
 }
 
 /** The `name=value` pair of a cookie the response set, or null. */
@@ -154,12 +154,12 @@ export function seedAdjacent(app: App, p: Principal & { engineUserId: string }, 
   makeSource(app, p, "Podcast", stream);
   const episode = (n: number) => entry(stream, { title: `Episode ${n} ${word}`, enclosures: [{ url: `https://media.example/${p.accountId}/${n}.mp3`, type: "audio/mpeg", length: 4 }] });
   applySyncBatch(app, p.engineUserId, batch([episode(1), episode(2)]));
-  const episodeId = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND title LIKE 'Episode %' ORDER BY title", p.workspaceId)!.id;
+  const episodeId = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND title LIKE 'Episode %' ORDER BY title", p.accountId)!.id;
   savePlayback(app, p, episodeId, { positionSeconds: 42, durationSeconds: 120 });
 
   putAnnotation(app, p, episodeId, newId("ann"), { kind: "highlight", quote: { exact: `a ${word} passage`, prefix: "", suffix: "" }, position: null, target: null, body: `${word} comment`, updatedAt: nowIso() });
   putAnnotation(app, p, episodeId, newId("ann"), { kind: "note", body: `${word} note`, updatedAt: nowIso() });
-  saveBrowserCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: episodeId, url: "https://example.org/page", title: "Page", html: `<p>${word} text</p>`, text: `${word} text` });
+  saveBrowserCapture(app, { accountId: p.accountId, itemId: episodeId, url: "https://example.org/page", title: "Page", html: `<p>${word} text</p>`, text: `${word} text` });
   // A picture kept with the item, as the worker delivers it (the eight bytes every PNG starts with).
   const picture = `https://pictures.example/${p.accountId}.png`;
   completeImages(app, { itemId: episodeId, urls: [picture] }, { images: [{ url: picture, contentType: "image/png", data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]).toString("base64") }] });

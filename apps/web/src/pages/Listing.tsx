@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { Avatar, AvatarStack, Button, Icon, useBreakpoint } from "@purss/ui";
 import type { MenuEntry } from "@purss/ui";
 import { get, messageOf, patch, post } from "../api/client.ts";
 import type { ListParams } from "../api/queries.ts";
-import { itemListQuery, refreshWorkspace } from "../api/queries.ts";
+import { itemListQuery, refreshPurss } from "../api/queries.ts";
 import { QUILT } from "./Home.tsx";
 import { EngineNotice } from "../components/EngineNotice.tsx";
 import { RetrySource } from "../components/RetrySource.tsx";
@@ -34,7 +34,7 @@ import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useSelection } from "../state/selection.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { BoardView } from "../views/BoardView.tsx";
 import { CardsView } from "../views/CardsView.tsx";
 import { ListView } from "../views/ListView.tsx";
@@ -62,7 +62,7 @@ function useItems(place: ListPlace) {
   const ls = useListState(place);
   const board = ls.view === "board";
   // The board always needs the ignored column; the timeline groups by date, so it only sorts by date.
-  const apiFilter = board && (ls.filter === "active" || ls.filter === "all") ? "all" : ls.filter;
+  const apiFilter = board && (ls.filter === "all" || ls.filter === "all_with_ignored") ? "all_with_ignored" : ls.filter;
   const sort = ls.view === "timeline" && ls.sort !== "oldest" ? "newest" : ls.sort;
   const params: ListParams = { scope: ls.scope, filter: apiFilter, sort, ...listFilters(ls) };
   const q = useInfiniteQuery(itemListQuery(params));
@@ -93,9 +93,9 @@ function SourceNotes({ s, tz }: { s: SourceDTO; tz: string }) {
   return <>{out}</>;
 }
 
-function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere: number; onClearFresh: () => void }) {
+function Head({ place, newHere, onClearNew }: { place: ListPlace; newHere: number; onClearNew: () => void }) {
   const tools = <ListTools place={place} />;
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const qc = useQueryClient();
   const ls = useListState(place);
@@ -103,10 +103,10 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
   const popups = usePopups();
   const { toast } = useToasts();
   const xs = useBreakpoint() === "xs";
-  const fresh = freshHere > 0 ? (
+  const fresh = newHere > 0 ? (
     <>
-      <span className="fr"><i className="dot" />{freshHere}{app.words.newSpaced}</span>
-      <button type="button" className="link" onClick={onClearFresh}>{app.words.markAllAsSeen}</button>
+      <span className="fr"><i className="dot" />{newHere}{app.words.newSpaced}</span>
+      <button type="button" className="link" onClick={onClearNew}>{app.words.markAllAsSeen}</button>
     </>
   ) : null;
 
@@ -122,7 +122,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
             {c.mode === "sources" ? <span className="ring-sky" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><AvatarStack sources={srcs} max={5} /><span>{plural(srcs.length, app.words.sourceLower)}</span></span>
               : <span className="tag">{t.filter}</span>}
             {c.mode !== "sources" ? <span>{plural(c.itemCount, app.words.item)}</span> : null}
-            {c.mode === "query" ? <span>{describeQuery(c.query, { source: (id) => ws.sourceById.get(id)?.title ?? t.aSource })}</span> : null}
+            {c.mode === "filter" ? <span>{describeQuery(c.query, { source: (id) => ws.sourceById.get(id)?.title ?? t.aSource })}</span> : null}
             {fresh}
             <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "c", id: c.id }))}><Icon name="chart" size="sm" />{app.words.statistics}</button>
             <button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "collection", targetId: c.id, name: c.name })}><Icon name="link" size="sm" />{app.words.share}</button>
@@ -142,8 +142,8 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
     const pause = async (pauseFor: "week" | "month" | "until-resumed") => {
       try {
         await patch(url, { pauseFor });
-        refreshWorkspace(qc);
-        toast(t.pausedToast(isolate(s.title), pauseFor), { undo: async () => { await patch(url, { paused: false }); refreshWorkspace(qc); } });
+        refreshPurss(qc);
+        toast(t.pausedToast(isolate(s.title), pauseFor), { undo: async () => { await patch(url, { paused: false }); refreshPurss(qc); } });
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const resume = async () => {
@@ -152,18 +152,18 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       const back = left === null ? "until-resumed" : left > 8 * 86_400_000 ? "month" : "week";
       try {
         await patch(url, { paused: false });
-        refreshWorkspace(qc);
-        toast(t.resumedToast(isolate(s.title)), { undo: async () => { await patch(url, { pauseFor: back }); refreshWorkspace(qc); } });
+        refreshPurss(qc);
+        toast(t.resumedToast(isolate(s.title)), { undo: async () => { await patch(url, { pauseFor: back }); refreshPurss(qc); } });
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const setNotify = async (notify: SourceDTO["notify"]) => {
-      try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, { notify }); refreshWorkspace(qc, { items: false }); toast(t.notificationsToast(isolate(s.title), notify)); }
+      try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, { notify }); refreshPurss(qc, { items: false }); toast(t.notificationsToast(isolate(s.title), notify)); }
       catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const setFullText = async (fullText: boolean) => {
       try {
         await patch(`/api/sources/${encodeURIComponent(s.id)}`, { fullText });
-        refreshWorkspace(qc, { items: false });
+        refreshPurss(qc, { items: false });
         toast(fullText ? t.savingFullToast(isolate(s.title), FULL_TEXT_BACKFILL) : t.stoppedFullToast(isolate(s.title)));
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
@@ -172,7 +172,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       if (!makePrivate && !window.confirm(t.showLinkConfirm(s.title))) return;
       try {
         await post(`/api/sources/${encodeURIComponent(s.id)}/privacy`, { private: makePrivate });
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         toast(makePrivate ? t.nowPrivate(isolate(s.title)) : t.nowPublic(isolate(s.title)));
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
@@ -280,7 +280,7 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
       <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "finished", () => actions.setWorkflow(i, "finished")); }}>{app.words.finished}</Button>
       {inBasket ? null : <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "ignored", () => actions.setWorkflow(i, "ignored")); }}>{app.words.ignore}</Button>}
       <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "keep-in", itemIds: ids() })}>{app.words.keepIn}</Button>
-      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void actions.clearFreshFor(i); }}>{t.markAsSeen}</Button>
+      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void actions.clearNewFor(i); }}>{t.markAsSeen}</Button>
       <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "delete-items", itemIds: ids() })}>{app.words.delete}</Button>
       <span className="sp" />
       <button type="button" className="link" disabled={gathering} onClick={() => void selectAll()}>{total != null && total > 0 ? t.selectAllCount(total) : app.words.selectAll}</button>
@@ -292,15 +292,15 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
 /** The line under a list that leaves Ignored items out: what a source followed from now already had is among them. */
 function IgnoredHidden({ ls }: { ls: ReturnType<typeof useListState> }) {
   const nav = useNav();
-  return <p className="fine" style={{ marginTop: 12 }}>{t.ignoredHidden}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>{t.showIgnored}</button></p>;
+  return <p className="fine" style={{ marginTop: 12 }}>{t.ignoredHidden}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all_with_ignored") })}>{t.showIgnored}</button></p>;
 }
 
 function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typeof useListState>; hasSources: boolean }) {
   const nav = useNav();
   const overlays = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   // A basket's everything filter includes ignored items; elsewhere it leaves them out.
-  const everything = place.t === "b" ? "all" : "active";
+  const everything = place.t === "b" ? "all_with_ignored" : "all";
   if (ls.filter !== everything || isNarrowed(ls)) {
     return <div className="empty card-like"><h2>{ls.filter === "ignored" ? t.nothingIgnored : t.nothingMatches}</h2><Button onClick={() => nav.patchSearch({ filter: filterParam(ls, everything), source: undefined, without: undefined, type: undefined, length: undefined, capture: undefined })}>{t.showAllItems}</Button></div>;
   }
@@ -321,7 +321,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   if (place.t === "r") return <div className="empty card-like"><h2>{t.nothingQueued}</h2><p>{t.queueHint(KEYBOARD)}</p></div>;
   if (place.t === "b") {
     return (
-      <div className="empty card-like"><h2>{t.nothingKept}</h2><p>{t.useBookmark}</p>
+      <div className="empty card-like"><h2>{t.nothingKept}</h2><p>{t.useKeep}</p>
         {platform.connection ? null : <p>{t.otherSites.before}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "apps" })}>{app.words.browserExtensionOrABookmarklet}</button>{"."}</p>}
       </div>
     );
@@ -330,7 +330,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
 }
 
 export function ListingPage({ place }: { place: ListPlace }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const sel = useSelection();
   const actions = useItemActions();
@@ -347,7 +347,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <div className="col narrow"><div className="empty card-like" style={{ marginTop: 40 }}><h2>{t.missing(place.t === "c" ? app.words.collectionLower : place.t === "s" ? app.words.sourceLower : app.words.basketLower)}</h2><p>{app.words.itMayHaveBeenRemoved}</p><Button onClick={() => nav.go({ t: "home" })}>{app.words.goToHome}</Button></div></div>
     );
   }
-  const freshHere = place.t === "c" ? ws.collectionById.get(place.id)!.freshCount : place.t === "s" ? ws.sourceById.get(place.id)!.freshCount : items.filter((i) => i.fresh).length;
+  const newHere = place.t === "c" ? ws.collectionById.get(place.id)!.newCount : place.t === "s" ? ws.sourceById.get(place.id)!.newCount : items.filter((i) => i.isNew).length;
   const loadingFirst = q.isPending;
   const mutedHidden = q.data?.pages[0]?.mutedHidden ?? 0;
   const mutedAtLeast = !!q.data?.pages[0]?.mutedHiddenAtLeast;
@@ -359,7 +359,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
   else if (!items.length) body = (
     <>
       <Empty place={place} ls={ls} hasSources={hasSources} />
-      {ls.filter === "active" && (place.t === "c" || place.t === "s") && !isNarrowed(ls) ? <IgnoredHidden ls={ls} /> : null}
+      {ls.filter === "all" && (place.t === "c" || place.t === "s") && !isNarrowed(ls) ? <IgnoredHidden ls={ls} /> : null}
     </>
   );
   else {
@@ -372,8 +372,8 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <>
         {view}
         {ls.view !== "board" && drawn === items ? <LoadMore hasMore={!!q.hasNextPage} loading={q.isFetchingNextPage} onMore={() => void q.fetchNextPage()} /> : null}
-        {ls.filter === "active" && place.t !== "b" ? <IgnoredHidden ls={ls} /> : null}
-        {ls.filter === "all" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>{t.ignoredShowing}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "active") })}>{t.hideIgnored}</button></p> : null}
+        {ls.filter === "all" && place.t !== "b" ? <IgnoredHidden ls={ls} /> : null}
+        {ls.filter === "all_with_ignored" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>{t.ignoredShowing}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>{t.hideIgnored}</button></p> : null}
       </>
     );
   }
@@ -385,7 +385,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <div className={`col wide${place.t === "s" ? " in-source" : ""}`}>
         <EngineNotice />
         <Trail />
-        <Head place={place} freshHere={freshHere} onClearFresh={() => void actions.clearFresh(ls.scope)} />
+        <Head place={place} newHere={newHere} onClearNew={() => void actions.clearNew(ls.scope)} />
         {sel.selecting ? <SelectionBar params={params} total={total} inBasket={place.t === "b"} /> : null}
         {ls.captureFailed ? <p className="fine capture-only">{t.captureOnly}<button type="button" className="link" onClick={() => nav.patchSearch({ capture: undefined })}>{t.showEverything}</button></p> : null}
         {body}
