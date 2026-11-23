@@ -170,7 +170,7 @@ export async function start(config = loadConfig()) {
   void startSearchIndexRebuild(app); // only does anything after an upgrade that changed how search folds text
   void startCaptureCheck(app); // only does anything for readable copies saved before captures were checked
   purgeUploads(app, 0); // nothing is uploading yet: whatever a stop left half-written goes
-  nameManualSources(app); // the saved-links source takes the catalog's current name
+  nameManualSources(app); // the saved-links source takes the catalogue's current name
   const code = ensureClaimCode(app);
   watchTrustedProxies(config.trustProxy);
   const pub = publicServer(app, [publicRouter(), ...extraRouters.api()], { publicPages: extraRouters.pages(), events: eventStream });

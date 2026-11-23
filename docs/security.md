@@ -46,7 +46,7 @@ entries of every account.
 | Worker (`apps/worker`) | The secrets folder, read and write | Leases jobs from the internal listener and never opens the database. It fetches and parses untrusted pages for readable text, so it is not a sandbox |
 | Egress (`apps/egress`) | The service token, the bridge key and the feed-trim key | Forward proxy that is the only way out for FreshRSS and RSS-Bridge; feed gateway and bridge router that answer only signed addresses; a control listener that accepts only the service token |
 | FreshRSS | Every account's subscriptions and entries, the operator account's credentials and the admin helper's token | Parses hostile feeds in PHP. Internal network only, no published port, no route out except egress, administered only through a fixed helper |
-| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the catalogued bridges enabled. Its XPathBridge runs only the recipes the router passes it ([Page lists](sources.md#page-lists)) |
+| RSS-Bridge | Nothing of the product's | Its own network, with egress as its only peer. Pinned by digest, only the listed bridges enabled. Its XPathBridge runs only the recipes the router passes it ([Page lists](sources.md#page-lists)) |
 | Push relay (`apps/push-relay`) | The project's FCM and APNs credentials and each phone's push address | Run by the project, apart from any PURSS. Wakes a phone by handle and carries no content |
 
 Under Compose the containers sit on four networks. All but `outside` have no route to the internet.

@@ -91,7 +91,7 @@ A platform is on when its credentials are named. Whoever publishes the app owns 
 ## Deploy
 
 `compose.yaml` builds `Containerfile` (build context: the repository root; the image holds `apps/push-relay` and
-the text catalog `packages/translations`, linked as `node_modules/@purss/translations`) and binds
+the text catalogue `packages/translations`, linked as `node_modules/@purss/translations`) and binds
 `${PURSS_RELAY_BIND:-127.0.0.1}:8950`. Put an HTTPS reverse proxy in front of it and set
 `PURSS_RELAY_TRUST_PROXY=1` there (the compose file's default). The proxy must append the client's
 address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`,

@@ -1,6 +1,6 @@
 // Writes the native shells' text files from packages/translations/src/en/native.ts: the Android app's string resources, the iOS
 // widgets' and notification extension's Swift (and the App Intent names in PanelChoice.swift), and the desktop app's
-// Rust module. Edit the catalog, then run this (npm run translations:native); a test fails when a file is out
+// Rust module. Edit the translation file, then run this (npm run translations:native); a test fails when a file is out
 // of date. Usage: node scripts/native-translations.ts
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -37,7 +37,7 @@ function leaves(tree: Tree, path: string[] = []): { path: string[]; text: string
 }
 
 function checkKey(key: string): void {
-  if (!/^[a-z][a-zA-Z0-9]*$/.test(key)) throw new Error(`"${key}": catalog keys are camelCase words`);
+  if (!/^[a-z][a-zA-Z0-9]*$/.test(key)) throw new Error(`"${key}": translation keys are camelCase words`);
 }
 
 // ---- Android ---------------------------------------------------------------------------------------------------
@@ -126,7 +126,7 @@ function swiftFile(tree: Tree): string {
   return [`// ${NOTE}`, "// A plain text is a constant (NativeTranslations.Widget.loading), a text with values a function (NativeTranslations.Widget.pausedAt(time:)).", "", "enum NativeTranslations {", ...swiftItems(tree, 1, []), "}", ""].join("\n");
 }
 
-/** A text of the catalog by its dotted path (`ios.panelChoice.source`). */
+/** A text of the translation file by its dotted path (`ios.panelChoice.source`). */
 function textAt(tree: Tree, dotted: string): string {
   const value = dotted.split(".").reduce<string | Tree | undefined>((t, k) => (t && typeof t !== "string" ? t[k] : undefined), tree);
   if (typeof value !== "string") throw new Error(`${dotted}: no such text in packages/translations/src/en/native.ts`);
@@ -135,7 +135,7 @@ function textAt(tree: Tree, dotted: string): string {
 }
 
 /**
- * A Swift file whose lines that end in `// translation: <path>` carry that catalog text as their one string literal: for text
+ * A Swift file whose lines that end in `// translation: <path>` carry that translated text as their one string literal: for text
  * Xcode reads at build time (App Intent names), which has to be written out where it is used.
  */
 export function syncMarkedLiterals(source: string, tree: Tree, file: string): string {

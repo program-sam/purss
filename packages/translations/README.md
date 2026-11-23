@@ -27,12 +27,12 @@ string. Text that several places show is written once, in its audience's `words`
 "Cancel" on every button that says it), so changing it there changes it everywhere; a place that
 should say something of its own gets its own entry instead. In an entry
 that is a function, keep its `${…}` values; `npm run check` catches a misspelled one. Tests take
-the text they look for from the catalogs, so rewording an entry never breaks one; a test that
+the text they look for from the translation filess, so rewording an entry never breaks one; a test that
 writes visible text out instead of reading it from a catalog is a mistake. The end-to-end tests
 run against a built app, so build it again after changing copy.
 
 Code never decides anything by the words it shows. The server stores a state or a code and shows
-the catalog's words for it when read: a source waiting for its first items stores no text, a
+the translation files' words for it when read: a source waiting for its first items stores no text, a
 failed follow stores its reason (`sources.health_reason`) beside the message, and the source that
 holds links kept by hand is recognised by its kind and takes the catalog's name each time the API
 starts. Messages written when something happened (notifications, a source's failure message) keep

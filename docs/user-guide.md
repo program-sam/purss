@@ -83,7 +83,7 @@ can still be followed ("No posts yet" shows on its page until the first one arri
 follow a source with the same name under another address, the result says so before you follow a second. The same feed written another way (`http` or `https`, with or without a trailing slash or tracking parameters) is the one you already follow, and Follow opens it. A feed at a different address whose newest posts are those of a source you follow (a site's own feed and its FeedBurner copy, say) is pointed out too, as the same posts under another address; following it anyway makes a second source. A section's feed inside a site's whole feed is not taken for it. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
 you want to group it). *Posts the source already has* starts on **Start from now**: only posts that come out after
-you follow are New, and what the feed already had is kept as Ignored: search finds it ([Back catalogue](#sources)). Choose
+you follow are New, and what the feed already had is kept as Ignored: search finds it ([Backlog](#sources)). Choose
 **Also show posts from the last week as New** to see the last week's posts too. *Save full articles* starts unticked, because it uses
 storage for every new post (see [Full articles](#full-articles)); tick it for a feed whose posts you
 want to read in full. A source in no collection is listed in the sidebar and shows in the *Other sources* box on Home.
@@ -214,7 +214,7 @@ gives the browser's own menu).
   it. A pause for a week or a month ends by itself and the source says when. Nothing new is
   added while it is paused. After you resume, some items published during the pause may still
   arrive, but there's no guarantee that all of them will.
-- **Back catalogue:** what a source already had when you followed it is not New and sends no
+- **Backlog:** what a source already had when you followed it is not New and sends no
   notification. Following an old podcast never shows "1,359 new"; only what comes after is New.
   With **Start from now** (the choice Add source starts on, and the one a list you import uses)
   those older posts are kept as **Ignored**: hidden from lists (under a list, *Ignored items are
@@ -226,7 +226,7 @@ gives the browser's own menu).
   like any other, and yours to change: moving a post to To read or Undecided brings it onto Home and into the
   counts; opening it, reading it partway, keeping it in a basket (a basket shows what is kept in it,
   Ignored or not), highlighting it or adding a note leaves it as it is. Sources you followed before this
-  choice existed keep showing their back catalogue as older items, as they did.
+  choice existed keep showing their backlog as older items, as they did.
 - **Unfollow:** collection stops and the source leaves your collections. Kept items stay; the
   rest no longer show in lists or search. Tick *Also delete the items you haven't kept* to
   delete those permanently and free their storage (kept and shared items are never deleted).
@@ -266,7 +266,7 @@ covers it, and it is there for [offline reading](#install-and-offline-reading).
 
 - It applies to new items, and to up to 20 of the source's newest items you haven't finished or
   ignored when you turn it on. Copies are fetched a few seconds apart, so a burst of new posts
-  takes a little while. A source followed from now keeps its [back catalogue](#sources), which is
+  takes a little while. A source followed from now keeps its [backlog](#sources), which is
   Ignored, as it came: no copies are fetched by themselves for the posts it already had, so a site that refuses
   automated readers doesn't fail them one by one. Keeping one of those posts in a basket that makes
   a readable copy, or *Try again*, still fetches its copy.
@@ -536,7 +536,7 @@ Change it from the item panel, the board, the keyboard, or for many items at onc
 is Finished or Ignored the button names that state and opens the same menu. Any state can move to any other. Finished doesn't delete anything; Ignored hides an
 item from the usual lists (tick *Show ignored items* to see it) and doesn't unfollow its
 source. The posts a source already had when you followed it from now arrive Ignored
-([Back catalogue](#sources)).
+([Backlog](#sources)).
 
 Changing an item's state, or keeping it in or taking it out of a basket, clears its New marker.
 Otherwise state, baskets and collections never change each other.
@@ -706,7 +706,7 @@ feeds, and the app doesn't read anything into them.
 - **Items per week:** the items in each of the last 26 weeks (consecutive seven-day periods
   counting back from now), as small bars and as an average. An item is placed by its date in
   lists: when it arrived, or for what the feed already had when you followed it its publication
-  date, so a feed you have just followed doesn't show its back catalogue as one burst. Items dated
+  date, so a feed you have just followed doesn't show its backlog as one burst. Items dated
   in the future count in the total but aren't placed in a week.
 - **Items** and **Latest item:** how many items the source has, and the date of the newest.
 - **Longest gap:** the most days between two consecutive items dated in the last 12 months.
@@ -749,7 +749,7 @@ who follows what, and private sources never count. Turn it off and your sources 
 within minutes, and you stop getting suggestions.
 
 The first box says **Coming soon** until enough people share. A self-hosted PURSS has no
-suggestions; it shows popular sources only if its administrator added a catalog of them.
+suggestions; it shows popular sources only if its administrator added a catalogue of them.
 
 ## Reminders
 
@@ -1170,7 +1170,7 @@ hosted installations sharing is part of Plus; a self-hosted PURSS always has it.
 The page shows each item's title, link, a short summary, source name and date, newest first (for a
 basket: most recently kept first), up to 200 items, and its feed the newest 100. Items from private
 sources and links that carry a key never show. A collection's page leaves out what its list leaves out: Ignored items, which include the
-back catalogue of a source you followed from now ([Sources](#sources)), are not on it, unless you move a
+backlog of a source you followed from now ([Sources](#sources)), are not on it, unless you move a
 post to another state. A basket's page shows everything kept in it. Your reading progress and states, private notes and
 highlights, and saved text never do. The page is live: what you keep in the basket, or what the
 collection gathers, appears on it without another review; taking something out of the basket takes

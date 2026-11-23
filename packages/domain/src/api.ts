@@ -55,8 +55,8 @@ export type SessionInfo = {
     accountEmail: boolean;
     /** Plans are paid for through the hosted service's billing (Settings → Plan); otherwise administrators set them. */
     billing: boolean;
-    /** The installation has a catalog of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
-    catalog: boolean;
+    /** The installation has a catalogue of popular sources for Discovery (the hosted service's own, or one its administrator put there). */
+    catalogue: boolean;
   };
 };
 /** The signed-in account's email address. */
@@ -466,7 +466,7 @@ export type PodcastSearchResponse =
  * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
  * looked up when the hit is chosen: the source's feed, or the website.
  */
-export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalog" | "wikidata" };
+export type SiteSearchHit = { name: string; description: string | null; address: string; site: string; from: "readers" | "catalogue" | "wikidata" };
 export type SiteSearchResponse =
   | { ok: true; query: string; hits: SiteSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
@@ -479,7 +479,7 @@ export const followSchema = z.object({
   markPrivate: z.boolean().optional(),
   fullText: z.boolean().default(false),
   /**
-   * What the source already had when it was followed (its back catalogue). "now" (the default): it is stored as Ignored, so lists hide it,
+   * What the source already had when it was followed (its backlog). "now" (the default): it is stored as Ignored, so lists hide it,
    * Home and the counts of items not looked at leave it out, and search finds it. "week": the posts published in the week before are
    * also marked New and shown like new posts; the older ones are Ignored as for "now".
    */
@@ -716,7 +716,7 @@ export type HomeOverview = {
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** Every New marker in PURSS, for "Start fresh". */
   isNew: number;
-  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's back catalogue is not in it when the source was followed from now: that is Ignored. */
+  /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's backlog is not in it when the source was followed from now: that is Ignored. */
   unread: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */
   mutedHidden: number;

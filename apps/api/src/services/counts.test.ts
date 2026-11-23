@@ -53,10 +53,10 @@ function build(seed: number): World {
     });
   }
   const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((x) => x.id);
-  // The back catalogue of sources followed from now arrives Ignored and not New (sync.ts arrivalOf); the actions below act on some of them.
-  const backCatalogue = ids().filter(() => r() < 0.3);
-  bulk(app, p, backCatalogue, { type: "clearNew" });
-  app.db.run(`UPDATE item_state SET workflow = 'ignored' WHERE item_id IN (SELECT i.id FROM items i WHERE i.id IN (SELECT value FROM json_each(?)) AND i.source_id IS NOT NULL)`, JSON.stringify(backCatalogue));
+  // The backlog of sources followed from now arrives Ignored and not New (sync.ts arrivalOf); the actions below act on some of them.
+  const backlog = ids().filter(() => r() < 0.3);
+  bulk(app, p, backlog, { type: "clearNew" });
+  app.db.run(`UPDATE item_state SET workflow = 'ignored' WHERE item_id IN (SELECT i.id FROM items i WHERE i.id IN (SELECT value FROM json_each(?)) AND i.source_id IS NOT NULL)`, JSON.stringify(backlog));
   // Workflow states and cleared New markers, at random.
   for (const workflow of ["toread", "inprogress", "finished", "ignored"] as const) {
     const some = ids().filter(() => r() < 0.12);

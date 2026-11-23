@@ -72,14 +72,14 @@ async function waitFor(what: string, fn: () => Promise<boolean>, ms: number): Pr
 }
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow, views, filters } = copy.lib.constants;
 const add = copy.dialogs.addSource;
 const basketForm = copy.dialogs.baskets.form;
 const tabs = copy.dialogs.settings.dialog.tabs;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** What a catalog message says before and after its one value. */
+/** What a catalogue message says before and after its one value. */
 const around = (message: (value: string) => string) => message("\u0000").split("\u0000") as [string, string];
 const ADD_SOURCE = copy.words.addSource;
 const SOURCES_FOUND = new RegExp(`${esc(add.oneSourceFound)}|${esc(add.sourcesFound(7)).replace("7", "\\d+")}`);

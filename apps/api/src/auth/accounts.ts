@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { hasCatalog } from "../services/discover-catalog.ts";
+import { hasCatalogue } from "../services/discovery-catalogue.ts";
 import { newId } from "@purss/domain";
 import type { SessionInfo } from "@purss/domain";
 import { STEP_UP_SECONDS } from "../app.ts";
@@ -205,7 +205,7 @@ export function sessionInfo(ctx: Ctx): SessionInfo {
     version: app.config.version?.version ?? null,
     accountEmail: accountEmailAvailable(app),
     billing: app.config.billing !== null,
-    catalog: hasCatalog(app),
+    catalogue: hasCatalogue(app),
   };
   if (!hasAccounts(app)) return { state: "unclaimed", csrf: null, account: null, installation };
   const p = ctx.principal;

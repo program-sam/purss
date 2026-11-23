@@ -55,7 +55,7 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // code and data: ids, the toolbar's check mark, the basket names and page titles the journey makes up.
 const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
@@ -65,12 +65,12 @@ const popupCopy = extension.popup;
 /** The name the extension suggests for this browser (the options page and the approval page start from it). */
 const DEVICE = extension.connect.deviceName("Chrome", "Linux");
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** The words of a catalog entry, to be found anywhere in what the popup shows. */
+/** The words of a catalogue entry, to be found anywhere in what the popup shows. */
 const words = (s: string) => new RegExp(escapeRe(s));
-/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+/** A pattern for a catalogue function's words, with its values (called with U+E000) left open. */
 const OPEN = "\uE000";
 const pattern = (s: string, open = ".+?") => new RegExp(escapeRe(s).replaceAll(OPEN, open));
-/** How the popup joins what happened into one line (the extension's own wording is in the catalog, the full stops are its). */
+/** How the popup joins what happened into one line (the extension's own wording is in the catalogue, the full stops are its). */
 const line = (...parts: string[]) => parts.join(". ").replace(/\.\./g, ".");
 
 let api: ChildProcess | null = null;

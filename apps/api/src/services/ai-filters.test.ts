@@ -432,7 +432,7 @@ test("the posts a source already had when it was followed from now arrive Ignore
   assert.equal((await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment research", drop: "job ads" })).status, 200);
   const old = (title: string) => entry("feed/1", { title, summaryHtml: "<p>Nothing to see.</p>", publishedAt: new Date(Date.now() - 400 * 86_400_000).toISOString(), crawledAt: new Date().toISOString() });
   applySyncBatch(b.app, b.owner.engineUserId, batch([old("Sediment cores, long ago"), old("Hiring, long ago")]));
-  assert.equal(await runJudging(b), 0, "the back catalogue is not sent to be judged");
+  assert.equal(await runJudging(b), 0, "the backlog is not sent to be judged");
   assert.equal(b.jev.seen.length, 0, "and Jev is asked nothing about it");
   assert.deepEqual([post(b.app, b.owner.accountId, "Sediment cores, long ago").workflow, post(b.app, b.owner.accountId, "Hiring, long ago").workflow], ["ignored", "ignored"]);
 
@@ -444,12 +444,12 @@ test("the posts a source already had when it was followed from now arrive Ignore
   assert.equal(post(b.app, b.owner.accountId, "We're hiring a designer").workflow, "ignored");
   assert.equal(post(b.app, b.owner.accountId, "Sediment cores from the delta").workflow, "undecided");
 
-  // A looser filter gives back what it dropped, and re-checks what is Undecided: never the back catalogue, which no filter had a say in.
+  // A looser filter gives back what it dropped, and re-checks what is Undecided: never the backlog, which no filter had a say in.
   b.jev.seen.length = 0;
   assert.equal((await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment research and anything else", drop: "nothing" })).status, 200);
   await runJudging(b);
   const judged = b.jev.seen.map((s) => s.body.state.title);
-  assert.ok(!judged.some((title) => /long ago/.test(title)), `the back catalogue was not judged: ${judged.join(", ")}`);
+  assert.ok(!judged.some((title) => /long ago/.test(title)), `the backlog was not judged: ${judged.join(", ")}`);
   assert.deepEqual([post(b.app, b.owner.accountId, "Sediment cores, long ago").workflow, post(b.app, b.owner.accountId, "Hiring, long ago").workflow], ["ignored", "ignored"]);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM ai_filter_verdicts v JOIN items i ON i.id = v.item_id WHERE i.title LIKE '%long ago'")!.n, 0);
 });

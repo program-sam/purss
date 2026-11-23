@@ -164,7 +164,7 @@ function filteredSources(app: App, accountId: string): Set<string> {
 }
 
 /**
- * Called by a sync batch, in its transaction, with the posts it created: the new ones (not a source's back catalogue) of filtered
+ * Called by a sync batch, in its transaction, with the posts it created: the new ones (not a source's backlog) of filtered
  * sources are queued for judging. Returns the sources whose arrivals the judging will announce instead of the sync (so a post a
  * filter drops never shows up as a notification).
  */

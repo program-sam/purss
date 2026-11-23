@@ -42,7 +42,7 @@ const env: NodeJS.ProcessEnv = {
 };
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const newCollectionCopy = app.dialogs.collections.newCollection;
 const addSourceCopy = app.dialogs.addSource;

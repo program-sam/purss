@@ -39,10 +39,10 @@ const shots = os.tmpdir();
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this check.
+// The words the page shows come from the translation files, so rewording one never breaks this check.
 const { display, general } = copy.dialogs.settings;
 const { up, down } = copy.components.pageNav;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
 /** The sidebar's Add source button, or the tab bar's on a phone. */
 const ADD_SOURCE = new RegExp(`${esc(copy.words.addSource)}|${esc(copy.words.addSource)}`);

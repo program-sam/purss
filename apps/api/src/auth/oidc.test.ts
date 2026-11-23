@@ -24,7 +24,7 @@ import type { App } from "../app.ts";
  */
 
 const { publicRoute } = server.api;
-/** The link back to the app on the page that hands over the code: the catalog's markup around any purss://connect address. */
+/** The link back to the app on the page that hands over the code: the catalogue's markup around any purss://connect address. */
 const GO_BACK_LINK = new RegExp(escapeRegExp(publicRoute.goBackLink("\u0000")).replace("\u0000", String.raw`purss://connect\?[^"]+`));
 
 const HOSTED = { PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_TRUST_PROXY: "1", PURSS_PUBLIC_ORIGIN: "https://ws.example.org", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" };

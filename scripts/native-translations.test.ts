@@ -16,7 +16,7 @@ function filesUnder(directory: string, ending: RegExp): string[] {
   });
 }
 
-test("the native files are what the catalog says (run npm run translations:native when this fails)", () => {
+test("the native files are what the translation file says (run npm run translations:native when this fails)", () => {
   for (const { file, text } of generate()) {
     assert.equal(readFileSync(path.join(root, file), "utf8"), text, `${file} is out of date: run npm run translations:native`);
   }
@@ -36,7 +36,7 @@ test("every Android string the app uses is written, and every one written is use
   assert.deepEqual(copy.filter((name) => !used.has(name)), [], "written but not used (remove it from packages/translations/src/en/native.ts)");
 });
 
-test("an Android text is the catalog's with its values numbered by first appearance and what XML and aapt read specially escaped", () => {
+test("an Android text is the translation file's with its values numbered by first appearance and what XML and aapt read specially escaped", () => {
   assert.equal(androidText("{done} of {total} MB"), "%1$s of %2$s MB");
   assert.equal(androidText("{title}, {meta} ({title})"), "%1$s, %2$s (%1$s)");
   assert.equal(androidText("You don't follow <this> & \"that\""), "You don\\'t follow &lt;this&gt; &amp; \\\"that\\\"");
@@ -44,7 +44,7 @@ test("an Android text is the catalog's with its values numbered by first appeara
   assert.throws(() => androidText("100%"), /%/);
 });
 
-test("a catalog text holds only {names} of lower-case letters and digits", () => {
+test("a translated text holds only {names} of lower-case letters and digits", () => {
   assert.deepEqual(placeholders("{host} ({os}) {host}"), ["host", "os"]);
   assert.deepEqual(placeholders("no values"), []);
   assert.throws(() => placeholders("{Host}"), /brace/);
@@ -68,7 +68,7 @@ test("the iOS Swift file has a constant for each plain text and a function for e
   assert.equal(swiftString("{n} stays as written"), `"{n} stays as written"`);
 });
 
-test("a Swift line marked // translation: carries the catalog's text, and a marked line without a string fails", () => {
+test("a Swift line marked // translation: carries the translation file's text, and a marked line without a string fails", () => {
   const tree = { ios: { panel: { name: "Collection" } } };
   const source = `    static var title: LocalizedStringResource = "Old words"  // translation: ios.panel.name\nlet other = "kept"`;
   assert.equal(syncMarkedLiterals(source, tree, "X.swift"), `    static var title: LocalizedStringResource = "Collection"  // translation: ios.panel.name\nlet other = "kept"`);

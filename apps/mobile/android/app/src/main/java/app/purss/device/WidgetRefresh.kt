@@ -128,18 +128,18 @@ object WidgetRefresh {
         val old = WidgetLists.decode(DeviceStore.lists(ctx))
         try {
             // Names, and whether a chosen collection or source is still there (a removed source stays readable by id).
-            val catalog = if (wanted.any { WidgetLists.configurable(it) }) {
+            val choices = if (wanted.any { WidgetLists.configurable(it) }) {
                 val a = api.get("/api/bootstrap")
-                if (a.status == 200) WidgetLists.parseCatalog(a.text) else null
+                if (a.status == 200) WidgetLists.parseChoices(a.text) else null
             } else null
             val out = mutableMapOf<String, WidgetLists.Stored>()
             for (key in wanted) {
                 if (stopped()) return
                 val chosen = WidgetLists.configurable(key)
-                val name = if (chosen) catalog?.name(key) ?: old[key]?.name else null
+                val name = if (chosen) choices?.name(key) ?: old[key]?.name else null
                 if (chosen) {
-                    if (catalog == null) { old[key]?.let { out[key] = it }; continue }
-                    val state = WidgetLists.chosenState(key, catalog)
+                    if (choices == null) { old[key]?.let { out[key] = it }; continue }
+                    val state = WidgetLists.chosenState(key, choices)
                     // A private source's name never shows on a home screen either.
                     if (state != "ok") { out[key] = WidgetLists.Stored(emptyList(), null, state, if (state == "private") null else name); continue }
                 }

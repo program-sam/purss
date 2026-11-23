@@ -124,7 +124,7 @@ test("a site address matches pages under its path only", () => {
   assert.ok(!underSite(new URL("https://www.youtube.com/watch?v=1"), "https://www.youtube.com/channel/UC123"), "a channel doesn't claim every video");
 });
 
-test("a link kept by hand is marked so, and its source takes the catalog's name at start, whatever an earlier version stored", async (t) => {
+test("a link kept by hand is marked so, and its source takes the catalogue's name at start, whatever an earlier version stored", async (t) => {
   const { app, owner, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, owner, "Sediment Letters", "feed/1");

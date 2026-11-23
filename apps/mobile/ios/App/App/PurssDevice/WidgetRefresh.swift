@@ -289,12 +289,12 @@ enum WidgetRefresh {
         let api = PurssAPI(connection)
         do {
             var wrote = false
-            var catalog: WidgetLists.Catalog?
+            var choices: WidgetLists.WidgetChoices?
             if needBootstrap {
                 let answer = try await api.get("/api/bootstrap")
-                if answer.status == 200, let parsed = WidgetLists.parseCatalog(answer.data) {
-                    catalog = parsed
-                    if let data = WidgetLists.encodeChoices(generation: since, catalog: parsed) {
+                if answer.status == 200, let parsed = WidgetLists.parseChoices(answer.data) {
+                    choices = parsed
+                    if let data = WidgetLists.encodeChoices(generation: since, choices: parsed) {
                         wrote = WidgetData.writeIfCurrent(since, WidgetFiles.choicesName, data)
                     }
                 }
@@ -303,10 +303,10 @@ enum WidgetRefresh {
             for key in wanted {
                 try Task.checkCancellation()
                 let chosen = WidgetLists.configurable(key)
-                let name = chosen ? (catalog?.name(key) ?? old[key]?.name) : nil
+                let name = chosen ? (choices?.name(key) ?? old[key]?.name) : nil
                 if chosen {
                     // A removed source stays readable by id, so the bootstrap decides whether it is there.
-                    guard let fresh = catalog else {
+                    guard let fresh = choices else {
                         if let kept = old[key] { out[key] = kept }
                         continue
                     }

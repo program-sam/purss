@@ -36,7 +36,7 @@ test("the routes and entries are closed lists of short, unique ids, and every br
   for (const id of [...DISCOVERY_ROUTES, ...DISCOVERY_ENTRIES]) assert.match(id, /^[a-z]+(?:[-:][a-z]+)*$/, id);
   assert.ok(isDiscoveryRoute("page-list") && !isDiscoveryRoute("made-up") && !isDiscoveryRoute(null));
   assert.ok(isDiscoveryEntry("opml-import") && !isDiscoveryEntry("reconnect"), "a reconnect lookup is no entry: it follows nothing");
-  assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort(), "the routes name the catalogue's services, no more and no fewer");
+  assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort(), "the routes name the bridge list's services, no more and no fewer");
 });
 
 test("what is shown is counted per route and entry, a reconnect lookup is not, and a count that can't be written never changes the answer", (t) => {

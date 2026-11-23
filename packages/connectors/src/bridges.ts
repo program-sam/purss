@@ -505,7 +505,7 @@ function examplePageKey(source: Parameters<typeof encodePageKey>[0]): string {
   return key;
 }
 
-/** A key this service accepted, read; the catalogue only asks for keys it has checked. */
+/** A key this service accepted, read; the bridge list only asks for keys it has checked. */
 function pageOf(key: string): NonNullable<ReturnType<typeof decodePageKey>> {
   const source = decodePageKey(key);
   if (!source) throw new Error("Not a page list's key.");
@@ -538,7 +538,7 @@ export function bridgeKeyValid(service: BridgeService, key: string): boolean {
   return service.keyPattern.test(key) && (service.validKey?.(key) ?? true);
 }
 
-/** A descriptor (`bridge:telegram/durov`) of a catalogued service with a valid key, or null. */
+/** A descriptor (`bridge:telegram/durov`) of a listed service with a valid key, or null. */
 export function parseBridgeDescriptor(value: string): BridgeTarget | null {
   const m = DESCRIPTOR.exec(value.trim());
   if (!m) return null;

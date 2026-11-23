@@ -21,7 +21,7 @@ and released.
 | `packages/connectors` | Safe fetch, discovery, feed parsing, readable capture, OPML |
 | `packages/freshrss` | GReader client, sync walk, fixed admin commands, engine lifecycle |
 | `packages/ui` | Design tokens and UI primitives |
-| `packages/translations` | Every word people read: one catalog each for the website, the app, the UI kit, the extension, the server and shared text (see its README) |
+| `packages/translations` | Every word people read: one catalogue each for the website, the app, the UI kit, the extension, the server and shared text (see its README) |
 | `infra` | Compose files, product image, engine image and its admin helper |
 | `scripts` | Dev runner, engine lifecycle, backup and restore, repository check, allowlist generator, dataset generator (size guard) |
 | `tests/engine` | Contract tests against the pinned FreshRSS container |
@@ -68,7 +68,7 @@ start the API with `PURSS_PUBLIC_ORIGIN=http://localhost:5173` so its origin and
 - **Scoped queries.** Product queries filter by the principal's `workspace_id` or `account_id`.
 - **User-facing messages** are plain language; errors are `{ error: { code, message } }`.
 - **Copy lives in `@purss/translations`.** Visible text, emails and messages people read come from the
-  catalog for their audience, never inline strings; ids, logs, operator output and labels only screen
+  catalogue for their audience, never inline strings; ids, logs, operator output and labels only screen
   readers announce stay in code ([packages/translations](../packages/translations/README.md)).
 - **Secrets, runtime data and downloaded content stay out of Git** (`data/`, `.env`, backups).
 
@@ -112,14 +112,14 @@ with what feeds, FreshRSS, publishers' sites and large accounts really do, so:
 A lookup without an index costs nothing on a test database and stops a host once an account holds
 tens of thousands of items. `node scripts/dataset.ts` builds accounts of realistic size in a throwaway
 data directory (under the ignored `data/`), through the product's own code: sync batches that follow
-the back-catalogue and settling rules, Keep, bulk state changes, captures and notifications. Point
+the backlog and settling rules, Keep, bulk state changes, captures and notifications. Point
 `PURSS_DATA_DIR` at the directory to serve it.
 
 | Dataset | Build |
 | --- | --- |
 | One large account | `node scripts/dataset.ts`: 1 account, 300 sources, 100,000 items; a few percent New, 2% Ignored, 10% in other workflow states, 1.5% kept |
 | A busy host | `node scripts/dataset.ts --accounts 20`: 20 such accounts, about 2 million items; allow an hour and several GB of disk |
-| A large account followed from now | `node scripts/dataset.ts --start-from now`: the large account with its sources followed from now, so most items arrived Ignored, as a back catalogue does |
+| A large account followed from now | `node scripts/dataset.ts --start-from now`: the large account with its sources followed from now, so most items arrived Ignored, as a backlog does |
 
 `npm test` guards the queries on generated data
 ([performance.test.ts](../apps/api/src/services/performance.test.ts)):

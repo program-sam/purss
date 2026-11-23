@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import type { ReactNode } from "react";
 import { app } from "@purss/translations/app";
-import type { CatalogCategory } from "@purss/domain";
+import type { CatalogueCategory } from "@purss/domain";
 
 /** Feature pages load when first visited, so the everyday PURSS stays small. */
 function Loading() {
@@ -13,7 +13,7 @@ const Data = lazy(() => import("./data/DataPage.tsx").then((m) => ({ default: m.
 const Sharing = lazy(() => import("./sharing/SharingPage.tsx").then((m) => ({ default: m.SharingPage })));
 const Review = lazy(() => import("./review/ReviewPage.tsx").then((m) => ({ default: m.ReviewPage })));
 const Discover = lazy(() => import("./discover/DiscoverPage.tsx").then((m) => ({ default: m.DiscoverPage })));
-const DiscoverCategory = lazy(() => import("./discover/DiscoverPage.tsx").then((m) => ({ default: m.CatalogCategoryPage })));
+const DiscoverCategory = lazy(() => import("./discover/DiscoverPage.tsx").then((m) => ({ default: m.CatalogueCategoryPage })));
 const Admin = lazy(() => import("./admin/AdminPage.tsx").then((m) => ({ default: m.AdminPage })));
 const Share = lazy(() => import("./sharing/ShareDialog.tsx").then((m) => ({ default: m.ShareDialog })));
 const OpmlFile = lazy(() => import("./data/OpmlDialog.tsx").then((m) => ({ default: m.OpenedOpmlFile })));
@@ -22,7 +22,7 @@ export const DataPageRoute = () => wrap(<Data />);
 export const SharingPageRoute = () => wrap(<Sharing />);
 export const ReviewPageRoute = () => wrap(<Review />);
 export const DiscoverPageRoute = () => wrap(<Discover />);
-export const discoverCategoryRoute = (id: CatalogCategory) => () => wrap(<DiscoverCategory id={id} />);
+export const discoverCategoryRoute = (id: CatalogueCategory) => () => wrap(<DiscoverCategory id={id} />);
 export const AdminPageRoute = () => wrap(<Admin />);
 /** The Share popup of a basket or collection, opened from its page or from Sharing. */
 export const ShareRoute = (p: { kind: "basket" | "collection"; id: string; name: string; onClose: () => void }) => <Suspense fallback={null}><Share {...p} /></Suspense>;

@@ -47,7 +47,7 @@ function boxesFor(prefs: Preferences, boxes: BoxLink[] | undefined, homeOther: b
 }
 
 /**
- * Record arrival notifications for followed sources (only items that are New: a source's back catalogue is not
+ * Record arrival notifications for followed sources (only items that are New: a source's backlog is not
  * passed in). Only sources set to "Notify me" tell at once; the rest wait for a digest, made later from what is still
  * New. Delivery timing depends on engine polling.
  */

@@ -43,15 +43,15 @@ const env: NodeJS.ProcessEnv = {
 const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow } = copy.lib.constants;
 const { highlightDialog, notes: noteCopy, noteEditor, syncNote, reader, selectionBar } = copy.annotations;
 const settingsCopy = copy.offline.settings;
 const savedCopy = copy.offline.summary;
 const tabs = copy.dialogs.settings.dialog.tabs;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+/** A catalogue message with values in it as a regular expression source, each value given as a pattern of its own. */
 const source = (message: (...values: string[]) => string, ...values: string[]) => {
   const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));

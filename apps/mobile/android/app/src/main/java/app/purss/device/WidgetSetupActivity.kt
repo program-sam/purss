@@ -66,7 +66,7 @@ class WidgetSetupActivity : AppCompatActivity() {
             val conn = StoredConnection.read(this)
             val result: Result<List<WidgetLists.Choice>>? = if (conn == null) null else try {
                 val a = PurssApi(conn).get("/api/bootstrap")
-                if (a.status == 200) Result.success(WidgetLists.parseCatalog(a.text).choices(kind)) else Result.failure(Exception("${a.status}"))
+                if (a.status == 200) Result.success(WidgetLists.parseChoices(a.text).choices(kind)) else Result.failure(Exception("${a.status}"))
             } catch (e: Refused) {
                 WidgetData.lost(this, since)
                 null

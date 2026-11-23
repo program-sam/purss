@@ -115,7 +115,7 @@ type Row = { id: string; title: string; url: string | null; excerpt: string | nu
 
 /**
  * Exactly what visitors can see now, newest first; null when the target is gone or can no longer be shared. A shared collection shows
- * what its owner's list of it shows: Ignored items, which include the back catalogue of a source followed from now, are not in it.
+ * what its owner's list of it shows: Ignored items, which include the backlog of a source followed from now, are not in it.
  * A basket shows everything kept in it, as its owner's list of it does.
  */
 export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" | "target_id" | "account_id">, limit = PAGE_ITEMS): (PageItem & { itemId: string; ownLink: boolean })[] | null {

@@ -51,7 +51,7 @@ const env: NodeJS.ProcessEnv = {
   PURSS_DISK_RESERVE_BYTES: "0",
 };
 const EMAIL = "reader@example.test";
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
 const tabsCopy = app.dialogs.settings.dialog.tabs;

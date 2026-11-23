@@ -49,7 +49,7 @@ const env: Record<string, string> = {
   PURSS_ASSISTANT_OAUTH: "on",
 };
 const EMAIL = "reader@example.test";
-// The words people read come from the catalogs, so rewording one cannot break this journey.
+// The words people read come from the catalogues, so rewording one cannot break this journey.
 const signInCopy = app.auth.signIn;
 const consentCopy = app.assistant.authorizePage;
 const assistantsCopy = app.assistant.assistantSettings;

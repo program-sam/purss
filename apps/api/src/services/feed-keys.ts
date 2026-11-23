@@ -19,7 +19,7 @@ export function otherScheme(feedUrl: string): string | null {
   return null;
 }
 
-/** A bridged source's descriptor (`bridge:telegram/durov`) when it names a catalogued service and key, else null. */
+/** A bridged source's descriptor (`bridge:telegram/durov`) when it names a listed service and key, else null. */
 export function bridgeAddress(value: string | null | undefined): string | null {
   return value && parseBridgeDescriptor(value) ? value.trim() : null;
 }

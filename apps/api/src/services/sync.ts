@@ -28,7 +28,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
 
   const result: BatchResult = { accepted: 0, updated: 0, duplicates: 0, unknownStreams: 0, queuedForReview: 0, skippedPaused: 0 };
   const touchedSources = new Map<string, number>();
-  // New items per source, for notifications: a source's back catalogue is Ignored, not New, and tells no one.
+  // New items per source, for notifications: a source's backlog is Ignored, not New, and tells no one.
   const newArrivals = new Map<string, number>();
   // New posts, for Smart filters.
   const freshPosts: { itemId: string; sourceId: string }[] = [];
@@ -91,7 +91,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
       const { isNew, ignored } = arrivalOf(source, entry);
       const created = createFromEntry(app, eu, source, entry, isNew, ignored, listedAtOf(source, entry));
       addMapping(app, eu, created, entry);
-      // A copy is made by itself only for what the person will see: a source's back catalogue (a source followed from now) arrives Ignored and
+      // A copy is made by itself only for what the person will see: a source's backlog (a source followed from now) arrives Ignored and
       // stays as it came, and a copy of it is made when the person keeps it or asks for one.
       if (!ignored && source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
       result.accepted++;
@@ -182,30 +182,30 @@ function addMapping(app: App, eu: EngineUser, itemId: string, entry: SyncEntry):
 }
 
 /**
- * Entries a source already had when it was followed are its back catalogue, not New. Until the source is settled (see
- * the end of applySyncBatch), an entry published before the follow time is back catalogue; so is every undated entry
+ * Entries a source already had when it was followed are its backlog, not New. Until the source is settled (see
+ * the end of applySyncBatch), an entry published before the follow time is backlog; so is every undated entry
  * (it was already there the first time anyone looked). Later entries are New.
  */
-export function isBackCatalogue(source: { created_at: string; backlog_settled_at: string | null }, entry: Pick<SyncEntry, "publishedAt">): boolean {
+export function isBacklog(source: { created_at: string; backlog_settled_at: string | null }, entry: Pick<SyncEntry, "publishedAt">): boolean {
   if (source.backlog_settled_at) return false;
   if (!entry.publishedAt) return true;
   const published = Date.parse(entry.publishedAt);
   return Number.isFinite(published) && published < Date.parse(source.created_at);
 }
 
-/** How a source followed from now (`sources.start_from`) treats its back catalogue; "all" is every source followed before the choice existed. */
+/** How a source followed from now (`sources.start_from`) treats its backlog; "all" is every source followed before the choice existed. */
 export type StartFrom = "all" | "now" | "week";
 /** "Also show the last week" reaches back this far from the moment of the follow. */
 const LAST_WEEK_MS = 7 * 86_400_000;
 
 /**
- * What a new entry becomes. A post that comes after the follow is New. A source's back catalogue is not New, and arrives Ignored
+ * What a new entry becomes. A post that comes after the follow is New. A source's backlog is not New, and arrives Ignored
  * (hidden from lists, left out of Home, the counts and the digests, found by search) unless the source was followed with its last
  * week: the posts published in the 7 days before the follow are New, like any post that arrives. A source followed before the
- * choice existed ("all") shows its back catalogue as ordinary older items.
+ * choice existed ("all") shows its backlog as ordinary older items.
  */
 export function arrivalOf(source: { created_at: string; backlog_settled_at: string | null; start_from: StartFrom }, entry: Pick<SyncEntry, "publishedAt">): { isNew: boolean; ignored: boolean } {
-  if (!isBackCatalogue(source, entry)) return { isNew: true, ignored: false };
+  if (!isBacklog(source, entry)) return { isNew: true, ignored: false };
   if (source.start_from === "all") return { isNew: false, ignored: false };
   if (source.start_from === "week" && entry.publishedAt && Date.parse(entry.publishedAt) >= Date.parse(source.created_at) - LAST_WEEK_MS) return { isNew: true, ignored: false };
   return { isNew: false, ignored: true };
@@ -213,11 +213,11 @@ export function arrivalOf(source: { created_at: string; backlog_settled_at: stri
 
 /**
  * An entry's time in lists (`items.listed_at`): a post that comes after the follow is listed when it arrived, so it is never listed
- * below posts that came before it because its publisher dated it before putting it in the feed. The back catalogue is listed at its
+ * below posts that came before it because its publisher dated it before putting it in the feed. The backlog is listed at its
  * publication date, else its arrival: everything a source had arrives at once, and it is ordered by when it was published.
  */
 export function listedAtOf(source: { created_at: string; backlog_settled_at: string | null }, entry: Pick<SyncEntry, "publishedAt" | "crawledAt">): string {
-  return isBackCatalogue(source, entry) ? entry.publishedAt ?? entry.crawledAt : entry.crawledAt;
+  return isBacklog(source, entry) ? entry.publishedAt ?? entry.crawledAt : entry.crawledAt;
 }
 
 const titleKey = (title: string) => title.replace(/\s+/g, " ").trim().toLowerCase();

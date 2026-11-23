@@ -46,7 +46,7 @@ export const FIXTURE_HEAD = `<?xml version="1.0" encoding="UTF-8"?>
 <atom:link href="https://show.example/feed" rel="self" type="application/atom+xml"/>
 <title>The Big Show</title>
 <link>https://show.example/</link>
-<description>A show with a very long back catalogue.</description>
+<description>A show with a very long backlog.</description>
 <language>en</language>
 <image><link>https://show.example/</link><title>The Big Show</title><url>https://cdn.example/art.jpg</url></image>
 <itunes:author>Show Author</itunes:author>

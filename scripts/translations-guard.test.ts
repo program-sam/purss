@@ -51,7 +51,7 @@ function inlineCopy(file: string): string[] {
   return found;
 }
 
-test("components show only catalog text: no words written inline where people see them", () => {
+test("components show only translated text: no words written inline where people see them", () => {
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", ...ROOTS.map((r) => `${r}/*.tsx`)], { cwd: ROOT, encoding: "utf8" })
     .split("\n").filter((f) => f && !f.endsWith(".test.tsx"));
   assert.ok(files.length > 50, "the components were found");

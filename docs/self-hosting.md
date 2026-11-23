@@ -469,15 +469,15 @@ keeps and serves none of it and has no Discover page.
   setting, in the API process. Until at least one source reaches the threshold the page says *Coming soon*.
   Scoring is described in [Architecture](architecture.md).
 - **Popular sources by topic.** Below the suggestions, the Discover page shows one box per topic with
-  popular sources, read from `discover-catalog.sqlite` in the data directory. The hosted service's
-  catalog is its own editorial choice, put on its server by hand and not part of this repository.
+  popular sources, read from `discovery-catalogue.sqlite` in the data directory. The hosted service's
+  catalogue is its own editorial choice, put on its server by hand and not part of this repository.
   Without the file the page shows no topic boxes. Add source's name search also lists the file's
   sources of that name.
 
-### A catalog of popular sources
+### A catalogue of popular sources
 
 Any installation can show popular sources by topic on its Discover page: put a SQLite file named
-`discover-catalog.sqlite` in the data directory (the `data` volume, `/data` in the containers). PURSS
+`discovery-catalogue.sqlite` in the data directory (the `data` volume, `/data` in the containers). PURSS
 reads it read-only, picks up a changed file without a restart, and leaves out a file it can't read
 (the API log says why). The Discover page then appears in the menu even on a self-hosted
 installation, without the suggestions. The file needs one table:

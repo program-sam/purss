@@ -48,13 +48,13 @@ const fresh = (app: App, id: string) => app.db.get<{ is_new: number }>("SELECT i
 const revision = (app: App, id: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", id)!.revision;
 const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; read_at: string | null }>("SELECT title, body, source_id, kind, read_at FROM notifications ORDER BY created_at, id");
 
-// ---------- F22 back catalogue ----------
+// ---------- F22 backlog ----------
 
 const settled = (app: App, id: string) => app.db.get<{ s: string | null }>("SELECT backlog_settled_at AS s FROM sources WHERE id = ?", id)!.s;
 /** A sync walk that ends, as the worker reports it: a last batch that says it is done (empty or not). */
 const walk = (app: App, p: Owner, entries: SyncEntry[] = []) => applySyncBatch(app, p.engineUserId, batch(entries));
 
-test("a source's back catalogue is not New and tells no one; what comes after is", (t) => {
+test("a source's backlog is not New and tells no one; what comes after is", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Old podcast", "feed/1", { settled: false });
@@ -96,7 +96,7 @@ test("one new item's notification opens that item; once more arrive it opens the
   assert.ok(link().changed_at, "and the grown notification is marked as changed, for phones");
 });
 
-test("a first sync that takes several batches stays back catalogue until a later walk has finished", (t) => {
+test("a first sync that takes several batches stays backlog until a later walk has finished", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Long archive", "feed/1", { settled: false });
@@ -140,7 +140,7 @@ test("a walk that ended before a source was ready does not settle it, and the bo
   walk(app, p, [entry("feed/2", { publishedAt: null })]);
   assert.ok(settled(app, early));
   assert.equal(settled(app, late), null, "the walk that just ended began before the engine had finished subscribing to it");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "what it brought is still its back catalogue");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "what it brought is still its backlog");
   const boundary = app.db.get<{ at: string }>("SELECT last_walk_done_at AS at FROM sync_checkpoints WHERE engine_user_id = ?", p.engineUserId)!.at;
   assert.ok(boundary > "2026-01-01T00:00:01.000Z", "the boundary moved to where this walk ended");
   walk(app, p);
@@ -164,7 +164,7 @@ test("following a source again starts a new episode: the old confirmation does n
   const confirmed = app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s;
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "the walk that began before the confirmation brought back catalogue, and so did the next one that settled it");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "the walk that began before the confirmation brought backlog, and so did the next one that settled it");
   assert.ok(settled(app, src));
   onSubscribed(app, src, "feed/1");
   assert.equal(app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s, confirmed, "confirming again in the same episode changes nothing");

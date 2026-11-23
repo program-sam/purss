@@ -208,7 +208,7 @@ test("a route is one candidate's way and not the page's: the feeds found on one 
   assert.deepEqual(bare.candidates.map((c) => c.route), ["page-anchor"]);
 });
 
-test("the bridged routes are the catalogue's services, and an address that is a descriptor is found by its service's route", async () => {
+test("the bridged routes are the bridge list's services, and an address that is a descriptor is found by its service's route", async () => {
   assert.deepEqual(DISCOVERY_ROUTES.filter((r) => r.startsWith("bridge:")).sort(), BRIDGE_SERVICES.map((s) => `bridge:${s.id}`).sort());
   const telegram = await discover("https://t.me/durov", { bridge: router, now: NOW });
   assert.ok(telegram.ok);

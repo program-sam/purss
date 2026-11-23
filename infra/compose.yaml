@@ -64,7 +64,7 @@ services:
     depends_on: { init: { condition: service_completed_successfully } }
     mem_limit: 192m
 
-  # RSS-Bridge, pinned by digest, only the catalogued bridges enabled. It reaches the
+  # RSS-Bridge, pinned by digest, only the listed bridges enabled. It reaches the
   # internet only through egress: its requests go to the proxy and its name lookups to egress's
   # resolver, both of which refuse private addresses. It follows redirects (many sites serve a
   # page only after one or two), which is safe only because each hop is a new request to that

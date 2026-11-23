@@ -27,16 +27,16 @@ const PORT = 19980;
 const origin = `http://localhost:${PORT}`;
 const step = (s: string) => console.log(`✓ ${s}`);
 
-// The words the page and the emails show come from the copy catalog, so rewording one never breaks this journey.
+// The words the page and the emails show come from the translation files, so rewording one never breaks this journey.
 const auth = copy.auth;
 const mails = server.api.mailTemplates;
 const question = copy.dialogs.firstVisitQuestion;
 const notifications = copy.dialogs.notificationSettings;
 const never = copy.lib.returning.frequency.off;
 const emailSection = auth.accountEmailSection;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with its one value, which the journey does not care about, left open. */
+/** A catalogue message with its one value, which the journey does not care about, left open. */
 const withAny = (message: (value: string) => string) => message("\u0000").split("\u0000").map(esc).join(".*");
 /** The Subject line of a message, whatever product name it carries. */
 const subjectLine = (subject: string) => new RegExp(`^Subject: ${subject}`, "m");

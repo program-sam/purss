@@ -45,7 +45,7 @@ export type NewItem = {
   /** The feed's full text was too large to send; the item holds its summary only. */
   contentOmitted?: boolean;
   isNew: boolean;
-  /** Back catalogue of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
+  /** Backlog of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
   ignored?: boolean;
   reason: string;
 };

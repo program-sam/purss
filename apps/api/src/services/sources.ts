@@ -9,7 +9,7 @@ import type { App, Principal } from "../app.ts";
 import { bridgeOptions } from "./bridge.ts";
 import { recordDiscoveryMiss } from "./discovery-misses.ts";
 import { sourcesNamed } from "./discover.ts";
-import { catalogNamed } from "./discover-catalog.ts";
+import { catalogueNamed } from "./discovery-catalogue.ts";
 import { emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
@@ -193,13 +193,13 @@ export function resetSiteSearchCache(): void {
 
 /**
  * Websites named like `query`: the public sources other readers here follow (sourcesNamed: hosted, sharing readers only, never a private
- * source), then the sources of Discovery's catalog with that name (catalogNamed, when the installation has one), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
- * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' and the catalog's sources when there are any.
+ * source), then the sources of Discovery's catalogue with that name (catalogueNamed, when the installation has one), then the official websites Wikidata records for things of that name, leaving out a site already listed. Nothing is stored; the
+ * person picks one and it is looked up like a pasted address. Wikidata failing still shows the readers' and the catalogue's sources when there are any.
  */
 export async function searchSiteDirectory(app: App, p: Principal, query: string, opts?: SiteSearchOptions): Promise<SiteSearchResponse> {
   const followed: SiteSearchHit[] = sourcesNamed(app, p, query).map((s) => ({ name: s.title, description: null, address: s.feedUrl, site: s.host ?? hostOf(s.feedUrl), from: "readers" }));
   const followedSites = new Set(followed.map((h) => h.site));
-  const known = [...followed, ...catalogNamed(app, query).filter((h) => !followedSites.has(h.site))];
+  const known = [...followed, ...catalogueNamed(app, query).filter((h) => !followedSites.has(h.site))];
   const found = await cachedSiteSearch(query, opts);
   if (!found.ok) return known.length ? { ok: true, query, hits: known } : { ok: false, reason: found.reason, message: found.message };
   const listed = new Set(known.map((h) => h.site));
@@ -295,7 +295,7 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
   const id = former?.id ?? newId("src");
   const title = input.title ?? former?.title ?? c.title;
   const fullText = input.fullText && fullTextAvailable({ kind: c.kind, is_private: isPrivate ? 1 : 0 });
-  // What the feed already has is back catalogue: it arrives Ignored, or with its last week as New (see sync.ts arrivalOf).
+  // What the feed already has is backlog: it arrives Ignored, or with its last week as New (see sync.ts arrivalOf).
   const startFrom = input.startFrom ?? "now";
   // A feed the preview found bigger than the engine can read whole is followed through the feed gateway, which gives the engine a copy
   // of its newest items. The source keeps its own address; only what the engine is subscribed to differs.
@@ -307,8 +307,8 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
       if (!collectionId && input.newCollectionName) collectionId = createCollection(app, p, { name: input.newCollectionName, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id;
       if (collectionId && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND account_id = ? AND mode = 'sources'", collectionId, p.accountId)) throw notFound(server.api.shared.thatCollection);
       if (former) {
-        // Followed again: what the feed already has is back catalogue again, not New, and the engine has yet to confirm this new subscription.
-        // (The posts stored the first time keep what they were; only what arrives now is the back catalogue of this follow.)
+        // Followed again: what the feed already has is backlog again, not New, and the engine has yet to confirm this new subscription.
+        // (The posts stored the first time keep what they were; only what arrives now is the backlog of this follow.)
         app.db.run(
           `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
              health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ?,
@@ -509,7 +509,7 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
 
 /**
  * Turning full articles on also fetches copies for the source's newest items that are still to
- * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive. The back catalogue of a source
+ * be read (not Finished or Ignored), up to FULL_TEXT_BACKFILL; later items get one as they arrive. The backlog of a source
  * followed from now is Ignored, so it is left out of this: no copies are made of posts the person chose not to start with.
  */
 function backfillFullText(app: App, p: Principal, sourceId: string): void {

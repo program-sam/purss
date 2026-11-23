@@ -31,7 +31,7 @@ const dataDir = path.join(work, "data");
 const shots = path.join(repo, ".output/google-signin");
 mkdirSync(shots, { recursive: true });
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. "Google" is the label the operator
+// The words people read come from the catalogues, so rewording one cannot break this journey. "Google" is the label the operator
 // gives the provider in PURSS_OIDC (below).
 const GOOGLE = "Google";
 const continueWithGoogle = app.auth.providerButton.continueWith(GOOGLE);
@@ -40,9 +40,9 @@ const securityCopy = app.dialogs.settings.security;
 const stepUpCopy = app.sharedFeatures.stepUp;
 const passwordCopy = app.auth.passwordForm;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** The words of a catalog entry that holds HTML (the link back to the app), without its tags. */
+/** The words of a catalogue entry that holds HTML (the link back to the app), without its tags. */
 const textOf = (html: string) => html.replace(/<[^>]*>/g, "");
-/** A pattern for a catalog function's words, with its values (called with U+E000) left open. */
+/** A pattern for a catalogue function's words, with its values (called with U+E000) left open. */
 const OPEN = "\uE000";
 const pattern = (s: string) => new RegExp(escapeRe(s).replaceAll(OPEN, ".+?"));
 const goBackText = textOf(server.api.publicRoute.goBackLink(""));

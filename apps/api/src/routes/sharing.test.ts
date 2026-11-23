@@ -45,7 +45,7 @@ type Boot = Awaited<ReturnType<typeof boot>>;
 /** Where a hosted installation sends visitors to learn what PURSS is (a self-hosted one has no such place). */
 const homeOf = (b: Boot) => b.app.config.mode === "hosted" ? `${b.app.config.publicOrigin}/` : null;
 
-/** What a shared page says around its list of items, as the catalog's template writes it: the markup before the list and after it. */
+/** What a shared page says around its list of items, as the catalogue's template writes it: the markup before the list and after it. */
 function around(b: Boot, page: Record<string, any>) {
   const home = homeOf(b);
   const [before, after] = shares.pageBody(inHtml(page.title), inHtml(page.curatorName), page.description ? `<p class="about">${inHtml(page.description)}</p>` : "", inHtml(page.followUrl), inHtml(page.feedUrl), "\u0000",
@@ -53,7 +53,7 @@ function around(b: Boot, page: Record<string, any>) {
   return { before, after };
 }
 
-/** The follow page's body as the catalog writes it for `feed`, called `name`, and credited to `by` when it is a page shared from this installation. */
+/** The follow page's body as the catalogue writes it for `feed`, called `name`, and credited to `by` when it is a page shared from this installation. */
 function followBody(b: Boot, feed: string, name: string, by: string | null) {
   const home = homeOf(b);
   return publicPages.followBody(inHtml(name), by === null ? "" : publicPages.sharedBy(inHtml(by)), "PURSS", inHtml(feed), inHtml(`${appUrl("/")}?dialog=add&url=${encodeURIComponent(feed)}`),
@@ -129,7 +129,7 @@ test("sharing a basket: a draft is invisible, the review shows the page and what
   assert.ok(!/<script/i.test(page.text) && page.text.includes("&lt;script&gt;alert(1)&lt;/script&gt; Second post"));
   assert.ok(page.text.includes("Third post"), "what was kept after the review shows: the page is live");
   const { before: pageStart, after: pageEnd } = around(b, shared.json);
-  assert.ok(page.text.includes("My own find") && page.text.includes(pageStart) && page.text.includes(pageEnd), "the page is the catalog's page around its items, shared by the chosen name");
+  assert.ok(page.text.includes("My own find") && page.text.includes(pageStart) && page.text.includes(pageEnd), "the page is the catalogue's page around its items, shared by the chosen name");
   assert.ok(!ID_SHAPE.test(page.text), `no internal identifiers: ${page.text.match(ID_SHAPE)?.[0]}`);
   for (const absent of ["Real Name", "real@example.com", "Private note", "Reading", "workflow"]) assert.ok(!page.text.includes(absent), `page must not include ${absent}`);
 

@@ -166,14 +166,14 @@ export type DiscoverSuggestion = {
   reason: { kind: "because"; sourceIds: string[] } | { kind: "popular" } | { kind: "wildcard" };
 };
 /**
- * The catalog of popular sources Discovery shows by category: a file in the data directory, not in this repository. The hosted
+ * The catalogue of popular sources Discovery shows by category: a file in the data directory, not in this repository. The hosted
  * service has its own editorial one; a self-hosted installation can have one its administrator put there, and without it
  * Discovery shows no category boxes.
  */
 export const CATALOG_CATEGORIES = ["news", "technology", "programming", "science", "business", "design", "gaming", "entertainment", "sports", "food", "health", "travel", "culture"] as const;
-export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
-export const isCatalogCategory = (v: unknown): v is CatalogCategory => typeof v === "string" && (CATALOG_CATEGORIES as readonly string[]).includes(v);
-export type CatalogSource = {
+export type CatalogueCategory = (typeof CATALOG_CATEGORIES)[number];
+export const isCatalogueCategory = (v: unknown): v is CatalogueCategory => typeof v === "string" && (CATALOG_CATEGORIES as readonly string[]).includes(v);
+export type CatalogueSource = {
   key: string;
   title: string;
   host: string | null;
@@ -185,9 +185,9 @@ export type CatalogSource = {
   hue: number;
   initials: string;
 };
-export type CatalogCategoryList = { id: CatalogCategory; total: number; sources: CatalogSource[] };
+export type CatalogueCategoryList = { id: CatalogueCategory; total: number; sources: CatalogueSource[] };
 /** The most popular sources of each category (all of them for one category's page), leaving out what the reader already follows. */
-export type CatalogResponse = { categories: CatalogCategoryList[] };
+export type CatalogueResponse = { categories: CatalogueCategoryList[] };
 export type DiscoverResponse = {
   /** Whether this account's followed sources count towards suggestions (preference `discoveryShare`). Only accounts that share get suggestions. */
   sharing: boolean;

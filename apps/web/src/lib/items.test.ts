@@ -28,7 +28,7 @@ test("an item's date is its time in lists; the publisher's date is shown apart o
   assert.equal(itemDate(late), "2026-11-03T17:48:00Z");
   assert.equal(publishedApart(late), "2026-11-03T03:27:00Z");
   assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:00:00Z" }), null, "within the hour: one date is enough");
-  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:48:00Z" }), null, "listed at its publication date (back catalogue)");
+  assert.equal(publishedApart({ ...late, publishedAt: "2026-11-03T17:48:00Z" }), null, "listed at its publication date (backlog)");
   assert.equal(publishedApart(base), null, "no publication date");
   // A copy saved on the device by a build whose items had no listedAt.
   const saved = { ...base, publishedAt: "2026-11-01T00:00:00Z" } as Partial<ItemDTO>;

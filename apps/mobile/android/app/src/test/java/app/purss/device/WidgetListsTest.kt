@@ -57,7 +57,7 @@ class WidgetListsTest {
         val boot = """{"collections":[{"id":"col_a","name":"Science","emoji":"🔬"},{"id":"col_b","name":"News","emoji":null}],
             "sources":[{"id":"src_z","title":"zeta","kind":"feed"},{"id":"src_p","title":"Diary","kind":"private"},{"id":"src_a","title":"Alpha","kind":"podcast"}],
             "baskets":[],"preferences":{}}"""
-        val c = WidgetLists.parseCatalog(boot)
+        val c = WidgetLists.parseChoices(boot)
         assertEquals(listOf("🔬 Science", "News"), c.choices("collection").map { it.name })
         assertEquals(listOf("source:src_a", "source:src_z"), c.choices("source").map { it.key })
         assertEquals("ok", WidgetLists.chosenState("collection:col_a", c))

@@ -137,7 +137,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const isNew = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.account_id = ? AND st.is_new = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
   // Items on Home that were not looked at and are not New: the older posts of sources followed before the choice of where to start
-  // existed, and what the New marker has outlived. A source followed from now has its back catalogue Ignored, so it is not in the count.
+  // existed, and what the New marker has outlived. A source followed from now has its backlog Ignored, so it is not in the count.
   const counts = itemCounts(app, ws);
   const boxParams: SqlParam[] = [ws];
   const onBoxes = app.db.all<{ id: string }>(`SELECT s.id FROM sources s WHERE s.account_id = ? AND s.followed = 1 AND ${inHomeBox(app, ws, boxParams)}`, ...boxParams).map((r) => r.id);

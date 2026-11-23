@@ -54,7 +54,7 @@ test("a list is followed on the server with the titles the file gave, and the re
   assert.deepEqual([done.followed, done.already, done.failed, done.waiting], [2, 0, 1, 0]);
   const titles = listSources(app, p).map((s) => s.title).sort();
   assert.deepEqual(titles, ["Blog", "Node.js releases"], "the file's title is kept; a title that is only the host is replaced by the feed's own name");
-  assert.deepEqual(app.db.all<{ s: string }>("SELECT DISTINCT start_from AS s FROM sources WHERE followed = 1").map((r) => r.s), ["now"], "following a whole list does not fill Home with every feed's back catalogue");
+  assert.deepEqual(app.db.all<{ s: string }>("SELECT DISTINCT start_from AS s FROM sources WHERE followed = 1").map((r) => r.s), ["now"], "following a whole list does not fill Home with every feed's backlog");
   assert.deepEqual(done.entries!.map((e) => [e.title, e.state, e.message]), [
     ["Node.js releases", "followed", null],
     ["blog.example", "followed", null],

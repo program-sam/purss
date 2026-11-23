@@ -27,7 +27,7 @@ test("a bridged source becomes the router address signed with the bridge key", (
   writeFileSync(path.join(dir, "bridge-key"), `${key}\n`);
   assert.equal(resolveFeedUrl(dir, "bridge:telegram/durov"), `http://feed-bridge.internal:8945${bridgeRoutePath(key, "telegram", "durov")}`);
   assert.equal(resolveFeedUrl(dir, "bridge:telegram/durov", "http://bridge.test:1/"), `http://bridge.test:1${bridgeRoutePath(key, "telegram", "durov")}`);
-  assert.equal(resolveFeedUrl(dir, "bridge:tiktok/nasa"), null, "not catalogued");
+  assert.equal(resolveFeedUrl(dir, "bridge:tiktok/nasa"), null, "not listed");
   assert.equal(resolveFeedUrl(dir, "bridge:telegram/../../x"), null);
 });
 

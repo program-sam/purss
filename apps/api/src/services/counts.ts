@@ -8,7 +8,7 @@ import type { App } from "../app.ts";
  * item rows costs a probe per item. Here the cost follows what is rare: most items are in the default cell (workflow
  * "undecided", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
  * other nine are found through a partial index on `item_state` that holds only those rows: a few New items, the items a person
- * has moved to To read, In progress, Finished or Ignored, and the back catalogue of sources followed from now, which arrives Ignored
+ * has moved to To read, In progress, Finished or Ignored, and the backlog of sources followed from now, which arrives Ignored
  * (in a PURSS that has just followed many sources that is most of the items). `item_state.source_id` is there for that: the counts never
  * join to `items` for the source of a state row.
  */
@@ -88,7 +88,7 @@ function computeCounts(app: App, accountId: string): ItemCounts {
   for (const r of app.db.all<{ source_id: string | null; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE account_id = ? GROUP BY source_id", accountId)) {
     cells(r.source_id)[cellOf("undecided", 0)] = r.n;
   }
-  // The other cells: the items a person has acted on, the New ones and the Ignored ones (the back catalogue of a source followed from now
+  // The other cells: the items a person has acted on, the New ones and the Ignored ones (the backlog of a source followed from now
   // arrives so). The partial index holds exactly those rows and each one's source, so they are counted from it alone, however many there are.
   for (const r of app.db.all<{ source_id: string | null; workflow: string; is_new: number; n: number }>(
     // The condition is the partial index's own, which lets the planner use it.

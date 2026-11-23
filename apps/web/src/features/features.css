@@ -170,7 +170,7 @@
   .fx-row{padding-left:12px;padding-right:12px}
 }
 
-/* Discovery: a catalog source's preview opens under its row. */
+/* Discovery: a catalogue source's preview opens under its row. */
 .disc-preview{flex:1 0 100%;min-width:0;padding:2px 0 4px}
 .disc-posts{margin:0;padding-inline-start:18px;display:grid;gap:4px;font-size:0.8438rem}
 .disc-posts .fine{display:inline}

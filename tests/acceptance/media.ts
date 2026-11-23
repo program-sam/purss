@@ -48,14 +48,14 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "listener@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogs, so rewording one cannot break this journey. What stays written out here is
+// The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // what the app keeps in code: the labels only screen readers announce (the player's buttons and slider, a row's "Actions for").
 const signInCopy = app.auth.signIn;
 const mediaCopy = app.player.media;
 const panelCopy = app.shell.itemPanel;
 const menuCopy = app.state.itemMenus;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** A name that starts with the catalog's words. */
+/** A name that starts with the catalogue's words. */
 const startsWith = (s: string) => new RegExp(`^${escapeRe(s)}`);
 /** What a button that offers or shows a download to this device is called, on a row or in the panel. */
 const downloadButton = new RegExp([app.downloads.downloadSection.download, app.downloads.downloadSection.downloading, ...Object.values(app.components.itemRow.downloadTips)].map(escapeRe).join("|"));

@@ -78,8 +78,8 @@ once, and a result chosen there is looked up like a pasted address:
   most an hour); its limit counts the installation's whole address. On a hosted installation, sources
   of the Discover graph whose shared name or site contains the name come first (`sourcesNamed`), only
   for a reader who shares: the same public, ten-reader sources Discover suggests, never a private one,
-  and never with a count. Then come up to five sources of Discover's catalog of popular sources whose name or
-  site contains the name (`catalogNamed`, when the installation has a catalog; see [Architecture](architecture.md)), most popular
+  and never with a count. Then come up to five sources of Discover's catalogue of popular sources whose name or
+  site contains the name (`catalogNamed`, when the installation has a catalogue; see [Architecture](architecture.md)), most popular
   first. A Wikidata failure still shows those.
 - **Podcasts** (`POST /api/discover/podcasts`, `podcast-search.ts`): Apple's podcast directory.
 
@@ -338,7 +338,7 @@ collects it (RSS-Bridge, or Crossref's API), and the router asks the backends of
   page's layout changes): no posts is asked again once at once and is otherwise a failure (`no_posts`).
 - **RSS-Bridge's isolation.** It runs in its own container on a network shared only with
   egress, with no route out. Its proxy is the egress proxy and its name lookups go to egress's
-  resolver, which answers only public addresses. Only the catalogued bridges are enabled
+  resolver, which answers only public addresses. Only the listed bridges are enabled
   (`RSSBRIDGE_system_enabled_bridges` in `infra/compose.yaml`), `error_output` is `http` so
   failures are HTTP errors, and the container's memory limit bounds a decompression bomb.
 - **Redirects.** RSS-Bridge follows them (`RSSBRIDGE_http_follow`, at most three), as many sites serve a page only
@@ -519,7 +519,7 @@ RSS-Bridge's XPathBridge reads the page. No script of the page ever runs.
   Each list says plainly that PURSS reads it from the way the page is laid out; that it holds only the posts the page
   lists now, never older ones; that a post whose date isn't on the page is dated when PURSS first sees it; that it can
   stop working when the site changes its page; and why PURSS chose it, and what it doubts (words for the detector's reason
-  codes, in the copy catalog).
+  codes, in the translation files).
 - **The source.** `bridge:page/<key>`. The key is a compact JSON, `{"u": page address, "i": item, "t": title, "l": link,
   "d": date (when there is one), "e": 1 (when the page needs its character set repaired)}`, in that order, deflated (raw) and
   written in base64url: at most 380 characters, and the same recipe is always the same key. Over the detector's saved pages the
@@ -720,14 +720,14 @@ The trimmer, its limits, sharing and memory are in the [egress README](../apps/e
   fetched again for each user within one refresh run. A private feed's address carries its own
   credentials, so its cache entries stay its own. A site's own per-address request limits are a separate
   matter.
-- **Back catalogue.** What a source already had when it was followed is not New and sends no
+- **Backlog.** What a source already had when it was followed is not New and sends no
   notification. A source is settled once a sync walk that began after the engine confirmed the
   subscription has finished; until then an entry published (or, with no date, crawled) before the follow
-  is back catalogue, and so is every undated one. With *Start from now*, the choice Add source starts on
-  and the one an OPML import uses, the back catalogue is stored as Ignored: hidden from lists by default,
+  is backlog, and so is every undated one. With *Start from now*, the choice Add source starts on
+  and the one an OPML import uses, the backlog is stored as Ignored: hidden from lists by default,
   left out of Home, counts and digests, and found by search. With *Also show posts from the last week as
   New*, entries published in the seven days before the follow are New like any arrival. A source stored with
-  the start choice `all` shows its back catalogue as ordinary older items; Add source does not offer it.
+  the start choice `all` shows its backlog as ordinary older items; Add source does not offer it.
   Following the same feed again starts a fresh follow with its own choice. The user guide's [Sources](user-guide.md#sources)
   section describes it from the reader's side.
 - **Retention.** FreshRSS purges entries by its own policy (90 days, at least 50 and at most 1,000 per

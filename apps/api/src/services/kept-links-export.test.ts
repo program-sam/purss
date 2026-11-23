@@ -12,7 +12,7 @@ import { applySyncBatch } from "./sync.ts";
 
 const NOW = new Date("2026-11-05T10:00:00Z");
 const { keptLinksExport } = server.api;
-/** The catalog's "kept <date>" and "published <date>" as the page and the list write them, for a regular expression (the kept date is the day the test ran). */
+/** The catalogue's "kept <date>" and "published <date>" as the page and the list write them, for a regular expression (the kept date is the day the test ran). */
 const KEPT = escapeRegExp(inHtml(keptLinksExport.kept("\u0000"))).replace("\u0000", String.raw`\d{4}-\d{2}-\d{2}`);
 const PUBLISHED = escapeRegExp(inHtml(keptLinksExport.published("2026-10-01")));
 

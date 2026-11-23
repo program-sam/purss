@@ -13,7 +13,7 @@
 // with and without reduced motion; choosing a show in Add source, downloading an export and the open phone drawer move or keep it too (the
 // drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
 // A video put aside is in its own To watch row, not in To read, and a row with nothing in it is not shown (To listen here); a source followed from now
-// has its back catalogue Ignored: off Home, and its own page says so ("Ignored items are hidden") and shows it on request, and search finds it.
+// has its backlog Ignored: off Home, and its own page says so ("Ignored items are hidden") and shows it on request, and search finds it.
 // The queue is what was put aside and what was started: an article In progress is in Home's To read row, first and marked In progress, and on the
 // "To read, watch and listen" page, whose In progress filter shows it; a Home row marked To read keeps focus on a row that stays, and Play here moves
 // focus to the player; the account button, Sign out and the bell never sit on Customise, the page's tools or a row's buttons (desktop with a long
@@ -56,7 +56,7 @@ const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow, filters, toReadTitle } = copy.lib.constants;
 const { toRead, toWatch, toListen } = copy.words;
 const listing = copy.pages.listing;
@@ -66,9 +66,9 @@ const headerAccount = copy.auth.headerAccount;
 const pageNav = copy.components.pageNav;
 const palette = copy.dialogs.palette;
 const addSourceCopy = copy.dialogs.addSource;
-/** Catalog text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
+/** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-/** A catalog message with values in it as a regular expression source, each value given as a pattern of its own. */
+/** A catalogue message with values in it as a regular expression source, each value given as a pattern of its own. */
 const source = (message: (...values: string[]) => string, ...values: string[]) => {
   const marks = values.map((_, i) => String.fromCharCode(0xe000 + i));
   return marks.reduce((text, mark, i) => text.replace(mark, values[i]!), esc(message(...marks)));
@@ -436,10 +436,10 @@ async function main(): Promise<void> {
     await page.getByRole("heading", { name: copy.words.home }).waitFor();
     step("the To read, watch and listen page holds what was started as well, first, and its In progress filter shows it");
 
-    // A source followed from now: its back catalogue is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
+    // A source followed from now: its backlog is Ignored, so it is not on Home, in a collection list or in the counts; search finds it, and its own page says so and shows it on request.
     const almanac = ["Yearbook 1913", "Yearbook 1921", "Yearbook 1934"];
     const onHome = await homeTitles(page, "main .irow .title");
-    for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (back catalogue of a source followed from now) is not on Home`);
+    for (const title of almanac) assert.ok(!onHome.includes(title), `${title} (backlog of a source followed from now) is not on Home`);
     assert.match(await page.locator(".home-sum").innerText(), new RegExp(`${esc(copy.pages.welcomeBack.newIn.trim())}|${source(copy.lib.returning.sinceWithCount, ".*", ".*", ".*")}`), "Home still says what is New");
     await page.goto(`${origin}/app/s/${seed.almanac}`);
     await page.getByRole("heading", { name: listing.noNewItems }).waitFor();
@@ -455,7 +455,7 @@ async function main(): Promise<void> {
     assert.equal(held, 3, "the source counts what it holds");
     await page.goto(`${origin}/app/`);
     await page.getByRole("heading", { name: copy.words.home }).waitFor();
-    step("a source followed from now has its back catalogue Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
+    step("a source followed from now has its backlog Ignored: off Home and out of the counts, found by search, and shown on its own page on request");
 
     // ---------- muted words, filters ----------
     await page.getByRole("button", { name: SETTINGS }).first().click();

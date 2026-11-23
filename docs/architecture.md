@@ -48,7 +48,7 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
 | Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
 | Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds); bridge router and its fetch log; control listener |
-| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video), and a list of posts found on a page that has no feed (XPathBridge, [Page lists](sources.md#page-lists)), into feeds; pinned upstream image, only the catalogued bridges enabled |
+| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video), and a list of posts found on a page that has no feed (XPathBridge, [Page lists](sources.md#page-lists)), into feeds; pinned upstream image, only the listed bridges enabled |
 | FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
 | Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
 | Browser extension | `apps/extension` | Popup, right-click menu, address-bar search and browser-assisted capture in the person's browser; talks only to the PURSS it is connected to, with a device token |
@@ -200,7 +200,7 @@ subscription exists for it, and discovery recognises the installation's own `/ne
 without fetching. Edits go through the feed edit path (a kept version stays); deleting a post
 deletes the unkept copies. `/news`, `/news/<id>` and `/news/feed.atom` are public pages.
 
-**Bridged sources.** A page of a catalogued service
+**Bridged sources.** A page of a listed service
 (`packages/connectors/src/bridges.ts`) is discovered as the descriptor `bridge:<service>/<key>`,
 previewed by the API through the bridge router, and stored as the source's feed address; exports
 write the service's page instead. A page with no feed can also be a bridged source: the list of posts the detector
@@ -243,7 +243,7 @@ happens to it: followed from now (the default, and what an OPML import does), it
 (their default filter leaves Ignored out; "Show ignored" has it), Home, collection totals and every count of items not looked at leave it out, a search
 (`q`, which lists every state) finds it, and nothing marks it but the state itself: no log entry, no `engine.mark_read` job, and the person can move it to any
 state like any other item; followed with the last week, entries published in the 7 days before the follow are New like any
-arrival; a source whose choice is `all` shows its back catalogue as ordinary older items. Automatic full-text copies and Smart-filter
+arrival; a source whose choice is `all` shows its backlog as ordinary older items. Automatic full-text copies and Smart-filter
 judging are for New arrivals only, so they skip it. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
 tick (`services/returning.ts`, throttled: every five minutes and every hour) expires markers older than the person's
 choice, resumes sources whose pause ran out, makes the digest that has come due, tells about sources that stopped
@@ -569,17 +569,17 @@ sources, a reader whose sources match nothing gets popular sources with noise, a
 show, each naming the reader's own sources that led to it. The rebuild is quadratic in each account's followed
 sources.
 
-The Discover page also shows popular sources by category from a catalog file, `discover-catalog.sqlite` in the
-data directory (`services/discover-catalog.ts`). The hosted service's is its own editorial file, kept on its server
-and never in the repository; any installation reads one if it is there (`installation.catalog` in the session says
+The Discover page also shows popular sources by category from a catalogue file, `discovery-catalogue.sqlite` in the
+data directory (`services/discovery-catalogue.ts`). The hosted service's is its own editorial file, kept on its server
+and never in the repository; any installation reads one if it is there (`installation.catalogue` in the session says
 so, and shows the page), read-only, keeping it in memory until the file changes on disk and leaving out one it
 can't read. Its `sources` table holds a feed address, title, site, one of the categories in `CATALOG_CATEGORIES`, a
 kind (feed, YouTube, podcast), a language, a short description, a popularity weight on a log scale and, optionally,
 an icon (a WebP as a followed source's icon is stored); only English rows are served, each with the hue and initials
-a source without an icon shows, and an icon is read from the file when `GET /api/suggestions/catalog/icons/:digest`
-asks for it ([A catalog of popular sources](self-hosting.md#a-catalog-of-popular-sources)). `GET /api/suggestions/catalog` sends each category's 24 most popular
+a source without an icon shows, and an icon is read from the file when `GET /api/suggestions/catalogue/icons/:digest`
+asks for it ([A catalogue of popular sources](self-hosting.md#a-catalogue-of-popular-sources)). `GET /api/suggestions/catalogue` sends each category's 24 most popular
 sources, leaving out what the reader has (by `feedKey`, and private sources by their keyed hash), and
-`GET /api/suggestions/catalog/:category` all of one category's. The server orders them by weight plus Gumbel noise on
+`GET /api/suggestions/catalogue/:category` all of one category's. The server orders them by weight plus Gumbel noise on
 each request and never sends a weight or any other popularity figure; the page asks anew on each visit, shuffles the
 boxes and shows six in each; a source's latest posts come from an ordinary
 `POST /api/discover` lookup, and the boxes start folded, the ones opened remembered in the browser's layout hints.

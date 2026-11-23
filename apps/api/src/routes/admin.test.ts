@@ -283,7 +283,7 @@ const SUMMARY = {
   ],
 };
 
-test("health shows the bridge's last week from the egress log: every catalogued service, success rates, and the keys failing now", async (t) => {
+test("health shows the bridge's last week from the egress log: every listed service, success rates, and the keys failing now", async (t) => {
   const egress = await fakeEgress(t, { "/status": json({ blockedLastHour: 2 }), "/bridge/summary?days=7": json(SUMMARY) });
   const b = await boot({ PURSS_EGRESS_CONTROL_URL: `${egress.url}/status`, PURSS_BRIDGE_URL: "http://172.31.88.10:8945" });
   t.after(b.close);

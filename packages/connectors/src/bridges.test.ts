@@ -120,7 +120,7 @@ test("post ids come from the post address and belong to the source", () => {
   assert.equal(id("vkvideo", "thoisoi", "https://example.com/video-22629421_456240181"), null);
 });
 
-test("descriptors carry no host, backend or credential, and only catalogued keys parse", () => {
+test("descriptors carry no host, backend or credential, and only listed keys parse", () => {
   assert.equal(bridgeDescriptor("telegram", "durov"), "bridge:telegram/durov");
   assert.equal(parseBridgeDescriptor("bridge:telegram/durov")?.key, "durov");
   for (const bad of ["bridge:telegram/Du rov", "bridge:tiktok/nasa", "bridge:instagram/.nasa", "bridge:telegram/a", "bridge:telegram/durov/x", "telegram/durov", "bridge:telegram/durov?x=1"]) {

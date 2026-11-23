@@ -53,7 +53,7 @@ function findByKey(app: App, p: Principal, key: string): { id: string } | undefi
 }
 
 /**
- * The source that holds links kept by hand is named from the catalog when it is made; at start, every one takes the catalog's
+ * The source that holds links kept by hand is named from the catalogue when it is made; at start, every one takes the catalogue's
  * current name and origin (its items follow through the sources_title_changed trigger), so a reworded name reaches PURSSes made before.
  */
 export function nameManualSources(app: App): void {

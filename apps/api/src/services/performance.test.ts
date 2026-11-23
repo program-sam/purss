@@ -199,7 +199,7 @@ test("an account that followed its sources from now has most items Ignored: Home
   const { principal: p } = data.accounts[0]!;
   const n = (sql: string) => app.db.get<{ n: number }>(sql, p.accountId)!.n;
   const hidden = n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored'");
-  assert.ok(hidden > 600 * 0.6, `most items are back catalogue, which arrived Ignored (${hidden} of 600)`);
+  assert.ok(hidden > 600 * 0.6, `most items are backlog, which arrived Ignored (${hidden} of 600)`);
   assert.equal(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored' AND is_new = 1"), 0, "and none of them is New");
 
   const was = listTuning.countFromRowsBelowShare;

@@ -44,7 +44,7 @@ const EMAIL = "dalia@example.test";
 const NAME = "داليا Dalia Lekhal";
 const step = (s: string) => console.log(`✓ ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// The words the page shows come from the copy catalog, so rewording one never breaks this journey.
+// The words the page shows come from the translation files, so rewording one never breaks this journey.
 const HOME = copy.pages.home;
 /** What some publishers send: every word of a paragraph joined to the next with a no-break space. */
 const joined = (text: string) => text.replaceAll(" ", "&nbsp;");
