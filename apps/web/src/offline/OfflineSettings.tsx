@@ -9,7 +9,7 @@ import { promptInstall, useInstallState } from "./install.ts";
 import { refreshPackStatus, usePackStatus } from "./pack-status.ts";
 import { storageEstimate } from "./store.ts";
 import { savedSummary } from "./summary.ts";
-import { wipeOfflineCopies } from "./worker-link.ts";
+import { wipeOfflineCopies } from "./service-worker-link.ts";
 
 const t = app.offline.settings;
 

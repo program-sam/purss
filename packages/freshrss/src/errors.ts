@@ -1,7 +1,7 @@
 import type { FailureReason } from "@purss/domain";
 
 /**
- * Errors raised by the FreshRSS boundary. `message` is always safe to show to an operator and to
+ * Errors raised by the FreshRSS boundary. `message` is always safe to show to an administrator and to
  * store in a job record: it never contains credentials, URLs with credentials, or article content.
  */
 export type EngineErrorKind =

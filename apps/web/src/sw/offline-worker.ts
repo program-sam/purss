@@ -3,9 +3,9 @@ import { copiesToEvict } from "./policy.ts";
 import type { Copy, RouteClass } from "./policy.ts";
 import {
   EMPTY_STATE, MAX_COPIES, MAX_PICTURES, NETWORK_TIMEOUT_MS, OFFLINE_HEADER, SAVED_HEADER, STATE_CACHE, STATE_URL,
-  dataCacheName, foreignDataCaches, isDataCache, parseWorkerState, pictureCacheName, shellCacheName, staleShellCaches,
+  dataCacheName, foreignDataCaches, isDataCache, parseServiceWorkerState, pictureCacheName, shellCacheName, staleShellCaches,
 } from "./protocol.ts";
-import type { PageMessage, WorkerState } from "./protocol.ts";
+import type { PageMessage, ServiceWorkerState } from "./protocol.ts";
 import type { CacheStorageLike } from "./cache-types.ts";
 
 /**
@@ -35,8 +35,8 @@ type Waiter = (work: Promise<unknown>) => void;
 const KEEP = (url: string): boolean => /\/api\/(?:session|bootstrap)$/.test(new URL(url).pathname);
 const TRIM_EVERY = 25;
 
-export class OfflineWorker {
-  private state: WorkerState = { ...EMPTY_STATE };
+export class OfflineServiceWorker {
+  private state: ServiceWorkerState = { ...EMPTY_STATE };
   private ready: Promise<void> | null = null;
   /** Changes whenever copies are wiped or the account changes, so a slow answer never lands in the wrong place. */
   private generation = 0;
@@ -80,7 +80,7 @@ export class OfflineWorker {
   private async restore(): Promise<void> {
     try {
       const hit = await (await this.env.caches.open(STATE_CACHE)).match(this.abs(STATE_URL));
-      this.state = hit ? parseWorkerState(await hit.json()) : { ...EMPTY_STATE };
+      this.state = hit ? parseServiceWorkerState(await hit.json()) : { ...EMPTY_STATE };
     } catch {
       this.state = { ...EMPTY_STATE };
     }

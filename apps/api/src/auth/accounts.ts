@@ -39,7 +39,7 @@ export function hasAccounts(app: App): boolean {
 
 /**
  * First-run protection: an unclaimed installation has a one-time setup code written
- * to the secrets directory (readable only by the operator), never a first-visitor-wins page.
+ * to the secrets directory (readable only by the administrator), never a first-visitor-wins page.
  */
 export function ensureClaimCode(app: App): string | null {
   if (hasAccounts(app)) {
@@ -304,7 +304,7 @@ export function signupCapacityStatus(app: App, address: string, now = Date.now()
     };
 
     // Read all blocking counts and release rows from one snapshot, including on a throttled attempt.
-    // A non-positive installation cap is an operator pause, with no automatic release time.
+    // A non-positive installation cap is an administrator pause, with no automatic release time.
     if (app.config.signupDailyLimit <= 0) blockUntil(null);
     // Address hashes have no use after their rolling window; don't retain them indefinitely.
     app.db.run("DELETE FROM signup_creations WHERE created_at <= ?", new Date(now - 60 * 60_000).toISOString());

@@ -169,6 +169,6 @@ test("discovery that fails records the site and gives the same answer; a record 
   app.db.exec("DROP TABLE discovery_misses");
   const again = await lookupSources(app, p, "https://www.tiktok.com/@somebody/video/7123456789");
   assert.deepEqual(again, first);
-  assert.equal(warnings.length, 1, "the failure to count is noted for the operator");
+  assert.equal(warnings.length, 1, "the failure to count is noted for the administrator");
   assert.ok(!JSON.stringify(warnings).includes("tiktok"), "and says nothing of what was pasted");
 });

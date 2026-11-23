@@ -10,7 +10,7 @@ export default {
       signInWithIt: "You sign in with it.",
       addressStatus: (confirmed: boolean) => ` · ${confirmed ? "confirmed" : "not confirmed yet"}`,
       emailedAbout: "We email it only about your account, such as password resets, and with your digest of what's new, which you can turn off under Notifications and New. No newsletters or marketing.",
-      selfHostedNoEmail: "This PURSS doesn't send email, so nothing is sent to it.",
+      selfHostedNoEmail: "This installation doesn't send email, so nothing is sent to it.",
       unavailable: "Email isn't available for this service yet.",
       waitingToConfirm: (pending: string, address: string) => `Waiting for you to confirm ${pending}. You still sign in with ${address} until then.`,
       changeAddress: "Change address",
@@ -123,7 +123,7 @@ export default {
     oidcErrors: {
       deleting: "This account is being deleted. It can't be signed in to or kept any more.",
       emailInUse: (label?: string) => `An account with this email address already exists. Sign in with your email address and password, then connect ${label ?? "it"} in Settings → Security.`,
-      emailUnverified: (label?: string) => `${label ?? "The provider"} didn't give PURSS a verified email address, so an account can't be made from it.`,
+      emailUnverified: (label?: string) => `${label ?? "The sign-in provider"} didn't give PURSS a verified email address, so an account can't be made from it.`,
       notLinked: (label?: string) => `That ${label ?? "external"} account isn't connected to an account here. Sign in another way and connect it in Settings → Security first.`,
       signupFull: "New accounts are full for now. Try again later.",
       signupRateLimited: "Too many attempts to make an account from this address. Try again later.",
@@ -169,14 +169,14 @@ export default {
       plusHas: ["1,000 sources", "Unlimited collections", "Share baskets and collections as public pages"],
       proLede: "For busy feeds you want curated for you.",
       proHas: ["5,000 sources", "Everything in Plus", "Smart filters: plain-language rules for what you want to see"],
-      noLimitsSelf: "No limits are set on this PURSS.",
+      noLimitsSelf: "No limits are set on this installation.",
       planUnavailable: "Your plan isn't available yet.",
       yourPlan: (plan: string) => `Your plan: ${plan}`,
       unlimitedCollections: ", unlimited collections",
       collectionsOf: (used: number, limit: number) => `, ${used} of ${limit} collections`,
       keptLinks: "Kept links don't count as sources.",
       noLimits: "Your account has no limits.",
-      administratorSetsPlans: "The administrator of this PURSS sets plans.",
+      administratorSetsPlans: "The administrator of this installation sets plans.",
       paidUnavailable: "Paid plans aren't available yet.",
       yearly: (save: number) => `Yearly, save ${save}%`,
       monthly: "Monthly",
@@ -201,7 +201,7 @@ export default {
       unreachable: "Couldn't reach PURSS. Check that this device is online and try again.",
       signInNotStarted: "PURSS didn't start the sign-in. Try again.",
       passkeyRefused: "That didn't sign you in. Try your passkey again, or use your password.",
-      passkeyUnsupported: "This phone couldn't use fingerprint, face or screen lock for this PURSS.",
+      passkeyUnsupported: "This phone couldn't use fingerprint, face or screen lock for this installation.",
       tooManyAttempts: "Too many attempts. Wait a while and try again.",
       notSignedIn: "PURSS didn't sign you in. Try again.",
       cantReach: "Couldn't reach PURSS. Check your connection and try again.",
@@ -297,7 +297,7 @@ export default {
     },
 
     connect: {
-      cantConnect: "This PURSS can't connect this app. It may need updating.",
+      cantConnect: "This installation can't connect this app. It may need updating.",
       differentPurss: "A different PURSS answered, or it didn't say which it is. Start connecting again.",
       noCode: "PURSS didn't send a connection code. Start connecting again.",
     },
@@ -329,15 +329,15 @@ export default {
     push: {
       messages: {
         unavailable: words.thisBuildOfTheAppCan,
-        purssOff: "This PURSS doesn't send phone notifications; its operator has turned them off.",
-        otherRelay: "This PURSS sends phone notifications through another relay than this app uses, so they can't reach it.",
+        purssOff: "This installation doesn't send phone notifications; its administrator has turned them off.",
+        otherRelay: "This installation sends phone notifications through another relay than this app uses, so they can't reach it.",
         denied: "Notifications for this app are blocked in the phone's settings. Allow them there, then turn this on again.",
         relayDown: "The notification relay couldn't be reached. Try again later.",
       },
     },
 
     transport: {
-      onlyConnectedPurss: "The app only sends requests to the PURSS it is connected to.",
+      onlyConnectedPurss: "The app only sends requests to the installation it is connected to.",
     },
   },
   downloads: {

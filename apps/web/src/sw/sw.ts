@@ -1,19 +1,19 @@
-import { OfflineWorker } from "./offline-worker.ts";
+import { OfflineServiceWorker } from "./offline-worker.ts";
 import { classifyRequest } from "./policy.ts";
 import { isPageMessage } from "./protocol.ts";
-import type { WorkerScope } from "./worker-types.ts";
+import type { ServiceWorkerScope } from "./worker-types.ts";
 
 /**
- * The service worker: wires the browser's events to OfflineWorker. The build (vite.config.ts) injects
+ * The service worker: wires the browser's events to OfflineServiceWorker. The build (vite.config.ts) injects
  * the build's name and the list of files to save with the app.
  */
 declare const __PURSS_BUILD__: string;
 declare const __PURSS_PRECACHE__: readonly string[];
 
-const scope = self as unknown as WorkerScope;
+const scope = self as unknown as ServiceWorkerScope;
 const precache = __PURSS_PRECACHE__;
 const precached = new Set(precache);
-const worker = new OfflineWorker({
+const worker = new OfflineServiceWorker({
   caches,
   fetch: (request) => fetch(request),
   now: () => Date.now(),

@@ -87,9 +87,9 @@ export default {
     },
     interfaceUpdates: {
       whatDesktop:
-        "PURSS can update the app's screens without a new version of the app. That code runs with your sign-in on this computer and can use what the app can (notifications, the downloads folder, starting when you sign in), so allow updates only from a PURSS you trust.",
+        "PURSS can update the app's screens without a new version of the app. That code runs with your sign-in on this computer and can use what the app can (notifications, the downloads folder, starting when you sign in), so allow updates only from an installation you trust.",
       whatPhone:
-        "PURSS can update the app's screens without an update from the app store. That code runs with your sign-in on this phone, so allow updates only from a PURSS you trust.",
+        "PURSS can update the app's screens without an update from the app store. That code runs with your sign-in on this phone, so allow updates only from an installation you trust.",
       title: "Let PURSS update the app?",
       allow: "Allow updates",
       offers: " offers an update of this app's screens.",

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OfflineWorker } from "../../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { NO_COPY_HEADER, OFFLINE_HEADER } from "../../sw/protocol.ts";
 import { MemoryCopyBackend, StoredCaches } from "../copies.ts";
 import { createAppTransport } from "./transport.ts";
@@ -20,7 +20,7 @@ function setup(opts: { downloaded?: (path: string) => Promise<Response | null> }
     if (path === "/api/sources/src_2/icon") return Response.json({ error: { code: "not_found" } }, { status: 404 });
     return Response.json({ path });
   };
-  const worker = new OfflineWorker({ caches: new StoredCaches(new MemoryCopyBackend()), fetch, now: () => 0, origin: ORIGIN, build: "app", networkTimeoutMs: 40 });
+  const worker = new OfflineServiceWorker({ caches: new StoredCaches(new MemoryCopyBackend()), fetch, now: () => 0, origin: ORIGIN, build: "app", networkTimeoutMs: 40 });
   let lost = 0;
   const t = createAppTransport({ origin: ORIGIN, token: "purss_dev_secret", worker, downloaded: opts.downloaded ?? null, fetch, onLost: () => { lost++; } });
   return { t, seen, worker, goOffline: () => { offline = true; }, lost: () => lost };
@@ -103,7 +103,7 @@ test("a picture stays on the device: after the app starts again it shows without
   const backend = new MemoryCopyBackend();
   const icon = "/api/sources/src_1/icon?v=abc";
   const start = (fetch: (r: Request) => Promise<Response>) => {
-    const worker = new OfflineWorker({ caches: new StoredCaches(backend), fetch, now: () => 0, origin: ORIGIN, build: "app" });
+    const worker = new OfflineServiceWorker({ caches: new StoredCaches(backend), fetch, now: () => 0, origin: ORIGIN, build: "app" });
     return { worker, t: createAppTransport({ origin: ORIGIN, token: "purss_dev_secret", worker, downloaded: null, fetch, onLost: () => undefined }) };
   };
   const online = start(async () => new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/webp" } }));

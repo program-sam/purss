@@ -6,7 +6,7 @@ export type ExtendableEventLike = Event & { waitUntil(work: Promise<unknown>): v
 export type FetchEventLike = ExtendableEventLike & { readonly request: Request; respondWith(response: Response | Promise<Response>): void };
 export type MessageEventLike = ExtendableEventLike & { readonly data: unknown; readonly ports: readonly MessagePort[] };
 
-export interface WorkerScope {
+export interface ServiceWorkerScope {
   readonly location: Location;
   readonly clients: { claim(): Promise<void> };
   skipWaiting(): Promise<void>;

@@ -20,7 +20,7 @@ import { initTextSize } from "./lib/text-size.ts";
 import { OfflineController } from "./offline/OfflineController.tsx";
 import { AppUpdateNotice } from "./shell/AppUpdates.tsx";
 import { OutboxController } from "./outbox/OutboxController.tsx";
-import { wipeOfflineCopies } from "./offline/worker-link.ts";
+import { wipeOfflineCopies } from "./offline/service-worker-link.ts";
 import { AnnotationSync } from "./annotations/use-annotations.ts";
 import { LateProgressSync } from "./state/late-progress-sync.ts";
 import { initPlatform, platform } from "./platform/index.ts";

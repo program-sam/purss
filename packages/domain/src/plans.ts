@@ -16,7 +16,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   free: { sources: 100, collections: 5 },
   plus: { sources: 1000, collections: null },
   pro: { sources: 5000, collections: null },
-  // For accounts the operator exempts; administrators are unlimited whatever their plan.
+  // For accounts the administrator exempts; administrators are unlimited whatever their plan.
   unlimited: { sources: null, collections: null },
 };
 

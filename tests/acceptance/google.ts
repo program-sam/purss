@@ -31,7 +31,7 @@ const dataDir = path.join(work, "data");
 const shots = path.join(repo, ".output/google-signin");
 mkdirSync(shots, { recursive: true });
 const step = (s: string) => console.log(`✓ ${s}`);
-// The words people read come from the catalogues, so rewording one cannot break this journey. "Google" is the label the operator
+// The words people read come from the catalogues, so rewording one cannot break this journey. "Google" is the label the administrator
 // gives the provider in PURSS_OIDC (below).
 const GOOGLE = "Google";
 const continueWithGoogle = app.auth.providerButton.continueWith(GOOGLE);
@@ -114,7 +114,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
     PURSS_SMTP_HOST: "127.0.0.1", PURSS_SMTP_PORT: String(smtpPort), PURSS_SMTP_SECURITY: "none", PURSS_MAIL_FROM: "PURSS <ws@example.org>",
     PURSS_OIDC: JSON.stringify([{ id: "google", label: GOOGLE, issuer: google.issuer.url, clientId: "purss-acceptance", clientSecret: "not-a-secret", stepUp: "choose-account" }]),
   };
-  // The operator's account, and Dana, who already has an account with a confirmed email address.
+  // The administrator's account, and Dana, who already has an account with a confirmed email address.
   const prepared = createApp(loadConfig(env));
   try {
     claim(prepared, ensureClaimCode(prepared)!, "operator@example.test", "Operator", testPassword());

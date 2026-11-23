@@ -60,7 +60,7 @@ test("what is shown is counted per route and entry, a reconnect lookup is not, a
   app.db.exec("DROP TABLE discovery_routes");
   const again = presentCandidates(app, p, [draft("https://a.example/feed", "alternate-link")], { entry: "paste" });
   assert.equal(again.length, 1, "the person still gets the candidates");
-  assert.equal(warnings.length, 1, "and the operator is told");
+  assert.equal(warnings.length, 1, "and the administrator is told");
   assert.ok(!JSON.stringify(warnings).includes("a.example"), "without saying what was looked up");
 });
 

@@ -175,7 +175,7 @@ test("a manifest naming files outside the backup or the data folder is refused b
   }
 });
 
-test("secrets are restored only when the backup holds them and the operator hasn't skipped them", async (t) => {
+test("secrets are restored only when the backup holds them and the administrator hasn't skipped them", async (t) => {
   const { app, cleanup } = source();
   t.after(cleanup);
   const withSecrets = await createBackup({ dataDir: app.config.dataDir, outDir: tmp("out"), includeSecrets: true });

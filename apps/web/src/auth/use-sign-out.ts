@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { clearAnnotationOutbox } from "../annotations/use-annotations.ts";
 import { messageOf, post } from "../api/client.ts";
 import { clearLateWrites } from "../lib/late-writes.ts";
-import { wipeOfflineCopies } from "../offline/worker-link.ts";
+import { wipeOfflineCopies } from "../offline/service-worker-link.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { clearHints } from "../state/ui-store.ts";
 

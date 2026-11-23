@@ -164,7 +164,7 @@ export function createProxyServer(deps: ProxyDeps): http.Server {
       headers,
       agent: false,
       lookup: boundLookup(decision.addresses),
-      // The wait for the first byte of the answer is the connect timeout for a site on the internet. An operator-fixed internal destination
+      // The wait for the first byte of the answer is the connect timeout for a site on the internet. An administrator-fixed internal destination
       // connects at once and may take a while to answer (the feed gateway reads a big feed before it answers), so it has the whole request time.
       timeout: decision.internal ? limits.requestTimeoutMs : limits.connectTimeoutMs,
     });

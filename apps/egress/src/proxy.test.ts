@@ -506,7 +506,7 @@ test("hourly counters roll off after an hour", async () => {
   }
 });
 
-test("the gateway listener is an operator-fixed exception matched by exact name and port, and only for plain GET", async () => {
+test("the gateway listener is an administrator-fixed exception matched by exact name and port, and only for plain GET", async () => {
   const config = makeConfig({ trimKey: "gateway-key-".repeat(4) });
   const egress = await startEgress(config);
   try {

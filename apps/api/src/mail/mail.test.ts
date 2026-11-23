@@ -131,7 +131,7 @@ test("hosted open sign-up stays closed until the mail server check succeeds, and
   assert.equal(closed.status, 403, "unchecked email: closed");
   assert.equal((await b.req("GET", "/api/session", null)).json.installation.signup, "invite");
   const admin = signIn(b.app, b.admin.accountId);
-  assert.equal((await b.req("GET", "/api/admin/health", admin)).json.signupWaitingForMail, true, "the operator sees why");
+  assert.equal((await b.req("GET", "/api/admin/health", admin)).json.signupWaitingForMail, true, "the administrator sees why");
   mail.verifyFails = true;
   await checkMail(b.app);
   assert.equal(signupOpen(b.app), false, "failing email: closed");

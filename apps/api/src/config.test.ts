@@ -5,7 +5,7 @@ import { issuerKey, loadConfig } from "./config.ts";
 
 const repoFile = (p: string) => readFileSync(new URL(`../../../${p}`, import.meta.url), "utf8");
 
-test("a variable passed through empty, as Compose does for one the operator didn't set, means its default", () => {
+test("a variable passed through empty, as Compose does for one the administrator didn't set, means its default", () => {
   const blank = loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test", PURSS_DISK_RESERVE_BYTES: "", PURSS_SYNC_INTERVAL: " ", PURSS_SIGNUP_DAILY_LIMIT: "", PURSS_OIDC: "" });
   const unset = loadConfig({ PURSS_DATA_DIR: "/tmp/purss-config-test" });
   assert.equal(blank.diskReserveBytes, 1024 ** 3);
@@ -59,11 +59,11 @@ test("every API setting documented for operators reaches the api container in Co
   assert.deepEqual([...read].filter((v) => !listed.includes(v.startsWith("PURSS_SMTP_") ? "PURSS_SMTP_" : v)), []);
 });
 
-test("phone notifications use the project's relay unless the operator names another or turns them off", () => {
+test("phone notifications use the project's relay unless the administrator names another or turns them off", () => {
   const base = { PURSS_DATA_DIR: "/tmp/purss-config-test" };
   const official = loadConfig(base).pushRelay;
   assert.match(official ?? "", /^https:\/\//);
-  assert.equal(loadConfig({ ...base, PURSS_PUSH_RELAY_URL: "official" }).pushRelay, official, "what Compose passes when the operator set nothing");
+  assert.equal(loadConfig({ ...base, PURSS_PUSH_RELAY_URL: "official" }).pushRelay, official, "what Compose passes when the administrator set nothing");
   assert.equal(loadConfig({ ...base, PURSS_PUSH_RELAY_URL: "" }).pushRelay, null);
   assert.equal(loadConfig({ ...base, PURSS_PUSH_RELAY_URL: "off" }).pushRelay, null);
   assert.equal(loadConfig({ ...base, PURSS_PUSH_RELAY_URL: "https://push.example.org/" }).pushRelay, "https://push.example.org");

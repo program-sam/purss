@@ -4,10 +4,10 @@ export const extension = {
     offline: "Couldn't reach your PURSS. Check your connection.",
     signedOut: "This extension isn't connected to your PURSS any more. Connect it again.",
     tooLarge: "This page's text is too large to keep.",
-    failed: (status: number) => `The PURSS answered with an error (${status}).`,
+    failed: (status: number) => `The installation answered with an error (${status}).`,
     notPurssOrTooOld: "There's no PURSS at that address, or it's too old for this extension.",
     notPurss: "There's no PURSS at that address.",
-    otherAddress: (origin: string) => `This PURSS's address is ${origin}. Enter that address instead.`,
+    otherAddress: (origin: string) => `This installation's address is ${origin}. Enter that address instead.`,
   },
   background: {
     keptInYourPurss: "Kept in your PURSS",
@@ -23,10 +23,10 @@ export const extension = {
     },
   },
   connect: {
-    unexpectedAnswer: "The PURSS sent back something unexpected. Try connecting again.",
+    unexpectedAnswer: "The installation sent back something unexpected. Try connecting again.",
     otherAttempt: "That answer didn't come from this connection attempt. Try connecting again.",
     declined: "You chose not to connect.",
-    noCode: "The PURSS didn't send a connection code. Try connecting again.",
+    noCode: "The installation didn't send a connection code. Try connecting again.",
     deviceName: (browser: string, os: string) => `${browser} on ${os}`,
   },
   manifest: {
@@ -48,7 +48,7 @@ export const extension = {
       finish: "Finish connecting",
       looking: "Looking for your PURSS…",
       approve: (note: string | null) => `Approve the connection in the window that opened.${note ? ` ${note}` : ""}`,
-      notFinished: "The connection wasn't finished: the window was closed or the PURSS couldn't be reached. Try again, or connect with a code instead.",
+      notFinished: "The connection wasn't finished: the window was closed or the installation couldn't be reached. Try again, or connect with a code instead.",
       typeTheCode: "Type the code your PURSS shows.",
       codeDidntWork: "That code didn't work. It works once, for five minutes. Start connecting again for a new one.",
       button: "Connect",
@@ -88,7 +88,7 @@ export const extension = {
     },
     nothingToKeep: {
       title: "Nothing to keep here",
-      body: "Open a web page to keep it or follow its site. Browser pages and the PURSS itself can't be kept.",
+      body: "Open a web page to keep it or follow its site. Browser pages and your PURSS itself can't be kept.",
     },
     checking: "Checking your PURSS…",
     couldntCheck: "Couldn't check your PURSS.",

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OfflineWorker } from "./offline-worker.ts";
+import { OfflineServiceWorker } from "./offline-worker.ts";
 import { MAX_COPIES, OFFLINE_HEADER, SAVED_HEADER } from "./protocol.ts";
 import { FakeCache, json, makeEnv, waiter } from "./testing.ts";
 import type { Env } from "./offline-worker.ts";
@@ -12,7 +12,7 @@ const on = (accountId: string | null = "acc_1", enabled = true) => ({ type: "sta
 
 function setup(over: Partial<Env> = {}) {
   const t = makeEnv(over);
-  const worker = new OfflineWorker(t.env);
+  const worker = new OfflineServiceWorker(t.env);
   const w = waiter();
   const get = async (path: string, kind: "api" | "navigation" | "static" | "picture" = "api", init?: RequestInit) => {
     const res = await worker.handle(kind, req(path, init), w.wait);
@@ -36,7 +36,7 @@ test("activating drops older builds' shells and every foreign account's copies, 
   await t.worker.message(on("acc_1"));
   for (const n of ["purss-shell:old", "purss-shell:b1", "purss-api:acc_1", "purss-api:acc_2"]) await t.caches.open(n);
   await t.worker.activate();
-  const afterRestart = new OfflineWorker(t.env);
+  const afterRestart = new OfflineServiceWorker(t.env);
   await afterRestart.activate();
   assert.deepEqual(t.caches.names(), ["purss-api:acc_1", "purss-shell:b1", "purss-worker-state"]);
 });
@@ -45,11 +45,11 @@ test("a restarted worker remembers the account and the setting, and forgets ever
   const t = setup();
   await t.worker.message(on("acc_1"));
   await (await t.caches.open("purss-api:acc_1")).put(`${ORIGIN}/api/bootstrap`, json({ ok: 1 }));
-  const restarted = new OfflineWorker(t.env);
+  const restarted = new OfflineServiceWorker(t.env);
   await restarted.activate();
   assert.deepEqual(t.caches.names().filter((n) => n.startsWith("purss-api")), ["purss-api:acc_1"]);
   (await t.caches.open("purss-worker-state")).entries.clear();
-  const amnesiac = new OfflineWorker(t.env);
+  const amnesiac = new OfflineServiceWorker(t.env);
   await amnesiac.activate();
   assert.deepEqual(t.caches.names().filter((n) => n.startsWith("purss-api")), []);
 });

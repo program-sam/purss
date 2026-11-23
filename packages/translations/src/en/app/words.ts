@@ -209,7 +209,7 @@ export const words = {
   stoppedTheDownloadNothingOfIt: "Stopped the download. Nothing of it was kept.",
   subscriptionListOpml: "Subscription list (OPML)",
   takenDown: "Taken down",
-  thatAddressAnswersButItIsn: "That address answers, but it isn't a PURSS.",
+  thatAddressAnswersButItIsn: "That address answers, but it isn't a PURSS installation.",
   thatDidnTWorkPleaseTry: "That didn't work. Please try again.",
   thatFileIsTooLargeTo: "That file is too large to be a subscription list.",
   thatIsnTTheLinkFrom: "That isn't the link from the email. Copy the whole link and try again.",

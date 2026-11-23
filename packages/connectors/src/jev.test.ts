@@ -7,7 +7,7 @@ const request = { state: { source: "S", title: "T", author: null, summary: null 
 
 const reply = (status: number, body: unknown = {}, headers: Record<string, string> = {}) => async () => new Response(JSON.stringify(body), { status, headers });
 
-test("the defaults are TypeSafe's address and the newest Jev; OpenRouter gets its own alias; the operator can pin a version", () => {
+test("the defaults are TypeSafe's address and the newest Jev; OpenRouter gets its own alias; the administrator can pin a version", () => {
   assert.deepEqual(jevConfigFromEnv({}), { baseUrl: "https://api.typesafe.ai", model: "jev-latest", timeoutMs: 20_000 });
   assert.equal(jevConfigFromEnv({ PURSS_JEV_URL: "https://openrouter.ai/api" }).model, "~typesafe/jev-latest");
   assert.equal(jevConfigFromEnv({ PURSS_JEV_URL: "https://openrouter.ai/api", PURSS_JEV_MODEL: "typesafe/jev-1.13" }).model, "typesafe/jev-1.13");

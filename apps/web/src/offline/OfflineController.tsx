@@ -11,7 +11,7 @@ import { emitReadingChanged } from "./signals.ts";
 import { clearRecords } from "./store.ts";
 import { onBackOnline, refreshBrowserOnline, showsSavedCopy, useOfflineStatus } from "./status.ts";
 import { usePack } from "./use-pack.ts";
-import { applyUpdate, onUpdateReady, registerWorker, syncWorkerState } from "./worker-link.ts";
+import { applyUpdate, onUpdateReady, registerServiceWorker, syncServiceWorkerState } from "./service-worker-link.ts";
 
 const t = app.offline.controller;
 
@@ -30,7 +30,7 @@ export function OfflineController() {
   const accountId = session.data?.state === "signed_in" ? session.data.account?.id ?? null : null;
 
   useEffect(() => {
-    void registerWorker();
+    void registerServiceWorker();
     return onUpdateReady(() => toast(t.updateReady, { sticky: true, tone: "none", actions: [{ label: app.words.reload, onSelect: applyUpdate }] }));
   }, [toast]);
 
@@ -39,7 +39,7 @@ export function OfflineController() {
     if (!known || (accountId && enabled)) return;
     clearRecords();
     void refreshPackStatus(null);
-    void syncWorkerState(accountId, enabled);
+    void syncServiceWorkerState(accountId, enabled);
   }, [known, accountId, enabled]);
 
   // What the person reads or keeps just changed (To read, a keep, an undo): the saved queue follows soon after.

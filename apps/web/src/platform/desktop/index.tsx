@@ -8,10 +8,10 @@ import { clearAnnotationOutbox } from "../../annotations/use-annotations.ts";
 import { clearLateWrites } from "../../lib/late-writes.ts";
 import { DownloadManager } from "../../downloads/manager.ts";
 import { decodePage, readablePage } from "../../downloads/readable-page.ts";
-import { wipeOfflineCopies } from "../../offline/worker-link.ts";
+import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { HtmlMediaBackend } from "../../player/html-backend.ts";
 import { clearHints } from "../../state/ui-store.ts";
-import { OfflineWorker } from "../../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
 import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
@@ -193,7 +193,7 @@ function restartInstalled(): void {
 function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
   const caches = new StoredCaches(new IndexedDbCopyBackend());
   const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
+  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
   const updater = desktopUpdater();
 
   const downloads = conn ? new DownloadManager({

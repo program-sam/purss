@@ -109,7 +109,7 @@ async function main(sink: SmtpSink): Promise<void> {
     PURSS_WEB_DIST: path.join(repo, "apps/web/dist"), PURSS_DISK_RESERVE_BYTES: "0", PURSS_MODE: "hosted", PURSS_SIGNUP: "open",
     PURSS_SMTP_HOST: "127.0.0.1", PURSS_SMTP_PORT: String(sink.port), PURSS_SMTP_SECURITY: "none", PURSS_MAIL_FROM: "PURSS <ws@example.org>",
   };
-  // The operator's own account exists; the journey is about a stranger signing up.
+  // The administrator's own account exists; the journey is about a stranger signing up.
   const app = createApp(loadConfig(env));
   try { claim(app, ensureClaimCode(app)!, "operator@example.test", "Operator", testPassword()); } finally { app.db.close(); }
   startApi(env);
@@ -175,7 +175,7 @@ async function main(sink: SmtpSink): Promise<void> {
     }), 5000);
     step("Never leaves reminder, source-problem and saved-text controls enabled, including reminder email");
 
-    // The operator account is hosted too. Saving the unticked choice changes its preference.
+    // The administrator account is hosted too. Saving the unticked choice changes its preference.
     const operatorContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
       const operatorPage = await operatorContext.newPage();

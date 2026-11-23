@@ -102,7 +102,7 @@ export type Config = {
    * (or localhost); nothing else to configure.
    */
   assistantOAuth: boolean;
-  /** Jev, for Smart filters: the operator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
+  /** Jev, for Smart filters: the administrator-fixed address and model. Keys are set in the app and kept in the secrets folder. */
   jev: JevConfig;
   /**
    * The push relay that wakes connected phones, or null for no phone notifications. The
@@ -117,7 +117,7 @@ export type Config = {
   billing: { url: string; secret: string } | null;
 };
 
-/** A number from the environment; unset or empty (Compose passes a variable the operator didn't set as "") means the default. */
+/** A number from the environment; unset or empty (Compose passes a variable the administrator didn't set as "") means the default. */
 function int(v: string | undefined, d: number): number {
   const n = v === undefined || v.trim() === "" ? NaN : Number(v);
   return Number.isFinite(n) ? n : d;

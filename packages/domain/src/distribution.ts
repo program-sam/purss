@@ -100,7 +100,7 @@ export function publishedStores(what: Distributed, listings: Readonly<Record<Sto
 /**
  * The project's push relay (apps/push-relay). It holds the phone apps' Firebase and Apple push
  * credentials and wakes a phone when its PURSS has something new, never with any content. The apps
- * register with it; every PURSS sends through it unless its operator sets PURSS_PUSH_RELAY_URL. The value
+ * register with it; every PURSS sends through it unless its administrator sets PURSS_PUSH_RELAY_URL. The value
  * to change once the owner has deployed the relay at its final address.
  */
 export const OFFICIAL_PUSH_RELAY = "https://push.purss.app";

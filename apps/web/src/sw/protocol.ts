@@ -27,8 +27,8 @@ export const MAX_COPIES = 600;
 /** Most saved pictures per account, a backstop to the offline pack's own tidying; the oldest go first. */
 export const MAX_PICTURES = 4000;
 
-export type WorkerState = { accountId: string | null; enabled: boolean };
-export const EMPTY_STATE: WorkerState = { accountId: null, enabled: false };
+export type ServiceWorkerState = { accountId: string | null; enabled: boolean };
+export const EMPTY_STATE: ServiceWorkerState = { accountId: null, enabled: false };
 
 export type PageMessage =
   | { type: "state"; accountId: string | null; enabled: boolean }
@@ -42,7 +42,7 @@ export function isPageMessage(v: unknown): v is PageMessage {
   return m.type === "state" && (m.accountId === null || typeof m.accountId === "string") && typeof m.enabled === "boolean";
 }
 
-export function parseWorkerState(raw: unknown): WorkerState {
+export function parseServiceWorkerState(raw: unknown): ServiceWorkerState {
   if (!raw || typeof raw !== "object") return { ...EMPTY_STATE };
   const v = raw as Record<string, unknown>;
   return {

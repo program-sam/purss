@@ -152,7 +152,7 @@ export function tick(app: App): void {
   app.db.run("DELETE FROM jobs WHERE status = 'done' AND updated_at < ?", addSeconds(-7 * 86400));
 }
 
-/** Tell the operator whether outgoing email works, and why open sign-up stays closed when it doesn't. */
+/** Tell the administrator whether outgoing email works, and why open sign-up stays closed when it doesn't. */
 async function reportMail(app: App): Promise<void> {
   const wantsSignup = app.config.mode === "hosted" && app.config.signup === "open";
   if (!app.config.mail) {

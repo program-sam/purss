@@ -166,7 +166,7 @@ function hostResetTarget(app: App, accountId: string): { id: string; email: stri
 }
 
 /**
- * A single-use reset link for an account, made at the server by its operator (cli.ts `password-reset-link`) for someone who
+ * A single-use reset link for an account, made at the server by its administrator (cli.ts `password-reset-link`) for someone who
  * can't sign in and has no email to receive one: on installations without outgoing email, and for administrators, who don't
  * reset by email. It is the same link the email flow sends, and works without email being set up. Run inside the caller's transaction.
  */

@@ -47,7 +47,7 @@ export function makeOwner(app: App, opts: { allowanceBytes?: number | null; admi
  * (mail/mailer.ts signupOpen); tests counting the accounts sign-up made leave this one out (`email <> OPERATOR_EMAIL`).
  */
 export const OPERATOR_EMAIL = "operator@example.test";
-export function makeOperator(app: App): string {
+export function makeAdministrator(app: App): string {
   const { accountId } = makeOwner(app, { admin: true });
   app.db.run("UPDATE accounts SET email = ? WHERE id = ?", OPERATOR_EMAIL, accountId);
   return accountId;

@@ -101,7 +101,7 @@ export type SafeFetchOptions = {
    */
   streamPastDeclaredLength?: boolean;
   /**
-   * Send a POST with this body instead of a GET, for a fixed service the operator configured (the push
+   * Send a POST with this body instead of a GET, for a fixed service the administrator configured (the push
    * relay). Same address, connection, time and size rules; a POST never follows a redirect.
    */
   post?: { body: string; contentType: string };

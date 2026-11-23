@@ -4,8 +4,8 @@ export default {
       signInAgain: "Please sign in again.",
       confirmItsYouAgain: "Please confirm it's you again before doing this.",
       suspendedHosted: "This account is suspended and can't be used right now.",
-      suspendedContactAdministrator: "This account is suspended. Contact the PURSS administrator.",
-      appNotConnected: "This app isn't connected to the PURSS any more. Connect it again.",
+      suspendedContactAdministrator: "This account is suspended. Contact the administrator.",
+      appNotConnected: "This app isn't connected to this installation any more. Connect it again.",
       invitationOnly: "New accounts are by invitation only here.",
       otherWebPages: "Requests from other web pages aren't accepted.",
       webBrowserOnly: "That can only be done in PURSS in a web browser.",
@@ -63,16 +63,16 @@ export default {
       linkExpiredStartFromApp: "That link has expired or was already used. Start again from the app.",
       codeInvalidStartFromApp: "That code isn't valid any more. Start again from the app.",
       externalAccountUsed: "That external account is already used by another PURSS.",
-      providerSignInFailed: "Signing in with that provider didn't work. Please try again.",
+      providerSignInFailed: "Signing in with that sign-in provider didn't work. Please try again.",
       signInExpired: "That sign-in took too long or was already used. Please try again.",
       signInOtherBrowser: "That sign-in didn't start in this browser. Please try again.",
       finishInSignedInBrowser: "Please finish in the browser where you're signed in.",
       signInFirst: "Please sign in first.",
       startLinkingAgain: "Start linking again from the app.",
-      wrongProviderAccount: (label: string) => `That ${label} account isn't the one connected to this PURSS account.`,
+      wrongProviderAccount: (label: string) => `That ${label} account isn't the one connected to this account.`,
       providerNotReauthenticated: (label: string) => `${label} didn't confirm that you just signed in again, so it can't confirm it's you. Try again.`,
       startConfirmingAgain: "Start confirming again from the app.",
-      providerAccountNotConnected: (label: string) => `That ${label} account isn't connected to a PURSS here. Sign in another way and connect it in Settings first.`,
+      providerAccountNotConnected: (label: string) => `That ${label} account isn't connected to an account here. Sign in another way and connect it in Settings first.`,
       providerNoVerifiedEmail: (label: string) => `${label} didn't give PURSS a verified email address, so it can't make an account from it.`,
     },
     passkeys: {
@@ -98,7 +98,7 @@ export default {
       unlimitedNoPlan: "Your account has no limits, so there is no plan to pay for.",
     },
     appAssociation: {
-      vouchesForNoApp: "This PURSS vouches for no app.",
+      vouchesForNoApp: "This installation vouches for no app.",
     },
     connectClients: {
       appOnThisDevice: "The PURSS app on this device",
@@ -152,11 +152,11 @@ export default {
       changedSubject: "Your password was changed",
       changedIntro: (name: string) => `The password for your ${name} account was just changed with a reset link. The account was signed out everywhere and its assistant tokens were revoked.`,
       changedContactOwner: "If you didn't do this, reset your password again from the sign-in page, or contact Program Sam through the legal notice in PURSS.",
-      changedContactAdministrator: "If you didn't do this, reset your password again from the sign-in page, or contact the PURSS administrator.",
+      changedContactAdministrator: "If you didn't do this, reset your password again from the sign-in page, or contact the administrator.",
       emailChangedSubject: "Your email address was changed",
       emailChangedIntro: (name: string, masked: string) => `The email address for your ${name} account was changed to ${masked}. Messages about your account now go there.`,
       emailChangedContactOwner: "If you didn't do this, sign in and check your account's security settings, or contact Program Sam through the legal notice in PURSS.",
-      emailChangedContactAdministrator: "If you didn't do this, sign in and check your account's security settings, or contact the PURSS administrator.",
+      emailChangedContactAdministrator: "If you didn't do this, sign in and check your account's security settings, or contact the administrator.",
       reminderIntroOne: "A reminder you set on something you kept is due today.",
       reminderIntroMany: (count: number) => `${count} reminders you set on things you kept are due today.`,
       reminderItemFallback: "An item you kept:",
@@ -177,7 +177,7 @@ export default {
       digestChange: "Change digest emails",
     },
     mcpServer: {
-      assistantsOff: "Assistant access is turned off for this account or PURSS. Turn it on in the PURSS's Settings → Assistants.",
+      assistantsOff: "Assistant access is turned off for this account or installation. Turn it on in Settings → Assistants.",
       needsToken: "This needs a personal access token from Settings → Assistants.",
       tokenInvalid: "That token isn't valid any more. Create a new one in Settings → Assistants.",
       tooManyRequests: "Too many requests. Wait a minute and try again.",
@@ -202,13 +202,13 @@ export default {
       readOnlyToken: "This token can only read. Ask the person for a token that can make changes.",
     },
     oauthAuthorize: {
-      oauthOff: "This PURSS doesn't let assistants connect with a sign-in page. Use a personal access token from Settings → Assistants instead.",
+      oauthOff: "This installation doesn't let assistants connect with a sign-in page. Use a personal access token from Settings → Assistants instead.",
       noClientId: "This sign-in link doesn't say which assistant is asking (no client_id).",
       redirectNotListed: (host: string) => `This sign-in link would send you to an address that ${host} doesn't list as its own, so it was stopped.`,
       requestInvalid: "The assistant's request isn't valid.",
-      signInKindNotOffered: "The assistant asked for a kind of sign-in this PURSS doesn't offer.",
+      signInKindNotOffered: "The assistant asked for a kind of sign-in this installation doesn't offer.",
       notSecureEnough: "The assistant's request isn't secure enough (it needs PKCE with S256).",
-      otherResource: "The assistant asked for access to something other than this PURSS.",
+      otherResource: "The assistant asked for access to something other than this installation.",
       repeatedParameter: (name: string) => `This sign-in link gives “${name}” more than once, so it can't be trusted. Start connecting again from the assistant.`,
       readOnlyRequest: "The assistant only asked to read. It can't be allowed more than it asked for.",
       tooManyAssistants: (max: number) => `You can connect up to ${max} assistants. Disconnect one you no longer use in Settings → Assistants first.`,
@@ -238,14 +238,14 @@ export default {
       invalidNoteId: "That note's id isn't valid.",
     },
     appBundle: {
-      noAppBundle: "This PURSS offers no update of the app's interface.",
+      noAppBundle: "This installation offers no update of the app's interface.",
     },
     connectRoute: {
       returnAddressNotApps: "This connection link doesn't come from a PURSS app (its return address isn't one the apps use).",
       linkIncomplete: "This connection link is incomplete. Start connecting again from the app.",
       linkInvalid: "This connection link isn't complete or isn't valid. Start connecting again from the app.",
       codeInvalid: "That connection code isn't valid any more. Start connecting again from the app.",
-      passkeysUnavailable: "Passkeys can't be used in the app with this PURSS yet.",
+      passkeysUnavailable: "Passkeys can't be used in the app with this installation yet.",
       forConnectedApps: "This is for connected apps. Sign out in PURSS instead.",
       requestInvalid: "This connection request isn't valid. Start connecting again from the app.",
     },
@@ -262,7 +262,7 @@ export default {
     },
     httpServer: {
       wentWrong: "Something went wrong on our side. Nothing was changed; please try again.",
-      notFromPage: "This request didn't come from the PURSS page.",
+      notFromPage: "This request didn't come from a PURSS page.",
       sessionChanged: "Your session changed. Please reload the page.",
       notSupportedHere: "That isn't supported here.",
       thatDoesntExist: "That doesn't exist.",
@@ -311,12 +311,12 @@ export default {
       onlySourcesCollection: "Only a collection of sources can have a Smart filter.",
       thatFilter: "That filter",
       unavailableHosted: "Smart filters aren't available yet.",
-      notSetUp: "This PURSS hasn't set up Smart filters yet. Ask its administrator.",
+      notSetUp: "This installation hasn't set up Smart filters yet. Ask its administrator.",
       allowanceUsedHosted: "You've used this week's Smart filter allowance. It renews at 00:00 UTC each Monday.",
       allowanceUsedSelfHosted: "You've used this week's Smart filter allowance. Contact the administrator to change your limits.",
       includedInPro: "Smart filters are included in the Pro plan. Move to Pro to try a filter.",
       noPostsToTry: "There are no posts here yet to try the filter on.",
-      providerRejectedKey: "The AI provider didn't accept this PURSS's key. Ask its administrator to replace it.",
+      providerRejectedKey: "The AI provider didn't accept this installation's key. Ask its administrator to replace it.",
       providerBusy: "The AI provider is busy. Try again in a moment.",
       providerUnreachable: "The AI provider couldn't be reached. Try again in a moment.",
     },
@@ -344,7 +344,7 @@ export default {
     },
     assistant: {
       notAvailableYet: "Assistant access isn't available yet.",
-      administratorNotEnabled: "Your administrator hasn't turned on assistant access for this PURSS.",
+      administratorNotEnabled: "Your administrator hasn't turned on assistant access for this installation.",
       tooManyTokens: (max: number) => `You can have up to ${max} tokens. Revoke one you no longer use first.`,
       thatToken: "That token",
       thatAssistant: "That assistant",
@@ -388,7 +388,7 @@ export default {
       delayedTooMuch: "New items are delayed: PURSS is being asked to fetch too much at once. Everything you have is still here, and we'll keep trying.",
       delayedNotResponding: "New items are delayed: fetching isn't responding. Everything you have is still here, and we'll keep trying.",
       heldBackNotSaved: "New items are held back: an update from one of your sources couldn't be saved. Everything you have is still here, and we'll keep trying.",
-      heldBackUnknown: "New items are held back by a problem we couldn't work out. Everything you have is still here. We'll keep trying, a little less often each time; if it lasts, the person running this PURSS can check the worker log.",
+      heldBackUnknown: "New items are held back by a problem we couldn't work out. Everything you have is still here. We'll keep trying, a little less often each time; if it lasts, the person running this installation can check the worker log.",
       siteLimiting: "The site is limiting requests; we'll keep trying.",
       siteNotAnswering: "The site isn't answering right now; we'll keep trying.",
       siteKeptLimiting: "The site kept limiting requests, so we stopped trying for now. Try again later.",
@@ -552,7 +552,7 @@ export default {
     <p class="hint">You sign in first if you aren't already.</p>
     </div>
     <div class="card">
-    <p style="margin:0"><b>Use another feed reader, or a PURSS somewhere else?</b> Copy the feed address above and paste it into that reader's “add” or “subscribe” box.</p>
+    <p style="margin:0"><b>Use another feed reader, or a PURSS installation somewhere else?</b> Copy the feed address above and paste it into that reader's “add” or “subscribe” box.</p>
     ${newHere}
     </div>
     </main>`,
@@ -563,8 +563,8 @@ export default {
     },
     push: {
       notPhone: "Phone notifications are for the phone app.",
-      pushOff: "This PURSS doesn't send phone notifications.",
-      pushRelayDifferent: "This PURSS sends phone notifications through a different relay than this app uses.",
+      pushOff: "This installation doesn't send phone notifications.",
+      pushRelayDifferent: "This installation sends phone notifications through a different relay than this app uses.",
     },
     reconcile: {
       sameOriginalId: "Same source and the same original ID.",
@@ -661,7 +661,7 @@ export default {
       changedDuringPlayback: "This item was changed after playback started, so playback left it alone.",
       changedElsewhere: "This item changed in another tab or device. It has been refreshed; please try again.",
       playbackOnly: "Playback can only move an item to In progress or Finished.",
-      keptOutOfSpace: "Kept with its details and feed content. A readable copy wasn't made because this PURSS is out of space.",
+      keptOutOfSpace: "Kept with its details and feed content. A readable copy wasn't made because your PURSS is out of space.",
       cannotUndo: "That change can no longer be undone.",
     },
     statistics: {
@@ -669,10 +669,10 @@ export default {
     },
     storage: {
       allowanceFull: "Your storage allowance is full. Reading and organising still work, but new items and copies are paused.",
-      allSpaceUsed: "This PURSS has used all the space it is allowed. Reading and organising still work; new items and copies are paused until its administrator gives it more.",
+      allSpaceUsed: "Your PURSS has used all the space it is allowed. Reading and organising still work; new items and copies are paused until its administrator gives it more.",
       notEnoughSpace: "PURSS can't save new items and copies right now because there isn't enough free space. Nothing you kept was removed.",
       allowanceFullPaused: "Your storage allowance is full, so new items and copies are paused. Reading, organising and deleting still work.",
-      allSpaceUsedPaused: "This PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work.",
+      allSpaceUsedPaused: "Your PURSS has used all the space it is allowed, so new items and copies are paused until its administrator gives it more. Reading, organising and deleting still work.",
       notEnoughSpacePaused: "PURSS can't save new items and copies right now because there isn't enough free space.",
     },
     publicRoute: {

@@ -6,7 +6,7 @@ import { refreshPackStatus, setPackRunning } from "./pack-status.ts";
 import { onItemsChanged, onReadingChanged } from "./signals.ts";
 import { onBackOnline } from "./status.ts";
 import { readRecord, savedItemIds } from "./store.ts";
-import { syncWorkerState, whenControlled } from "./worker-link.ts";
+import { syncServiceWorkerState, whenControlled } from "./service-worker-link.ts";
 
 /** How often, and how many times, to look again for the worker taking charge of the page when it hasn't yet. */
 const CONTROL_RETRY_MS = 15_000;
@@ -67,7 +67,7 @@ export function usePack(accountId: string | null, enabled: boolean): void {
     /** The worker must know who is signed in and be in charge of this page before anything is fetched, or nothing is kept. */
     const begin = async (attempt: number) => {
       if (stop.signal.aborted) return;
-      const worker = (await syncWorkerState(accountId, true)) && !stop.signal.aborted && (await whenControlled());
+      const worker = (await syncServiceWorkerState(accountId, true)) && !stop.signal.aborted && (await whenControlled());
       if (stop.signal.aborted) return;
       if (!worker) {
         if (attempt < CONTROL_RETRIES) timers.retry = setTimeout(() => void begin(attempt + 1), CONTROL_RETRY_MS);

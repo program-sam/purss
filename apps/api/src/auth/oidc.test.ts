@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { server } from "@purss/translations/server";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
-import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
+import { OPERATOR_EMAIL, makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
 import { call, signIn } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
@@ -66,7 +66,7 @@ const sessionIdOf = (s: TestSession) => sha256(decodeURIComponent(/purss_session
 async function hosted(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}, issuerSuffix = "") {
   const iss = await issuer(t);
   const made = makeTestApp({ ...HOSTED, PURSS_OIDC: provider(iss.url + issuerSuffix, providerExtra), ...env });
-  makeOperator(made.app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
+  makeAdministrator(made.app); // claimed by its administrator first: nobody signs up before (mail/mailer.ts signupOpen)
   useTransport(made.app, { send: async () => {}, verify: async () => {} });
   await checkMail(made.app);
   t.after(async () => { await settleMail(made.app); made.cleanup(); });
@@ -483,7 +483,7 @@ test("an app's confirmation is refused at redemption when the account has since 
 async function boot(t: test.TestContext, env: Record<string, string> = {}, providerExtra: Record<string, unknown> = {}) {
   const iss = await issuer(t);
   const b = await bootDeletion({ ...HOSTED, PURSS_OIDC: provider(iss.url, providerExtra), ...env });
-  makeOperator(b.app);
+  makeAdministrator(b.app);
   useTransport(b.app, { send: async () => {}, verify: async () => {} });
   await checkMail(b.app);
   t.after(async () => { await b.close(); });

@@ -7,7 +7,7 @@ import { server } from "@purss/translations/server";
  * Who is asking: OAuth clients identify themselves with a Client ID Metadata Document
  * (draft-ietf-oauth-client-id-metadata-document-03). The client_id is an https URL; the document
  * there must name the client and list its redirect URIs. Nothing is registered and nothing is stored
- * about a client beyond the grants people approve, so an operator sets nothing up.
+ * about a client beyond the grants people approve, so an administrator sets nothing up.
  *
  * Fetching the document is a server-side fetch of a URL a stranger chose, so it goes through
  * safeFetch (every address checked, the connection pinned to it, no private or special-use ranges)

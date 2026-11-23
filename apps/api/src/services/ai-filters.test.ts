@@ -164,7 +164,7 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
   // What Jev was sent: the post's text and the person's words, with the server's key.
   const sent = b.jev.seen.at(-1)!;
   assert.equal(sent.auth, "Bearer server-key-1234");
-  assert.equal(sent.body.model, "jev-latest", "the newest Jev unless the operator pins one");
+  assert.equal(sent.body.model, "jev-latest", "the newest Jev unless the administrator pins one");
   assert.deepEqual(Object.keys(sent.body.state).sort(), ["author", "source", "summary", "title"]);
   const q = Object.values<any>(sent.body.questions)[0];
   assert.equal(q.type, "noul");

@@ -52,7 +52,7 @@ export const common = {
   purssAddress: {
     empty: "Enter your PURSS's address.",
     notWebAddress: "That doesn't look like a web address.",
-    notHttps: "Use the address you open the PURSS at, starting with https://.",
+    notHttps: "Use the address you open PURSS at, starting with https://.",
     hasLogin: "Leave the user name and password out of the address.",
     unencryptedRefused: "This address isn't encrypted (http). Use https://, or an address on this device or your local network.",
     unencryptedNote: "This address isn't encrypted (http), so anyone on your network can read what is sent. Use it only on a network you trust.",

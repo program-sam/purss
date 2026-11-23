@@ -7,12 +7,12 @@ import { deleteAllCopies } from "./store.ts";
  */
 
 /** Start it once. Resolves false where it can't run (insecure address, the development server). */
-export function registerWorker(): Promise<boolean> {
+export function registerServiceWorker(): Promise<boolean> {
   return platform.offline.start();
 }
 
 /** Tell it which account is signed in here and whether to keep copies. Resolves true once it has acted on it. */
-export function syncWorkerState(accountId: string | null, enabled: boolean): Promise<boolean> {
+export function syncServiceWorkerState(accountId: string | null, enabled: boolean): Promise<boolean> {
   return platform.offline.tell({ type: "state", accountId, enabled });
 }
 

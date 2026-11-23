@@ -18,9 +18,9 @@ import { DownloadManager } from "../../downloads/manager.ts";
 import { decodePage, readablePage } from "../../downloads/readable-page.ts";
 import type { KeyValue } from "../../downloads/manager.ts";
 import { parseWidgetSnapshot } from "../../device/widget.ts";
-import { wipeOfflineCopies } from "../../offline/worker-link.ts";
+import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { clearHints } from "../../state/ui-store.ts";
-import { OfflineWorker } from "../../sw/offline-worker.ts";
+import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
 import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
@@ -52,7 +52,7 @@ const t = app.platform.native;
 /**
  * The Android and iOS apps' platform. The interface is the web app's own build, bundled in
  * the app; it talks to the connected PURSS with the device token from secure storage. Offline
- * copies are kept by the same OfflineWorker the web's service worker runs, here in the page, in
+ * copies are kept by the same OfflineServiceWorker the web's service worker runs, here in the page, in
  * IndexedDB; downloads add the device copies ("Downloaded") on top.
  */
 
@@ -129,7 +129,7 @@ function restartInstalled(): void {
 function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Platform {
   const caches = new StoredCaches(new IndexedDbCopyBackend());
   const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
+  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
 
   const downloads = conn ? new DownloadManager({
     files: deviceFiles,

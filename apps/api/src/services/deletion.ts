@@ -275,7 +275,7 @@ function deleteAccountRows(app: App, accountId: string): void {
   byAccount("oauth_refreshes");
   byAccount("email_tokens");
   byAccount("mail_queue");
-  // What was sent stays in the operator's mail log (masked recipient), no longer tied to the account.
+  // What was sent stays in the administrator's mail log (masked recipient), no longer tied to the account.
   app.db.run("UPDATE mail_log SET account_id = NULL WHERE account_id = ?", accountId);
   app.db.run("UPDATE accounts SET email = NULL, email_verified_at = NULL WHERE id = ?", accountId);
   byAccount("role_grants");

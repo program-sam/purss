@@ -6,7 +6,7 @@ import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";
 import { requireAdmin, requireRecentAuth } from "../app.ts";
-import { makeOperator, makeOwner, makeTestApp, TEST_PASSWORD } from "../testing.ts";
+import { makeAdministrator, makeOwner, makeTestApp, TEST_PASSWORD } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";
 import { publicRouter, safeReturnPath } from "../routes/public.ts";
@@ -632,7 +632,7 @@ test("the recovery-code endpoints are gone, for the browser and for the app", as
 
 test("open sign-up from the app starts by email, like the browser, and the link finishes it", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_TRUST_PROXY: "1", PURSS_MODE: "hosted", PURSS_SIGNUP: "open", PURSS_SMTP_HOST: "smtp.example.org", PURSS_MAIL_FROM: "PURSS <ws@example.org>" });
-  makeOperator(app); // claimed by its operator first: nobody signs up before (mail/mailer.ts signupOpen)
+  makeAdministrator(app); // claimed by its administrator first: nobody signs up before (mail/mailer.ts signupOpen)
   const sent: { to: string; subject: string }[] = [];
   useTransport(app, { send: async (m) => { sent.push({ to: String(m.to), subject: m.subject }); }, verify: async () => {} });
   await checkMail(app);

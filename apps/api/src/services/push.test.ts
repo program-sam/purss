@@ -240,7 +240,7 @@ test("the fetch credential reaches nothing else, and a device token doesn't reac
   } finally { await b.close(); }
 });
 
-test("a phone registered with another relay isn't woken after the operator changes relays", async () => {
+test("a phone registered with another relay isn't woken after the administrator changes relays", async () => {
   const b = await boot();
   try {
     await b.register();

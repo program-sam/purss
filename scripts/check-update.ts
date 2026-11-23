@@ -51,7 +51,7 @@ const SHA512 = /^sha512-[A-Za-z0-9+/]{86}==$/;
 
 /** A version range in npm's grammar (`^1.2.0`, `>=2 <3`, `1.x || 2.x`, `1.0.0 - 2.0.0`, `*`), not a tag, path or URL. */
 export function isRange(spec: string): boolean {
-  // npm allows a space after an operator (`>= 2`).
+  // npm allows a space after an administrator (`>= 2`).
   const s = spec.trim().replace(/(\^|~|>=|<=|>|<|=)\s+/g, "$1");
   if (s === "" || s === "*") return true;
   return s.split("||").every((part) => {
