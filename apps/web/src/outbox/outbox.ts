@@ -16,7 +16,7 @@ export type ServerWorkflow = { workflow: WorkflowState; revision: number; workfl
 export type Sender = {
   workflow(itemId: string, workflow: WorkflowState, expectedRevision: number, playback?: Extract<Change, { kind: "workflow" }>['playback']): Promise<{ item: ItemDTO; undoToken: string }>;
   keep(itemId: string, basketId: string, on: boolean): Promise<{ item: ItemDTO; undoToken: string; captureNote: string | null }>;
-  clearFresh(itemIds: string[]): Promise<{ changed: number; undoToken: string | null }>;
+  clearNew(itemIds: string[]): Promise<{ changed: number; undoToken: string | null }>;
   /** PURSS's current workflow and revision for an item. */
   workflowOf(itemId: string): Promise<ServerWorkflow>;
 };
@@ -25,7 +25,7 @@ export type Result =
   /** `item` and `undoToken` are null when PURSS already had the workflow this change wanted. */
   | { kind: "workflow"; item: ItemDTO | null; undoToken: string | null }
   | { kind: "keep"; item: ItemDTO; undoToken: string; captureNote: string | null }
-  | { kind: "clearFresh"; changed: number; undoToken: string | null }
+  | { kind: "clearNew"; changed: number; undoToken: string | null }
   /** `item` is null when the item no longer had the workflow to put back: nothing was done, and nothing needs saying. */
   | { kind: "undoWorkflow"; item: ItemDTO | null };
 
@@ -467,8 +467,8 @@ export class Outbox {
           const out = await this.sender.keep(entry.itemId, entry.basketId, entry.on);
           return { kind: "keep", item: out.item, undoToken: out.undoToken, captureNote: out.captureNote } as const;
         });
-      case "clearFresh":
-        return this.sender.clearFresh(entry.itemIds).then((out) => ({ kind: "clearFresh", changed: out.changed, undoToken: out.undoToken }) as const);
+      case "clearNew":
+        return this.sender.clearNew(entry.itemIds).then((out) => ({ kind: "clearNew", changed: out.changed, undoToken: out.undoToken }) as const);
       case "workflow":
         return this.serialize(entry.itemId, () => this.sendWorkflow(entry));
       case "undoWorkflow":

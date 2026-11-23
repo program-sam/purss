@@ -29,7 +29,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
   const result: BatchResult = { accepted: 0, updated: 0, duplicates: 0, unknownStreams: 0, queuedForReview: 0, skippedPaused: 0 };
   const touchedSources = new Map<string, number>();
   // New items per source, for notifications: a source's back catalogue is Ignored, not New, and tells no one.
-  const freshArrivals = new Map<string, number>();
+  const newArrivals = new Map<string, number>();
   // New posts, for Smart filters.
   const freshPosts: { itemId: string; sourceId: string }[] = [];
   const now = nowIso();
@@ -88,16 +88,16 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
         result.duplicates++;
         continue;
       }
-      const { fresh, ignored } = arrivalOf(source, entry);
-      const created = createFromEntry(app, eu, source, entry, fresh, ignored, listedAtOf(source, entry));
+      const { isNew, ignored } = arrivalOf(source, entry);
+      const created = createFromEntry(app, eu, source, entry, isNew, ignored, listedAtOf(source, entry));
       addMapping(app, eu, created, entry);
       // A copy is made by itself only for what the person will see: a source's back catalogue (a source followed from now) arrives Ignored and
       // stays as it came, and a copy of it is made when the person keeps it or asks for one.
       if (!ignored && source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
       result.accepted++;
       touchedSources.set(source.id, (touchedSources.get(source.id) ?? 0) + 1);
-      if (fresh) {
-        freshArrivals.set(source.id, (freshArrivals.get(source.id) ?? 0) + 1);
+      if (isNew) {
+        newArrivals.set(source.id, (newArrivals.get(source.id) ?? 0) + 1);
         freshPosts.push({ itemId: created, sourceId: source.id });
       }
     }
@@ -130,8 +130,8 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
     if (replacement) app.db.run("UPDATE sync_checkpoints SET pending_engine_identity = ? WHERE engine_user_id = ?", batch.engineIdentity, eu.id);
     if (!replacement && !eu.engine_identity) app.db.run("UPDATE engine_users SET engine_identity = ? WHERE id = ?", batch.engineIdentity, eu.id);
     // Posts a Smart filter judges are announced once it has, so a post it drops is never announced.
-    for (const sourceId of queueNewPosts(app, { accountId: eu.account_id}, freshPosts)) freshArrivals.delete(sourceId);
-    if (freshArrivals.size) notifyArrivals(app, eu.account_id, [...freshArrivals.entries()], batch.idempotencyKey);
+    for (const sourceId of queueNewPosts(app, { accountId: eu.account_id}, freshPosts)) newArrivals.delete(sourceId);
+    if (newArrivals.size) notifyArrivals(app, eu.account_id, [...newArrivals.entries()], batch.idempotencyKey);
     app.db.run("INSERT INTO applied_batches (idempotency_key, engine_user_id, applied_at, result) VALUES (?, ?, ?, ?)",
       batch.idempotencyKey, eu.id, now, JSON.stringify(result));
   });
@@ -204,11 +204,11 @@ const LAST_WEEK_MS = 7 * 86_400_000;
  * week: the posts published in the 7 days before the follow are New, like any post that arrives. A source followed before the
  * choice existed ("all") shows its back catalogue as ordinary older items.
  */
-export function arrivalOf(source: { created_at: string; backlog_settled_at: string | null; start_from: StartFrom }, entry: Pick<SyncEntry, "publishedAt">): { fresh: boolean; ignored: boolean } {
-  if (!isBackCatalogue(source, entry)) return { fresh: true, ignored: false };
-  if (source.start_from === "all") return { fresh: false, ignored: false };
-  if (source.start_from === "week" && entry.publishedAt && Date.parse(entry.publishedAt) >= Date.parse(source.created_at) - LAST_WEEK_MS) return { fresh: true, ignored: false };
-  return { fresh: false, ignored: true };
+export function arrivalOf(source: { created_at: string; backlog_settled_at: string | null; start_from: StartFrom }, entry: Pick<SyncEntry, "publishedAt">): { isNew: boolean; ignored: boolean } {
+  if (!isBackCatalogue(source, entry)) return { isNew: true, ignored: false };
+  if (source.start_from === "all") return { isNew: false, ignored: false };
+  if (source.start_from === "week" && entry.publishedAt && Date.parse(entry.publishedAt) >= Date.parse(source.created_at) - LAST_WEEK_MS) return { isNew: true, ignored: false };
+  return { isNew: false, ignored: true };
 }
 
 /**
@@ -239,7 +239,7 @@ function matchSameLink(app: App, accountId: string, sourceId: string, entry: Syn
   return rows.find((r) => titleKey(r.title) === title)?.id ?? null;
 }
 
-function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: string; curator: string | null }, entry: SyncEntry, fresh: boolean, ignored: boolean, listedAt: string): string {
+function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: string; curator: string | null }, entry: SyncEntry, isNew: boolean, ignored: boolean, listedAt: string): string {
   // A DOI in the link, or in short abstract-like text, marks a paper; a long post that merely cites one is not.
   const text = toText(entry.summaryHtml ?? entry.contentHtml);
   const doi = findDoi(entry.url) ?? (text.length < 3000 ? findDoi(entry.summaryHtml, entry.contentHtml) : null);
@@ -262,7 +262,7 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
     listedAt,
     enclosures: entry.enclosures,
     contentOmitted: entry.contentOmitted === true,
-    fresh,
+    isNew,
     ignored,
     reason: "feed item",
   }).id;

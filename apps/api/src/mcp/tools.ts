@@ -61,7 +61,7 @@ function itemSummary(ctx: Ctx, it: ItemDTO) {
     author: it.author,
     publishedAt: it.publishedAt,
     state: fromWorkflow(it.workflow),
-    isNew: it.fresh,
+    isNew: it.isNew,
     basketIds: it.basketIds,
     excerptFromPublisher: it.excerpt,
   };
@@ -73,7 +73,7 @@ function sourceSummary(s: SourceDTO) {
     siteUrl: s.kind === "private" || !s.siteUrl || hasCredentialShape(s.siteUrl) ? null : s.siteUrl,
     feedUrl: !s.feedUrl || hasCredentialShape(s.feedUrl) ? null : s.feedUrl, collectionIds: s.collectionIds, health: s.health, healthText: s.healthText, paused: s.paused,
     fullArticles: s.fullText, fullArticlesAvailable: s.fullTextAvailable, notifications: s.notify,
-    itemCount: s.itemCount, newCount: s.freshCount, lastItemAt: s.lastItemAt,
+    itemCount: s.itemCount, newCount: s.newCount, lastItemAt: s.lastItemAt,
   };
 }
 
@@ -95,7 +95,7 @@ const placeSchema = z.object({
 });
 function scopeOf(a: { place: "all" | "new" | "collection" | "source" | "basket"; id?: string | undefined }): string {
   if (a.place === "all") return "all";
-  if (a.place === "new") return "fresh";
+  if (a.place === "new") return "new";
   if (!a.id) throw new HttpError(400, "invalid", `Give the ${a.place}'s id.`);
   return `${a.place}:${a.id}`;
 }
@@ -176,7 +176,7 @@ export const TOOLS: Tool[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
     run: (ctx) => ({
-      collections: listCollections(ctx.app, ctx.p).map((c) => ({ id: c.id, name: c.name, mode: c.mode, sourceIds: c.sourceIds, itemCount: c.itemCount, newCount: c.freshCount, onHome: c.showOnHome })),
+      collections: listCollections(ctx.app, ctx.p).map((c) => ({ id: c.id, name: c.name, mode: c.mode, sourceIds: c.sourceIds, itemCount: c.itemCount, newCount: c.newCount, onHome: c.showOnHome })),
     }),
   }),
   tool({
@@ -200,7 +200,7 @@ export const TOOLS: Tool[] = [
     description: "Remove the New marker from up to 100 items without changing their workflow state.",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     input: z.object({ itemIds: z.array(id).min(1).max(100) }),
-    run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "clearFresh" }).changed }),
+    run: (ctx, a) => ({ changed: bulk(ctx.app, ctx.p, a.itemIds, { type: "clearNew" }).changed }),
   }),
   tool({
     name: "keep_items", title: server.api.mcpTools.keepInBasketTitle, access: "write",

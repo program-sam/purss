@@ -69,7 +69,7 @@ const hasPublished = (app: App) => !!app.db.get("SELECT 1 FROM news_posts WHERE 
  * archive import brought back) is recorded instead of added twice. A full account is skipped (and marked paused) until
  * it has room again.
  */
-function deliver(app: App, s: NewsSource, post: PostRow, fresh: boolean): boolean {
+function deliver(app: App, s: NewsSource, post: PostRow, isNew: boolean): boolean {
   const url = newsUrls(app).post(post.id);
   const present = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ? LIMIT 1", s.account_id, s.id, url);
   if (present) {
@@ -82,7 +82,7 @@ function deliver(app: App, s: NewsSource, post: PostRow, fresh: boolean): boolea
       const itemId = insertItem(app, {
         accountId: s.account_id, sourceId: s.id, kind: "article", title: post.title, url,
         author: null, summaryHtml: null, contentHtml: renderNewsBody(post.body), imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-        publishedAt: post.published_at, discoveredAt: nowIso(), enclosures: [], fresh, reason: "news post",
+        publishedAt: post.published_at, discoveredAt: nowIso(), enclosures: [], isNew, reason: "news post",
       }).id;
       app.db.run("INSERT INTO news_deliveries (post_id, account_id, item_id, delivered_at, revised_at) VALUES (?, ?, ?, ?, ?)", post.id, s.account_id, itemId, nowIso(), post.updated_at);
       app.db.run("UPDATE sources SET last_item_at = MAX(COALESCE(last_item_at, ''), ?), last_success_at = ?, health = 'ok', health_text = NULL WHERE id = ?", post.published_at, nowIso(), s.id);

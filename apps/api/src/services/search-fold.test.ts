@@ -78,7 +78,7 @@ function setup() {
     insertItem(app, {
       accountId: p.accountId, sourceId: src, kind: "article", title, url: `https://example.org/${encodeURIComponent(title)}`, author: over.author ?? null,
       summaryHtml: over.summaryHtml ?? null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: null,
-      discoveredAt: new Date().toISOString(), enclosures: [], fresh: false, reason: "test",
+      discoveredAt: new Date().toISOString(), enclosures: [], isNew: false, reason: "test",
     }).id;
   const find = (q: string) => listItems(app, p, { scope: "all", q }).items.map((i) => i.id);
   return { app, p, add, find, cleanup };

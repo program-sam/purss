@@ -31,7 +31,7 @@ test("no PURSS gets a news source before anything is published; then every PURSS
   for (const p of [admin, reader]) {
     const items = copies(app, p);
     assert.deepEqual(items.map((i) => i.title), ["Hello"], "the post is in every PURSS");
-    assert.equal(items[0]!.fresh, true, "as New");
+    assert.equal(items[0]!.isNew, true, "as New");
     assert.equal(items[0]!.url, `${app.config.publicOrigin}/news/${post.id}`);
   }
   const s = getSource(app, reader, newsSource(app, reader)!.id);
@@ -101,7 +101,7 @@ test("a copy the PURSS already has (brought back by an import) is recorded, not 
   const imported = insertItem(app, {
     accountId: reader.accountId, sourceId: source, kind: "article", title: "Second", url: post.url, author: null,
     summaryHtml: null, contentHtml: "<p>About Second.</p>", imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: post.publishedAt, discoveredAt: post.publishedAt!, enclosures: [], fresh: true, reason: "test import",
+    publishedAt: post.publishedAt, discoveredAt: post.publishedAt!, enclosures: [], isNew: true, reason: "test import",
   }).id;
   patchSource(app, reader, source, { paused: false });
   deliverNews(app);

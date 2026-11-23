@@ -16,13 +16,13 @@ const conflict: Fail = { status: 409, code: "conflict", message: "This item chan
 function dto(id: string, workflow: WorkflowState, revision: number, basketIds: string[] = [], workflowRevision = 0, playbackWorkflowSessionId: string | null = null): ItemDTO {
   return {
     id, number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: id, url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, fresh: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow, revision, workflowRevision, playbackWorkflowSessionId, stateVersion: 4, isNew: false, progress: 0, opened: false, basketIds, curatorNote: null, media: null, annotatedAt: null,
   };
 }
 
 /** A PURSS in a box: items with a workflow and a revision, a log of requests, and failures to inject. */
 class Fake {
-  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; fresh: boolean; workflowRevision: number; session: string | null }>();
+  items = new Map<string, { workflow: WorkflowState; revision: number; baskets: Set<string>; isNew: boolean; workflowRevision: number; session: string | null }>();
   /** Requests to hold back: `keep <item>` waits for the promise before it is answered (it has been received, and counts in the log). */
   holds = new Map<string, Promise<void>>();
   log: string[] = [];
@@ -31,7 +31,7 @@ class Fake {
   down = false;
   /** Runs when an item is read, before the request is answered: a test holds the read open here, or makes it fail. */
   beforeRead?: (id: string) => Promise<void>;
-  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), fresh: true, workflowRevision: 0, session: null }); }
+  constructor(items: Record<string, WorkflowState> = {}) { for (const [id, w] of Object.entries(items)) this.items.set(id, { workflow: w, revision: 5, baskets: new Set(), isNew: true, workflowRevision: 0, session: null }); }
   private gate(call: string): void {
     this.log.push(call);
     if (this.down) throw offline;
@@ -65,10 +65,10 @@ class Fake {
       if (on) it.baskets.add(basketId); else it.baskets.delete(basketId);
       return { item: dto(id, it.workflow, it.revision, [...it.baskets]), undoToken: `und_keep_${id}`, captureNote: null };
     },
-    clearFresh: async (ids) => {
+    clearNew: async (ids) => {
       // Like PURSS: only items that are New change, and the New marker is separate from the revision, which stays put.
-      const apply = () => { let changed = 0; for (const id of ids) { const it = this.items.get(id); if (it?.fresh) { it.fresh = false; changed++; } } return changed; };
-      try { this.gate(`clearFresh ${ids.join(",")}`); } catch (err) { if (this.applyHidden) { this.applyHidden = false; apply(); } throw err; }
+      const apply = () => { let changed = 0; for (const id of ids) { const it = this.items.get(id); if (it?.isNew) { it.isNew = false; changed++; } } return changed; };
+      try { this.gate(`clearNew ${ids.join(",")}`); } catch (err) { if (this.applyHidden) { this.applyHidden = false; apply(); } throw err; }
       return { changed: apply(), undoToken: "und_fresh" };
     },
     workflowOf: async (id) => {
@@ -460,11 +460,11 @@ test("without a way to keep changes on disk they are still sent from memory", as
 
 test("a clear of the New marker whose answer was lost does not strand a change queued behind it", async () => {
   const fake = new Fake({ a: "undecided" });
-  fake.failures.push({ when: (c) => c.startsWith("clearFresh"), error: offline, applied: true }); // it committed, the answer never came
+  fake.failures.push({ when: (c) => c.startsWith("clearNew"), error: offline, applied: true }); // it committed, the answer never came
   const { outbox, seen } = make(fake);
-  assert.equal((await outbox.submit({ kind: "clearFresh", itemIds: ["a"] })).status, "deferred");
+  assert.equal((await outbox.submit({ kind: "clearNew", itemIds: ["a"] })).status, "deferred");
   await outbox.settled();
-  assert.equal(fake.items.get("a")!.fresh, false, "PURSS cleared it");
+  assert.equal(fake.items.get("a")!.isNew, false, "PURSS cleared it");
   assert.equal(fake.items.get("a")!.revision, 5, "and the clear did not move the revision");
   fake.down = true; // still no signal when the second change is made, on the revision from before the clear
   assert.equal((await outbox.submit(workflow("a", "undecided", "toread", 5))).status, "deferred");
@@ -472,7 +472,7 @@ test("a clear of the New marker whose answer was lost does not strand a change q
   fake.down = false; fake.log.length = 0;
   outbox.resume();
   await outbox.drain();
-  assert.deepEqual(fake.log, ["clearFresh a", "workflow a toread @5"], "the clear finds nothing left to do, and the change goes out on its own revision");
+  assert.deepEqual(fake.log, ["clearNew a", "workflow a toread @5"], "the clear finds nothing left to do, and the change goes out on its own revision");
   assert.equal(fake.items.get("a")!.workflow, "toread");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "sent"]);
   assert.equal(outbox.pendingCount(), 0);
@@ -482,14 +482,14 @@ test("a write made elsewhere is still caught behind a clear of the New marker", 
   const fake = new Fake({ a: "undecided" });
   fake.down = true;
   const { outbox, seen } = make(fake);
-  await outbox.submit({ kind: "clearFresh", itemIds: ["a"] });
+  await outbox.submit({ kind: "clearNew", itemIds: ["a"] });
   await outbox.submit(workflow("a", "undecided", "toread", 5));
   await outbox.settled();
   fake.items.get("a")!.revision = 8; // elsewhere, the item was changed and came back to Undecided
   fake.down = false; fake.log.length = 0;
   outbox.resume();
   await outbox.drain();
-  assert.deepEqual(fake.log, ["clearFresh a", "workflow a toread @5", "get a"], "the conflict is found and the change dropped");
+  assert.deepEqual(fake.log, ["clearNew a", "workflow a toread @5", "get a"], "the conflict is found and the change dropped");
   assert.deepEqual(seen.map((o) => o.status), ["sent", "dropped"]);
   assert.equal(fake.items.get("a")!.workflow, "undecided");
 });

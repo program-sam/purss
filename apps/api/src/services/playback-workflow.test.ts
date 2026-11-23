@@ -39,7 +39,7 @@ test("the player moves an item In progress and then Finished, whatever happens t
   assert.equal(started.item.workflow, "inprogress");
   assert.equal(started.item.workflowRevision, 1);
   assert.equal(started.item.playbackWorkflowSessionId, "play-1");
-  assert.equal(started.item.fresh, false, "it has been seen, as for any change");
+  assert.equal(started.item.isNew, false, "it has been seen, as for any change");
   assert.equal(started.item.progress, 0.5, "progress is untouched");
 
   const moreProgress = changeState(app, p, id, { progress: 0.8, expectedRevision: started.item.revision });

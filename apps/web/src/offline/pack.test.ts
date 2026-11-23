@@ -9,7 +9,7 @@ function item(over: Partial<ItemDTO> & { workflow: WorkflowState }): ItemDTO {
   return {
     id: over.id ?? `itm_${n}`, number: 1, sourceId: "src_1", sourceTitle: "A source", keptByHand: false, kind: "article", title: `Item ${n}`, url: null, author: null, excerpt: null, imageUrl: null,
     durationSeconds: null, readMinutes: null, doi: null, publishedAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(), discoveredAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(), listedAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString(),
-    revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, fresh: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
+    revision: 1, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 1, isNew: false, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }
 
@@ -17,38 +17,38 @@ test("the queue is what was chosen to read, newest first, then new undecided ite
   const a = item({ workflow: "toread" });
   const b = item({ workflow: "inprogress" });
   const c = item({ workflow: "toread" });
-  const u1 = item({ workflow: "undecided", fresh: true });
-  const u2 = item({ workflow: "undecided", fresh: true });
-  const queue = selectQueue({ toread: [a, c], inprogress: [b], fresh: [u1, u2] });
+  const u1 = item({ workflow: "undecided", isNew: true });
+  const u2 = item({ workflow: "undecided", isNew: true });
+  const queue = selectQueue({ toread: [a, c], inprogress: [b], new: [u1, u2] });
   assert.deepEqual(queue.map((i) => i.id), [c.id, b.id, a.id, u2.id, u1.id]);
 });
 
 test("only undecided items that are New join; New items already chosen, finished or ignored do not", () => {
-  const chosen = item({ workflow: "toread", fresh: true });
-  const done = item({ workflow: "finished", fresh: true });
-  const ignored = item({ workflow: "ignored", fresh: true });
-  const stale = item({ workflow: "undecided", fresh: false });
-  const keep = item({ workflow: "undecided", fresh: true });
-  const queue = selectQueue({ toread: [chosen], inprogress: [], fresh: [chosen, done, ignored, stale, keep] });
+  const chosen = item({ workflow: "toread", isNew: true });
+  const done = item({ workflow: "finished", isNew: true });
+  const ignored = item({ workflow: "ignored", isNew: true });
+  const stale = item({ workflow: "undecided", isNew: false });
+  const keep = item({ workflow: "undecided", isNew: true });
+  const queue = selectQueue({ toread: [chosen], inprogress: [], new: [chosen, done, ignored, stale, keep] });
   assert.deepEqual(queue.map((i) => i.id), [chosen.id, keep.id]);
 });
 
 test("a cap of 200 never lets arrivals push out what was chosen", () => {
   const chosen = Array.from({ length: 150 }, () => item({ workflow: "toread" }));
-  const fresh = Array.from({ length: 300 }, () => item({ workflow: "undecided", fresh: true }));
-  const queue = selectQueue({ toread: chosen, inprogress: [], fresh });
+  const fresh = Array.from({ length: 300 }, () => item({ workflow: "undecided", isNew: true }));
+  const queue = selectQueue({ toread: chosen, inprogress: [], new: fresh });
   assert.equal(queue.length, 200);
   assert.equal(chosen.every((c) => queue.some((q) => q.id === c.id)), true);
   assert.equal(queue.filter((q) => q.workflow === "undecided").length, 50);
-  const crowded = selectQueue({ toread: Array.from({ length: 260 }, () => item({ workflow: "toread" })), inprogress: [], fresh });
+  const crowded = selectQueue({ toread: Array.from({ length: 260 }, () => item({ workflow: "toread" })), inprogress: [], new: fresh });
   assert.equal(crowded.length, 200);
   assert.equal(crowded.some((q) => q.workflow === "undecided"), false);
 });
 
 test("the queue copes with nothing, and with an item listed twice", () => {
-  assert.deepEqual(selectQueue({ toread: [], inprogress: [], fresh: [] }), []);
-  const a = item({ workflow: "toread", fresh: true });
-  assert.equal(selectQueue({ toread: [a, a], inprogress: [a], fresh: [a] }).length, 1);
+  assert.deepEqual(selectQueue({ toread: [], inprogress: [], new: [] }), []);
+  const a = item({ workflow: "toread", isNew: true });
+  assert.equal(selectQueue({ toread: [a, a], inprogress: [a], new: [a] }).length, 1);
 });
 
 test("only items that are missing, changed or old are fetched again", () => {
@@ -91,8 +91,8 @@ test("highlights and notes are saved for annotated items when their text was fet
 test("a saved item is fetched again when any change to its state moved the version, even one that leaves the revision alone", () => {
   const now = Date.UTC(2026, 10, 4, 12);
   // Cleared by opening, then taken back: the revision never moved, the version moved twice, and the New marker is as it was.
-  const restored = item({ workflow: "toread", revision: 3, stateVersion: 7, fresh: true });
-  const cleared = item({ workflow: "toread", revision: 3, stateVersion: 6, fresh: false, opened: true });
+  const restored = item({ workflow: "toread", revision: 3, stateVersion: 7, isNew: true });
+  const cleared = item({ workflow: "toread", revision: 3, stateVersion: 6, isNew: false, opened: true });
   const untouched = item({ workflow: "toread", revision: 3, stateVersion: 5 });
   const kept = item({ workflow: "toread", revision: 3, stateVersion: 6, basketIds: ["bkt_1"] }); // saved before it was kept: keeping leaves the revision alone
   const saved = {
@@ -132,13 +132,13 @@ test("kept items from text baskets join after what was chosen to read and before
   const chosen = item({ workflow: "toread" });
   const keptNew = item({ workflow: "undecided" });
   const keptFinished = item({ workflow: "finished" });
-  const undecided = item({ workflow: "undecided", fresh: true });
-  const queue = selectQueue({ toread: [chosen], inprogress: [], fresh: [undecided, keptNew], kept: [keptFinished, chosen, keptNew] });
+  const undecided = item({ workflow: "undecided", isNew: true });
+  const queue = selectQueue({ toread: [chosen], inprogress: [], new: [undecided, keptNew], kept: [keptFinished, chosen, keptNew] });
   assert.deepEqual(queue.map((i) => i.id), [chosen.id, keptFinished.id, keptNew.id, undecided.id], "the kept ones keep the order they were listed in, and nothing is saved twice");
   const many = Array.from({ length: PACK_KEPT_LIMIT + 30 }, () => item({ workflow: "finished" }));
-  assert.equal(selectQueue({ toread: [], inprogress: [], fresh: [], kept: many }).length, PACK_KEPT_LIMIT, "kept items are capped");
+  assert.equal(selectQueue({ toread: [], inprogress: [], new: [], kept: many }).length, PACK_KEPT_LIMIT, "kept items are capped");
   const crowded = Array.from({ length: 200 }, () => item({ workflow: "toread" }));
-  assert.equal(selectQueue({ toread: crowded, inprogress: [], fresh: [], kept: many }).some((i) => i.workflow === "finished"), false, "what was chosen is never crowded out by kept items");
+  assert.equal(selectQueue({ toread: crowded, inprogress: [], new: [], kept: many }).some((i) => i.workflow === "finished"), false, "what was chosen is never crowded out by kept items");
 });
 
 test("copies the record says were saved but the device no longer holds mean the queue is saved again at once", () => {

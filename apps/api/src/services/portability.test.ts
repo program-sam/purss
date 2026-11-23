@@ -175,7 +175,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   const leftOut = a.db.get<{ id: string; title: string }>(
     `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'undecided' AND st.opened_at IS NULL AND st.progress = 0
        AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AND NOT EXISTS (SELECT 1 FROM annotations n WHERE n.item_id = i.id) ORDER BY i.seq LIMIT 1`)!;
-  a.db.run("UPDATE item_state SET fresh = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
+  a.db.run("UPDATE item_state SET is_new = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
   const { doc } = await exportDoc(a, pa);
   assert.deepEqual(doc.items.filter((i: { state: { workflow: string } }) => i.state.workflow === "ignored").map((i: { title: string }) => i.title), [leftOut.title]);
   assert.ok(doc.items.every((i: Record<string, unknown>) => !("backlog" in i)), "the export has no mark besides the workflow state");
@@ -339,7 +339,7 @@ test("an older export that marked back catalogue with `backlog` imports its unto
   seedLibrary(a.app, pa);
   const { doc } = await exportDoc(a.app, pa);
   const by = (title: string) => doc.items.find((i: any) => i.title.startsWith(title)) as any;
-  const untouched = { workflow: "undecided", fresh: false, progress: 0, openedAt: null };
+  const untouched = { workflow: "undecided", isNew: false, progress: 0, openedAt: null };
   const third = by("Third post").id as string;
   const kept = by("Second post").id as string; // in a basket in the file
   const [firstId, privateId] = [by("Tidal flats").id as string, by("Private note").id as string];
@@ -364,9 +364,9 @@ test("an older export that marked back catalogue with `backlog` imports its unto
     items[third].backlog = true;
     items[kept].backlog = true; // kept: the old version cleared the mark when an item was kept
     items[firstId].backlog = true;
-    items[firstId].state = { workflow: "toread", fresh: false, progress: 0, openedAt: null };
+    items[firstId].state = { workflow: "toread", isNew: false, progress: 0, openedAt: null };
     items[privateId].backlog = true;
-    items[privateId].state = { ...untouched, fresh: true };
+    items[privateId].state = { ...untouched, isNew: true };
   });
   const { b, pb, workflows } = imported(file);
   assert.equal(workflows["Third post"], "ignored", "an untouched item that was back catalogue arrives the way it is stored now");

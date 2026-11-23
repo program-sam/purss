@@ -88,7 +88,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     // first follow is most of the PURSS.
     const rows = app.db.all<{ source_id: string; n: number }>(
       `SELECT i.source_id, COUNT(*) AS n FROM item_state st CROSS JOIN items i ON i.id = st.item_id LEFT JOIN sources s ON s.id = i.source_id
-       WHERE st.account_id = ? AND st.fresh = 1 AND i.account_id = ? AND i.discovered_at > ? AND s.followed = 1 AND s.kind <> 'manual'
+       WHERE st.account_id = ? AND st.is_new = 1 AND i.account_id = ? AND i.discovered_at > ? AND s.followed = 1 AND s.kind <> 'manual'
        GROUP BY i.source_id`, ws, ws, lastVisitAt);
     const boxes = new Map<string, { id: string; name: string; count: number }>();
     let total = 0;
@@ -134,7 +134,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const toListen = putAside("i.kind = 'podcast'");
   const putAsideIds = [...toRead.ids, ...toWatch.ids, ...toListen.ids];
 
-  const fresh = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.account_id = ? AND st.fresh = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
+  const isNew = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.account_id = ? AND st.is_new = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
   // Items on Home that were not looked at and are not New: the older posts of sources followed before the choice of where to start
   // existed, and what the New marker has outlived. A source followed from now has its back catalogue Ignored, so it is not in the count.
@@ -159,7 +159,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     toRead: { items: pick(toRead.ids), total: toRead.total, totalAtMost: toRead.totalAtMost },
     toWatch: { items: pick(toWatch.ids), total: toWatch.total, totalAtMost: toWatch.totalAtMost },
     toListen: { items: pick(toListen.ids), total: toListen.total, totalAtMost: toListen.totalAtMost },
-    fresh,
+    isNew,
     unread,
     mutedHidden: hidden.hidden,
     mutedHiddenAtLeast: hidden.atLeast,

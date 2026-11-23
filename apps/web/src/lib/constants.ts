@@ -31,8 +31,8 @@ export const SORT_LABELS: Record<Sort, string> = app.lib.constants.sorts;
 export const SORT_ORDER: readonly Sort[] = ["newest", "oldest", "source", "title", "kept"];
 
 /** Filters shown in the header menu. "active" (All) is everything except Ignored; "all" includes Ignored. */
-export type ListFilter = "active" | "all" | "fresh" | WorkflowState;
-export const LIST_FILTERS: readonly ListFilter[] = ["active", "all", "fresh", "undecided", "toread", "inprogress", "finished", "ignored"];
+export type ListFilter = "active" | "all" | "new" | WorkflowState;
+export const LIST_FILTERS: readonly ListFilter[] = ["active", "all", "new", "undecided", "toread", "inprogress", "finished", "ignored"];
 export const FILTER_LABELS: Record<ListFilter, string> = app.lib.constants.filters;
 
 /** The reading list's page: To read items, and the videos to watch and podcasts to listen to that share its state. */

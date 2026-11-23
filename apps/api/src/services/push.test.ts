@@ -130,13 +130,13 @@ test("the fetch says how many new items there are, as the sidebar adds them up, 
     const token = await b.register();
     const other = makeSource(b.app, b.owner, "Salt Marsh", "feed/2");
     let n = 0;
-    const add = (sourceId: string | null, fresh: boolean) => b.app.db.tx(() => insertItem(b.app, {
+    const add = (sourceId: string | null, isNew: boolean) => b.app.db.tx(() => insertItem(b.app, {
       accountId: b.owner.accountId, sourceId, kind: "article", title: `Item ${++n}`, url: `https://example.org/p/${n}`,
       author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-      publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh, reason: "test",
+      publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew, reason: "test",
     }));
     add(b.src, true); add(b.src, true); add(other, true); add(other, false); add(null, false);
-    const sidebar = listSources(b.app, b.owner).reduce((sum, s) => sum + s.freshCount, 0);
+    const sidebar = listSources(b.app, b.owner).reduce((sum, s) => sum + s.newCount, 0);
     assert.equal(sidebar, 3);
     assert.equal((await b.fetchPending(token)).json.newItems, 3);
     b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", other);
@@ -158,7 +158,7 @@ test("bodies follow 'Show item titles in notifications'; read notices aren't han
     b.app.db.run("UPDATE notifications SET changed_at = ?", new Date(Date.now() + 500).toISOString());
     assert.equal((await b.fetchPending(token)).json.notifications[0]!.body, null, "titles off: no body");
 
-    b.app.db.run("UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'"); // a fresh arrival notification, not a grown one
+    b.app.db.run("UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'"); // a isNew arrival notification, not a grown one
     b.arrive();
     b.app.db.run("UPDATE notifications SET read_at = ?", new Date().toISOString());
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "read in the bell already");

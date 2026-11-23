@@ -13,7 +13,7 @@ import { server } from "@purss/translations/server";
 
 export type UndoOp =
   | { type: "workflow"; itemId: string; workflow: WorkflowState }
-  | { type: "fresh"; itemId: string; fresh: boolean }
+  | { type: "new"; itemId: string; isNew: boolean }
   | { type: "freshSet"; itemIds: string[] }
   | { type: "keep"; itemId: string; basketId: string }
   | { type: "unkeep"; itemId: string; basketId: string }
@@ -25,12 +25,12 @@ type Owner = Pick<Principal, "accountId" | "accountId">;
 /** An AI filter setting an item to one of these has dealt with it, so it is no longer New. (The person's own changes always clear it.) */
 const SEEN_WORKFLOWS: ReadonlySet<WorkflowState> = new Set<WorkflowState>(["finished", "ignored"]);
 
-type OwnedItem = { id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; fresh: number; revision: number; workflow_revision: number; playback_workflow_session: string | null; progress: number; opened_at: string | null; is_private: number | null };
+type OwnedItem = { id: string; url: string | null; source_id: string | null; current_version_id: string; workflow: WorkflowState; is_new: number; revision: number; workflow_revision: number; playback_workflow_session: string | null; progress: number; opened_at: string | null; is_private: number | null };
 type OwnedBasket = { id: string; capture_mode: "metadata" | "text"; name: string };
 
 function ownItem(app: App, p: Principal, itemId: string): OwnedItem {
   const row = app.db.get<OwnedItem>(
-    `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.workflow_revision, st.playback_workflow_session, st.progress, st.opened_at, s.is_private
+    `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.is_new, st.revision, st.workflow_revision, st.playback_workflow_session, st.progress, st.opened_at, s.is_private
      FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.account_id = ?`, itemId, p.accountId);
   if (!row) throw notFound(server.api.shared.thatItem);
   return row;
@@ -82,8 +82,8 @@ export function changeState(app: App, p: Principal, itemId: string, change: Stat
     if (change.opened && !cur.opened_at) { sets.push("opened_at = ?"); params.push(nowIso()); }
     // Opening an item, or doing anything with it (another state, reading partway), means it has been seen: its New marker goes
     // (and comes back with Undo). A change that changes nothing, such as choosing the state it already has, leaves it.
-    const seen = change.fresh === false || change.opened === true || inverse.length > 0;
-    if (seen && cur.fresh) { sets.push("fresh = 0"); inverse.push({ type: "fresh", itemId, fresh: true }); }
+    const seen = change.isNew === false || change.opened === true || inverse.length > 0;
+    if (seen && cur.is_new) { sets.push("is_new = 0"); inverse.push({ type: "new", itemId, isNew: true }); }
     if (sets.length) {
       // The revision guards workflow and reading progress against stale writers. The New marker and the opened time are separate
       // facts: changing only those does not move it, so a change queued against the revision still applies.
@@ -123,7 +123,7 @@ function logWorkflow(app: App, p: Owner, itemId: string, from: WorkflowState, to
 export function setWorkflowByFilter(app: App, owner: Owner, itemId: string, from: WorkflowState, to: WorkflowState): number {
   logWorkflow(app, owner, itemId, from, to);
   mirrorRead(app, owner, [itemId], to);
-  app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${SEEN_WORKFLOWS.has(to) ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`,
+  app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${SEEN_WORKFLOWS.has(to) ? "is_new = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`,
     to, nowIso(), itemId);
   return app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", itemId)!.revision;
 }
@@ -232,16 +232,16 @@ export function pruneUnreferencedVersions(app: App, itemId: string): number {
 }
 
 /** Keeping an item in a basket or taking it out is doing something with it: its New marker goes, and comes back with Undo. */
-function clearFreshOnKeep(app: App, itemId: string, ops: UndoOp[]): void {
-  const r = app.db.run("UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND fresh = 1", nowIso(), itemId);
-  if (r.changes) ops.push({ type: "fresh", itemId, fresh: true });
+function clearNewOnKeep(app: App, itemId: string, ops: UndoOp[]): void {
+  const r = app.db.run("UPDATE item_state SET is_new = 0, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND is_new = 1", nowIso(), itemId);
+  if (r.changes) ops.push({ type: "new", itemId, isNew: true });
 }
 
 export function keepWithUndo(app: App, p: Principal, itemId: string, basketId: string, keep: boolean) {
   const ops: UndoOp[] = [];
   const out = app.db.tx(() => {
     const r = keep ? keepItem(app, p, itemId, basketId, ops) : { captureQueued: false, captureNote: null, removed: unkeepItem(app, p, itemId, basketId, ops) };
-    if (ops.length) clearFreshOnKeep(app, itemId, ops);
+    if (ops.length) clearNewOnKeep(app, itemId, ops);
     return { ...r, undoToken: saveUndo(app, p, ops) };
   });
   emit(app, p.accountId, { type: "storage" });
@@ -249,7 +249,7 @@ export function keepWithUndo(app: App, p: Principal, itemId: string, basketId: s
 }
 
 export function bulk(app: App, p: Principal, itemIds: string[], action:
-  | { type: "workflow"; workflow: WorkflowState } | { type: "clearFresh" } | { type: "keep"; basketId: string } | { type: "unkeep"; basketId: string }): BulkResult {
+  | { type: "workflow"; workflow: WorkflowState } | { type: "clearNew" } | { type: "keep"; basketId: string } | { type: "unkeep"; basketId: string }): BulkResult {
   const ops: UndoOp[] = [];
   let changed = 0;
   const undoToken = app.db.tx(() => {
@@ -258,25 +258,25 @@ export function bulk(app: App, p: Principal, itemIds: string[], action:
     for (const itemId of itemIds) {
       const cur = ownItem(app, p, itemId);
       if (action.type === "workflow" && cur.workflow !== action.workflow) {
-        const seen = cur.fresh === 1;
-        app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${seen ? "fresh = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`, action.workflow, nowIso(), itemId);
+        const seen = cur.is_new === 1;
+        app.db.run(`UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, ${seen ? "is_new = 0, " : ""}revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ?`, action.workflow, nowIso(), itemId);
         logWorkflow(app, p, itemId, cur.workflow, action.workflow);
         ops.push({ type: "workflow", itemId, workflow: cur.workflow });
-        if (seen) ops.push({ type: "fresh", itemId, fresh: true });
+        if (seen) ops.push({ type: "new", itemId, isNew: true });
         changed++;
-      } else if (action.type === "clearFresh" && cur.fresh) {
-        app.db.run("UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE item_id = ?", nowIso(), itemId);
-        ops.push({ type: "fresh", itemId, fresh: true });
+      } else if (action.type === "clearNew" && cur.is_new) {
+        app.db.run("UPDATE item_state SET is_new = 0, state_version = state_version + 1, updated_at = ? WHERE item_id = ?", nowIso(), itemId);
+        ops.push({ type: "new", itemId, isNew: true });
         changed++;
       } else if (action.type === "keep") {
         const before = ops.length;
         basket ??= ownBasket(app, p, action.basketId);
         keepOwned(app, p, cur, basket, ops);
         // Keeping never touches the New marker itself, so an item that wasn't New has none to clear.
-        if (ops.length > before) { if (cur.fresh) clearFreshOnKeep(app, itemId, ops); changed++; }
+        if (ops.length > before) { if (cur.is_new) clearNewOnKeep(app, itemId, ops); changed++; }
       } else if (action.type === "unkeep") {
         basket ??= ownBasket(app, p, action.basketId);
-        if (unkeepOwned(app, p, itemId, action.basketId, ops)) { if (cur.fresh) clearFreshOnKeep(app, itemId, ops); changed++; }
+        if (unkeepOwned(app, p, itemId, action.basketId, ops)) { if (cur.is_new) clearNewOnKeep(app, itemId, ops); changed++; }
       }
     }
     if (action.type === "workflow" && changed) mirrorRead(app, p, itemIds, action.workflow);
@@ -287,8 +287,8 @@ export function bulk(app: App, p: Principal, itemIds: string[], action:
 }
 
 /** Clear freshness markers for a list of items (never changes workflow or reading state). */
-export function clearFreshScope(app: App, p: Principal, itemIds: string[]): BulkResult {
-  return bulk(app, p, itemIds, { type: "clearFresh" });
+export function clearNewScope(app: App, p: Principal, itemIds: string[]): BulkResult {
+  return bulk(app, p, itemIds, { type: "clearNew" });
 }
 
 const CLEAR_PAGE = 500;
@@ -297,18 +297,18 @@ const CLEAR_PAGE = 500;
  * Clear every New marker in a scope, however many there are: one page of markers per transaction until none are
  * left, and one Undo for the whole. Only the New marker changes; workflow, reading progress and kept items don't.
  */
-export function clearFreshAll(app: App, p: Principal, scope: string): { changed: number; undoToken: string | null } {
+export function clearNewAll(app: App, p: Principal, scope: string): { changed: number; undoToken: string | null } {
   const ops: UndoOp[] = [];
   let changed = 0;
   for (;;) {
     const page = app.db.tx(() => {
       const params: SqlParam[] = [p.accountId];
-      const where = ["i.account_id = ?", "st.fresh = 1", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
+      const where = ["i.account_id = ?", "st.is_new = 1", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
       const ids = app.db.all<{ id: string }>(
         `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")} LIMIT ?`,
         ...params, CLEAR_PAGE).map((r) => r.id);
       if (ids.length) {
-        app.db.run(`UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND fresh = 1 AND item_id IN (${ids.map(() => "?").join(",")})`, nowIso(), p.accountId, ...ids);
+        app.db.run(`UPDATE item_state SET is_new = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND is_new = 1 AND item_id IN (${ids.map(() => "?").join(",")})`, nowIso(), p.accountId, ...ids);
       }
       return ids;
     });
@@ -333,10 +333,10 @@ export function applyUndo(app: App, p: Principal, token: string): { applied: num
         app.db.run("UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.workflow, nowIso(), op.itemId, p.accountId);
         if (cur && cur.workflow !== op.workflow) logWorkflow(app, p, op.itemId, cur.workflow, op.workflow);
         mirrorRead(app, p, [op.itemId], op.workflow);
-      } else if (op.type === "fresh") {
-        app.db.run("UPDATE item_state SET fresh = ?, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.fresh ? 1 : 0, nowIso(), op.itemId, p.accountId);
+      } else if (op.type === "new") {
+        app.db.run("UPDATE item_state SET is_new = ?, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.isNew ? 1 : 0, nowIso(), op.itemId, p.accountId);
       } else if (op.type === "freshSet") {
-        app.db.run(`UPDATE item_state SET fresh = 1, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND item_id IN (${op.itemIds.map(() => "?").join(",")})`, nowIso(), p.accountId, ...op.itemIds);
+        app.db.run(`UPDATE item_state SET is_new = 1, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND item_id IN (${op.itemIds.map(() => "?").join(",")})`, nowIso(), p.accountId, ...op.itemIds);
       } else if (op.type === "progress") {
         app.db.run("UPDATE item_state SET progress = ?, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.progress, nowIso(), op.itemId, p.accountId);
       } else if (op.type === "keep") {

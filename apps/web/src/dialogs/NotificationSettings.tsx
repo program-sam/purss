@@ -6,7 +6,7 @@ import { Button, Check, Icon, SelectInput, TextInput } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
 import type { NotifyPermission } from "../lib/browser-notify.ts";
-import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
+import { FREQUENCY_LABELS, WEEKDAYS, newDaysChoices } from "../lib/returning.ts";
 import { OTHER_BOX_ID } from "../pages/home-boxes.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { platform } from "../platform/index.ts";
@@ -112,12 +112,12 @@ export function NotificationSettings() {
       </fieldset>
 
       <fieldset className="field"><legend className="lbl" style={{ marginBottom: 6 }}>{t.newMarkers}</legend>
-        <div className="field"><label htmlFor="fresh-days">{app.words.keepItemsMarkedNewFor}</label>
-          <SelectInput id="fresh-days" value={p.freshDays} onChange={(e) => void save({ freshDays: Number(e.target.value) })}>
-            {freshDaysChoices(p.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        <div className="field"><label htmlFor="new-days">{app.words.keepItemsMarkedNewFor}</label>
+          <SelectInput id="new-days" value={p.newDays} onChange={(e) => void save({ newDays: Number(e.target.value) })}>
+            {newDaysChoices(p.newDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </SelectInput>
           <p className="fine">{t.markerGoes}</p></div>
-        <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{app.words.showNewMarkers}</Check>
+        <Check checked={p.newMarkers} onChange={(v) => void save({ newMarkers: v })}>{app.words.showNewMarkers}</Check>
         <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })} hint={t.countsHint}>{app.words.showCounts}</Check>
       </fieldset>
     </div>

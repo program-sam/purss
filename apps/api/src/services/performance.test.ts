@@ -95,7 +95,7 @@ test("the bootstrap queries and the sync path never read a whole table to find r
   const known = insertItem(app, {
     accountId: p.accountId, sourceId: source, kind: "article", title: "Imported", url: "https://example.org/imported",
     author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: new Date().toISOString(), enclosures: [], fresh: false, reason: "import",
+    publishedAt: null, discoveredAt: new Date().toISOString(), enclosures: [], isNew: false, reason: "import",
   });
   assert.ok(known.id);
   const edited = keptEntries(app, entries)[0]!;
@@ -115,7 +115,7 @@ test("the bootstrap queries and the sync path never read a whole table to find r
     assert.ok(hits.length > 0, `bootstrap runs ${what}`);
     for (const q of hits) assert.ok(planOf(q).some((l) => expected.test(l)), `${what} should plan as ${expected}:\n${planOf(q).join("\n")}`);
   };
-  designed(/FROM item_state\s+WHERE account_id = \? AND NOT \(workflow = 'undecided' AND fresh = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
+  designed(/FROM item_state\s+WHERE account_id = \? AND NOT \(workflow = 'undecided' AND is_new = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
 
   // A page in the default order or in title order is read from its index in order, with no sorting of the rest.
   for (const [sort, index] of [["newest", "items_account_sortkey"], ["title", "items_account_title"]] as const) {
@@ -184,7 +184,7 @@ test("the dataset generator builds separate, realistic accounts", { timeout: 120
     assert.ok(n("SELECT COUNT(*) AS n FROM captures WHERE account_id = ?") > 0, "captures");
     assert.ok(n("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ?") > 0, "notifications");
     assert.ok(n("SELECT COUNT(DISTINCT workflow) AS n FROM item_state WHERE account_id = ?") >= 3, "workflow states");
-    assert.ok(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND fresh = 0") > 0 && n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND fresh = 1") > 0, "some New, some not");
+    assert.ok(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 0") > 0 && n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 1") > 0, "some New, some not");
     // Every item belongs to a source of the same account: accounts never share rows.
     assert.equal(n("SELECT COUNT(*) AS n FROM items i JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.account_id <> i.account_id"), 0);
   }
@@ -200,7 +200,7 @@ test("an account that followed its sources from now has most items Ignored: Home
   const n = (sql: string) => app.db.get<{ n: number }>(sql, p.accountId)!.n;
   const hidden = n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored'");
   assert.ok(hidden > 600 * 0.6, `most items are back catalogue, which arrived Ignored (${hidden} of 600)`);
-  assert.equal(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored' AND fresh = 1"), 0, "and none of them is New");
+  assert.equal(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored' AND is_new = 1"), 0, "and none of them is New");
 
   const was = listTuning.countFromRowsBelowShare;
   listTuning.countFromRowsBelowShare = 5; // the collection's total is counted from its rows, not from the counts
@@ -215,7 +215,7 @@ test("an account that followed its sources from now has most items Ignored: Home
       });
     } finally { listTuning.countFromRowsBelowShare = was; }
   })();
-  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'undecided' AND st.fresh = 0");
+  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'undecided' AND st.is_new = 0");
   assert.equal(result.home.unread, shown, "Home counts the older items that show, not the Ignored ones");
   const ignoredIds = new Set(app.db.all<{ id: string }>("SELECT item_id AS id FROM item_state WHERE account_id = ? AND workflow = 'ignored'", p.accountId).map((r) => r.id));
   assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !ignoredIds.has(i.id)) && result.collection.items.every((i) => !ignoredIds.has(i.id)), "no Ignored item on Home or in the collection");
@@ -293,7 +293,7 @@ test("Home reads New items, the newest open items and its rows by id, and the ke
   setPreferences(app, p.accountId, { mutedWords: [{ text: "garden", until: null }] });
   const { result, seen } = recordQueries(app, () => homeOverview(app, p));
   assert.ok(result.since && result.toRead.items.length > 0 && result.mutedHidden > 0, "every part of Home is in play");
-  planned(seen, /SELECT i\.source_id, COUNT\(\*\) AS n FROM item_state st/, /SEARCH st USING INDEX item_state_fresh/, "New since the last visit");
+  planned(seen, /SELECT i\.source_id, COUNT\(\*\) AS n FROM item_state st/, /SEARCH st USING INDEX item_state_new/, "New since the last visit");
   planned(seen, /SUM\(purss_muted/, /SEARCH i USING INDEX items_account_sortkey/, "what the muted words hid");
   planned(seen, /AND \+i\.account_id = \?/, /USING INDEX sqlite_autoindex_(items|item_state)_1 \((id|item_id)=\?\)/, "the rows' items");
 

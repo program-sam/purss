@@ -77,7 +77,7 @@ function itemForLink(app: App, p: Principal, url: URL, title: string | undefined
     accountId: p.accountId, sourceId: src.id, kind: meta?.kind ?? "link",
     title: title || meta?.title || url.hostname + url.pathname.replace(/\/$/, ""),
     url: url.href, author: meta?.author ?? meta?.siteName ?? null, summaryHtml: null, contentHtml: null, imageUrl: meta?.imageUrl ?? null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: false, reason: "kept link",
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: false, reason: "kept link",
   });
   return { id: item.id, existing: false };
 }

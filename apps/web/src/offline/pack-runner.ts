@@ -52,9 +52,9 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   await Promise.allSettled([qc.fetchQuery({ ...notificationsQuery, staleTime: 0 }), qc.fetchQuery({ ...remindersQuery, staleTime: 0 }), qc.fetchQuery({ ...comingUpQuery, staleTime: 0 })]);
 
   // The queue itself, looked up without keeping these answers: they aren't a page anyone opens.
-  const found: Record<"toread" | "inprogress" | "fresh", ItemDTO[]> = { toread: [], inprogress: [], fresh: [] };
+  const found: Record<"toread" | "inprogress" | "new", ItemDTO[]> = { toread: [], inprogress: [], new: [] };
   const lookup = (query: Record<string, string | number>) => api<ItemPage>("/api/items", { query: { sort: "newest", limit: PACK_LIMIT, ...query }, signal, headers: { [NO_COPY_HEADER]: "1" } });
-  await pool(["toread", "inprogress", "fresh"] as const, PACK_CONCURRENCY, signal, async (filter) => {
+  await pool(["toread", "inprogress", "new"] as const, PACK_CONCURRENCY, signal, async (filter) => {
     found[filter] = (await lookup({ scope: "all", filter })).items;
   });
   // Kept items worth reading offline: from baskets that keep the readable text, most recently kept first.

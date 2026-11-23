@@ -65,7 +65,7 @@ function addItem(b: Awaited<ReturnType<typeof boot>>, sourceId: string, title: s
   return b.app.db.tx(() => insertItem(b.app, {
     accountId: b.owner.accountId, sourceId, kind: "article", title, url: `https://example.org/${title.replace(/\W+/g, "-")}`, author: null,
     summaryHtml: `<p>${title}.</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: null, discoveredAt: nowIso(),
-    enclosures: [], fresh: false, reason: "test", ...over,
+    enclosures: [], isNew: false, reason: "test", ...over,
   })).id;
 }
 

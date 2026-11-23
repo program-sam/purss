@@ -14,12 +14,12 @@ import type { App } from "../app.ts";
  */
 
 const STATES: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
-const cellOf = (workflow: string, fresh: number): number => STATES.indexOf(workflow as WorkflowState) * 2 + fresh;
+const cellOf = (workflow: string, isNew: number): number => STATES.indexOf(workflow as WorkflowState) * 2 + isNew;
 
-export type CellFilter = (workflow: WorkflowState, fresh: boolean) => boolean;
+export type CellFilter = (workflow: WorkflowState, isNew: boolean) => boolean;
 
 export class ItemCounts {
-  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, fresh)`. Every item the source holds. */
+  /** Per source id (null: items without a source), ten counts: `cellOf(workflow, isNew)`. Every item the source holds. */
   readonly bySource: Map<string | null, number[]>;
 
   constructor(bySource: Map<string | null, number[]>) {
@@ -43,8 +43,8 @@ export class ItemCounts {
   }
 
   /** Items with the New marker, whatever their workflow state. */
-  fresh(source: string): number {
-    return this.sum([source], (_w, fresh) => fresh);
+  isNew(source: string): number {
+    return this.sum([source], (_w, isNew) => isNew);
   }
 }
 
@@ -90,12 +90,12 @@ function computeCounts(app: App, accountId: string): ItemCounts {
   }
   // The other cells: the items a person has acted on, the New ones and the Ignored ones (the back catalogue of a source followed from now
   // arrives so). The partial index holds exactly those rows and each one's source, so they are counted from it alone, however many there are.
-  for (const r of app.db.all<{ source_id: string | null; workflow: string; fresh: number; n: number }>(
+  for (const r of app.db.all<{ source_id: string | null; workflow: string; is_new: number; n: number }>(
     // The condition is the partial index's own, which lets the planner use it.
-    `SELECT source_id, workflow, fresh, COUNT(*) AS n FROM item_state
-     WHERE account_id = ? AND NOT (workflow = 'undecided' AND fresh = 0) GROUP BY source_id, workflow, fresh`, accountId)) {
+    `SELECT source_id, workflow, is_new, COUNT(*) AS n FROM item_state
+     WHERE account_id = ? AND NOT (workflow = 'undecided' AND is_new = 0) GROUP BY source_id, workflow, is_new`, accountId)) {
     const c = cells(r.source_id);
-    c[cellOf(r.workflow, r.fresh)] = r.n;
+    c[cellOf(r.workflow, r.is_new)] = r.n;
     c[cellOf("undecided", 0)]! -= r.n;
   }
   return new ItemCounts(bySource);

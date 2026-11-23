@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Check, Dialog, SelectInput, TextInput } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
-import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
+import { FREQUENCY_LABELS, WEEKDAYS, newDaysChoices } from "../lib/returning.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { usePurss } from "../state/purss.tsx";
 
@@ -32,7 +32,7 @@ function Question() {
   const [frequency, setFrequency] = useState<NotificationFrequency>(n.frequency === "off" ? "off" : "weekly");
   const [time, setTime] = useState(n.digestTime);
   const [day, setDay] = useState(n.digestDay);
-  const [days, setDays] = useState(ws.data.preferences.freshDays);
+  const [days, setDays] = useState(ws.data.preferences.newDays);
   const [discoveryShare, setDiscoveryShare] = useState(preferences.discoveryShare);
   // A digest also goes by email when this installation sends email and the account's address is confirmed.
   const session = useSession().data;
@@ -42,7 +42,7 @@ function Question() {
 
   const done = (keep: boolean) => void save(keep
     ? { welcomeAsked: true }
-    : { welcomeAsked: true, freshDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day }, ...(hosted ? { discoveryShare } : {}) });
+    : { welcomeAsked: true, newDays: days, notifications: { ...n, frequency, digestTime: time, digestDay: day }, ...(hosted ? { discoveryShare } : {}) });
 
   return (
     <Dialog title={t.title} size="md" onClose={() => done(true)} initialFocus='input[name="freq"]:checked'
@@ -79,9 +79,9 @@ function Question() {
           {app.words.shareMySources}
         </Check>
       </div> : null}
-      <div className="field"><label htmlFor="fresh-days">{app.words.keepItemsMarkedNewFor}</label>
-        <SelectInput id="fresh-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          {freshDaysChoices(ws.data.preferences.freshDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+      <div className="field"><label htmlFor="new-days">{app.words.keepItemsMarkedNewFor}</label>
+        <SelectInput id="new-days" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          {newDaysChoices(ws.data.preferences.newDays).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </SelectInput>
         <p className="fine">{t.markerOnly}</p></div>
       <p className="fine">{t.changeAnytime}</p>

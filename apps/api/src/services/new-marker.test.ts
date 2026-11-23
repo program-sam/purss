@@ -20,19 +20,19 @@ test("opening, reading progress and workflow changes clear the New marker; Undo 
   const { app, p, ids, cleanup } = setup(3);
   t.after(cleanup);
   const [a, b, c] = ids as [string, string, string];
-  for (const id of ids) assert.equal(getItem(app, p, id).fresh, true);
+  for (const id of ids) assert.equal(getItem(app, p, id).isNew, true);
 
   changeState(app, p, a, { opened: true, expectedRevision: getItem(app, p, a).revision });
-  assert.equal(getItem(app, p, a).fresh, false, "opened");
+  assert.equal(getItem(app, p, a).isNew, false, "opened");
 
   changeState(app, p, b, { progress: 0.3, expectedRevision: getItem(app, p, b).revision });
-  assert.equal(getItem(app, p, b).fresh, false, "read partway");
+  assert.equal(getItem(app, p, b).isNew, false, "read partway");
 
   const marked = changeState(app, p, c, { workflow: "toread", expectedRevision: getItem(app, p, c).revision });
-  assert.equal(getItem(app, p, c).fresh, false, "marked To read");
+  assert.equal(getItem(app, p, c).isNew, false, "marked To read");
   assert.equal(getItem(app, p, c).workflow, "toread");
   applyUndo(app, p, marked.undoToken);
-  assert.equal(getItem(app, p, c).fresh, true, "Undo restores the marker");
+  assert.equal(getItem(app, p, c).isNew, true, "Undo restores the marker");
   assert.equal(getItem(app, p, c).workflow, "undecided");
 });
 
@@ -42,25 +42,25 @@ test("keeping and bulk workflow changes clear the New marker; Undo restores it",
   const [a, b, c] = ids as [string, string, string];
 
   const kept = keepWithUndo(app, p, a, basket.id, true);
-  assert.equal(kept.item.fresh, false, "kept");
+  assert.equal(kept.item.isNew, false, "kept");
   applyUndo(app, p, kept.undoToken);
-  assert.equal(getItem(app, p, a).fresh, true);
+  assert.equal(getItem(app, p, a).isNew, true);
   assert.deepEqual(getItem(app, p, a).basketIds, []);
 
   const many = bulk(app, p, [b, c], { type: "workflow", workflow: "finished" });
-  assert.equal(getItem(app, p, b).fresh, false);
-  assert.equal(getItem(app, p, c).fresh, false);
+  assert.equal(getItem(app, p, b).isNew, false);
+  assert.equal(getItem(app, p, c).isNew, false);
   applyUndo(app, p, many.undoToken);
-  assert.equal(getItem(app, p, b).fresh, true);
+  assert.equal(getItem(app, p, b).isNew, true);
   assert.equal(getItem(app, p, c).workflow, "undecided");
 
   // A no-op (already in that state or basket) is not an interaction and leaves the marker alone.
   bulk(app, p, [b], { type: "workflow", workflow: "undecided" });
   bulk(app, p, [b], { type: "unkeep", basketId: basket.id });
-  assert.equal(getItem(app, p, b).fresh, true);
+  assert.equal(getItem(app, p, b).isNew, true);
   const keptMany = bulk(app, p, [b], { type: "keep", basketId: basket.id });
-  assert.equal(getItem(app, p, b).fresh, false);
+  assert.equal(getItem(app, p, b).isNew, false);
   applyUndo(app, p, keptMany.undoToken);
-  assert.equal(getItem(app, p, b).fresh, true);
+  assert.equal(getItem(app, p, b).isNew, true);
   assert.deepEqual(getItem(app, p, b).basketIds, []);
 });

@@ -166,7 +166,7 @@ test("workflow revisions prevent silent overwrites; undo restores", (t) => {
   applyUndo(app, p, first.undoToken);
   const back = listItems(app, p, { scope: "all" }).items[0]!;
   assert.equal(back.workflow, "undecided");
-  assert.equal(back.fresh, true, "freshness independent of workflow");
+  assert.equal(back.isNew, true, "freshness independent of workflow");
   // Finishing mirrors read state to the engine through the outbox.
   changeState(app, p, item.id, { workflow: "finished", expectedRevision: back.revision });
   assert.ok(app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.mark_read'"));
@@ -205,9 +205,9 @@ test("bulk actions and keep produce one undo token", (t) => {
   assert.equal(kept.changed, 3);
   applyUndo(app, p, kept.undoToken);
   assert.equal(listItems(app, p, { scope: `basket:${basket.id}` }).total, 0);
-  const cleared = bulk(app, p, ids, { type: "clearFresh" });
+  const cleared = bulk(app, p, ids, { type: "clearNew" });
   assert.equal(cleared.changed, 3);
-  assert.equal(listItems(app, p, { scope: "all", filter: "fresh" }).total, 0);
+  assert.equal(listItems(app, p, { scope: "all", filter: "new" }).total, 0);
   const single = keepWithUndo(app, p, ids[0]!, basket.id, true);
   applyUndo(app, p, single.undoToken);
   assert.deepEqual(listItems(app, p, { scope: "all" }).items.find((i) => i.id === ids[0])!.basketIds, []);
@@ -301,7 +301,7 @@ test("re-following an imported feed attaches mappings instead of duplicating", (
   const e = entry("feed/1");
   // An imported item: same source and link, but no engine mapping.
   app.db.tx(() => insertItem(app, { accountId: p.accountId, sourceId: src, kind: "article", title: e.title, url: e.url, author: null,
-    summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: e.publishedAt, discoveredAt: e.crawledAt, enclosures: [], fresh: false, reason: "import" }));
+    summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: e.publishedAt, discoveredAt: e.crawledAt, enclosures: [], isNew: false, reason: "import" }));
   const r = applySyncBatch(app, p.engineUserId, batch([{ ...e, originalGuid: null }]));
   assert.equal(r.accepted, 0);
   assert.equal(listItems(app, p, { scope: "all", filter: "all" }).total, 1);

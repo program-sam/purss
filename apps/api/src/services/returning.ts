@@ -35,17 +35,17 @@ export function resumePausedSources(app: App, now: Date = new Date()): number {
  * Only the marker changes. Items that arrived since the previous visit began keep theirs, so someone away for a long
  * time still finds what came while they were gone; the next visit lets those expire too.
  */
-export function expireFreshMarkers(app: App, accountId: string, now: Date = new Date()): number {
-  const days = getPreferences(app, accountId).freshDays;
+export function expireNewMarkers(app: App, accountId: string, now: Date = new Date()): number {
+  const days = getPreferences(app, accountId).newDays;
   if (!days) return 0;
   const cutoff = new Date(now.getTime() - days * 86_400_000).toISOString();
   const lastVisit = app.db.get<{ last_visit_at: string | null }>("SELECT last_visit_at FROM accounts WHERE id = ?", accountId)?.last_visit_at ?? null;
   let total = 0;
   for (;;) {
     const n = app.db.tx(() => app.db.run(
-      `UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND item_id IN (
+      `UPDATE item_state SET is_new = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND item_id IN (
          SELECT st.item_id FROM item_state st JOIN items i ON i.id = st.item_id
-         WHERE st.account_id = ? AND st.fresh = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT ?)`,
+         WHERE st.account_id = ? AND st.is_new = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT ?)`,
       nowIso(), accountId, accountId, cutoff, lastVisit, lastVisit, EXPIRE_BATCH).changes);
     total += n;
     if (n < EXPIRE_BATCH) break;
@@ -68,7 +68,7 @@ export function runReturningPass(app: App, now: Date = new Date(), opts: { force
     try {
       if (fast) { runDigest(app, a.id, now); runProblemCheck(app, a.id, now); runItemReminders(app, a.id, now); }
       if (slow) {
-        if (expireFreshMarkers(app, a.id, now)) emit(app, a.id, { type: "items", sourceIds: [], count: 0 });
+        if (expireNewMarkers(app, a.id, now)) emit(app, a.id, { type: "items", sourceIds: [], count: 0 });
         pruneNotifications(app, a.id, now);
         pruneItemReminders(app, a.id, now);
       }

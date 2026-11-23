@@ -38,7 +38,7 @@ export const NO_POSTS_YET = server.api.sources.noPostsYet;
 type SourceRow = {
   id: string; kind: SourceDTO["kind"]; title: string; origin: string; site_url: string | null; feed_url: string | null; is_private: number;
   curator: string | null; hue: number; paused: number; notify: SourceDTO["notify"]; health: SourceHealth; health_text: string | null;
-  last_success_at: string | null; last_item_at: string | null; created_at: string; fresh: number; items: number; collection_ids: string | null; ai_filtered: number;
+  last_success_at: string | null; last_item_at: string | null; created_at: string; isNew: number; items: number; collection_ids: string | null; ai_filtered: number;
   icon_digest: string | null;
   full_text: number;
   builtin: string | null;
@@ -67,20 +67,20 @@ function healthOf(r: SourceRow): { health: SourceHealth; text: string | null } {
 export function newItemCount(app: App, accountId: string): number {
   const ids = app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual'", accountId);
   const counts = itemCounts(app, accountId);
-  return ids.reduce((n, r) => n + counts.fresh(r.id), 0);
+  return ids.reduce((n, r) => n + counts.isNew(r.id), 0);
 }
 
 export function listSources(app: App, p: Principal): SourceDTO[] {
   const rows = app.db.all<SourceRow>(
     `SELECT s.*,
-       0 AS fresh, 0 AS items,
+       0 AS isNew, 0 AS items,
        (SELECT group_concat(cs.collection_id) FROM collection_sources cs WHERE cs.source_id = s.id) AS collection_ids,
        (SELECT digest FROM source_icons si WHERE si.source_id = s.id) AS icon_digest,
        EXISTS (SELECT 1 FROM ai_filters f WHERE f.enabled = 1 AND f.source_id = s.id) AS ai_filtered
      FROM sources s WHERE s.account_id = ? AND s.followed = 1 AND s.kind <> 'manual' ORDER BY lower(s.title)`, p.accountId);
   // The counts of every source come from one pass over the PURSS, not from a lookup per source.
   const counts = itemCounts(app, p.accountId);
-  return rows.map((r) => toSourceDTO({ ...r, fresh: counts.fresh(r.id), items: counts.items(r.id) }));
+  return rows.map((r) => toSourceDTO({ ...r, isNew: counts.isNew(r.id), items: counts.items(r.id) }));
 }
 
 function toSourceDTO(r: SourceRow): SourceDTO {
@@ -88,7 +88,7 @@ function toSourceDTO(r: SourceRow): SourceDTO {
   return {
     id: r.id, title: r.title, kind: r.kind, origin: r.origin, siteUrl: r.site_url, feedUrl: r.is_private ? null : r.feed_url,
     collectionIds: r.collection_ids ? r.collection_ids.split(",") : [], health: h.health, healthText: h.text,
-    lastItemAt: r.last_item_at, lastSuccessAt: r.last_success_at, freshCount: r.fresh, itemCount: r.items, paused: r.paused === 1,
+    lastItemAt: r.last_item_at, lastSuccessAt: r.last_success_at, newCount: r.isNew, itemCount: r.items, paused: r.paused === 1,
     pausedUntil: r.paused === 1 ? r.paused_until : null,
     hue: r.hue, initials: initialsFor(r.title), iconUrl: iconUrl(r.id, r.icon_digest), curator: r.curator, notify: r.notify,
     fullText: r.full_text === 1 && fullTextAvailable(r), fullTextAvailable: fullTextAvailable(r),
@@ -98,7 +98,7 @@ function toSourceDTO(r: SourceRow): SourceDTO {
 
 export function getSource(app: App, p: Principal, id: string): SourceDTO {
   const r = app.db.get<SourceRow>(
-    `SELECT s.*, (SELECT COUNT(*) FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.source_id = s.id AND st.fresh = 1) AS fresh,
+    `SELECT s.*, (SELECT COUNT(*) FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.source_id = s.id AND st.is_new = 1) AS isNew,
        (SELECT COUNT(*) FROM items i WHERE i.source_id = s.id) AS items,
        (SELECT group_concat(cs.collection_id) FROM collection_sources cs WHERE cs.source_id = s.id) AS collection_ids,
        (SELECT digest FROM source_icons si WHERE si.source_id = s.id) AS icon_digest,

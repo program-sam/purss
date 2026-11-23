@@ -12,7 +12,7 @@ import { useCurrentPlace } from "../shell/place.ts";
 import { usePurss } from "../state/purss.tsx";
 import { plural, timeAgo } from "../lib/format.ts";
 import { itemDate } from "../lib/items.ts";
-import { FreshDot, KeptTag, PendingMark, useFace, useItemLabel } from "../components/item-bits.tsx";
+import { NewDot, KeptTag, PendingMark, useFace, useItemLabel } from "../components/item-bits.tsx";
 import { useRowCtx, useRowMarks } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
 
@@ -31,7 +31,7 @@ const BoardCard = memo(function BoardCard({ item, onDragStart, onDragEnd }: { it
       <button type="button" className="bcard-main" data-act="open" onClick={() => c.onOpen(item)} aria-label={label}
         aria-pressed={c.selecting ? picked : undefined} aria-current={!c.selecting && active ? "true" : undefined}>
         {c.selecting ? <span className="cbx lead" aria-hidden="true"><Icon name="check" /></span> : null}
-        <span className="m"><FreshDot fresh={item.fresh} /><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={18} /><span className="sn" dir="auto">{face.name}</span>
+        <span className="m"><NewDot isNew={item.isNew} /><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} size={18} /><span className="sn" dir="auto">{face.name}</span>
           <time dateTime={itemDate(item)}>{timeAgo(itemDate(item), c.now, c.timeZone)}</time></span>
         <span className="title" dir="auto">{item.title}</span>
         {(item.basketIds.length && !c.basket) ? <span className="bkept"><KeptTag item={item} /><PendingMark id={item.id} /></span> : <PendingMark id={item.id} />}

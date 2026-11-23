@@ -9,7 +9,7 @@ export type OpenHold = {
   get: () => string | null;
   subscribe: (fn: () => void) => () => void;
   /** The panel opened this item: held when it was New, otherwise nothing is held. */
-  open: (item: Pick<ItemDTO, "id" | "fresh">) => void;
+  open: (item: Pick<ItemDTO, "id" | "isNew">) => void;
   /**
    * The panel is on screen. Its effect may be replayed (React's development StrictMode mounts, unmounts and mounts again),
    * so leaving is decided a moment later: `stay` after a `release` cancels it.
@@ -28,7 +28,7 @@ export function createOpenHold(): OpenHold {
   return {
     get: () => held,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    open: (item) => { stay(); set(item.fresh ? item.id : null); },
+    open: (item) => { stay(); set(item.isNew ? item.id : null); },
     stay,
     release: () => { stay(); leaving = setTimeout(() => { leaving = null; set(null); }, 0); },
   };
@@ -43,12 +43,12 @@ export function createOpenHold(): OpenHold {
 export function withOpenItem(all: readonly ItemDTO[], keeps: (i: ItemDTO) => boolean, held: string | null, openCopy?: ItemDTO, lastShown: readonly ItemDTO[] = []): ItemDTO[] {
   const out: ItemDTO[] = [];
   for (const it of all) {
-    if (it.id === held) { const asNew = { ...it, fresh: true }; if (keeps(asNew)) out.push(asNew); }
+    if (it.id === held) { const asNew = { ...it, isNew: true }; if (keeps(asNew)) out.push(asNew); }
     else if (keeps(it)) out.push(it);
   }
   if (held && openCopy && openCopy.id === held && !all.some((i) => i.id === held)) {
     const at = lastShown.findIndex((i) => i.id === held);
-    const asNew = { ...openCopy, fresh: true };
+    const asNew = { ...openCopy, isNew: true };
     if (at >= 0 && keeps(asNew)) out.splice(Math.min(at, out.length), 0, asNew);
   }
   return out;

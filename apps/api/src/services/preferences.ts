@@ -33,10 +33,10 @@ export const preferencesPatchSchema = z.object({
   homeLayout: z.enum(["collections", "feed", "new", "front"]),
   homeCollectionIds: z.array(z.string()).max(200),
   homeOther: z.boolean(),
-  freshMarkers: z.boolean(),
+  newMarkers: z.boolean(),
   showCounts: z.boolean(),
   reminders: z.boolean(),
-  freshDays: z.number().int().min(0).max(365),
+  newDays: z.number().int().min(0).max(365),
   welcomeAsked: z.boolean(),
   notifications: notificationsPatch,
   mutedWords: z.array(z.object({ text: z.string().trim().min(1).max(80), until: z.iso.datetime().nullable() })).max(100).refine(

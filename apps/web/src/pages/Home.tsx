@@ -14,7 +14,7 @@ import { ReminderCard } from "../components/ReminderCard.tsx";
 import { ReviewNotice } from "../features/review/ReviewNotice.tsx";
 import { RowContext } from "../components/row-context.tsx";
 import { useRowContextValue } from "../components/use-row-context.ts";
-import { FreshDot } from "../components/item-bits.tsx";
+import { NewDot } from "../components/item-bits.tsx";
 import { Names } from "../components/Names.tsx";
 import { workflowLabel } from "../lib/constants.ts";
 import { groupByDay, plural, timeAgo } from "../lib/format.ts";
@@ -57,7 +57,7 @@ const GROUP_ITEMS = 25;
  * Home's lists show Undecided items (`new`), newest first; the Only new layout shows New items (`fresh`), Undecided first. The server orders them (`mix=home`).
  * `showMuted` lists what muted words leave out.
  */
-const homeParams = (scope: string, filter: "undecided" | "fresh", o: { showMuted?: boolean } = {}): ListParams =>
+const homeParams = (scope: string, filter: "undecided" | "new", o: { showMuted?: boolean } = {}): ListParams =>
   ({ scope, filter, sort: "newest", mix: "home", ...(o.showMuted ? { muted: "show" as const } : {}) });
 
 /** Whether the person asked to see the items that muted words leave out (`?muted=show`). */
@@ -77,7 +77,7 @@ function useBoxes(): CollectionDTO[] {
  * collapsed box): only the items shown count against the boxes after it. A change made here (an item put aside, ignored or
  * finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place.
  */
-function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "fresh", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
+function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "new", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
   const showMuted = useShowMuted();
   const results = useQueries({ queries: boxes.map((c) => itemPreviewQuery(homeParams(boxScope(c), filter, { showMuted }), limit + DEDUPE_SLACK)) });
   const held = useOpenHold();
@@ -87,11 +87,11 @@ function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "fre
 
 /** The item requests Home makes for a layout, so the offline pack can save the same answers. Keep in step with the layouts below. */
 export function homeRequests(layout: Preferences["homeLayout"], shown: readonly CollectionDTO[]): { params: ListParams; limit: number }[] {
-  const inCollection = (c: CollectionDTO, filter: "undecided" | "fresh", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
+  const inCollection = (c: CollectionDTO, filter: "undecided" | "new", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
   switch (layout) {
     case "collections": return shown.map((c) => inCollection(c, "undecided", moduleItems(shown.length)));
     case "feed": return [{ params: homeParams("home", "undecided"), limit: PAGE }];
-    case "new": return shown.map((c) => inCollection(c, "fresh", GROUP_ITEMS));
+    case "new": return shown.map((c) => inCollection(c, "new", GROUP_ITEMS));
     case "front": return shown.map((c) => inCollection(c, "undecided", HEADLINE_ITEMS));
   }
 }
@@ -115,7 +115,7 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
         <h2 className="mod-t" id={`mt-${c.id}`}>
           {other ? <span className="mod-plain">{heading}</span> : <button type="button" onClick={() => nav.go({ t: "c", id: c.id })}>{heading}</button>}
         </h2>
-        {shut && c.freshCount ? <span className="mod-fresh"><i className="dot" />{c.freshCount}<span className="sr">{app.words.newSpaced}</span></span> : null}
+        {shut && c.newCount ? <span className="mod-new"><i className="dot" />{c.newCount}<span className="sr">{app.words.newSpaced}</span></span> : null}
         <button type="button" className="ibtn" aria-haspopup="menu" aria-label={`Options for ${c.name}`} onClick={(e) => onMenu(c, e.currentTarget)}><Icon name="more" /><span className="ml" aria-hidden="true">{app.words.more}</span></button>
       </header>
       {shut ? null : items.length ? (
@@ -259,7 +259,7 @@ function NewLayout() {
   const save = useSavePreferences();
   const actions = useItemActions();
   const boxes = useBoxes();
-  const lists = useBoxLists(boxes, "fresh", GROUP_ITEMS);
+  const lists = useBoxLists(boxes, "new", GROUP_ITEMS);
   if (boxes.length && lists.some((l) => l.pending)) {
     return <div className="list" aria-busy="true"><div className="skel-rows" aria-hidden="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ height: 40, margin: 10 }} />)}</div><p className="sr" role="status">{t.loadingNew}</p></div>;
   }
@@ -268,7 +268,7 @@ function NewLayout() {
   return (
     <>
       <div style={{ display: "grid", gap: 16 }}>{groups.map((g) => <NewGroup key={g.c.id} c={g.c} items={g.items} />)}</div>
-      <p className="fine end-of-new">{t.everythingNew}<button type="button" className="link" onClick={() => void actions.clearFresh("all")}>{app.words.markAllAsSeen}</button></p>
+      <p className="fine end-of-new">{t.everythingNew}<button type="button" className="link" onClick={() => void actions.clearNew("all")}>{app.words.markAllAsSeen}</button></p>
     </>
   );
 }
@@ -284,7 +284,7 @@ function Headline({ c, items, pending }: { c: CollectionDTO; items: ItemDTO[]; p
         {items.length ? items.map((it) => (
           <li key={it.id} className="irow" data-item={it.id}>
             <button type="button" className="hli" data-act="open" onClick={() => rc.onOpen(it)}>
-              <span className="hlt"><FreshDot fresh={it.fresh} /><span className="title" dir="auto">{it.title}</span></span>
+              <span className="hlt"><NewDot isNew={it.isNew} /><span className="title" dir="auto">{it.title}</span></span>
               <span className="m"><bdi>{it.sourceTitle}</bdi>, {timeAgo(itemDate(it), rc.now, rc.timeZone)}{it.workflow !== "undecided" ? `, ${workflowLabel(it.workflow, it.kind)}` : ""}</span>
             </button>
           </li>
@@ -343,7 +343,7 @@ export function HomePage() {
   const ws = usePurss();
   const overlays = useOverlays();
   const layout = ws.prefs.homeLayout;
-  const homeFilter = layout === "new" ? "fresh" : "undecided";
+  const homeFilter = layout === "new" ? "new" : "undecided";
   const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter), [homeFilter]);
   const value = useRowContextValue(null, keeps);
   const narrow = layout === "feed" || layout === "new" ? " narrow" : "";

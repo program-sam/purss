@@ -164,10 +164,10 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
 
     await array("items", (function* () {
       type ItemRow = { id: string; number: number; source_id: string | null; kind: string; title: string; url: string | null; author: string | null; image_url: string | null; duration_seconds: number | null; doi: string | null;
-        curator_note: string | null; published_at: string | null; discovered_at: string; listed_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; fresh: number; progress: number; opened_at: string | null };
+        curator_note: string | null; published_at: string | null; discovered_at: string; listed_at: string; created_at: string; enclosures: string | null; current_version_id: string | null; workflow: string; is_new: number; progress: number; opened_at: string | null };
       for (const i of iterate<ItemRow>(
         `SELECT i.id, i.number, i.source_id, i.kind, i.title, i.url, i.author, i.image_url, i.duration_seconds, i.doi, i.curator_note, i.published_at, i.discovered_at, i.listed_at, i.created_at,
-                i.enclosures, i.current_version_id, st.workflow, st.fresh, st.progress, st.opened_at
+                i.enclosures, i.current_version_id, st.workflow, st.is_new, st.progress, st.opened_at
          FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? ORDER BY i.seq`, ws)) {
         const priv = i.source_id !== null && privateIds.has(i.source_id);
         const link = (u: string | null) => (u && (priv || hasCredentialShape(u)) ? null : u);
@@ -186,7 +186,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
           publishedAt: i.published_at, discoveredAt: i.discovered_at, listedAt: i.listed_at, createdAt: i.created_at, enclosures, currentVersionId: i.current_version_id,
           versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), createdAt: v.created_at })),
           captures: captures.map((c) => ({ id: c.id, kind: c.kind, status: c.status, title: c.title, text: c.text, html: html(c.html), finalUrl: link(c.final_url), error: c.error, quality: c.quality, partialReason: c.partial_reason, createdAt: c.created_at, completedAt: c.completed_at })),
-          state: { workflow: i.workflow, fresh: i.fresh === 1, progress: i.progress, openedAt: i.opened_at },
+          state: { workflow: i.workflow, isNew: i.is_new === 1, progress: i.progress, openedAt: i.opened_at },
           originalGuids: guids,
         };
       }
@@ -1071,8 +1071,8 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
         v.id, d.id, ws, v.title, v.url, v.summaryHtml, v.contentHtml, v.hash, v.createdAt);
       ledgerInsert(app, p, { kind: "item_version", refId: v.id, itemId: d.id, sourceId: d.sourceId, bytes: v.bytes });
     }
-    app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, fresh, progress, opened_at, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
-      d.id, ws, d.sourceId, it.state.workflow, it.state.fresh ? 1 : 0, it.state.progress, it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null, now);
+    app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, progress, opened_at, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+      d.id, ws, d.sourceId, it.state.workflow, it.state.isNew ? 1 : 0, it.state.progress, it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null, now);
     if (pr.stateBytes) ledgerInsert(app, p, { kind: "record", refId: `state:${d.id}`, itemId: null, sourceId: null, bytes: pr.stateBytes });
     for (const c of pr.captures) {
       app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

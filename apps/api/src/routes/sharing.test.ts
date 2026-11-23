@@ -185,7 +185,7 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   assert.equal(blocked.blocked, shares.usesReadingState);
   const words = col({ name: "Mud", query: { all: [{ field: "text", value: "secretword" }] } });
   const mud = await share(b, "collection", words.id);
-  b.app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify({ all: [{ field: "fresh", value: true }] }), words.id);
+  b.app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify({ all: [{ field: "new", value: true }] }), words.id);
   assert.equal((await b.anon(`/p/${mud.slug}`)).status, 404, "its rules now read reading state: not shown");
   assert.equal((await b.api("GET", "/api/shares")).json.find((s: { id: string }) => s.id === mud.id).problem, "rules");
 

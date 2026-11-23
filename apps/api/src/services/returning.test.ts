@@ -11,14 +11,14 @@ import type { Message } from "../mail/mailer.ts";
 import { applySyncBatch } from "./sync.ts";
 import { insertItem, listItems } from "./items.ts";
 import type { NewItem } from "./items.ts";
-import { applyUndo, bulk, changeState, clearFreshAll } from "./state.ts";
+import { applyUndo, bulk, changeState, clearNewAll } from "./state.ts";
 import { createCollection } from "./collections.ts";
 import { followSource, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "./preferences.ts";
 import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotifications, runDigest, runProblemCheck, unreadCount } from "./notifications.ts";
 import { homeOverview, touchVisit } from "./home.ts";
-import { expireFreshMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
+import { expireNewMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
 import { activityFor } from "./activity.ts";
 
 const { activity, notifications, mailTemplates, shared, sources } = server.api;
@@ -40,11 +40,11 @@ function addItem(app: App, p: Owner, sourceId: string | null, over: Partial<NewI
   return app.db.tx(() => insertItem(app, {
     accountId: p.accountId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/r/${serial}`, author: null,
     summaryHtml: `<p>About ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: true, reason: "test", ...over,
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: true, reason: "test", ...over,
   })).id;
 }
 
-const fresh = (app: App, id: string) => app.db.get<{ fresh: number }>("SELECT fresh FROM item_state WHERE item_id = ?", id)!.fresh === 1;
+const fresh = (app: App, id: string) => app.db.get<{ is_new: number }>("SELECT is_new FROM item_state WHERE item_id = ?", id)!.is_new === 1;
 const revision = (app: App, id: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", id)!.revision;
 const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; read_at: string | null }>("SELECT title, body, source_id, kind, read_at FROM notifications ORDER BY created_at, id");
 
@@ -69,7 +69,7 @@ test("a source's back catalogue is not New and tells no one; what comes after is
   assert.equal(fresh(app, byUrl(undated)), false, "undated entries on the first sync were already there");
   assert.equal(fresh(app, byUrl(newer)), true, "published after the follow");
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Old podcast")], "one notification, for the one New item");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1);
   assert.equal(settled(app, src), null, "this walk began before anything said the source was ready: the next one settles it");
 
   walk(app, p);
@@ -104,7 +104,7 @@ test("a first sync that takes several batches stays back catalogue until a later
   const second = entry("feed/1", { publishedAt: null });
   applySyncBatch(app, p.engineUserId, { ...batch([first]), done: false });
   applySyncBatch(app, p.engineUserId, batch([second]));
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0);
   assert.equal(notes(app).length, 0, "following an archive never says '2 new'");
   assert.equal(settled(app, src), null);
   applySyncBatch(app, p.engineUserId, { ...batch([entry("feed/1", { publishedAt: null })]), done: false });
@@ -123,7 +123,7 @@ test("a feed that starts empty is settled too: its first genuinely new undated e
   assert.ok(settled(app, src), "nothing to enumerate is still an enumeration");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n, 0);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1);
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Slow start")]);
 });
 
@@ -140,7 +140,7 @@ test("a walk that ended before a source was ready does not settle it, and the bo
   walk(app, p, [entry("feed/2", { publishedAt: null })]);
   assert.ok(settled(app, early));
   assert.equal(settled(app, late), null, "the walk that just ended began before the engine had finished subscribing to it");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0, "what it brought is still its back catalogue");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "what it brought is still its back catalogue");
   const boundary = app.db.get<{ at: string }>("SELECT last_walk_done_at AS at FROM sync_checkpoints WHERE engine_user_id = ?", p.engineUserId)!.at;
   assert.ok(boundary > "2026-01-01T00:00:01.000Z", "the boundary moved to where this walk ended");
   walk(app, p);
@@ -164,12 +164,12 @@ test("following a source again starts a new episode: the old confirmation does n
   const confirmed = app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s;
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 0, "the walk that began before the confirmation brought back catalogue, and so did the next one that settled it");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 0, "the walk that began before the confirmation brought back catalogue, and so did the next one that settled it");
   assert.ok(settled(app, src));
   onSubscribed(app, src, "feed/1");
   assert.equal(app.db.get<{ s: string }>("SELECT subscribed_at AS s FROM sources WHERE id = ?", src)!.s, confirmed, "confirming again in the same episode changes nothing");
   walk(app, p, [entry("feed/1", { publishedAt: null })]);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE fresh = 1")!.n, 1, "after that, New");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE is_new = 1")!.n, 1, "after that, New");
 });
 
 test("the engine confirming a subscription records when, once", (t) => {
@@ -219,14 +219,14 @@ test("opening an item or changing its state clears its New marker, and Undo brin
   const [a, b, c] = [addItem(app, p, src), addItem(app, p, src), addItem(app, p, src)] as [string, string, string];
 
   const opened = changeState(app, p, a, { opened: true, expectedRevision: revision(app, a) });
-  assert.equal(opened.item.fresh, false, "the response carries the updated item");
+  assert.equal(opened.item.isNew, false, "the response carries the updated item");
   assert.equal(opened.item.opened, true);
   assert.equal(opened.item.workflow, "undecided", "opening changes nothing else");
   applyUndo(app, p, opened.undoToken);
   assert.equal(fresh(app, a), true);
 
   const finished = changeState(app, p, b, { workflow: "finished", expectedRevision: revision(app, b) });
-  assert.equal(finished.item.fresh, false);
+  assert.equal(finished.item.isNew, false);
   applyUndo(app, p, finished.undoToken);
   assert.deepEqual([fresh(app, b), app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", b)!.w], [true, "undecided"]);
 
@@ -251,22 +251,22 @@ test("New markers expire after the chosen number of days, and only the marker ch
   const recent = addItem(app, p, src, { discoveredAt: ago(10 * DAY) });
   const staleToRead = addItem(app, p, src, { discoveredAt: ago(50 * DAY) });
   changeState(app, p, staleToRead, { workflow: "toread", expectedRevision: revision(app, staleToRead) });
-  app.db.run("UPDATE item_state SET fresh = 1 WHERE item_id = ?", staleToRead); // still New, as an item set before markers followed state
+  app.db.run("UPDATE item_state SET is_new = 1 WHERE item_id = ?", staleToRead); // still New, as an item set before markers followed state
   const rev = revision(app, stale);
 
-  assert.equal(getPreferences(app, p.accountId).freshDays, 30, "30 days unless chosen");
-  setPreferences(app, p.accountId, { freshDays: 0 });
-  assert.equal(expireFreshMarkers(app, p.accountId), 0, "never expires");
+  assert.equal(getPreferences(app, p.accountId).newDays, 30, "30 days unless chosen");
+  setPreferences(app, p.accountId, { newDays: 0 });
+  assert.equal(expireNewMarkers(app, p.accountId), 0, "never expires");
   assert.equal(fresh(app, stale), true);
 
-  setPreferences(app, p.accountId, { freshDays: 30 });
-  assert.equal(expireFreshMarkers(app, p.accountId), 2);
+  setPreferences(app, p.accountId, { newDays: 30 });
+  assert.equal(expireNewMarkers(app, p.accountId), 2);
   assert.deepEqual([fresh(app, stale), fresh(app, recent), fresh(app, staleToRead)], [false, true, false]);
   assert.equal(app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", staleToRead)!.w, "toread", "workflow untouched");
   assert.equal(revision(app, stale), rev, "no conflict for a tab that still shows it");
 
-  setPreferences(app, p.accountId, { freshDays: 7 });
-  assert.equal(expireFreshMarkers(app, p.accountId), 1);
+  setPreferences(app, p.accountId, { newDays: 7 });
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.equal(fresh(app, recent), false);
 });
 
@@ -277,11 +277,11 @@ test("what arrived since the previous visit began keeps its marker, so a long ab
   const whileAway = addItem(app, p, src, { discoveredAt: ago(40 * DAY) });
   const before = addItem(app, p, src, { discoveredAt: ago(80 * DAY) });
   app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(60 * DAY), p.accountId);
-  assert.equal(expireFreshMarkers(app, p.accountId), 1);
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.deepEqual([fresh(app, whileAway), fresh(app, before)], [true, false]);
   // The next visit moves the line forward, and those expire too.
   app.db.run("UPDATE accounts SET last_visit_at = ? WHERE id = ?", ago(1 * DAY), p.accountId);
-  assert.equal(expireFreshMarkers(app, p.accountId), 1);
+  assert.equal(expireNewMarkers(app, p.accountId), 1);
   assert.equal(fresh(app, whileAway), false);
 });
 
@@ -293,7 +293,7 @@ test("expiry works in batches and stays inside one PURSS", (t) => {
   const theirs = makeSource(app, other, "Theirs", "feed/9");
   for (let i = 0; i < 2300; i++) addItem(app, p, src, { discoveredAt: ago(60 * DAY) });
   const otherItem = addItem(app, other, theirs, { discoveredAt: ago(60 * DAY) });
-  assert.equal(expireFreshMarkers(app, p.accountId), 2300);
+  assert.equal(expireNewMarkers(app, p.accountId), 2300);
   assert.equal(fresh(app, otherItem), true, "another account's markers are not touched");
 });
 
@@ -308,15 +308,15 @@ test("Start fresh clears every New marker past the page size in one go, with one
   for (let i = 0; i < 1250; i++) ids.push(addItem(app, p, src));
   const kept = addItem(app, p, src);
   changeState(app, p, kept, { workflow: "inprogress", progress: 0.4, expectedRevision: revision(app, kept) });
-  app.db.run("UPDATE item_state SET fresh = 1 WHERE item_id = ?", kept); // New again, so Start fresh has it to clear
-  const out = clearFreshAll(app, p, "all");
+  app.db.run("UPDATE item_state SET is_new = 1 WHERE item_id = ?", kept); // New again, so Start fresh has it to clear
+  const out = clearNewAll(app, p, "all");
   assert.equal(out.changed, 1251);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND fresh = 1", p.accountId)!.n, 0);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 1", p.accountId)!.n, 0);
   assert.equal(fresh(app, theirItem), true);
   assert.equal(app.db.get<{ w: string; pr: number }>("SELECT workflow AS w, progress AS pr FROM item_state WHERE item_id = ?", kept)!.w, "inprogress", "only freshness changes");
-  assert.deepEqual(clearFreshAll(app, p, "all"), { changed: 0, undoToken: null });
+  assert.deepEqual(clearNewAll(app, p, "all"), { changed: 0, undoToken: null });
   applyUndo(app, p, out.undoToken!);
-  assert.equal(listItems(app, p, { scope: "all", filter: "fresh", limit: 1 }).total, 1251, "every marker is back, including the one on the item in progress");
+  assert.equal(listItems(app, p, { scope: "all", filter: "new", limit: 1 }).total, 1251, "every marker is back, including the one on the item in progress");
   assert.equal(ids.length, 1250);
 });
 
@@ -356,7 +356,7 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   addItem(app, p, loose, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, quiet, { discoveredAt: ago(1 * DAY) });
   addItem(app, p, essays, { discoveredAt: ago(5 * DAY) });
-  addItem(app, p, essays, { discoveredAt: ago(1 * DAY), fresh: false });
+  addItem(app, p, essays, { discoveredAt: ago(1 * DAY), isNew: false });
 
   const o = homeOverview(app, p);
   assert.equal(o.lastVisitAt, app.db.get<{ v: string }>("SELECT last_visit_at AS v FROM accounts WHERE id = ?", p.accountId)!.v);
@@ -391,20 +391,20 @@ test("Home's overview: what is New since the last visit, what to pick up, what w
   changeState(app, p, idle, { opened: true, expectedRevision: revision(app, idle) });
   assert.deepEqual(homeOverview(app, p).toWatch.items.map((i) => i.id), [v1, v2]);
 
-  assert.equal(homeOverview(app, p).fresh, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND fresh = 1", p.accountId)!.n);
+  assert.equal(homeOverview(app, p).isNew, app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND is_new = 1", p.accountId)!.n);
 });
 
 test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, fresh: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, isNew: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------
 
 /** Every page of a Home list, one request after another, with something allowed to change between requests. */
-function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "fresh"; limit: number }, between: (page: number) => void = () => {}): string[] {
+function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "new"; limit: number }, between: (page: number) => void = () => {}): string[] {
   const out: string[] = [];
   let cursor: string | undefined;
   for (let n = 0; n < 400; n++) {
@@ -440,8 +440,8 @@ test("Home lists only Undecided items, newest first; nothing put aside, started,
     assert.deepEqual(pages(app, p, { scope, limit }), expected, `${scope}, ${limit} a page: Undecided newest first`);
   }
   // The New-only layout keeps its own filter: New items still Undecided first, then those put aside, each newest first.
-  app.db.run("UPDATE item_state SET fresh = CASE WHEN item_id IN (?, ?) THEN 1 ELSE 0 END", today[5]!, old);
-  assert.deepEqual(pages(app, p, { scope: "home", filter: "fresh", limit: 10 }), [today[5], old]);
+  app.db.run("UPDATE item_state SET is_new = CASE WHEN item_id IN (?, ?) THEN 1 ELSE 0 END", today[5]!, old);
+  assert.deepEqual(pages(app, p, { scope: "home", filter: "new", limit: 10 }), [today[5], old]);
   assert.throws(() => listItems(app, p, { scope: "home", cursor: "garbage", mix: "home" }), /expired/);
 });
 
@@ -566,7 +566,7 @@ test("with a daily digest, arrivals wait and one digest counts what is still New
   mk(lone, "2026-11-04T12:00:00.000Z");
   mk(muted, "2026-11-04T12:00:00.000Z");
   mk(shelved, "2026-11-04T12:00:00.000Z");
-  mk(essays, "2026-11-04T13:00:00.000Z", { fresh: false });
+  mk(essays, "2026-11-04T13:00:00.000Z", { isNew: false });
   mk(essays, "2026-11-02T13:00:00.000Z");
   notifyArrivals(app, p.accountId, [[essays, 2]]);
   assert.equal(notes(app).length, 0, "digest mode: nothing at once");
@@ -759,7 +759,7 @@ test("switching digest frequency starts from now; Never doesn't hide other unrea
 
 test("legacy 'off' mode reads as the frequency off, legacy 'arrivals' as a weekly digest, and the new fields validate", () => {
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { mode: "off", quietStart: null, quietEnd: null, previews: false } }).success, true);
-  assert.equal(preferencesPatchSchema.safeParse({ freshDays: 366 }).success, false);
+  assert.equal(preferencesPatchSchema.safeParse({ newDays: 366 }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { digestTime: "25:00" } }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { digestDay: 7 } }).success, false);
   assert.equal(preferencesPatchSchema.safeParse({ notifications: { include: { newItems: ["col_a"] } } }).success, true);
@@ -994,19 +994,19 @@ test("the new queries use indexes, not whole-table scans", (t) => {
   const plan = (sql: string, ...params: (string | number | null)[]) => app.db.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`, ...params).map((r) => r.detail);
   const scans = (lines: string[]) => lines.filter((l) => /^SCAN (i|st|items|item_state|s|sources|basket_items|b|notifications|captures)\b/.test(l) && !/USING (COVERING )?INDEX/.test(l));
   const ws = p.accountId;
-  const expiry = plan(`UPDATE item_state SET fresh = 0 WHERE account_id = ? AND item_id IN (
-     SELECT st.item_id FROM item_state st JOIN items i ON i.id = st.item_id WHERE st.account_id = ? AND st.fresh = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT 10)`, ws, ws, "x", null, null);
+  const expiry = plan(`UPDATE item_state SET is_new = 0 WHERE account_id = ? AND item_id IN (
+     SELECT st.item_id FROM item_state st JOIN items i ON i.id = st.item_id WHERE st.account_id = ? AND st.is_new = 1 AND i.discovered_at < ? AND (? IS NULL OR i.discovered_at <= ?) LIMIT 10)`, ws, ws, "x", null, null);
   assert.deepEqual(scans(expiry), [], expiry.join("\n"));
-  assert.ok(expiry.some((l) => /item_state_fresh/.test(l)), expiry.join("\n"));
+  assert.ok(expiry.some((l) => /item_state_new/.test(l)), expiry.join("\n"));
   const fromVisible = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id";
-  const since = plan(`SELECT i.source_id, COUNT(*) ${fromVisible} WHERE i.account_id = ? AND i.discovered_at > ? AND st.fresh = 1 AND s.followed = 1 GROUP BY i.source_id`, ws, "x");
+  const since = plan(`SELECT i.source_id, COUNT(*) ${fromVisible} WHERE i.account_id = ? AND i.discovered_at > ? AND st.is_new = 1 AND s.followed = 1 GROUP BY i.source_id`, ws, "x");
   assert.deepEqual(scans(since), [], since.join("\n"));
   const inProgress = plan(`SELECT i.id ${fromVisible} WHERE i.account_id = ? AND st.workflow = 'inprogress' ORDER BY st.updated_at DESC LIMIT 6`, ws);
   assert.deepEqual(scans(inProgress), [], inProgress.join("\n"));
   const opened = plan(`SELECT i.id ${fromVisible} WHERE i.account_id = ? AND st.opened_at IS NOT NULL AND st.opened_at >= ? ORDER BY st.opened_at DESC LIMIT 6`, ws, "x");
   assert.deepEqual(scans(opened), [], opened.join("\n"));
-  const freshCount = plan(`SELECT COUNT(*) ${fromVisible} WHERE st.account_id = ? AND st.fresh = 1`, ws);
-  assert.deepEqual(scans(freshCount), [], freshCount.join("\n"));
+  const newCount = plan(`SELECT COUNT(*) ${fromVisible} WHERE st.account_id = ? AND st.is_new = 1`, ws);
+  assert.deepEqual(scans(newCount), [], newCount.join("\n"));
   const kept = plan("SELECT item_id FROM basket_items WHERE account_id = ? AND kept_at >= ? ORDER BY kept_at DESC LIMIT 30", ws, "x");
   assert.deepEqual(scans(kept), [], kept.join("\n"));
   const feed = plan(`SELECT i.id, i.listed_at AS k ${fromVisible} WHERE i.account_id = ? AND st.workflow <> 'ignored'

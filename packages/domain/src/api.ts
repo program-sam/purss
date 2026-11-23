@@ -80,7 +80,7 @@ export type SourceDTO = {
   healthText: string | null; // plain words when not ok
   lastItemAt: string | null;
   lastSuccessAt: string | null;
-  freshCount: number;
+  newCount: number;
   itemCount: number;
   paused: boolean;
   /** When a pause for a week or a month ends by itself; null for a pause until resumed, and when not paused. */
@@ -110,7 +110,7 @@ export type CollectionDTO = {
   showOnHome: boolean;
   sourceIds: string[];
   query: QueryNode | null;
-  freshCount: number;
+  newCount: number;
   itemCount: number;
   /** The collection's Smart filter is on, judging the posts of all its sources. */
   aiFiltered: boolean;
@@ -136,11 +136,11 @@ export type Preferences = {
   density: "comfortable" | "compact";
   homeLayout: "collections" | "feed" | "new" | "front";
   homeCollectionIds: string[]; // order; empty = all in sidebar order
-  freshMarkers: boolean;
+  newMarkers: boolean;
   showCounts: boolean;
   reminders: boolean; // anniversary reminders, on by default
   /** Days an item stays marked New; 0 keeps the marker until it is cleared. */
-  freshDays: number;
+  newDays: number;
   /** Home shows an "Other sources" box for sources that are in no collection. */
   homeOther: boolean;
   /** The one-time question about notifications and New markers has been answered (or skipped). */
@@ -189,10 +189,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   density: "comfortable",
   homeLayout: "collections",
   homeCollectionIds: [],
-  freshMarkers: true,
+  newMarkers: true,
   showCounts: true,
   reminders: true,
-  freshDays: 30,
+  newDays: 30,
   homeOther: true,
   welcomeAsked: false,
   notifications: {
@@ -255,7 +255,7 @@ export type ItemDTO = {
   playbackWorkflowSessionId: string | null;
   /** Moves by one on every change to the item's state, the New marker, opening and keeping it in a basket included. The revision guards workflow and progress against stale writers; this tells which of two copies of the item is newer. */
   stateVersion: number;
-  fresh: boolean;
+  isNew: boolean;
   progress: number; // 0..1 reading progress, separate from workflow
   opened: boolean;
   basketIds: string[];
@@ -336,14 +336,14 @@ export type ItemDetail = ItemDTO & {
   gallery: string[];
 };
 
-export const itemScopeSchema = z.string().regex(/^(home|all|fresh|toread|loose|collection:[a-z0-9_]+|source:[a-z0-9_]+|basket:[a-z0-9_]+)$/);
+export const itemScopeSchema = z.string().regex(/^(home|all|new|toread|loose|collection:[a-z0-9_]+|source:[a-z0-9_]+|basket:[a-z0-9_]+)$/);
 /** Comma-separated source ids, as the source chips pick them. */
 const sourceIdList = z.string().max(4000).regex(/^[a-z0-9_]+(,[a-z0-9_]+)*$/);
 export const itemListQuerySchema = z.object({
   scope: itemScopeSchema.default("all"),
   // active = everything but ignored. "open" is what interfaces installed in the phone and desktop apps before Home listed only
   // Undecided items send for Home's lists (such an interface can stay installed indefinitely): it reads as "undecided", so they follow the same rule.
-  filter: z.enum(["all", "fresh", ...WORKFLOW_STATES, "active", "open"]).default("active").transform((f) => (f === "open" ? "undecided" : f)),
+  filter: z.enum(["all", "new", ...WORKFLOW_STATES, "active", "open"]).default("active").transform((f) => (f === "open" ? "undecided" : f)),
   sort: z.enum(SORTS).default("newest"),
   q: z.string().max(200).optional(),
   /** Only items from these sources (comma separated). */
@@ -380,7 +380,7 @@ export const stateChangeSchema = z.object({
   workflow: z.enum(WORKFLOW_STATES).optional(),
   progress: z.number().min(0).max(1).optional(),
   opened: z.boolean().optional(),
-  fresh: z.literal(false).optional(), // clearing a freshness marker; never sets read/workflow
+  isNew: z.literal(false).optional(), // clearing a freshness marker; never sets read/workflow
   expectedRevision: z.number().int().min(0),
   /** The player's own changes (In progress, Finished) carry these three together and are checked against the workflow revision alone, so reading progress and the New marker cannot block them. */
   expectedWorkflowRevision: z.number().int().min(0).optional(),
@@ -392,7 +392,7 @@ export const stateChangeSchema = z.object({
   if (count === 0) return;
   if (count !== playbackFields.length) ctx.addIssue({ code: "custom", path: ["playbackSessionId"], message: "Playback workflow fields must be provided together." });
   if (value.workflow !== "inprogress" && value.workflow !== "finished") ctx.addIssue({ code: "custom", path: ["workflow"], message: "Playback can only move an item to In progress or Finished." });
-  if (value.progress !== undefined || value.opened !== undefined || value.fresh !== undefined) ctx.addIssue({ code: "custom", path: ["workflow"], message: "A playback change moves the workflow and nothing else." });
+  if (value.progress !== undefined || value.opened !== undefined || value.isNew !== undefined) ctx.addIssue({ code: "custom", path: ["workflow"], message: "A playback change moves the workflow and nothing else." });
 });
 export type StateChange = z.infer<typeof stateChangeSchema>;
 
@@ -400,14 +400,14 @@ export const bulkActionSchema = z.object({
   itemIds: z.array(z.string()).min(1).max(MAX_BULK_ITEMS),
   action: z.discriminatedUnion("type", [
     z.object({ type: z.literal("workflow"), workflow: z.enum(WORKFLOW_STATES) }),
-    z.object({ type: z.literal("clearFresh") }),
+    z.object({ type: z.literal("clearNew") }),
     z.object({ type: z.literal("keep"), basketId: z.string() }),
     z.object({ type: z.literal("unkeep"), basketId: z.string() }),
   ]),
 });
 export type BulkResult = { changed: number; undoToken: string };
 
-export const clearFreshSchema = z.object({ scope: itemScopeSchema });
+export const clearNewSchema = z.object({ scope: itemScopeSchema });
 export const undoSchema = z.object({ undoToken: z.string() });
 
 // ---------- sources / discovery ----------
@@ -716,7 +716,7 @@ export type HomeOverview = {
   /** To read podcast episodes ("To listen"), counted the same way. */
   toListen: { items: ItemDTO[]; total: number; totalAtMost: boolean };
   /** Every New marker in PURSS, for "Start fresh". */
-  fresh: number;
+  isNew: number;
   /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's back catalogue is not in it when the source was followed from now: that is Ignored. */
   unread: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */

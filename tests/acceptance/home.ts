@@ -137,7 +137,7 @@ function prepare(): Seed {
     // A source to triage on without changing what Home says: its posts are not New, and its collection is not on Home.
     const focus = makeSource(app, p, "Focus Notes", "feed/6");
     applySyncBatch(app, eu, batch(["Focus note 1", "Focus note 2", "Focus note 3"].map((title, i) => entry("feed/6", { title, summaryHtml: `<p>${title}.</p>`, publishedAt: at(60 + i), crawledAt: at(59 + i) }))));
-    app.db.run("UPDATE item_state SET fresh = 0 WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", focus);
+    app.db.run("UPDATE item_state SET is_new = 0 WHERE item_id IN (SELECT id FROM items WHERE source_id = ?)", focus);
     const focusBox = createCollection(app, p, { name: "Focus", emoji: null, mode: "sources", view: "list", sourceIds: [focus], query: null } as Parameters<typeof createCollection>[2]);
     app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", focusBox.id);
     // A channel with one video whose page YouTube can play in the reader (Play here).
@@ -303,7 +303,7 @@ async function main(): Promise<void> {
     await page.locator("main .irow").first().waitFor();
     // A collection with new items opens on them; opened items stop being new, so read from everything.
     const show = page.locator("main").getByRole("button", { name: /^Filter: / }).first();
-    assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.fresh}`, "a collection with new items opens on New");
+    assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.new}`, "a collection with new items opens on New");
     await show.click();
     await page.getByRole("menuitemradio", { name: filters.active, exact: true }).click();
     await page.waitForURL(/filter=active/);
@@ -422,7 +422,7 @@ async function main(): Promise<void> {
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
     await page.getByRole("button", { name: /^Filter: / }).click();
     assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.words.showIgnoredItems }).count(), 0, "the queue never holds ignored items, so it does not offer them");
-    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.fresh, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.new, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
     await page.getByRole("menuitemradio", { name: copy.words.inProgress, exact: true }).click();
     await page.waitForURL(/filter=inprogress/);
     await sleep(600);
@@ -606,7 +606,7 @@ async function main(): Promise<void> {
     await stillPage.waitForFunction(() => document.querySelectorAll("main .irow").length === 0);
     assert.equal((await activeRow()).tag, "H1", "the list emptied: focus is on its heading, not the page");
     step("with reduced motion, Ignore on a row keeps focus on a row that stays, or on the list's heading when none is left");
-    await stillPage.goto(`${origin}/app/c/${seed.reading}?filter=fresh`);
+    await stillPage.goto(`${origin}/app/c/${seed.reading}?filter=new`);
     await stillPage.locator("main .irow").first().waitFor();
     const fresh = await stillPage.locator("main .irow").count();
     const first = stillPage.locator("main .irow").first();

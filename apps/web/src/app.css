@@ -145,7 +145,7 @@ body{overflow:hidden}
 .mod-t .t{font-size:0.9375rem;font-weight:800;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto;max-width:100%}
 .mod-t>button:hover .t{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .mod-t .go{color:var(--ink-3);margin-left:-6px;flex:none}
-.mod-fresh{display:inline-flex;align-items:center;gap:6px;font-size:0.7812rem;font-weight:800;color:var(--accent-ink);white-space:nowrap;padding-right:2px}
+.mod-new{display:inline-flex;align-items:center;gap:6px;font-size:0.7812rem;font-weight:800;color:var(--accent-ink);white-space:nowrap;padding-right:2px}
 .mod-b .row-main{padding-top:calc(var(--row-py) - 1px);padding-bottom:calc(var(--row-py) - 1px)}
 .mod-all{display:flex;align-items:center;gap:4px;width:100%;padding:10px 14px;border-top:1px solid var(--line);font-size:0.8125rem;font-weight:700;color:var(--accent-ink)}
 .mod-all span{color:var(--ink-3);font-weight:600}
@@ -468,9 +468,9 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;f
   @keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 }
 @media (prefers-reduced-motion:reduce){.pulse{animation:none}.chev .ic{transition:none}}
-[data-fresh="off"] .dot,[data-fresh="off"] .mod-fresh,[data-fresh="off"] .psub .fr,[data-fresh="off"] .home-sum .fr,[data-fresh="off"] .home-sum .since,[data-fresh="off"] .since-boxes{display:none}
+[data-new="off"] .dot,[data-new="off"] .mod-new,[data-new="off"] .psub .fr,[data-new="off"] .home-sum .fr,[data-new="off"] .home-sum .since,[data-new="off"] .since-boxes{display:none}
 /* "Show counts" off: no number of New items anywhere (sidebar, page heads, Home's boxes and summary). Words stay. */
-[data-counts="off"] .cnt,[data-counts="off"] .bk .n,[data-counts="off"] .rbtn .bn,[data-counts="off"] .psub .fr,[data-counts="off"] .home-sum .fr,[data-counts="off"] .mod-fresh,[data-counts="off"] .wb-n{display:none}
+[data-counts="off"] .cnt,[data-counts="off"] .bk .n,[data-counts="off"] .rbtn .bn,[data-counts="off"] .psub .fr,[data-counts="off"] .home-sum .fr,[data-counts="off"] .mod-new,[data-counts="off"] .wb-n{display:none}
 
 /* ===== Breakpoints (data-bp is set from the viewport width by script) ===== */
 /* md 1024-1279: sidebar rail, panel overlays from the right */

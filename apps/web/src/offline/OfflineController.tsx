@@ -43,7 +43,7 @@ export function OfflineController() {
   }, [known, accountId, enabled]);
 
   // What the person reads or keeps just changed (To read, a keep, an undo): the saved queue follows soon after.
-  useEffect(() => outbox.onOutcome((o) => { if (o.status === "sent" && o.result.kind !== "clearFresh") emitReadingChanged(); }), []);
+  useEffect(() => outbox.onOutcome((o) => { if (o.status === "sent" && o.result.kind !== "clearNew") emitReadingChanged(); }), []);
 
   usePack(accountId, enabled);
 

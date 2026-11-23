@@ -50,11 +50,11 @@ export function useApplyAppearance(prefs: Preferences): void {
     apply();
     root.dataset.skin = prefs.skin;
     root.dataset.density = prefs.density;
-    root.dataset.fresh = prefs.freshMarkers ? "on" : "off";
+    root.dataset.isNew = prefs.newMarkers ? "on" : "off";
     root.dataset.counts = prefs.showCounts ? "on" : "off";
     writeVisualHint({ theme: prefs.theme, skin: prefs.skin, density: prefs.density });
     if (prefs.theme !== "system" || eink) return;
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [prefs.theme, prefs.skin, prefs.density, prefs.freshMarkers, prefs.showCounts, eink]);
+  }, [prefs.theme, prefs.skin, prefs.density, prefs.newMarkers, prefs.showCounts, eink]);
 }

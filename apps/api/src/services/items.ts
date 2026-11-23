@@ -44,7 +44,7 @@ export type NewItem = {
   enclosures: { url: string; type: string | null; length?: number | null }[];
   /** The feed's full text was too large to send; the item holds its summary only. */
   contentOmitted?: boolean;
-  fresh: boolean;
+  isNew: boolean;
   /** Back catalogue of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
   ignored?: boolean;
   reason: string;
@@ -71,7 +71,7 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
     "INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     versionId, id, n.accountId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
   );
-  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, fresh, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.fresh ? 1 : 0, now);
+  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.isNew ? 1 : 0, now);
   indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
   admitObject(app, {
     accountId: n.accountId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
@@ -109,7 +109,7 @@ export function indexText(app: App, seq: number, t: { title: string; excerpt: st
 // ---------- listing ----------
 
 export const ITEM_COLUMNS = `i.id, i.number, i.source_id, s.title AS source_title, s.kind AS source_kind, i.kind, i.title, i.url, i.author, i.excerpt, i.image_url,
-  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.fresh, st.progress, st.opened_at,
+  i.duration_seconds, i.read_minutes, i.doi, i.published_at, i.discovered_at, i.listed_at, i.curator_note, st.workflow, st.revision, st.workflow_revision, st.playback_workflow_session, st.state_version, st.is_new, st.progress, st.opened_at,
   (SELECT group_concat(b.basket_id) FROM basket_items b WHERE b.item_id = i.id) AS basket_ids,
   i.enclosures, COALESCE(s.is_private, 0) AS is_private,
   (SELECT MAX(a.received_at) FROM annotations a WHERE a.item_id = i.id) AS annotated_at,
@@ -118,7 +118,7 @@ export const ITEM_COLUMNS = `i.id, i.number, i.source_id, s.title AS source_titl
 export type ItemRow = {
   id: string; number: number; source_id: string | null; source_title: string | null; source_kind: string | null; kind: string; title: string; url: string | null; author: string | null;
   excerpt: string | null; image_url: string | null; duration_seconds: number | null; read_minutes: number | null; doi: string | null;
-  published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; fresh: number;
+  published_at: string | null; discovered_at: string; listed_at: string; curator_note: string | null; workflow: WorkflowState; revision: number; workflow_revision: number; playback_workflow_session: string | null; state_version: number; is_new: number;
   progress: number; opened_at: string | null; basket_ids: string | null; enclosures: string | null; is_private: number; annotated_at: string | null;
   /** the stored copy of the item's own picture (item_images), when there is one */
   image_kept: string | null;
@@ -134,7 +134,7 @@ export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
     // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
     id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.savedLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: shownImage(r), durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
-    publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, fresh: r.fresh === 1,
+    publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, isNew: r.is_new === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,
     media: itemMedia(r.enclosures, r.is_private === 1),
     linkIsMedia,
@@ -167,7 +167,7 @@ export function compileQuery(node: QueryNode, params: SqlParam[], accountId: str
     case "kind": return `i.kind IN (${list(node.value)})`;
     case "workflow": return `st.workflow IN (${list(node.value)})`;
     case "author": params.push(`%${node.value}%`); return "i.author LIKE ?";
-    case "fresh": return node.value ? "st.fresh = 1" : "st.fresh = 0";
+    case "new": return node.value ? "st.is_new = 1" : "st.is_new = 0";
     case "opened": return node.value ? "st.opened_at IS NOT NULL" : "st.opened_at IS NULL";
     case "kept": return `${node.value ? "" : "NOT "}EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)`;
     // Only this PURSS's own baskets and collections count, whatever ids a filter names.
@@ -267,8 +267,8 @@ export function scopeClause(app: App, p: Principal, scope: string, params: SqlPa
     case "all":
     case "home":
       return "1";
-    case "fresh":
-      return "st.fresh = 1";
+    case "new":
+      return "st.is_new = 1";
     case "toread":
       // The queue: what is waiting (To read, To watch, To listen) and what is started (In progress). Looked up by state in the account's
       // own item_state index (the states are rare), not found by probing every item.
@@ -400,7 +400,7 @@ export function listItems(app: App, p: Principal, input: ItemListQuery, opts: Li
 function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQuerySchema>, "cursor" | "limit">, opts: ListOptions, snapshot: number | null): { where: string[]; params: SqlParam[] } {
   const params: SqlParam[] = [p.accountId];
   const where: string[] = ["i.account_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
-  if (q.filter === "fresh") where.push("st.fresh = 1");
+  if (q.filter === "new") where.push("st.is_new = 1");
   else if (q.filter === "active") where.push("st.workflow <> 'ignored'");
   else if (q.filter !== "all") { where.push("st.workflow = ?"); params.push(q.filter); }
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
@@ -524,7 +524,7 @@ export const listTuning = { countFromRowsBelowShare: 0.2, sortFromRowsBelow: 200
 
 /** The part of a list's scope that depends on an item's state rather than on its source. */
 const SCOPE_STATE: Record<string, { sql: string; keep: CellFilter }> = {
-  fresh: { sql: "st.fresh = 1", keep: (_w, fresh) => fresh },
+  new: { sql: "st.is_new = 1", keep: (_w, isNew) => isNew },
   toread: { sql: QUEUE_STATES_SQL, keep: (w) => w === "toread" || w === "inprogress" },
 };
 
@@ -550,9 +550,9 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
     scopeSources = new Set(looseSources(app, p.accountId));
   } else if (kind !== "all" && kind !== "home" && !scopeState) return null;
 
-  const filterSql = q.filter === "fresh" ? "st.fresh = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "all" ? "1" : "st.workflow = ?";
-  const filterKeep: CellFilter = q.filter === "fresh" ? (_w, fresh) => fresh : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "all" ? () => true : (w) => w === q.filter;
-  const keep: CellFilter = (w, fresh) => filterKeep(w, fresh) && (!scopeState || scopeState.keep(w, fresh));
+  const filterSql = q.filter === "new" ? "st.is_new = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "all" ? "1" : "st.workflow = ?";
+  const filterKeep: CellFilter = q.filter === "new" ? (_w, isNew) => isNew : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "all" ? () => true : (w) => w === q.filter;
+  const keep: CellFilter = (w, isNew) => filterKeep(w, isNew) && (!scopeState || scopeState.keep(w, isNew));
 
   const counts = itemCounts(app, p.accountId);
   const followed = new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND (followed = 1 OR kind = 'manual')", p.accountId).map((r) => r.id));

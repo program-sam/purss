@@ -98,7 +98,7 @@ export function CustomiseHomeDialog() {
             <Segmented labelledBy="dn" value={p.density} onChange={(v) => void save({ density: v })} style={{ justifySelf: "start" }} buttonStyle={{ height: 30, padding: "0 14px" }}
               options={[{ value: "comfortable", label: app.words.comfortable }, { value: "compact", label: app.words.compact }]} /></div>
           <div className="field" style={{ gap: 2 }}>
-            <Check checked={p.freshMarkers} onChange={(v) => void save({ freshMarkers: v })}>{app.words.showNewMarkers}</Check>
+            <Check checked={p.newMarkers} onChange={(v) => void save({ newMarkers: v })}>{app.words.showNewMarkers}</Check>
             <Check checked={p.showCounts} onChange={(v) => void save({ showCounts: v })}>{app.words.showCounts}</Check>
             <p className="fine">{t.settingsNote.before}<button type="button" className="link" onClick={() => ov.open({ kind: "settings", tab: "notifications" })}>{app.words.settings}</button>{"."}</p>
           </div>

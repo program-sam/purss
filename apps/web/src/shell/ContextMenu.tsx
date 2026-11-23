@@ -118,7 +118,7 @@ export function ContextMenus() {
             { label: app.words.collectionSettings, onSelect: () => overlays.open({ kind: "collection-settings", id: c.id }) },
             ...(c.mode === "sources" ? [{ label: app.words.smartFilter, onSelect: () => overlays.open({ kind: "ai-filter", collectionId: c.id }) } as MenuEntry] : []),
             { label: c.showOnHome ? app.words.hideFromHome : app.words.showOnHome, onSelect: () => void patch(`/api/collections/${encodeURIComponent(c.id)}`, { showOnHome: !c.showOnHome }).then(() => refreshPurss(qc, { items: false }), (err) => toast(messageOf(err), { tone: "error" })) },
-            { label: app.words.markAllAsSeen, onSelect: () => void actions.clearFresh(`collection:${c.id}`) },
+            { label: app.words.markAllAsSeen, onSelect: () => void actions.clearNew(`collection:${c.id}`) },
           ],
         };
       }

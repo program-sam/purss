@@ -25,7 +25,7 @@ object WidgetLists {
         return when (key) {
             "toread" -> "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos$tail"
             "tolisten" -> "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts$tail"
-            "new" -> "/api/items?scope=all&filter=fresh&sort=newest$tail"
+            "new" -> "/api/items?scope=all&filter=new&sort=newest$tail"
             else -> "/api/items?scope=${key.replace(":", "%3A")}&filter=active&sort=newest$tail"
         }
     }

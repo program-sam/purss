@@ -57,7 +57,7 @@ test("a list opened from a failed-text notification asks only for those items", 
 
 test("a collection opens on its new items while it has any, then on everything but ignored", () => {
   const c = { t: "c", id: "col_1" } as const;
-  assert.equal(defaultFilterFor(c, "cards", 26), "fresh");
+  assert.equal(defaultFilterFor(c, "cards", 26), "new");
   assert.equal(defaultFilterFor(c, "list", 0), "active");
   assert.equal(defaultFilterFor(c, "board", 26), "active", "the board keeps every item in its workflow columns");
   assert.equal(defaultFilterFor({ t: "s", id: "src_1" }, "list", 5), "active");
@@ -81,15 +81,15 @@ test("a basket has no Ignored: it shows everything kept in it, ignored or not", 
 });
 
 test("a chosen filter stays in the address unless it is the page's default", () => {
-  assert.equal(filterParam({ defaultFilter: "fresh" }, "fresh"), undefined);
-  assert.equal(filterParam({ defaultFilter: "fresh" }, "active"), "active");
+  assert.equal(filterParam({ defaultFilter: "new" }, "new"), undefined);
+  assert.equal(filterParam({ defaultFilter: "new" }, "active"), "active");
   assert.equal(filterParam({ defaultFilter: "active" }, "active"), undefined);
   assert.equal(filterParam({ defaultFilter: "active" }, "all"), "all");
 });
 
 test("the queue page offers the filters that can show something: what is waiting, what is started, what is New", () => {
   const r = { t: "r", id: "toread" } as const;
-  assert.deepEqual(filterChoices(r), ["active", "fresh", "toread", "inprogress"]);
+  assert.deepEqual(filterChoices(r), ["active", "new", "toread", "inprogress"]);
   assert.equal(filterFor(r, "inprogress", "active"), "inprogress");
   assert.equal(filterFor(r, "toread", "active"), "toread");
   assert.equal(filterFor(r, "finished", "active"), "active", "an address naming a state the queue never holds opens on All");

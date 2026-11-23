@@ -58,7 +58,7 @@ function SourceRow({ s, place }: { s: SourceDTO; place: Place | null }) {
         <span className="sp" />
         {s.aiFiltered ? <FilterMark /> : null}
         <HealthMark source={s} />
-        {s.freshCount ? <span className="cnt" title={t.newCount(formatCount(s.freshCount))}>{formatCount(s.freshCount)}<span className="u">{app.words.newSpaced}</span></span> : null}
+        {s.newCount ? <span className="cnt" title={t.newCount(formatCount(s.newCount))}>{formatCount(s.newCount)}<span className="u">{app.words.newSpaced}</span></span> : null}
       </button>
     </li>
   );
@@ -69,7 +69,7 @@ function Group({ id, label, sources, collection, place }: { id: string; label: s
   const hints = useHints();
   const open = useOpenGroups().includes(id);
   const here = !!collection && place?.t === "c" && place.id === collection.id;
-  const fresh = collection ? collection.freshCount : sources.reduce((n, s) => n + s.freshCount, 0);
+  const fresh = collection ? collection.newCount : sources.reduce((n, s) => n + s.newCount, 0);
   const expandable = !collection || collection.mode === "sources";
   // A closed group holding the source you're on marks its name, so you can still see where you are.
   const within = !open && place?.t === "s" && sources.some((s) => s.id === place.id);
@@ -151,12 +151,12 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
             const sel = (place?.t === "c" && place.id === c.id) || (place?.t === "s" && ws.sourceById.get(place.id)?.collectionIds.includes(c.id));
             return (
               <button key={c.id} type="button" className={`rbtn${sel ? " sel" : ""}`} data-tip={c.name} aria-current={place?.t === "c" && place.id === c.id ? "page" : undefined}
-                aria-label={`${c.name}, ${plural(c.sourceIds.length, "source")}${c.freshCount ? `, ${c.freshCount} new` : ""}`} data-collection={c.id} onClick={() => nav.go({ t: "c", id: c.id })}>
+                aria-label={`${c.name}, ${plural(c.sourceIds.length, "source")}${c.newCount ? `, ${c.newCount} new` : ""}`} data-collection={c.id} onClick={() => nav.go({ t: "c", id: c.id })}>
                 {/* The collection's own emoji, else its first source's icon, so collections are told apart in the rail. */}
                 {/* The tile, then the collection's name under it, so a collection never reads as one of its sources. */}
                 {c.emoji || !ws.sourcesOf(c)[0] ? <span className="rtile" aria-hidden="true">{c.emoji || c.name[0]?.toUpperCase()}</span>
                   : <span className="rtile src" aria-hidden="true"><Avatar hue={ws.sourcesOf(c)[0]!.hue} initials={ws.sourcesOf(c)[0]!.initials} src={ws.sourcesOf(c)[0]!.iconUrl} size={24} /></span>}
-                <span className="rname" aria-hidden="true" dir="auto">{c.name}</span>{c.freshCount ? <i className="dot" /> : null}
+                <span className="rname" aria-hidden="true" dir="auto">{c.name}</span>{c.newCount ? <i className="dot" /> : null}
               </button>
             );
           })}

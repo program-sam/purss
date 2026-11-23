@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { clientAddress } from "../http.ts";
 import { z } from "zod";
 import {
-  bulkActionSchema, basketCreateSchema, basketPatchSchema, clearFreshSchema, collectionCreateSchema,
+  bulkActionSchema, basketCreateSchema, basketPatchSchema, clearNewSchema, collectionCreateSchema,
   browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, nameSearchSchema, sourcePatchSchema, sourcePrivacySchema,
   stateChangeSchema, undoSchema,
 } from "@purss/domain";
@@ -31,7 +31,7 @@ import { KNOWN_COOKIE, signedIn, takeTry, triesKey } from "../auth/sign-in-limit
 import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets } from "../services/items.ts";
 import { SEARCH_FIRST, SEARCH_MAX, noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
-import { applyUndo, bulk, changeState, clearFreshAll, keepWithUndo } from "../services/state.ts";
+import { applyUndo, bulk, changeState, clearNewAll, keepWithUndo } from "../services/state.ts";
 import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, searchSiteDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
 import {
   basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection, deleteItems, deletePreview,
@@ -499,7 +499,7 @@ export function publicRouter(): Router<Ctx> {
     const body = parse(bulkActionSchema, req.body);
     return bulk(ctx.app, p, body.itemIds, body.action);
   });
-  r.post("/api/items/clear-fresh", (req, ctx) => clearFreshAll(ctx.app, requirePrincipal(ctx), parse(clearFreshSchema, req.body).scope));
+  r.post("/api/items/clear-new", (req, ctx) => clearNewAll(ctx.app, requirePrincipal(ctx), parse(clearNewSchema, req.body).scope));
   r.post("/api/undo", (req, ctx) => applyUndo(ctx.app, requirePrincipal(ctx), parse(undoSchema, req.body).undoToken));
   r.post("/api/items/delete-preview", (req, ctx) => {
     const { itemIds } = parse(z.object({ itemIds: z.array(z.string()).min(1).max(MAX_BULK_ITEMS) }), req.body);

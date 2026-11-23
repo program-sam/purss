@@ -47,7 +47,7 @@ export function HomeBand() {
   const q = useHomeOverview();
   if (!ws.data.sources.length) return null;
   const o = q.data;
-  const fresh = ws.data.sources.reduce((n, s) => n + s.freshCount, 0);
+  const fresh = ws.data.sources.reduce((n, s) => n + s.newCount, 0);
   const today = new Intl.DateTimeFormat(interfaceLocale(), { weekday: "long", day: "numeric", month: "long", timeZone: ws.prefs.timezone }).format(new Date());
   const showCounts = ws.prefs.showCounts;
   const top = o?.since?.boxes.slice(0, 3) ?? [];
@@ -159,22 +159,22 @@ export function WelcomeRows() {
   const ws = usePurss();
   const actions = useItemActions();
   const o = useHomeOverview().data;
-  const fresh = o?.fresh ?? 0;
+  const fresh = o?.isNew ?? 0;
   const longAway = !!o?.lastVisitAt && Date.now() - Date.parse(o.lastVisitAt) > FRESH_AWAY_MS;
-  const offerFresh = fresh > 0 && ws.prefs.freshMarkers && (longAway || fresh >= FRESH_PILE);
+  const offerFresh = fresh > 0 && ws.prefs.newMarkers && (longAway || fresh >= FRESH_PILE);
   const rows = [
     <PutAsideRow key="toread" id="toread" title={app.words.toRead} row={o?.toRead} keeps={isToRead} type="articles" />,
     <PutAsideRow key="towatch" id="towatch" title={app.words.toWatch} row={o?.toWatch} keeps={isToWatch} type="videos" />,
     <PutAsideRow key="tolisten" id="tolisten" title={app.words.toListen} row={o?.toListen} keeps={isToListen} type="podcasts" />,
     <Attention key="attention" />,
     offerFresh ? (
-      <section key="fresh" className="mod wb wb-fresh" aria-label={app.words.markAllAsSeen}>
-        <div className="wb-fresh-in">
+      <section key="new" className="mod wb wb-new" aria-label={app.words.markAllAsSeen}>
+        <div className="wb-new-in">
           <div>
             <b>{app.words.markAllAsSeen}</b>
             <p className="fine">{ws.prefs.showCounts ? t.takesOffCount(plural(fresh, app.words.item)) : t.takesOffEvery}{t.nothingChanged}</p>
           </div>
-          <Button onClick={() => void actions.clearFresh("all")}>{app.words.markAllAsSeen}</Button>
+          <Button onClick={() => void actions.clearNew("all")}>{app.words.markAllAsSeen}</Button>
         </div>
       </section>
     ) : null,

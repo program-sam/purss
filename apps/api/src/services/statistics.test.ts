@@ -29,7 +29,7 @@ function addItem(app: App, p: Owner, sourceId: string, published: string | null,
   return insertItem(app, {
     accountId: p.accountId, sourceId, kind: "article", title: `Post ${serial}`, url: `https://example.org/stats/${serial}`, author: null,
     summaryHtml: `<p>Summary ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: published, discoveredAt: discovered, enclosures: [], fresh: false, reason: "feed item",
+    publishedAt: published, discoveredAt: discovered, enclosures: [], isNew: false, reason: "feed item",
   }).id;
 }
 
@@ -206,7 +206,7 @@ test("workflow changes write the log: single, bulk and undo; no-ops and other fi
   assert.deepEqual(logRows(app, x).map((r) => [r.from_state, r.to_state]), [["undecided", "toread"]]);
   setFlow(app, p, x, "toread");
   changeState(app, p, x, { progress: 0.4, expectedRevision: stateOf(app, x) });
-  changeState(app, p, x, { fresh: false, expectedRevision: stateOf(app, x) });
+  changeState(app, p, x, { isNew: false, expectedRevision: stateOf(app, x) });
   assert.equal(logRows(app, x).length, 1, "same state, progress and fresh clearing are not workflow changes");
 
   const undoOne = changeState(app, p, x, { workflow: "finished", expectedRevision: stateOf(app, x) }).undoToken;

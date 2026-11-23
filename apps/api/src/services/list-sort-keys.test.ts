@@ -74,7 +74,7 @@ function looseItem(app: App, p: Principal, title: string, publishedAt: string | 
   return insertItem(app, {
     accountId: p.accountId, sourceId: null, kind: "link", title, url: `https://example.org/${newId("x")}`, author: null,
     summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt,
-    discoveredAt: "2026-10-02T00:00:00.000Z", enclosures: [], fresh: false, reason: "test",
+    discoveredAt: "2026-10-02T00:00:00.000Z", enclosures: [], isNew: false, reason: "test",
   }).id;
 }
 

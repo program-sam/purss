@@ -90,7 +90,7 @@ export function useItemActions() {
       if (how === "set" && before.workflow === workflow) { toast(t.already(label)); return; }
       if (how === "set" && workflow === "ignored") previousWorkflow.set(id, before.workflow);
       const message = how === "restore" ? t.restoredTo(label) : workflow === "ignored" ? app.words.ignored : t.marked(label);
-      putItem(qc, { ...before, workflow, workflowRevision: before.workflow === workflow ? before.workflowRevision : before.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
+      putItem(qc, { ...before, workflow, workflowRevision: before.workflow === workflow ? before.workflowRevision : before.workflowRevision + 1, playbackWorkflowSessionId: null, isNew: false });
       const change: Change = { kind: "workflow", itemId: id, from: before.workflow, to: workflow, revision: revision ?? before.revision };
       let out: Outcome;
       try {
@@ -171,7 +171,7 @@ export function useItemActions() {
       for (const c of changes) {
         const it = before.get(c.itemId)!;
         if (workflow === "ignored") previousWorkflow.set(it.id, it.workflow);
-        putItem(qc, { ...it, workflow, workflowRevision: it.workflow === workflow ? it.workflowRevision : it.workflowRevision + 1, playbackWorkflowSessionId: null, fresh: false });
+        putItem(qc, { ...it, workflow, workflowRevision: it.workflow === workflow ? it.workflowRevision : it.workflowRevision + 1, playbackWorkflowSessionId: null, isNew: false });
       }
       const verb = workflow === "ignored" ? app.words.ignored : t.marked(label);
       await sendMany(changes, (n) => t.markedFor(verb, plural(n, app.words.item)), {
@@ -196,7 +196,7 @@ export function useItemActions() {
       const notApplied = { applied: false, workflowRevision: playback.expectedWorkflowRevision };
       const before = findItem(qc, id);
       if (!before || before.workflow !== from || before.workflowRevision !== playback.expectedWorkflowRevision) return notApplied;
-      putItem(qc, { ...before, workflow: to, workflowRevision: before.workflowRevision + 1, playbackWorkflowSessionId: playback.sessionId, fresh: false });
+      putItem(qc, { ...before, workflow: to, workflowRevision: before.workflowRevision + 1, playbackWorkflowSessionId: playback.sessionId, isNew: false });
       const revert = () => { putItem(qc, before); void qc.invalidateQueries({ queryKey: keys.item(id) }); void qc.invalidateQueries({ queryKey: keys.items }); };
       let out: Outcome;
       try { out = await outbox.submit({ kind: "workflow", itemId: id, from, to, revision: before.revision, playback }); }
@@ -215,7 +215,7 @@ export function useItemActions() {
       const basket = ws.basketById.get(basketId);
       const before = findItem(qc, id);
       if (!before || !basket) return;
-      putItem(qc, { ...before, fresh: false, basketIds: on ? [...new Set([...before.basketIds, basketId])] : before.basketIds.filter((b) => b !== basketId) });
+      putItem(qc, { ...before, isNew: false, basketIds: on ? [...new Set([...before.basketIds, basketId])] : before.basketIds.filter((b) => b !== basketId) });
       // A removed item leaves that basket's page at once; Undo refreshes the lists and brings it back.
       if (!on) dropFromScope(qc, `basket:${basketId}`, id);
       const message = t.keep(on, isolate(basket.name));
@@ -248,7 +248,7 @@ export function useItemActions() {
       const before = new Map(items.map((it) => [it.id, it] as const));
       for (const it of items) {
         const add = basketIds.filter((b) => !it.basketIds.includes(b));
-        if (add.length) putItem(qc, { ...it, fresh: false, basketIds: [...it.basketIds, ...add] });
+        if (add.length) putItem(qc, { ...it, isNew: false, basketIds: [...it.basketIds, ...add] });
       }
       const names = basketIds.map((b) => ws.basketById.get(b)?.name).filter((n): n is string => !!n);
       const where = names.length === 1 ? isolate(names[0]!) : plural(names.length, app.words.basketLower);
@@ -262,11 +262,11 @@ export function useItemActions() {
      * Every New marker in a scope (Mark all as seen). It stays online-only: sent later it would clear items that
      * arrived since, which the person never saw. Offline, it says so instead of failing without a word.
      */
-    async function clearFresh(scope: string): Promise<void> {
+    async function clearNew(scope: string): Promise<void> {
       const needsConnection = () => toast(t.needsConnection, { tone: "error" });
       if (typeof navigator !== "undefined" && navigator.onLine === false) { needsConnection(); return; }
       try {
-        const out = await post<ClearFreshResult>("/api/items/clear-fresh", { scope });
+        const out = await post<ClearFreshResult>("/api/items/clear-new", { scope });
         refreshPurss(qc);
         if (!out.changed || !out.undoToken) { toast(t.nothingNew); return; }
         toast(t.markedSeen(plural(out.changed, app.words.item)), { undoToken: out.undoToken });
@@ -275,14 +275,14 @@ export function useItemActions() {
       }
     }
 
-    async function clearFreshFor(ids: string[]): Promise<void> {
+    async function clearNewFor(ids: string[]): Promise<void> {
       const before = ids.map((id) => findItem(qc, id)).filter((x): x is ItemDTO => !!x);
-      before.forEach((it) => { if (it.fresh) putItem(qc, { ...it, fresh: false }); });
+      before.forEach((it) => { if (it.isNew) putItem(qc, { ...it, isNew: false }); });
       let out: Outcome;
       try {
-        out = await outbox.submit({ kind: "clearFresh", itemIds: ids });
+        out = await outbox.submit({ kind: "clearNew", itemIds: ids });
       } catch (err) { before.forEach((it) => putItem(qc, it)); fail(err); return; }
-      if (out.status === "sent" && out.result.kind === "clearFresh") {
+      if (out.status === "sent" && out.result.kind === "clearNew") {
         refreshPurss(qc);
         if (!out.result.changed || !out.result.undoToken) { toast(t.notMarkedNew(ids.length === 1)); return; }
         toast(t.markedSeen(plural(out.result.changed, app.words.item)), { undoToken: out.result.undoToken });
@@ -333,7 +333,7 @@ export function useItemActions() {
       const before = findItem(qc, id);
       const value = Math.round(Math.min(1, Math.max(0, progress)) * 100) / 100;
       if (!before || value <= before.progress) return;
-      putItem(qc, { ...before, progress: value, fresh: false });
+      putItem(qc, { ...before, progress: value, isNew: false });
       try {
         const out = await serial(id, async () => {
           const cur = findItem(qc, id) ?? before;
@@ -353,6 +353,6 @@ export function useItemActions() {
       }
     }
 
-    return { setWorkflow, restore, setPlaybackWorkflow, keep, keepMany, clearFresh, clearFreshFor, markOpened, undoSeenMarker, saveProgress };
+    return { setWorkflow, restore, setPlaybackWorkflow, keep, keepMany, clearNew, clearNewFor, markOpened, undoSeenMarker, saveProgress };
   }, [qc, toast, ws, accountId]);
 }

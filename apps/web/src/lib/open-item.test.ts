@@ -7,12 +7,12 @@ import type { OpenDeps, SeenNotice } from "./open-item.ts";
 function item(over: Partial<ItemDTO> = {}): ItemDTO {
   return {
     id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, isNew: true, progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }
 
 /** The page and PURSS in a box: records what was shown and written; the panel's line is the real store. */
-function harness(start: ItemDTO, server: (before: ItemDTO) => ItemDTO = (b) => ({ ...b, opened: true, fresh: false, revision: b.revision + 1 })) {
+function harness(start: ItemDTO, server: (before: ItemDTO) => ItemDTO = (b) => ({ ...b, opened: true, isNew: false, revision: b.revision + 1 })) {
   const shown: ItemDTO[] = [];
   const log: string[] = [];
   const store = createSeenStore();
@@ -32,18 +32,18 @@ test("opening a New item leaves a quiet line in the panel, with the Undo that br
   await openItem("itm_a", h.deps);
   assert.deepEqual(h.line(), { itemId: "itm_a", undoToken: "und_open" }, "the line carries PURSS's token for that item");
   assert.deepEqual(h.log, ["write", "counts"]);
-  assert.equal(h.shown.at(-1)!.fresh, false);
+  assert.equal(h.shown.at(-1)!.isNew, false);
 });
 
 test("opening an item that was not New leaves no line", async () => {
-  const h = harness(item({ fresh: false }), (b) => ({ ...b, opened: true, revision: b.revision + 1 }));
+  const h = harness(item({ isNew: false }), (b) => ({ ...b, opened: true, revision: b.revision + 1 }));
   await openItem("itm_a", h.deps);
   assert.equal(h.line(), null);
   assert.deepEqual(h.log, ["write"], "recorded as opened, nothing else to show");
 });
 
 test("opening any item first removes the line of the one before", async () => {
-  const h = harness(item({ opened: true, fresh: false }));
+  const h = harness(item({ opened: true, isNew: false }));
   h.store.publish(h.store.begin(), { itemId: "itm_old", undoToken: "und_old" });
   assert.equal(h.line()?.itemId, "itm_old");
   await openItem("itm_a", h.deps); // nothing to write at all
@@ -57,7 +57,7 @@ async function twoOpenings(order: "A first" | "B first", between?: (store: Retur
   const deps = (id: string): OpenDeps => ({
     find: () => item({ id }),
     put: () => undefined,
-    write: () => new Promise((resolve) => { answers[id] = () => resolve({ item: item({ id, fresh: false, opened: true, revision: 4 }), undoToken: `und_${id}` }); }),
+    write: () => new Promise((resolve) => { answers[id] = () => resolve({ item: item({ id, isNew: false, opened: true, revision: 4 }), undoToken: `und_${id}` }); }),
     newCleared: () => undefined,
     seen: store,
     conflict: () => undefined,
@@ -86,7 +86,7 @@ test("an answer that arrives after the panel was closed shows nothing", async ()
 });
 
 test("Undo removes the line, shows the item as New again and presses PURSS's Undo", async () => {
-  const start = item({ fresh: false, opened: true });
+  const start = item({ isNew: false, opened: true });
   const shown: ItemDTO[] = [];
   const log: string[] = [];
   const store = createSeenStore();
@@ -100,13 +100,13 @@ test("Undo removes the line, shows the item as New again and presses PURSS's Und
     fail: () => { log.push("fail"); },
   });
   assert.equal(store.get(), null, "the line is gone");
-  assert.equal(shown.at(-1)!.fresh, true, "the item shows New again");
+  assert.equal(shown.at(-1)!.isNew, true, "the item shows New again");
   assert.equal(shown.at(-1)!.opened, true, "it is still opened: Undo only brings the marker back");
   assert.deepEqual(log, ["undo und_open", "refresh"]);
 });
 
 test("if Undo cannot be done (it expired, or no connection) the item goes back to as it was and the person is told", async () => {
-  const start = item({ fresh: false, opened: true });
+  const start = item({ isNew: false, opened: true });
   const shown: ItemDTO[] = [];
   const log: string[] = [];
   await undoSeen({ itemId: "itm_a", undoToken: "und_old" }, {
@@ -117,17 +117,17 @@ test("if Undo cannot be done (it expired, or no connection) the item goes back t
     refresh: () => { log.push("refresh"); },
     fail: (err) => { log.push(`fail ${(err as Error).message}`); },
   });
-  assert.equal(shown.at(-1)!.fresh, false);
+  assert.equal(shown.at(-1)!.isNew, false);
   assert.deepEqual(log, ["fail That undo has expired."]);
 });
 
 test("an item that was opened before but is still New is written again, so its marker clears", async () => {
   // Both flags are true after a migration, or after Undoing a seen marker.
-  assert.equal(itemNeedsOpening({ opened: true, fresh: true }), true);
-  assert.equal(itemNeedsOpening({ opened: false, fresh: true }), true);
-  assert.equal(itemNeedsOpening({ opened: false, fresh: false }), true);
-  assert.equal(itemNeedsOpening({ opened: true, fresh: false }), false, "opened and not New: nothing to write");
-  const h = harness(item({ opened: true, fresh: true }));
+  assert.equal(itemNeedsOpening({ opened: true, isNew: true }), true);
+  assert.equal(itemNeedsOpening({ opened: false, isNew: true }), true);
+  assert.equal(itemNeedsOpening({ opened: false, isNew: false }), true);
+  assert.equal(itemNeedsOpening({ opened: true, isNew: false }), false, "opened and not New: nothing to write");
+  const h = harness(item({ opened: true, isNew: true }));
   await openItem("itm_a", h.deps);
   assert.deepEqual(h.log, ["write", "counts"]);
   assert.notEqual(h.line(), null);
@@ -155,7 +155,7 @@ async function panelLifecycle(strictModeReplay: boolean, closeBeforeAnswer: bool
   const deps: OpenDeps = {
     find: () => item(),
     put: () => undefined,
-    write: () => new Promise((resolve) => { answer = () => resolve({ item: item({ fresh: false, opened: true, revision: 4 }), undoToken: "und_open" }); }),
+    write: () => new Promise((resolve) => { answer = () => resolve({ item: item({ isNew: false, opened: true, revision: 4 }), undoToken: "und_open" }); }),
     newCleared: () => undefined,
     seen: store,
     conflict: () => undefined,

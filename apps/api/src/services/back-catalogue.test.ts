@@ -55,8 +55,8 @@ const walk = (app: App, p: Owner, entries: SyncEntry[] = []) => applySyncBatch(a
 const urlOf = (e: SyncEntry) => e.url!;
 const idOf = (app: App, e: SyncEntry) => app.db.get<{ id: string }>("SELECT id FROM items WHERE url = ?", urlOf(e))!.id;
 const flags = (app: App, e: SyncEntry) => {
-  const r = app.db.get<{ workflow: string; fresh: number }>("SELECT st.workflow AS workflow, st.fresh AS fresh FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.url = ?", urlOf(e))!;
-  return { ignored: r.workflow === "ignored", fresh: r.fresh === 1 };
+  const r = app.db.get<{ workflow: string; is_new: number }>("SELECT st.workflow AS workflow, st.is_new AS is_new FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.url = ?", urlOf(e))!;
+  return { ignored: r.workflow === "ignored", isNew: r.is_new === 1 };
 };
 const revision = (app: App, id: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", id)!.revision;
 const workflowOf = (app: App, id: string) => app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", id)!.w;
@@ -101,8 +101,8 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
 
   // Stored, as ever: nothing is dropped, only Ignored.
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE source_id = ?", src)!.n, back.length + 1);
-  for (const e of back) assert.deepEqual(flags(app, e), { ignored: true, fresh: false });
-  assert.deepEqual(flags(app, brandNew), { ignored: false, fresh: true });
+  for (const e of back) assert.deepEqual(flags(app, e), { ignored: true, isNew: false });
+  assert.deepEqual(flags(app, brandNew), { ignored: false, isNew: true });
   // Nothing the person did: no entry in their workflow log, nothing told to the engine as read, the state as new as any.
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM state_log")!.n, 0);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'engine.mark_read'")!.n, 0);
@@ -110,11 +110,11 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
 
   // Home's one feed, its New list, the collection's own list, the filter collection and the plain lists all hide it.
   assert.deepEqual([...homeFeed(app, p)], [newId_]);
-  assert.deepEqual(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "fresh" }), [newId_]);
+  assert.deepEqual(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }), [newId_]);
   assert.deepEqual(pageAll(app, p, { scope: `collection:${box.id}`, limit: 10 }), [newId_]);
   assert.deepEqual(pageAll(app, p, { scope: `collection:${filter.id}`, limit: 10 }), [newId_]);
   assert.deepEqual(pageAll(app, p, { scope: "all", limit: 10 }), [newId_]);
-  assert.deepEqual(pageAll(app, p, { scope: "fresh", limit: 10 }), [newId_]);
+  assert.deepEqual(pageAll(app, p, { scope: "new", limit: 10 }), [newId_]);
   // So does the source's own page, like any list of it: "Show ignored" has all of it.
   assert.deepEqual(pageAll(app, p, { scope: `source:${src}`, limit: 5 }), [newId_]);
   assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 5, filter: "all" }).length, back.length + 1);
@@ -127,9 +127,9 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
 
   // Counts: the source says how much it holds; everything that adds up what is waiting leaves the Ignored posts out.
   const source = listSources(app, p).find((s) => s.id === src)!;
-  assert.deepEqual([source.itemCount, source.freshCount], [back.length + 1, 1]);
+  assert.deepEqual([source.itemCount, source.newCount], [back.length + 1, 1]);
   const collections = listCollections(app, p);
-  assert.deepEqual(collections.filter((c) => c.id === box.id || c.id === filter.id).map((c) => [c.name, c.itemCount, c.freshCount]), [["Shows", 1, 1], ["Every article", 1, 1]]);
+  assert.deepEqual(collections.filter((c) => c.id === box.id || c.id === filter.id).map((c) => [c.name, c.itemCount, c.newCount]), [["Shows", 1, 1], ["Every article", 1, 1]]);
   assert.equal(listItems(app, p, { scope: `collection:${box.id}`, limit: 5 }).total, 1);
   assert.equal(listItems(app, p, { scope: "all", limit: 5 }).total, 1);
   assert.equal(listItems(app, p, { scope: "all", limit: 5, filter: "ignored" }).total, back.length);
@@ -145,7 +145,7 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
   assert.equal(sourceStats(app, p, src).stats.totalItems, back.length + 1);
   const home = homeOverview(app, p);
   assert.equal(home.unread, 0, "nothing older is waiting: 'up to date', not 'N older items not looked at'");
-  assert.equal(home.fresh, 1);
+  assert.equal(home.isNew, 1);
   assert.equal(itemCounts(app, p.accountId).items(src), back.length + 1, "the counts keep the whole of it for the source's page");
   assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), back.length);
   assert.deepEqual(notes(app), [notifications.newFrom("Old podcast")], "and it tells no one: only the post that is new does");
@@ -167,28 +167,28 @@ test("with the last week, the posts of the 7 days before the follow are New and 
     undated: entry("feed/1", { publishedAt: null }),
   };
   walk(app, p, Object.values(posts));
-  assert.deepEqual(flags(app, posts.yesterday), { ignored: false, fresh: true });
-  assert.deepEqual(flags(app, posts.sixDays), { ignored: false, fresh: true });
-  assert.deepEqual(flags(app, posts.eightDays), { ignored: true, fresh: false });
-  assert.deepEqual(flags(app, posts.old), { ignored: true, fresh: false });
-  assert.deepEqual(flags(app, posts.undated), { ignored: true, fresh: false }, "an undated post was there the first time anyone looked");
+  assert.deepEqual(flags(app, posts.yesterday), { ignored: false, isNew: true });
+  assert.deepEqual(flags(app, posts.sixDays), { ignored: false, isNew: true });
+  assert.deepEqual(flags(app, posts.eightDays), { ignored: true, isNew: false });
+  assert.deepEqual(flags(app, posts.old), { ignored: true, isNew: false });
+  assert.deepEqual(flags(app, posts.undated), { ignored: true, isNew: false }, "an undated post was there the first time anyone looked");
 
   // The two New ones are shown like any New post; the other three are Ignored, hidden and found by search.
-  assert.deepEqual(new Set(pageAll(app, p, { scope: "home", mix: "home", filter: "fresh", limit: 10 })), new Set([idOf(app, posts.yesterday), idOf(app, posts.sixDays)]));
+  assert.deepEqual(new Set(pageAll(app, p, { scope: "home", mix: "home", filter: "new", limit: 10 })), new Set([idOf(app, posts.yesterday), idOf(app, posts.sixDays)]));
   assert.deepEqual(homeFeed(app, p), new Set([idOf(app, posts.yesterday), idOf(app, posts.sixDays)]));
   assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 10 }).length, 2);
   assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 10, filter: "ignored" }).length, 3);
   assert.equal(searchItems(app, p, "tidal", 50).length, 5);
   const source = listSources(app, p).find((s) => s.id === src)!;
-  assert.deepEqual([source.itemCount, source.freshCount], [5, 2]);
+  assert.deepEqual([source.itemCount, source.newCount], [5, 2]);
   const home = homeOverview(app, p);
-  assert.deepEqual([home.fresh, home.unread], [2, 0]);
+  assert.deepEqual([home.isNew, home.unread], [2, 0]);
   // New like the rest: they are told once, with the others, and later posts are New as ever.
   assert.deepEqual(notes(app), [notifications.newCountFrom(2, "Weekly")]);
   walk(app, p);
   const later = entry("feed/1", { publishedAt: ago(40 * DAY) });
   walk(app, p, [later]);
-  assert.deepEqual(flags(app, later), { ignored: false, fresh: true }, "once the source is settled, whatever it brings is New");
+  assert.deepEqual(flags(app, later), { ignored: false, isNew: true }, "once the source is settled, whatever it brings is New");
 });
 
 test("the rule per start choice, and what the source just followed has no say in", () => {
@@ -198,17 +198,17 @@ test("the rule per start choice, and what the source just followed has no say in
   const dayBefore = (d: number) => new Date(Date.parse(monday) - d * DAY).toISOString();
   // A post after the follow, and anything once the source is settled, is New whatever was chosen.
   for (const start of ["all", "now", "week"] as const) {
-    assert.deepEqual(arrivalOf(source(start), at("2026-11-10T12:00:01.000Z")), { fresh: true, ignored: false }, start);
-    assert.deepEqual(arrivalOf(source(start, true), at(dayBefore(400))), { fresh: true, ignored: false }, start);
+    assert.deepEqual(arrivalOf(source(start), at("2026-11-10T12:00:01.000Z")), { isNew: true, ignored: false }, start);
+    assert.deepEqual(arrivalOf(source(start, true), at(dayBefore(400))), { isNew: true, ignored: false }, start);
   }
   // Before the follow: "all" is how sources followed before the choice behave.
-  assert.deepEqual(arrivalOf(source("all"), at(dayBefore(2))), { fresh: false, ignored: false });
-  assert.deepEqual(arrivalOf(source("now"), at(dayBefore(2))), { fresh: false, ignored: true });
-  assert.deepEqual(arrivalOf(source("now"), at(null)), { fresh: false, ignored: true });
-  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(2))), { fresh: true, ignored: false });
-  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(7))), { fresh: true, ignored: false }, "exactly 7 days before is the last week");
-  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(7.01))), { fresh: false, ignored: true });
-  assert.deepEqual(arrivalOf(source("week"), at(null)), { fresh: false, ignored: true });
+  assert.deepEqual(arrivalOf(source("all"), at(dayBefore(2))), { isNew: false, ignored: false });
+  assert.deepEqual(arrivalOf(source("now"), at(dayBefore(2))), { isNew: false, ignored: true });
+  assert.deepEqual(arrivalOf(source("now"), at(null)), { isNew: false, ignored: true });
+  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(2))), { isNew: true, ignored: false });
+  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(7))), { isNew: true, ignored: false }, "exactly 7 days before is the last week");
+  assert.deepEqual(arrivalOf(source("week"), at(dayBefore(7.01))), { isNew: false, ignored: true });
+  assert.deepEqual(arrivalOf(source("week"), at(null)), { isNew: false, ignored: true });
 });
 
 test("a source followed before the choice existed keeps today's behaviour: its back catalogue is shown and counted, not Ignored", (t) => {
@@ -328,7 +328,7 @@ test("the queries that hide the Ignored posts and count what is left read their 
     assert.ok(!lines.some((l) => /^SCAN (i|items)\b/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /^SEARCH st USING INDEX/.test(l)), `a row's state is one probe, as for any other state:\n${lines.join("\n")}`);
   }
-  const counting = seen.find((q) => /FROM item_state\s+WHERE account_id = \?/.test(q.sql) && /GROUP BY source_id, workflow, fresh/.test(q.sql));
+  const counting = seen.find((q) => /FROM item_state\s+WHERE account_id = \?/.test(q.sql) && /GROUP BY source_id, workflow, is_new/.test(q.sql));
   assert.ok(counting, "the counts ask for the Ignored items like any other state that is not the default");
   const counted = plan(counting);
   assert.ok(counted.some((l) => /COVERING INDEX item_state_rare/.test(l)) && !counted.some((l) => /^SCAN/.test(l) && !/INDEX/.test(l)) && !counted.some((l) => /items/.test(l)), `counted from the partial index alone, with no visit to the items however many are Ignored:\n${counted.join("\n")}`);

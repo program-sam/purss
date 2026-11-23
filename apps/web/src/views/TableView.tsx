@@ -5,7 +5,7 @@ import { Avatar, Icon } from "@purss/ui";
 import { KIND_LABELS, workflowLabel } from "../lib/constants.ts";
 import { plural, shortDate } from "../lib/format.ts";
 import { itemDate, lengthText } from "../lib/items.ts";
-import { FreshDot, PendingMark, useFace } from "../components/item-bits.tsx";
+import { NewDot, PendingMark, useFace } from "../components/item-bits.tsx";
 import { TriageActions } from "../components/ItemRow.tsx";
 import { useRowCtx, useRowMarks } from "../components/row-context.tsx";
 
@@ -31,7 +31,7 @@ const Row = memo(function Row({ item }: { item: ItemDTO }) {
       <td><span className="c-src"><Avatar hue={face.hue} initials={face.initials} src={face.iconUrl} /><span dir="auto">{face.name}</span></span></td>
       <td className="ttl">
         <button type="button" className="tb" data-act="open" onClick={() => c.onOpen(item)} aria-pressed={c.selecting ? picked : undefined} aria-current={!c.selecting && active ? "true" : undefined}>
-          {c.selecting ? <span className={`cbx${picked ? " on" : ""}`} aria-hidden="true"><Icon name="check" /></span> : <FreshDot fresh={item.fresh} />}
+          {c.selecting ? <span className={`cbx${picked ? " on" : ""}`} aria-hidden="true"><Icon name="check" /></span> : <NewDot isNew={item.isNew} />}
           <span className="title" dir="auto">{item.title}</span>
         </button>
       </td>

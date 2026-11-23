@@ -27,13 +27,13 @@ export function listFilters(ls: ListState): Pick<ListParams, "source" | "without
  * The board keeps every item, since its columns are the workflow; a basket shows everything kept in it,
  * since ignoring is for what arrives, not for what was saved; other pages show everything but ignored.
  */
-export function defaultFilterFor(place: Place | null, view: ViewMode, freshCount: number): ListFilter {
+export function defaultFilterFor(place: Place | null, view: ViewMode, newCount: number): ListFilter {
   if (place?.t === "b") return "all";
-  return place?.t === "c" && view !== "board" && freshCount > 0 ? "fresh" : "active";
+  return place?.t === "c" && view !== "board" && newCount > 0 ? "new" : "active";
 }
 
 /** The queue holds only what is put aside or started, so only these filters can show anything on its page. */
-const QUEUE_FILTERS: readonly ListFilter[] = ["active", "fresh", "toread", "inprogress"];
+const QUEUE_FILTERS: readonly ListFilter[] = ["active", "new", "toread", "inprogress"];
 
 /**
  * The filter a page uses for the one its address names: a basket has no Ignored filter, and its All keeps ignored items too; the
@@ -48,7 +48,7 @@ export function filterFor(place: Place | null, named: ListFilter | undefined, fa
 /** The filters a page's menu offers: a basket's All already includes ignored items, so it has no Ignored choice. */
 export function filterChoices(place: Place | null): ListFilter[] {
   if (place?.t === "r") return [...QUEUE_FILTERS];
-  return place?.t === "b" ? ["all", "fresh", "undecided", "toread", "inprogress", "finished"] : ["active", "fresh", "undecided", "toread", "inprogress", "finished", "ignored"];
+  return place?.t === "b" ? ["all", "new", "undecided", "toread", "inprogress", "finished"] : ["active", "new", "undecided", "toread", "inprogress", "finished", "ignored"];
 }
 
 /** A filter's name on this page: a basket calls its everything filter All. */

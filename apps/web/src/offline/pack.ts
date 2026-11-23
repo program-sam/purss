@@ -19,7 +19,7 @@ export const PACK_REBUILD_INTERVAL_MS = 10_000;
 export const DETAIL_MAX_AGE_MS = 12 * 3_600_000;
 export const PACK_CONCURRENCY = 2;
 
-export type QueueLists = { toread: readonly ItemDTO[]; inprogress: readonly ItemDTO[]; fresh: readonly ItemDTO[]; kept?: readonly ItemDTO[] };
+export type QueueLists = { toread: readonly ItemDTO[]; inprogress: readonly ItemDTO[]; new: readonly ItemDTO[]; kept?: readonly ItemDTO[] };
 
 const newestFirst = (a: ItemDTO, b: ItemDTO) => Date.parse(itemDate(b)) - Date.parse(itemDate(a)) || (a.id < b.id ? 1 : -1);
 
@@ -41,7 +41,7 @@ export function selectQueue(lists: QueueLists, limit = PACK_LIMIT): ItemDTO[] {
     out.push(it);
     keptCount++;
   }
-  const undecided = (lists.fresh).filter((it) => it.fresh && it.workflow === "undecided" && !have.has(it.id)).sort(newestFirst);
+  const undecided = (lists.new).filter((it) => it.isNew && it.workflow === "undecided" && !have.has(it.id)).sort(newestFirst);
   for (const it of undecided) {
     if (out.length >= limit) break;
     if (!have.has(it.id)) { have.add(it.id); out.push(it); }

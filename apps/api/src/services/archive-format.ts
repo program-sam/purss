@@ -17,7 +17,7 @@ import { server } from "@purss/translations/server";
  *   memberships      basket -> item pins with the kept version and keep time
  *   items            items with every stored version (current and kept), captured text (fetched
  *                    by the server or sent by the person's browser, by `kind`),
- *                    workflow / progress / fresh state, and original publisher GUIDs
+ *                    workflow / progress / isNew state, and original publisher GUIDs
  *   preferences      one object
  *   stateLog         the account's own workflow changes (item, from, to, time), oldest first;
  *                    optional on import so older files still load
@@ -162,10 +162,10 @@ const itemSchema = z.object({
   captures: z.array(captureSchema).max(50).default([]),
   state: z.object({
     workflow: z.enum(WORKFLOW_STATES).default("undecided"),
-    fresh: z.boolean().default(false),
+    isNew: z.boolean().default(false),
     progress: z.number().min(0).max(1).default(0),
     openedAt: iso,
-  }).default({ workflow: "undecided", fresh: false, progress: 0, openedAt: null }),
+  }).default({ workflow: "undecided", isNew: false, progress: 0, openedAt: null }),
   originalGuids: z.array(text(2000)).max(5).default([]),
   /** Only ever read, from files made when a source's back catalogue was marked this way instead of Ignored; `parseArchive` turns it into the workflow state and nothing keeps it. */
   backlog: z.boolean().optional(),
@@ -346,8 +346,8 @@ function ignoreMarkedBackCatalogue(doc: Archive): Archive {
   for (const item of doc.items) {
     const marked = item.backlog === true;
     delete item.backlog;
-    const { workflow, fresh, progress, openedAt } = item.state;
-    if (marked && workflow === "undecided" && !fresh && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
+    const { workflow, isNew, progress, openedAt } = item.state;
+    if (marked && workflow === "undecided" && !isNew && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
   }
   return doc;
 }

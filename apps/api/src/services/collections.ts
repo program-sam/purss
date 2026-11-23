@@ -30,22 +30,22 @@ export function listCollections(app: App, p: Principal): CollectionDTO[] {
   return rows.map((r) => {
     const sourceIds = app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", r.id).map((x) => x.source_id);
     const n = r.mode === "sources" && counts
-      ? { fresh: counts.sum(sourceIds, (w, fresh) => w !== "ignored" && fresh), items: counts.sum(sourceIds, (w) => w !== "ignored") }
+      ? { isNew: counts.sum(sourceIds, (w, isNew) => w !== "ignored" && isNew), items: counts.sum(sourceIds, (w) => w !== "ignored") }
       : countQueryCollection(app, p, r);
     return {
       id: r.id, name: r.name, emoji: r.emoji, mode: r.mode, view: r.view, position: r.position, showOnHome: r.show_on_home === 1,
-      sourceIds, query: r.query ? JSON.parse(r.query) : null, freshCount: n.fresh, itemCount: n.items, aiFiltered: filtered.has(r.id),
+      sourceIds, query: r.query ? JSON.parse(r.query) : null, newCount: n.isNew, itemCount: n.items, aiFiltered: filtered.has(r.id),
     };
   });
 }
 
 /** A collection defined by a query has no sources to add up: its items are counted where they are. */
-function countQueryCollection(app: App, p: Principal, r: CollectionRow): { fresh: number; items: number } {
+function countQueryCollection(app: App, p: Principal, r: CollectionRow): { isNew: number; items: number } {
   const params: SqlParam[] = [p.accountId];
   const q = checkQuery(r.query ? JSON.parse(r.query) : null);
   const clause = q.ok ? compileQuery(q.query, params, p.accountId) : "0";
-  return app.db.get<{ fresh: number; items: number }>(
-    `SELECT COALESCE(SUM(st.fresh), 0) AS fresh, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
+  return app.db.get<{ isNew: number; items: number }>(
+    `SELECT COALESCE(SUM(st.is_new), 0) AS isNew, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
      WHERE i.account_id = ? AND st.workflow <> 'ignored' AND ${clause}`, ...params)!;
 }
 

@@ -53,8 +53,8 @@ export function useListState(place: Place | null): ListState {
   const view = modes.includes(wanted) ? wanted : "list";
   // The open item that was New still counts as New here until the panel closes, so the list behind does not switch.
   const held = useOpenHold();
-  const freshCount = place?.t === "c" ? ws.collectionById.get(place.id)?.freshCount ?? 0 : 0;
-  const defaultFilter = defaultFilterFor(place, view, freshCount + (held && held === search.item ? 1 : 0));
+  const newCount = place?.t === "c" ? ws.collectionById.get(place.id)?.newCount ?? 0 : 0;
+  const defaultFilter = defaultFilterFor(place, view, newCount + (held && held === search.item ? 1 : 0));
   return {
     scope: place ? scopeOf(place) : "all",
     modes,

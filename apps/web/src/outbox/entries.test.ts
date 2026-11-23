@@ -7,7 +7,7 @@ import type { Entry } from "./entries.ts";
 
 const item: ItemDTO = {
   id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: null, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 3, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, isNew: true,
   progress: 0, opened: false, basketIds: ["bkt_1"], curatorNote: null, media: null, annotatedAt: null,
 };
 const base = { id: "e", installation: "https://purss.test", accountId: "acc", seq: 1, createdAt: "2026-11-03T08:00:00Z", attempts: 0, notBefore: 0 };
@@ -41,12 +41,12 @@ test("pending changes are shown on an item in the order they were made", () => {
     { ...base, seq: 3, kind: "keep", itemId: "itm_a", basketId: "bkt_2", on: true },
     { ...base, seq: 4, kind: "keep", itemId: "itm_a", basketId: "bkt_1", on: false },
     { ...base, seq: 5, kind: "workflow", itemId: "itm_other", from: "undecided", to: "ignored", revision: 1 },
-    { ...base, seq: 6, kind: "clearFresh", itemIds: ["itm_a", "itm_z"] },
+    { ...base, seq: 6, kind: "clearNew", itemIds: ["itm_a", "itm_z"] },
   ];
   const out = overlayItem(item, entries);
   assert.equal(out.workflow, "finished");
   assert.deepEqual(out.basketIds, ["bkt_2"]);
-  assert.equal(out.fresh, false);
+  assert.equal(out.isNew, false);
   assert.equal(out.workflowRevision, 2, "each pending workflow change moves the workflow revision, as PURSS will");
   assert.equal(out.playbackWorkflowSessionId, null, "a change by hand has no playback session");
   assert.equal(out.revision, 3, "the revision is PURSS's to move");
@@ -57,7 +57,7 @@ test("the player's pending changes are shown with their session, and a change by
   const playback = { sessionId: "play-1", expectedWorkflowRevision: 0, startedWorkflowRevision: 0 };
   const own: Entry = { ...base, seq: 1, kind: "workflow", itemId: "itm_a", from: "undecided", to: "inprogress", revision: 3, playback };
   const shown = overlayItem(item, [own]);
-  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId, shown.fresh], ["inprogress", 1, "play-1", true]);
+  assert.deepEqual([shown.workflow, shown.workflowRevision, shown.playbackWorkflowSessionId, shown.isNew], ["inprogress", 1, "play-1", true]);
   const byHand = overlayItem(item, [own, { ...base, seq: 2, kind: "workflow", itemId: "itm_a", from: "inprogress", to: "ignored", revision: 3 }]);
   assert.deepEqual([byHand.workflow, byHand.workflowRevision, byHand.playbackWorkflowSessionId], ["ignored", 2, null]);
 });

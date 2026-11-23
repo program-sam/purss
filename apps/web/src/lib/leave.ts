@@ -12,7 +12,7 @@ export function leavesOn(item: ItemDTO, keeps: (item: ItemDTO) => boolean, inBas
   const out: LeaveCause[] = [];
   for (const w of ["undecided", "toread", "inprogress", "finished", "ignored"] as const) {
     if (w === item.workflow) continue;
-    if (!keeps({ ...item, workflow: w, fresh: false })) out.push(w);
+    if (!keeps({ ...item, workflow: w, isNew: false })) out.push(w);
   }
   if (item.workflow === "ignored" && !keeps({ ...item, workflow: "undecided" })) out.push("restore");
   if (inBasket) out.push("unkeep");

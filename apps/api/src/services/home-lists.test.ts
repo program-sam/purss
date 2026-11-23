@@ -39,7 +39,7 @@ function addItem(app: App, p: Owner, sourceId: string | null, over: Partial<NewI
   return app.db.tx(() => insertItem(app, {
     accountId: p.accountId, sourceId, kind: "article", title: `Item ${serial}`, url: `https://example.org/h/${serial}`, author: null,
     summaryHtml: `<p>About ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
-    publishedAt: null, discoveredAt: nowIso(), enclosures: [], fresh: false, reason: "test", ...over,
+    publishedAt: null, discoveredAt: nowIso(), enclosures: [], isNew: false, reason: "test", ...over,
   })).id;
 }
 const at = (app: App, p: Owner, src: string, iso: string, over: Partial<NewItem> = {}) => addItem(app, p, src, { publishedAt: iso, discoveredAt: iso, ...over });
@@ -216,7 +216,7 @@ test("Home counts the older unread items it holds, not the ones in hidden collec
   addItem(app, p, work); addItem(app, p, work); addItem(app, p, fun);
   const read = addItem(app, p, fun);
   workflow(app, p, read, "finished");
-  addItem(app, p, fun, { fresh: true });
+  addItem(app, p, fun, { isNew: true });
   assert.equal(homeOverview(app, p).unread, 3, "undecided and no longer New, on Home");
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
   assert.equal(homeOverview(app, p).unread, 1);

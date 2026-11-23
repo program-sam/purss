@@ -69,7 +69,7 @@ export function makeSlug(title: string): string {
 // ---------- what may be shared
 
 /** Filter rules that read the person's reading state; a collection that uses one can't be shared. */
-const READING_STATE_FIELDS = new Set(["workflow", "fresh", "opened", "capture"]);
+const READING_STATE_FIELDS = new Set(["workflow", "new", "opened", "capture"]);
 /** Filter rules that read the person's baskets: allowed, but the page then shows what they keep. */
 const KEEPING_FIELDS = new Set(["basket", "kept"]);
 

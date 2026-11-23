@@ -93,7 +93,7 @@ function SourceNotes({ s, tz }: { s: SourceDTO; tz: string }) {
   return <>{out}</>;
 }
 
-function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere: number; onClearFresh: () => void }) {
+function Head({ place, newHere, onClearNew }: { place: ListPlace; newHere: number; onClearNew: () => void }) {
   const tools = <ListTools place={place} />;
   const ws = usePurss();
   const nav = useNav();
@@ -103,10 +103,10 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
   const popups = usePopups();
   const { toast } = useToasts();
   const xs = useBreakpoint() === "xs";
-  const fresh = freshHere > 0 ? (
+  const fresh = newHere > 0 ? (
     <>
-      <span className="fr"><i className="dot" />{freshHere}{app.words.newSpaced}</span>
-      <button type="button" className="link" onClick={onClearFresh}>{app.words.markAllAsSeen}</button>
+      <span className="fr"><i className="dot" />{newHere}{app.words.newSpaced}</span>
+      <button type="button" className="link" onClick={onClearNew}>{app.words.markAllAsSeen}</button>
     </>
   ) : null;
 
@@ -280,7 +280,7 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
       <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "finished", () => actions.setWorkflow(i, "finished")); }}>{app.words.finished}</Button>
       {inBasket ? null : <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void leaveThen(i, "ignored", () => actions.setWorkflow(i, "ignored")); }}>{app.words.ignore}</Button>}
       <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "keep-in", itemIds: ids() })}>{app.words.keepIn}</Button>
-      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void actions.clearFreshFor(i); }}>{t.markAsSeen}</Button>
+      <Button disabled={dis} onClick={() => { const i = ids(); sel.clear(); void actions.clearNewFor(i); }}>{t.markAsSeen}</Button>
       <Button disabled={dis} aria-haspopup="dialog" onClick={() => overlays.open({ kind: "delete-items", itemIds: ids() })}>{app.words.delete}</Button>
       <span className="sp" />
       <button type="button" className="link" disabled={gathering} onClick={() => void selectAll()}>{total != null && total > 0 ? t.selectAllCount(total) : app.words.selectAll}</button>
@@ -347,7 +347,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <div className="col narrow"><div className="empty card-like" style={{ marginTop: 40 }}><h2>{t.missing(place.t === "c" ? app.words.collectionLower : place.t === "s" ? app.words.sourceLower : app.words.basketLower)}</h2><p>{app.words.itMayHaveBeenRemoved}</p><Button onClick={() => nav.go({ t: "home" })}>{app.words.goToHome}</Button></div></div>
     );
   }
-  const freshHere = place.t === "c" ? ws.collectionById.get(place.id)!.freshCount : place.t === "s" ? ws.sourceById.get(place.id)!.freshCount : items.filter((i) => i.fresh).length;
+  const newHere = place.t === "c" ? ws.collectionById.get(place.id)!.newCount : place.t === "s" ? ws.sourceById.get(place.id)!.newCount : items.filter((i) => i.isNew).length;
   const loadingFirst = q.isPending;
   const mutedHidden = q.data?.pages[0]?.mutedHidden ?? 0;
   const mutedAtLeast = !!q.data?.pages[0]?.mutedHiddenAtLeast;
@@ -385,7 +385,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <div className={`col wide${place.t === "s" ? " in-source" : ""}`}>
         <EngineNotice />
         <Trail />
-        <Head place={place} freshHere={freshHere} onClearFresh={() => void actions.clearFresh(ls.scope)} />
+        <Head place={place} newHere={newHere} onClearNew={() => void actions.clearNew(ls.scope)} />
         {sel.selecting ? <SelectionBar params={params} total={total} inBasket={place.t === "b"} /> : null}
         {ls.captureFailed ? <p className="fine capture-only">{t.captureOnly}<button type="button" className="link" onClick={() => nav.patchSearch({ capture: undefined })}>{t.showEverything}</button></p> : null}
         {body}

@@ -3,15 +3,15 @@ import assert from "node:assert/strict";
 import type { CollectionDTO, SourceDTO } from "@purss/domain";
 import { boxScope, distribute, homeBoxes, isOtherBox, OTHER_BOX_ID } from "./home-boxes.ts";
 
-const col = (id: string, position: number): CollectionDTO => ({ id, name: id.toUpperCase(), emoji: null, mode: "sources", view: "list", position, showOnHome: true, sourceIds: [], query: null, freshCount: 0, itemCount: 0, aiFiltered: false });
-const src = (id: string, freshCount: number, itemCount: number) => ({ id, freshCount, itemCount }) as SourceDTO;
+const col = (id: string, position: number): CollectionDTO => ({ id, name: id.toUpperCase(), emoji: null, mode: "sources", view: "list", position, showOnHome: true, sourceIds: [], query: null, newCount: 0, itemCount: 0, aiFiltered: false });
+const src = (id: string, newCount: number, itemCount: number) => ({ id, newCount, itemCount }) as SourceDTO;
 
 test("Other sources shows after the collections until Customise moves it", () => {
   const shown = [col("a", 0), col("b", 1)];
   const loose = [src("s1", 2, 10), src("s2", 3, 5)];
   const boxes = homeBoxes(shown, loose, { homeOther: true, homeCollectionIds: [] });
   assert.deepEqual(boxes.map((b) => b.id), ["a", "b", OTHER_BOX_ID]);
-  assert.deepEqual([boxes[2]!.freshCount, boxes[2]!.itemCount, boxes[2]!.sourceIds], [5, 15, ["s1", "s2"]]);
+  assert.deepEqual([boxes[2]!.newCount, boxes[2]!.itemCount, boxes[2]!.sourceIds], [5, 15, ["s1", "s2"]]);
   assert.deepEqual(homeBoxes(shown, loose, { homeOther: true, homeCollectionIds: ["a", OTHER_BOX_ID, "b"] }).map((b) => b.id), ["a", OTHER_BOX_ID, "b"]);
   assert.deepEqual(homeBoxes(shown, loose, { homeOther: true, homeCollectionIds: [OTHER_BOX_ID, "a", "b"] }).map((b) => b.id), [OTHER_BOX_ID, "a", "b"]);
 });

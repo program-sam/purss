@@ -110,7 +110,7 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
       title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
       url: entry.url, author: entry.author, summaryHtml: entry.summaryHtml, contentHtml: entry.contentHtml, imageUrl: entry.imageUrl,
       durationSeconds: null, doi, curatorNote: null, publishedAt: entry.publishedAt, discoveredAt: entry.crawledAt, enclosures: entry.enclosures,
-      fresh: false, // history coming back from a restored engine is not "new since you last looked"
+      isNew: false, // history coming back from a restored engine is not "new since you last looked"
       reason: "reconciled feed item",
     });
     app.db.run("INSERT INTO external_ids (id, account_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

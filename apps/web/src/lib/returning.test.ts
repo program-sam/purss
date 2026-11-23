@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { ActivityDTO } from "@purss/domain";
 import { app } from "@purss/translations/app";
 import { plural } from "./format.ts";
-import { activityLine, calmLine, freshDaysChoices, hasKeyboard, inQueue, isToListen, isToRead, isToWatch, nextCheckLine, pausedUntilLine, sinceLine } from "./returning.ts";
+import { activityLine, calmLine, newDaysChoices, hasKeyboard, inQueue, isToListen, isToRead, isToWatch, nextCheckLine, pausedUntilLine, sinceLine } from "./returning.ts";
 
 const t = app.lib.returning;
 const nouns = app.lib.nouns;
@@ -45,9 +45,9 @@ test("the keyboard hint is for devices that have a keyboard", () => {
 });
 
 test("the New-marker choices keep a saved value that is not one of the usual ones, in order", () => {
-  assert.deepEqual(freshDaysChoices(30).map((c) => c.value), [7, 14, 30, 90, 0]);
-  assert.deepEqual(freshDaysChoices(45).map((c) => c.value), [7, 14, 30, 45, 90, 0]);
-  assert.equal(freshDaysChoices(365).find((c) => c.value === 365)!.label, t.freshDays.other(365));
+  assert.deepEqual(newDaysChoices(30).map((c) => c.value), [7, 14, 30, 90, 0]);
+  assert.deepEqual(newDaysChoices(45).map((c) => c.value), [7, 14, 30, 45, 90, 0]);
+  assert.equal(newDaysChoices(365).find((c) => c.value === 365)!.label, t.newDays.other(365));
 });
 
 test("Home does not say it is up to date while older items nobody has looked at are waiting", () => {

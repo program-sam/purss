@@ -110,7 +110,7 @@ export function digestFor(app: App, accountId: string, window: DigestWindow): Di
   const rows = app.db.all<{ source_id: string; n: number; is_private: number; notify: string; source_title: string }>(
     `SELECT i.source_id, COUNT(*) AS n, s.is_private, s.notify, s.title AS source_title FROM items i
        JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id
-     WHERE i.account_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND s.followed = 1 AND s.notify <> 'muted'
+     WHERE i.account_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.is_new = 1 AND s.followed = 1 AND s.notify <> 'muted'
      GROUP BY i.source_id`, accountId, window.from, window.to);
   const links = boxesBySource(app, accountId);
   const boxes = new Map<string, DigestBox>();
@@ -121,7 +121,7 @@ export function digestFor(app: App, accountId: string, window: DigestWindow): Di
     total += r.n;
     const newest = r.is_private ? [] : app.db.all<{ id: string; number: number; title: string; discovered_at: string }>(
       `SELECT i.id, i.number, i.title, i.discovered_at FROM items i JOIN item_state st ON st.item_id = i.id
-       WHERE i.account_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.fresh = 1 AND st.workflow <> 'ignored'
+       WHERE i.account_id = ? AND i.source_id = ? AND i.discovered_at > ? AND i.discovered_at <= ? AND st.is_new = 1 AND st.workflow <> 'ignored'
        ORDER BY i.discovered_at DESC LIMIT ?`, accountId, r.source_id, window.from, window.to, TEASERS);
     const titles = prefs.notifications.previews ? newest.slice(0, 2).map((t) => shownTitle(t.title)) : [];
     const teasers = newest.map((t) => ({ id: t.id, number: t.number, title: shownTitle(t.title), source: r.source_title, at: t.discovered_at }));

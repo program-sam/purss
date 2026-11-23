@@ -107,7 +107,7 @@ function ShellFrame() {
   useEffect(() => { if (zoneUnset) void savePrefs({ timezone: ws.prefs.timezone }); }, [zoneUnset]); // eslint-disable-line react-hooks/exhaustive-deps
   const onNotification = useBrowserNotifications();
   // The new items, as the sidebar counts them, on the app's icon; the system decides whether it shows the number or a dot.
-  const newItems = ws.data.sources.reduce((n, s) => n + s.freshCount, 0);
+  const newItems = ws.data.sources.reduce((n, s) => n + s.newCount, 0);
   useEffect(() => { platform.badge?.(newItems); }, [newItems]);
   useEffect(() => () => { platform.badge?.(0); }, []);
   useLiveUpdates(onNotification);

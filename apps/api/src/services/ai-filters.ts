@@ -231,7 +231,7 @@ export function judgeInput(app: App, job: { account_id: string | null; payload: 
   return { route: "server", model, requests };
 }
 
-type ItemNow = { id: string; source_id: string | null; workflow: WorkflowState; revision: number; fresh: number; opened_at: string | null; kept: number };
+type ItemNow = { id: string; source_id: string | null; workflow: WorkflowState; revision: number; is_new: number; opened_at: string | null; kept: number };
 
 /**
  * The worker's answers for a filter.judge job. Answers to a filter's older words are left out. Then each post is marked Ignored
@@ -282,10 +282,10 @@ export function completeJudging(app: App, job: { account_id: string | null; payl
   for (const itemId of itemIds) {
     if (unfinished.includes(itemId) && !result.keyRejected) continue;
     const item = app.db.get<ItemNow>(
-      `SELECT i.id, i.source_id, st.workflow, st.revision, st.fresh, st.opened_at, EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AS kept
+      `SELECT i.id, i.source_id, st.workflow, st.revision, st.is_new, st.opened_at, EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AS kept
        FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.account_id = ?`, itemId, owner.accountId);
     if (!item) continue;
-    const fresh = item.workflow === "undecided" && item.fresh === 1;
+    const fresh = item.workflow === "undecided" && item.is_new === 1;
     if (unjudged) {
       if (fresh) keep(item.source_id, itemId);
       continue;
@@ -328,7 +328,7 @@ export function failJudging(app: App, payload: Record<string, unknown>): void {
   const itemIds = Array.isArray(payload.itemIds) ? payload.itemIds.map(String) : [];
   const rows = app.db.all<{ account_id: string; source_id: string; n: number }>(
     `SELECT i.account_id, i.source_id, COUNT(*) AS n FROM json_each(?) j JOIN items i ON i.id = j.value JOIN item_state st ON st.item_id = i.id
-     WHERE i.source_id IS NOT NULL AND st.fresh = 1 AND st.workflow = 'undecided' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));
+     WHERE i.source_id IS NOT NULL AND st.is_new = 1 AND st.workflow = 'undecided' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));
   for (const accountId of new Set(rows.map((r) => r.account_id))) {
     notifyArrivals(app, accountId, rows.filter((r) => r.account_id === accountId).map((r) => [r.source_id, r.n]));
   }

@@ -13,7 +13,7 @@ import { bulk, keepItem } from "../apps/api/src/services/state.ts";
 import { completeCapture, failCapture } from "../apps/api/src/services/captures.ts";
 import { createBasket, createCollection } from "../apps/api/src/services/collections.ts";
 import { listNotifications, markNotificationsRead } from "../apps/api/src/services/notifications.ts";
-import { expireFreshMarkers } from "../apps/api/src/services/returning.ts";
+import { expireNewMarkers } from "../apps/api/src/services/returning.ts";
 import { makeOwner, makeSource } from "../apps/api/src/testing.ts";
 
 /*
@@ -234,8 +234,8 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     }
   }
   const looked = itemIds.slice(itemIds.length - arrivals).filter(() => r() < 0.4);
-  for (let from = 0; from < looked.length; from += 500) bulk(app, p, looked.slice(from, from + 500), { type: "clearFresh" });
-  expireFreshMarkers(app, p.accountId);
+  for (let from = 0; from < looked.length; from += 500) bulk(app, p, looked.slice(from, from + 500), { type: "clearNew" });
+  expireNewMarkers(app, p.accountId);
   log(`${tag}: states set`);
 
   // Kept items (about 1.5%), most of them in "Read later" with a readable-text capture that finished.

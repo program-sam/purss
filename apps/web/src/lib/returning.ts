@@ -12,12 +12,12 @@ export const WEEKDAYS = app.lib.returning.weekdays;
 export const FREQUENCY_LABELS: Record<Preferences["notifications"]["frequency"], { label: string; blurb: string }> = app.lib.returning.frequency;
 
 export const FRESH_DAYS_CHOICES: { value: number; label: string }[] = [
-  { value: 7, label: app.lib.returning.freshDays.week }, { value: 14, label: app.lib.returning.freshDays.fortnight }, { value: 30, label: app.words.n30Days }, { value: 90, label: app.words.n90Days }, { value: 0, label: app.lib.returning.freshDays.never },
+  { value: 7, label: app.lib.returning.newDays.week }, { value: 14, label: app.lib.returning.newDays.fortnight }, { value: 30, label: app.words.n30Days }, { value: 90, label: app.words.n90Days }, { value: 0, label: app.lib.returning.newDays.never },
 ];
 
 /** The choices for how long items stay New, plus the saved value when it isn't one of them (set elsewhere). */
-export function freshDaysChoices(current: number): { value: number; label: string }[] {
-  return FRESH_DAYS_CHOICES.some((c) => c.value === current) ? FRESH_DAYS_CHOICES : [...FRESH_DAYS_CHOICES, { value: current, label: app.lib.returning.freshDays.other(current) }].sort((a, b) => (a.value || Infinity) - (b.value || Infinity));
+export function newDaysChoices(current: number): { value: number; label: string }[] {
+  return FRESH_DAYS_CHOICES.some((c) => c.value === current) ? FRESH_DAYS_CHOICES : [...FRESH_DAYS_CHOICES, { value: current, label: app.lib.returning.newDays.other(current) }].sort((a, b) => (a.value || Infinity) - (b.value || Infinity));
 }
 
 /** The queue: what the person put aside (To read) and what they started (In progress). */

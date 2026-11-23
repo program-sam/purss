@@ -203,7 +203,7 @@ CREATE TABLE item_state (
   item_id TEXT PRIMARY KEY REFERENCES items(id),
   account_id TEXT NOT NULL REFERENCES accounts(id),
   workflow TEXT NOT NULL DEFAULT 'undecided' CHECK (workflow IN ('undecided', 'toread', 'inprogress', 'finished', 'ignored')),
-  fresh INTEGER NOT NULL DEFAULT 1,
+  is_new INTEGER NOT NULL DEFAULT 1,
   progress REAL NOT NULL DEFAULT 0,
   opened_at TEXT,
   revision INTEGER NOT NULL DEFAULT 0,
@@ -823,7 +823,7 @@ CREATE INDEX item_versions_item ON item_versions(item_id);
 
 CREATE INDEX external_ids_item ON external_ids(item_id);
 
-CREATE INDEX item_state_account ON item_state(account_id, workflow, fresh);
+CREATE INDEX item_state_account ON item_state(account_id, workflow, is_new);
 
 CREATE INDEX basket_items_item ON basket_items(item_id);
 
@@ -851,7 +851,7 @@ CREATE INDEX basket_items_version ON basket_items(version_id);
 
 CREATE INDEX items_source_url ON items(source_id, url, id);
 
-CREATE INDEX item_state_item ON item_state(item_id, workflow, fresh);
+CREATE INDEX item_state_item ON item_state(item_id, workflow, is_new);
 
 CREATE INDEX collection_sources_source ON collection_sources(source_id);
 
@@ -861,7 +861,7 @@ CREATE INDEX notifications_account ON notifications(account_id, created_at);
 
 CREATE INDEX notifications_source ON notifications(source_id) WHERE source_id IS NOT NULL;
 
-CREATE INDEX item_state_fresh ON item_state(account_id) WHERE fresh = 1;
+CREATE INDEX item_state_new ON item_state(account_id) WHERE is_new = 1;
 
 CREATE INDEX item_state_opened ON item_state(account_id, opened_at DESC) WHERE opened_at IS NOT NULL;
 
@@ -965,7 +965,7 @@ CREATE UNIQUE INDEX items_account_number ON items(account_id, number);
 
 CREATE INDEX items_embed_todo ON items(discovered_at) WHERE kind = 'post' AND image_url IS NULL AND embed_tries < 3;
 
-CREATE INDEX item_state_rare ON item_state(account_id, workflow, fresh, source_id) WHERE NOT (workflow = 'undecided' AND fresh = 0);
+CREATE INDEX item_state_rare ON item_state(account_id, workflow, is_new, source_id) WHERE NOT (workflow = 'undecided' AND is_new = 0);
 
 CREATE INDEX items_account_sortkey ON items(account_id, listed_at DESC, id DESC);
 

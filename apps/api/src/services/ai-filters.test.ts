@@ -116,8 +116,8 @@ const usageRow = (b: Booted) => {
   return r ? { week: r.week, tokens: r.tokens } : undefined;
 };
 
-const post = (app: App, accountId: string, title: string) => app.db.get<{ id: string; workflow: string; fresh: number; revision: number }>(
-  "SELECT i.id, st.workflow, st.fresh, st.revision FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? AND i.title = ?", accountId, title)!;
+const post = (app: App, accountId: string, title: string) => app.db.get<{ id: string; workflow: string; is_new: number; revision: number }>(
+  "SELECT i.id, st.workflow, st.is_new, st.revision FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? AND i.title = ?", accountId, title)!;
 
 const arrivals = (app: App, accountId: string) =>
   app.db.all<{ title: string }>("SELECT title FROM notifications WHERE account_id = ? AND kind = 'arrivals'", accountId).map((r) => r.title);
@@ -154,9 +154,9 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
   const kept = post(b.app, b.owner.accountId, "Sediment cores from the delta");
   const dropped = post(b.app, b.owner.accountId, "We're hiring a designer");
   assert.equal(kept.workflow, "undecided");
-  assert.equal(kept.fresh, 1);
+  assert.equal(kept.is_new, 1);
   assert.equal(dropped.workflow, "ignored");
-  assert.equal(dropped.fresh, 0, "Ignored is no longer New, as when the person ignores it");
+  assert.equal(dropped.is_new, 0, "Ignored is no longer New, as when the person ignores it");
   assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'undecided' AND to_state = 'ignored'", dropped.id), "the change is in the workflow log");
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.mark_read'"), "and mirrored to the engine as read, like the person's own");
   assert.deepEqual(arrivals(b.app, b.owner.accountId), [copy.api.notifications.newFrom("Delta Notes")], "only the kept post is announced");
