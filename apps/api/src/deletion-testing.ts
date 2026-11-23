@@ -63,7 +63,7 @@ export async function member(app: App, displayName: string | null, opts: { admin
   const email = `member${++n}${Date.now().toString(36)}@example.test`;
   const password = "correct horse battery";
   const prepared = await preparePassword(password, email);
-  const { accountId } = app.db.tx(() => createAccount(app, { email, emailConfirmed: false, displayName, admin: opts.admin ?? false, allocationBytes: null, grantedBy: null, password: prepared }));
+  const { accountId } = app.db.tx(() => createAccount(app, { email, emailConfirmed: false, displayName, admin: opts.admin ?? false, allowanceBytes: null, grantedBy: null, password: prepared }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   return { accountId, engineUserId: eu.id, email, password };

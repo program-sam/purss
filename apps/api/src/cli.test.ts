@@ -47,31 +47,31 @@ test("without a database the CLI says where it looked and does nothing", async (
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("set-allocation changes the limit by id or unique name, validates, and is audited as a host-level action", async (t) => {
+test("set-allowance changes the limit by id or unique name, validates, and is audited as a host-level action", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
   app.db.run("UPDATE accounts SET display_name = 'Pat' WHERE id = ?", p.accountId);
   seedLibrary(app, p);
-  assert.equal((await run(app, ["set-allocation", "Pat", "5000000"])).code, 0);
-  assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", p.accountId)!.allocation_bytes, 5_000_000);
-  assert.equal((await run(app, ["set-allocation", p.accountId, "none"])).code, 0);
-  assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", p.accountId)!.allocation_bytes, null);
+  assert.equal((await run(app, ["set-allowance", "Pat", "5000000"])).code, 0);
+  assert.equal(app.db.get("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", p.accountId)!.allowance_bytes, 5_000_000);
+  assert.equal((await run(app, ["set-allowance", p.accountId, "none"])).code, 0);
+  assert.equal(app.db.get("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", p.accountId)!.allowance_bytes, null);
   // Below current usage: data stays, new growth is paused.
-  const low = (await run(app, ["set-allocation", p.accountId, "100"]));
+  const low = (await run(app, ["set-allowance", p.accountId, "100"]));
   assert.equal(low.code, 0);
   assert.match(low.out, /currently using \d+ bytes/);
-  assert.equal(app.db.get("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", p.accountId)!.paused_reason, "quota");
+  assert.equal(app.db.get("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", p.accountId)!.paused_reason, "allowance");
   assert.ok(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items")!.n > 0);
-  assert.equal((await run(app, ["set-allocation", p.accountId, "1e9x"])).code, 2);
-  assert.equal((await run(app, ["set-allocation", p.accountId])).code, 2);
-  assert.equal((await run(app, ["set-allocation", "nobody", "10"])).code, 1);
+  assert.equal((await run(app, ["set-allowance", p.accountId, "1e9x"])).code, 2);
+  assert.equal((await run(app, ["set-allowance", p.accountId])).code, 2);
+  assert.equal((await run(app, ["set-allowance", "nobody", "10"])).code, 1);
   makeOwner(app, { admin: false });
   app.db.run("UPDATE accounts SET display_name = 'Pat'");
-  const ambiguous = (await run(app, ["set-allocation", "pat", "10"]));
+  const ambiguous = (await run(app, ["set-allowance", "pat", "10"]));
   assert.equal(ambiguous.code, 1);
   assert.match(ambiguous.err, /More than one account/);
-  const audit = app.db.all<{ actor_account_id: string | null; action: string }>("SELECT actor_account_id, action FROM audit_events WHERE action = 'cli_set_allocation'");
+  const audit = app.db.all<{ actor_account_id: string | null; action: string }>("SELECT actor_account_id, action FROM audit_events WHERE action = 'cli_set_allowance'");
   assert.equal(audit.length, 3);
   assert.ok(audit.every((a) => a.actor_account_id === null));
 });
@@ -154,12 +154,12 @@ test("create-invite prints a one-time code that a hosted installation accepts", 
   assert.equal(bad.code, 2);
   const taken = app.db.get<{ email: string }>("SELECT email FROM accounts WHERE id = ?", p.accountId)!.email;
   assert.ok((await run(app, ["create-invite", taken], { PURSS_MODE: "hosted" })).err.includes(copy.api.accounts.emailInUse));
-  const r = (await run(app, ["create-invite", "alex@example.org", "--note", "for Alex", "--allocation", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
+  const r = (await run(app, ["create-invite", "alex@example.org", "--note", "for Alex", "--allowance", "777", "--days", "3"], { PURSS_MODE: "hosted" }));
   assert.equal(r.code, 0);
   assert.match(r.out, /for alex@example\.org/);
   const code = /: ([a-z0-9-]{24})$/.exec(r.out)![1]!;
   const joined = acceptInvite(app, code, "alex@example.org", "Alex", testPassword());
-  assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allocation_bytes, 777);
+  assert.equal(app.db.get("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", joined.accountId)!.allowance_bytes, 777);
   assert.equal(app.db.get("SELECT created_by FROM invites")!.created_by, p.accountId);
   assert.equal(app.db.get("SELECT actor_account_id FROM audit_events WHERE action = 'cli_create_invite'")!.actor_account_id, null);
   assert.ok(!JSON.stringify(app.db.all("SELECT * FROM audit_events")).includes(code));
@@ -167,7 +167,7 @@ test("create-invite prints a one-time code that a hosted installation accepts", 
   const self = (await run(app, ["create-invite", "sam@example.org"], { PURSS_MODE: "self" }));
   assert.equal(self.code, 0);
   assert.equal(self.err, "");
-  assert.match((await run(app, ["create-invite", "kim@example.org", "--allocation", "1000"], { PURSS_MODE: "self" })).err, /only apply on hosted installations/);
+  assert.match((await run(app, ["create-invite", "kim@example.org", "--allowance", "1000"], { PURSS_MODE: "self" })).err, /only apply on hosted installations/);
 });
 
 test("set-email gives an account the address it signs in with, never one another account has, and is audited", async (t) => {
@@ -199,7 +199,7 @@ test("reconcile-usage reports ledger differences and exits non-zero, changing no
   assert.equal(ok.code, 0);
   assert.match(ok.out, /All accounts agree/);
   assert.doesNotMatch(ok.out, /corrected/);
-  // An object written around the product: the ledger differs, and so does the total kept for the quota check.
+  // An object written around the product: the ledger differs, and so does the total kept for the storage allowance check.
   app.db.run("INSERT INTO stored_objects (id, account_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, 'record', 'orphan', 500, 'x')", p.accountId);
   const before = usedBytes(app, p.accountId);
   const bad = (await run(app, ["reconcile-usage"]));

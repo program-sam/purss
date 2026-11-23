@@ -231,7 +231,7 @@ test("workflow changes write the log: single, bulk and undo; no-ops and other fi
 test("the log is counted in storage once per item, and deleting an item deletes its rows and releases that record", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: 10_000_000 });
+  const p = makeOwner(app, { allowanceBytes: 10_000_000 });
   const src = makeSource(app, p, "S", "feed/1");
   const x = addItem(app, p, src, ago(2.5));
   const y = addItem(app, p, src, ago(3.5));

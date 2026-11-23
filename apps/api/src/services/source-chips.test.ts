@@ -7,7 +7,7 @@ import { listItemIds, listItems } from "./items.ts";
 test("the source chips narrow a list to the sources picked, or leave the ones switched off out", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const first = makeSource(app, p, "First", "feed/1");
   const second = makeSource(app, p, "Second", "feed/2");
   const third = makeSource(app, p, "Third", "feed/3");

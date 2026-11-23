@@ -113,7 +113,7 @@ test("following stores the route and the entry on the source and counts it; foll
 test("a follow that is refused counts nothing, and sources made before the record or by an archive have no route", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   // A token held for another PURSS is no token of this one's: following it is refused.
   holdCandidate("dsc_elsewhere", "wsp_other", { ...draft("https://example.org/feed.xml", "alternate-link"), entry: "paste" });
   assert.throws(() => followSource(app, p, { ...follow, token: "dsc_elsewhere" }), { message: copy.api.shared.lookupExpired });

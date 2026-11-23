@@ -8,7 +8,7 @@ import { createBasket } from "./collections.ts";
 
 function setup(entries = 1) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   makeSource(app, p, "Sediment Letters", "feed/1");
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: entries }, () => entry("feed/1"))));
   const ids = listItems(app, p, { scope: "all" }).items.map((i) => i.id);

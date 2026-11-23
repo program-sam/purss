@@ -1,5 +1,5 @@
 import { app } from "@purss/translations/app";
-import type { Capacity, CollectionDTO, SourceDTO } from "@purss/domain";
+import type { PlanUsage, CollectionDTO, SourceDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { formatCount, plural } from "../lib/format.ts";
@@ -16,7 +16,7 @@ import { FirstVisitQuestion } from "../dialogs/FirstVisitQuestion.tsx";
 import { InterfaceUpdateQuestion } from "./InterfaceUpdates.tsx";
 import { ActivityIndicator } from "./ActivityIndicator.tsx";
 import { VisitTracker } from "./VisitTracker.tsx";
-import { CapacityMeter, CapacityPanel, capacityLine } from "./Capacity.tsx";
+import { PlanUsageMeter, PlanUsagePanel, planUsageLine } from "./PlanUsage.tsx";
 import { useCurrentPlace, usePathname } from "./place.ts";
 
 const isMac = typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent);
@@ -119,8 +119,8 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
   const overlays = useOverlays();
   const popups = usePopups();
   const session = useSession().data;
-  // A copy saved offline by an earlier version has no capacity; the meter waits for the next refresh.
-  const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
+  // A copy saved offline by an earlier version has no planUsage; the meter waits for the next refresh.
+  const planUsage = (ws.data as { planUsage?: PlanUsage }).planUsage ?? null;
   const paused = ws.data.paused ?? null;
   const hosted = session?.installation.mode === "hosted";
   const pages = purssPages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
@@ -130,8 +130,8 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
   const adminPages = adminOnly.length > 1 ? adminOnly : [];
   const addTo = place?.t === "c" ? place.id : place?.t === "s" ? ws.sourceById.get(place.id)?.collectionIds[0] : undefined;
   const openAdd = () => overlays.open({ kind: "add-source", collectionId: addTo });
-  const openCapacity = (anchor: HTMLElement, up: boolean) => { if (capacity) popups.panel(anchor, hosted ? "Your plan" : "Your limits", () => <CapacityPanel capacity={capacity} paused={paused} onPlan={hosted ? () => overlays.open({ kind: "settings", tab: "plan" }) : undefined} />, { up }); };
-  const capacityLabel = capacity ? `${capacityLine(capacity)}${paused ? ". New items are paused" : ""}. Show your ${hosted ? "plan" : "limits"}` : "";
+  const openPlanUsage = (anchor: HTMLElement, up: boolean) => { if (planUsage) popups.panel(anchor, hosted ? "Your plan" : "Your limits", () => <PlanUsagePanel planUsage={planUsage} paused={paused} onPlan={hosted ? () => overlays.open({ kind: "settings", tab: "plan" }) : undefined} />, { up }); };
+  const planUsageLabel = planUsage ? `${planUsageLine(planUsage)}${paused ? ". New items are paused" : ""}. Show your ${hosted ? "plan" : "limits"}` : "";
   const homeHere = place?.t === "home";
   const readHere = place?.t === "r";
 
@@ -173,7 +173,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
           {pages.map((p) => <button key={p.path} type="button" className={`rbtn${pathname === p.path ? " sel" : ""}`} data-tip={p.nav!.label} aria-label={p.nav!.label} onClick={() => nav.goPath(p.path)}><Icon name={p.nav!.icon} /></button>)}
         </div>
         <ActivityIndicator rail />
-        {capacity ? <button type="button" className="rbtn" data-tip={capacityLine(capacity)} aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, false)}><CapacityMeter capacity={capacity} /></button> : null}
+        {planUsage ? <button type="button" className="rbtn" data-tip={planUsageLine(planUsage)} aria-haspopup="dialog" aria-label={planUsageLabel} onClick={(e) => openPlanUsage(e.currentTarget, false)}><PlanUsageMeter planUsage={planUsage} /></button> : null}
         <button type="button" className="rbtn" data-tip={app.words.settings} aria-label={app.words.settings} onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" /></button>
       </div>
     );
@@ -237,7 +237,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
       </nav>
       <div className="side-act"><ActivityIndicator /></div>
       <div className="side-foot">
-        {capacity ? <button type="button" className="stor" aria-haspopup="dialog" aria-label={capacityLabel} onClick={(e) => openCapacity(e.currentTarget, true)}><CapacityMeter capacity={capacity} /><span>{capacityLine(capacity)}</span>{paused ? <Icon name="alert" /> : null}</button> : <span className="stor" />}
+        {planUsage ? <button type="button" className="stor" aria-haspopup="dialog" aria-label={planUsageLabel} onClick={(e) => openPlanUsage(e.currentTarget, true)}><PlanUsageMeter planUsage={planUsage} /><span>{planUsageLine(planUsage)}</span>{paused ? <Icon name="alert" /> : null}</button> : <span className="stor" />}
         <button type="button" className="set" onClick={() => overlays.open({ kind: "settings" })}><Icon name="gear" />{app.words.settings}</button>
       </div>
     </>

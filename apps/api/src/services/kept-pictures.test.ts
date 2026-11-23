@@ -21,9 +21,9 @@ const delivered = (urls: string[], bytes = PNG(100)) => ({ images: urls.map((u) 
 
 type Owner = Principal & { engineUserId: string };
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Webcomic", "feed/1");
   const text = createBasket(app, p, { name: "Comics", captureMode: "text" }).id;
   const links = createBasket(app, p, { name: "Links", captureMode: "metadata" }).id;

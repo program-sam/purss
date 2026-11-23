@@ -3,7 +3,7 @@ import type { WorkflowState } from "./workflow.ts";
 import type { ItemKind, QueryNode, Sort } from "./query.ts";
 import { WORKFLOW_STATES } from "./workflow.ts";
 import { SORTS, queryNodeSchema } from "./query.ts";
-import type { Capacity } from "./plans.ts";
+import type { PlanUsage } from "./plans.ts";
 import { LOOKUP_ENTRIES } from "./discovery-routes.ts";
 import type { TextRef } from "./annotations.ts";
 
@@ -211,7 +211,7 @@ export type Bootstrap = {
   baskets: BasketDTO[];
   preferences: Preferences;
   /** Sources and collections used of the account's plan, and storage of its allowance. */
-  capacity: Capacity;
+  planUsage: PlanUsage;
   /** Why new items and copies are paused (PURSS is out of space), or null. */
   paused: string | null;
   unreadNotifications: number;

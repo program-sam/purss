@@ -40,7 +40,7 @@ behind these listeners are in [security](../../docs/security.md).
 | `src/oauth/`, `src/mcp/` | The assistants' OAuth server and the MCP server ([assistants](../../docs/assistants.md)) |
 | `src/mail/` | Outgoing email, optional; open sign-up in hosted mode needs it |
 | `src/db/` | The database wrapper and `migrations/NNN_name.sql`, applied in order at start and recorded in `schema_migrations`; see [development](../../docs/development.md) |
-| `src/cli.ts` | The operator CLI: invitations, e-mail and allocation changes, plans, password reset links, usage reconciliation, a test e-mail |
+| `src/cli.ts` | The operator CLI: invitations, e-mail and allowance changes, plans, password reset links, usage reconciliation, a test e-mail |
 | `src/billing.ts` | Hosted only: the hand-off to an external billing service and the plan it reports back. PURSS holds no payment details |
 
 Tests sit next to the code and run with `npm test` against real SQLite databases in temporary directories

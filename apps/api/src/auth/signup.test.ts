@@ -146,8 +146,8 @@ test("a new hosted account has no storage limit", async (t) => {
   t.after(b.close);
   await start("ana7@example.org");
   assert.equal((await finish({ token: await linkFor("ana7@example.org") })).status, 200);
-  const rows = b.app.db.all<{ allocation_bytes: number | null }>("SELECT s.allocation_bytes FROM storage_accounts s JOIN accounts a ON a.id = s.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL);
-  assert.deepEqual(rows.map((r) => r.allocation_bytes), [null], "no allocation unless an administrator sets one");
+  const rows = b.app.db.all<{ allowance_bytes: number | null }>("SELECT s.allowance_bytes FROM storage_accounts s JOIN accounts a ON a.id = s.account_id WHERE a.email IS NOT ?", OPERATOR_EMAIL);
+  assert.deepEqual(rows.map((r) => r.allowance_bytes), [null], "no allowance unless an administrator sets one");
 });
 
 test("nobody can sign up before the installation is claimed: the setup code's administrator must come first", async (t) => {

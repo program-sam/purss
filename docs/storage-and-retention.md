@@ -119,7 +119,7 @@ preferences, reminders, notifications, shared-page settings and public notes, se
 data, FreshRSS's own copy of the feeds, and backups. The server's copy of a media file is not counted because
 there is none.
 
-The sidebar meter shows followed sources against the plan, and, where an allocation is set, the bytes used against it.
+The sidebar meter shows followed sources against the plan, and, where an allowance is set, the bytes used against it.
 
 ### Logical bytes and disk
 
@@ -133,11 +133,11 @@ volume, the reserve, and the sizes of the database and its log. `node apps/api/s
 compares each account's ledger with its objects and corrects the total if it drifted
 ([self-hosting](self-hosting.md#operator-cli)).
 
-### Allocation and plan limits
+### Allowance and plan limits
 
-- **Allocation** is a number of bytes an administrator sets for an account. Self-hosted installations have none
-  unless the operator sets one with the CLI. Hosted installations take `PURSS_DEFAULT_ALLOCATION_BYTES` (empty
-  means none), an invitation's allocation or a per-account value. It is an administrator's safeguard against
+- **Allowance** is a number of bytes an administrator sets for an account. Self-hosted installations have none
+  unless the operator sets one with the CLI. Hosted installations take `PURSS_DEFAULT_ALLOWANCE_BYTES` (empty
+  means none), an invitation's allowance or a per-account value. It is an administrator's safeguard against
   runaway use; plans are not priced in bytes.
 - **Plans** (hosted only) limit followed sources and collections, not bytes: Free 100 sources and 5 collections,
   Plus 1,000 sources and no collection limit, Pro 5,000 and no limit, Unlimited for exempted accounts and
@@ -148,7 +148,7 @@ compares each account's ledger with its objects and corrects the total if it dri
 
 ## At the limit
 
-Growth is admitted inside the transaction that writes it, against the allocation plus live reservations. The API
+Growth is admitted inside the transaction that writes it, against the allowance plus live reservations. The API
 is the only writer, so two requests cannot spend the same free bytes.
 
 - **Reservations.** A keep with a readable copy reserves 1,500,000 bytes before the fetch. The copy settles to its
@@ -156,9 +156,9 @@ is the only writer, so two requests cannot spend the same free bytes.
   reserve nothing: a *Full articles* copy and kept pictures are admitted when they finish if they fit and
   dropped otherwise, without marking growth paused.
 - **Disk reserve.** A write that is not a control is refused when it would leave the data volume with less than
-  `PURSS_DISK_RESERVE_BYTES` free (1 GiB by default), whatever the account's allocation.
+  `PURSS_DISK_RESERVE_BYTES` free (1 GiB by default), whatever the account's allowance.
 - **Control headroom.** State changes, a pin on an item PURSS already has, notes and playback positions may exceed
-  a full allocation by at most 2 MiB, and are counted. They never admit content, and the disk reserve does not
+  a full allowance by at most 2 MiB, and are counted. They never admit content, and the disk reserve does not
   stop them.
 
 When room runs out, growth pauses and nothing is evicted:
@@ -173,7 +173,7 @@ When room runs out, growth pauses and nothing is evicted:
 
 The pause shows on the sidebar meter (its label says new items are paused, its panel says why, in plain words for
 a full allowance or a low disk) and as the answer to an action that needed room. It lifts by itself: the
-maintenance tick checks whether growth fits again, and deleting items or raising the allocation checks at once. Lowering an allocation below what an account holds keeps the data and pauses growth.
+maintenance tick checks whether growth fits again, and deleting items or raising the allowance checks at once. Lowering an allowance below what an account holds keeps the data and pauses growth.
 
 While growth is paused, FreshRSS keeps collecting into its own buffer under its retention, so entries that age
 out of it before room returns are never imported. Resuming does not recover them.
@@ -210,7 +210,7 @@ title, origin, publication and keep dates, for reading and printing; it is not a
 lists the public feeds followed and leaves private sources out.
 
 **Import** checks the file against its manifest, refuses a newer schema version, and shows what it would add
-and whether it fits the allocation and the plan, before changing anything. One staged file waits per PURSS for 24
+and whether it fits the allowance and the plan, before changing anything. One staged file waits per PURSS for 24
 hours. Applying is one transaction that lands completely or not at all, and over a limit nothing is written and
 the staged file stays for a retry. Import deletes nothing: items already here are not added twice, sharing
 arrives switched off, private sources arrive as *needs reconnecting*, and preferences are applied only when the

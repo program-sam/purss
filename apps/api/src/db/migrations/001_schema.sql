@@ -55,7 +55,7 @@ CREATE TABLE invites (
   id TEXT PRIMARY KEY,             -- sha256 of the invite code
   created_by TEXT NOT NULL REFERENCES accounts(id),
   note TEXT,
-  allocation_bytes INTEGER,
+  allowance_bytes INTEGER,
   created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   used_at TEXT,
@@ -254,7 +254,7 @@ CREATE TABLE basket_items (
 
 CREATE TABLE storage_accounts (
   account_id TEXT PRIMARY KEY REFERENCES accounts(id),
-  allocation_bytes INTEGER,        -- NULL = unallocated self-host account
+  allowance_bytes INTEGER,        -- NULL = unallocated self-host account
   paused_reason TEXT,
   used_bytes INTEGER NOT NULL DEFAULT 0
 ) STRICT;

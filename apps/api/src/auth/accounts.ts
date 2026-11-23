@@ -70,14 +70,14 @@ export function emailInUse(app: App, email: string): boolean {
  * whether the address was proven (a link it received, or a provider that vouched for it). An address another account
  * has is refused (409 email_in_use).
  */
-export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string } {
+export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allowanceBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string } {
   const accountId = newId("acc");
   const now = nowIso();
   if (emailInUse(app, opts.email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseSignInOrReset);
   app.db.run("INSERT INTO accounts (id, display_name, email, email_verified_at, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     accountId, opts.displayName, opts.email.trim(), opts.emailConfirmed ? now : null, initialPlan(app), now);
   if (opts.password) storePassword(app, accountId, opts.password);
-  app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?)", accountId, opts.allocationBytes);
+  app.db.run("INSERT INTO storage_accounts (account_id, allowance_bytes) VALUES (?, ?)", accountId, opts.allowanceBytes);
   if (opts.admin) app.db.run("INSERT INTO role_grants (account_id, role, granted_at, granted_by) VALUES (?, 'admin', ?, ?)", accountId, now, opts.grantedBy);
   // Each account gets its own engine user (never one shared upstream user).
   const engineUserId = newId("eng");
@@ -237,7 +237,7 @@ export function claim(app: App, code: string, email: string, displayName: string
       audit(app, null, "claim", null, "failure");
       throw new HttpError(403, "bad_code", server.api.accounts.badSetupCode);
     }
-    const { accountId } = createAccount(app, { email, emailConfirmed: false, displayName, admin: true, allocationBytes: app.config.mode === "hosted" ? app.config.defaultAllocationBytes : null, grantedBy: null, password });
+    const { accountId } = createAccount(app, { email, emailConfirmed: false, displayName, admin: true, allowanceBytes: app.config.mode === "hosted" ? app.config.defaultAllowanceBytes : null, grantedBy: null, password });
     app.db.run("DELETE FROM installation WHERE key = 'claim_hash'");
     removeSecret(app.config.secretsDir, "setup-code");
     audit(app, accountId, "claim", accountId, "success");
@@ -248,11 +248,11 @@ export function claim(app: App, code: string, email: string, displayName: string
 }
 
 /** An invitation for one address, typed by the administrator; invites never grant administration. */
-export function createInvite(app: App, adminId: string, email: string, note: string | null, allocationBytes: number | null, days = 14): string {
+export function createInvite(app: App, adminId: string, email: string, note: string | null, allowanceBytes: number | null, days = 14): string {
   if (emailInUse(app, email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUse);
   const code = humanCode(5);
-  app.db.run("INSERT INTO invites (id, created_by, email, note, allocation_bytes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    sha256(normalizeCode(code)), adminId, email.trim(), note, allocationBytes, nowIso(), addSeconds(days * 86400));
+  app.db.run("INSERT INTO invites (id, created_by, email, note, allowance_bytes, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    sha256(normalizeCode(code)), adminId, email.trim(), note, allowanceBytes, nowIso(), addSeconds(days * 86400));
   audit(app, adminId, "invite_create", null, "success");
   return code;
 }
@@ -272,13 +272,13 @@ export function inviteDelivered(app: App, code: string, sent: boolean): void {
 export function acceptInvite(app: App, code: string, email: string, displayName: string | null, password: PreparedPassword): { accountId: string } {
   return app.db.tx(() => {
     const id = sha256(normalizeCode(code));
-    const inv = app.db.get<{ id: string; email: string; emailed_at: string | null; allocation_bytes: number | null }>(
-      "SELECT id, email, emailed_at, allocation_bytes FROM invites WHERE id = ? AND used_at IS NULL AND expires_at > ? AND email IS NOT NULL", id, nowIso());
+    const inv = app.db.get<{ id: string; email: string; emailed_at: string | null; allowance_bytes: number | null }>(
+      "SELECT id, email, emailed_at, allowance_bytes FROM invites WHERE id = ? AND used_at IS NULL AND expires_at > ? AND email IS NOT NULL", id, nowIso());
     if (!inv) throw new HttpError(403, "bad_invite", server.api.accounts.invitationInvalid);
     if (normalizeEmail(inv.email) !== normalizeEmail(email)) throw new HttpError(403, "invite_email", server.api.accounts.invitationOtherEmail);
     // Storage allowances are a hosted-service feature; self-hosted accounts have no limit.
-    const allocationBytes = app.config.mode === "hosted" ? inv.allocation_bytes ?? app.config.defaultAllocationBytes : null;
-    const { accountId } = createAccount(app, { email: inv.email, emailConfirmed: inv.emailed_at !== null, displayName, admin: false, allocationBytes, grantedBy: null, password });
+    const allowanceBytes = app.config.mode === "hosted" ? inv.allowance_bytes ?? app.config.defaultAllowanceBytes : null;
+    const { accountId } = createAccount(app, { email: inv.email, emailConfirmed: inv.emailed_at !== null, displayName, admin: false, allowanceBytes, grantedBy: null, password });
     app.db.run("UPDATE invites SET used_at = ?, used_by = ? WHERE id = ?", nowIso(), accountId, id);
     audit(app, accountId, "invite_accept", accountId, "success");
     return { accountId };
@@ -381,7 +381,7 @@ export function signupWithProvider(
     if (emailInUse(app, who.email)) {
       throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseConnectProvider(who.label));
     }
-    const { accountId } = createAccount(app, { email: who.email, emailConfirmed: true, displayName: who.displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password: null });
+    const { accountId } = createAccount(app, { email: who.email, emailConfirmed: true, displayName: who.displayName, admin: false, allowanceBytes: app.config.defaultAllowanceBytes, grantedBy: null, password: null });
     const now = nowIso();
     app.db.run("INSERT INTO sign_in_methods (id, account_id, kind, label, issuer, subject, created_at, last_used_at) VALUES (?, ?, 'oidc', ?, ?, ?, ?, ?)",
       newId("sim"), accountId, who.label, who.issuer, who.subject, now, now);

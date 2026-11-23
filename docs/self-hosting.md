@@ -4,7 +4,7 @@ How to run and operate PURSS. [Host it yourself](install.md) is the step-by-step
 a first installation; this page is the reference. [Architecture](architecture.md) explains the
 parts named here, [Security](security.md) the threat model and the controls behind the
 [Security notes](#security-notes) below, and [Storage and retention](storage-and-retention.md) what the
-server keeps and how allocations work.
+server keeps and how allowances work.
 
 ## Requirements
 
@@ -96,10 +96,10 @@ variables `compose.yaml` refers to:
 | `PURSS_HOST_PORT` | `8940` | Host port in localhost mode; change `PURSS_PUBLIC_ORIGIN` to match |
 | `PURSS_BIND_ADDRESS` | `127.0.0.1` | Host address the port is published on; a LAN address opens it to the home network |
 | `PURSS_PROXY_NETWORK` | `nginx_default` | Proxy mode: the reverse proxy's Docker network |
-| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allocations and optional open sign-up |
+| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allowances and optional open sign-up |
 | `PURSS_SIGNUP` | `invite` | `open` (hosted mode only, needs outgoing email): anyone can create an account |
 | `PURSS_SIGNUP_DAILY_LIMIT` | `50` | Most open sign-ups accepted per day |
-| `PURSS_DEFAULT_ALLOCATION_BYTES` | empty | Hosted mode's allocation for new accounts; empty means no limit |
+| `PURSS_DEFAULT_ALLOWANCE_BYTES` | empty | Hosted mode's allowance for new accounts; empty means no limit |
 | `PURSS_SMTP_HOST` … `PURSS_MAIL_FROM` | empty | Optional outgoing email; see [Outgoing email](#outgoing-email) |
 | `PURSS_ASSISTANT_OAUTH` | empty | Assistants signing in with OAuth: on in hosted mode; `on` opts in when self-hosted (needs https) |
 | `PURSS_PUSH_RELAY_URL` | unset | Phone notifications go through the project's relay; set it empty (`PURSS_PUSH_RELAY_URL=`) or `off` to turn them off |
@@ -318,12 +318,12 @@ and each account has its own PURSS and FreshRSS user, isolated from the others.
 | --- | --- | --- |
 | Accounts | The owner plus people an administrator invites | The same, plus optional open sign-up |
 | Plans | None: no source or collection limits | Free (100 sources, 5 collections) for new accounts, Plus (1,000 sources), Pro (5,000 sources) or Unlimited; see [Plans](#plans-in-hosted-mode). Administrators are Unlimited |
-| Space allocation | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOCATION_BYTES`, per invitation or per account; a safeguard users don't see |
+| Space allowance | None, unless set with the CLI | None, unless set by `PURSS_DEFAULT_ALLOWANCE_BYTES`, per invitation or per account; a safeguard users don't see |
 | Sharing baskets and collections | Available, with a report link and takedowns | Plus and above, with a report link and takedowns |
 | Discovery | None: nothing is compared or kept | Source suggestions from what accounts that share follow together; see [Discover](#discover-hosted-only) |
 | Smart filters | Every account, on the server's Jev key | Pro and above, within a weekly allowance; see [Smart filters](#smart-filters) |
 | Assistants signing in with OAuth | Off unless `PURSS_ASSISTANT_OAUTH=on` | On when `PURSS_PUBLIC_ORIGIN` is https; see [Assistants](assistants.md) |
-| Administration | Health, jobs, audit log, usage check, accounts (suspend, admin role), invitations, assistant access, reports about shared pages and news | Also plans and allocations |
+| Administration | Health, jobs, audit log, usage check, accounts (suspend, admin role), invitations, assistant access, reports about shared pages and news | Also plans and allowances |
 
 **Administration → News** is where administrators write posts for everyone on the installation.
 A draft stays there; publishing (which asks to confirm it's you) puts the post on the public
@@ -400,7 +400,7 @@ them applies again if they stop being administrators. An administrator sets anot
 **Administration → Accounts → Plan…** (it asks to confirm it's you) or with `set-plan`, and where a
 [billing service](#billing-service) is connected it sets the plan after a payment. Saved links don't count
 as followed sources. The people themselves see their sources used of their plan under *Settings → Plan*;
-the storage allocation stays an administrator's safeguard that they don't see.
+the storage allowance stays an administrator's safeguard that they don't see.
 
 The limits are checked inside the write transaction of every path that adds a followed source or a
 collection: following (including following a source again), OPML import, data import and the assistant
@@ -632,9 +632,9 @@ only the data directory; every change is written to the audit log as a host-leve
 
 ```sh
 node apps/api/src/cli.ts status
-node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
+node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allowance <bytes>] [--days <n>]
 node apps/api/src/cli.ts set-email <account> <address>
-node apps/api/src/cli.ts set-allocation <account> <bytes|none>
+node apps/api/src/cli.ts set-allowance <account> <bytes|none>
 node apps/api/src/cli.ts set-plan <account> <free|plus|unlimited>
 node apps/api/src/cli.ts password-reset-link <account>
 node apps/api/src/cli.ts reconcile-usage
@@ -647,13 +647,13 @@ node apps/api/src/cli.ts test-email <address>
   (administrators, suspended, being deleted), sources, items, kept items, jobs and open review
   entries, and the outgoing email server if any.
 - `create-invite`: makes an invitation for an address that has no account. With outgoing email set up
-  it is emailed there and the code isn't printed; otherwise the code is printed once. `--allocation` only takes effect in hosted
+  it is emailed there and the code isn't printed; otherwise the code is printed once. `--allowance` only takes effect in hosted
   mode; the CLI warns when it is given elsewhere.
 - `set-email`: gives an account the address it signs in with, refused when another account has it.
   With outgoing email set up, an account that has an address keeps it until the new one's confirmation
   link is used, as in Settings; one without an address gets it at once, with a link to confirm it. Use it for an account that has no
   address, or one whose owner can no longer use theirs.
-- `set-allocation`: changes an account's allocation; over the new limit, growth pauses and
+- `set-allowance`: changes an account's allowance; over the new limit, growth pauses and
   nothing is deleted. Refused for an account that is being deleted.
 - `set-plan` (hosted only): changes an account's plan. Over the new plan's limits nothing is
   removed; new follows and collections wait until the account is under them.
@@ -674,7 +674,7 @@ node apps/api/src/cli.ts test-email <address>
 
 Locally run it from the repository; set `PURSS_DATA_DIR` if the data isn't in `./data`. Under
 Compose: `docker compose -f infra/compose.yaml exec api node apps/api/src/cli.ts status`. The
-CLI reads `PURSS_MODE` from its own environment, so the allocation warning only reflects the
+CLI reads `PURSS_MODE` from its own environment, so the allowance warning only reflects the
 running service when both see the same value. Opening the database applies any pending
 migrations.
 
@@ -766,7 +766,7 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_HOST`, `PURSS_PORT` | `127.0.0.1`, `8940` | Public listener |
 | `PURSS_PUBLIC_ORIGIN` | `http://localhost:<PURSS_PORT>` | Exact public origin: request origin checks, passkey host, `Secure` cookies when https, share and OIDC callback links |
 | `PURSS_INTERNAL_HOST`, `PURSS_INTERNAL_PORT` | `127.0.0.1`, `8948` | Internal job listener (service token) |
-| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allocations and optional open sign-up, and links public share and follow pages to the website |
+| `PURSS_MODE` | `self` | `hosted` adds plans, optional storage allowances and optional open sign-up, and links public share and follow pages to the website |
 | `PURSS_SIGNUP` | `invite` | `open` (hosted mode only, with working outgoing email): anyone can create an account; attempts are limited to 30/hour/address and successful creations to 10/hour/address |
 | `PURSS_SIGNUP_DAILY_LIMIT` | `50` | Most open sign-ups accepted per day installation-wide |
 | `PURSS_SMTP_HOST`, `PURSS_SMTP_PORT`, `PURSS_SMTP_SECURITY`, `PURSS_SMTP_USER`, `PURSS_SMTP_PASSWORD`, `PURSS_MAIL_FROM` | off | Optional outgoing email; see [Outgoing email](#outgoing-email) |
@@ -775,7 +775,7 @@ Variables read by the code, with defaults. Paths default relative to the reposit
 | `PURSS_APP_ANDROID_CERT_SHA256` | empty | SHA-256 fingerprints (`AB:CD:…`, comma-separated) of the keys that sign the Android app you hand out. PURSS then serves `/.well-known/assetlinks.json` for it, and the app can sign in and confirm it's you with the phone's passkeys (the same passkeys as in a browser on this address). Get one with `keytool -list -v -keystore release.jks` (or from Play Console → App signing). Needs https |
 | `PURSS_APP_ANDROID_PACKAGE` | `app.purss` | The Android app's package name, if you build it under another one |
 | `PURSS_APP_IOS_APP_ID` | empty | `TEAMID.bundle.id` of the iOS app (comma-separated): serves `/.well-known/apple-app-site-association`. iOS also needs this PURSS's domain in the app's own build (see Passkeys in apps/mobile/README.md) |
-| `PURSS_DEFAULT_ALLOCATION_BYTES` | none | Allocation for new hosted accounts; empty means no limit; not used in self mode |
+| `PURSS_DEFAULT_ALLOWANCE_BYTES` | none | Allowance for new hosted accounts; empty means no limit; not used in self mode |
 | `PURSS_DISK_RESERVE_BYTES` | 1 GiB | Free disk below which growth pauses |
 | `PURSS_IMPORT_CHECK_HEAP_MB` | `384` | Memory in MB one import check may use; an export needing more is refused as too large to import here |
 | `PURSS_OIDC` | none | JSON array of `{id, label, issuer, clientId, clientSecret?, stepUp?}`; callback `<origin>/api/auth/oidc/<id>/callback`; see [Signing in with Google or another provider](#signing-in-with-google-or-another-provider) |

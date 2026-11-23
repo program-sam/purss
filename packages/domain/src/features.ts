@@ -1,7 +1,7 @@
 import { common } from "@purss/translations/common";
 import type { ShareDTO } from "./api.ts";
 import type { WorkflowState } from "./workflow.ts";
-import type { Capacity, Plan } from "./plans.ts";
+import type { PlanUsage, Plan } from "./plans.ts";
 
 /* Response shapes of the feature routes (sharing, portability,
    reconciliation, admin). The API services import these, so both sides agree. */
@@ -73,8 +73,8 @@ export type UsageReport = { checkedAt: string; accounts: { accountId: string; le
  * `engineReview` means an administrator has to confirm the engine user's data was removed before the deletion can finish.
  */
 export type AdminAccountDeletion = { dueAt: string; state: "pending" | "purging"; engineReview: boolean };
-/** `plan` is the chosen plan and `capacity.plan` the one that applies (Unlimited while an administrator); both null on self-hosted installs, which have no plans. */
-export type AdminAccountDTO = { id: string; displayName: string | null; email: string | null; status: "active" | "suspended"; createdAt: string; isAdmin: boolean; usedBytes: number; allocationBytes: number | null; plan: Plan | null; capacity: Capacity; deletion: AdminAccountDeletion | null;
+/** `plan` is the chosen plan and `planUsage.plan` the one that applies (Unlimited while an administrator); both null on self-hosted installs, which have no plans. */
+export type AdminAccountDTO = { id: string; displayName: string | null; email: string | null; status: "active" | "suspended"; createdAt: string; isAdmin: boolean; usedBytes: number; allowanceBytes: number | null; plan: Plan | null; planUsage: PlanUsage; deletion: AdminAccountDeletion | null;
   /** Hosted only: Smart filter tokens used on the server's key this week; null when self-hosted. */
   smartFilterTokens: number | null };
 

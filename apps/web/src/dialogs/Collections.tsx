@@ -7,7 +7,7 @@ import { del, messageOf, patch, post } from "../api/client.ts";
 import { refreshPurss } from "../api/queries.ts";
 import { VIEW_LABELS, VIEW_MODES } from "../lib/constants.ts";
 import { plural } from "../lib/format.ts";
-import { capacityOf, collectionLimitNote } from "../lib/plan-limits.ts";
+import { planUsageOf, collectionLimitNote } from "../lib/plan-limits.ts";
 import { useAlertFocus } from "../lib/use-focus.ts";
 import { EMPTY_DRAFT, draftToQuery, queryToDraft } from "../lib/query-builder.ts";
 import type { QueryDraft } from "../lib/query-builder.ts";
@@ -36,7 +36,7 @@ export function NewCollectionDialog() {
   const [busy, setBusy] = useState(false);
   const alertRef = useAlertFocus<HTMLParagraphElement>(error);
   // A plan with no room left is said before the form is filled in, not after it is sent.
-  const limit = collectionLimitNote(capacityOf(ws.data));
+  const limit = collectionLimitNote(planUsageOf(ws.data));
 
   async function create() {
     setError("");

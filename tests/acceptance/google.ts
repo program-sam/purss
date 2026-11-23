@@ -118,7 +118,7 @@ async function main(smtpPort: number, google: OAuth2Server): Promise<void> {
   const prepared = createApp(loadConfig(env));
   try {
     claim(prepared, ensureClaimCode(prepared)!, "operator@example.test", "Operator", testPassword());
-    prepared.db.tx(() => createAccount(prepared, { email: "dana@example.org", emailConfirmed: true, displayName: "Dana", admin: false, allocationBytes: null, grantedBy: null, password: testPassword() }));
+    prepared.db.tx(() => createAccount(prepared, { email: "dana@example.org", emailConfirmed: true, displayName: "Dana", admin: false, allowanceBytes: null, grantedBy: null, password: testPassword() }));
   } finally { prepared.db.close(); }
   startApi(env);
   await waitFor("open sign-up", async () => (await (await fetch(`${origin}/api/session`)).json()).installation.signup === "open", 30_000);

@@ -50,7 +50,7 @@ const uploading = new Set<string>();
 let uploadingBytes = 0;
 const MAX_UPLOADS = 4;
 
-/** Account export (works while over quota), import, OPML, and reconnecting a private source. */
+/** Account export (works while over its storage allowance), import, OPML, and reconnecting a private source. */
 export function portabilityRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
 

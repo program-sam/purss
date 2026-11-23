@@ -18,11 +18,11 @@ import { server } from "@purss/translations/server";
 export const STATE_RECORD_BYTES = 64;
 
 export class StorageFull extends HttpError {
-  readonly reason: "quota" | "disk";
+  readonly reason: "allowance" | "disk";
   readonly accountId: string;
-  constructor(reason: "quota" | "disk", accountId: string, mode: "self" | "hosted") {
-    super(507, reason === "quota" ? "quota_full" : "disk_reserve",
-      reason === "quota"
+  constructor(reason: "allowance" | "disk", accountId: string, mode: "self" | "hosted") {
+    super(507, reason === "allowance" ? "allowance_full" : "disk_reserve",
+      reason === "allowance"
         ? mode === "hosted"
           ? server.api.storage.allowanceFull
           : server.api.storage.allSpaceUsed
@@ -80,8 +80,8 @@ export function reservedBytes(app: App, accountId: string): number {
   )!.n;
 }
 
-export function allocation(app: App, accountId: string): number | null {
-  return app.db.get<{ allocation_bytes: number | null }>("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", accountId)?.allocation_bytes ?? null;
+export function allowance(app: App, accountId: string): number | null {
+  return app.db.get<{ allowance_bytes: number | null }>("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", accountId)?.allowance_bytes ?? null;
 }
 
 export type DiskInfo = { freeBytes: number | null; totalBytes: number | null };
@@ -111,24 +111,24 @@ export function assertDiskRoom(app: App, bytes: number): void {
 
 /**
  * Check whether `bytes` of growth can be admitted. Control writes (workflow, progress,
- * pinning an existing item) may use a small bounded headroom beyond the allocation. `onDisk`:
+ * pinning an existing item) may use a small bounded headroom beyond the allowance. `onDisk`:
  * the bytes are already written to this disk (a downloaded file admitted on completion), so free
  * space already reflects them and only the reserve is checked.
  */
 export function checkGrowth(app: App, accountId: string, bytes: number, opts: { control?: boolean; reservationId?: string; onDisk?: boolean } = {}): void {
   if (bytes <= 0) return;
   if (!opts.control && diskBlocks(app, opts.onDisk ? 0 : bytes)) throw new StorageFull("disk", accountId, app.config.mode);
-  const alloc = allocation(app, accountId);
+  const alloc = allowance(app, accountId);
   if (alloc === null) return;
   const own = opts.reservationId
     ? app.db.get<{ bytes: number }>("SELECT bytes FROM reservations WHERE id = ? AND settled_at IS NULL AND released_at IS NULL AND expires_at > ?", opts.reservationId, nowIso())?.bytes ?? 0
     : 0;
   const committed = usedBytes(app, accountId) + reservedBytes(app, accountId) - own;
   const limit = alloc + (opts.control ? CONTROL_HEADROOM_BYTES : 0);
-  if (committed + bytes > limit) throw new StorageFull("quota", accountId, app.config.mode);
+  if (committed + bytes > limit) throw new StorageFull("allowance", accountId, app.config.mode);
 }
 
-/** Clear a pause once growth fits again (called after deletions or allocation changes). */
+/** Clear a pause once growth fits again (called after deletions or allowance changes). */
 export function refreshPause(app: App, accountId: string): void {
   const row = app.db.get<{ paused_reason: string | null }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", accountId);
   if (!row?.paused_reason) return;
@@ -210,7 +210,7 @@ export function expireReservations(app: App): number {
 /** What a person is told when their account's growth is paused (full allowance or full disk); null when it is not. */
 export function pausedReason(app: App, accountId: string): string | null {
   const paused = app.db.get<{ paused_reason: string | null }>("SELECT paused_reason FROM storage_accounts WHERE account_id = ?", accountId)?.paused_reason ?? null;
-  return paused === "quota"
+  return paused === "allowance"
     ? app.config.mode === "hosted"
       ? server.api.storage.allowanceFullPaused
       : server.api.storage.allSpaceUsedPaused

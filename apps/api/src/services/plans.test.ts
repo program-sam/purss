@@ -8,7 +8,7 @@ import { HttpError } from "../http.ts";
 import { createCollection } from "./collections.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
-import { assignMissingPlans, capacity } from "./plans.ts";
+import { assignMissingPlans, planUsage } from "./plans.ts";
 import { followSource, unfollowSource } from "./sources.ts";
 import { updateAccount } from "./admin.ts";
 import { OPTIONAL_SECTION_NAMES, SECTION_NAMES, sha256Hex } from "./archive-format.ts";
@@ -40,18 +40,18 @@ test("Free allows 100 followed sources; the 101st is refused, saved links and un
   const { app, cleanup } = hosted();
   t.after(cleanup);
   const p = makeOwner(app, { admin: false });
-  assert.equal(capacity(app, p.accountId).plan, "free");
+  assert.equal(planUsage(app, p.accountId).plan, "free");
   fill(app, p, PLAN_LIMITS.free.sources! - 1);
   makeSource(app, p, "Saved links", "manual/1", { kind: "manual" });
   followSource(app, p, { ...base, token: hold(p, 1) });
-  assert.deepEqual(capacity(app, p.accountId).sources, { used: 100, limit: 100 });
+  assert.deepEqual(planUsage(app, p.accountId).sources, { used: 100, limit: 100 });
   assert.throws(() => followSource(app, p, { ...base, token: hold(p, 2) }), refused("plan_limit"));
-  assert.equal(capacity(app, p.accountId).sources.used, 100, "nothing was added");
+  assert.equal(planUsage(app, p.accountId).sources.used, 100, "nothing was added");
 
   const first = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'feed' ORDER BY created_at LIMIT 1", p.accountId)!.id;
   unfollowSource(app, p, first);
   followSource(app, p, { ...base, token: hold(p, 2) });
-  assert.equal(capacity(app, p.accountId).sources.used, 100);
+  assert.equal(planUsage(app, p.accountId).sources.used, 100);
 });
 
 test("following again an address already followed is not a new source, even at the limit", (t) => {
@@ -70,11 +70,11 @@ test("Free allows 5 collections, also when made while following; Plus has no col
   for (let i = 0; i < 5; i++) collection(app, p, `C${i}`);
   assert.throws(() => collection(app, p, "C5"), refused("plan_limit"));
   assert.throws(() => followSource(app, p, { ...base, token: hold(p, 1), newCollectionName: "Via follow" }), refused("plan_limit"));
-  assert.equal(capacity(app, p.accountId).sources.used, 0, "the refused follow added no source either");
+  assert.equal(planUsage(app, p.accountId).sources.used, 0, "the refused follow added no source either");
 
   updateAccount(app, makeOwner(app), p.accountId, { plan: "plus" });
   for (let i = 5; i < 12; i++) collection(app, p, `C${i}`);
-  assert.deepEqual(capacity(app, p.accountId).collections, { used: 12, limit: null });
+  assert.deepEqual(planUsage(app, p.accountId).collections, { used: 12, limit: null });
 });
 
 test("a smaller plan keeps what the account has and only stops new follows", (t) => {
@@ -85,7 +85,7 @@ test("a smaller plan keeps what the account has and only stops new follows", (t)
   updateAccount(app, admin, p.accountId, { plan: "plus" });
   fill(app, p, 120);
   updateAccount(app, admin, p.accountId, { plan: "free" });
-  assert.deepEqual(capacity(app, p.accountId).sources, { used: 120, limit: 100 });
+  assert.deepEqual(planUsage(app, p.accountId).sources, { used: 120, limit: 100 });
   assert.throws(() => followSource(app, p, { ...base, token: hold(p, 1) }), refused("plan_limit"));
 });
 
@@ -94,13 +94,13 @@ test("self-hosted installs have no plans or limits; administrators on hosted ins
   t.after(self.cleanup);
   const p = makeOwner(self.app, { admin: false });
   for (let i = 0; i < 6; i++) collection(self.app, p, `C${i}`);
-  const c = capacity(self.app, p.accountId);
+  const c = planUsage(self.app, p.accountId);
   assert.deepEqual({ ...c, storage: { ...c.storage, used: 0 } }, { plan: null, sources: { used: 0, limit: null }, collections: { used: 6, limit: null }, storage: { used: 0, limit: null } });
 
   const h = hosted();
   t.after(h.cleanup);
   const admin = makeOwner(h.app);
-  assert.equal(capacity(h.app, admin.accountId).plan, "unlimited");
+  assert.equal(planUsage(h.app, admin.accountId).plan, "unlimited");
   for (let i = 0; i < 6; i++) collection(h.app, admin, `C${i}`);
 });
 
@@ -111,8 +111,8 @@ test("on a hosted install, accounts from before plans get one when the API start
   const p = makeOwner(app, { admin: false });
   app.db.run("UPDATE accounts SET plan = NULL");
   assignMissingPlans(app);
-  assert.equal(capacity(app, admin.accountId).plan, "unlimited");
-  assert.equal(capacity(app, p.accountId).plan, "free");
+  assert.equal(planUsage(app, admin.accountId).plan, "unlimited");
+  assert.equal(planUsage(app, p.accountId).plan, "free");
 });
 
 test("an import that would follow more sources or add more collections than the plan allows is refused before anything is written", async (t) => {
@@ -132,7 +132,7 @@ test("an import that would follow more sources or add more collections than the 
   const preview = stageImport(app, p, doc);
   assert.equal(preview.overPlan, plans.sourcesLimit("100", plans.plusAllowsMore));
   assert.throws(() => applyImport(app, p, preview.token), refused("plan_limit"));
-  assert.equal(capacity(app, p.accountId).sources.used, 80, "nothing was imported");
+  assert.equal(planUsage(app, p.accountId).sources.used, 80, "nothing was imported");
 
   collection(app, p, "Mine");
   collection(app, p, "Mine too");
@@ -148,10 +148,10 @@ test("an administrator is unlimited while they are one, whatever plan they keep 
   const p = makeOwner(app, { admin: false });
   for (let i = 0; i < 4; i++) collection(app, p, `C${i}`);
   updateAccount(app, admin, p.accountId, { isAdmin: true });
-  assert.equal(capacity(app, p.accountId).plan, "unlimited");
+  assert.equal(planUsage(app, p.accountId).plan, "unlimited");
   collection(app, p, "C4");
   updateAccount(app, makeOwner(app), p.accountId, { isAdmin: false });
-  assert.equal(capacity(app, p.accountId).plan, "free", "back on the plan they had");
+  assert.equal(planUsage(app, p.accountId).plan, "free", "back on the plan they had");
   assert.throws(() => collection(app, p, "C5"), refused("plan_limit"));
 });
 
@@ -175,15 +175,15 @@ test("an import whose records land on one source counts that source once", async
   const preview = stageImport(app, p, rebuild(doc));
   assert.equal(preview.overPlan, null);
   applyImport(app, p, preview.token);
-  assert.deepEqual(capacity(app, p.accountId).sources, { used: 100, limit: 100 });
+  assert.deepEqual(planUsage(app, p.accountId).sources, { used: 100, limit: 100 });
 });
 
-test("capacity carries the storage allowance set for the account, whatever the mode", (t) => {
+test("planUsage carries the storage allowance set for the account, whatever the mode", (t) => {
   const self = makeTestApp();
   t.after(self.cleanup);
   const p = makeOwner(self.app, { admin: false });
-  self.app.db.run("INSERT INTO storage_accounts (account_id, used_bytes, allocation_bytes) VALUES (?, 0, ?) ON CONFLICT (account_id) DO UPDATE SET allocation_bytes = excluded.allocation_bytes", p.accountId, 1024 ** 3);
-  const c = capacity(self.app, p.accountId);
+  self.app.db.run("INSERT INTO storage_accounts (account_id, used_bytes, allowance_bytes) VALUES (?, 0, ?) ON CONFLICT (account_id) DO UPDATE SET allowance_bytes = excluded.allowance_bytes", p.accountId, 1024 ** 3);
+  const c = planUsage(self.app, p.accountId);
   assert.equal(c.plan, null);
   assert.equal(c.sources.limit, null, "no plan: no source limit");
   assert.equal(c.storage.limit, 1024 ** 3);

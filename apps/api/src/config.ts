@@ -73,7 +73,7 @@ export type Config = {
   diskReserveBytes: number;
   /** The most memory checking one import may use, in MB (services/portability.ts checkUploadApart); larger files are refused. */
   importCheckHeapMb: number;
-  defaultAllocationBytes: number | null;
+  defaultAllowanceBytes: number | null;
   oidc: OidcProviderConfig[];
   webDist: string;
   /** The public website, served at the root in hosted mode. */
@@ -203,7 +203,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       return { ...p, issuer, stepUp: p.stepUp ?? (issuerKey(issuer) === GOOGLE_ISSUER ? "choose-account" : "reauthenticate") };
     });
   }
-  const alloc = env.PURSS_DEFAULT_ALLOCATION_BYTES;
+  const alloc = env.PURSS_DEFAULT_ALLOWANCE_BYTES;
   return {
     dataDir,
     secretsDir: path.join(dataDir, "secrets"),
@@ -219,7 +219,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mode,
     diskReserveBytes: int(env.PURSS_DISK_RESERVE_BYTES, 1024 ** 3),
     importCheckHeapMb: Math.max(64, int(env.PURSS_IMPORT_CHECK_HEAP_MB, 384)),
-    defaultAllocationBytes: alloc ? int(alloc, 0) : null,
+    defaultAllowanceBytes: alloc ? int(alloc, 0) : null,
     oidc,
     webDist: env.PURSS_WEB_DIST ?? path.join(REPO, "apps/web/dist"),
     siteDist: env.PURSS_SITE_DIST ?? path.join(REPO, "apps/site/dist"),

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { app } from "@purss/translations/app";
 import { PLAN_LABELS, PLAN_LIMITS, PLAN_PRICES_EUR, euros } from "@purss/domain";
-import type { Capacity } from "@purss/domain";
+import type { PlanUsage } from "@purss/domain";
 import { Button, Icon, Segmented } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
 import { keys } from "../../api/queries.ts";
 import { platform } from "../../platform/index.ts";
 import { usePurss } from "../../state/purss.tsx";
-import { capacityLine } from "../../shell/Capacity.tsx";
+import { planUsageLine } from "../../shell/PlanUsage.tsx";
 
 const copy = app.account.planTab;
 
@@ -33,7 +33,7 @@ export function PlanTab() {
   const ws = usePurss();
   const installation = useSession().data?.installation;
   const billing = installation?.billing ?? false;
-  const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
+  const planUsage = (ws.data as { planUsage?: PlanUsage }).planUsage ?? null;
   const [period, setPeriod] = useState<Period>("year");
   const [busy, setBusy] = useState<Intent | null>(null);
   const [error, setError] = useState("");
@@ -54,8 +54,8 @@ export function PlanTab() {
     } catch (err) { setError(messageOf(err)); setBusy(null); }
   }
 
-  if (!capacity?.plan) return <p className="fine">{installation?.mode === "self" ? copy.noLimitsSelf : copy.planUnavailable}</p>;
-  const plan = capacity.plan;
+  if (!planUsage?.plan) return <p className="fine">{installation?.mode === "self" ? copy.noLimitsSelf : copy.planUnavailable}</p>;
+  const plan = planUsage.plan;
   const limits = PLAN_LIMITS[plan];
   const save = Math.round(100 - (100 * PLAN_PRICES_EUR.plus.year) / (12 * PLAN_PRICES_EUR.plus.month));
   return (
@@ -63,7 +63,7 @@ export function PlanTab() {
       <div className="field">
         <div className="lbl">{copy.yourPlan(PLAN_LABELS[plan])}</div>
         <p className="fine">
-          {capacityLine(capacity)}{limits.collections === null ? copy.unlimitedCollections : copy.collectionsOf(capacity.collections.used, limits.collections)}.
+          {planUsageLine(planUsage)}{limits.collections === null ? copy.unlimitedCollections : copy.collectionsOf(planUsage.collections.used, limits.collections)}.
           {" "}{copy.savedLinks}
         </p>
       </div>

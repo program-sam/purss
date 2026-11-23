@@ -57,7 +57,7 @@ export function finishSignup(app: App, token: string, displayName: string | null
   return openSignup(app, address, attemptRetryAt, () => {
     const { email } = pendingRequest(app, token);
     app.db.run("UPDATE signup_requests SET used_at = ? WHERE id = ?", nowIso(), sha256(token));
-    const { accountId } = createAccount(app, { email, emailConfirmed: true, displayName, admin: false, allocationBytes: app.config.defaultAllocationBytes, grantedBy: null, password });
+    const { accountId } = createAccount(app, { email, emailConfirmed: true, displayName, admin: false, allowanceBytes: app.config.defaultAllowanceBytes, grantedBy: null, password });
     audit(app, accountId, "email_verify", accountId, "success", "signup");
     return accountId;
   });

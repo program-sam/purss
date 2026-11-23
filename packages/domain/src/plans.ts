@@ -34,7 +34,7 @@ export const planShares = (plan: Plan): boolean => plan !== "free";
 export const planHasSmartFilters = (plan: Plan): boolean => plan === "pro" || plan === "unlimited";
 
 /** What an account uses of its plan: followed sources (saved links don't count) and collections. `plan` is null when self-hosted. */
-export type Capacity = {
+export type PlanUsage = {
   plan: Plan | null;
   sources: { used: number; limit: number | null };
   collections: { used: number; limit: number | null };

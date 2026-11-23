@@ -81,7 +81,7 @@ function looseItem(app: App, p: Principal, title: string, publishedAt: string | 
 test("lists by kept time and by source follow the keys' definitions through every change to them, ties and odd titles included", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const other = makeOwner(app, { admin: false });
   // Titles that sort in surprising ways: the same title twice, an empty one (which sorts with items that have no source), a control
   // character right where the key puts its separator, uppercase before lowercase, letters outside ASCII.
@@ -131,7 +131,7 @@ test("lists by kept time and by source follow the keys' definitions through ever
   await streamExport(app, p, (c) => { parts.push(c); });
   const { app: second, cleanup: cleanupSecond } = makeTestApp();
   t.after(cleanupSecond);
-  const q = makeOwner(second, { allocationBytes: null });
+  const q = makeOwner(second, { allowanceBytes: null });
   applyImport(second, q, stageImport(second, q, JSON.parse(parts.join(""))).token);
   assert.ok(second.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM basket_items")!.n > 0 && second.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE source_title <> ''")!.n > 0, "the import brought kept items and sources");
   assertSorted(second, q, "imported");

@@ -371,8 +371,8 @@ test("hosted: Pro uses the server key an administrator set, until the week's all
   const patched = await b.api("PATCH", `/api/admin/accounts/${b.owner.accountId}`, { plan: "pro" }, adminSession);
   assert.equal(patched.status, 200, patched.text);
   assert.equal(patched.json.smartFilterTokens, 0);
-  assert.deepEqual({ ...patched.json.capacity.sources, used: 0 }, { used: 0, limit: 5000 }, "Pro follows up to 5,000 sources");
-  assert.equal(patched.json.capacity.collections.limit, null, "and has unlimited collections");
+  assert.deepEqual({ ...patched.json.planUsage.sources, used: 0 }, { used: 0, limit: 5000 }, "Pro follows up to 5,000 sources");
+  assert.equal(patched.json.planUsage.collections.limit, null, "and has unlimited collections");
   assert.deepEqual((await b.api("GET", "/api/ai")).json.pro, { included: true });
 
   const source = makeSource(b.app, b.owner, "Delta Notes", "feed/1");

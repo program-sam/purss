@@ -13,10 +13,10 @@ import { applyImport, stageImport, streamExport } from "./portability.ts";
 import { admitObject, addUsedBytes, countedBytes, expireReservations, recountUsedBytes, reconcile, releaseObject, reservedBytes, usedBytes } from "./storage.ts";
 
 /*
- * The used-bytes total is what the quota check reads on every admitted object. Random operations through the product's
+ * The used-bytes total is what the storage allowance check reads on every admitted object. Random operations through the product's
  * own code (new items, upstream edits, keeping with a readable copy, unkeeping, captures finishing or failing, deleting,
  * importing, state records, reservations expiring) must leave it equal to a recount of the live objects, to what the usage
- * ledger adds up to, and leave the reserved total equal to the open, unexpired reservations: including when the quota
+ * ledger adds up to, and leave the reserved total equal to the open, unexpired reservations: including when the storage allowance
  * refuses an object and its transaction rolls back.
  */
 
@@ -61,8 +61,8 @@ test("through random operations the used-bytes total equals a recount, the ledge
       await streamExport(theirs.app, other, (c) => { parts.push(c); });
       const archive = JSON.parse(parts.join("")) as unknown;
 
-      const accts: Acct[] = [1_800_000, null].map((allocation, i) => {
-        const p = makeOwner(app, { admin: i === 0, allocationBytes: allocation });
+      const accts: Acct[] = [1_800_000, null].map((allowance, i) => {
+        const p = makeOwner(app, { admin: i === 0, allowanceBytes: allowance });
         makeSource(app, p, "S", `feed/${i}`);
         return { p, entries: [], stream: `feed/${i}`, baskets: [createBasket(app, p, { name: "Text", captureMode: "text" }).id, createBasket(app, p, { name: "Plain", captureMode: "metadata" }).id] };
       });
@@ -132,7 +132,7 @@ test("through random operations the used-bytes total equals a recount, the ledge
       assert.ok(accts.every((a) => usedBytes(app, a.p.accountId) > 0));
     } finally { mine.cleanup(); theirs.cleanup(); }
   }
-  assert.ok(refusals > 0, "the quota refused something along the way, and the totals held");
+  assert.ok(refusals > 0, "the storage allowance refused something along the way, and the totals held");
   assert.ok(imports > 0, "an import went through");
 });
 
@@ -167,7 +167,7 @@ test("an account with objects but no storage row gets one, with its total", () =
     app.db.run("DELETE FROM storage_accounts WHERE account_id = ?", a.accountId);
     app.db.tx(() => admitObject(app, { accountId: a.accountId, kind: "record", refId: "r1", bytes: 40, reason: "test" }));
     assert.equal(usedBytes(app, a.accountId), 40);
-    assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", a.accountId)?.allocation_bytes, null, "unallocated, as before");
+    assert.equal(app.db.get("SELECT allowance_bytes FROM storage_accounts WHERE account_id = ?", a.accountId)?.allowance_bytes, null, "unallocated, as before");
     app.db.tx(() => releaseObject(app, "record", "r1", "test"));
     assert.equal(usedBytes(app, a.accountId), 0);
     addUsedBytes(app, a.accountId, 7);
@@ -179,12 +179,12 @@ test("an account with objects but no storage row gets one, with its total", () =
 test("a refused admission leaves the total as it was", () => {
   const { app, cleanup } = makeTestApp();
   try {
-    const p = makeOwner(app, { allocationBytes: 1000 });
+    const p = makeOwner(app, { allowanceBytes: 1000 });
     app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "a", bytes: 900, reason: "test" }));
     assert.throws(() => app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "b", bytes: 200, reason: "test" })), HttpError);
     assert.equal(usedBytes(app, p.accountId), 900);
     assert.equal(liveBytes(app, p.accountId), 900);
-    // The quota counts the object that is there, once; releasing it makes room again.
+    // The storage allowance counts the object that is there, once; releasing it makes room again.
     app.db.tx(() => releaseObject(app, "record", "a", "test"));
     app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "b", bytes: 200, reason: "test" }));
     assert.equal(usedBytes(app, p.accountId), 200);

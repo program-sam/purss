@@ -112,7 +112,7 @@ transaction.
 | Search | `items_fts`, `annotations_fts`, `search_index_state` | Full-text indexes over items and the person's notes, and how far a rebuild got |
 | Organising | `baskets`, `basket_items`, `collections`, `collection_sources`, `preferences`, `undo_tokens`, `confirm_tokens`, `import_stages` | Baskets and their pins (each names the version it keeps), collections and their query trees, preferences, 15-minute undo records, preview tokens for confirmed actions, staged imports |
 | Sharing | `shares`, `share_notes`, `share_reports` | Public pages of baskets and collections, the person's public notes, reports about a page |
-| Storage ledger | `storage_accounts`, `stored_objects`, `usage_events`, `reservations` | Allocation and used bytes per account, each measured stored object, its byte history, reservations held by jobs in flight |
+| Storage ledger | `storage_accounts`, `stored_objects`, `usage_events`, `reservations` | Allowance and used bytes per account, each measured stored object, its byte history, reservations held by jobs in flight |
 | Work | `jobs` | Durable background work with leases, attempts and idempotency keys |
 | Notifications and mail | `notifications`, `notification_state`, `mail_queue`, `mail_log` | The bell, digests, queued and logged outgoing messages |
 | Smart filters | `ai_filters`, `ai_filter_verdicts`, `ai_usage` | Filters, what they decided about each post, weekly use |
@@ -374,7 +374,7 @@ exported or counted against storage quota.
 
 **Storage ledger.** Usage is the sum of measured, live stored objects (item versions, readable copies,
 kept pictures, small records). Admission happens inside the
-writing transaction against the allocation plus reservations; small state writes get a bounded
+writing transaction against the allowance plus reservations; small state writes get a bounded
 headroom. A full quota or low disk pauses growth (a sync batch that needs the room is tried again by the next
 pass) and never evicts kept content. Deleting an item releases its objects and is never blocked by quota.
 [Storage and retention](storage-and-retention.md) has the rules.
@@ -440,7 +440,7 @@ redirected (301) to it; `/api` answers only at its exact paths.
 
 **Export and import.** Export streams a JSON archive with a manifest of counts and hashes,
 secret-free, and works over quota. Import stages and previews first (including whether it
-fits the allocation), then applies. What the archive holds and leaves out is in
+fits the allowance), then applies. What the archive holds and leaves out is in
 [storage and retention](storage-and-retention.md#export-and-import).
 
 **Assistants (MCP).** `POST /mcp` on the public listener is handled before cookies are read

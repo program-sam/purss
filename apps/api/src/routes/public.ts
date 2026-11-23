@@ -39,7 +39,7 @@ import {
 } from "../services/collections.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "../services/preferences.ts";
 import { pausedReason } from "../services/storage.ts";
-import { capacity } from "../services/plans.ts";
+import { planUsage } from "../services/plans.ts";
 import { listNotifications, markNotificationsRead, unreadCount } from "../services/notifications.ts";
 import { readIcon } from "../services/icons.ts";
 import { emailSchema } from "../services/account-email.ts";
@@ -440,7 +440,7 @@ export function publicRouter(): Router<Ctx> {
       sources: listSources(ctx.app, p),
       baskets: listBaskets(ctx.app, p),
       preferences: getPreferences(ctx.app, p.accountId),
-      capacity: capacity(ctx.app, p.accountId),
+      planUsage: planUsage(ctx.app, p.accountId),
       paused: pausedReason(ctx.app, p.accountId),
       unreadNotifications: unreadCount(ctx.app, p.accountId),
       engine: {

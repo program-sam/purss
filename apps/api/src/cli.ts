@@ -4,7 +4,7 @@ import { loadConfig } from "./config.ts";
 import type { App } from "./app.ts";
 import { audit } from "./app.ts";
 import { openDatabase } from "./db/database.ts";
-import { StorageFull, allocation, checkGrowth, databaseBytes, markPaused, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
+import { StorageFull, allowance, checkGrowth, databaseBytes, markPaused, refreshPause, reconcile, usedBytes } from "./services/storage.ts";
 import { checkMail, mailHealth, sendMail } from "./mail/mailer.ts";
 import { testMail } from "./mail/templates.ts";
 import { emailSchema, hostResetLink, resendVerification, setAccountEmail } from "./services/account-email.ts";
@@ -12,7 +12,7 @@ import { issueInvite } from "./services/admin.ts";
 import { usableAccountSql } from "./services/deletion.ts";
 import { PLAN_NAMES } from "@purss/domain";
 import { HttpError } from "./http.ts";
-import { capacity, storedPlan } from "./services/plans.ts";
+import { planUsage, storedPlan } from "./services/plans.ts";
 
 /*
  * Host-level operator tool: runs against the database file directly, for recovery when the
@@ -20,9 +20,9 @@ import { capacity, storedPlan } from "./services/plans.ts";
  * every change it makes is recorded in the audit log with no actor (a host-level action).
  *
  *   node apps/api/src/cli.ts status
- *   node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allocation <bytes>] [--days <n>]
+ *   node apps/api/src/cli.ts create-invite <address> [--note "text"] [--allowance <bytes>] [--days <n>]
  *   node apps/api/src/cli.ts set-email <account> <address>
- *   node apps/api/src/cli.ts set-allocation <account> <bytes|none>
+ *   node apps/api/src/cli.ts set-allowance <account> <bytes|none>
  *   node apps/api/src/cli.ts set-plan <account> <free|plus|pro|unlimited>
  *   node apps/api/src/cli.ts password-reset-link <account>
  *   node apps/api/src/cli.ts reconcile-usage
@@ -84,9 +84,9 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       if (!parsed.success) throw new CliError("Give the email address the invitation is for.", 2);
       const admin = app.db.get<{ account_id: string }>(`SELECT r.account_id FROM role_grants r WHERE r.role = 'admin' AND ${usableAccountSql("r.account_id")} ORDER BY r.granted_at LIMIT 1`);
       if (!admin) throw new CliError("There is no active administrator account to attribute the invitation to. Claim the installation first.");
-      const allocationArg = flag(rest, "--allocation");
-      const bytes = allocationArg === undefined ? null : Number(allocationArg);
-      if (bytes !== null && (!Number.isInteger(bytes) || bytes < 0)) throw new CliError("--allocation must be a whole number of bytes.", 2);
+      const allowanceArg = flag(rest, "--allowance");
+      const bytes = allowanceArg === undefined ? null : Number(allowanceArg);
+      if (bytes !== null && (!Number.isInteger(bytes) || bytes < 0)) throw new CliError("--allowance must be a whole number of bytes.", 2);
       const days = flag(rest, "--days") === undefined ? 14 : Number(flag(rest, "--days"));
       if (!Number.isInteger(days) || days < 1 || days > 60) throw new CliError("--days must be between 1 and 60.", 2);
       let code;
@@ -100,17 +100,17 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       if (bytes !== null && app.config.mode !== "hosted") io.err("Note: storage allowances only apply on hosted installations; this account will have no limit.");
       return 0;
     }
-    case "set-allocation": {
+    case "set-allowance": {
       const acct = resolveAccount(app, rest[0]);
-      if (deletionState(app, acct.id)) throw new CliError(`${acct.displayName ?? acct.id} is being deleted, so its allocation can't be changed.`);
+      if (deletionState(app, acct.id)) throw new CliError(`${acct.displayName ?? acct.id} is being deleted, so its allowance can't be changed.`);
       const value = rest[1];
       if (value === undefined) throw new CliError("Give a number of bytes, or “none” for no limit.", 2);
       const bytes = value === "none" ? null : Number(value);
-      if (bytes !== null && (!Number.isInteger(bytes) || bytes < 0)) throw new CliError("The allocation must be a whole number of bytes, or “none”.", 2);
-      const before = allocation(app, acct.id);
+      if (bytes !== null && (!Number.isInteger(bytes) || bytes < 0)) throw new CliError("The allowance must be a whole number of bytes, or “none”.", 2);
+      const before = allowance(app, acct.id);
       app.db.tx(() => {
-        app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET allocation_bytes = excluded.allocation_bytes", acct.id, bytes);
-        audit(app, null, "cli_set_allocation", acct.id, "success", `${before ?? "none"} -> ${bytes ?? "none"}`);
+        app.db.run("INSERT INTO storage_accounts (account_id, allowance_bytes) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET allowance_bytes = excluded.allowance_bytes", acct.id, bytes);
+        audit(app, null, "cli_set_allowance", acct.id, "success", `${before ?? "none"} -> ${bytes ?? "none"}`);
       });
       try {
         checkGrowth(app, acct.id, 1);
@@ -119,7 +119,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
         if (!(err instanceof StorageFull)) throw err;
         markPaused(app, err); // over the new limit: growth is paused, data is kept
       }
-      io.out(`Allocation for ${acct.displayName ?? acct.id}: ${before ?? "none"} -> ${bytes ?? "none"} (currently using ${usedBytes(app, acct.id)} bytes).`);
+      io.out(`Allowance for ${acct.displayName ?? acct.id}: ${before ?? "none"} -> ${bytes ?? "none"} (currently using ${usedBytes(app, acct.id)} bytes).`);
       return 0;
     }
     case "set-plan": {
@@ -133,7 +133,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
         app.db.run("UPDATE accounts SET plan = ? WHERE id = ?", value, acct.id);
         audit(app, null, "cli_set_plan", acct.id, "success", `${before} -> ${value}`);
       });
-      const c = capacity(app, acct.id);
+      const c = planUsage(app, acct.id);
       io.out(`Plan for ${acct.displayName ?? acct.id}: ${before} -> ${value} (${c.sources.used} sources, ${c.collections.used} collections).`);
       return 0;
     }
@@ -208,7 +208,7 @@ export async function runCommand(app: App, args: string[], io: Io): Promise<numb
       return 0;
     }
     default:
-      io.err("Usage: node apps/api/src/cli.ts <status | create-invite <address> | set-email <account> <address> | set-allocation <account> <bytes|none> | set-plan <account> <free|plus|pro|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
+      io.err("Usage: node apps/api/src/cli.ts <status | create-invite <address> | set-email <account> <address> | set-allowance <account> <bytes|none> | set-plan <account> <free|plus|pro|unlimited> | password-reset-link <account> | reconcile-usage | test-email <address>>");
       return 2;
   }
 }

@@ -60,10 +60,10 @@ export type Unit = "MB" | "GB";
 const UNIT_BYTES: Record<Unit, number> = { MB: 1024 ** 2, GB: 1024 ** 3 };
 
 /**
- * An allocation typed as a number and a unit. Blank means no limit (`null`); anything that isn't a plain,
+ * An allowance typed as a number and a unit. Blank means no limit (`null`); anything that isn't a plain,
  * non-negative number is `undefined`, never a guess.
  */
-export function parseAllocation(text: string, unit: Unit): number | null | undefined {
+export function parseAllowance(text: string, unit: Unit): number | null | undefined {
   const t = text.trim();
   if (t === "") return null;
   if (!/^\d{1,9}(\.\d{1,3})?$/.test(t)) return undefined;
@@ -71,8 +71,8 @@ export function parseAllocation(text: string, unit: Unit): number | null | undef
   return Number.isSafeInteger(bytes) ? bytes : undefined;
 }
 
-/** The number and unit to show for an existing allocation: whole gigabytes read as GB, everything else as MB. */
-export function splitAllocation(bytes: number | null): { text: string; unit: Unit } {
+/** The number and unit to show for an existing allowance: whole gigabytes read as GB, everything else as MB. */
+export function splitAllowance(bytes: number | null): { text: string; unit: Unit } {
   if (bytes === null) return { text: "", unit: "GB" };
   if (bytes >= UNIT_BYTES.GB && bytes % UNIT_BYTES.GB === 0) return { text: String(bytes / UNIT_BYTES.GB), unit: "GB" };
   return { text: String(Math.round((bytes / UNIT_BYTES.MB) * 1000) / 1000), unit: "MB" };

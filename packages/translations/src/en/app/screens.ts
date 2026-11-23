@@ -98,7 +98,7 @@ export default {
       hint: (what: string) => `${what} Turned off, the app goes back to the screens it was installed with the next time it starts.`,
       label: "Updates from PURSS",
     },
-    capacity: {
+    planUsage: {
       sourcesOf: (used: string, limit: string) => `${used} of ${limit} sources`,
       line: (used: string, limit: string, what: string) => `${used} of ${limit}${what ? ` ${what}` : ""}`,
       sourcesIn: (sources: string, collections: string) => `${sources} in ${collections}`,

@@ -377,8 +377,8 @@ async function main(): Promise<void> {
     const meter = page.locator(".side-foot .stor");
     assert.match(await meter.innerText(), new RegExp(`^[1-9]\\d* ${esc(copy.words.sourceLower)}s?$`), "the sidebar counts the followed sources");
     await meter.click();
-    const capacity = copy.shell.capacity;
-    await page.getByText(new RegExp(`^${esc(capacity.noLimit(capacity.listWords([copy.words.sourcesLower, copy.words.collectionsLower, capacity.unlimitedStorage])))}`)).waitFor();
+    const planUsage = copy.shell.planUsage;
+    await page.getByText(new RegExp(`^${esc(planUsage.noLimit(planUsage.listWords([copy.words.sourcesLower, copy.words.collectionsLower, planUsage.unlimitedStorage])))}`)).waitFor();
     await page.keyboard.press("Escape");
     step("the sidebar shows the followed sources, without limits on a self-hosted PURSS");
 

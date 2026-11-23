@@ -38,11 +38,11 @@ function rebuild(doc: any): any {
   return { ...doc, manifest: { algorithm: "sha256", sections } };
 }
 
-function twoAccounts(allocationB: number | null = null) {
+function twoAccounts(allowanceB: number | null = null) {
   const a = makeTestApp();
   const b = makeTestApp();
   const pa = makeOwner(a.app);
-  const pb = makeOwner(b.app, { allocationBytes: allocationB });
+  const pb = makeOwner(b.app, { allowanceBytes: allowanceB });
   return { a: a.app, b: b.app, pa, pb, cleanup: () => { a.cleanup(); b.cleanup(); } };
 }
 
@@ -91,13 +91,13 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   assert.equal(doc.baskets.length, 2);
 });
 
-test("export is a streamed snapshot, works over quota, and never touches the storage ledger", async (t) => {
+test("export is a streamed snapshot, works over its storage allowance, and never touches the storage ledger", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
   makeSource(app, p, "Many", "feed/1");
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: 300 }, (_, i) => entry("feed/1", { title: `Post ${i}`, summaryHtml: `<p>${"words ".repeat(120)}</p>` }))));
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = 10 WHERE account_id = ?", p.accountId); // far over quota
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = 10 WHERE account_id = ?", p.accountId); // far over its storage allowance
   const before = { used: usedBytes(app, p.accountId), events: count(app, "usage_events"), paused: app.db.get("SELECT paused_reason FROM storage_accounts")!.paused_reason };
   const { doc, chunks } = await exportDoc(app, p);
   assert.ok(chunks > 3, "written in pieces, not as one string");
@@ -396,7 +396,7 @@ test("an import that does not fit writes nothing and stays staged until there is
   assert.deepEqual(snapshot(), before, "not a single row was written");
   assert.equal(b.db.get("SELECT paused_reason FROM storage_accounts")!.paused_reason, null, "the service leaves pause marking to the request boundary, like every other rejected growth");
   assert.equal(count(b, "import_stages"), 1, "still staged");
-  b.db.run("UPDATE storage_accounts SET allocation_bytes = NULL");
+  b.db.run("UPDATE storage_accounts SET allowance_bytes = NULL");
   assert.equal(applyImport(b, pb, preview.token).created.items, 4);
 });
 
@@ -406,7 +406,7 @@ test("space is checked again when the import is applied, not only at preview tim
   seedLibrary(a, pa);
   const preview = stageImport(b, pb, (await exportDoc(a, pa)).doc);
   assert.equal(preview.fits, true);
-  b.db.run("UPDATE storage_accounts SET allocation_bytes = 100"); // the quota shrank in between
+  b.db.run("UPDATE storage_accounts SET allowance_bytes = 100"); // the storage allowance shrank in between
   assert.throws(() => applyImport(b, pb, preview.token), (e: unknown) => e instanceof HttpError && e.status === 507);
   assert.equal(count(b, "items"), 0);
 });

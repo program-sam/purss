@@ -16,9 +16,9 @@ import { deleteAnnotation, listAnnotations, putAnnotation } from "./annotations.
 
 type Owner = Principal & { engineUserId: string };
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Sediment Letters", "feed/1");
   applySyncBatch(app, p.engineUserId, batch([
     entry("feed/1", { title: "Tidal flats", contentHtml: "<p>Mud moves with every tide. The estuary keeps a record of storms.</p>" }),
@@ -191,7 +191,7 @@ test("search finds items by comment, note and highlighted passage, in lists, sea
   assert.deepEqual(listItems(app, p, { scope: `collection:${col.id}`, filter: "all_with_ignored" }).items.map((i) => i.id), [otherItemId]);
 });
 
-test("each live annotation is one small record; edits re-measure it and the ledger stays exact, even over quota", (t) => {
+test("each live annotation is one small record; edits re-measure it and the ledger stays exact, even over its storage allowance", (t) => {
   const { app, p, itemId, cleanup } = setup();
   t.after(cleanup);
   const used0 = usedBytes(app, p.accountId);
@@ -203,8 +203,8 @@ test("each live annotation is one small record; edits re-measure it and the ledg
   assert.ok(usedBytes(app, p.accountId) > used1);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM stored_objects WHERE ref_id = ? AND released_at IS NULL", `annotation:${id}`)!.n, 1);
   assert.equal(reconcile(app, p.accountId).difference, 0);
-  // A full quota still lets the person write a note (bounded headroom, like workflow changes).
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
+  // A full storage allowance still lets the person write a note (bounded headroom, like workflow changes).
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
   assert.equal(putAnnotation(app, p, itemId, newId("ann"), note("written while full", 2)).applied, true);
 });
 

@@ -6,7 +6,7 @@ import { applySyncBatch } from "./sync.ts";
 test("past the candidates looked at, a repeated link is ambiguous: a new post becomes its own item, never taken for another", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   makeSource(app, p, "Same link", "feed/1");
   const url = "https://example.org/always-the-same";
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: 201 }, (_, i) => entry("feed/1", { url, title: `Post ${i}` }))));

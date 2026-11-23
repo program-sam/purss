@@ -128,7 +128,7 @@ export function setWorkflowByFilter(app: App, owner: Owner, itemId: string, from
   return app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", itemId)!.revision;
 }
 
-/** State writes count as small "Other" records, admitted with bounded headroom when the quota is full. */
+/** State writes count as small "Other" records, admitted with bounded headroom when the storage allowance is full. */
 function recordControlWrite(app: App, p: Owner, key: string): void {
   if (app.db.get("SELECT 1 FROM stored_objects WHERE kind = 'record' AND ref_id = ? AND released_at IS NULL", key)) return;
   admitObject(app, { accountId: p.accountId, kind: "record", refId: key, bytes: STATE_RECORD_BYTES, reason: "state", control: true });

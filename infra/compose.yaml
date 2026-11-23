@@ -136,11 +136,11 @@ services:
       NODE_OPTIONS: --max-old-space-size=${PURSS_API_HEAP_MB:-640}
       PURSS_IMPORT_CHECK_HEAP_MB: ${PURSS_IMPORT_CHECK_HEAP_MB:-}
       PURSS_PUBLIC_ORIGIN: ${PURSS_PUBLIC_ORIGIN:-http://localhost:8940}
-      # Accounts: "self" (invitations only) or "hosted" (adds allocations and optional open sign-up).
+      # Accounts: "self" (invitations only) or "hosted" (adds allowances and optional open sign-up).
       PURSS_MODE: ${PURSS_MODE:-self}
       PURSS_SIGNUP: ${PURSS_SIGNUP:-invite}
       PURSS_SIGNUP_DAILY_LIMIT: ${PURSS_SIGNUP_DAILY_LIMIT:-50}
-      PURSS_DEFAULT_ALLOCATION_BYTES: ${PURSS_DEFAULT_ALLOCATION_BYTES:-}
+      PURSS_DEFAULT_ALLOWANCE_BYTES: ${PURSS_DEFAULT_ALLOWANCE_BYTES:-}
       # Storage on this server: free disk kept in reserve, and the largest audio or video file saved (bytes; empty = default).
       PURSS_DISK_RESERVE_BYTES: ${PURSS_DISK_RESERVE_BYTES:-}
       # Sign-in with other providers (docs/self-hosting.md#configuration), and seconds between scheduled syncs.

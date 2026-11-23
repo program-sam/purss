@@ -8,7 +8,7 @@
 // it, and the boxes below list only Undecided items, whether a row is open or closed; a muted word is saved in Settings and lists say how many items it
 // leaves out and can show them; the filter menu's Short length and a collection's Sources drop-down narrow a list; a row
 // action's tip shows on mouse hover and keyboard focus but not after a tap on a phone, where the undo toast says what happened; on a
-// phone the open drawer's Settings and capacity sit at its bottom.
+// phone the open drawer's Settings and planUsage sit at its bottom.
 // Keyboard focus never falls to the page: a row that leaves its list (Ignore, `r`) hands it to a row that stays or to the list's heading,
 // with and without reduced motion; choosing a show in Add source, downloading an export and the open phone drawer move or keep it too (the
 // drawer takes focus, makes the page behind inert, keeps Tab inside it, and gives focus back). Search's "Show more results" reaches past the first eight.
@@ -548,7 +548,7 @@ async function main(): Promise<void> {
     await sleep(500);
     assert.equal(await phonePage.locator(".tip").count(), 0, "a tap shows no tip next to the button: the undo toast says what happened");
     step("hover and keyboard focus name a row action in a tip; a tap on a phone leaves only the undo toast");
-    // The open drawer covers the tab bar, so its foot (capacity and Settings) sits at the drawer's bottom with no gap kept for the bar.
+    // The open drawer covers the tab bar, so its foot (planUsage and Settings) sits at the drawer's bottom with no gap kept for the bar.
     await phonePage.getByRole("navigation", { name: "Main" }).getByRole("button", { name: copy.words.collections }).tap();
     await phonePage.locator(".side-foot .set").waitFor({ state: "visible" });
     await sleep(300);
@@ -557,7 +557,7 @@ async function main(): Promise<void> {
       return { gap: side.bottom - set.bottom };
     });
     assert.ok(foot.gap <= 20, `Settings sits at the bottom of the phone drawer (gap ${foot.gap}px)`);
-    step("on a phone the drawer's Settings and capacity sit at its bottom");
+    step("on a phone the drawer's Settings and planUsage sit at its bottom");
     // The phone drawer starts with Add source: the app's name and who is signed in sit in Home's top bar instead.
     assert.equal(await phonePage.locator("#side .brand").count(), 0, "the phone drawer has no logo row");
     assert.equal(await phonePage.locator("#side").getByText("Reader", { exact: true }).count(), 0, "the phone drawer does not repeat the account name");

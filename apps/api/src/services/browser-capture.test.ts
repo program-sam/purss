@@ -16,9 +16,9 @@ import { applySyncBatch } from "./sync.ts";
 const PAGE = "https://quiet.example/essays/tides?utm_source=feed";
 const HTML = '<article><h1>Tides</h1><p onclick="steal()">Neap tides follow the quarter moons.</p><script>alert(1)</script><img src="javascript:alert(1)"><a href="javascript:alert(2)">x</a></article>';
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const owner = makeOwner(app, { allocationBytes });
+  const owner = makeOwner(app, { allowanceBytes });
   const basket = createBasket(app, owner, { name: "Reading", captureMode: "metadata" }).id;
   return { app, owner, basket, cleanup };
 }

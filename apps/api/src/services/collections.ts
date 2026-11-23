@@ -246,7 +246,7 @@ export function deleteItemNow(app: App, p: Pick<Principal, "accountId">, id: str
   return released;
 }
 
-/** Permanent, confirmed deletion. Never blocked by a full quota. No undo. */
+/** Permanent, confirmed deletion. Never blocked by a full storage allowance. No undo. */
 export function deleteItems(app: App, p: Principal, confirmToken: string): { deleted: number; releasedBytes: number } {
   let released = 0;
   let deleted = 0;

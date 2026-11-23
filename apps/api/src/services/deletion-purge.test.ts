@@ -169,7 +169,7 @@ test("with more than two accounts due, a tick starts two, each with its own file
   assert.equal(b.app.db.get<{ state: string }>("SELECT state FROM account_deletions WHERE account_id = ?", c!.m.accountId)!.state, "purging");
 });
 
-test("allocation changes are refused mid-purge, and the CLI counts and protects deleting accounts", async (t) => {
+test("allowance changes are refused mid-purge, and the CLI counts and protects deleting accounts", async (t) => {
   const b = await bootDeletion({ PURSS_MODE: "hosted" });
   t.after(b.close);
   const admin = await member(b.app, "Admin", { admin: true });
@@ -182,10 +182,10 @@ test("allocation changes are refused mid-purge, and the CLI counts and protects 
   makeDue(b.app, m.accountId);
   claimDeletion(b.app, m.accountId);
 
-  const out = await b.api(signIn(b.app, admin.accountId), "PATCH", `/api/admin/accounts/${m.accountId}`, { allocationBytes: 5_000_000 });
+  const out = await b.api(signIn(b.app, admin.accountId), "PATCH", `/api/admin/accounts/${m.accountId}`, { allowanceBytes: 5_000_000 });
   assert.equal(out.status, 409);
   assert.ok(b.app.db.get("SELECT 1 FROM audit_events WHERE action = 'admin_account_update' AND target = ? AND outcome = 'failure'", m.accountId));
-  await assert.rejects(runCommand(b.app, ["set-allocation", m.accountId, "1000"], io), /being deleted/);
+  await assert.rejects(runCommand(b.app, ["set-allowance", m.accountId, "1000"], io), /being deleted/);
   await assert.rejects(runCommand(b.app, ["password-reset-link", m.accountId], io), /being deleted/);
   runDeletions(b.app);
   assert.equal(b.app.db.get("SELECT 1 FROM storage_accounts WHERE account_id = ?", m.accountId), undefined, "phase 1 still completes cleanly");

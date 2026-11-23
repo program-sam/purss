@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { app } from "@purss/translations/app";
 import { common } from "@purss/translations/common";
-import type { Capacity } from "@purss/domain";
+import type { PlanUsage } from "@purss/domain";
 import { plural } from "./format.ts";
-import { capacityOf, collectionLimitNote } from "./plan-limits.ts";
+import { planUsageOf, collectionLimitNote } from "./plan-limits.ts";
 
 const t = app.lib.planLimits;
 const collections = (n: number) => plural(n, app.words.collectionLower);
 
-const cap = (plan: Capacity["plan"], used: number, limit: number | null): Capacity => ({
+const cap = (plan: PlanUsage["plan"], used: number, limit: number | null): PlanUsage => ({
   plan, sources: { used: 3, limit: null }, collections: { used, limit }, storage: { used: 0, limit: null },
 });
 
@@ -25,11 +25,11 @@ test("there is nothing to say while there is room, without a limit, or on a self
   assert.equal(collectionLimitNote(cap("free", 4, 5)), null);
   assert.equal(collectionLimitNote(cap("plus", 40, null)), null);
   assert.equal(collectionLimitNote(cap(null, 40, null)), null, "self-hosted: no plan");
-  assert.equal(collectionLimitNote(null), null, "a copy saved offline by an earlier version has no capacity");
+  assert.equal(collectionLimitNote(null), null, "a copy saved offline by an earlier version has no planUsage");
 });
 
-test("capacity is read from the account when it carries it", () => {
+test("planUsage is read from the account when it carries it", () => {
   const c = cap("free", 5, 5);
-  assert.equal(capacityOf({ capacity: c }), c);
-  assert.equal(capacityOf({}), null);
+  assert.equal(planUsageOf({ planUsage: c }), c);
+  assert.equal(planUsageOf({}), null);
 });

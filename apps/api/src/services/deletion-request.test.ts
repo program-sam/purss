@@ -111,7 +111,7 @@ test("a request signs out everywhere and stops tokens, sharing, new jobs, leases
   assert.equal(retry.status, 409, "an administrator can't restart them");
   assert.equal(retry.json.error.message, server.api.admin.jobAccountUnavailable);
 
-  for (const patch of [{ status: "suspended" }, { status: "active" }, { isAdmin: true }, { allocationBytes: 1_000_000 }]) {
+  for (const patch of [{ status: "suspended" }, { status: "active" }, { isAdmin: true }, { allowanceBytes: 1_000_000 }]) {
     const out = await b.api(as, "PATCH", `/api/admin/accounts/${pat.accountId}`, patch);
     assert.equal(out.status, 409, `admin change ${JSON.stringify(patch)} is refused`);
   }

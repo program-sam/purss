@@ -9,7 +9,7 @@ import { MAX_BULK_ITEMS } from "@purss/domain";
 test("Select all takes every item the list shows, past the loaded pages, in the list's order", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const src = makeSource(app, p, "First", "feed/1");
   const other = makeSource(app, p, "Second", "feed/2");
   applySyncBatch(app, p.engineUserId, batch([...Array.from({ length: 7 }, () => entry("feed/1")), entry("feed/2")]));
@@ -32,7 +32,7 @@ test("Select all takes every item the list shows, past the loaded pages, in the 
 test("Select all past its limit says there are more instead of counting them all", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   makeSource(app, p, "Busy", "feed/1");
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: MAX_BULK_ITEMS + 1 }, () => entry("feed/1"))));
   const out = listItemIds(app, p, { scope: "all", filter: "all_with_ignored" });

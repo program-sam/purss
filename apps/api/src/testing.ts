@@ -35,8 +35,8 @@ export function testEmail(name = "tester"): string {
   return `${name}${++addresses}@example.test`;
 }
 
-export function makeOwner(app: App, opts: { allocationBytes?: number | null; admin?: boolean } = {}): Principal & { engineUserId: string } {
-  const { accountId } = app.db.tx(() => createAccount(app, { email: testEmail(), emailConfirmed: false, displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
+export function makeOwner(app: App, opts: { allowanceBytes?: number | null; admin?: boolean } = {}): Principal & { engineUserId: string } {
+  const { accountId } = app.db.tx(() => createAccount(app, { email: testEmail(), emailConfirmed: false, displayName: null, admin: opts.admin ?? true, allowanceBytes: opts.allowanceBytes ?? null, grantedBy: null, password: testPassword() }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
   return { accountId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };

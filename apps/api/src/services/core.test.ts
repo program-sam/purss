@@ -9,9 +9,9 @@ import { createBasket, createCollection, deleteItems, deletePreview, listBaskets
 import { completeCapture, failCapture } from "./captures.ts";
 import { HttpError } from "../http.ts";
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Sediment Letters", "feed/1");
   return { app, p, src, cleanup };
 }
@@ -99,7 +99,7 @@ test("multi-basket keeps never double count", (t) => {
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 
-test("full quota pauses imports without advancing the checkpoint; reading, keeping and deleting still work", (t) => {
+test("full storage allowance pauses imports without advancing the checkpoint; reading, keeping and deleting still work", (t) => {
   const { app, p, cleanup } = setup(5_000);
   t.after(cleanup);
   const big = (n: number) => entry("feed/1", { summaryHtml: `<p>${"word ".repeat(n)}</p>` });
@@ -115,7 +115,7 @@ test("full quota pauses imports without advancing the checkpoint; reading, keepi
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   keepItem(app, p, item.id, basket.id);
   changeState(app, p, item.id, { workflow: "finished", expectedRevision: item.revision });
-  // Deleting is never blocked by quota.
+  // Deleting is never blocked by the storage allowance.
   const preview = deletePreview(app, p, [item.id]);
   assert.equal(preview.keptItems.length, 1);
   assert.ok(preview.releasesBytes > 0);
@@ -124,7 +124,7 @@ test("full quota pauses imports without advancing the checkpoint; reading, keepi
   assert.equal(reconcile(app, p.accountId).difference, 0);
 });
 
-test("disk reserve blocks growth even with quota remaining", (t) => {
+test("disk reserve blocks growth even with storage allowance remaining", (t) => {
   const { app, p, cleanup } = setup(null);
   t.after(() => { diskOverride.freeBytes = null; cleanup(); });
   diskOverride.freeBytes = 10; // config reserve is 0 in tests; bytes needed exceed free
@@ -447,7 +447,7 @@ test("an expired reservation is not subtracted twice when its capture settles la
   app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "filler", bytes: 1_200_000, reason: "test", control: true }));
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures")!;
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "x".repeat(2_500_000), html: "<p>x</p>", finalUrl: "https://example.org/", bytes: 1 }));
-  assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures")!.status, "failed", "over the allocation, so the copy is refused");
+  assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures")!.status, "failed", "over the allowance, so the copy is refused");
   assert.ok(usedBytes(app, p.accountId) <= 3_000_000);
 });
 

@@ -10,12 +10,12 @@ import { createInvite, inviteDelivered } from "../auth/accounts.ts";
 import { mailConfigured, mailHealth, sendMail, signupOpen } from "../mail/mailer.ts";
 import { invitationMail } from "../mail/templates.ts";
 import { cancelJob, retryJob } from "./jobs.ts";
-import { StorageFull, allocation, checkGrowth, databaseBytes, diskInfo, diskOverride, markPaused, reconcile, refreshPause, usedBytes } from "./storage.ts";
+import { StorageFull, allowance, checkGrowth, databaseBytes, diskInfo, diskOverride, markPaused, reconcile, refreshPause, usedBytes } from "./storage.ts";
 import { pauseAllShares } from "./shares.ts";
 import { signOutEverywhere } from "../auth/sign-out.ts";
 import { redactError } from "./text-safety.ts";
 import { confirmEngineRemoved, isAccountUsable, usableAccountSql } from "./deletion.ts";
-import { capacity, storedPlan } from "./plans.ts";
+import { planUsage, storedPlan } from "./plans.ts";
 import { serverTokensOf } from "./ai-access.ts";
 import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
@@ -253,7 +253,7 @@ export function listAccounts(app: App): AdminAccountDTO[] {
        d.due_at, d.state, d.engine_review_at
      FROM accounts a LEFT JOIN account_deletions d ON d.account_id = a.id ORDER BY a.created_at, a.id`,
   ).map((a) => ({
-    id: a.id, displayName: a.display_name, email: a.email, status: a.status, createdAt: a.created_at, isAdmin: a.is_admin === 1, usedBytes: usedBytes(app, a.id), allocationBytes: allocation(app, a.id), plan: app.config.mode === "hosted" ? storedPlan(app, a.id) : null, capacity: capacity(app, a.id), smartFilterTokens: serverTokensOf(app, a.id),
+    id: a.id, displayName: a.display_name, email: a.email, status: a.status, createdAt: a.created_at, isAdmin: a.is_admin === 1, usedBytes: usedBytes(app, a.id), allowanceBytes: allowance(app, a.id), plan: app.config.mode === "hosted" ? storedPlan(app, a.id) : null, planUsage: planUsage(app, a.id), smartFilterTokens: serverTokensOf(app, a.id),
     deletion: a.state && a.due_at ? { dueAt: a.due_at, state: a.state, engineReview: a.engine_review_at !== null } : null,
   }));
 }
@@ -263,8 +263,8 @@ export function listAccounts(app: App): AdminAccountDTO[] {
  * the address (acceptInvite marks it confirmed); if it can't be sent, the invitation is withdrawn and nothing is returned.
  * Without email the code is returned for the administrator to share.
  */
-export async function issueInvite(app: App, adminId: string, email: string, note: string | null, allocationBytes: number | null, days: number): Promise<{ code: string | null }> {
-  const code = createInvite(app, adminId, email, note, allocationBytes, days);
+export async function issueInvite(app: App, adminId: string, email: string, note: string | null, allowanceBytes: number | null, days: number): Promise<{ code: string | null }> {
+  const code = createInvite(app, adminId, email, note, allowanceBytes, days);
   if (!mailConfigured(app)) return { code };
   const link = `${app.config.publicOrigin}${appUrl("/invite")}?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
   const sent = await sendMail(app, "invitation", null, invitationMail(email, { link, days, origin: app.config.publicOrigin }));
@@ -274,13 +274,13 @@ export async function issueInvite(app: App, adminId: string, email: string, note
 }
 
 /** Create an invitation from the dashboard. `code` is null where it was emailed (the administrator never sees it). */
-export async function adminInvite(app: App, admin: Principal, email: string, note: string | null, allocationBytes: number | null, days: number): Promise<{ code: string | null; expiresInDays: number }> {
-  if (allocationBytes !== null) requireHosted(app, server.api.admin.storageAllowances);
-  return { ...(await issueInvite(app, admin.accountId, email, note, allocationBytes, days)), expiresInDays: days };
+export async function adminInvite(app: App, admin: Principal, email: string, note: string | null, allowanceBytes: number | null, days: number): Promise<{ code: string | null; expiresInDays: number }> {
+  if (allowanceBytes !== null) requireHosted(app, server.api.admin.storageAllowances);
+  return { ...(await issueInvite(app, admin.accountId, email, note, allowanceBytes, days)), expiresInDays: days };
 }
 
-export function updateAccount(app: App, admin: Principal, id: string, patch: { allocationBytes?: number | null; plan?: Plan; status?: "active" | "suspended"; isAdmin?: boolean }): AdminAccountDTO {
-  if (patch.allocationBytes !== undefined) requireHosted(app, server.api.admin.storageAllowances);
+export function updateAccount(app: App, admin: Principal, id: string, patch: { allowanceBytes?: number | null; plan?: Plan; status?: "active" | "suspended"; isAdmin?: boolean }): AdminAccountDTO {
+  if (patch.allowanceBytes !== undefined) requireHosted(app, server.api.admin.storageAllowances);
   if (patch.plan !== undefined) requireHosted(app, server.api.admin.plans);
   const acct = app.db.get<{ id: string; status: string }>("SELECT id, status FROM accounts WHERE id = ?", id);
   if (!acct) throw notFound(server.api.admin.thatAccount);
@@ -326,20 +326,20 @@ export function updateAccount(app: App, admin: Principal, id: string, patch: { a
       app.db.run("UPDATE accounts SET plan = ? WHERE id = ?", patch.plan, id);
       if (before !== patch.plan) changes.push(`plan ${before} -> ${patch.plan}`);
     }
-    if (patch.allocationBytes !== undefined) {
-      const before = allocation(app, id);
-      app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET allocation_bytes = excluded.allocation_bytes", id, patch.allocationBytes);
-      changes.push(`allocation ${before ?? "none"} -> ${patch.allocationBytes ?? "none"}`);
+    if (patch.allowanceBytes !== undefined) {
+      const before = allowance(app, id);
+      app.db.run("INSERT INTO storage_accounts (account_id, allowance_bytes) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET allowance_bytes = excluded.allowance_bytes", id, patch.allowanceBytes);
+      changes.push(`allowance ${before ?? "none"} -> ${patch.allowanceBytes ?? "none"}`);
     }
     audit(app, admin.accountId, "admin_account_update", id, "success", changes.join("; ") || "no change");
   });
-  // A lower allocation can leave the account over quota: keep its data, pause new growth. A higher one lifts the pause.
+  // A lower allowance can leave the account over its storage allowance: keep its data, pause new growth. A higher one lifts the pause.
   try {
     checkGrowth(app, id, 1);
     refreshPause(app, id);
   } catch (err) {
     if (!(err instanceof StorageFull)) throw err;
-    markPaused(app, err); // over the new allocation: keep the data, pause new growth
+    markPaused(app, err); // over the new allowance: keep the data, pause new growth
   }
   const row = listAccounts(app).find((a) => a.id === id)!;
   return row;

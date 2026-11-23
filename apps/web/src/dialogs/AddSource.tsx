@@ -9,7 +9,7 @@ import { refreshPurss } from "../api/queries.ts";
 import type { ManualKeepResult } from "../api/types.ts";
 import { addSourceStatus, focusTargets } from "../lib/add-source-status.ts";
 import { focusFirst, focusLost } from "../lib/focus.ts";
-import { capacityOf, collectionLimitNote } from "../lib/plan-limits.ts";
+import { planUsageOf, collectionLimitNote } from "../lib/plan-limits.ts";
 import { shortDate } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { keptMessage } from "./KeepPage.tsx";
@@ -151,7 +151,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialE
   const candidates = result?.ok ? result.candidates : [];
   const cand = candidates[pick];
   /** Said before "New collection…" is chosen, when the plan has no room for one. */
-  const collectionFull = collectionLimitNote(capacityOf(ws.data));
+  const collectionFull = collectionLimitNote(planUsageOf(ws.data));
   // A bridged source has no link of its own to keep private.
   const isPrivate = !cand?.feedUrl.startsWith("bridge:") && (markPrivate ?? !!cand?.privateWarning);
   const canFullText = !!cand && (cand.kind === "feed" || cand.kind === "publication") && !isPrivate;

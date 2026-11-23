@@ -81,7 +81,7 @@ test("failures are told apart by what to do next", () => {
   assert.equal(classify({ status: 409, code: "storage_full", message: "" }), "rejected");
   assert.equal(classify({ status: 500, code: "error", message: "" }), "later");
   assert.equal(classify({ status: 429, code: "rate_limited", message: "" }), "later");
-  assert.equal(classify({ status: 507, code: "quota_full", message: "" }), "rejected");
+  assert.equal(classify({ status: 507, code: "allowance_full", message: "" }), "rejected");
   assert.equal(classify({ status: 404, code: "not_found", message: "" }), "rejected");
   assert.equal(classify({ status: 400, code: "bad_request", message: "" }), "rejected");
 });

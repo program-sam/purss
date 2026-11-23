@@ -83,7 +83,7 @@ the port, if any. If it doesn't match, the app refuses changes with "This reques
 from the PURSS page."
 
 **Optional, for a service run for others:** add `PURSS_MODE=hosted` for plans and per-account
-storage limits an administrator can set (none unless `PURSS_DEFAULT_ALLOCATION_BYTES` gives new
+storage limits an administrator can set (none unless `PURSS_DEFAULT_ALLOWANCE_BYTES` gives new
 accounts one). Add
 `PURSS_SIGNUP=open` too only if strangers should be able to create accounts; that also needs
 [outgoing email](self-hosting.md#outgoing-email). Leave both out for a household or yourself; see

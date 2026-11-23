@@ -15,7 +15,7 @@ import { audit, emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, conflict, notFound, nowIso } from "../http.ts";
 import { randomToken, removeSecret, writeSecret } from "../secrets.ts";
 import { enqueue } from "./jobs.ts";
-import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allocation } from "./storage.ts";
+import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allowance } from "./storage.ts";
 import { NO_TITLE, contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
 import { indexText, versionBytes } from "./items.ts";
 import { markMembershipChanged } from "./state.ts";
@@ -41,7 +41,7 @@ import { server } from "@purss/translations/server";
 /*
  * PURSS export and import. The archive format is documented
  * in archive-format.ts. Export is a streamed, snapshot-consistent read that never touches the
- * storage ledger, so it works while an account is over quota. Import runs in one transaction
+ * storage ledger, so it works while an account is over its storage allowance. Import runs in one transaction
  * with a single admission check: it either lands completely or not at all.
  */
 
@@ -758,7 +758,7 @@ export function wouldFit(app: App, accountId: string, bytes: number): boolean {
   if (bytes <= 0) return true;
   const free = diskOverride.freeBytes ?? diskInfo(app).freeBytes;
   if (free !== null && free - bytes < app.config.diskReserveBytes) return false;
-  const alloc = allocation(app, accountId);
+  const alloc = allowance(app, accountId);
   return alloc === null || usedBytes(app, accountId) + reservedBytes(app, accountId) + bytes <= alloc;
 }
 

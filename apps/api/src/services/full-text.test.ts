@@ -18,9 +18,9 @@ const pendingCaptures = (app: App, sourceId: string) => app.db.all<{ item_id: st
   "SELECT c.item_id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.status = 'pending'", sourceId).map((r) => r.item_id);
 const captureJobs = (app: App) => app.db.all<{ payload: string; run_after: string }>("SELECT payload, run_after FROM jobs WHERE kind = 'capture.fulltext' ORDER BY run_after");
 
-function setup(allocationBytes: number | null = null) {
+function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();
-  const p = makeOwner(app, { allocationBytes });
+  const p = makeOwner(app, { allowanceBytes });
   const src = makeSource(app, p, "Sediment Letters", "feed/1");
   return { app, p, src, cleanup };
 }
@@ -137,12 +137,12 @@ test("when the account is out of room no copy is queued, and a copy that no long
   patchSource(app, p, src, { fullText: true });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures")!;
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = ? WHERE account_id = ?", usedBytes(app, p.accountId), p.accountId);
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: null, text: "y".repeat(400), html: `<p>${"y".repeat(400)}</p>`, finalUrl: "https://example.org/y", bytes: 800 }));
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", cap.id)!.status, "failed");
   assert.equal(pausedReason(app, p), null, "an optional copy doesn't pause growth");
 
-  app.db.run("UPDATE storage_accounts SET allocation_bytes = 1 WHERE account_id = ?", p.accountId);
+  app.db.run("UPDATE storage_accounts SET allowance_bytes = 1 WHERE account_id = ?", p.accountId);
   assert.throws(() => applySyncBatch(app, p.engineUserId, batch([entry("feed/1")])), "a full account still refuses new items as before");
   app.db.run("UPDATE storage_accounts SET paused_reason = NULL WHERE account_id = ?", p.accountId);
   const n = captureJobs(app).length;

@@ -76,7 +76,7 @@ async function exported(app: App, p: Principal): Promise<unknown> {
 test("restoring an export into a new account keeps every item's number; the next item continues after them", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   const ids = arrive(app, p, "feed/a", 4);
   app.db.tx(() => { deleteItemNow(app, p, ids[1]!); });
   const doc = await exported(app, p) as { items: { id: string; number: number }[] };
@@ -84,7 +84,7 @@ test("restoring an export into a new account keeps every item's number; the next
 
   const { app: second, cleanup: cleanupSecond } = makeTestApp();
   t.after(cleanupSecond);
-  const q = makeOwner(second, { allocationBytes: null });
+  const q = makeOwner(second, { allowanceBytes: null });
   applyImport(second, q, stageImport(second, q, doc).token);
   const titles = (a: App, w: Principal) => a.db.all<{ number: number; title: string }>("SELECT number, title FROM items WHERE account_id = ? ORDER BY number", w.accountId).map((r) => ({ ...r }));
   assert.deepEqual(titles(second, q), titles(app, p), "each item has its number from before");
@@ -96,10 +96,10 @@ test("restoring an export into a new account keeps every item's number; the next
 test("importing into a account that already gave those numbers gives the imported items new ones", async (t) => {
   const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted" });
   t.after(cleanup);
-  const p = makeOwner(app, { allocationBytes: null });
+  const p = makeOwner(app, { allowanceBytes: null });
   arrive(app, p, "feed/a", 3);
   const doc = await exported(app, p);
-  const q = makeOwner(app, { allocationBytes: null });
+  const q = makeOwner(app, { allowanceBytes: null });
   const theirs = arrive(app, q, "feed/b", 2);
   app.db.tx(() => { deleteItemNow(app, q, theirs[1]!); }); // number 2 was given and must not come back
   applyImport(app, q, stageImport(app, q, doc).token);
