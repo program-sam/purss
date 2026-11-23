@@ -175,3 +175,10 @@
 .disc-posts{margin:0;padding-inline-start:18px;display:grid;gap:4px;font-size:0.8438rem}
 .disc-posts .fine{display:inline}
 .disc-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.fx-row.disc-row .fx-grow{flex:1 1 0}
+/* In a narrow box the button is its plus sign, so the name and description keep room; screen readers still hear its label. */
+@container (max-width:340px){
+  .disc-row{gap:8px}
+  .disc-row .btn{width:40px;padding:0;justify-content:center}
+  .disc-follow{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
