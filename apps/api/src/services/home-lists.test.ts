@@ -106,7 +106,7 @@ test("a filter collection on Home leaves out items of collections hidden on Home
   t.after(cleanup);
   const { work, fun, workBox } = twoCollections(app, p);
   const w = addItem(app, p, work, { title: "road works" }), f = addItem(app, p, fun, { title: "road trip" });
-  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
   assert.deepEqual(ids(listItems(app, p, { scope: `collection:${filter.id}`, filter: "undecided", limit: 10, mix: "home" }).items), [f]);
   assert.deepEqual(new Set(ids(listItems(app, p, { scope: `collection:${filter.id}`, limit: 10 }).items)), new Set([w, f]));
@@ -115,7 +115,7 @@ test("a filter collection on Home leaves out items of collections hidden on Home
 test("a new filter collection starts off Home; a collection of sources starts on it", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Roads", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "text", value: "road" }] }, view: "list" });
   const sources = createCollection(app, p, { name: "News", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
   assert.equal(filter.showOnHome, false);
   assert.equal(sources.showOnHome, true);

@@ -486,7 +486,7 @@ test("Home lists of scopes that are not a set of sources keep Home's filter and 
   const ids = [feedItem(app, p, a, 5), feedItem(app, p, a, 4), feedItem(app, p, a, 3)];
   for (const id of ids.slice(0, 2)) setWorkflow(app, p, id, "toread");
   assert.deepEqual(listItems(app, p, { scope: "toread", filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
-  const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
+  const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
   assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
   assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), { message: server.api.http.notFound(shared.thatCollection) });
 });

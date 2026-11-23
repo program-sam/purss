@@ -172,7 +172,7 @@ export const TOOLS: Tool[] = [
   }),
   tool({
     name: "list_collections", title: server.api.mcpTools.listCollectionsTitle, access: "read",
-    description: "Collections group sources (mode 'sources') or match a saved filter (mode 'query'). They decide what is shown together; they keep nothing.",
+    description: "Collections group sources (mode 'sources') or match a saved filter (mode 'filter'). They decide what is shown together; they keep nothing.",
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({}),
     run: (ctx) => ({

@@ -144,7 +144,7 @@ export function collectionStats(app: App, p: Principal, collectionId: string, no
     .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.savedLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
     .sort((a, b) => a.title.localeCompare(b.title));
   return {
-    collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "query", asOf: now, sources,
+    collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "filter", asOf: now, sources,
     totals: totalsOf(app, p, scope, now, sources.map((s) => s.stats)),
   };
 }

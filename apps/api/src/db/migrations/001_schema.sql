@@ -219,9 +219,9 @@ CREATE TABLE collections (
   account_id TEXT NOT NULL REFERENCES accounts(id),
   name TEXT NOT NULL,
   emoji TEXT,
-  mode TEXT NOT NULL CHECK (mode IN ('sources', 'manual', 'query')),
+  mode TEXT NOT NULL CHECK (mode IN ('sources', 'filter')),
   view TEXT NOT NULL DEFAULT 'list',
-  query TEXT,                      -- JSON QueryNode for query mode
+  query TEXT,                      -- JSON QueryNode for filter mode
   show_on_home INTEGER NOT NULL DEFAULT 1,
   position INTEGER NOT NULL,
   created_at TEXT NOT NULL

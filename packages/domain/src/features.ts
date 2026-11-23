@@ -143,7 +143,7 @@ export type CollectionStatsRow = {
 export type CollectionStatsResponse = {
   collectionId: string;
   name: string;
-  mode: "sources" | "query";
+  mode: "sources" | "filter";
   asOf: string;
   sources: CollectionStatsRow[];
   /** Over all items in the collection (a gap here is between consecutive items of the whole collection). */

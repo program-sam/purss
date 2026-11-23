@@ -69,11 +69,11 @@ test("the filter heading never shows a stored state name", () => {
 });
 
 test("a collection's own filter can leave a state out, and says why", () => {
-  const onlyToRead: Parameters<typeof excludesWorkflow>[0] = { mode: "query", query: { field: "workflow", value: ["toread"] } };
+  const onlyToRead: Parameters<typeof excludesWorkflow>[0] = { mode: "filter", query: { field: "workflow", value: ["toread"] } };
   assert.equal(excludesWorkflow(onlyToRead, "finished"), t.onlyShowsMarked(t.joinOr([workflow.toread])));
   assert.equal(excludesWorkflow(onlyToRead, "toread"), null);
-  assert.equal(excludesWorkflow({ mode: "query", query: { field: "workflow", value: ["undecided", "toread"] } }, "ignored"), t.onlyShowsMarked(t.joinOr([workflow.undecided, workflow.toread])));
-  assert.equal(excludesWorkflow({ mode: "query", query: { field: "text", value: "tide" } }, "finished"), null);
+  assert.equal(excludesWorkflow({ mode: "filter", query: { field: "workflow", value: ["undecided", "toread"] } }, "ignored"), t.onlyShowsMarked(t.joinOr([workflow.undecided, workflow.toread])));
+  assert.equal(excludesWorkflow({ mode: "filter", query: { field: "text", value: "tide" } }, "finished"), null);
   assert.equal(excludesWorkflow({ mode: "sources", query: null }, "finished"), null);
-  assert.equal(excludesWorkflow({ mode: "query", query: { any: [{ field: "text", value: "a" }, { field: "text", value: "b" }] } }, "finished"), null, "a filter the builder cannot read is left alone");
+  assert.equal(excludesWorkflow({ mode: "filter", query: { any: [{ field: "text", value: "a" }, { field: "text", value: "b" }] } }, "finished"), null, "a filter the builder cannot read is left alone");
 });

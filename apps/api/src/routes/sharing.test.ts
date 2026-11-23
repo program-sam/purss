@@ -172,7 +172,7 @@ test("sharing a collection: a source collection shows its sources' items; a filt
   const b = await boot();
   t.after(b.close);
   const lib = seedLibrary(b.app, b.owner);
-  const col = (input: Record<string, unknown>) => createCollection(b.app, b.owner, { emoji: null, sourceIds: [], query: null, view: "list", mode: "query", ...input } as unknown as Parameters<typeof createCollection>[2]);
+  const col = (input: Record<string, unknown>) => createCollection(b.app, b.owner, { emoji: null, sourceIds: [], query: null, view: "list", mode: "filter", ...input } as unknown as Parameters<typeof createCollection>[2]);
   const letters = col({ name: "Letters", mode: "sources", sourceIds: [lib.publicSource, lib.privateSource] });
   const shared = await share(b, "collection", letters.id);
   const page = (await b.anon(`/p/${shared.slug}`)).text;

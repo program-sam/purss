@@ -72,7 +72,7 @@ function build(seed: number): World {
     createCollection(app, p, { name: "B", emoji: null, mode: "sources", sourceIds: sources.slice(3, 8), query: null, view: "list" }).id,
     createCollection(app, p, { name: "Empty", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id,
   ];
-  const queryCollection = createCollection(app, p, { name: "Unread", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" }).id;
+  const queryCollection = createCollection(app, p, { name: "Unread", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" }).id;
   unfollowSource(app, p, sources[1]!);
   unfollowSource(app, p, sources[5]!);
   // Some more arrivals after the changes.

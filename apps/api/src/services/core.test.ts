@@ -248,10 +248,10 @@ test("scopes, search and cursor pagination", (t) => {
   const inCol = listItems(app, p, { scope: `collection:${col.id}` });
   assert.equal(inCol.total, 1);
   assert.equal(inCol.items[0]!.kind, "video");
-  const q = createCollection(app, p, { name: "Q", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [src] }, { field: "text", value: "tidal" }] }, view: "list" });
+  const q = createCollection(app, p, { name: "Q", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "source", value: [src] }, { field: "text", value: "tidal" }] }, view: "list" });
   assert.equal(listItems(app, p, { scope: `collection:${q.id}` }).total, 7);
   // A filter can refer to a source collection; the item's detail names the collections its source is in.
-  const viaCollection = createCollection(app, p, { name: "Via", emoji: null, mode: "query", sourceIds: [], query: { field: "collection", value: [col.id] }, view: "list" });
+  const viaCollection = createCollection(app, p, { name: "Via", emoji: null, mode: "filter", sourceIds: [], query: { field: "collection", value: [col.id] }, view: "list" });
   assert.equal(listItems(app, p, { scope: `collection:${viaCollection.id}` }).total, 1);
   assert.equal(listItems(app, p, { scope: `collection:${col.id}` }).total, 1);
   assert.deepEqual(getItemDetail(app, p, inCol.items[0]!.id).collections.map((c) => c.name), ["Making"]);

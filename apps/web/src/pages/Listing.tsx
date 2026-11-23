@@ -122,7 +122,7 @@ function Head({ place, newHere, onClearNew }: { place: ListPlace; newHere: numbe
             {c.mode === "sources" ? <span className="ring-sky" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><AvatarStack sources={srcs} max={5} /><span>{plural(srcs.length, app.words.sourceLower)}</span></span>
               : <span className="tag">{t.filter}</span>}
             {c.mode !== "sources" ? <span>{plural(c.itemCount, app.words.item)}</span> : null}
-            {c.mode === "query" ? <span>{describeQuery(c.query, { source: (id) => ws.sourceById.get(id)?.title ?? t.aSource })}</span> : null}
+            {c.mode === "filter" ? <span>{describeQuery(c.query, { source: (id) => ws.sourceById.get(id)?.title ?? t.aSource })}</span> : null}
             {fresh}
             <button type="button" className="plink" onClick={() => nav.goPath(statsPathFor({ t: "c", id: c.id }))}><Icon name="chart" size="sm" />{app.words.statistics}</button>
             <button type="button" className="plink" aria-haspopup="dialog" onClick={() => overlays.open({ kind: "share", target: "collection", targetId: c.id, name: c.name })}><Icon name="link" size="sm" />{app.words.share}</button>

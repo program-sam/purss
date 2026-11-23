@@ -81,7 +81,7 @@ function fields(node: QueryNode, out = new Set<string>()): Set<string> {
   return out;
 }
 
-type Target = { kind: ShareTarget; id: string; name: string; accountId: string; mode: "basket" | "sources" | "query"; query: QueryNode | null };
+type Target = { kind: ShareTarget; id: string; name: string; accountId: string; mode: "basket" | "sources" | "filter"; query: QueryNode | null };
 
 function target(app: App, kind: ShareTarget, id: string, accountId: string): Target | null {
   if (kind === "basket") {
@@ -92,12 +92,12 @@ function target(app: App, kind: ShareTarget, id: string, accountId: string): Tar
   if (!c) return null;
   if (c.mode === "sources") return { kind, id, name: c.name, accountId, mode: "sources", query: null };
   const q = checkQuery(JSON.parse(c.query ?? "null"));
-  return { kind, id, name: c.name, accountId, mode: "query", query: q.ok ? q.query : null };
+  return { kind, id, name: c.name, accountId, mode: "filter", query: q.ok ? q.query : null };
 }
 
 /** Why this target can't be shared right now, or null. */
 function unshareable(t: Target): string | null {
-  if (t.mode !== "query") return null;
+  if (t.mode !== "filter") return null;
   if (!t.query) return server.api.shares.rulesUnreadable;
   for (const f of fields(t.query)) if (READING_STATE_FIELDS.has(f)) return server.api.shares.usesReadingState;
   return null;
@@ -232,7 +232,7 @@ export function setShareNote(app: App, p: Principal, id: string, itemId: string,
 function warnings(app: App, r: ShareRow, t: Target, items: { ownLink: boolean; note: string | null }[]): string[] {
   const out: string[] = [];
   if (t.mode === "basket") out.push(server.api.shares.basketShows(t.name));
-  if (t.mode === "query" && t.query && [...fields(t.query)].some((f) => KEEPING_FIELDS.has(f))) out.push(server.api.shares.collectionUsesBaskets);
+  if (t.mode === "filter" && t.query && [...fields(t.query)].some((f) => KEEPING_FIELDS.has(f))) out.push(server.api.shares.collectionUsesBaskets);
   if (t.mode !== "basket") out.push(server.api.shares.newItemsShow);
   const own = items.filter((i) => i.ownLink).length;
   if (own) out.push(server.api.shares.ownLinksPublic(own));

@@ -65,7 +65,6 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   parseArchive(doc); // manifest, counts and hashes verify
   assert.equal(doc.format, "purss-export");
   assert.equal(doc.schemaVersion, 1);
-  assert.ok(!("savedQueries" in doc), "saved searches no longer exist, so an export has no section for them");
   assert.ok(doc.omitted.length >= 5 && doc.omitted.includes(archiveFormat.privateLinksLeftOut), "an omitted section explains the exclusions");
 
   const priv = doc.sources.find((s: any) => s.id === lib.privateSource);
@@ -165,7 +164,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   changeState(a, pa, lib.pinnedOld.itemId, { workflow: "toread", progress: 0.5, expectedRevision: 0 });
   createCollection(a, pa, { name: "Letters", emoji: "✉️", mode: "sources", sourceIds: [lib.publicSource], query: null, view: "cards" });
   patchBasket(a, pa, lib.baskets.reading, { view: "timeline" });
-  createCollection(a, pa, { name: "Reading filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "basket", value: [lib.baskets.reading] }, { field: "source", value: [lib.publicSource] }] }, view: "list" });
+  createCollection(a, pa, { name: "Reading filter", emoji: null, mode: "filter", sourceIds: [], query: { all: [{ field: "basket", value: [lib.baskets.reading] }, { field: "source", value: [lib.publicSource] }] }, view: "list" });
   const shareId = shareRow(a, pa, "basket", lib.baskets.reading, "published", "Sam Q.");
   a.db.run("UPDATE shares SET listed = 1, description = 'good ones' WHERE id = ?", shareId);
   const noted = a.db.get<{ item_id: string }>(`SELECT b.item_id FROM basket_items b JOIN items i ON i.id = b.item_id JOIN sources s ON s.id = i.source_id
@@ -272,123 +271,6 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(count(b, "collections"), 2);
   assert.equal(count(b, "shares"), 1, "a basket that already has sharing settings keeps them");
   assert.equal(b.db.all("SELECT 1 FROM jobs WHERE kind = 'engine.subscribe'").length, 1);
-});
-
-test("an older export with hand-picked collections imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoAccounts();
-  t.after(cleanup);
-  const lib = seedLibrary(a, pa);
-  createCollection(a, pa, { name: "Letters", emoji: null, mode: "sources", sourceIds: [lib.publicSource], query: null, view: "list" });
-  const { doc } = await exportDoc(a, pa);
-  assert.ok(doc.collections.every((c: any) => c.mode !== "manual" && !("itemIds" in c)), "an export only holds source and filter collections");
-
-  // The shape a file had when hand-picked collections existed: two of them, holding item ids.
-  const legacy = rebuild({
-    ...doc,
-    collections: [
-      ...doc.collections,
-      { id: "col_old1", name: "Picks", emoji: null, mode: "manual", view: "list", query: null, showOnHome: true, position: 5, createdAt: null, sourceIds: [], itemIds: [lib.itemIds[0]] },
-      { id: "col_old2", name: "More picks", emoji: null, mode: "manual", view: "list", query: null, showOnHome: true, position: 6, createdAt: null, sourceIds: [], itemIds: [] },
-    ],
-  });
-  const preview = stageImport(b, pb, legacy);
-  assert.equal(preview.counts.collections, 1, "only the restorable collection is counted");
-  assert.ok(preview.conflicts.includes(portability.handPickedNotRestored(2)), preview.conflicts.join(" | "));
-  const result = applyImport(b, pb, preview.token);
-  assert.equal(result.created.collections, 1);
-  assert.equal(result.created.items, 4, "the items themselves still come across");
-  assert.deepEqual(b.db.all<{ name: string; mode: string }>("SELECT name, mode FROM collections").map((c) => `${c.name}:${c.mode}`), ["Letters:sources"]);
-  assert.equal(reconcile(b, pb.accountId).difference, 0);
-});
-
-test("an older export with saved searches imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoAccounts();
-  t.after(cleanup);
-  seedLibrary(a, pa);
-  const { doc } = await exportDoc(a, pa);
-
-  // The shape a file had when saved searches existed: a savedQueries section, listed in the manifest.
-  const withSavedSearches = (savedQueries: unknown[]) => {
-    const file = rebuild({ ...doc, savedQueries });
-    file.manifest.sections.savedQueries = { count: savedQueries.length, sha256: sha256Hex(JSON.stringify(savedQueries)) };
-    return file;
-  };
-  const two = [
-    { id: "qry_old1", name: "Sediment", query: { field: "text", value: "sediment" }, createdAt: "2026-01-01T00:00:00.000Z" },
-    { id: "qry_old2", name: "Tides", query: { field: "text", value: "tides" }, createdAt: null },
-  ];
-
-  const preview = stageImport(b, pb, withSavedSearches(two));
-  assert.ok(preview.conflicts.includes(portability.savedSearchesNotRestored(2)), preview.conflicts.join(" | "));
-  assert.ok(!("savedQueries" in preview.counts), "saved searches are not counted as something that will be imported");
-  const result = applyImport(b, pb, preview.token);
-  assert.ok(!("savedQueries" in result.created));
-  assert.equal(result.created.items, 4, "the items themselves still come across");
-  assert.equal(reconcile(b, pb.accountId).difference, 0);
-
-  const one = stageImport(b, pb, withSavedSearches(two.slice(0, 1)));
-  assert.ok(one.conflicts.includes(portability.savedSearchesNotRestored(1)), one.conflicts.join(" | "));
-  const none = stageImport(b, pb, doc);
-  assert.ok(![portability.savedSearchesNotRestored(1), portability.savedSearchesNotRestored(2)].some((c) => none.conflicts.includes(c)), "a current export has nothing to skip");
-});
-
-test("an older export that marked back catalogue with `backlog` imports its untouched items as Ignored, and nothing keeps the mark", async (t) => {
-  const a = makeTestApp();
-  t.after(a.cleanup);
-  const pa = makeOwner(a.app);
-  seedLibrary(a.app, pa);
-  const { doc } = await exportDoc(a.app, pa);
-  const by = (title: string) => doc.items.find((i: any) => i.title.startsWith(title)) as any;
-  const untouched = { workflow: "undecided", isNew: false, progress: 0, openedAt: null };
-  const third = by("Third post").id as string;
-  const kept = by("Second post").id as string; // in a basket in the file
-  const [firstId, privateId] = [by("Tidal flats").id as string, by("Private note").id as string];
-  assert.ok(doc.memberships.some((m: any) => m.itemId === kept));
-  assert.ok(doc.items.every((i: any) => !("backlog" in i)), "a current export has no mark besides the workflow state");
-
-  // What a file looked like when the mark existed: `backlog: true` beside the default state.
-  const legacy = (edit: (items: Record<string, any>) => void, extra: Record<string, unknown> = {}) => {
-    const items = Object.fromEntries(doc.items.map((i: any) => [i.id, { ...i, state: { ...untouched }, backlog: false }]));
-    edit(items);
-    return rebuild({ ...doc, ...extra, items: Object.values(items) });
-  };
-  const imported = (file: unknown) => {
-    const b = makeTestApp();
-    t.after(b.cleanup);
-    const pb = makeOwner(b.app);
-    applyImport(b.app, pb, stageImport(b.app, pb, file).token);
-    return { b: b.app, pb, workflows: Object.fromEntries(b.app.db.all<{ title: string; workflow: string }>("SELECT i.title, st.workflow FROM items i JOIN item_state st ON st.item_id = i.id").map((r) => [r.title, r.workflow])) };
-  };
-
-  const file = legacy((items) => {
-    items[third].backlog = true;
-    items[kept].backlog = true; // kept: the old version cleared the mark when an item was kept
-    items[firstId].backlog = true;
-    items[firstId].state = { workflow: "toread", isNew: false, progress: 0, openedAt: null };
-    items[privateId].backlog = true;
-    items[privateId].state = { ...untouched, isNew: true };
-  });
-  const { b, pb, workflows } = imported(file);
-  assert.equal(workflows["Third post"], "ignored", "an untouched item that was back catalogue arrives the way it is stored now");
-  assert.equal(workflows["Second post"], "undecided", "one that was kept is an ordinary item");
-  assert.equal(workflows[by("Tidal flats").title], "toread", "one the person had acted on stays as they left it");
-  assert.equal(workflows["Private note"], "undecided", "and one marked New");
-  assert.equal(b.db.all("SELECT 1 FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0, "the database has no such mark");
-  assert.equal(imported(legacy(() => {})).workflows["Third post"], "undecided", "an item with no mark is as it was written");
-  assert.equal(imported(legacy((items) => { items[third].backlog = false; })).workflows["Third post"], "undecided", "so is one marked false");
-
-  // An annotation or a "started" state in the file also means the person had touched it.
-  const noted = legacy((items) => { items[third].backlog = true; }, {
-    annotations: [{ id: "ann_1", itemId: third, kind: "note", quote: null, position: null, target: null, body: "mine", createdAt: "2026-10-30T09:00:00.000Z", updatedAt: "2026-10-30T09:00:00.000Z" }],
-  });
-  assert.equal(imported(noted).workflows["Third post"], "undecided");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.progress = 0.4; })).workflows["Third post"], "undecided");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.openedAt = "2026-10-30T09:00:00.000Z"; })).workflows["Third post"], "undecided");
-
-  // It round-trips as an ordinary Ignored item: the next export has the state and no mark.
-  const { doc: again } = await exportDoc(b, pb);
-  assert.ok(again.items.every((i: any) => !("backlog" in i)));
-  assert.equal(again.items.find((i: any) => i.title === "Third post").state.workflow, "ignored");
 });
 
 test("highlights and notes round-trip: removed ones stay out, text references follow the new ids, and a second import adds none", async (t) => {

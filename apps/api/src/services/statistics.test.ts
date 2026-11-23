@@ -123,7 +123,7 @@ test("statistics are scoped to the signed-in account", (t) => {
   assert.equal(sourceStats(app, p1, s1).stats.totalItems, 1);
   assert.equal(sourceStats(app, p2, s2).stats.totalItems, 2);
   // A filter collection in one account never counts the other account's items.
-  const f = createCollection(app, p1, { name: "Everything unread", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" });
+  const f = createCollection(app, p1, { name: "Everything unread", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" });
   assert.deepEqual(collectionStats(app, p1, f.id).sources.map((r) => r.sourceId), [s1]);
   assert.equal(collectionStats(app, p1, f.id).totals.totalItems, 1);
 });
@@ -169,10 +169,10 @@ test("a filter collection is computed over the items that match its filter, grou
   addItem(app, p, two, ago(6.5));
   setFlow(app, p, a1, "finished");
   setFlow(app, p, b1, "finished");
-  const col = createCollection(app, p, { name: "Done", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["finished"] }, view: "list" });
+  const col = createCollection(app, p, { name: "Done", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["finished"] }, view: "list" });
 
   const r = collectionStats(app, p, col.id);
-  assert.equal(r.mode, "query");
+  assert.equal(r.mode, "filter");
   assert.deepEqual(r.sources.map((s) => [s.title, s.stats.totalItems]), [["One", 1], ["Two", 1]]);
   assert.equal(r.totals.totalItems, 2);
   assert.deepEqual(r.totals.workflow, { undecided: 0, toread: 0, inprogress: 0, finished: 2, ignored: 0 });

@@ -104,7 +104,7 @@ export type CollectionDTO = {
   id: string;
   name: string;
   emoji: string | null;
-  mode: "sources" | "query";
+  mode: "sources" | "filter";
   view: ViewMode;
   position: number;
   showOnHome: boolean;
@@ -503,7 +503,7 @@ export const sourcePatchSchema = z.object({
 export const collectionCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   emoji: z.string().max(8).nullable().default(null),
-  mode: z.enum(["sources", "query"]).default("sources"),
+  mode: z.enum(["sources", "filter"]).default("sources"),
   sourceIds: z.array(z.string()).max(500).default([]),
   query: queryNodeSchema.nullable().default(null),
   view: z.enum(["list", "cards", "board", "table", "timeline"]).default("list"),

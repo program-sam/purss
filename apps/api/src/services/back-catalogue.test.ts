@@ -94,7 +94,7 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const box = createCollection(app, p, { name: "Shows", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
-  const filter = createCollection(app, p, { name: "Every article", emoji: null, mode: "query", sourceIds: [], query: { field: "kind", value: ["article"] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Every article", emoji: null, mode: "filter", sourceIds: [], query: { field: "kind", value: ["article"] }, view: "list" });
   const { src, back, brandNew } = followedFromNow(app, p, box.id);
   const newId_ = idOf(app, brandNew);
   assert.equal(app.db.get<{ start_from: string }>("SELECT start_from FROM sources WHERE id = ?", src)!.start_from, "now");
@@ -275,7 +275,7 @@ test("a shared collection shows what its owner's list of it shows: the Ignored b
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const box = createCollection(app, p, { name: "Shows", emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" });
-  const filter = createCollection(app, p, { name: "Every article", emoji: null, mode: "query", sourceIds: [], query: { field: "kind", value: ["article"] }, view: "list" });
+  const filter = createCollection(app, p, { name: "Every article", emoji: null, mode: "filter", sourceIds: [], query: { field: "kind", value: ["article"] }, view: "list" });
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   const { back, brandNew } = followedFromNow(app, p, box.id);
   const published = (kind: "collection" | "basket", target: string) => projection(app, { id: "shr_test", target_kind: kind, target_id: target, account_id: p.accountId })!.map((i) => i.url);

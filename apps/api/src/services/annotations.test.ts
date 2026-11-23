@@ -187,7 +187,7 @@ test("search finds items by comment, note and highlighted passage, in lists, sea
   assert.deepEqual(find("chapter three"), [itemId]);
   assert.deepEqual(find("bioturbation"), [otherItemId]);
   assert.deepEqual(find("Priya"), [otherItemId]);
-  const col = createCollection(app, p, { name: "Notes on Priya", emoji: null, mode: "query", sourceIds: [], query: { field: "text", value: "priya" }, view: "list" });
+  const col = createCollection(app, p, { name: "Notes on Priya", emoji: null, mode: "filter", sourceIds: [], query: { field: "text", value: "priya" }, view: "list" });
   assert.deepEqual(listItems(app, p, { scope: `collection:${col.id}`, filter: "all_with_ignored" }).items.map((i) => i.id), [otherItemId]);
 });
 

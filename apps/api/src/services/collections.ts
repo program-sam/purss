@@ -64,7 +64,7 @@ function validateSources(app: App, p: Principal, ids: string[]): void {
 }
 
 export function createCollection(app: App, p: Principal, input: z.infer<typeof collectionCreateSchema>): CollectionDTO {
-  if (input.mode === "query") {
+  if (input.mode === "filter") {
     const q = checkQuery(input.query);
     if (!q.ok) throw badRequest(q.message);
   }
@@ -75,7 +75,7 @@ export function createCollection(app: App, p: Principal, input: z.infer<typeof c
     assertRoom(app, p.accountId, "collections");
     // A collection of sources starts on Home; a filter collection starts off it (a filter can match anything, so putting it on Home is a choice).
     app.db.run("INSERT INTO collections (id, account_id, name, emoji, mode, view, query, show_on_home, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      id, p.accountId, input.name, input.emoji, input.mode, input.view, input.mode === "query" ? JSON.stringify(input.query) : null, input.mode === "query" ? 0 : 1, nextPosition(app, "collections", p.accountId), nowIso());
+      id, p.accountId, input.name, input.emoji, input.mode, input.view, input.mode === "filter" ? JSON.stringify(input.query) : null, input.mode === "filter" ? 0 : 1, nextPosition(app, "collections", p.accountId), nowIso());
     if (input.mode === "sources") for (const s of input.sourceIds) app.db.run("INSERT OR IGNORE INTO collection_sources (collection_id, source_id) VALUES (?, ?)", id, s);
   });
   emit(app, p.accountId, { type: "source", sourceId: "" });
@@ -91,7 +91,7 @@ export function patchCollection(app: App, p: Principal, id: string, patch: z.inf
     if (patch.view !== undefined) app.db.run("UPDATE collections SET view = ? WHERE id = ?", patch.view, id);
     if (patch.showOnHome !== undefined) app.db.run("UPDATE collections SET show_on_home = ? WHERE id = ?", patch.showOnHome ? 1 : 0, id);
     if (patch.query !== undefined) {
-      if (c.mode !== "query") throw badRequest(server.api.collections.onlyFilterCollections);
+      if (c.mode !== "filter") throw badRequest(server.api.collections.onlyFilterCollections);
       const q = checkQuery(patch.query);
       if (!q.ok) throw badRequest(q.message);
       app.db.run("UPDATE collections SET query = ? WHERE id = ?", JSON.stringify(q.query), id);

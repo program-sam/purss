@@ -303,7 +303,7 @@ test("a collection's filter covers its sources and goes with the collection; pre
   assert.equal((await b.api("PUT", `/api/sources/${theirs}/ai-filter`, { keep: "sediment" })).status, 404);
   assert.equal((await b.api("POST", `/api/sources/${theirs}/ai-filter/preview`, { keep: "sediment" })).status, 404);
 
-  const query = createCollection(b.app, b.owner, { name: "Saved search", emoji: null, mode: "query", sourceIds: [], query: { field: "text", value: "sediment" }, view: "list" });
+  const query = createCollection(b.app, b.owner, { name: "Saved search", emoji: null, mode: "filter", sourceIds: [], query: { field: "text", value: "sediment" }, view: "list" });
   assert.equal((await b.api("PUT", `/api/collections/${query.id}/ai-filter`, { keep: "sediment" })).status, 400, "a query collection has no sources to filter");
 
   deleteCollection(b.app, b.owner, col.id);

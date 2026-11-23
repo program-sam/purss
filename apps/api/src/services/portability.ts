@@ -454,9 +454,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   const collections = new Map<string, { id: string; create: ArchiveCollection | null; skip: boolean; src: ArchiveCollection }>();
   const collectionByKey = new Map(app.db.all<{ id: string; name: string; mode: string }>("SELECT id, name, mode FROM collections WHERE account_id = ?", ws).map((c) => [`${c.mode}:${lower(c.name)}`, c.id]));
   const mergedCollections: string[] = [];
-  let handPicked = 0;
   for (const c of doc.collections) {
-    if (c.mode === "manual") { handPicked++; continue; }
     const key = `${c.mode}:${lower(c.name)}`;
     const existing = collectionByKey.get(key);
     if (existing) {
@@ -469,11 +467,9 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     }
   }
   for (const name of mergedCollections) conflicts.push(server.api.portability.collectionExists(name));
-  if (doc.savedQueries.length) conflicts.push(server.api.portability.savedSearchesNotRestored(doc.savedQueries.length));
-  if (handPicked) conflicts.push(server.api.portability.handPickedNotRestored(handPicked));
   const maps = { sources: new Map([...sources].map(([k, v]) => [k, v.id])), baskets: new Map([...baskets].map(([k, v]) => [k, v.id])), collections: new Map([...collections].map(([k, v]) => [k, v.id])) };
   for (const entry of collections.values()) {
-    if (entry.create?.mode !== "query") continue;
+    if (entry.create?.mode !== "filter") continue;
     const q = checkQuery(remapQuery(entry.create.query, maps));
     if (!q.ok) { entry.skip = true; conflicts.push(server.api.portability.filterNotRestored(entry.create.name)); }
   }
@@ -680,11 +676,10 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
 
   // ---- sharing, preferences
   if (doc.shares.length) conflicts.push(server.api.portability.sharingSwitchedOff);
-  if (doc.publications.length) conflicts.push(server.api.portability.sharedCollectionsOld);
   const hasPrefs = !!app.db.get("SELECT 1 FROM preferences WHERE account_id = ?", ws);
   if (hasPrefs) conflicts.push(server.api.portability.settingsKept);
 
-  bump("sources", doc.sources.length); bump("collections", doc.collections.length - handPicked); bump("baskets", doc.baskets.length);
+  bump("sources", doc.sources.length); bump("collections", doc.collections.length); bump("baskets", doc.baskets.length);
   bump("items", doc.items.length); bump("keptItems", doc.memberships.length); bump("shares", doc.shares.length);
   bump("captures", doc.items.reduce((n, i) => n + i.captures.filter((c) => c.status === "done").length, 0));
   bump("annotations", doc.annotations.length); bump("itemReminders", doc.itemReminders.length);
@@ -1031,7 +1026,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   let collectionPos = app.db.get<{ n: number }>("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM collections WHERE account_id = ?", ws)!.n;
   for (const c of plan.collections.values()) {
     if (!c.create || c.skip) continue;
-    const q = c.create.mode === "query" ? checkQuery(remapQuery(c.create.query, maps)) : null;
+    const q = c.create.mode === "filter" ? checkQuery(remapQuery(c.create.query, maps)) : null;
     app.db.run("INSERT INTO collections (id, account_id, name, emoji, mode, view, query, show_on_home, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       c.id, ws, c.create.name, c.create.emoji, c.create.mode, c.create.view, q?.ok ? JSON.stringify(q.query) : null, c.create.showOnHome ? 1 : 0, collectionPos++, ISO_FALLBACK(c.create.createdAt, now));
     result.created.collections++;
