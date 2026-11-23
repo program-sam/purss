@@ -23,10 +23,10 @@ object WidgetLists {
         if (!isKey(key)) return null
         val tail = "&limit=$LIMIT&exceptPrivate=1"
         return when (key) {
-            "toread" -> "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos$tail"
-            "tolisten" -> "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts$tail"
+            "toread" -> "/api/items?scope=toread&filter=all&sort=newest&type=articles,videos$tail"
+            "tolisten" -> "/api/items?scope=toread&filter=all&sort=oldest&type=podcasts$tail"
             "new" -> "/api/items?scope=all&filter=new&sort=newest$tail"
-            else -> "/api/items?scope=${key.replace(":", "%3A")}&filter=active&sort=newest$tail"
+            else -> "/api/items?scope=${key.replace(":", "%3A")}&filter=all&sort=newest$tail"
         }
     }
 

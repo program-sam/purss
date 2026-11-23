@@ -12,9 +12,9 @@ const base: ItemDTO = {
 };
 
 test("filters judge workflow and freshness independently", () => {
-  assert.equal(matchesFilter(base, "active"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "active"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all"), true);
+  assert.equal(matchesFilter(base, "all"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all"), false);
+  assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "all_with_ignored"), true);
   assert.equal(matchesFilter({ ...base, workflow: "ignored" }, "new"), false);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "toread"), true);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "finished"), false);
@@ -100,15 +100,15 @@ test("only a video's excerpt loses its download mark and leading link lines", ()
 });
 
 test("the To read page keeps only To read items, whatever its filter", () => {
-  assert.equal(belongsInList({ ...base, workflow: "toread" }, "toread", "active"), true);
-  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "active"), true, "started: stays on the page, first among what is waiting");
+  assert.equal(belongsInList({ ...base, workflow: "toread" }, "toread", "all"), true);
+  assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "all"), true, "started: stays on the page, first among what is waiting");
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "inprogress"), true);
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "toread"), false, "the To read filter is what has not been started");
-  assert.equal(belongsInList({ ...base, workflow: "undecided" }, "toread", "active"), false, "not put aside or started");
-  assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all"), false);
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "active"), false, "marked Finished: leaves the To read page");
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false);
-  assert.equal(belongsInList({ ...base, workflow: "finished" }, "collection:col_1", "active"), true, "other pages go by their filter");
+  assert.equal(belongsInList({ ...base, workflow: "undecided" }, "toread", "all"), false, "not put aside or started");
+  assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all_with_ignored"), false);
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false, "marked Finished: leaves the To read page");
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all_with_ignored"), false);
+  assert.equal(belongsInList({ ...base, workflow: "finished" }, "collection:col_1", "all"), true, "other pages go by their filter");
 });
 
 test("a reloaded copy keeps the newer state of the item, and its own content", () => {

@@ -79,5 +79,5 @@ export function widgetListPlace(key: string): { place: Place; search?: ListSearc
   if (key === "tolisten") return { place: { t: "r", id: "toread" }, search: { type: "podcasts", sort: "oldest" } };
   if (key === "new") return { place: { t: "home" } };
   const [kind, id] = key.split(":") as [string, string];
-  return { place: { t: kind === "collection" ? "c" : "s", id }, search: { filter: "active" } };
+  return { place: { t: kind === "collection" ? "c" : "s", id }, search: { filter: "all" } };
 }

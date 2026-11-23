@@ -45,7 +45,7 @@ test("the held item keeps its place in New, marked New, after opening took the m
 test("only being seen is put off: an open item that is ignored still leaves", () => {
   const list = [item("a", { workflow: "ignored" }), item("y", { isNew: true })];
   assert.deepEqual(ids(withOpenItem(list, isNew, "a")), ["y"]);
-  assert.deepEqual(ids(withOpenItem(list, (i) => matchesFilter(i, "active"), "a")), ["y"]);
+  assert.deepEqual(ids(withOpenItem(list, (i) => matchesFilter(i, "all"), "a")), ["y"]);
 });
 
 test("a reloaded list without the held item gets it back where it showed before", () => {

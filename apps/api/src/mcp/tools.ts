@@ -112,7 +112,7 @@ export const TOOLS: Tool[] = [
     annotations: { readOnlyHint: true, openWorldHint: false },
     input: z.object({ query: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(50).default(20) }),
     run: (ctx, a) => {
-      const page = listItems(ctx.app, ctx.p, { scope: "all", filter: "all", sort: "newest", q: a.query, limit: a.limit });
+      const page = listItems(ctx.app, ctx.p, { scope: "all", filter: "all_with_ignored", sort: "newest", q: a.query, limit: a.limit });
       return { total: page.total, items: page.items.map((it) => itemSummary(ctx, it)) };
     },
   }),
@@ -127,7 +127,7 @@ export const TOOLS: Tool[] = [
       cursor: z.string().max(200).optional(),
     }),
     run: (ctx, a) => {
-      const page = listItems(ctx.app, ctx.p, { scope: scopeOf(a), filter: a.state ? toWorkflow(a.state) : "active", sort: a.sort, limit: a.limit, cursor: a.cursor });
+      const page = listItems(ctx.app, ctx.p, { scope: scopeOf(a), filter: a.state ? toWorkflow(a.state) : "all", sort: a.sort, limit: a.limit, cursor: a.cursor });
       return { total: page.total, nextCursor: page.nextCursor, items: page.items.map((it) => itemSummary(ctx, it)) };
     },
   }),

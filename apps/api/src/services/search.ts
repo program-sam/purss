@@ -31,7 +31,7 @@ export function exactQuery(text: string): string | null {
  * before 26.12.10 and 26.12.11, which also begin with those numbers), newest first within each group; the rest follow.
  */
 export function searchItems(app: App, p: Principal, query: string, limit = SEARCH_FIRST): ItemDTO[] {
-  const found = listItems(app, p, { scope: "all", filter: "all", q: query, limit }).items;
+  const found = listItems(app, p, { scope: "all", filter: "all_with_ignored", q: query, limit }).items;
   const exact = exactQuery(query);
   if (!exact) return found;
   const ids = app.db.all<{ id: string }>(

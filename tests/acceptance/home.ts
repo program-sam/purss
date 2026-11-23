@@ -261,7 +261,7 @@ async function checkCornerRoom(browser: Browser, seed: Seed): Promise<void> {
     await page.locator(".mod").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: Home's heading and Customise clear of the corner`);
     // A list page: its tools.
-    await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual(await crowded(), [], `${c.name}: a list's tools and rows clear of the corner`);
     if (c.viewport.width >= 1200) {
@@ -305,8 +305,8 @@ async function main(): Promise<void> {
     const show = page.locator("main").getByRole("button", { name: /^Filter: / }).first();
     assert.equal(await show.getAttribute("aria-label"), `Filter: ${filters.new}`, "a collection with new items opens on New");
     await show.click();
-    await page.getByRole("menuitemradio", { name: filters.active, exact: true }).click();
-    await page.waitForURL(/filter=active/);
+    await page.getByRole("menuitemradio", { name: filters.all, exact: true }).click();
+    await page.waitForURL(/filter=all/);
 
     const long = seed.ids["Long essay"]!;
     await openItem(page, "Long essay");
@@ -422,7 +422,7 @@ async function main(): Promise<void> {
     assert.deepEqual(await homeTitles(page, "main .irow .title"), ["Night forecast", "Medium note", "Short film"], "the queue page lists what was started first, then what was put aside, newest first");
     await page.getByRole("button", { name: /^Filter: / }).click();
     assert.equal(await page.getByRole("menuitemcheckbox", { name: copy.words.showIgnoredItems }).count(), 0, "the queue never holds ignored items, so it does not offer them");
-    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.active, filters.new, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
+    assert.deepEqual((await page.getByRole("menuitemradio").evaluateAll((els) => els.map((e) => e.textContent?.trim()))).slice(0, 4), [filters.all, filters.new, copy.words.toRead, copy.words.inProgress], "the page offers the filters that can show something");
     await page.getByRole("menuitemradio", { name: copy.words.inProgress, exact: true }).click();
     await page.waitForURL(/filter=inprogress/);
     await sleep(600);
@@ -449,7 +449,7 @@ async function main(): Promise<void> {
     await page.getByRole("button", { name: listing.showIgnored }).click();
     await page.locator("main .irow").first().waitFor();
     assert.deepEqual((await homeTitles(page, "main .irow .title")).sort(), almanac, "Show ignored has all of it");
-    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
+    const found = await page.evaluate(async () => ((await (await fetch("/api/items?scope=all&filter=all_with_ignored&q=tides&limit=20", { headers: { accept: "application/json" } })).json()) as { items: { title: string }[] }).items.map((i) => i.title).sort());
     assert.deepEqual(found, almanac, "and a search finds it");
     const held = await page.evaluate(async (id) => ((await (await fetch(`/api/sources/${id}`, { headers: { accept: "application/json" } })).json()) as { itemCount: number }).itemCount, seed.almanac);
     assert.equal(held, 3, "the source counts what it holds");
@@ -465,7 +465,7 @@ async function main(): Promise<void> {
     await page.getByRole("button", { name: copy.dialogs.mutedWords.mute, exact: true }).click();
     await page.locator('ul[aria-label="Muted words"] li').waitFor();
     await page.keyboard.press("Escape");
-    await page.goto(`${origin}/app/c/${seed.radio}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.radio}?filter=all`);
     await page.locator(".muted-notice").waitFor();
     assert.match(await page.locator(".muted-notice").innerText(), new RegExp(esc(copy.lib.mutedWords.hidden(3, "3", false))));
     assert.equal(await page.locator("main .irow").count(), 0, "the items stay out of the list");
@@ -474,7 +474,7 @@ async function main(): Promise<void> {
     assert.equal(await page.locator("main .irow").count(), 3, "and come back when asked");
     step("a muted word saved in Settings leaves matching items out of a list, with a count and a way to show them");
 
-    await page.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await page.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await page.locator("main .irow").first().waitFor();
     await page.getByRole("button", { name: `Sources: ${copy.shell.sourceFilter.all}` }).click();
     await page.getByRole("menuitemcheckbox", { name: /Busy Wire/ }).click();
@@ -505,7 +505,7 @@ async function main(): Promise<void> {
     await reader.getByRole("dialog").waitFor();
     await reader.locator("label.chk", { hasText: copy.words.eInkDisplay }).click();
     await reader.keyboard.press("Escape");
-    await reader.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await reader.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await reader.locator("main .irow").first().waitFor();
     await openItem(reader, "Medium note");
     const medium2 = seed.ids["Medium note"]!;
@@ -527,7 +527,7 @@ async function main(): Promise<void> {
     const desk = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const deskPage = await desk.newPage();
     await signIn(deskPage);
-    await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await deskPage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     const deskIgnore = deskPage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / });
     await deskIgnore.hover();
     await deskPage.locator(".tip", { hasText: copy.words.ignore }).waitFor();
@@ -542,7 +542,7 @@ async function main(): Promise<void> {
     const phonePage = await phone.newPage();
     await signIn(phonePage);
     await checkAccountMenu(phonePage);
-    await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await phonePage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await phonePage.locator("main .irow").first().getByRole("button", { name: /^Ignore: / }).tap();
     await phonePage.getByText(copy.words.ignored, { exact: true }).waitFor();
     await sleep(500);
@@ -703,7 +703,7 @@ async function main(): Promise<void> {
     await findPage.unroute("**/api/discover/sites");
 
     // ---------- a basket made from an item's Keep menu: focus goes back to Keep, not to the page ----------
-    await findPage.goto(`${origin}/app/c/${seed.reading}?filter=active`);
+    await findPage.goto(`${origin}/app/c/${seed.reading}?filter=all`);
     await row(findPage, "Second essay").click();
     await findPage.locator("#panel-in .p-title", { hasText: "Second essay" }).waitFor();
     const panelKeep = findPage.locator("#panel-in").getByRole("button", { name: new RegExp(`^${esc(copy.words.keep)}`) }).first();

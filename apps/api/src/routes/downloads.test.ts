@@ -60,7 +60,7 @@ test("the widget's To read list leaves out items of private sources, as notifica
   makeSource(app, p, "Members' feed", "feed/private", { isPrivate: true });
   applySyncBatch(app, p.engineUserId, batch([entry("feed/open", { title: "Public piece" }), entry("feed/private", { title: "Members-only piece" })]));
   app.db.run("UPDATE item_state SET workflow = 'toread'");
-  const list = (extra: { exceptPrivate?: "1" }) => listItems(app, p, { scope: "toread", filter: "active", sort: "newest", limit: 5, ...extra });
+  const list = (extra: { exceptPrivate?: "1" }) => listItems(app, p, { scope: "toread", filter: "all", sort: "newest", limit: 5, ...extra });
   assert.deepEqual(list({}).items.map((i) => i.title).sort(), ["Members-only piece", "Public piece"]);
   const widget = list({ exceptPrivate: "1" });
   assert.deepEqual(widget.items.map((i) => i.title), ["Public piece"]);

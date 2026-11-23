@@ -81,10 +81,10 @@ enum WidgetLists {
         guard isKey(key) else { return nil }
         let tail = "&limit=\(limit)&exceptPrivate=1"
         switch key {
-        case "toread": return "/api/items?scope=toread&filter=active&sort=newest&type=articles,videos" + tail
-        case "tolisten": return "/api/items?scope=toread&filter=active&sort=oldest&type=podcasts" + tail
+        case "toread": return "/api/items?scope=toread&filter=all&sort=newest&type=articles,videos" + tail
+        case "tolisten": return "/api/items?scope=toread&filter=all&sort=oldest&type=podcasts" + tail
         case "new": return "/api/items?scope=all&filter=new&sort=newest" + tail
-        default: return "/api/items?scope=" + key.replacingOccurrences(of: ":", with: "%3A") + "&filter=active&sort=newest" + tail
+        default: return "/api/items?scope=" + key.replacingOccurrences(of: ":", with: "%3A") + "&filter=all&sort=newest" + tail
         }
     }
 

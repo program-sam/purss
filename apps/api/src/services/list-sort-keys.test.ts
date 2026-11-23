@@ -60,11 +60,11 @@ function assertSorted(app: App, p: Principal, what: string, sourceId?: string): 
         const how = `${JSON.stringify(query)} sort ${sort}${below ? "" : " (in index order)"}`;
         const want = defined(app, p, sort, extra);
         for (const limit of [1, 3, 50]) {
-          const got = paged(app, p, { ...query, filter: "all", sort, limit, muted: "show" });
+          const got = paged(app, p, { ...query, filter: "all_with_ignored", sort, limit, muted: "show" });
           assert.deepEqual(got.ids, want.map((r) => r.id), `${what}: ${how}, pages of ${limit}`);
           assert.deepEqual(got.cursorKeys, want.filter((_, i) => (i + 1) % limit === 0 && i + 1 < want.length).map((r) => r.key), `${what}: ${how}, the cursors' keys`);
         }
-        assert.deepEqual(listItemIds(app, p, { ...query, filter: "all", sort, muted: "show" }).ids, want.map((r) => r.id), `${what}: Select all of ${how}`);
+        assert.deepEqual(listItemIds(app, p, { ...query, filter: "all_with_ignored", sort, muted: "show" }).ids, want.map((r) => r.id), `${what}: Select all of ${how}`);
       } finally { listTuning.sortFromRowsBelow = was; }
     }
   }
@@ -124,7 +124,7 @@ test("lists by kept time and by source follow the keys' definitions through ever
   assertSorted(app, p, "sources renamed", sources[0]);
   unfollowSource(app, p, sources[6]!);
   assertSorted(app, p, "a source unfollowed (its kept items stay listed)", sources[6]);
-  assert.ok(listItems(app, other, { scope: "all", filter: "all", sort: "source", muted: "show" }).items.every((i) => i.sourceTitle === "Alpha"), "never another PURSS's items");
+  assert.ok(listItems(app, other, { scope: "all", filter: "all_with_ignored", sort: "source", muted: "show" }).items.every((i) => i.sourceTitle === "Alpha"), "never another PURSS's items");
 
   // The other writer of items and memberships: an import into a new PURSS.
   const parts: string[] = [];

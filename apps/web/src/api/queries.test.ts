@@ -11,7 +11,7 @@ function item(over: Partial<ItemDTO> = {}): ItemDTO {
     progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }
-const listKey = [...keys.items, "list", { scope: "all", filter: "active", sort: "newest" }] as const;
+const listKey = [...keys.items, "list", { scope: "all", filter: "all", sort: "newest" }] as const;
 
 /** A cache holding a list page (not being watched) and the item's detail. */
 function cacheWith(list: ItemDTO, detail: ItemDTO) {
@@ -67,7 +67,7 @@ test("a keep that leaves the revision alone but moves the state version replaces
 });
 
 test("a list reload answered from an older saved copy doesn't put back a state changed since", () => {
-  const p = { scope: "toread", filter: "active", sort: "newest" };
+  const p = { scope: "toread", filter: "all", sort: "newest" };
   const shown = item({ workflow: "finished", revision: 6, stateVersion: 5 });
   const saved = item({ workflow: "toread", revision: 5, stateVersion: 4 });
   const other = item({ id: "itm_b", workflow: "toread" });

@@ -149,7 +149,7 @@ async function openEpisode(page: Page, sourceId: string, title: string): Promise
 }
 
 const itemDetail = async (page: Page, title: string) => {
-  const list = await (await page.request.get(`${origin}/api/items?scope=all&filter=all&sort=newest`)).json() as { items: { id: string; title: string }[] };
+  const list = await (await page.request.get(`${origin}/api/items?scope=all&filter=all_with_ignored&sort=newest`)).json() as { items: { id: string; title: string }[] };
   const id = list.items.find((i) => i.title === title)!.id;
   return (await page.request.get(`${origin}/api/items/${id}`)).json() as Promise<{ id: string; workflow: string; playback: { positionSeconds: number } | null; media: Record<string, unknown> }>;
 };

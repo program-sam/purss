@@ -12,7 +12,7 @@ const base: ItemDTO = {
 const causes = (item: ItemDTO, filter: Parameters<typeof matchesFilter>[1], inBasket = false) => leavesOn(item, (i) => matchesFilter(i, filter), inBasket).split(" ").filter(Boolean);
 
 test("a list of everything but ignored loses an item only when it is ignored", () => {
-  assert.deepEqual(causes(base, "active"), ["ignored"]);
+  assert.deepEqual(causes(base, "all"), ["ignored"]);
 });
 
 test("Home's lists (Undecided items) lose an item put aside, started, finished or ignored", () => {
@@ -30,9 +30,9 @@ test("a state's own list loses an item moved to any other state", () => {
 
 test("the ignored list loses an item when it is restored; a list of everything never loses one", () => {
   assert.deepEqual(causes({ ...base, workflow: "ignored" }, "ignored"), ["undecided", "toread", "inprogress", "finished", "restore"]);
-  assert.deepEqual(causes({ ...base, workflow: "ignored" }, "all"), []);
+  assert.deepEqual(causes({ ...base, workflow: "ignored" }, "all_with_ignored"), []);
 });
 
 test("a basket's list loses an item when it is taken out of the basket", () => {
-  assert.deepEqual(causes(base, "all", true), ["unkeep"]);
+  assert.deepEqual(causes(base, "all_with_ignored", true), ["unkeep"]);
 });

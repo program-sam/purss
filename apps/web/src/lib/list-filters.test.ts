@@ -10,7 +10,7 @@ const c = app.lib.constants;
 const shortLabel = (length: "short" | "long") => l.lengths[length].split(" (")[0]!;
 
 const state = (over: Partial<ListState> = {}): ListState => ({
-  scope: "all", view: "list", modes: ["list"], filter: "active", defaultFilter: "active", sort: "newest", source: undefined, without: undefined, types: [], length: undefined, showMuted: false, captureFailed: false, itemId: undefined, ...over,
+  scope: "all", view: "list", modes: ["list"], filter: "all", defaultFilter: "all", sort: "newest", source: undefined, without: undefined, types: [], length: undefined, showMuted: false, captureFailed: false, itemId: undefined, ...over,
 });
 
 test("a list's address becomes the request's filters, and only what is set", () => {
@@ -58,44 +58,44 @@ test("a list opened from a failed-text notification asks only for those items", 
 test("a collection opens on its new items while it has any, then on everything but ignored", () => {
   const c = { t: "c", id: "col_1" } as const;
   assert.equal(defaultFilterFor(c, "cards", 26), "new");
-  assert.equal(defaultFilterFor(c, "list", 0), "active");
-  assert.equal(defaultFilterFor(c, "board", 26), "active", "the board keeps every item in its workflow columns");
-  assert.equal(defaultFilterFor({ t: "s", id: "src_1" }, "list", 5), "active");
-  assert.equal(defaultFilterFor(null, "list", 5), "active");
+  assert.equal(defaultFilterFor(c, "list", 0), "all");
+  assert.equal(defaultFilterFor(c, "board", 26), "all", "the board keeps every item in its workflow columns");
+  assert.equal(defaultFilterFor({ t: "s", id: "src_1" }, "list", 5), "all");
+  assert.equal(defaultFilterFor(null, "list", 5), "all");
 });
 
 test("a basket has no Ignored: it shows everything kept in it, ignored or not", () => {
   const b = { t: "b", id: "b_1" } as const;
-  assert.equal(defaultFilterFor(b, "list", 5), "all");
-  assert.equal(filterFor(b, undefined, "all"), "all");
-  assert.equal(filterFor(b, "active", "all"), "all", "an old address's All still shows the whole basket");
-  assert.equal(filterFor(b, "ignored", "all"), "all", "an address naming Ignored falls back to the whole basket");
-  assert.equal(filterFor(b, "toread", "all"), "toread");
+  assert.equal(defaultFilterFor(b, "list", 5), "all_with_ignored");
+  assert.equal(filterFor(b, undefined, "all_with_ignored"), "all_with_ignored");
+  assert.equal(filterFor(b, "all", "all_with_ignored"), "all_with_ignored", "an old address's All still shows the whole basket");
+  assert.equal(filterFor(b, "ignored", "all_with_ignored"), "all_with_ignored", "an address naming Ignored falls back to the whole basket");
+  assert.equal(filterFor(b, "toread", "all_with_ignored"), "toread");
   assert.ok(!filterChoices(b).includes("ignored"));
-  assert.ok(!filterChoices(b).includes("active"));
-  assert.equal(filterLabel(b, "all"), c.filters.active);
+  assert.ok(!filterChoices(b).includes("all"));
+  assert.equal(filterLabel(b, "all_with_ignored"), c.filters.all);
   const s = { t: "s", id: "src_1" } as const;
-  assert.equal(filterFor(s, "ignored", "active"), "ignored");
+  assert.equal(filterFor(s, "ignored", "all"), "ignored");
   assert.ok(filterChoices(s).includes("ignored"));
-  assert.equal(filterLabel(s, "all"), c.filters.all);
+  assert.equal(filterLabel(s, "all_with_ignored"), c.filters.all_with_ignored);
 });
 
 test("a chosen filter stays in the address unless it is the page's default", () => {
   assert.equal(filterParam({ defaultFilter: "new" }, "new"), undefined);
-  assert.equal(filterParam({ defaultFilter: "new" }, "active"), "active");
-  assert.equal(filterParam({ defaultFilter: "active" }, "active"), undefined);
-  assert.equal(filterParam({ defaultFilter: "active" }, "all"), "all");
+  assert.equal(filterParam({ defaultFilter: "new" }, "all"), "all");
+  assert.equal(filterParam({ defaultFilter: "all" }, "all"), undefined);
+  assert.equal(filterParam({ defaultFilter: "all" }, "all_with_ignored"), "all_with_ignored");
 });
 
 test("the queue page offers the filters that can show something: what is waiting, what is started, what is New", () => {
   const r = { t: "r", id: "toread" } as const;
-  assert.deepEqual(filterChoices(r), ["active", "new", "toread", "inprogress"]);
-  assert.equal(filterFor(r, "inprogress", "active"), "inprogress");
-  assert.equal(filterFor(r, "toread", "active"), "toread");
-  assert.equal(filterFor(r, "finished", "active"), "active", "an address naming a state the queue never holds opens on All");
-  assert.equal(filterFor(r, "all", "active"), "active");
-  assert.equal(filterFor(r, undefined, "active"), "active");
-  assert.equal(defaultFilterFor(r, "list", 5), "active");
-  assert.equal(filterLabel(r, "active"), c.filters.active);
+  assert.deepEqual(filterChoices(r), ["all", "new", "toread", "inprogress"]);
+  assert.equal(filterFor(r, "inprogress", "all"), "inprogress");
+  assert.equal(filterFor(r, "toread", "all"), "toread");
+  assert.equal(filterFor(r, "finished", "all"), "all", "an address naming a state the queue never holds opens on All");
+  assert.equal(filterFor(r, "all_with_ignored", "all"), "all");
+  assert.equal(filterFor(r, undefined, "all"), "all");
+  assert.equal(defaultFilterFor(r, "list", 5), "all");
+  assert.equal(filterLabel(r, "all"), c.filters.all);
   assert.equal(filterLabel(r, "inprogress"), app.words.inProgress);
 });

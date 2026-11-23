@@ -84,7 +84,7 @@ test("lists take the type, length and source filters and Home's order; muted wor
   assert.equal((await list("scope=all&limit=10&length=long")).items.length, 0);
   assert.deepEqual((await list(`scope=all&limit=10&without=${a}`)).items.map((i) => i.id), [plain]);
   assert.equal((await call(b.app, b.server.base, "GET", "/api/items?scope=all&type=books", s)).status, 400);
-  assert.equal((await list("scope=home&limit=10&mix=home&filter=open")).items.length, 2);
+  assert.equal((await list("scope=home&limit=10&mix=home&filter=undecided")).items.length, 2);
 
   const saved = await call(b.app, b.server.base, "PATCH", "/api/preferences", s, { mutedWords: [{ text: "football", until: null }] });
   assert.equal(saved.status, 200);
@@ -134,7 +134,7 @@ test("a Home list narrowed by type, length, source or a failed copy still shows 
   assert.deepEqual(await get(`scope=home&source=${hidden}`), new Set(), "a source of a collection hidden on Home is not Home's, even asked for by name");
   assert.deepEqual(await get("scope=home&capture=failed"), new Set([failing]), "failed copies: Home's only");
   assert.deepEqual(await get("scope=home&type=articles&capture=failed&length=short"), new Set([failing]), "and together: a failed copy of an article with no text to read is short");
-  assert.deepEqual(await get("scope=home&type=videos&filter=all"), new Set([clipA, filmA, otherClip]), "whatever the state filter");
+  assert.deepEqual(await get("scope=home&type=videos&filter=all_with_ignored"), new Set([clipA, filmA, otherClip]), "whatever the state filter");
   // The list view of the same request (not mix=home) shows them all: the narrowing is what Home does, not what lists do.
   const plain = await call(b.app, b.server.base, "GET", "/api/items?scope=home&limit=50&type=videos", s);
   assert.ok((plain.json.items as { id: string }[]).some((i) => i.id === clipHidden), "an ordinary list still has the hidden collection's video");
@@ -156,7 +156,7 @@ test("Home's one feed narrowed by type or length keeps Home's sources, and pages
   addItem(b, vids, "text", { publishedAt: at(12), discoveredAt: at(12) });
   addItem(b, plain, "plain text", { publishedAt: at(20), discoveredAt: at(20) });
   addItem(b, hidden, "hidden video", { kind: "video", durationSeconds: 60, publishedAt: at(7), discoveredAt: at(7) });
-  const get = async (query: string) => (await call(b.app, b.server.base, "GET", `/api/items?scope=home&mix=home&filter=open&${query}`, s)).json as { items: { id: string }[]; nextCursor: string | null };
+  const get = async (query: string) => (await call(b.app, b.server.base, "GET", `/api/items?scope=home&mix=home&filter=undecided&${query}`, s)).json as { items: { id: string }[]; nextCursor: string | null };
   assert.deepEqual((await get("limit=50&type=videos")).items.map((i) => i.id), [v1, v0], "Home's sources, newest first");
   const first = await get("limit=1");
   assert.equal(first.items.length, 1);

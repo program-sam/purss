@@ -117,13 +117,13 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
   assert.deepEqual(pageAll(app, p, { scope: "new", limit: 10 }), [newId_]);
   // So does the source's own page, like any list of it: "Show ignored" has all of it.
   assert.deepEqual(pageAll(app, p, { scope: `source:${src}`, limit: 5 }), [newId_]);
-  assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 5, filter: "all" }).length, back.length + 1);
+  assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 5, filter: "all_with_ignored" }).length, back.length + 1);
   assert.equal(pageAll(app, p, { scope: `source:${src}`, limit: 5, filter: "ignored" }).length, back.length);
-  assert.equal(pageAll(app, p, { scope: `collection:${box.id}`, limit: 5, filter: "all", sort: "oldest" }).length, back.length + 1);
+  assert.equal(pageAll(app, p, { scope: `collection:${box.id}`, limit: 5, filter: "all_with_ignored", sort: "oldest" }).length, back.length + 1);
 
   // Search finds the whole of it, from anywhere (every sample post says 'tidal').
   assert.equal(searchItems(app, p, "tidal", 50).length, back.length + 1);
-  assert.equal(pageAll(app, p, { scope: "all", filter: "all", q: "tidal", limit: 5 }).length, back.length + 1);
+  assert.equal(pageAll(app, p, { scope: "all", filter: "all_with_ignored", q: "tidal", limit: 5 }).length, back.length + 1);
 
   // Counts: the source says how much it holds; everything that adds up what is waiting leaves the Ignored posts out.
   const source = listSources(app, p).find((s) => s.id === src)!;
@@ -249,8 +249,8 @@ test("an Ignored back-catalogue post is the person's to change: To read or Undec
   assert.ok(!feed.has(toread) && feed.has(undecided));
   for (const id of [opened, partway, kept, highlighted, noted, untouched]) assert.ok(!feed.has(id));
   assert.equal(listItems(app, p, { scope: "all", limit: 10 }).total, 3, "the two it was moved to and the brand new post");
-  assert.equal(listItems(app, p, { scope: "all", limit: 10, filter: "all" }).total, 10, "all nine of the back catalogue and the brand new post");
-  assert.deepEqual(pageAll(app, p, { scope: `basket:${basket.id}`, limit: 10, filter: "all" }), [kept], "a basket shows what is kept in it, Ignored or not");
+  assert.equal(listItems(app, p, { scope: "all", limit: 10, filter: "all_with_ignored" }).total, 10, "all nine of the back catalogue and the brand new post");
+  assert.deepEqual(pageAll(app, p, { scope: `basket:${basket.id}`, limit: 10, filter: "all_with_ignored" }), [kept], "a basket shows what is kept in it, Ignored or not");
   assert.equal(homeOverview(app, p).unread, 1, "Undecided and no longer New, like any older post; the Ignored ones are not counted");
   assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), 7);
   // Search finds the posts that were highlighted or noted, and the one that is kept.
@@ -298,7 +298,7 @@ test("one PURSS's back catalogue never reaches another's counts or lists", (t) =
   assert.deepEqual([ignored(p, mine.src), ignored(p, theirs), ignored(other, theirs), ignored(other, mine.src)], [mine.back.length, 0, 2, 0]);
   assert.equal(homeOverview(app, other).unread, 0);
   assert.deepEqual(pageAll(app, other, { scope: "all", limit: 10 }), []);
-  assert.equal(pageAll(app, other, { scope: `source:${theirs}`, limit: 10, filter: "all" }).length, 2);
+  assert.equal(pageAll(app, other, { scope: `source:${theirs}`, limit: 10, filter: "all_with_ignored" }).length, 2);
 });
 
 test("the queries that hide the Ignored posts and count what is left read their indexes in order, and nothing is written to keep anything up to date", (t) => {

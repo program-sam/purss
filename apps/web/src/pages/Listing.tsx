@@ -62,7 +62,7 @@ function useItems(place: ListPlace) {
   const ls = useListState(place);
   const board = ls.view === "board";
   // The board always needs the ignored column; the timeline groups by date, so it only sorts by date.
-  const apiFilter = board && (ls.filter === "active" || ls.filter === "all") ? "all" : ls.filter;
+  const apiFilter = board && (ls.filter === "all" || ls.filter === "all_with_ignored") ? "all_with_ignored" : ls.filter;
   const sort = ls.view === "timeline" && ls.sort !== "oldest" ? "newest" : ls.sort;
   const params: ListParams = { scope: ls.scope, filter: apiFilter, sort, ...listFilters(ls) };
   const q = useInfiniteQuery(itemListQuery(params));
@@ -292,7 +292,7 @@ function SelectionBar({ params, total, inBasket }: { params: ListParams; total: 
 /** The line under a list that leaves Ignored items out: what a source followed from now already had is among them. */
 function IgnoredHidden({ ls }: { ls: ReturnType<typeof useListState> }) {
   const nav = useNav();
-  return <p className="fine" style={{ marginTop: 12 }}>{t.ignoredHidden}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>{t.showIgnored}</button></p>;
+  return <p className="fine" style={{ marginTop: 12 }}>{t.ignoredHidden}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all_with_ignored") })}>{t.showIgnored}</button></p>;
 }
 
 function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typeof useListState>; hasSources: boolean }) {
@@ -300,7 +300,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   const overlays = useOverlays();
   const ws = usePurss();
   // A basket's everything filter includes ignored items; elsewhere it leaves them out.
-  const everything = place.t === "b" ? "all" : "active";
+  const everything = place.t === "b" ? "all_with_ignored" : "all";
   if (ls.filter !== everything || isNarrowed(ls)) {
     return <div className="empty card-like"><h2>{ls.filter === "ignored" ? t.nothingIgnored : t.nothingMatches}</h2><Button onClick={() => nav.patchSearch({ filter: filterParam(ls, everything), source: undefined, without: undefined, type: undefined, length: undefined, capture: undefined })}>{t.showAllItems}</Button></div>;
   }
@@ -359,7 +359,7 @@ export function ListingPage({ place }: { place: ListPlace }) {
   else if (!items.length) body = (
     <>
       <Empty place={place} ls={ls} hasSources={hasSources} />
-      {ls.filter === "active" && (place.t === "c" || place.t === "s") && !isNarrowed(ls) ? <IgnoredHidden ls={ls} /> : null}
+      {ls.filter === "all" && (place.t === "c" || place.t === "s") && !isNarrowed(ls) ? <IgnoredHidden ls={ls} /> : null}
     </>
   );
   else {
@@ -372,8 +372,8 @@ export function ListingPage({ place }: { place: ListPlace }) {
       <>
         {view}
         {ls.view !== "board" && drawn === items ? <LoadMore hasMore={!!q.hasNextPage} loading={q.isFetchingNextPage} onMore={() => void q.fetchNextPage()} /> : null}
-        {ls.filter === "active" && place.t !== "b" ? <IgnoredHidden ls={ls} /> : null}
-        {ls.filter === "all" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>{t.ignoredShowing}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "active") })}>{t.hideIgnored}</button></p> : null}
+        {ls.filter === "all" && place.t !== "b" ? <IgnoredHidden ls={ls} /> : null}
+        {ls.filter === "all_with_ignored" && place.t !== "b" ? <p className="fine" style={{ marginTop: 12 }}>{t.ignoredShowing}<button type="button" className="link" onClick={() => nav.patchSearch({ filter: filterParam(ls, "all") })}>{t.hideIgnored}</button></p> : null}
       </>
     );
   }

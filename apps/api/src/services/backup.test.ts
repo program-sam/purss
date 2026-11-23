@@ -85,9 +85,9 @@ test("restore brings back everything into a fresh directory, rebuilds search and
   const restored = { db, config: loadConfig({ PURSS_DATA_DIR: target }), events: app.events, serviceToken: "" };
   try {
     assert.equal(usedBytes(restored, p.accountId), before, "reference accounting survives the restore");
-    const found = listItems(restored, p, { scope: "all", filter: "all", q: "readable sediment" });
+    const found = listItems(restored, p, { scope: "all", filter: "all_with_ignored", q: "readable sediment" });
     assert.equal(found.items[0]?.id, lib.pinnedOld.itemId, "captured text is searchable again");
-    assert.equal(listItems(restored, p, { scope: "all", filter: "all", q: "corrected" }).items.length, 1);
+    assert.equal(listItems(restored, p, { scope: "all", filter: "all_with_ignored", q: "corrected" }).items.length, 1);
     const pinned = db.get<{ title: string }>("SELECT v.title FROM basket_items b JOIN item_versions v ON v.id = b.version_id WHERE b.item_id = ?", lib.pinnedOld.itemId)!;
     assert.equal(pinned.title, "Tidal flats and sediment", "the kept version is the original");
   } finally { db.close(); }

@@ -61,7 +61,7 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   const textBaskets = [...boot.baskets].filter((b) => b.captureMode === "text" && b.itemCount > 0).sort((a, b) => a.position - b.position).slice(0, KEPT_BASKETS_MAX);
   const keptBy = new Map<string, ItemDTO[]>();
   await pool(textBaskets, PACK_CONCURRENCY, signal, async (b) => {
-    try { keptBy.set(b.id, (await lookup({ scope: `basket:${b.id}`, filter: "all", sort: "kept", limit: PACK_KEPT_LIMIT })).items); } catch (err) { if (lostConnection(err)) throw err; }
+    try { keptBy.set(b.id, (await lookup({ scope: `basket:${b.id}`, filter: "all_with_ignored", sort: "kept", limit: PACK_KEPT_LIMIT })).items); } catch (err) { if (lostConnection(err)) throw err; }
   });
   const kept = textBaskets.flatMap((b) => keptBy.get(b.id) ?? []);
   const queue = selectQueue({ ...found, kept });
@@ -70,7 +70,7 @@ export async function runPack(qc: QueryClient, accountId: string, signal: AbortS
   if (!opts.light) {
     const collections = [...boot.collections].sort((a, b) => a.position - b.position);
     const shown = orderHome(collections, boot.preferences.homeCollectionIds);
-    const place = (scope: string): { params: ListParams; limit: number } => ({ params: { scope, filter: "active", sort: "newest" }, limit: PAGE });
+    const place = (scope: string): { params: ListParams; limit: number } => ({ params: { scope, filter: "all", sort: "newest" }, limit: PAGE });
     const pages = [
       ...homeRequests(boot.preferences.homeLayout, shown),
       ...collections.slice(0, PLACES_MAX).map((c) => place(`collection:${c.id}`)),

@@ -345,7 +345,7 @@ async function main(): Promise<void> {
     assert.equal(await row.getByRole("button", { name: /^Remove from Read later:/ }).count(), 1);
     const listing = copy.pages.listing;
     assert.equal(await page.getByText(new RegExp(`${esc(listing.ignoredHidden.trim())}|${esc(listing.ignoredShowing.trim())}`)).count(), 0, "no show or hide ignored note in a basket");
-    await page.getByRole("button", { name: new RegExp(`^Filter: ${esc(filters.active)}`) }).click();
+    await page.getByRole("button", { name: new RegExp(`^Filter: ${esc(filters.all)}`) }).click();
     const filterMenu = page.getByRole("menu", { name: "Filter items" });
     await filterMenu.waitFor();
     assert.equal(await filterMenu.getByRole("menuitemradio", { name: copy.words.ignored }).count(), 0, "no Ignored filter in a basket");

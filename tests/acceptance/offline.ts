@@ -403,7 +403,7 @@ async function main(): Promise<void> {
     await page.getByText(copy.shell.header.offlineSaved).waitFor({ state: "detached", timeout: 20_000 });
     await page.locator("#panel-in .p-pend").waitFor({ state: "detached", timeout: 20_000 });
     const sent = await page.evaluate(async () => {
-      const r = await fetch("/api/items?scope=all&filter=all&limit=200", { credentials: "same-origin" });
+      const r = await fetch("/api/items?scope=all&filter=all_with_ignored&limit=200", { credentials: "same-origin" });
       const body = await r.json() as { items: { title: string; workflow: string }[] };
       return body.items.find((i) => i.title.includes("Tidal flats and sediment"))?.workflow ?? null;
     });

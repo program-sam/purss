@@ -404,7 +404,7 @@ test("Home is empty for a new PURSS: nothing to say", (t) => {
 // ---------- Home's lists ----------
 
 /** Every page of a Home list, one request after another, with something allowed to change between requests. */
-function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "new"; limit: number }, between: (page: number) => void = () => {}): string[] {
+function pages(app: App, p: Owner, query: { scope: string; filter?: "undecided" | "new"; limit: number }, between: (page: number) => void = () => {}): string[] {
   const out: string[] = [];
   let cursor: string | undefined;
   for (let n = 0; n < 400; n++) {

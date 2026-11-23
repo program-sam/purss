@@ -9,7 +9,7 @@ const kind = (path: string, over: Partial<RequestInfo> = {}) =>
   classifyRequest({ method: "GET", url: new URL(path, ORIGIN).href, mode: "cors", ...over }, ORIGIN, precached);
 
 test("the person's own reads are kept, nothing else under /api", () => {
-  for (const path of ["/api/session", "/api/bootstrap", "/api/preferences", "/api/notifications", "/api/reminders", "/api/item-reminders", "/api/items/itm_01H/reminder", "/api/items?scope=home&filter=active&sort=newest&limit=50", "/api/items/itm_01H", "/api/items/itm_01H/annotations", "/api/stats/sources/src_1", "/api/stats/collections/col_1"]) {
+  for (const path of ["/api/session", "/api/bootstrap", "/api/preferences", "/api/notifications", "/api/reminders", "/api/item-reminders", "/api/items/itm_01H/reminder", "/api/items?scope=home&filter=all&sort=newest&limit=50", "/api/items/itm_01H", "/api/items/itm_01H/annotations", "/api/stats/sources/src_1", "/api/stats/collections/col_1"]) {
     assert.equal(kind(path), "api", path);
   }
   for (const path of ["/api/events", "/api/auth/oidc/google/start", "/api/auth/logout", "/api/admin/jobs", "/api/admin/accounts", "/api/export", "/api/opml", "/api/account/security", "/api/search?q=a", "/api/publications", "/api/reconcile", "/api/sources/src_1", "/api/items/itm_1/state"]) {

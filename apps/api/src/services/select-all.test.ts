@@ -26,7 +26,7 @@ test("Select all takes every item the list shows, past the loaded pages, in the 
   changeState(app, p, paged[0]!, { workflow: "ignored", expectedRevision: 0 });
   assert.equal(listItemIds(app, p, { scope: "all" }).total, 7, "follows the list's state filter");
   const outsider = makeOwner(app, { admin: false });
-  assert.deepEqual(listItemIds(app, outsider, { scope: "all", filter: "all" }), { ids: [], total: 0 }, "never another PURSS's items");
+  assert.deepEqual(listItemIds(app, outsider, { scope: "all", filter: "all_with_ignored" }), { ids: [], total: 0 }, "never another PURSS's items");
 });
 
 test("Select all past its limit says there are more instead of counting them all", (t) => {
@@ -35,7 +35,7 @@ test("Select all past its limit says there are more instead of counting them all
   const p = makeOwner(app, { allocationBytes: null });
   makeSource(app, p, "Busy", "feed/1");
   applySyncBatch(app, p.engineUserId, batch(Array.from({ length: MAX_BULK_ITEMS + 1 }, () => entry("feed/1"))));
-  const out = listItemIds(app, p, { scope: "all", filter: "all" });
+  const out = listItemIds(app, p, { scope: "all", filter: "all_with_ignored" });
   assert.equal(out.ids.length, MAX_BULK_ITEMS);
   assert.equal(out.total, null);
 });

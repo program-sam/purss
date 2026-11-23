@@ -213,7 +213,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   assert.equal(pinned.title, "Tidal flats and sediment");
   assert.ok(pinned.content_html.includes("transport"));
   assert.equal(b.db.get<{ text: string }>("SELECT text FROM captures WHERE item_id = ?", item.id)!.text, "Captured readable text about sediment.");
-  assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
+  assert.equal(listItems(b, pb, { scope: "all", filter: "all_with_ignored", q: "readable sediment" }).items[0]?.id, item.id, "captured text is searchable");
 
   assert.deepEqual(b.db.all<{ title: string }>("SELECT i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'ignored'").map((r) => r.title), [leftOut.title], "what was Ignored still is");
   // Workflow and progress came across; the private item has no address.
@@ -428,7 +428,7 @@ test("highlights and notes round-trip: removed ones stay out, text references fo
   const capB = b.db.get<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE status = 'done'")!;
   assert.deepEqual([hl.item_id, hl.target_kind, hl.target_id], [capB.item_id, "capture", capB.id], "the reference names the imported capture");
   assert.deepEqual([hl.quote_exact, hl.quote_prefix, hl.body, hl.created_at], ["readable text", "Captured ", "My comment on the capture", at]);
-  assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "bioturbation" }).total, 1, "imported notes are searchable");
+  assert.equal(listItems(b, pb, { scope: "all", filter: "all_with_ignored", q: "bioturbation" }).total, 1, "imported notes are searchable");
 
   // Times from the future in a file are capped at the import, so an imported annotation can't win every later edit.
   const { b: f, pb: pf, cleanup: cleanupF } = twoAccounts();

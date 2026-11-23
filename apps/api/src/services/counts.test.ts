@@ -85,8 +85,8 @@ function referenceTotal(app: App, p: Principal, scope: string, filter: string): 
   const params: SqlParam[] = [p.accountId];
   const where = ["i.account_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
   if (filter === "new") where.push("st.is_new = 1");
-  else if (filter === "active") where.push("st.workflow <> 'ignored'");
-  else if (filter !== "all") { where.push("st.workflow = ?"); params.push(filter); }
+  else if (filter === "all") where.push("st.workflow <> 'ignored'");
+  else if (filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(filter); }
   return app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")}`, ...params)!.n;
 }
 
@@ -135,7 +135,7 @@ function everyListTotal(): number {
       const scopes = ["all", "home", "new", "toread", "loose", `collection:${w.collections[0]}`, `collection:${w.collections[1]}`, `collection:${w.collections[2]}`, `collection:${w.queryCollection}`,
         `source:${w.sources[0]}`, `source:${w.sources[1]}`, `basket:${w.baskets[0]}`];
       for (const scope of scopes) {
-        for (const filter of ["all", "active", "new", ...STATES]) {
+        for (const filter of ["all_with_ignored", "all", "new", ...STATES]) {
           const total = listItems(w.app, w.p, { scope, filter: filter as never, limit: 5 }).total;
           assert.equal(total, referenceTotal(w.app, w.p, scope, filter), `seed ${seed}, ${scope}, filter ${filter}`);
           compared++;

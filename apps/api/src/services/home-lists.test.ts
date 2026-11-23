@@ -149,7 +149,7 @@ test("the queue is what was put aside and what was started: In progress items ar
 
   // The page: started items first, then what is waiting, each newest first.
   assert.deepEqual(pageAll(app, p, { scope: "toread", limit: 2 }), [half, halfRead, recent, mid, old], "started first, across pages");
-  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "all", limit: 10 }), [half, halfRead, recent, mid, old]);
+  assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "all_with_ignored", limit: 10 }), [half, halfRead, recent, mid, old]);
   assert.deepEqual(pageAll(app, p, { scope: "toread", sort: "oldest", limit: 10 }), [halfRead, half, old, mid, recent], "each in the list's own order");
   assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "inprogress", limit: 10 }), [half, halfRead], "its In progress filter shows what was started");
   assert.deepEqual(pageAll(app, p, { scope: "toread", filter: "toread", limit: 10 }), [recent, mid, old], "and To read what was not");
@@ -157,10 +157,10 @@ test("the queue is what was put aside and what was started: In progress items ar
   assert.deepEqual(pageAll(app, p, { scope: "toread", type: "podcasts", limit: 10 }), [half], "the phone widget's list, limited to a type");
   assert.deepEqual(pageAll(app, p, { scope: "toread", type: "articles", sort: "oldest", limit: 10 }), [halfRead, old, mid, recent]);
   // Select all takes the same items.
-  assert.deepEqual(new Set(listItemIds(app, p, { scope: "toread", filter: "active" }).ids), new Set([half, halfRead, recent, mid, old]));
+  assert.deepEqual(new Set(listItemIds(app, p, { scope: "toread", filter: "all" }).ids), new Set([half, halfRead, recent, mid, old]));
 
   // Its totals are those of the rows, from the counts and from the rows.
-  for (const [filter, expected] of [["active", 5], ["all", 5], ["inprogress", 2], ["toread", 3], ["finished", 0], ["undecided", 0]] as const) {
+  for (const [filter, expected] of [["all", 5], ["all_with_ignored", 5], ["inprogress", 2], ["toread", 3], ["finished", 0], ["undecided", 0]] as const) {
     assert.equal(listItems(app, p, { scope: "toread", filter, limit: 3 }).total, expected, filter);
   }
 

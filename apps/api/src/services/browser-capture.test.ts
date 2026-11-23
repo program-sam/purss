@@ -48,7 +48,7 @@ test("a page kept with its browser text becomes one item with a sanitized, label
   assert.deepEqual(detail.contentRef, { kind: "capture", id: cap!.id }, "the reader shows the captured text");
   assert.match(detail.contentHtml!, /quarter moons/);
 
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "neap quarter" }).items[0]?.id, out.itemId, "search finds the captured text");
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "neap quarter" }).items[0]?.id, out.itemId, "search finds the captured text");
   const objects = liveCaptureObjects(app, out.itemId);
   assert.equal(objects.length, 1);
   assert.ok(usedBytes(app, owner.accountId) - before >= objects[0]!.bytes, "counted against storage");
@@ -82,7 +82,7 @@ test("capturing again replaces the text in place and releases the earlier copy's
   assert.match(rows[0]!.text, /Second, longer/);
   assert.equal(liveCaptureObjects(app, first.itemId).length, 1, "one live ledger object");
   assert.equal(reconcile(app, owner.accountId).difference, 0);
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "First version" }).items.length, 0, "the old text left the index");
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "First version" }).items.length, 0, "the old text left the index");
 });
 
 test("a server capture and a browser capture of the same item live side by side", (t) => {
@@ -141,7 +141,7 @@ test("another PURSS's copy of the page is never touched", (t) => {
   assert.notEqual(mine.itemId, theirs.itemId);
   assert.equal(mine.existing, false);
   assert.match(captureRows(app, theirs.itemId)[0]!.text, /Their private text/);
-  assert.equal(listItems(app, owner, { scope: "all", filter: "all", q: "private" }).items.length, 0);
+  assert.equal(listItems(app, owner, { scope: "all", filter: "all_with_ignored", q: "private" }).items.length, 0);
 });
 
 test("the request schema caps the HTML", () => {

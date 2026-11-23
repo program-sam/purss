@@ -18,7 +18,7 @@ function kept() {
   makeSource(app, p, "Workbench", "feed/w");
   applySyncBatch(app, p.engineUserId, batch(["Mains supply", "Bobbin case", "Threading", "Not kept"].map((title) => entry("feed/w", { title, summaryHtml: `<p>${title} video about tools</p>` }))));
   const basket = createBasket(app, p, { name: "Checked", captureMode: "metadata" });
-  const ids = Object.fromEntries(listItems(app, p, { scope: "all", filter: "all" }).items.map((i) => [i.title, i.id]));
+  const ids = Object.fromEntries(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items.map((i) => [i.title, i.id]));
   for (const t of ["Mains supply", "Bobbin case", "Threading"]) keepItem(app, p, ids[t]!, basket.id);
   return { app, p, basket, ids, cleanup };
 }
@@ -51,7 +51,7 @@ test("lists carry the copy state and the first line of the note for kept items o
   capture(app, p, ids["Mains supply"]!, "done", "full");
   capture(app, p, ids["Bobbin case"]!, "failed", null);
   putAnnotation(app, p, ids["Mains supply"]!, "ann_1", { kind: "note", body: "NOT CHECKED YET\nMains voltage inside", updatedAt: at() } as never);
-  const items = Object.fromEntries(listItems(app, p, { scope: "all", filter: "all" }).items.map((i) => [i.title, i]));
+  const items = Object.fromEntries(listItems(app, p, { scope: "all", filter: "all_with_ignored" }).items.map((i) => [i.title, i]));
   assert.deepEqual(items["Mains supply"]!.kept, { copy: "text", noteLine: "NOT CHECKED YET" });
   assert.deepEqual(items["Bobbin case"]!.kept, { copy: "failed", noteLine: null });
   assert.deepEqual(items["Threading"]!.kept, { copy: "summary", noteLine: null });

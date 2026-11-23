@@ -45,12 +45,12 @@ export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
 
   const filterEntries = (): MenuEntry[] => {
     const radios = filterChoices(place).map<MenuEntry>((f) => ({
-      type: "radio", label: filterLabel(place, f), on: ls.filter === f || (f === "active" && ls.filter === "all"), onSelect: () => nav.patchSearch({ filter: filterParam(ls, f) }),
+      type: "radio", label: filterLabel(place, f), on: ls.filter === f || (f === "all" && ls.filter === "all_with_ignored"), onSelect: () => nav.patchSearch({ filter: filterParam(ls, f) }),
     }));
     // A basket has nothing to ignore (its All already shows everything kept in it), and the queue never holds ignored items.
     if (place.t === "b" || place.t === "r") return [...radios, ...typeLengthEntries(ls, nav.patchSearch)];
-    const canToggle = ls.filter === "active" || ls.filter === "all";
-    return [...radios, { type: "separator" }, { type: "check", label: app.words.showIgnoredItems, on: ls.filter === "all", disabled: !canToggle, onSelect: () => nav.patchSearch({ filter: filterParam(ls, ls.filter === "all" ? "active" : "all") }) }, ...typeLengthEntries(ls, nav.patchSearch)];
+    const canToggle = ls.filter === "all" || ls.filter === "all_with_ignored";
+    return [...radios, { type: "separator" }, { type: "check", label: app.words.showIgnoredItems, on: ls.filter === "all_with_ignored", disabled: !canToggle, onSelect: () => nav.patchSearch({ filter: filterParam(ls, ls.filter === "all_with_ignored" ? "all" : "all_with_ignored") }) }, ...typeLengthEntries(ls, nav.patchSearch)];
   };
   const sortEntries = (): MenuEntry[] =>
     SORT_ORDER.filter((s) => s !== "kept" || place.t === "b").map<MenuEntry>((s: Sort) => ({ type: "radio", label: SORT_LABELS[s], on: ls.sort === s, onSelect: () => nav.patchSearch({ sort: s === "newest" ? undefined : s }) }));

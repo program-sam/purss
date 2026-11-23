@@ -401,8 +401,8 @@ function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQ
   const params: SqlParam[] = [p.accountId];
   const where: string[] = ["i.account_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
   if (q.filter === "new") where.push("st.is_new = 1");
-  else if (q.filter === "active") where.push("st.workflow <> 'ignored'");
-  else if (q.filter !== "all") { where.push("st.workflow = ?"); params.push(q.filter); }
+  else if (q.filter === "all") where.push("st.workflow <> 'ignored'");
+  else if (q.filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(q.filter); }
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
   if (q.exceptPrivate) where.push("COALESCE(s.is_private, 0) = 0");
   if (q.without) { const ids = q.without.split(","); where.push(`(i.source_id IS NULL OR i.source_id NOT IN (${ids.map(() => "?").join(", ")}))`); params.push(...ids); }
@@ -550,8 +550,8 @@ function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuery
     scopeSources = new Set(looseSources(app, p.accountId));
   } else if (kind !== "all" && kind !== "home" && !scopeState) return null;
 
-  const filterSql = q.filter === "new" ? "st.is_new = 1" : q.filter === "active" ? "st.workflow <> 'ignored'" : q.filter === "all" ? "1" : "st.workflow = ?";
-  const filterKeep: CellFilter = q.filter === "new" ? (_w, isNew) => isNew : q.filter === "active" ? (w) => w !== "ignored" : q.filter === "all" ? () => true : (w) => w === q.filter;
+  const filterSql = q.filter === "new" ? "st.is_new = 1" : q.filter === "all" ? "st.workflow <> 'ignored'" : q.filter === "all_with_ignored" ? "1" : "st.workflow = ?";
+  const filterKeep: CellFilter = q.filter === "new" ? (_w, isNew) => isNew : q.filter === "all" ? (w) => w !== "ignored" : q.filter === "all_with_ignored" ? () => true : (w) => w === q.filter;
   const keep: CellFilter = (w, isNew) => filterKeep(w, isNew) && (!scopeState || scopeState.keep(w, isNew));
 
   const counts = itemCounts(app, p.accountId);
