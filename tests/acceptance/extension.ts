@@ -4,7 +4,7 @@
 // blog post that advertises a feed. Covered: a Keep deep link survives signing in; the extension
 // connects through launchWebAuthFlow and the approval page with PKCE; the popup on the post offers its
 // feed, keeps the page with the text as the browser shows it, then shows it as kept (also on the
-// toolbar); PURSS labels that text "Saved from your browser"; "Add as a source" opens Add
+// toolbar); PURSS labels that text "Kept from your browser"; "Add as a source" opens Add
 // source filled in without looking anything up; Settings offers the bookmarklets, and running one opens
 // Add source; disconnecting stops the token. The right-click menu and the address-bar keyword can't be
 // driven by Playwright and are covered by unit tests (apps/extension/src/lib/background.test.ts).
@@ -255,7 +255,7 @@ async function main(): Promise<void> {
     await item.getByText(server.api.items.browserCaptureNote, { exact: false }).waitFor();
     await item.locator(".prose").getByText("record of storms", { exact: false }).first().waitFor();
     assert.equal(await item.locator(".prose").getByText("Copyright").count(), 0, "only the readable part");
-    step("PURSS shows the kept text, labelled “Saved from your browser” with its date");
+    step("PURSS shows the kept text, labelled “Kept from your browser” with its date");
 
     // 6. "Add as a source" hands the feed to Add source, filled in, and nothing is looked up.
     await openPopup(post);

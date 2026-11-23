@@ -156,9 +156,9 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.proxy.yaml
 ```
 
 [compose.proxy.yaml](../infra/compose.proxy.yaml) removes the host port, joins the API to the
-proxy's (external) network under the alias `purss-workspace`, and requires `PURSS_PUBLIC_ORIGIN` and
+proxy's (external) network under the alias `purss-api`, and requires `PURSS_PUBLIC_ORIGIN` and
 `PURSS_TRUST_PROXY`, the proxy's container name (`docker ps` shows it): only that container, not others on
-the same network, can say which address a visitor has. Point the proxy at `http://purss-workspace:8940`. The proxy should:
+the same network, can say which address a visitor has. Point the proxy at `http://purss-api:8940`. The proxy should:
 
 - serve HTTPS at exactly `PURSS_PUBLIC_ORIGIN` and pass the `Host` and `Origin` headers through;
 - append the client's address to `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For

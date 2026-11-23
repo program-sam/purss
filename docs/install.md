@@ -74,7 +74,7 @@ PURSS_TRUST_PROXY=<your reverse proxy's container name>
 ```
 
 Find the proxy's network with `docker network ls` and its container name with `docker ps`. Then, in the proxy, add a site for your
-domain that forwards to `http://purss-workspace:8940` and requests an HTTPS certificate. Leave
+domain that forwards to `http://purss-api:8940` and requests an HTTPS certificate. Leave
 buffering off for `/api/events` and allow uploads of at least 128 MiB, for imports. The
 [proxy section](self-hosting.md#behind-an-https-reverse-proxy) has the full list.
 

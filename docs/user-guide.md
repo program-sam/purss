@@ -1129,7 +1129,7 @@ type its address first; the extension remembers it. Then:
   of your sources publish on that site. Pick a basket and press **Keep**. The basket you used last is
   picked next time.
 - **Also keep its text as you see it** keeps the readable part of the page as your browser shows it,
-  including pages you are signed in to. The item then says **Saved from your browser** with the
+  including pages you are signed in to. The item then says **Kept from your browser** with the
   date: PURSS didn't fetch that page, so it can't confirm the text matches the original.
   If the server can't take it, the link is still kept and the popup says why.
   Doing it again on the same page replaces that text (the popup says so first).

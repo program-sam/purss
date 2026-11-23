@@ -33,7 +33,7 @@ changes pages without reloading and the head can describe the previous page.
 itself is untouched), at most 2,000,000 characters; `POST /api/items/browser-capture` keeps the page like
 `/api/items/manual` (same duplicate rules) and stores the HTML as a capture of kind `browser`, sanitized again with the
 server's allowlist. The server fetches nothing, so the text is what the person saw, including a page behind their own
-sign-in. The item says *Saved from your browser* with the date, and an assistant's `get_item` reports the text source as
+sign-in. The item says *Kept from your browser* with the date, and an assistant's `get_item` reports the text source as
 text saved from the person's browser: it is never presented as a readable copy the server fetched or a promise about the
 original. An item has at most one browser capture; capturing again replaces its text in place (keeping its id, so
 highlights made on it still name it), and the popup says *Replaces the text kept from your browser on …* first. The

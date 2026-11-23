@@ -157,7 +157,7 @@ driven through the extension's options page, which can reach the popup's documen
 A "Keep this page" deep link opened while signed out comes back after sign-in and keeps after a basket
 is picked; the extension connects through `launchWebAuthFlow`, the approval page and PKCE; the popup on a
 blog post offers its feed, keeps the page with its text as the browser shows it, and on reopening shows
-it as kept (and ✓ on the toolbar button); PURSS shows the text as "Saved from your browser" with
+it as kept (and ✓ on the toolbar button); PURSS shows the text as "Kept from your browser" with
 its date and without the page's furniture; "Add as a source" opens Add source with the feed filled in and
 no link lookup request; *Settings → Connected apps* lists the extension and offers the bookmarklets, and
 running one opens Add source; disconnecting revokes the token. The right-click menu and the address-bar

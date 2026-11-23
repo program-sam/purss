@@ -65,7 +65,7 @@ The reader labels each item with the most it has:
 | Feed text | Saved the feed's text | The text the feed itself carried is kept with the version |
 | Full text | Full text saved | A readable copy of the page, fetched by the server, that passed the checks |
 | Partial | Only part of the page was saved | A fetched readable copy that is a sign-in, consent or security-check page (`gated`), mostly references (`references`) or under 60% of the feed's own text (`short`); it is kept and counted but not called the article, and the reason is shown |
-| Browser | Saved from your browser | The readable text the person's browser sent; the server fetched nothing and cannot confirm it matches the original |
+| Browser | Kept from your browser | The readable text the person's browser sent; the server fetched nothing and cannot confirm it matches the original |
 | Pending | Saving readable text… | A fetch is queued or running |
 | Failed | Couldn't save the text | The try failed, with the reason; **Try again** queues another |
 

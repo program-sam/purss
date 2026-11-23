@@ -541,7 +541,7 @@ Firefox and Safari) reads the open page only when the person opens its popup or 
 link, never fetched by the extension. On request it extracts the page's readable text with
 Readability and posts it to `POST /api/items/browser-capture`, which keeps the page like Keep link and
 stores the sanitized HTML as a capture of kind `browser` (one per item, replaced in place, admitted
-against storage, never fetched by the server). The reader labels it "Saved from your browser". Every HTML sanitizer and parser input (feeds, captures,
+against storage, never fetched by the server). The reader labels it "Kept from your browser". Every HTML sanitizer and parser input (feeds, captures,
 browser captures, imports, OPML) is first read once by `assertShallowMarkup` in
 `packages/connectors/src/text.ts`, which counts nesting and parser events exactly as htmlparser2
 reads them, in linear time; stored content beyond the bounds keeps only its text, as paragraphs.
