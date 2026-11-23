@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { ItemListQuery, SyncEntry } from "@purss/domain";
 import { newId } from "@purss/domain";
 import type { App, Principal } from "../app.ts";

@@ -1,7 +1,7 @@
 {
-  "name": "@purss/copy",
+  "name": "@purss/translations",
   "private": true,
-  "description": "Every word people read in PURSS, one catalog per audience",
+  "description": "Every word people read in PURSS, one translation file per audience",
   "type": "module",
   "sideEffects": false,
   "exports": {

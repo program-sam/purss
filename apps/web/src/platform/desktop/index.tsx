@@ -31,7 +31,7 @@ import type { Incoming } from "./bridge.ts";
 import { drawBadgeOverlay, wantsOverlay } from "./badge-overlay.ts";
 import { feedAddress } from "./feed-link.ts";
 import { desktopConnection, desktopFiles } from "./files.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.desktop;
 

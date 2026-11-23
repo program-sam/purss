@@ -12,7 +12,7 @@ import { HttpError, addSeconds, nowIso } from "../http.ts";
 import { sessionWrite } from "./accounts.ts";
 import { hasPassword, linkedProviders } from "./providers.ts";
 import { passkeyOrigins } from "../connect/app-association.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const CHALLENGE_SECONDS = 300;
 

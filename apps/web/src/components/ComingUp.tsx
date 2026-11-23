@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
 import { comingUpQuery } from "../api/reminder-queries.ts";
 import { dayLabel } from "../lib/reminder-days.ts";

@@ -7,7 +7,7 @@ import { failCapture } from "./captures.ts";
 import { failIconCheck } from "./icons.ts";
 import { onSubscribeFailed } from "./sources.ts";
 import { failJudging } from "./ai-filters.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * What a failed job means for a person, and how long to wait before trying again. The worker reports

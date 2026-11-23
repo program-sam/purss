@@ -20,7 +20,7 @@ import { serverTokensOf } from "./ai-access.ts";
 import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
 import { discoveryRouteStats } from "./discovery-routes.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Administrator operations. Everything here is operational: aggregates, job and

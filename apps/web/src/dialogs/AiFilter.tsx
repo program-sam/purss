@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { AI_FILTER_PREVIEW_POSTS, AI_FILTER_TEXT_MAX } from "@purss/domain";
 import type { AiFilterDTO, AiFilterPreview, AiFilterScope, AiSettingsDTO, WhenUnsure } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, Segmented, TextInput } from "@purss/ui";

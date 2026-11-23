@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { BADGE_TTL_MS, Debouncer, KeptCache, mayLookUp } from "./badge.ts";
 import { menuAction, menuItems } from "./menus.ts";
 

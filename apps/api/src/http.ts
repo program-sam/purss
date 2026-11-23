@@ -2,7 +2,7 @@ import { createWriteStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { pipeline } from "node:stream/promises";
 import type { z } from "zod";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** A plain-language error that is safe to show to the user. */
 export class HttpError extends Error {

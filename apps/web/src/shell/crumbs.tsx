@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useBreakpoint } from "@purss/ui";
 import { statsPlaceOf, useNav } from "../nav.ts";
 import { TO_READ_TITLE } from "../lib/constants.ts";

@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { linkIsMediaFile, sameAddress } from "@purss/domain";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";

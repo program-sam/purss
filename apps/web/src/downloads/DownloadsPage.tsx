@@ -6,7 +6,7 @@ import { platform } from "../platform/index.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.downloadsPage;
 

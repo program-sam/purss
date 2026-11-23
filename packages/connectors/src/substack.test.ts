@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { DraftCandidate } from "./discover.ts";
 import type { ParsedFeed } from "./feed.ts";
 import { planKnownFeeds, resolveKnown, SUBSTACK_NO_PROFILE, SUBSTACK_NO_PUBLICATION } from "./known-feeds.ts";

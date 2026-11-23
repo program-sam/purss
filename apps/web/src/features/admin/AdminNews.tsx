@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NEWS_BODY_MAX, NEWS_TITLE_MAX } from "@purss/domain";
 import type { NewsAdminDTO, NewsPostDTO, NewsPostStats } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { del, get, messageOf, post, put } from "../../api/client.ts";
 import { timeAgo } from "../../lib/format.ts";

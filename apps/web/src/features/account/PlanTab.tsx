@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { PLAN_LABELS, PLAN_LIMITS, PLAN_PRICES_EUR, euros } from "@purss/domain";
 import type { Capacity } from "@purss/domain";
 import { Button, Icon, Segmented } from "@purss/ui";

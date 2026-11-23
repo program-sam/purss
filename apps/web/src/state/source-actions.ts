@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SourceDTO } from "@purss/domain";
 import { messageOf, post } from "../api/client.ts";

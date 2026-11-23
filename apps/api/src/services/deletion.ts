@@ -15,7 +15,7 @@ import { ASSISTANT_SESSION_PREFIX } from "./assistant.ts";
 import { enqueue } from "./jobs.ts";
 import { pauseAllShares } from "./shares.ts";
 import { stageFile } from "./portability.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Account deletion, asked for by the account's owner. The request starts a grace period: the

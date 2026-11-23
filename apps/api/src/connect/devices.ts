@@ -5,7 +5,7 @@ import { audit } from "../app.ts";
 import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "../services/deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Device tokens for connected apps. A token is a bearer credential like a session cookie:

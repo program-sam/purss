@@ -9,6 +9,6 @@
     "./primitives.css": "./src/primitives.css"
   },
   "dependencies": {
-    "@purss/copy": "*"
+    "@purss/translations": "*"
   }
 }

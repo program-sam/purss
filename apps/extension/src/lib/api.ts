@@ -1,4 +1,4 @@
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import type { BasketDTO, BrowserCaptureResult, ConnectInfo, ConnectTokenResult, ManualKeepResult, UrlLookup } from "@purss/domain";
 
 /*

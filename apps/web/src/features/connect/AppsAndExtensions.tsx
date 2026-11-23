@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ANDROID_APK, DESKTOP_RELEASES_URL, DISTRIBUTION, STORE_NAMES, desktopDownloadUrl, publishedStores } from "@purss/domain";
 import type { Distributed } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { platform } from "../../platform/index.ts";
 import { useSession } from "../../api/hooks.ts";

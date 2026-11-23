@@ -2,7 +2,7 @@ import type { DeviceConnection } from "@purss/domain";
 import { DownloadError } from "../../downloads/manager.ts";
 import type { DeviceFiles } from "../../downloads/manager.ts";
 import { desktop } from "./bridge.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 
 /*

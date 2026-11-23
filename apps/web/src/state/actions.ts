@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ItemDTO, WorkflowState } from "@purss/domain";

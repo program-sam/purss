@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket } from "./collections.ts";

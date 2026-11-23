@@ -7,7 +7,7 @@ import { badRequest, nowIso } from "../http.ts";
 import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
 import { urlKey } from "./url-key.ts";
 import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export { canonicalFeedKey };
 

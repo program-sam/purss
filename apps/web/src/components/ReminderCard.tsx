@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ReminderDTO } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../api/client.ts";

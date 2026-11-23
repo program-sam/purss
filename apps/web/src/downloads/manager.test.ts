@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { DeviceConnection as Connection, DownloadPlanRequest, ItemDetail } from "@purss/domain";
 import { chooseDownloads, downloadCandidate, expectedBytes, MAX_DOWNLOAD_BYTES, mediaToDownload } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import type { BackgroundState } from "./background.ts";
 import { DownloadError, DownloadManager, MAX_TRIES } from "./manager.ts";

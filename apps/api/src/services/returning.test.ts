@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { Database } from "../db/database.ts";
 import { OTHER_BOX_ID, newId } from "@purss/domain";
 import type { Preferences, SyncEntry } from "@purss/domain";

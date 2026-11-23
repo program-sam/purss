@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConnectClientKind, DeviceDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { del, get, messageOf } from "../../api/client.ts";
 import { shortDate, timeAgo } from "../../lib/format.ts";

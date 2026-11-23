@@ -1,4 +1,4 @@
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 import { z } from "zod";
 import { WORKFLOW_STATES } from "./workflow.ts";
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import type { TestSession } from "../features-testing.ts";

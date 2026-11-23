@@ -1,5 +1,5 @@
 /*
- * TEST ONLY: helpers for tests that compare what the server says with the catalog text it reads from `@purss/copy`,
+ * TEST ONLY: helpers for tests that compare what the server says with the catalog text it reads from `@purss/translations`,
  * so rewording a catalog entry never breaks a test.
  */
 

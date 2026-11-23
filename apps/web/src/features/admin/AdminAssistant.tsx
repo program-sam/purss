@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { AdminAssistantAccess } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Check } from "@purss/ui";
 import { get, messageOf, put } from "../../api/client.ts";
 import { plural } from "../../lib/format.ts";

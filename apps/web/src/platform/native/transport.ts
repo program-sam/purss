@@ -4,7 +4,7 @@ import { NO_COPY_HEADER } from "../../sw/protocol.ts";
 import { createPictureCache } from "../pictures.ts";
 import { followEvents } from "../sse.ts";
 import type { Transport } from "../types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.transport;
 

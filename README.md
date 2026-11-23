@@ -87,7 +87,7 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 | `packages/freshrss` | FreshRSS protocol adapter and capability checks |
 | `packages/connectors` | Discovery and non-feed source connectors |
 | `packages/ui` | Original design tokens and reusable UI primitives |
-| `packages/copy` | Every word people read, one catalog per audience |
+| `packages/translations` | Every word people read, one catalog per audience |
 | `infra` | Docker Compose packaging, engine image and operation notes |
 | `tests/acceptance` | End-to-end product acceptance scenarios |
 | `scripts` | Dev runner, engine lifecycle, backup/restore, repository validation |

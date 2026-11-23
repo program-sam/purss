@@ -1,8 +1,8 @@
 /**
  * Copy for the native shells: the Android app's string resources, the iOS widgets' and notification extension's Swift,
  * and the desktop app's Rust code; `widget` is the widgets' text both phones show. A value is a plain
- * string; `{name}` stands for a value the code fills in. scripts/native-copy.ts writes the platforms' own files from
- * it (npm run copy:native), and a test fails when one is out of date.
+ * string; `{name}` stands for a value the code fills in. scripts/native-translations.ts writes the platforms' own files from
+ * it (npm run translations:native), and a test fails when one is out of date.
  */
 // The app's name, in the places a system shows it.
 const name = "PURSS";
@@ -80,7 +80,7 @@ export const native = {
     },
   },
   // the home-screen widgets' text both phones show (Android's values/widget_strings.xml as `widget_…`, and
-  // NativeCopy.Widget in the iOS widgets). Values are filled in the order their `{name}`s first appear in the text.
+  // NativeTranslations.Widget in the iOS widgets). Values are filled in the order their `{name}`s first appear in the text.
   widget: {
     toRead: "To read",
     toListen: "To listen",
@@ -117,7 +117,7 @@ export const native = {
     pausedAt: "Paused at {time}",
     savedLink: "Saved link",
   },
-  // the iOS app's own text, where it differs from Android's (NativeCopy.Ios in Swift): its widgets are
+  // the iOS app's own text, where it differs from Android's (NativeTranslations.Ios in Swift): its widgets are
   // edited from their touch-and-hold menu, not tapped. `panelChoice` is the widget settings' App Intent names, which
   // Xcode reads at build time, so the generator writes them into PanelChoice.swift itself.
   ios: {

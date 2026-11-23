@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
-import { escapeRegExp, inHtml } from "../copy-testing.ts";
+import { server } from "@purss/translations/server";
+import { escapeRegExp, inHtml } from "../translations-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { listItems } from "./items.ts";

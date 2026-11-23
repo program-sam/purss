@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,7 +21,7 @@ import { openDatabase } from "../db/database.ts";
 import type { Message } from "./mailer.ts";
 import { invitationMail, resetMail, verifyMail } from "./templates.ts";
 import { startSmtpSink, textOf } from "./testing.ts";
-import { inHtml } from "../copy-testing.ts";
+import { inHtml } from "../translations-testing.ts";
 
 const { mailTemplates } = server.api;
 /** The product name every message is written for (the templates' own constant). */

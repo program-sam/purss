@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Check } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { bytesLabel } from "../lib/format.ts";

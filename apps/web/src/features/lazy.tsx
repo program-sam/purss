@@ -1,6 +1,6 @@
 import { Suspense, lazy } from "react";
 import type { ReactNode } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CatalogCategory } from "@purss/domain";
 
 /** Feature pages load when first visited, so the everyday PURSS stays small. */

@@ -1,5 +1,5 @@
 import { escapeXml } from "@purss/connectors";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** RSS 2.0 serialisation of a bridged source's entries with stable GUIDs and bounded size. */
 

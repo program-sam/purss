@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import http from "node:http";
 import { bridgeKeyValid, bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
 import type { BridgeService, FeedItem } from "@purss/connectors";

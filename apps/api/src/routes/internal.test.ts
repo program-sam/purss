@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { AddressInfo } from "node:net";
 import type { App, Principal } from "../app.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";

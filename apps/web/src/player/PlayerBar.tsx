@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Avatar, Icon, IconButton } from "@purss/ui";
 import { nameFace } from "../components/item-bits.tsx";
 import { useNav } from "../nav.ts";

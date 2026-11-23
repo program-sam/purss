@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon, TextInput } from "@purss/ui";
 import { ApiError, messageOf, post } from "../../api/client.ts";
 import { assertPasskey } from "../../auth/SignIn.tsx";

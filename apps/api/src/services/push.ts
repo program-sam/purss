@@ -11,7 +11,7 @@ import { usableAccountSql } from "./deletion.ts";
 import { newItemCount } from "./sources.ts";
 import { getPreferences } from "./preferences.ts";
 import { validTimezone } from "./reminders.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Phone notifications. A connected phone app registers the handle the push relay gave it

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemMedia } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { BackendState, PlaybackSource, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";
 import { Player } from "./player.ts";

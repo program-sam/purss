@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { DiscoveryRoute } from "@purss/domain";
 import type { DraftCandidate } from "./discover.ts";
 import type { ParsedFeed } from "./feed.ts";

@@ -3,7 +3,7 @@ import { newId, CONTROL_HEADROOM_BYTES } from "@purss/domain";
 import type { StoredObjectKind } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * Logical storage ledger. Account usage = sum of live stored objects, kept as

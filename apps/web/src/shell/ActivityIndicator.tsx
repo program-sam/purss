@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useQuery } from "@tanstack/react-query";
 import type { ActivityDTO, ActivitySource } from "@purss/domain";
 import { Icon } from "@purss/ui";

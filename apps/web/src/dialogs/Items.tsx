@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { DeletePreview } from "@purss/domain";
 import { Button, Check, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../api/client.ts";

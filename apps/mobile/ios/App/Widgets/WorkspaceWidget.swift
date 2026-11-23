@@ -38,21 +38,21 @@ enum PanelKind {
 
     var heading: String {
         switch self {
-        case .toRead: return NativeCopy.Widget.toRead
-        case .toListen: return NativeCopy.Widget.toListen
-        case .new: return NativeCopy.Widget.new
-        case .collection: return NativeCopy.Widget.collection
-        case .source: return NativeCopy.Widget.source
+        case .toRead: return NativeTranslations.Widget.toRead
+        case .toListen: return NativeTranslations.Widget.toListen
+        case .new: return NativeTranslations.Widget.new
+        case .collection: return NativeTranslations.Widget.collection
+        case .source: return NativeTranslations.Widget.source
         }
     }
 
     var about: String {
         switch self {
-        case .toRead: return NativeCopy.Widget.toReadDescription
-        case .toListen: return NativeCopy.Widget.toListenDescription
-        case .new: return NativeCopy.Widget.newDescription
-        case .collection: return NativeCopy.Widget.collectionDescription
-        case .source: return NativeCopy.Widget.sourceDescription
+        case .toRead: return NativeTranslations.Widget.toReadDescription
+        case .toListen: return NativeTranslations.Widget.toListenDescription
+        case .new: return NativeTranslations.Widget.newDescription
+        case .collection: return NativeTranslations.Widget.collectionDescription
+        case .source: return NativeTranslations.Widget.sourceDescription
         }
     }
 
@@ -73,27 +73,27 @@ enum PanelKind {
 
     var empty: String {
         switch self {
-        case .toRead: return NativeCopy.Widget.nothing
-        case .toListen: return NativeCopy.Widget.nothingToListen
-        case .new: return NativeCopy.Widget.nothingNew
-        case .collection, .source: return NativeCopy.Widget.nothingHere
+        case .toRead: return NativeTranslations.Widget.nothing
+        case .toListen: return NativeTranslations.Widget.nothingToListen
+        case .new: return NativeTranslations.Widget.nothingNew
+        case .collection, .source: return NativeTranslations.Widget.nothingHere
         }
     }
 
     // A tap can't open the picker on iOS: the widget is edited from its touch-and-hold menu.
     var choose: String {
-        self == .collection ? NativeCopy.Ios.Widget.chooseCollection : NativeCopy.Ios.Widget.chooseSource
+        self == .collection ? NativeTranslations.Ios.Widget.chooseCollection : NativeTranslations.Ios.Widget.chooseSource
     }
 
     var gone: String {
         self == .collection
-            ? NativeCopy.Ios.Widget.collectionGone
-            : NativeCopy.Ios.Widget.sourceGone
+            ? NativeTranslations.Ios.Widget.collectionGone
+            : NativeTranslations.Ios.Widget.sourceGone
     }
 
-    static let privateSource = NativeCopy.Ios.Widget.privateSource
-    static let notConnected = NativeCopy.Widget.notConnected
-    static let loading = NativeCopy.Widget.loading
+    static let privateSource = NativeTranslations.Ios.Widget.privateSource
+    static let notConnected = NativeTranslations.Widget.notConnected
+    static let loading = NativeTranslations.Widget.loading
 }
 
 struct PanelEntry: TimelineEntry {
@@ -151,8 +151,8 @@ struct PanelEntry: TimelineEntry {
     }
 
     static func placeholder(_ panel: PanelKind) -> PanelEntry {
-        let rows = [NativeCopy.Ios.Placeholder.first, NativeCopy.Ios.Placeholder.second, NativeCopy.Ios.Placeholder.third].enumerated().map { index, title in
-            WidgetLists.Row(id: "placeholder\(index)", title: title, sourceTitle: NativeCopy.Ios.Placeholder.source, at: nil)
+        let rows = [NativeTranslations.Ios.Placeholder.first, NativeTranslations.Ios.Placeholder.second, NativeTranslations.Ios.Placeholder.third].enumerated().map { index, title in
+            WidgetLists.Row(id: "placeholder\(index)", title: title, sourceTitle: NativeTranslations.Ios.Placeholder.source, at: nil)
         }
         return PanelEntry(date: Date(), panel: panel, snapshot: WidgetSnapshot(appearance: "system", episode: nil),
                           key: panel.key ?? "placeholder", chosenName: nil, list: WidgetLists.Stored(rows: rows, total: nil, state: "ok", name: nil))
@@ -312,7 +312,7 @@ private struct Palette {
 /// Android's Panels.kt does. A source with no title is a link the person saved by hand.
 private enum SourceFace {
     static func name(_ sourceTitle: String) -> String {
-        sourceTitle.isEmpty ? NativeCopy.Widget.savedLink : sourceTitle
+        sourceTitle.isEmpty ? NativeTranslations.Widget.savedLink : sourceTitle
     }
 
     /// What the app's `[^\p{L}\p{N} ]` keeps: letters and numbers.
@@ -392,7 +392,7 @@ private let relativeFormatter: RelativeDateTimeFormatter = {
 /// How long ago, short ("3 hr. ago"); empty for a time that isn't one.
 private func age(_ at: String?, now: Date) -> String {
     guard let at = at, let date = WidgetLists.date(at) else { return "" }
-    if now.timeIntervalSince(date) < 60 { return NativeCopy.Ios.Widget.now }
+    if now.timeIntervalSince(date) < 60 { return NativeTranslations.Ios.Widget.now }
     return relativeFormatter.localizedString(for: date, relativeTo: now)
 }
 
@@ -469,7 +469,7 @@ private struct RowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(meta.isEmpty ? title : NativeCopy.Widget.row(title: title, meta: meta))
+        .accessibilityLabel(meta.isEmpty ? title : NativeTranslations.Widget.row(title: title, meta: meta))
     }
 }
 
@@ -573,7 +573,7 @@ private struct PanelView: View {
 
     @ViewBuilder
     private func episodeBlock(_ episode: WidgetSnapshot.Episode, _ palette: Palette) -> some View {
-        let status = episode.playing ? NativeCopy.Widget.playing : (episode.positionSeconds > 0 ? NativeCopy.Widget.pausedAt(time: clock(episode.positionSeconds)) : NativeCopy.Widget.paused)
+        let status = episode.playing ? NativeTranslations.Widget.playing : (episode.positionSeconds > 0 ? NativeTranslations.Widget.pausedAt(time: clock(episode.positionSeconds)) : NativeTranslations.Widget.paused)
         let meta = [episode.sourceTitle, status].filter { !$0.isEmpty }.joined(separator: " · ")
         let block = RowView(title: episode.title, meta: meta, palette: palette, avatarName: nil)
         if linksWork, let url = WidgetLinks.item(episode.id) {

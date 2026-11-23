@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { bytesLabel, clock, dateFormat, dateTime, dayKey, dayTime, dayLabel, formatCount, groupByDay, interfaceLocale, plural, shortDate, timeAgo } from "./format.ts";
 
 const bytes = app.lib.format.bytes;

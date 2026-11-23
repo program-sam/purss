@@ -1,5 +1,5 @@
 import type { MouseEventHandler } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.providerButton;
 

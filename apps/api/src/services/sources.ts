@@ -29,7 +29,7 @@ import { deleteSourceNotifications } from "./notifications.ts";
 import { assertRoom } from "./plans.ts";
 import { deliverNews } from "./news.ts";
 import { isNewsFeed, newsCandidate } from "./news-address.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const QUIET_DAYS = 30;
 /** What a followed feed says while it has no posts at all. */

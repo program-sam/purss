@@ -6,8 +6,8 @@
  * website can import it.
  */
 
-// The catalog file by path, not "@purss/copy/common": the desktop release job runs this file without installing packages.
-import { common } from "../../copy/src/en/common.ts";
+// The catalog file by path, not "@purss/translations/common": the desktop release job runs this file without installing packages.
+import { common } from "../../translations/src/en/common.ts";
 
 const copy = common.distribution;
 

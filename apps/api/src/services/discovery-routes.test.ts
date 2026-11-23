@@ -3,7 +3,7 @@ import test from "node:test";
 import { DISCOVERY_ENTRIES, DISCOVERY_ROUTES, isDiscoveryEntry, isDiscoveryRoute } from "@purss/domain";
 import type { DiscoveryEntry, DiscoveryRoute } from "@purss/domain";
 import { BRIDGE_SERVICES } from "@purss/connectors";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { App, Principal } from "../app.ts";
 import { callTool } from "../mcp/tools.ts";
 import { publicRouter } from "../routes/public.ts";

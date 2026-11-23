@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { Bootstrap, Preferences } from "@purss/domain";
 import { Button, Dialog, Icon, IconButton, Segmented, Check } from "@purss/ui";
 import { messageOf, patch } from "../api/client.ts";

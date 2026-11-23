@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { Preferences } from "@purss/domain";
 import { Button, Check, Dialog, Icon, Segmented, SelectInput } from "@purss/ui";
 import { ApiError, del, messageOf, post } from "../api/client.ts";

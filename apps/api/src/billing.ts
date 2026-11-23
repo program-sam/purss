@@ -7,7 +7,7 @@ import type { App } from "./app.ts";
 import { HttpError, SIGNED_OUT_PACE, addressSender, clientAddress, parse, readBody, sendJson } from "./http.ts";
 import { safeEqual } from "./secrets.ts";
 import { planOf, storedPlan } from "./services/plans.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Paying for a plan through an external billing service (hosted only, config.billing). PURSS holds no

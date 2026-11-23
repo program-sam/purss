@@ -2,7 +2,7 @@ import { looksPrivateUrl } from "@purss/connectors";
 import { appUrl } from "@purss/domain";
 import type { App } from "../app.ts";
 import { escapeHtml, hasCredentialShape, httpUrlOrNull } from "./text-safety.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The pages anyone can open without signing in: shared baskets and collections, their report form, and the

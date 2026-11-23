@@ -9,7 +9,7 @@ import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
 import { itemCounts } from "./counts.ts";
 import { countMuted, mutedAmong, mutedScan, workspaceMuted } from "./muted.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Home for someone coming back: when the last visit was, what is New since and what to pick up again.

@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { itemPath } from "@purss/domain/paths";
 import { useCallback } from "react";
 import type { ItemDTO } from "@purss/domain";

@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { decodeBody } from "./content-type.ts";
 import { isForbiddenLiteralHost } from "./addresses.ts";
 import { looksPrivateUrl, privateUrlReason } from "./privacy.ts";

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { UrlLookup } from "@purss/domain";
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { followLine, initialBasket, keepButton, keptLine, sourceOffers, statusLine, textHint } from "./popup-model.ts";
 
 const reading = { id: "bsk_r", name: "Reading" };

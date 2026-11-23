@@ -1,5 +1,5 @@
 import "./features.css";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { WorkspacePage } from "../plugins.ts";
 import { CATALOG_CATEGORIES } from "@purss/domain";
 import type { SessionInfo } from "@purss/domain";

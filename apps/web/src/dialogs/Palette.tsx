@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon, PaletteLayer } from "@purss/ui";
 import type { IconName } from "@purss/ui";

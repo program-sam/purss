@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { discover } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { normalizeInput } from "./input.ts";

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DiscoveryCandidate } from "@purss/domain";
-import { server } from "@purss/copy/server";
-import { app } from "@purss/copy/app";
+import { server } from "@purss/translations/server";
+import { app } from "@purss/translations/app";
 import { cadenceText, EPISODES, POSTS } from "./cadence.ts";
 import { YOUTUBE_REFUSED } from "./discover.ts";
 import { discover, previewsAsFeed } from "./discover.ts";

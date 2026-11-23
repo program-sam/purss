@@ -11,7 +11,7 @@ import { planOf } from "./plans.ts";
 import { PRODUCT_NAME, pageShell, productHome, publicLink } from "./public-pages.ts";
 import { escapeHtml, escapeXml, plainText, uuidFrom } from "./text-safety.ts";
 import type { SqlParam } from "../db/database.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { shownTitle } from "./content.ts";
 
 /*

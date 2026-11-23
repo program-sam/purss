@@ -1,7 +1,7 @@
 import { safeFetch } from "@purss/connectors";
 import type { SafeFetchOptions } from "@purss/connectors";
 import { rateLimit } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Who is asking: OAuth clients identify themselves with a Client ID Metadata Document

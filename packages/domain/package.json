@@ -15,7 +15,7 @@
     "./version": "./src/version.ts"
   },
   "dependencies": {
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "zod": "^4.6.7"
   }
 }

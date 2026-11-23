@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssistantAccess, AssistantAccessLevel, AssistantGrantDTO, AssistantTokenCreated, AssistantTokenDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Check, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, post, put } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";

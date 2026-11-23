@@ -9,7 +9,7 @@ import { assertStillUsable } from "../services/deletion.ts";
 import { assertDiskRoom } from "../services/storage.ts";
 import { generateOpml, previewOpml } from "../services/opml.ts";
 import { dismissOpmlImport, getOpmlImport, listOpmlImports, runOpmlImports, startOpmlImport, stopOpmlImport } from "../services/opml-import.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** The feeds chosen from an OPML preview. The server decides what is private from the address, not from what the browser says. */
 const opmlImportSchema = z.object({

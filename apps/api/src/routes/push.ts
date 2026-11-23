@@ -4,7 +4,7 @@ import type { Ctx } from "../app.ts";
 import { requirePrincipal } from "../app.ts";
 import { HttpError, Router, clientAddress, parse, rateLimit } from "../http.ts";
 import { pushInfo, registerPushDevice, takePending, unregisterPushDevice } from "../services/push.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Phone notifications. The phone app, with its device token: GET /api/push (is this PURSS

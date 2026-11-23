@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { SafeFetchResult } from "@purss/connectors";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { keepLink } from "./links.ts";

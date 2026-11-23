@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CatalogCategory, CatalogCategoryList, CatalogSource, DiscoverSuggestion, DiscoveryResult } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Avatar, Button, Check, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";

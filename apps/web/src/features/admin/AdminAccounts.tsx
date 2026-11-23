@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PLAN_LABELS, PLAN_LIMITS, PLAN_NAMES, planHasSmartFilters } from "@purss/domain";
 import type { AdminAccountDTO, Capacity, Plan } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, patch, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";

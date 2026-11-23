@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDocument } from "htmlparser2";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { appUrl } from "@purss/domain";
-import { inHtml } from "../copy-testing.ts";
+import { inHtml } from "../translations-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import { basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection } from "../services/collections.ts";

@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { BridgeServiceId } from "@purss/domain";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";

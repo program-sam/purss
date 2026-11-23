@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { noFeedMessage, noFeedPlatform } from "./platforms.ts";
 
 const U = (s: string) => new URL(s);

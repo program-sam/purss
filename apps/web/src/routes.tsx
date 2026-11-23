@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Outlet, createRootRouteWithContext, createRoute, lazyRouteComponent, notFound, redirect, useParams, useRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionInfo, Sort, ViewMode } from "@purss/domain";

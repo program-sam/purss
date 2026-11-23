@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { SourceDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { useNav } from "../nav.ts";

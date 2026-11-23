@@ -1,6 +1,6 @@
 import type { PushInfo, PushRegisterResult } from "@purss/domain";
 import type { PushStatus } from "../types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 /*
  * Notifications on this phone, apart from the device APIs, so the rules can be tested without

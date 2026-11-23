@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemKind, SourceDTO, WorkflowState } from "@purss/domain";
 import { Avatar, Icon, SelectInput, TextInput } from "@purss/ui";
 import { ITEM_KINDS, KIND_LABELS, WORKFLOW_LABELS, WORKFLOW_ORDER } from "../lib/constants.ts";

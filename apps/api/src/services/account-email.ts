@@ -9,7 +9,7 @@ import { HttpError, addSeconds, nowIso, parse } from "../http.ts";
 import { maskAddress, mailConfigured, sendLater } from "../mail/mailer.ts";
 import { emailChangedMail, passwordChangedMail, resetMail, verifyMail } from "../mail/templates.ts";
 import { randomToken, sha256 } from "../secrets.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * An account's email address: every account has one, it is what the account signs in with, and each

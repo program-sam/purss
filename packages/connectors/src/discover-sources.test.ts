@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { BUSY_MESSAGE, COMMENTS_ONLY_MESSAGE, discover, MISSING_HOST_MESSAGE, TIMEOUT_MESSAGE } from "./discover.ts";
 import type { DiscoveryDraft, FetchFn } from "./discover.ts";
 import { EMAIL_MESSAGE, NAME_MESSAGE, normalizeInput, wwwAlternative } from "./input.ts";

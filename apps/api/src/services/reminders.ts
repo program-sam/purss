@@ -5,7 +5,7 @@ import { emit } from "../app.ts";
 import { notFound } from "../http.ts";
 import { getPreferences } from "./preferences.ts";
 import { usableAccountSql } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Personal rediscovery: "On this day" reminders over items the owner kept in a

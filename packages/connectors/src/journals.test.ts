@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { discover, LINKED_JOURNAL_NOTE, OJS_ANNOUNCEMENTS_NOTE } from "./discover.ts";
 import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";

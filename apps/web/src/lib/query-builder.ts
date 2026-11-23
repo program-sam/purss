@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CollectionDTO, ItemKind, QueryNode, WorkflowState } from "@purss/domain";
 import { KIND_LABELS, WORKFLOW_LABELS } from "./constants.ts";
 import { interfaceLocale } from "./format.ts";

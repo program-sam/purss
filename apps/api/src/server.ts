@@ -14,7 +14,7 @@ import { handleBillingPlan } from "./billing.ts";
 import { assertStillUsable } from "./services/deletion.ts";
 import { markSignedIn, webRoute } from "./web-routes.ts";
 import { APP_PATH } from "@purss/domain/paths";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",

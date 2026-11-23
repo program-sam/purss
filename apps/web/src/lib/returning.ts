@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ActivityDTO, HomeOverview, ItemDTO, Preferences } from "@purss/domain";
 import { dateFormat, formatCount, interfaceLocale, plural, timeAgo } from "./format.ts";
 

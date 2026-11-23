@@ -21,7 +21,7 @@ import type { PartialReason } from "@purss/connectors";
 import { pictureUrl, postGallery, storedPictures, withStoredPictures } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { keptDisplays } from "./kept-display.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export type NewItem = {
   accountId: string;

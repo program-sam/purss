@@ -3,7 +3,7 @@ import type { Preferences } from "@purss/domain";
 import { z } from "zod";
 import type { App } from "../app.ts";
 import { nowIso } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const time = z.string().regex(/^\d{2}:\d{2}$/).nullable();
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);

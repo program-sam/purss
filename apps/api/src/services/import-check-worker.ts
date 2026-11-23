@@ -8,7 +8,7 @@ import type { Config } from "../config.ts";
 import { Database } from "../db/database.ts";
 import { HttpError } from "../http.ts";
 import { checkUpload } from "./portability.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 process.once("message", (job: { config: Config; principal: Principal; file: string }) => {
   let db: Database | null = null;

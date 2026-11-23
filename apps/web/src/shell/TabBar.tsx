@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { useNav } from "../nav.ts";

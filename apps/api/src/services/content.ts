@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import sanitizeHtml from "sanitize-html";
 import { assertShallowMarkup, escapeHtml, looksLikeCss, markupParagraphs, TooComplexError } from "@purss/connectors";
 import type { ItemKind } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * Bounds on the markup handed to sanitize-html, whose work grows with nesting depth (quadratically)

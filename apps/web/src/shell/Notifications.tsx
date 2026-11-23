@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NotificationDTO } from "@purss/domain";
 import { Button, Icon } from "@purss/ui";

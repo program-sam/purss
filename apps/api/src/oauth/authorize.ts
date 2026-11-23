@@ -7,7 +7,7 @@ import { CHALLENGE_PATTERN, issueCode } from "../connect/codes.ts";
 import { MAX_GRANTS, assistantUnavailableMessage, endpointFor, getAccess, grantCount } from "../services/assistant.ts";
 import { isLoopbackRedirect, matchRedirect, resolveClient } from "./clients.ts";
 import type { Client } from "./clients.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The authorization endpoint. GET /app/oauth/authorize is the web app's consent page; it

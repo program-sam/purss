@@ -1,5 +1,5 @@
 // Copy for the public website (apps/site): one export per source file of apps/site/src, so each page's script
-// bundles only its own text. Import it as `import * as copy from "@purss/copy/site"`.
+// bundles only its own text. Import it as `import * as copy from "@purss/translations/site"`.
 
 // The pictures of the app say what the app says: their labels come from its own words.
 import { words as app } from "./app/words.ts";

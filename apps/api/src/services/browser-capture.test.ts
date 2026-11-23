@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { BROWSER_CAPTURE_MAX_CHARS, browserCaptureSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";

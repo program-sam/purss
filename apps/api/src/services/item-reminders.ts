@@ -7,7 +7,7 @@ import { sendLater } from "../mail/mailer.ts";
 import { reminderMail } from "../mail/templates.ts";
 import { getPreferences } from "./preferences.ts";
 import { addDays, localDate, validTimezone, ymdString } from "./reminders.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { shownTitle } from "./content.ts";
 
 /*

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { crossrefWorksToRss } from "./crossref.ts";
 import { discover, WIKIDATA_NOTE } from "./discover.ts";
 import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";

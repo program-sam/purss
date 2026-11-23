@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemKind, WorkflowState } from "@purss/domain";
 import { workflowLabel } from "./constants.ts";
 

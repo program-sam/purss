@@ -1,5 +1,5 @@
 import { useDownload } from "./hooks.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.downloadedTag;
 

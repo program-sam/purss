@@ -8,7 +8,7 @@ import { aiSettings, keyFor, markKeyRejected, recordUsage, serverKeyReady } from
 import { enqueue } from "./jobs.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { setWorkflowByFilter } from "./state.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Smart filters. A filter holds the person's words for which posts of a source, or of every source in a collection, to

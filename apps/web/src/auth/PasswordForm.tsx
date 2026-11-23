@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from "react";
 import { Button, Field, Icon, TextInput } from "@purss/ui";
 import { messageOf, put } from "../api/client.ts";
 import { platform } from "../platform/index.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.passwordForm;
 

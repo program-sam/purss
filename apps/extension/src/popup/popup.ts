@@ -1,4 +1,4 @@
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { appUrl } from "@purss/domain/paths";
 import "@purss/ui/tokens.css";
 import "@purss/ui/primitives.css";

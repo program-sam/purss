@@ -3,7 +3,7 @@ import type { JobKind, LeasedJob } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError, addSeconds, nowIso } from "../http.ts";
 import { isAccountUsable, usableAccountSql } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export const LEASE_SECONDS = 120;
 

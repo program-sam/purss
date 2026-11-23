@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ImportPreview, ImportResult } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { refreshWorkspace } from "../../api/queries.ts";

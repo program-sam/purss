@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { challengeFor, cleanTypedCode, connectPageUrl, deviceNameFor, randomVerifier, readRedirect } from "./connect.ts";
 
 test("the PKCE challenge is S256 of the verifier (RFC 7636 appendix B), and verifiers are fresh and well-formed", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bridgeService, parseBridgeDescriptor } from "./bridges.ts";
 import { crossrefWorksToRss, crossrefWorksUrl, findCrossrefJournal, issnFromInput, issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 import { CROSSREF_NOTE, CROSSREF_VIA, discover } from "./discover.ts";

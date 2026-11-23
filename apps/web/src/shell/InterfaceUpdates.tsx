@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useSyncExternalStore } from "react";
 import { Button, Check, Dialog } from "@purss/ui";
 import { platform } from "../platform/index.ts";

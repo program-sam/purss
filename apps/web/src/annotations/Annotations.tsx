@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { TextRef } from "@purss/domain";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { shortDate } from "../lib/format.ts";

@@ -3,7 +3,7 @@
  * how the background runs and a few browser-specific keys differ.
  */
 
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { dottedVersion } from "@purss/domain/version";
 
 export const TARGETS = ["chromium", "firefox", "safari"] as const;

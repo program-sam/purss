@@ -12,7 +12,7 @@ import { DesktopAppSection } from "../shell/DesktopApp.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useDownloads, useDownloadSettings } from "./hooks.ts";
 import { LIMIT_CHOICES } from "./types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.deviceTab;
 

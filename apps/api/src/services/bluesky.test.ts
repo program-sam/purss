@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { SafeFetchOptions, SafeFetchResult } from "@purss/connectors";
 import { fakeFailure, fakeResponse } from "../../../../packages/connectors/src/testing.ts";
-import { inHtml } from "../copy-testing.ts";
+import { inHtml } from "../translations-testing.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { lookUpBlueskyPictures, MAX_TRIES } from "./bluesky.ts";
 import { getItemDetail, listItems } from "./items.ts";

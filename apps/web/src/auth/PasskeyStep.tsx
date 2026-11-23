@@ -3,7 +3,7 @@ import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/bro
 import { Button, Icon } from "@purss/ui";
 import { ApiError, messageOf, post } from "../api/client.ts";
 import { platform } from "../platform/index.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.passkeyStep;
 

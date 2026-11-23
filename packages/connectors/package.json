@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@purss/copy": "*",
+    "@purss/translations": "*",
     "@purss/domain": "*",
     "htmlparser2": "^12.0.0",
     "linkedom": "^0.18.15",

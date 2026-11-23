@@ -8,7 +8,7 @@
 //! The player plays them from a server on 127.0.0.1 (WebKitGTK plays no media from custom protocols): a random
 //! port and a random secret in every address, serving only files of the layout, with range requests.
 
-use crate::copy;
+use crate::translations;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -257,7 +257,7 @@ impl Files {
             return Ok(None);
         }
         if new.starts_with(&old) {
-            return Err(copy::errors::DOWNLOADS_FOLDER_INSIDE.into());
+            return Err(translations::errors::DOWNLOADS_FOLDER_INSIDE.into());
         }
         ensure_root(&new)?;
         self.begin_move();
@@ -273,15 +273,15 @@ impl Files {
         let old_usable = old.join(MARKER).is_file() && !is_link(old);
         let accounts = if old_usable { self.list("")? } else { vec![] };
         for account in &accounts {
-            copy_tree(&old.join(account), &new.join(account)).map_err(copy::errors::downloads_not_copied)?;
+            copy_tree(&old.join(account), &new.join(account)).map_err(translations::errors::downloads_not_copied)?;
         }
         // The choice is kept before anything old is deleted: a failure here leaves both copies and the old choice.
         let settings = Settings { parent: Some(parent) };
-        fs::create_dir_all(&self.config_dir).map_err(copy::errors::downloads_folder_not_kept)?;
+        fs::create_dir_all(&self.config_dir).map_err(translations::errors::downloads_folder_not_kept)?;
         let tmp = self.settings_file.with_extension("json.tmp");
         fs::write(&tmp, serde_json::to_vec(&settings).unwrap_or_default())
             .and_then(|_| fs::rename(&tmp, &self.settings_file))
-            .map_err(copy::errors::downloads_folder_not_kept)?;
+            .map_err(translations::errors::downloads_folder_not_kept)?;
         *self.state.lock().unwrap() = settings;
         for account in accounts {
             let _ = fs::remove_dir_all(old.join(account));
@@ -352,15 +352,15 @@ fn ensure_root(root: &Path) -> Result<(), String> {
     if root.is_dir() && !marker.is_file() {
         let empty = fs::read_dir(root).map(|mut d| d.next().is_none()).unwrap_or(false);
         if !empty {
-            return Err(copy::errors::DOWNLOADS_FOLDER_TAKEN.to_string());
+            return Err(translations::errors::DOWNLOADS_FOLDER_TAKEN.to_string());
         }
     }
     if is_link(root) {
-        return Err(copy::errors::downloads_folder_is_link(FOLDER_NAME));
+        return Err(translations::errors::downloads_folder_is_link(FOLDER_NAME));
     }
-    fs::create_dir_all(root).map_err(copy::errors::downloads_folder_not_made)?;
+    fs::create_dir_all(root).map_err(translations::errors::downloads_folder_not_made)?;
     if !marker.is_file() {
-        fs::write(&marker, MARKER_TEXT).map_err(copy::errors::downloads_folder_not_made)?;
+        fs::write(&marker, MARKER_TEXT).map_err(translations::errors::downloads_folder_not_made)?;
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { coreName, isDiscourse, isGenericTitle, isSiteWideFeed, linkMatchesPage, nameFeed, orderByVia, probeLandedOnName, rankByPage, sameName, sectionFeedName, sectionFeedPaths, sectionPath, siteNameFor, tidyFeedName, withoutCommentFeeds } from "./feed-choice.ts";
 
 const copy = server.sources.connectors;

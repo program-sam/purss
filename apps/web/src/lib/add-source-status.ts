@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { plural } from "./format.ts";
 
 export type AddSourcePhase = "paste" | "looking" | "found" | "failed" | "results" | "single";

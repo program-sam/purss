@@ -7,7 +7,7 @@ import { HttpError, addSeconds, notFound, nowIso } from "../http.ts";
 import { getInstallation, setInstallation } from "../auth/accounts.ts";
 import { randomToken, sha256 } from "../secrets.ts";
 import { isAccountUsable } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Assistant access (MCP): an AI assistant reaches a PURSS through /mcp with a personal

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { decodeBody, isFeedKind, parseContentType, sniffContent } from "./content-type.ts";
 import { generateOpml, parseOpml, OPML_MAX_OUTLINES } from "./opml.ts";
 import { looksPrivateUrl, privateUrlReason, redactUrl } from "./privacy.ts";

@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { BASKET_VIEW_MODES } from "@purss/domain";
 import type { BasketViewMode, Sort, ViewMode } from "@purss/domain";

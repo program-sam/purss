@@ -4,7 +4,7 @@ import { parseOffer } from "@purss/domain/app-bundle";
 import type { AppBundleOffer } from "@purss/domain/app-bundle";
 import type { App, Ctx } from "../app.ts";
 import { HttpError, Router } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Live updates of the phone apps' interface: the build of the interface this PURSS runs,

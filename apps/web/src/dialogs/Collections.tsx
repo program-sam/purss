@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { CollectionDTO, ViewMode } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, Segmented, TextInput } from "@purss/ui";
 import { del, messageOf, patch, post } from "../api/client.ts";

@@ -1,5 +1,5 @@
 import type { Message } from "./mailer.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The messages, in the product's plain language: plain text plus a simple HTML version with the

@@ -14,7 +14,7 @@ const MANUAL_SOURCE_HUE = hueFor("Saved links");
 import { getItem, insertItem, reindex } from "./items.ts";
 import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Keeping a single link, with or without the text the person's browser captured,

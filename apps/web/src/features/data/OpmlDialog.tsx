@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OpmlImportDestination, OpmlImportDTO, OpmlImportEntryDTO, OpmlPreview, OpmlPreviewEntry } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, post } from "../../api/client.ts";
 import { refreshWorkspace } from "../../api/queries.ts";

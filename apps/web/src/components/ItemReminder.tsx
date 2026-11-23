@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { REMINDER_NOTE_MAX } from "@purss/domain";
 import { Button, Icon, TextInput } from "@purss/ui";
 import { del, messageOf, put } from "../api/client.ts";

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { encodePageKey } from "@purss/connectors";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";

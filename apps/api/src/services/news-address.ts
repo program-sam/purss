@@ -1,7 +1,7 @@
 import type { DraftCandidate } from "@purss/connectors";
 import type { App } from "../app.ts";
 import { PRODUCT_NAME } from "./public-pages.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The installation's news by its addresses (services/news.ts has the rest). Kept apart, with nothing but the database

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ActivityDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { plural } from "./format.ts";
 import { activityLine, calmLine, freshDaysChoices, hasKeyboard, inQueue, isToListen, isToRead, isToWatch, nextCheckLine, pausedUntilLine, sinceLine } from "./returning.ts";
 

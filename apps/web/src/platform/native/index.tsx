@@ -45,7 +45,7 @@ import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQu
 import type { BundleRef, Updater } from "./live-update.ts";
 import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
 import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.native;
 

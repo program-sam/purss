@@ -3,7 +3,7 @@
  * person's own time zone, never an instant, so these work on the date text and use UTC only as a neutral calendar.
  */
 
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 

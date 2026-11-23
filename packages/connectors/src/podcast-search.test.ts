@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { PODCAST_DIRECTORY, searchPodcasts } from "./podcast-search.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
 import type { FetchFn } from "./discover.ts";

@@ -1,7 +1,7 @@
 import type { ActivityDTO, ActivityEvent, ActivitySource, SourceHealth } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { syncDelaySeconds } from "./failures.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * What the engine has been doing for this PURSS, in plain words: checking sources, setting new ones up,

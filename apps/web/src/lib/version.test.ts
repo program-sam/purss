@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { versionLine } from "./version.ts";
 
 const t = app.lib.version;

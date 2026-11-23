@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { MutedWord } from "@purss/domain";
 import { Button, Icon, IconButton, SelectInput, TextInput } from "@purss/ui";
 import { shortDate } from "../lib/format.ts";

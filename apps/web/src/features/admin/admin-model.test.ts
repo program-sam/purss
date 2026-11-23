@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { bridgeFailureText, bytesOrUnknown, durationLabel, engineLabel, inviteLink, missLabel, parseAllocation, shortId, splitAllocation } from "./admin-model.ts";
 
 const t = app.admin.adminModel;

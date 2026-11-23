@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ANNOTATION_BODY_MAX, ANNOTATION_CONTEXT_MAX, ANNOTATION_QUOTE_MAX, ITEM_KINDS, WORKFLOW_STATES } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * PURSS export archive, schema version 1.

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { DeletionRequested } from "@purss/domain";
 import { Button, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";

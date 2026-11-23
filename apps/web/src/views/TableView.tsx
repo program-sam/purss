@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO, Sort } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { KIND_LABELS, workflowLabel } from "../lib/constants.ts";

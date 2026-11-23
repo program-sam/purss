@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { home } from "./home.ts";
 import { PLANS, PLUS, PRO, SELF_HOSTED } from "./kit.ts";
 import { docPage, legalPage } from "./legal.ts";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { app } from "@purss/copy/app";
-import { common } from "@purss/copy/common";
+import { app } from "@purss/translations/app";
+import { common } from "@purss/translations/common";
 import type { Capacity } from "@purss/domain";
 import { plural } from "./format.ts";
 import { capacityOf, collectionLimitNote } from "./plan-limits.ts";

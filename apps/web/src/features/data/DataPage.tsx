@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import type { ImportPreview, OpmlPreview, SourceDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Avatar, Button, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
 import { bytesLabel, plural } from "../../lib/format.ts";

@@ -11,9 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
-import { app as copy } from "@purss/copy/app";
-import { server } from "@purss/copy/server";
-import { ui } from "@purss/copy/ui";
+import { app as copy } from "@purss/translations/app";
+import { server } from "@purss/translations/server";
+import { ui } from "@purss/translations/ui";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const dataDir = mkdtempSync(path.join(os.tmpdir(), "purss-acceptance-"));

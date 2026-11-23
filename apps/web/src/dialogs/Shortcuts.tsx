@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog } from "@purss/ui";
 import { useOverlays } from "../state/overlays.tsx";
 import { SEARCH_KEY } from "../shell/Sidebar.tsx";

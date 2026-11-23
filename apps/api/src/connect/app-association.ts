@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
 import type { App } from "../app.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The PURSS vouches for its phone apps (configured in Config.apps), so the phones let them use the

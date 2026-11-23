@@ -3,7 +3,7 @@ import type { Capacity, Plan } from "@purss/domain";
 import type { App } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { allocation, usedBytes } from "./storage.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * Hosted plans (packages/domain/src/plans.ts): the number of followed sources and of collections an

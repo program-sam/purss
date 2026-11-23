@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { AddressInfo } from "node:net";
 import { askJevEach, JevError, jevConfigFromEnv, jevKeyFingerprint } from "@purss/connectors";
 import type { AiJudgeInput } from "@purss/domain";

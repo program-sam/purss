@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { NotificationFrequency, NotificationInclude, Preferences } from "@purss/domain";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Check, Icon, SelectInput, TextInput } from "@purss/ui";

@@ -1,4 +1,4 @@
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 
 export const WORKFLOW_STATES = ["new", "toread", "inprogress", "finished", "ignored"] as const;
 export type WorkflowState = (typeof WORKFLOW_STATES)[number];

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { OpmlImportRequest } from "@purss/domain";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";

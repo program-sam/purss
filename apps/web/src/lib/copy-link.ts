@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import type { MenuEntry } from "@purss/ui";
 import { originalLink } from "./items.ts";

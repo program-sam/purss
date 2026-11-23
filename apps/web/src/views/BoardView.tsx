@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { itemListQuery } from "../api/queries.ts";
 import type { ListParams } from "../api/queries.ts";
 import type { ItemDTO, WorkflowState } from "@purss/domain";

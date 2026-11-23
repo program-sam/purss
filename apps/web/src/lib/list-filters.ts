@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { MenuEntry } from "@purss/ui";
 import type { ListParams } from "../api/queries.ts";
 import type { ViewMode } from "@purss/domain";

@@ -1,4 +1,4 @@
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 import type { ShareDTO } from "./api.ts";
 import type { WorkflowState } from "./workflow.ts";
 import type { Capacity, Plan } from "./plans.ts";

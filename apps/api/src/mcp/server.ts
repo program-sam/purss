@@ -7,7 +7,7 @@ import { ACCESS_TOKEN_PREFIX, resolveAccessToken } from "../oauth/grants.ts";
 import { resourceMetadataUrl } from "../oauth/endpoints.ts";
 import { assertStillUsable } from "../services/deletion.ts";
 import { SERVER_INSTRUCTIONS, callTool, describeTools } from "./tools.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The MCP endpoint (Streamable HTTP): one POST /mcp, JSON answers, no sessions.

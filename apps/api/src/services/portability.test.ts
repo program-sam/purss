@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { newId } from "@purss/domain";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";

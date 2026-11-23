@@ -17,7 +17,7 @@ import { PRODUCT_NAME, pageShell } from "./public-pages.ts";
 import { escapeHtml, escapeXml, uuidFrom } from "./text-safety.ts";
 import { onAccountCreated } from "./account-hooks.ts";
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, newsUrls, publishedNews } from "./news-address.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export { NEWS_INITIAL_POSTS, NEWS_TITLE } from "./news-address.ts";
 

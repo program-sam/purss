@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { newId } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";

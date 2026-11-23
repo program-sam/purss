@@ -3,7 +3,7 @@ import { statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { CATALOG_CATEGORIES, initialsFor, isCatalogCategory } from "@purss/domain";
 import type { CatalogCategory, CatalogCategoryList, CatalogResponse, CatalogSource, SiteSearchHit } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { isStoredIcon } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { notFound } from "../http.ts";

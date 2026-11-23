@@ -7,7 +7,7 @@ import { emit } from "../app.ts";
 import { HttpError, badRequest, conflict, notFound, nowIso } from "../http.ts";
 import { NO_TITLE, detectKind, displayAuthor, excerpt, findDoi, toText } from "./content.ts";
 import { insertItem } from "./items.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Reconciliation review. When the collection engine is replaced or restored, the

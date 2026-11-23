@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { addSourceStatus, focusTargets } from "./add-source-status.ts";
 import { plural } from "./format.ts";
 

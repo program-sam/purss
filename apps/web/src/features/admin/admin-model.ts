@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { appUrl } from "@purss/domain";
 import { bytesLabel } from "../../lib/format.ts";
 

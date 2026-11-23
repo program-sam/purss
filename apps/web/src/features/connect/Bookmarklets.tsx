@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Icon } from "@purss/ui";
 import { bookmarklet } from "../../lib/deep-links.ts";
 import type { BookmarkletKind } from "../../lib/deep-links.ts";

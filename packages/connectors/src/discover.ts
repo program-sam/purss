@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { DiscoveryCandidate, DiscoveryResult, DiscoveryRoute, KeepOffer } from "@purss/domain";
 import { EPISODES, POSTS, VIDEOS, cadenceText } from "./cadence.ts";
 import type { Noun } from "./cadence.ts";

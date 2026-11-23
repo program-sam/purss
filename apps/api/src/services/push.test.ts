@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server } from "node:http";
 import type { AddressInfo } from "node:net";

@@ -13,7 +13,7 @@ import { toText } from "../services/content.ts";
 import { StorageFull, markPaused } from "../services/storage.ts";
 import { hasCredentialShape } from "../services/text-safety.ts";
 import type { AssistantAccessLevel } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The tools an assistant can call. Every tool runs as the token's account through the same

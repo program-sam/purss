@@ -17,7 +17,7 @@ import { isAccountUsable, refuseDeletingSignIn } from "../services/deletion.ts";
 import { initialPlan } from "../services/plans.ts";
 import { runAccountCreated } from "../services/account-hooks.ts";
 import { DEVICE_SESSION_PREFIX, IDLE_DAYS, idleCutoff } from "../connect/devices.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export const SESSION_COOKIE = "purss_session";
 const SESSION_DAYS = 30;

@@ -11,7 +11,7 @@ import { addDays, localDate, validTimezone } from "./reminders.ts";
 import { boxesBySource } from "./home.ts";
 import { settledCopy } from "./capture-state.ts";
 import type { BoxLink } from "./home.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { shownTitle } from "./content.ts";
 
 /*

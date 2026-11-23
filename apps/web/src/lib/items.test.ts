@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { belongsInList, displayAuthors, isNewerCopy, isTimeBased, isYouTube, itemDate, itemExcerpt, itemPicture, lengthText, matchesFilter, newMarkerCleared, originalLink, playerArtwork, publishedApart, safeHref, safeImage, withNewerState } from "./items.ts";
 import { workflowLabel } from "./constants.ts";
 

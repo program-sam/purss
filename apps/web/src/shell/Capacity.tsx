@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { PLAN_LABELS } from "@purss/domain";
 import type { Capacity } from "@purss/domain";
 import { Icon } from "@purss/ui";

@@ -4,7 +4,7 @@ import type { ConnectClientKind, EventMessage } from "@purss/domain";
 import type { Config } from "./config.ts";
 import type { Database } from "./db/database.ts";
 import { HttpError, nowIso } from "./http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export type App = {
   db: Database;

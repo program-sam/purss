@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemMedia, PlaybackPosition, WorkflowState } from "@purss/domain";
 import type { BackendState, PlayerBackend } from "./backend.ts";
 import { IDLE_STATE } from "./backend.ts";

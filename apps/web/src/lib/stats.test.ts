@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CollectionStatsRow, StatsNumbers } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { countWithShare, firstDirection, gapLabel, sharePercent, sortRows, sparklineLabel, weeklyAverage } from "./stats.ts";
 
 const t = app.lib.stats;

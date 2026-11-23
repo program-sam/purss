@@ -11,7 +11,7 @@ import { reindex } from "./items.ts";
 import { queueItemImages } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { enqueue } from "./jobs.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** Reserved for a readable-text capture before the job runs; settled to actual bytes. */
 export const CAPTURE_RESERVE_BYTES = 1_500_000;

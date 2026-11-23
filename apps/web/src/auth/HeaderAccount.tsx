@@ -6,7 +6,7 @@ import { usePopups } from "../state/popups.tsx";
 import { useToasts } from "../state/toasts.tsx";
 import { useSignOut } from "./use-sign-out.ts";
 import "./header-account.css";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.headerAccount;
 

@@ -1,7 +1,7 @@
 import { parseWorkspaceAddress } from "@purss/domain";
 import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.connect;
 

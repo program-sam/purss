@@ -9,7 +9,7 @@ import { checkInfo, connectPageUrl, parsePending, passkeysOffered, pkce, provide
 import { inviteFromLink, tokenFromLink } from "../../lib/email-links.ts";
 import type { Connection, Pending } from "./connect.ts";
 import type { Passkeys } from "../types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.connectScreen;
 

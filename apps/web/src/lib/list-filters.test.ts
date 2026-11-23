@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { MenuEntry } from "@purss/ui";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { defaultFilterFor, filterChoices, filterFor, filterLabel, filterParam, isNarrowed, listFilters, typeLengthEntries, typeLengthSummary, typesParam } from "./list-filters.ts";
 import type { ListState } from "../pages/list-state.ts";
 

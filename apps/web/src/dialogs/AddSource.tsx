@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, LookupEntry, PodcastSearchHit, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, messageOf, post } from "../api/client.ts";

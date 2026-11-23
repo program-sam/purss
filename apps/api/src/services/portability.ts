@@ -36,7 +36,7 @@ import { PlanLimit, assertRoom } from "./plans.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM } from "./images.ts";
 import { isNewsFeed } from "./news-address.ts";
 import { pictureType } from "@purss/connectors";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * PURSS export and import. The archive format is documented

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { PAGES, render, sitemap, type PageKey } from "./pages.ts";
 import { siteFrom } from "./site.ts";
 

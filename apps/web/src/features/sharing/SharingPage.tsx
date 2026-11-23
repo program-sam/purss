@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ShareDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { shortDate } from "../../lib/format.ts";
 import { useSession } from "../../api/hooks.ts";

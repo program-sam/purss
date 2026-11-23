@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bootDeletion, member, setCookie } from "../deletion-testing.ts";
 import { signIn } from "../features-testing.ts";
 import { HttpError } from "../http.ts";

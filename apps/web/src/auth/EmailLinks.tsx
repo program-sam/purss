@@ -6,7 +6,7 @@ import { Button, Field, Icon, TextInput } from "@purss/ui";
 import { useSession } from "../api/hooks.ts";
 import { messageOf, post } from "../api/client.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.emailLinks;
 

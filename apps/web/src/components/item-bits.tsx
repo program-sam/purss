@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO, ItemKind, KeptCopy } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";

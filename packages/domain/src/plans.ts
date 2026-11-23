@@ -1,4 +1,4 @@
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 
 /**
  * Hosted plans: how many sources an account may follow and how many collections it may have.

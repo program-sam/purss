@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { PlaybackPosition, WorkflowState } from "@purss/domain";
 
 /** Pure decisions of the player, kept apart so they can be tested without a browser. */

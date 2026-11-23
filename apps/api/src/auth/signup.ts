@@ -8,7 +8,7 @@ import { randomToken, sha256 } from "../secrets.ts";
 import { VERIFY_HOURS } from "../services/account-email.ts";
 import { createAccount, emailInUse, openSignup } from "./accounts.ts";
 import type { PreparedPassword } from "./passwords.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Open sign-up (hosted, with working email) starts with the address: a single-use link goes there, and the account is made

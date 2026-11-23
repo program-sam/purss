@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import { readFileSync } from "node:fs";
 import http2, { type ClientHttp2Session } from "node:http2";

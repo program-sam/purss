@@ -7,7 +7,7 @@
  * question for the owner; this is the conservative default.
  */
 
-import { common } from "@purss/copy/common";
+import { common } from "@purss/translations/common";
 
 export type WorkspaceAddress = { ok: true; origin: string; unencrypted: boolean } | { ok: false; message: string };
 

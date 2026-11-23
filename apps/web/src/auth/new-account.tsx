@@ -8,7 +8,7 @@ import { AuthFrame } from "./AuthFrame.tsx";
 import { PasskeyStep } from "./PasskeyStep.tsx";
 import { passkeysAvailable } from "./PasswordForm.tsx";
 import { tryAgainAfter } from "./retry.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.auth.newAccount;
 

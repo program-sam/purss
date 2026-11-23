@@ -9,7 +9,7 @@ import { VISIBLE_SOURCE, getItem, scopeClause } from "./items.ts";
 import type { SqlParam } from "../db/database.ts";
 import { queueCapture } from "./captures.ts";
 import { queueItemImages } from "./images.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 export type UndoOp =
   | { type: "workflow"; itemId: string; workflow: WorkflowState }

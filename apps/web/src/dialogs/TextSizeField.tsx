@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Segmented } from "@purss/ui";
 import { TEXT_SIZES, setTextSize, useTextSize } from "../lib/text-size.ts";
 import type { TextSize } from "../lib/text-size.ts";

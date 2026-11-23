@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import { Avatar, Icon } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";

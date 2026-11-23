@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReconcileEntryDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon, TextInput } from "@purss/ui";
 import { messageOf } from "../../api/client.ts";
 import { searchQuery } from "../../api/queries.ts";

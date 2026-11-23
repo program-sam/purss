@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useSession } from "../api/hooks.ts";
 import { outbox } from "../outbox/instance.ts";
 import { useToasts } from "../state/toasts.tsx";

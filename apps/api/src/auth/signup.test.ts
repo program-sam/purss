@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { bootDeletion, setCookie } from "../deletion-testing.ts";
 import { OPERATOR_EMAIL, makeOperator } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";

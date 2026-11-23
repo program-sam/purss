@@ -13,7 +13,7 @@ import type { PublicShare, ReportInput } from "../services/shares.ts";
 import { followTarget, pageShell, renderFollowError, renderFollowPage } from "../services/public-pages.ts";
 import { escapeHtml, httpUrlOrNull } from "../services/text-safety.ts";
 import { publishedPost, renderNewsAtom, renderNewsPage, renderNewsPostPage } from "../services/news.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const targetKind = z.enum(["basket", "collection"]);
 

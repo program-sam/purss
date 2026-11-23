@@ -8,7 +8,7 @@ import { notFound, nowIso } from "../http.ts";
 import { isAccountUsable } from "./deletion.ts";
 import { enqueue } from "./jobs.ts";
 import { admitObject, checkGrowth, StorageFull } from "./storage.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Pictures in kept copies. A basket that keeps readable text also keeps the item's own picture and the

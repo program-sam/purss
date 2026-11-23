@@ -44,7 +44,7 @@ import { listNotifications, markNotificationsRead, unreadCount } from "../servic
 import { readIcon } from "../services/icons.ts";
 import { emailSchema } from "../services/account-email.ts";
 import { DELETION_COOKIE, keepAccount, leaveDeletion, pendingDeletion, requestDeletion } from "../services/deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 const limit = rateLimit;
 

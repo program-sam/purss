@@ -1,4 +1,4 @@
-// Visible text in the app, the UI kit and the extension comes from @purss/copy: a component that writes words people see
+// Visible text in the app, the UI kit and the extension comes from @purss/translations: a component that writes words people see
 // inline fails here. Words only screen readers announce (inside className "sr"), keys in <kbd> (and the shortcut list's <K>), code in
 // <code>, and an <option> with no value attribute (its text is the value it stands for, like a unit) may stay.
 import test from "node:test";
@@ -55,5 +55,5 @@ test("components show only catalog text: no words written inline where people se
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", ...ROOTS.map((r) => `${r}/*.tsx`)], { cwd: ROOT, encoding: "utf8" })
     .split("\n").filter((f) => f && !f.endsWith(".test.tsx"));
   assert.ok(files.length > 50, "the components were found");
-  assert.deepEqual(files.flatMap(inlineCopy), [], "move these to packages/copy (see its README)");
+  assert.deepEqual(files.flatMap(inlineCopy), [], "move these to packages/translations (see its README)");
 });

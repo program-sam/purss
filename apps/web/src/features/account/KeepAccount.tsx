@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, Icon } from "@purss/ui";
 import { del, messageOf, post } from "../../api/client.ts";
 import { shortDate } from "../../lib/format.ts";

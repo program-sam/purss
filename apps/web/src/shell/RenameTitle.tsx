@@ -1,4 +1,4 @@
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";

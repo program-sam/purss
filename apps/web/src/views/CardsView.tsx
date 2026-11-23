@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { ItemDTO } from "@purss/domain";
 import { Icon } from "@purss/ui";
 import { useId } from "react";

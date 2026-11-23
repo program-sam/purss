@@ -6,7 +6,7 @@ import { emit } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import { admitObject, releaseObject } from "./storage.ts";
 import { foldForSearch } from "./search-text.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The person's own highlights and notes on items. An annotation is not workflow, not

@@ -8,7 +8,7 @@ import { privateFeedKey } from "./feed-keys.ts";
 import { getPreferences } from "./preferences.ts";
 import { bridgeAddress } from "./feed-keys.ts";
 import { urlKey } from "./url-key.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /** The co-follow key of a feed address: a web address without its noise, or a bridged source's descriptor. */
 export const feedKey = (feedUrl: string): string | null => bridgeAddress(feedUrl) ?? urlKey(feedUrl);

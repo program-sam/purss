@@ -122,7 +122,7 @@ enum WidgetLists {
             let title = (item["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let listed = item["listedAt"] as? String ?? ""
             let at: String? = listed.isEmpty ? nil : listed
-            found.append(Row(id: id, title: clip(title.isEmpty ? NativeCopy.Ios.Widget.untitled : title), sourceTitle: clip(item["sourceTitle"] as? String ?? ""), at: at))
+            found.append(Row(id: id, title: clip(title.isEmpty ? NativeTranslations.Ios.Widget.untitled : title), sourceTitle: clip(item["sourceTitle"] as? String ?? ""), at: at))
             if found.count == rows { break }
         }
         return (found, (page["total"] as? NSNumber)?.int64Value)

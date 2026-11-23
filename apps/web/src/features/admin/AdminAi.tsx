@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SMART_FILTER_WEEKLY_TOKENS } from "@purss/domain";
 import type { AiServerKeyDTO } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Button, TextInput } from "@purss/ui";
 import { del, get, messageOf, put } from "../../api/client.ts";
 import { LoadFailed, Loading, Note } from "../shared/bits.tsx";

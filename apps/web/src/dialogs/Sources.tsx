@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import type { SourceDTO } from "@purss/domain";
 import { Avatar, Button, Check, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { del, messageOf, patch } from "../api/client.ts";

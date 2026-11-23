@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
 import { OPERATOR_EMAIL, makeOperator, makeOwner, makeTestApp } from "../testing.ts";
@@ -15,7 +15,7 @@ import type { OidcCaller, OidcPurpose } from "./oidc.ts";
 import { addSeconds, consumeRateLimit, HttpError, nowIso } from "../http.ts";
 import { createDeviceToken, DEVICE_SESSION_PREFIX } from "../connect/devices.ts";
 import { sha256 } from "../secrets.ts";
-import { escapeRegExp, inHtml } from "../copy-testing.ts";
+import { escapeRegExp, inHtml } from "../translations-testing.ts";
 import type { App } from "../app.ts";
 
 /*

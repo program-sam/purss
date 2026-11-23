@@ -1,4 +1,4 @@
-import * as copy from "@purss/copy/site";
+import * as copy from "@purss/translations/site";
 import { PLANS, appCards, billingToggle, faq, av, footer, ic, money, quilt, sidebar, terminal } from "./kit.ts";
 import { COMPARISON_CSS, comparison } from "./compare.ts";
 import { links, type Site } from "./site.ts";

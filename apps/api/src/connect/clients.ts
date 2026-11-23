@@ -1,5 +1,5 @@
 import type { ConnectClientKind } from "@purss/domain";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * The first-party clients that may connect, fixed in code: no registration, nothing for an

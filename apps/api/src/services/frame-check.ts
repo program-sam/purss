@@ -2,7 +2,7 @@ import { checkFraming } from "@purss/connectors";
 import type { FrameCheck } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { badRequest, rateLimit } from "../http.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Whether the reader can show a page from another site in a frame: the page's own headers decide,

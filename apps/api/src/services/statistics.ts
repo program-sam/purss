@@ -5,7 +5,7 @@ import { notFound, nowIso } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import { FILTERED_OUT } from "./ai-filters.ts";
 import { VISIBLE_SOURCE, scopeClause } from "./items.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Private statistics for one source or one collection: plain counts and dates over the items the

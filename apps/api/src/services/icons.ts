@@ -6,7 +6,7 @@ import { emit } from "../app.ts";
 import { addSeconds, notFound, nowIso } from "../http.ts";
 import { enqueue } from "./jobs.ts";
 import { usableAccountSql } from "./deletion.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /**
  * Source icons. The worker looks for an icon (feed image, YouTube avatar, the site's own icons)

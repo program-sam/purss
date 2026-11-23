@@ -15,7 +15,7 @@ import { annotationCounts, deleteItemAnnotations } from "./annotations.ts";
 import type { SqlParam } from "../db/database.ts";
 import { assertRoom } from "./plans.ts";
 import { forgetCollectionFilter, forgetItemVerdicts } from "./ai-access.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 // ---------- collections ----------
 

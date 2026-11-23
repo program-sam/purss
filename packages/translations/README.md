@@ -8,13 +8,13 @@ All of it is in `src/en/`:
 
 | Import | Audience | Files |
 |---|---|---|
-| `@purss/copy/app` | the web app, which the desktop and mobile apps also run | `app/words.ts` (what several places say), `app/screens.ts` (Home, lists, the item panel, the sidebar, menus and notices), `app/dialogs.ts`, `app/account.ts` (signing in, the account, the phone and desktop apps, downloads), `app/admin.ts`, `app/features.ts` (your data, sharing, connected apps, assistants, review, discovery) |
-| `@purss/copy/site` | the public website (`apps/site`) | `site.ts`, one section per page source, and its `words` |
-| `@purss/copy/server` | what the server sends to people: API errors, emails, public pages, source messages, the push relay's fallback notification | `server/api.ts`, `server/sources.ts`, and the `words` in `server/index.ts` |
-| `@purss/copy/extension` | the browser extension | `extension.ts` |
-| `@purss/copy/common` | text the app and the server share (`packages/domain`), including the store and download names | `common.ts` |
-| `@purss/copy/ui` | the shared UI kit (`packages/ui`) | `ui.ts` |
-| `@purss/copy/native` | the Android app's string resources, the iOS widgets' and notification extension's Swift, and the desktop app's Rust code | `native.ts` |
+| `@purss/translations/app` | the web app, which the desktop and mobile apps also run | `app/words.ts` (what several places say), `app/screens.ts` (Home, lists, the item panel, the sidebar, menus and notices), `app/dialogs.ts`, `app/account.ts` (signing in, the account, the phone and desktop apps, downloads), `app/admin.ts`, `app/features.ts` (your data, sharing, connected apps, assistants, review, discovery) |
+| `@purss/translations/site` | the public website (`apps/site`) | `site.ts`, one section per page source, and its `words` |
+| `@purss/translations/server` | what the server sends to people: API errors, emails, public pages, source messages, the push relay's fallback notification | `server/api.ts`, `server/sources.ts`, and the `words` in `server/index.ts` |
+| `@purss/translations/extension` | the browser extension | `extension.ts` |
+| `@purss/translations/common` | text the app and the server share (`packages/domain`), including the store and download names | `common.ts` |
+| `@purss/translations/ui` | the shared UI kit (`packages/ui`) | `ui.ts` |
+| `@purss/translations/native` | the Android app's string resources, the iOS widgets' and notification extension's Swift, and the desktop app's Rust code | `native.ts` |
 
 The catalogs are split by audience so the website, the app and the extension each bundle only
 their own text. English is the only language.
@@ -38,7 +38,7 @@ holds links kept by hand is recognised by its kind and takes the catalog's name 
 starts. Messages written when something happened (notifications, a source's failure message) keep
 the words they were written with.
 
-`scripts/copy-guard.test.ts` fails when a component of the app, the UI kit or the extension writes
+`scripts/translations-guard.test.ts` fails when a component of the app, the UI kit or the extension writes
 visible text inline.
 
 ## Writing catalog entries
@@ -60,10 +60,10 @@ visible text inline.
 
 ## Native shells
 
-Android resources, Swift and Rust code can't import TypeScript, so `scripts/native-copy.ts` writes their
-files from `@purss/copy/native`. After changing a text there, run `npm run copy:native`; the
+Android resources, Swift and Rust code can't import TypeScript, so `scripts/native-translations.ts` writes their
+files from `@purss/translations/native`. After changing a text there, run `npm run translations:native`; the
 generated files are committed, start with a note saying where to edit, and are never edited by
-hand. A test (`scripts/native-copy.test.ts`, part of `npm test`) fails when one is out of date, and
+hand. A test (`scripts/native-translations.test.ts`, part of `npm test`) fails when one is out of date, and
 when the app uses an Android string the catalog doesn't write or the catalog writes one the app
 doesn't use.
 
@@ -72,14 +72,14 @@ doesn't use.
   `values/widget_strings.xml`, the others to `values/strings.xml`; `values/app_identifiers.xml` (the
   application id and URL scheme, which are not text) is edited by hand.
 - **Both phones' widgets** (the `widget` section): Android writes them to `values/widget_strings.xml` as
-  `widget_…`, iOS reads them as `NativeCopy.Widget`.
-- **iOS** (the `ios` and `widget` sections): `apps/mobile/ios/App/Widgets/NativeCopy.swift`, compiled into the
+  `widget_…`, iOS reads them as `NativeTranslations.Widget`.
+- **iOS** (the `ios` and `widget` sections): `apps/mobile/ios/App/Widgets/NativeTranslations.swift`, compiled into the
   app, the widgets and the notification extension; a group becomes a nested enum, a plain text a constant
-  (`NativeCopy.Widget.loading`) and a text with values a function (`NativeCopy.Ios.Notification.more(count:)`). The
+  (`NativeTranslations.Widget.loading`) and a text with values a function (`NativeTranslations.Ios.Notification.more(count:)`). The
   widget settings' App Intent names have to be written out where they are declared, because Xcode reads them while
-  building: in `PanelChoice.swift` a line ending in `// copy: ios.panelChoice.source` gets that text written into its
+  building: in `PanelChoice.swift` a line ending in `// translation: ios.panelChoice.source` gets that text written into its
   string by the same script.
-- **Desktop** (the `desktop` section): a group becomes a module of `apps/desktop/src-tauri/src/copy.rs`, a
+- **Desktop** (the `desktop` section): a group becomes a module of `apps/desktop/src-tauri/src/translations.rs`, a
   plain text a constant (`copy::tray::OPEN`) and a text with values a function (`copy::tray::restart(version)`).
 - Unlike the other catalogs, this one holds plain strings and no functions. A `{name}` (lower-case letters and
   digits) stands for a value the code fills in; the generator turns it into the platform's own placeholder.

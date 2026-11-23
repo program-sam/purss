@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import type { FeedItem } from "./feed.ts";
 
 /** Plain-language posting rhythm estimated from the dates in a feed sample. */

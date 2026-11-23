@@ -1,4 +1,4 @@
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { decodeBody } from "./content-type.ts";
 import type { SafeFetchResponse, SafeFetchResult } from "./safe-fetch.ts";
 

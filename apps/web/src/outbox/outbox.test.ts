@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO, WorkflowState } from "@purss/domain";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 import { Outbox } from "./outbox.ts";
 import type { Deps, Outcome, Sender } from "./outbox.ts";
 import { scopeOf } from "./entries.ts";

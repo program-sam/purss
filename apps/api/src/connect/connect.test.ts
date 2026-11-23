@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { server as copy } from "@purss/copy/server";
+import { server as copy } from "@purss/translations/server";
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";

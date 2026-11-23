@@ -2,7 +2,7 @@ import { escapeHtml } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { displayAuthor, displayTitle } from "./content.ts";
 import { itemLinkIsMedia } from "./media.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * A readable list of what the person has kept, to read, print or keep beside the machine-readable export:

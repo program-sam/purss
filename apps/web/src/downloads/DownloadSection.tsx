@@ -12,7 +12,7 @@ import { useDownloadMovesToRead } from "./to-read.ts";
 import { pageToDownload } from "@purss/domain";
 import { useNav } from "../nav.ts";
 import type { DownloadProgress } from "./types.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.downloads.downloadSection;
 

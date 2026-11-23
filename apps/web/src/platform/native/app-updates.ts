@@ -2,7 +2,7 @@ import { ANDROID_APK, desktopDownloadUrl, STORE_LISTINGS } from "@purss/domain";
 import { parseVersion, plainVersion } from "@purss/domain/version";
 import type { AppSource, AppUpdates, AppUpdateState } from "../types.ts";
 import type { KeyValue } from "./live-update.ts";
-import { app } from "@purss/copy/app";
+import { app } from "@purss/translations/app";
 
 const t = app.platform.appUpdates;
 

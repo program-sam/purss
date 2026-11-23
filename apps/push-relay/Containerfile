@@ -4,8 +4,8 @@ WORKDIR /app
 COPY apps/push-relay/package.json apps/push-relay/package.json
 COPY apps/push-relay/src apps/push-relay/src
 # The relay's one workspace dependency, the text catalog (no packages of its own), linked as npm links a workspace.
-COPY packages/copy packages/copy
-RUN mkdir -p node_modules/@purss && ln -s ../../packages/copy node_modules/@purss/copy
+COPY packages/translations packages/translations
+RUN mkdir -p node_modules/@purss && ln -s ../../packages/translations node_modules/@purss/translations
 ENV NODE_ENV=production NODE_NO_WARNINGS=1 PURSS_RELAY_HOST=0.0.0.0 PURSS_RELAY_DATA_DIR=/data
 RUN mkdir /data && chown node:node /data
 VOLUME /data

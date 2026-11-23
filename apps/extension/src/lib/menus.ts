@@ -1,4 +1,4 @@
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import type { MenuItem } from "./browser.ts";
 import type { BasketRef } from "./store.ts";
 

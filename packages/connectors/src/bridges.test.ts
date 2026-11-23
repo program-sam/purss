@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 import { BRIDGE_SERVICES, bridgeDescriptor, bridgeKeyValid, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
 import { discover } from "./discover.ts";
 import { decodePageKey, encodePageKey } from "./page-feeds.ts";

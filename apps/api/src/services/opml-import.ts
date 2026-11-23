@@ -16,7 +16,7 @@ import { assertRoom, PlanLimit } from "./plans.ts";
 import { followedSource, followSource, presentCandidates } from "./sources.ts";
 import { newsCandidate } from "./news-address.ts";
 import { httpUrlOrNull } from "./text-safety.ts";
-import { server } from "@purss/copy/server";
+import { server } from "@purss/translations/server";
 
 /*
  * Following a list of feeds (OPML) on the server, one feed after the other. The person picks feeds in the

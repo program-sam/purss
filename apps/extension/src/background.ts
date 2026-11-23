@@ -1,4 +1,4 @@
-import { extension } from "@purss/copy/extension";
+import { extension } from "@purss/translations/extension";
 import { deepLink, isWebPage } from "./lib/address.ts";
 import { signedOut, workspace, WorkspaceError } from "./lib/api.ts";
 import { BADGE_DELAY_MS, Debouncer, KEPT_MARK, KeptCache, mayLookUp } from "./lib/badge.ts";
