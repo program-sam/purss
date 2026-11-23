@@ -33,7 +33,7 @@ const SELECT = `SELECT r.id, r.item_id, i.number AS item_number, r.remind_on, r.
   FROM item_reminders r JOIN items i ON i.id = r.item_id LEFT JOIN sources s ON s.id = i.source_id`;
 const KEPT = "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = r.item_id)";
 
-const dto = (r: Row): ItemReminderDTO => ({ id: r.id, itemId: r.item_id, remindOn: r.remind_on, note: r.note, title: shownTitle(r.title), sourceTitle: r.source_title ?? server.api.shared.savedLink, kind: r.kind });
+const dto = (r: Row): ItemReminderDTO => ({ id: r.id, itemId: r.item_id, remindOn: r.remind_on, note: r.note, title: shownTitle(r.title), sourceTitle: r.source_title ?? server.api.shared.keptLink, kind: r.kind });
 
 /** The person's calendar day for an instant, "YYYY-MM-DD", in the time zone they chose. */
 export function todayFor(app: App, accountId: string, now: Date): string {

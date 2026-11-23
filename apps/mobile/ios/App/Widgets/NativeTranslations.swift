@@ -36,7 +36,7 @@ enum NativeTranslations {
         static let playing = "Playing"
         static let paused = "Paused"
         static func pausedAt(time: any CustomStringConvertible) -> String { "Paused at \(time)" }
-        static let savedLink = "Saved link"
+        static let keptLink = "Kept link"
     }
     enum Ios {
         enum Widget {

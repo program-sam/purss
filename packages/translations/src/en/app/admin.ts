@@ -173,7 +173,7 @@ export default {
         noRate: "–",
       },
       engine: {
-        title: "Collection engine",
+        title: "Engine",
         lastSync: "Last successful sync",
         behindBy: "Behind by",
         version: "Engine version",
@@ -204,7 +204,7 @@ export default {
         needs: "needs",
         need: "need",
         attention: (sources: string) => `${sources} attention`,
-        allCollecting: "All collecting",
+        allCollecting: "All fetching",
         followed: "Followed",
         failing: "Failing or needing a login",
       },
@@ -342,7 +342,7 @@ export default {
     adminReports: {
       dialogTitle: (title: string) => `Reported page: ${title}`,
       takeDown: "Take down",
-      collectedBy: "Collected by ",
+      collectedBy: "Fetched by ",
       pageAsVisitors: (saw: string) => `. This is the page as visitors ${saw}; links are switched off.`,
       sawIt: "saw it",
       seeItNow: "see it now",

@@ -8,7 +8,7 @@ import { usableAccountSql } from "./deletion.ts";
 import { server } from "@purss/translations/server";
 
 /*
- * Personal rediscovery: "On this day" reminders over items the owner kept in a
+ * Personal reminders: "On this day" reminders over items the owner kept in a
  * basket on this month and day in an earlier year, using the recorded keep date only.
  * No remote fetch is made; an unavailable original still shows its retained snapshot.
  *
@@ -162,7 +162,7 @@ export function remindersForToday(app: App, accountId: string, now: Date = new D
     if (r.status === "shown" && !isAnniversary(localDate(r.kept_at, tz), today)) continue;
     seen.add(r.item_id);
     out.push({
-      id: r.id, itemId: r.item_id, title: r.title, sourceTitle: r.source_title ?? server.api.shared.savedLink, basketName: r.basket_name,
+      id: r.id, itemId: r.item_id, title: r.title, sourceTitle: r.source_title ?? server.api.shared.keptLink, basketName: r.basket_name,
       keptAt: r.kept_at, captureLabel: captureLabel(r),
     });
   }

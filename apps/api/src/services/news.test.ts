@@ -9,7 +9,7 @@ import { getItemDetail, insertItem, listItems } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { reconcile } from "./storage.ts";
 import { completeIconCheck, readIcon, scheduleIconChecks } from "./icons.ts";
-import { discoverSources, followSource, getSource, patchSource, unfollowSource } from "./sources.ts";
+import { lookupSources, followSource, getSource, patchSource, unfollowSource } from "./sources.ts";
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, createNewsPost, deleteNewsPost, deliverNews, newsAdmin, renderNewsAtom, renderNewsBody, updateNewsPost } from "./news.ts";
 
 type Owner = ReturnType<typeof makeOwner>;
@@ -61,7 +61,7 @@ test("an unfollowed news source stays unfollowed; following its address again ta
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE account_id = ? AND source_id = ?", reader.accountId, id)!.n, 1, "and nothing new arrives");
 
   // Pasting the news address finds it without a fetch (the engine and discovery never fetch this server's own address).
-  const found = await discoverSources(app, reader, `${app.config.publicOrigin}/news`);
+  const found = await lookupSources(app, reader, `${app.config.publicOrigin}/news`);
   assert.ok(found.ok);
   const again = followSource(app, reader, { ...follow, token: found.candidates[0]!.token });
   assert.equal(again.id, id, "the same source");

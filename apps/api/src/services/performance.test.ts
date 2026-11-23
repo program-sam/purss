@@ -16,7 +16,7 @@ import { getPreferences, setPreferences } from "./preferences.ts";
 import { homeOverview } from "./home.ts";
 import { mutedScan } from "./muted.ts";
 import { matchesMuted, mutedPatterns } from "./muted-match.ts";
-import { unreadCount } from "./notifications.ts";
+import { unseenCount } from "./notifications.ts";
 
 /*
  * Size defects only show above a few thousand items: a lookup without an index costs nothing on a test
@@ -85,7 +85,7 @@ test("the bootstrap queries and the sync path never read a whole table to find r
     listBaskets(app, p);
     getPreferences(app, p.accountId);
     pausedReason(app, p.accountId);
-    unreadCount(app, p.accountId);
+    unseenCount(app, p.accountId);
   });
   assert.ok(bootstrap.some((q) => q.sql.includes("FROM items WHERE account_id")), "the recording saw the queries that matter");
 
@@ -163,7 +163,7 @@ test("a generated 20,000-item account: the bootstrap queries stay fast", { timeo
     listBaskets(app, p);
     getPreferences(app, p.accountId);
     pausedReason(app, p.accountId);
-    unreadCount(app, p.accountId);
+    unseenCount(app, p.accountId);
   });
   assert.ok(bootstrapMs < 1500, `the bootstrap queries took ${Math.round(bootstrapMs)} ms`);
 });
@@ -216,7 +216,7 @@ test("an account that followed its sources from now has most items Ignored: Home
     } finally { listTuning.countFromRowsBelowShare = was; }
   })();
   const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'undecided' AND st.is_new = 0");
-  assert.equal(result.home.unread, shown, "Home counts the older items that show, not the Ignored ones");
+  assert.equal(result.home.unseen, shown, "Home counts the older items that show, not the Ignored ones");
   const ignoredIds = new Set(app.db.all<{ id: string }>("SELECT item_id AS id FROM item_state WHERE account_id = ? AND workflow = 'ignored'", p.accountId).map((r) => r.id));
   assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !ignoredIds.has(i.id)) && result.collection.items.every((i) => !ignoredIds.has(i.id)), "no Ignored item on Home or in the collection");
   const planOf = (q: Seen) => app.db.raw.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all(...(q.params as never[])).map((r) => String(r.detail));

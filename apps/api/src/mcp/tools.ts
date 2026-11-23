@@ -8,7 +8,7 @@ import { getItemDetail, listItems } from "../services/items.ts";
 import { listAnnotations } from "../services/annotations.ts";
 import { bulk } from "../services/state.ts";
 import { createBasket, createCollection, listBaskets, listCollections } from "../services/collections.ts";
-import { discoverSources, followSource, listSources, patchSource, unfollowSource } from "../services/sources.ts";
+import { lookupSources, followSource, listSources, patchSource, unfollowSource } from "../services/sources.ts";
 import { toText } from "../services/content.ts";
 import { StorageFull, markPaused } from "../services/storage.ts";
 import { hasCredentialShape } from "../services/text-safety.ts";
@@ -242,7 +242,7 @@ export const TOOLS: Tool[] = [
     input: z.object({ url: z.string().trim().min(1).max(2000) }),
     run: async (ctx, a) => {
       rateLimit(`discover:${ctx.p.accountId}`, 120);
-      const r = await discoverSources(ctx.app, ctx.p, a.url, "assistant");
+      const r = await lookupSources(ctx.app, ctx.p, a.url, "assistant");
       if (!r.ok) return { found: false, reason: r.reason, message: r.message };
       return {
         found: true,

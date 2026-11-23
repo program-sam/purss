@@ -214,7 +214,7 @@ export type Bootstrap = {
   planUsage: PlanUsage;
   /** Why new items and copies are paused (PURSS is out of space), or null. */
   paused: string | null;
-  unreadNotifications: number;
+  unseenNotifications: number;
   engine: { status: "ok" | "starting" | "unavailable"; lastSyncAt: string | null; message: string | null };
 };
 
@@ -451,18 +451,18 @@ export type DiscoveryResult =
   | { ok: false; url: string; reason: "invalid" | "blocked" | "unreachable" | "nofeed" | "unsupported" | "toolarge" | "timeout"; message: string };
 
 /** `entry`: how the person got to this lookup (discovery-routes.ts); left out, it is a pasted link. */
-export const discoverSchema = z.object({ url: z.string().trim().min(1).max(2000), entry: z.enum(LOOKUP_ENTRIES).optional() });
+export const linkLookupSchema = z.object({ url: z.string().trim().min(1).max(2000), entry: z.enum(LOOKUP_ENTRIES).optional() });
 
 // ---------- sources and discovery ----------
-/** POST /api/discover/podcasts and /api/discover/sites: a name typed instead of an address. */
+/** POST /api/source-search/podcasts and /api/source-search/sites: a name typed instead of an address. */
 export const nameSearchSchema = z.object({ query: z.string().trim().min(2).max(100) });
-/** POST /api/discover/podcasts: shows whose name matches, from Apple's podcast directory. */
+/** POST /api/source-search/podcasts: shows whose name matches, from Apple's podcast directory. */
 export type PodcastSearchHit = { name: string; author: string | null; artworkUrl: string | null; feedUrl: string; genre: string | null };
 export type PodcastSearchResponse =
   | { ok: true; query: string; hits: PodcastSearchHit[] }
   | { ok: false; reason: "unreachable" | "timeout"; message: string };
 /**
- * POST /api/discover/sites: websites whose name matches. `readers`: a public source enough accounts on this hosted installation follow
+ * POST /api/source-search/sites: websites whose name matches. `readers`: a public source enough accounts on this hosted installation follow
  * (never a private one, and only a name that many of them use); `wikidata`: an official website Wikidata records. `address` is what is
  * looked up when the hit is chosen: the source's feed, or the website.
  */
@@ -717,7 +717,7 @@ export type HomeOverview = {
   /** Every New marker in PURSS, for "Start fresh". */
   isNew: number;
   /** Items on Home that are Undecided and no longer New: the older pile that "up to date" must not hide. A source's backlog is not in it when the source was followed from now: that is Ignored. */
-  unread: number;
+  unseen: number;
   /** How many items on Home the muted words leave out, counted among the newest thousand. */
   mutedHidden: number;
   /** `mutedHidden` was counted in part of what Home holds: there may be more. */

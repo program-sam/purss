@@ -3,7 +3,7 @@ import { clientAddress } from "../http.ts";
 import { z } from "zod";
 import {
   bulkActionSchema, basketCreateSchema, basketPatchSchema, clearNewSchema, collectionCreateSchema,
-  browserCaptureSchema, collectionPatchSchema, discoverSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, nameSearchSchema, sourcePatchSchema, sourcePrivacySchema,
+  browserCaptureSchema, collectionPatchSchema, linkLookupSchema, followSchema, itemIdsQuerySchema, itemListQuerySchema, manualKeepSchema, MAX_BULK_ITEMS, nameSearchSchema, sourcePatchSchema, sourcePrivacySchema,
   stateChangeSchema, undoSchema,
 } from "@purss/domain";
 import type { Bootstrap, SearchResult } from "@purss/domain";
@@ -32,7 +32,7 @@ import { getItemDetail, itemIdByNumber, listItemIds, listItems, searchSnippets }
 import { SEARCH_FIRST, SEARCH_MAX, noteSnippets, searchItems } from "../services/search.ts";
 import { keepLink, keepWithBrowserCapture, lookupUrl, renameKeptLink } from "../services/links.ts";
 import { applyUndo, bulk, changeState, clearNewAll, keepWithUndo } from "../services/state.ts";
-import { discoverSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, searchSiteDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
+import { lookupSources, followSource, getSource, listSources, patchSource, retrySource, searchPodcastDirectory, searchSiteDirectory, setSourcePrivacy, unfollowSource } from "../services/sources.ts";
 import {
   basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection, deleteItems, deletePreview,
   listBaskets, listCollections, patchBasket, patchCollection,
@@ -40,7 +40,7 @@ import {
 import { getPreferences, preferencesPatchSchema, setPreferences } from "../services/preferences.ts";
 import { pausedReason } from "../services/storage.ts";
 import { planUsage } from "../services/plans.ts";
-import { listNotifications, markNotificationsRead, unreadCount } from "../services/notifications.ts";
+import { listNotifications, markNotificationsRead, unseenCount } from "../services/notifications.ts";
 import { readIcon } from "../services/icons.ts";
 import { emailSchema } from "../services/account-email.ts";
 import { DELETION_COOKIE, keepAccount, leaveDeletion, pendingDeletion, requestDeletion } from "../services/deletion.ts";
@@ -442,7 +442,7 @@ export function publicRouter(): Router<Ctx> {
       preferences: getPreferences(ctx.app, p.accountId),
       planUsage: planUsage(ctx.app, p.accountId),
       paused: pausedReason(ctx.app, p.accountId),
-      unreadNotifications: unreadCount(ctx.app, p.accountId),
+      unseenNotifications: unseenCount(ctx.app, p.accountId),
       engine: {
         status: eu?.status === "ready" ? (cp?.last_error ? "unavailable" : "ok") : eu?.status === "error" ? "unavailable" : "starting",
         lastSyncAt: cp?.last_success_at ?? null,
@@ -549,21 +549,21 @@ export function publicRouter(): Router<Ctx> {
   });
 
   // ---------- sources ----------
-  r.post("/api/discover", async (req, ctx) => {
+  r.post("/api/link-lookup", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`discover:${p.accountId}`, 120);
-    const { url, entry } = parse(discoverSchema, req.body);
+    const { url, entry } = parse(linkLookupSchema, req.body);
     // The extension's token says where the lookup came from; the interface says which of its own ways it was (a pasted link by default).
-    return discoverSources(ctx.app, p, url, ctx.client === "extension" ? "extension" : entry ?? "paste");
+    return lookupSources(ctx.app, p, url, ctx.client === "extension" ? "extension" : entry ?? "paste");
   });
   /** Shows by name from Apple's podcast directory: what was typed goes there, nothing else. Following a hit is an ordinary lookup of its feed. */
-  r.post("/api/discover/podcasts", async (req, ctx) => {
+  r.post("/api/source-search/podcasts", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`discover-podcasts:${p.accountId}`, 60);
     return searchPodcastDirectory(parse(nameSearchSchema, req.body).query);
   });
   /** Websites by name: the public sources other readers here follow (hosted only) and Wikidata's official websites. What was typed goes to Wikidata, nothing else. */
-  r.post("/api/discover/sites", async (req, ctx) => {
+  r.post("/api/source-search/sites", async (req, ctx) => {
     const p = requirePrincipal(ctx);
     limit(`discover-sites:${p.accountId}`, 60);
     return searchSiteDirectory(ctx.app, p, parse(nameSearchSchema, req.body).query);
@@ -600,7 +600,7 @@ export function publicRouter(): Router<Ctx> {
 
   // ---------- notifications ----------
   r.get("/api/notifications", (_req, ctx) => listNotifications(ctx.app, requirePrincipal(ctx)));
-  r.post("/api/notifications/read", (req, ctx) => {
+  r.post("/api/notifications/seen", (req, ctx) => {
     const { ids } = parse(z.object({ ids: z.union([z.array(z.string()).max(200), z.literal("all")]) }), req.body);
     return { changed: markNotificationsRead(ctx.app, requirePrincipal(ctx), ids) };
   });

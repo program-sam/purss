@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { server } from "@purss/translations/server";
 import { SITE_DIRECTORY, searchSites } from "./site-search.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
-import type { FetchFn } from "./discover.ts";
+import type { FetchFn } from "./link-lookup.ts";
 
 const copy = server.sources.connectors.siteSearch;
 const site = (value: string, rank = "normal") => ({ rank, mainsnak: { datavalue: { value } } });

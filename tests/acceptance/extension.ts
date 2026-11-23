@@ -168,7 +168,7 @@ async function main(): Promise<void> {
     const sw: Worker = ctx.serviceWorkers()[0] ?? await ctx.waitForEvent("serviceworker");
     const extId = new URL(sw.url()).host;
     const discoverCalls: string[] = [];
-    ctx.on("request", (r) => { if (r.url().includes("/api/discover")) discoverCalls.push(r.url()); });
+    ctx.on("request", (r) => { if (r.url().includes("/api/link-lookup")) discoverCalls.push(r.url()); });
     const errors: string[] = [];
 
     // 1. A "Keep this page" deep link opened while signed out survives signing in.

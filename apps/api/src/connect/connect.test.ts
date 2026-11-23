@@ -316,7 +316,7 @@ test("the extension's token reaches only keeping, lookup, baskets, collections, 
     const r = await ext(method, path, method === "GET" ? undefined : {});
     assert.deepEqual([r.status, r.json?.error?.code], [403, "not_for_apps"], `${method} ${path}`);
   }
-  assert.ok(deviceMayUse("extension", "POST", "/api/discover"));
+  assert.ok(deviceMayUse("extension", "POST", "/api/link-lookup"));
   assert.ok(deviceMayUse("extension", "POST", "/api/sources"));
   assert.ok(deviceMayUse("extension", "HEAD", "/api/baskets"));
   assert.ok(!deviceMayUse("extension", "GET", "/api/baskets/x"));

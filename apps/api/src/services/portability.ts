@@ -389,7 +389,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   /** The PURSS's "Saved links" source: reused when present, created once when an import needs it. */
   const manualDecision = (src?: ArchiveSource): SourceDecision => {
     if (manual) return manual;
-    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand, siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
+    const shown: ArchiveSource = src ?? { id: "(manual)", kind: "manual", title: server.api.shared.keptLinks, origin: server.api.portability.keptByHand, siteUrl: null, feedUrl: null, isPrivate: false, reconnectRequired: false, curator: null, hue: 210, followed: true, paused: false, notify: "default", fullText: false, createdAt: null, lastItemAt: null };
     manual = existingManual
       ? { action: "reuse", id: existingManual, refollow: false, src: shown, feedUrl: null }
       : { action: "create", id: newId("src"), mode: "manual", src: shown, feedUrl: null };
@@ -993,7 +993,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const createdAt = ISO_FALLBACK(s.createdAt, now);
     const lastItemAt = s.lastItemAt ? ISO_FALLBACK(s.lastItemAt, "") || null : null;
     if (d.mode === "manual") {
-      app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, server.api.shared.savedLinks, server.api.portability.keptByHand, s.hue, createdAt);
+      app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, server.api.shared.keptLinks, server.api.portability.keptByHand, s.hue, createdAt);
     } else if (d.mode === "reconnect" || (d.mode === "unfollowed" && d.feedUrl === null)) {
       const reconnect = d.mode === "reconnect";
       app.db.run(

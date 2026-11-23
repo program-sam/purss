@@ -103,7 +103,7 @@ function ForYou() {
 function Preview({ s }: { s: CatalogueSource }) {
   const q = useQuery({
     queryKey: ["feature", "catalogue-preview", s.feedUrl],
-    queryFn: () => post<DiscoveryResult>("/api/discover", { url: s.feedUrl, entry: "suggestion" }),
+    queryFn: () => post<DiscoveryResult>("/api/link-lookup", { url: s.feedUrl, entry: "suggestion" }),
     staleTime: 10 * 60_000,
     retry: false,
   });

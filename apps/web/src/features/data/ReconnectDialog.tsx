@@ -29,7 +29,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
     if (!url.trim()) return;
     setLooking(true); setError(""); setResult(null); setPick(0);
     try {
-      const out = await post<DiscoveryResult>("/api/discover", { url: url.trim(), entry: "reconnect" });
+      const out = await post<DiscoveryResult>("/api/link-lookup", { url: url.trim(), entry: "reconnect" });
       setResult(out);
       // What Add source would choose, and nothing when it wouldn't (a list found through the page's scripts is for the person to pick).
       setPick(out.ok ? preselect(out.candidates) : 0);

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import { discover, LINKED_JOURNAL_NOTE, OJS_ANNOUNCEMENTS_NOTE } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink, LINKED_JOURNAL_NOTE, OJS_ANNOUNCEMENTS_NOTE } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
 import { doiFromArticleUrl, doiFromInput, DUKE_MESSAGE, EARLY_NOTE, ISSUES_NOTE, isPublisherHost, journalFromUrl, journalTitle, normalIssn, planJournal, readCrossrefJournalSearch, readCrossrefWork } from "./journals.ts";
 import { crossrefJournalSearchUrl } from "./crossref.ts";
@@ -106,7 +106,7 @@ test("SAGE journal pages refuse the page fetch but offer their RSS 1.0 table-of-
   assert.equal(isPublisherHost("notjournals.sagepub.com"), false);
   assert.equal(journalFromUrl(new URL("https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=chd")), null, "the feed itself is not mistaken for a journal page");
   const { fetch, calls } = stub({ [feedUrl]: rdfFeed(feedUrl, "SAGE Publications Ltd: Childhood: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Childhood", feedUrl, copy.labels.articlesFeed, copy.journals.origin("SAGE")]]);
   assert.deepEqual(calls.map((c) => c.url), [feedUrl], "derive and check the feed directly; don't fetch the page's 403 or guess generic paths");
 });
@@ -118,7 +118,7 @@ test("a SAGE journal whose eTOC feed is unavailable doesn't guess at generic sit
     [pageUrl]: forbidden(pageUrl),
     [feedUrl]: fakeResponse(feedUrl, "Not found", "text/plain", 404),
   });
-  const d = await discover(pageUrl, { fetch, now: NOW });
+  const d = await lookupLink(pageUrl, { fetch, now: NOW });
   assert.ok(!d.ok && d.reason === "unreachable" && d.message === copy.discover.refused, JSON.stringify(d));
   assert.deepEqual(calls.map((c) => c.url).filter((u) => !u.startsWith("https://www.wikidata.org/")), [feedUrl, pageUrl, "https://www.journals.sagepub.com/home/chd"]);
 });
@@ -136,7 +136,7 @@ test("a SAGE journal's Crossref feed is an alternative after its own table-of-co
     asked.push(`${target.service.id}/${target.key}`);
     return { status: 200, body: Buffer.from(rss("Childhood")) };
   };
-  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.alternative ?? false]), [
     ["Childhood", feedUrl, false],
     ["Childhood", "bridge:crossref/09075682", true],
@@ -144,7 +144,7 @@ test("a SAGE journal's Crossref feed is an alternative after its own table-of-co
   assert.deepEqual(asked, ["crossref/09075682"]);
   assert.ok(calls.some((c) => c.url.startsWith("https://api.crossref.org/journals?query=Childhood")));
   const searchesBefore = calls.filter((c) => c.url.startsWith("https://api.crossref.org/")).length;
-  const one = ok(await discover(pageUrl, { fetch, bridge, now: NOW, maxCandidates: 1 }));
+  const one = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW, maxCandidates: 1 }));
   assert.equal(calls.filter((c) => c.url.startsWith("https://api.crossref.org/")).length, searchesBefore, "nor its journal search");
   assert.deepEqual(one.candidates.map((c) => [c.title, c.feedUrl, c.alternative ?? false]), [["Childhood", feedUrl, false]], "when one choice fits, keep the journal's own feed ahead of Crossref");
   assert.deepEqual(asked, ["crossref/09075682"], "don't fetch an alternative that cannot fit in the caller's candidate limit");
@@ -222,7 +222,7 @@ test("a Springer journal's search feed is named after the journal its first arti
     [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"),
     [work]: json(work, { message: { publisher: "Springer Science and Business Media LLC", "container-title": ["Journal of Materials Science"], ISSN: ["0022-2461", "1573-4803"] } }),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Materials Science", feedUrl, copy.journals.origin("Springer Nature")]]);
   // Linked from a society's page, the journal is named the same way.
   const society = "https://society.example.org/journal";
@@ -231,10 +231,10 @@ test("a Springer journal's search feed is named after the journal its first arti
     [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"),
     [work]: json(work, { message: { publisher: "Springer Science and Business Media LLC", "container-title": ["Journal of Materials Science"], ISSN: ["0022-2461", "1573-4803"] } }),
   });
-  assert.equal(ok(await discover(society, { fetch: linked.fetch, now: NOW })).candidates[0]!.title, "Journal of Materials Science");
+  assert.equal(ok(await lookupLink(society, { fetch: linked.fetch, now: NOW })).candidates[0]!.title, "Journal of Materials Science");
   // Crossref not answering: named for what it is, never "Latest Results".
   const down = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: fakeResponse(feedUrl, body, "application/rss+xml"), [work]: fakeResponse(work, "busy", "text/plain", 503) });
-  assert.equal(ok(await discover(pageUrl, { fetch: down.fetch, now: NOW })).candidates[0]!.title, copy.journals.origin("Springer Nature"));
+  assert.equal(ok(await lookupLink(pageUrl, { fetch: down.fetch, now: NOW })).candidates[0]!.title, copy.journals.origin("Springer Nature"));
   assert.equal(doiFromArticleUrl(new URL("https://www.journals.sagepub.com/doi/10.1177/09567976261490829")), "10.1177/09567976261490829");
 });
 
@@ -268,7 +268,7 @@ test("a walled Wiley journal page: the journal's feed, named after the journal, 
   const pageUrl = "https://onlinelibrary.wiley.com/journal/18344461";
   const feedUrl = "https://onlinelibrary.wiley.com/feed/18344461/most-recent";
   const { fetch, calls } = stub({ [pageUrl]: forbidden(pageUrl), [feedUrl]: feed(feedUrl, "Wiley: Oceania: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.origin]), [["Oceania", feedUrl, copy.labels.articlesFeed, copy.journals.origin("Wiley")]]);
   assert.deepEqual(calls.map((c) => c.url), [feedUrl, "https://onlinelibrary.wiley.com/action/showFeed?jc=18344461&type=axatoc&feed=rss"]);
 });
@@ -276,7 +276,7 @@ test("a walled Wiley journal page: the journal's feed, named after the journal, 
 test("a walled publisher page whose journal feed doesn't answer: no guessing at blog feed addresses", async () => {
   const pageUrl = "https://www.tandfonline.com/journals/zzzz20";
   const { fetch, calls } = stub({ [pageUrl]: forbidden(pageUrl) });
-  const d = await discover(pageUrl, { fetch, now: NOW });
+  const d = await lookupLink(pageUrl, { fetch, now: NOW });
   assert.ok(!d.ok);
   const site = calls.map((c) => c.url).filter((u) => !u.startsWith("https://www.wikidata.org/"));
   assert.deepEqual(site, ["https://www.tandfonline.com/feed/rss/zzzz20", "https://www.tandfonline.com/action/showFeed?type=axatoc&feed=rss&jc=zzzz20", pageUrl]);
@@ -294,7 +294,7 @@ test("a society's page for its journal: the journal's feed on the publisher's pl
     "https://society.example/feed/": fakeResponse("https://society.example/feed/", rss("Society", "https://society.example/"), "application/rss+xml"),
     [journalFeed]: feed(journalFeed, "Social Anthropology/Anthropologie sociale"),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.matchesPage, c.note ?? null]), [
     ["Social Anthropology/Anthropologie sociale", copy.labels.articlesFeed, true, null],
     ["Society", copy.labels.wholeSiteFeed, true, WHOLE_SITE_NOTE],
@@ -307,7 +307,7 @@ test("a page linking to a journal that isn't shown to be its own: offered, not c
   const journalFeed = "https://www.tandfonline.com/feed/rss/ghan20";
   const html = `<html><head><title>My reading list</title></head><body><a href="https://www.tandfonline.com/toc/ghan20/current">this issue</a></body></html>`;
   const { fetch } = stub({ [pageUrl]: page(pageUrl, html), [journalFeed]: feed(journalFeed, "tandf: History and Anthropology: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.matchesPage, c.note]), [["History and Anthropology", false, LINKED_JOURNAL_NOTE]]);
 });
 
@@ -316,7 +316,7 @@ test("an article page whose metadata names a Wiley journal: the journal's feed f
   const html = `<html><head><title>An article</title><meta name="citation_publisher" content="John Wiley &amp; Sons"><meta name="citation_issn" content="0002-7294"><meta name="citation_issn" content="1548-1433"></head><body></body></html>`;
   const right = "https://onlinelibrary.wiley.com/feed/15481433/most-recent";
   const { fetch } = stub({ [pageUrl]: page(pageUrl, html), [right]: feed(right, "Wiley: American Anthropologist: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["American Anthropologist", right, true]]);
 });
 
@@ -328,7 +328,7 @@ test("a bare DOI: Crossref names the Wiley journal and its feed answers", async 
     [feedUrl]: feed(feedUrl, "Wiley: American Anthropologist: Table of Contents"),
   });
   for (const input of ["10.1111/aman.70137", "doi:10.1111/aman.70137"]) {
-    const d = ok(await discover(input, { fetch, now: NOW }));
+    const d = ok(await lookupLink(input, { fetch, now: NOW }));
     assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl]), [["American Anthropologist", feedUrl]], input);
   }
 });
@@ -341,7 +341,7 @@ test("a DOI whose journal has no feed rule: its doi.org page is asked for as a w
     // doi.org hands a feed reader's usual request to Crossref's metadata service, which refuses it.
     [resolver]: (url, accept) => (accept?.startsWith("text/html") ? page(url, "<html><head><title>Article</title></head><body>An article</body></html>") : fakeResponse(url, "", "text/plain", 406)),
   });
-  const d = await discover("10.1080/00187259.2026.2739223", { fetch, now: NOW });
+  const d = await lookupLink("10.1080/00187259.2026.2739223", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "nofeed");
   assert.equal(d.message, copy.discover.articleInJournal("Human Organization (Informa UK Limited)"));
@@ -358,7 +358,7 @@ test("a doi.org address when Crossref fails: the address as given, asked for as 
     [resolver]: (_url, accept) => (accept?.startsWith("text/html") ? page(landing, html) : fakeResponse(resolver, "", "text/plain", 406)),
     "https://journal.example/feed": feed("https://journal.example/feed", "The Journal"),
   });
-  const d = ok(await discover("https://doi.org/10.5555/x.1", { fetch, now: NOW }));
+  const d = ok(await lookupLink("https://doi.org/10.5555/x.1", { fetch, now: NOW }));
   assert.equal(d.url, resolver);
   assert.deepEqual(d.candidates.map((c) => c.title), ["The Journal"]);
 });
@@ -372,14 +372,14 @@ test("a ScienceDirect journal: Crossref's one exact match gives the print ISSN i
     [search]: json(search, { message: { items: [{ title: "Journal of Anthropological Archaeology", publisher: "Elsevier BV", "issn-type": [{ type: "electronic", value: "1090-2686" }, { type: "print", value: "0278-4165" }] }] } }),
     [feedUrl]: feed(feedUrl, ""),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.origin]), [["Journal of Anthropological Archaeology", feedUrl, copy.journals.origin("Elsevier")]]);
 });
 
 test("Duke University Press: its walled pages get a message saying how to find the feed", async () => {
   const pageUrl = "https://read.dukeupress.edu/public-culture";
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl) });
-  const d = await discover(pageUrl, { fetch, now: NOW });
+  const d = await lookupLink(pageUrl, { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.message, DUKE_MESSAGE);
 });
@@ -395,7 +395,7 @@ test("a society's page linking to its journal on ScienceDirect: Crossref gives t
     [SD_SEARCH]: json(SD_SEARCH, { message: { items: [{ title: "Journal of Archaeological Science", publisher: "Elsevier BV", "issn-type": [{ type: "print", value: "0305-4403" }] }] } }),
     [SD_FEED]: feed(SD_FEED, ""),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.matchesPage]), [["Journal of Archaeological Science", SD_FEED, true]]);
 });
 
@@ -406,7 +406,7 @@ test("a page's own journal from its metadata is still found when the page also l
   const wiley = "https://onlinelibrary.wiley.com/feed/15481433/most-recent";
   const tandf = "https://www.tandfonline.com/feed/rss/ghan20";
   const { fetch } = stub({ [pageUrl]: page(pageUrl, html), [wiley]: feed(wiley, "Wiley: American Anthropologist: Table of Contents"), [tandf]: feed(tandf, "tandf: History and Anthropology: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.matchesPage]).sort(), [["American Anthropologist", true], ["History and Anthropology", false]]);
 });
 
@@ -415,7 +415,7 @@ test("address words a page shares with a publisher's link (/journals) don't make
   const tandf = "https://www.tandfonline.com/feed/rss/ghan20";
   const html = `<html><head><title>Our subscriptions</title></head><body><a href="https://www.tandfonline.com/journals/ghan20">one of many</a></body></html>`;
   const { fetch } = stub({ [pageUrl]: page(pageUrl, html), [tandf]: feed(tandf, "tandf: History and Anthropology: Table of Contents") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.matchesPage, c.note]), [["History and Anthropology", false, LINKED_JOURNAL_NOTE]]);
 });
 
@@ -427,14 +427,14 @@ test("a DOI whose journal feed times out and whose page is busy: a retryable ans
     "https://onlinelibrary.wiley.com/feed/15481433/most-recent": fakeFailure("timeout"),
     [resolver]: fakeResponse(resolver, "busy", "text/plain", 503),
   });
-  const d = await discover("10.1111/aman.70137", { fetch, now: NOW });
+  const d = await lookupLink("10.1111/aman.70137", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "timeout");
   const busy = stub({
     [work]: json(work, { message: { publisher: "Informa UK Limited", "container-title": ["Human Organization"], "issn-type": [{ type: "print", value: "0018-7259" }] } }),
     [resolver]: fakeResponse(resolver, "slow down", "text/plain", 429),
   });
-  const b = await discover("10.1111/aman.70137", { fetch: busy.fetch, now: NOW });
+  const b = await lookupLink("10.1111/aman.70137", { fetch: busy.fetch, now: NOW });
   assert.ok(!b.ok);
   assert.equal(b.reason, "unreachable");
   assert.notEqual(b.message, copy.discover.articleInJournal("Human Organization (Informa UK Limited)"));
@@ -451,10 +451,10 @@ test("a journal the page links to and whose ISSN its metadata states is the page
     [SD_FEED]: feed(SD_FEED, ""),
     [tandf]: feed(tandf, "tandf: History and Anthropology: Table of Contents"),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.matchesPage, c.note ?? null]), [["Journal of Archaeological Science", true, null], ["History and Anthropology", false, LINKED_JOURNAL_NOTE]]);
   assert.equal(calls.filter((c) => c.url === SD_FEED).length, 1);
-  const one = ok(await discover(pageUrl, { fetch, now: NOW, maxCandidates: 1 }));
+  const one = ok(await lookupLink(pageUrl, { fetch, now: NOW, maxCandidates: 1 }));
   assert.deepEqual(one.candidates.map((c) => c.title), ["Journal of Archaeological Science"]);
 });
 
@@ -467,7 +467,7 @@ test("a DOI that lands on a walled journal page whose feed times out: a retryabl
     [resolver]: forbidden(landing),
     "https://www.tandfonline.com/feed/rss/rhum20": fakeFailure("timeout"),
   });
-  const d = await discover("10.1080/00187259.2026.1", { fetch, now: NOW });
+  const d = await lookupLink("10.1080/00187259.2026.1", { fetch, now: NOW });
   assert.ok(!d.ok);
   assert.equal(d.reason, "timeout");
 });
@@ -481,7 +481,7 @@ test("a journal with articles online that aren't in an issue yet: both feeds, ea
     [WILEY_MAIN]: fakeResponse(WILEY_MAIN, rss("Wiley: American Anthropologist: Table of Contents", "https://onlinelibrary.wiley.com/doi/", [1, 2, 3]), "application/rss+xml"),
     [WILEY_EARLY]: fakeResponse(WILEY_EARLY, rss("Wiley-Online-Library: Table of Contents", "https://onlinelibrary.wiley.com/doi/", [7, 8]), "application/rss+xml"),
   });
-  const d = ok(await discover(wileyPage, { fetch, now: NOW }));
+  const d = ok(await lookupLink(wileyPage, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [
     ["American Anthropologist", copy.labels.articlesFeed, null],
     ["American Anthropologist", copy.labels.earlyArticlesFeed, EARLY_NOTE],
@@ -495,7 +495,7 @@ test("a journal's second feed with the same articles as its main feed, or with n
       [WILEY_MAIN]: fakeResponse(WILEY_MAIN, rss("Wiley: American Anthropologist: Table of Contents", "https://onlinelibrary.wiley.com/doi/"), "application/rss+xml"),
       [WILEY_EARLY]: fakeResponse(WILEY_EARLY, early, "application/rss+xml"),
     });
-    const d = ok(await discover(wileyPage, { fetch, now: NOW }));
+    const d = ok(await lookupLink(wileyPage, { fetch, now: NOW }));
     assert.deepEqual(d.candidates.map((c) => c.via), [copy.labels.articlesFeed]);
   }
 });
@@ -505,7 +505,7 @@ test("a subset is a choice of its own: an early-articles feed whose articles the
     [WILEY_MAIN]: fakeResponse(WILEY_MAIN, rss("Wiley: Oceania: Table of Contents", "https://onlinelibrary.wiley.com/doi/", [1, 2, 3]), "application/rss+xml"),
     [WILEY_EARLY]: fakeResponse(WILEY_EARLY, rss("Wiley-Online-Library: Table of Contents", "https://onlinelibrary.wiley.com/doi/", [2, 3]), "application/rss+xml"),
   });
-  const d = ok(await discover(wileyPage, { fetch, now: NOW }));
+  const d = ok(await lookupLink(wileyPage, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.via), [copy.labels.articlesFeed, copy.labels.earlyArticlesFeed]);
 });
 
@@ -521,7 +521,7 @@ test("a page's feeds in two formats with the same entries are one choice; feeds 
     "https://blog.example/atom": fakeResponse("https://blog.example/atom", rss("Blog", "https://blog.example/", [3, 2, 1]), "application/rss+xml"),
     "https://blog.example/everything": fakeResponse("https://blog.example/everything", rss("Blog", "https://blog.example/", [1, 2, 3, 4, 5]), "application/rss+xml"),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), ["https://blog.example/rss", "https://blog.example/everything"]);
 });
 
@@ -535,7 +535,7 @@ test("an Open Journal Systems journal: its announcements are offered next to its
     [articles]: fakeResponse(articles, rss("The Journal", "https://ojs.example/index.php/j/article/view/"), "application/rss+xml"),
     [news]: fakeResponse(news, rss("The Journal: Announcements", "https://ojs.example/index.php/j/announcement/view/"), "application/rss+xml"),
   });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["The Journal", copy.labels.postsFeed, null], ["The Journal: Announcements", copy.labels.announcementsFeed, OJS_ANNOUNCEMENTS_NOTE]]);
 });
 
@@ -546,7 +546,7 @@ test("Project MUSE: a journal's articles and its issues, two feeds with nothing 
     [articles]: fakeResponse(articles, rss("Project MUSE®: Anthropological Quarterly - Latest Articles", "https://muse.jhu.edu/article/"), "application/rss+xml"),
     [issues]: fakeResponse(issues, rss("Project MUSE®: Anthropological Quarterly - Latest Issues", "https://muse.jhu.edu/issue/"), "application/rss+xml"),
   });
-  const d = ok(await discover("https://muse.jhu.edu/journal/10", { fetch, now: NOW }));
+  const d = ok(await lookupLink("https://muse.jhu.edu/journal/10", { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.via, c.note ?? null]), [["Anthropological Quarterly", copy.labels.articlesFeed, null], ["Anthropological Quarterly", copy.labels.issuesFeed, ISSUES_NOTE]]);
 });
 
@@ -555,7 +555,7 @@ test("an MDPI journal page: the journal's own feed, chosen, and MDPI's feed of a
   const journalFeedUrl = "https://www.mdpi.com/rss/journal/sensors";
   const all = "https://www.mdpi.com/rss";
   const { fetch } = stub({ [pageUrl]: forbidden(pageUrl), [journalFeedUrl]: feed(journalFeedUrl, "Sensors"), [all]: feed(all, "MDPI Publishing") });
-  const d = ok(await discover(pageUrl, { fetch, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl, c.via, c.note ?? null]), [
     ["Sensors", journalFeedUrl, copy.labels.articlesFeed, null],
     ["MDPI Publishing", all, copy.labels.wholeSiteFeed, WHOLE_SITE_NOTE],

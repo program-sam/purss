@@ -118,7 +118,7 @@ const ENTRIES: ReadonlySet<string> = new Set(DISCOVERY_ENTRIES);
 export const isDiscoveryEntry = (v: unknown): v is DiscoveryEntry => typeof v === "string" && ENTRIES.has(v);
 
 /**
- * What the browser says about a lookup (`POST /api/discover`'s `entry`). Only the entries the interface itself starts can be named
+ * What the browser says about a lookup (`POST /api/link-lookup`'s `entry`). Only the entries the interface itself starts can be named
  * there; `reconnect` is a lookup for a private source's link, which follows nothing and is not counted. The others are decided by the
  * server (the extension's token, an assistant, an import).
  */

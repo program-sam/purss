@@ -321,7 +321,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
   if (place.t === "r") return <div className="empty card-like"><h2>{t.nothingQueued}</h2><p>{t.queueHint(KEYBOARD)}</p></div>;
   if (place.t === "b") {
     return (
-      <div className="empty card-like"><h2>{t.nothingKept}</h2><p>{t.useBookmark}</p>
+      <div className="empty card-like"><h2>{t.nothingKept}</h2><p>{t.useKeep}</p>
         {platform.connection ? null : <p>{t.otherSites.before}<button type="button" className="link" onClick={() => overlays.open({ kind: "settings", tab: "apps" })}>{app.words.browserExtensionOrABookmarklet}</button>{"."}</p>}
       </div>
     );

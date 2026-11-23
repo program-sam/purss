@@ -315,7 +315,7 @@ CREATE TABLE notifications (
   source_id TEXT,
   dedup_key TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  read_at TEXT, data TEXT, changed_at TEXT,
+  seen_at TEXT, data TEXT, changed_at TEXT,
   UNIQUE (account_id, dedup_key)
 ) STRICT;
 

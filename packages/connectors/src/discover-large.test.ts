@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { discover } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
 import { TRIM_FEED_BYTES, TRIM_FEED_ITEMS } from "./trimmed.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
@@ -48,7 +48,7 @@ test("a feed bigger than the engine can read whole is marked large, however its 
   const opts = { testAllowAddress: allowLoopback, timeoutMs: 30_000 };
   try {
     const flag = async (path: string) => {
-      const r = await discover(`${server.url}${path}`, opts);
+      const r = await lookupLink(`${server.url}${path}`, opts);
       assert.ok(r.ok, path);
       assert.equal(r.candidates.length, 1, path);
       return r.candidates[0]!;

@@ -64,7 +64,7 @@ export function PlanTab() {
         <div className="lbl">{copy.yourPlan(PLAN_LABELS[plan])}</div>
         <p className="fine">
           {planUsageLine(planUsage)}{limits.collections === null ? copy.unlimitedCollections : copy.collectionsOf(planUsage.collections.used, limits.collections)}.
-          {" "}{copy.savedLinks}
+          {" "}{copy.keptLinks}
         </p>
       </div>
       {error ? <p className="state note" role="alert"><Icon name="info" /><span>{error}</span></p> : null}

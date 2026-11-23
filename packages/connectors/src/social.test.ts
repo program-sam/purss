@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import { discover } from "./discover.ts";
-import type { DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
+import type { DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { normalizeInput } from "./input.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions, SafeFetchResult } from "./safe-fetch.ts";
@@ -95,7 +95,7 @@ test("a bare @name still explains what to paste, now naming social handles too",
 
 test("a Mastodon handle: WebFinger, then the profile page, then the feed it advertises, labelled with honest limits", async () => {
   const { fetch, calls } = stub(mastodonRoutes());
-  const d = ok(await discover("@Mastodon@mastodon.social", { fetch, now: NOW }));
+  const d = ok(await lookupLink("@Mastodon@mastodon.social", { fetch, now: NOW }));
   assert.deepEqual(calls.map((c) => c.url), [WF_URL, "https://mastodon.social/@Mastodon", "https://mastodon.social/@Mastodon.rss"]);
   assert.match(String(calls[0]!.opts?.accept), /^application\/jrd\+json/);
   assert.ok((calls[0]!.opts?.maxBytes ?? Infinity) <= 64 * 1024, "WebFinger answers are small");
@@ -116,7 +116,7 @@ test("a Mastodon handle: WebFinger, then the profile page, then the feed it adve
 
 test("a Mastodon profile address pasted directly is recognised from the page, without probing the server's paths", async () => {
   const { fetch, calls } = stub(mastodonRoutes());
-  const d = ok(await discover("https://mastodon.social/@Mastodon", { fetch, now: NOW }));
+  const d = ok(await lookupLink("https://mastodon.social/@Mastodon", { fetch, now: NOW }));
   assert.deepEqual(calls.map((c) => c.url), ["https://mastodon.social/@Mastodon", "https://mastodon.social/@Mastodon.rss"]);
   assert.equal(d.candidates[0]!.origin, copy.social.mastodonAccount);
   assert.equal(d.candidates[0]!.note, copy.social.mastodonNote);
@@ -127,7 +127,7 @@ test("another fediverse server is labelled generically, with only the limits eve
   const routes = mastodonRoutes();
   routes["https://mastodon.social/@Mastodon.rss"] = fakeResponse("https://mastodon.social/@Mastodon.rss", rss, "application/rss+xml");
   const { fetch } = stub(routes);
-  const c = ok(await discover("@Mastodon@mastodon.social", { fetch, now: NOW })).candidates[0]!;
+  const c = ok(await lookupLink("@Mastodon@mastodon.social", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.origin, copy.social.fediverseAccount);
   assert.equal(c.note, copy.social.fediverseNote);
   assert.notEqual(c.note, copy.social.mastodonNote, "it makes none of Mastodon's promises about what is left out");
@@ -136,19 +136,19 @@ test("another fediverse server is labelled generically, with only the limits eve
 test("fediverse failures say what happened, and never fall back to scraping", async () => {
   // Unknown account.
   let s = stub({});
-  let f = failed(await discover("@nobody@mastodon.social", { fetch: s.fetch, now: NOW }));
+  let f = failed(await lookupLink("@nobody@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(f.message, copy.discover.handleNotFound("@nobody@mastodon.social"));
   assert.equal(s.calls.length, 1);
 
   // A server that isn't one: WebFinger answers with a web page.
   s = stub({ [WF_URL]: fakeResponse(WF_URL, "<html>hello</html>", "text/html") });
-  f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "invalid");
 
   // An account without a public profile link.
   s = stub({ [WF_URL]: fakeResponse(WF_URL, JSON.stringify({ subject: "acct:Mastodon@mastodon.social", links: [{ rel: "self", type: "application/activity+json", href: "https://mastodon.social/users/Mastodon" }] }), "application/jrd+json") });
-  f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(s.calls.length, 1);
 
@@ -156,20 +156,20 @@ test("fediverse failures say what happened, and never fall back to scraping", as
   const routes = mastodonRoutes();
   routes["https://mastodon.social/@Mastodon"] = fakeResponse("https://mastodon.social/@Mastodon", PROFILE.replace(/<link[^>]*rss\+xml[^>]*>/, ""), "text/html");
   s = stub(routes);
-  f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(f.message, copy.discover.fediverseNoFeed);
   assert.deepEqual(s.calls.map((c) => c.url), [WF_URL, "https://mastodon.social/@Mastodon"], "no guessing at other addresses");
 
   // A profile link that isn't a web address is ignored.
   s = stub({ [WF_URL]: fakeResponse(WF_URL, JSON.stringify({ links: [{ rel: "http://webfinger.net/rel/profile-page", href: "javascript:alert(1)" }] }), "application/jrd+json") });
-  f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(s.calls.length, 1);
 
   // The server can't be reached.
   s = stub({ [WF_URL]: fakeFailure("unreachable", "connection refused") });
-  f = failed(await discover("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@Mastodon@mastodon.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "unreachable");
 });
 
@@ -177,7 +177,7 @@ test("a post on a fediverse server explains to paste the profile instead", async
   const post = "https://mastodon.social/@Mastodon/117466985005297414";
   const html = `<html><head><link href="https://mastodon.social/users/Mastodon/statuses/117466985005297414" rel="alternate" type="application/activity+json"></head><body></body></html>`;
   const { fetch, calls } = stub({ [post]: fakeResponse(post, html, "text/html") });
-  const f = failed(await discover(post, { fetch, now: NOW }));
+  const f = failed(await lookupLink(post, { fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(f.message, copy.discover.fediverseNotProfile);
   assert.equal(calls.length, 1, "no probing of the server's paths");
@@ -192,14 +192,14 @@ test("an ordinary site that also speaks ActivityPub is still searched for its fe
       [page]: fakeResponse(page, html, "text/html"),
       "https://tidepool.example/feed": fakeResponse("https://tidepool.example/feed", rss, "application/rss+xml"),
     });
-    const d = ok(await discover(page, { fetch, now: NOW }));
+    const d = ok(await lookupLink(page, { fetch, now: NOW }));
     assert.equal(d.candidates[0]!.feedUrl, "https://tidepool.example/feed", page);
   }
 });
 
 test("a handle on an internal name is refused before anything is fetched", async () => {
   const { fetch, calls } = stub({});
-  const f = failed(await discover("@admin@intranet.local", { fetch, now: NOW }));
+  const f = failed(await lookupLink("@admin@intranet.local", { fetch, now: NOW }));
   assert.equal(f.reason, "blocked");
   assert.equal(calls.length, 0);
 });
@@ -224,11 +224,11 @@ test("the fediverse path runs through safeFetch: a handle's domain redirecting t
     ...opts, testAllowAddress: allowLoopback, resolver: async (host) => (host.endsWith(".example") ? ["127.0.0.1"] : []),
   });
   try {
-    const d = ok(await discover("@ann@social.example", { fetch: local, now: NOW }));
+    const d = ok(await lookupLink("@ann@social.example", { fetch: local, now: NOW }));
     assert.equal(d.candidates[0]!.title, "Ann");
     assert.equal(d.candidates[0]!.feedUrl, `http://server.example:${server.port}/@ann.rss`);
     assert.equal(d.candidates[0]!.origin, copy.social.mastodonAccount);
-    const evil = failed(await discover(`http://server.example:${server.port}/@evil`, { fetch: local, now: NOW }));
+    const evil = failed(await lookupLink(`http://server.example:${server.port}/@evil`, { fetch: local, now: NOW }));
     assert.equal(evil.reason, "blocked", "an advertised feed on an internal address is refused");
   } finally {
     await server.close();
@@ -238,7 +238,7 @@ test("the fediverse path runs through safeFetch: a handle's domain redirecting t
 test("a Bluesky handle resolves through bsky.app to the DID feed, which outlives handle changes", async () => {
   for (const input of ["@bsky.app", "https://bsky.app/profile/bsky.app", "bsky.app/profile/bsky.app/rss"]) {
     const { fetch, calls } = stub({ "https://bsky.app/profile/bsky.app/rss": bskyRedirect });
-    const d = ok(await discover(input, { fetch, now: NOW }));
+    const d = ok(await lookupLink(input, { fetch, now: NOW }));
     assert.deepEqual(calls.map((c) => c.url), ["https://bsky.app/profile/bsky.app/rss"], input);
     const c = d.candidates[0]!;
     assert.equal(c.feedUrl, BSKY_FEED, input);
@@ -254,18 +254,18 @@ test("a Bluesky handle resolves through bsky.app to the DID feed, which outlives
   }
   // A DID needs no redirect; a *.bsky.social host is a handle, not a website.
   let s = stub({ [BSKY_FEED]: fakeResponse(BSKY_FEED, BLUESKY_RSS, "application/xml") });
-  assert.equal(ok(await discover(`https://bsky.app/profile/${BSKY_DID}`, { fetch: s.fetch, now: NOW })).candidates[0]!.feedUrl, BSKY_FEED);
+  assert.equal(ok(await lookupLink(`https://bsky.app/profile/${BSKY_DID}`, { fetch: s.fetch, now: NOW })).candidates[0]!.feedUrl, BSKY_FEED);
   s = stub({ "https://bsky.app/profile/name.bsky.social/rss": bskyRedirect });
-  ok(await discover("name.bsky.social", { fetch: s.fetch, now: NOW }));
+  ok(await lookupLink("name.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.deepEqual(s.calls.map((c) => c.url), ["https://bsky.app/profile/name.bsky.social/rss"]);
 });
 
 test("a Bluesky post offers its author to confirm; custom feeds and lists say why they can't be followed", async () => {
   const { fetch } = stub({ "https://bsky.app/profile/bsky.app/rss": bskyRedirect });
-  const c = ok(await discover("https://bsky.app/profile/bsky.app/post/3mzhhvhjfwk22", { fetch, now: NOW })).candidates[0]!;
+  const c = ok(await lookupLink("https://bsky.app/profile/bsky.app/post/3mzhhvhjfwk22", { fetch, now: NOW })).candidates[0]!;
   assert.equal(c.via, copy.labels.relatedAccountConfirm);
   const none = stub({});
-  const f = failed(await discover("https://bsky.app/profile/bsky.app/feed/whats-hot", { fetch: none.fetch, now: NOW }));
+  const f = failed(await lookupLink("https://bsky.app/profile/bsky.app/feed/whats-hot", { fetch: none.fetch, now: NOW }));
   assert.equal(f.reason, "unsupported");
   assert.equal(f.message, copy.social.blueskyNoFeed);
   assert.equal(none.calls.length, 0);
@@ -274,16 +274,16 @@ test("a Bluesky post offers its author to confirm; custom feeds and lists say wh
 test("Bluesky refusals: an account hidden from signed-out people, an unknown handle, a bad one", async () => {
   const url = "https://bsky.app/profile/hidden.bsky.social/rss";
   let s = stub({ [url]: fakeResponse(url, "account does not allow public views", "text/plain", 403) });
-  let f = failed(await discover("@hidden.bsky.social", { fetch: s.fetch, now: NOW }));
+  let f = failed(await lookupLink("@hidden.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(f.message, copy.discover.blueskyHidden);
   s = stub({});
-  f = failed(await discover("@missing.bsky.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@missing.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "nofeed");
   assert.equal(f.message, copy.discover.blueskyNotFound("@missing.bsky.social"));
   const bad = "https://bsky.app/profile/bad.bsky.social/rss";
   s = stub({ [bad]: fakeResponse(bad, "not a valid handle", "text/plain", 400) });
-  f = failed(await discover("@bad.bsky.social", { fetch: s.fetch, now: NOW }));
+  f = failed(await lookupLink("@bad.bsky.social", { fetch: s.fetch, now: NOW }));
   assert.equal(f.reason, "invalid");
 });
 

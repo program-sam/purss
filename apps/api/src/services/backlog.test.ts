@@ -144,7 +144,7 @@ test("followed from now, the backlog arrives Ignored: hidden from lists, left ou
   assert.deepEqual([stats.totalItems, stats.workflow.undecided, stats.workflow.ignored, stats.ignoredLast30Days], [back.length + 1, 1, back.length, 0]);
   assert.equal(sourceStats(app, p, src).stats.totalItems, back.length + 1);
   const home = homeOverview(app, p);
-  assert.equal(home.unread, 0, "nothing older is waiting: 'up to date', not 'N older items not looked at'");
+  assert.equal(home.unseen, 0, "nothing older is waiting: 'up to date', not 'N older items not looked at'");
   assert.equal(home.isNew, 1);
   assert.equal(itemCounts(app, p.accountId).items(src), back.length + 1, "the counts keep the whole of it for the source's page");
   assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), back.length);
@@ -182,7 +182,7 @@ test("with the last week, the posts of the 7 days before the follow are New and 
   const source = listSources(app, p).find((s) => s.id === src)!;
   assert.deepEqual([source.itemCount, source.newCount], [5, 2]);
   const home = homeOverview(app, p);
-  assert.deepEqual([home.isNew, home.unread], [2, 0]);
+  assert.deepEqual([home.isNew, home.unseen], [2, 0]);
   // New like the rest: they are told once, with the others, and later posts are New as ever.
   assert.deepEqual(notes(app), [notifications.newCountFrom(2, "Weekly")]);
   walk(app, p);
@@ -220,7 +220,7 @@ test("a source followed before the choice existed keeps today's behaviour: its b
   walk(app, p, old);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM item_state WHERE workflow = 'ignored'")!.n, 0);
   assert.equal(homeFeed(app, p).size, 4, "shown on Home as older items");
-  assert.equal(homeOverview(app, p).unread, 4, "and counted as not looked at");
+  assert.equal(homeOverview(app, p).unseen, 4, "and counted as not looked at");
   assert.equal(listItems(app, p, { scope: "all", limit: 10 }).total, 4);
 });
 
@@ -251,7 +251,7 @@ test("an Ignored backlog post is the person's to change: To read or Undecided pu
   assert.equal(listItems(app, p, { scope: "all", limit: 10 }).total, 3, "the two it was moved to and the brand new post");
   assert.equal(listItems(app, p, { scope: "all", limit: 10, filter: "all_with_ignored" }).total, 10, "all nine of the backlog and the brand new post");
   assert.deepEqual(pageAll(app, p, { scope: `basket:${basket.id}`, limit: 10, filter: "all_with_ignored" }), [kept], "a basket shows what is kept in it, Ignored or not");
-  assert.equal(homeOverview(app, p).unread, 1, "Undecided and no longer New, like any older post; the Ignored ones are not counted");
+  assert.equal(homeOverview(app, p).unseen, 1, "Undecided and no longer New, like any older post; the Ignored ones are not counted");
   assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), 7);
   // Search finds the posts that were highlighted or noted, and the one that is kept.
   const found = new Set(searchItems(app, p, "tidal", 50).map((i) => i.id));
@@ -296,7 +296,7 @@ test("one PURSS's backlog never reaches another's counts or lists", (t) => {
   walk(app, other, [entry("feed/9", { publishedAt: ago(40 * DAY) }), entry("feed/9", { publishedAt: ago(41 * DAY) })]);
   const ignored = (o: Owner, source: string) => itemCounts(app, o.accountId).sum([source], (w) => w === "ignored");
   assert.deepEqual([ignored(p, mine.src), ignored(p, theirs), ignored(other, theirs), ignored(other, mine.src)], [mine.back.length, 0, 2, 0]);
-  assert.equal(homeOverview(app, other).unread, 0);
+  assert.equal(homeOverview(app, other).unseen, 0);
   assert.deepEqual(pageAll(app, other, { scope: "all", limit: 10 }), []);
   assert.equal(pageAll(app, other, { scope: `source:${theirs}`, limit: 10, filter: "all_with_ignored" }).length, 2);
 });

@@ -10,7 +10,7 @@ export * from "./cadence.ts";
 export * from "./crossref.ts";
 export * from "./capture-quality.ts";
 export * from "./content-type.ts";
-export * from "./discover.ts";
+export * from "./link-lookup.ts";
 export { coreName } from "./feed-choice.ts";
 export * from "./feed.ts";
 export * from "./frame-policy.ts";

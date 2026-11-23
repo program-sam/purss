@@ -90,7 +90,7 @@ test("Never still announces readable text that failed to save", (t) => {
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
 });
 
-test("a later failure the same day grows that day's notification and makes it unread; the next day is a new row", (t) => {
+test("a later failure the same day grows that day's notification and makes it unseen; the next day is a new row", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "Journal", "feed/1");
@@ -99,11 +99,11 @@ test("a later failure the same day grows that day's notification and makes it un
   failed(app, p, a!, minutes(-60));
   runProblemCheck(app, p.accountId, minutes(-50));
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
-  app.db.run("UPDATE notifications SET read_at = ?", NOW.toISOString());
+  app.db.run("UPDATE notifications SET seen_at = ?", NOW.toISOString());
 
   failed(app, p, b!, minutes(-30));
   runProblemCheck(app, p.accountId, minutes(-20));
-  assert.deepEqual(bell(app, p).map((n) => [n.title, n.read]), [[notifications.captureFailedFromSource(2, "Journal"), false]], "the same row, grown and unread again");
+  assert.deepEqual(bell(app, p).map((n) => [n.title, n.read]), [[notifications.captureFailedFromSource(2, "Journal"), false]], "the same row, grown and unseen again");
 
   const tomorrow = new Date(NOW.getTime() + 24 * 3_600_000);
   failed(app, p, c!, new Date(tomorrow.getTime() - 60_000));

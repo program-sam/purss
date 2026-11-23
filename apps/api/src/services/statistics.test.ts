@@ -123,7 +123,7 @@ test("statistics are scoped to the signed-in account", (t) => {
   assert.equal(sourceStats(app, p1, s1).stats.totalItems, 1);
   assert.equal(sourceStats(app, p2, s2).stats.totalItems, 2);
   // A filter collection in one account never counts the other account's items.
-  const f = createCollection(app, p1, { name: "Everything unread", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" });
+  const f = createCollection(app, p1, { name: "Everything unseen", emoji: null, mode: "filter", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" });
   assert.deepEqual(collectionStats(app, p1, f.id).sources.map((r) => r.sourceId), [s1]);
   assert.equal(collectionStats(app, p1, f.id).totals.totalItems, 1);
 });

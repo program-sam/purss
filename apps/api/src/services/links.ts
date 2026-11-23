@@ -57,7 +57,7 @@ function findByKey(app: App, p: Principal, key: string): { id: string } | undefi
  * current name and origin (its items follow through the sources_title_changed trigger), so a reworded name reaches PURSSes made before.
  */
 export function nameManualSources(app: App): void {
-  const name = server.api.shared.savedLinks, origin = server.api.portability.keptByHand;
+  const name = server.api.shared.keptLinks, origin = server.api.portability.keptByHand;
   app.db.run("UPDATE sources SET title = ?, origin = ? WHERE kind = 'manual' AND (title IS NOT ? OR origin IS NOT ?)", name, origin, name, origin);
 }
 
@@ -70,7 +70,7 @@ function itemForLink(app: App, p: Principal, url: URL, title: string | undefined
   if (!src) {
     const id = newId("src");
     app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)",
-      id, p.accountId, server.api.shared.savedLinks, server.api.portability.keptByHand, MANUAL_SOURCE_HUE, nowIso());
+      id, p.accountId, server.api.shared.keptLinks, server.api.portability.keptByHand, MANUAL_SOURCE_HUE, nowIso());
     src = { id };
   }
   const item = insertItem(app, {

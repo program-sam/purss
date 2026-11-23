@@ -52,12 +52,12 @@ test("the New-marker choices keep a saved value that is not one of the usual one
 
 test("Home does not say it is up to date while older items nobody has looked at are waiting", () => {
   const facts = { visited: true, items: 120, showCounts: true };
-  assert.equal(calmLine({ unread: 54 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`);
-  assert.equal(calmLine({ unread: 1 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(1, nouns.olderItem))}`);
-  assert.equal(calmLine({ unread: 54 }, { ...facts, showCounts: false }), t.nothingNewSince);
-  assert.equal(calmLine({ unread: 54 }, { ...facts, visited: false }), `${t.nothingMarkedNew}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`, "a first visit has no earlier visit to be new since");
-  assert.equal(calmLine({ unread: 0 }, facts), t.upToDate);
-  assert.equal(calmLine({ unread: 0 }, { ...facts, items: 0 }), t.nothingArrived);
+  assert.equal(calmLine({ unseen: 54 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`);
+  assert.equal(calmLine({ unseen: 1 }, facts), `${t.nothingNewSince}${t.olderNotLookedAt(plural(1, nouns.olderItem))}`);
+  assert.equal(calmLine({ unseen: 54 }, { ...facts, showCounts: false }), t.nothingNewSince);
+  assert.equal(calmLine({ unseen: 54 }, { ...facts, visited: false }), `${t.nothingMarkedNew}${t.olderNotLookedAt(plural(54, nouns.olderItem))}`, "a first visit has no earlier visit to be new since");
+  assert.equal(calmLine({ unseen: 0 }, facts), t.upToDate);
+  assert.equal(calmLine({ unseen: 0 }, { ...facts, items: 0 }), t.nothingArrived);
 });
 
 test("what was put aside lands in one row by kind: articles To read, videos To watch, podcasts To listen", () => {

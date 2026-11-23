@@ -141,7 +141,7 @@ export function collectionStats(app: App, p: Principal, collectionId: string, no
     ? app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", collectionId).map((r) => r.source_id)
     : [...bySource.keys()];
   const sources: CollectionStatsRow[] = sids
-    .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.savedLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
+    .map((sid) => ({ sourceId: sid, title: sid === null ? server.api.shared.keptLinks : titles.get(sid) ?? server.api.statistics.unknownSource, stats: bySource.get(sid) ?? emptyNumbers() }))
     .sort((a, b) => a.title.localeCompare(b.title));
   return {
     collectionId, name: c.name, mode: c.mode === "sources" ? "sources" : "filter", asOf: now, sources,

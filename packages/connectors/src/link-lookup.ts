@@ -1639,7 +1639,7 @@ async function discoverBridged(target: BridgeTarget, bridge: BridgeClient, ctx: 
 }
 
 /** Discover followable feeds for a pasted address. Never throws; every outcome is a result. */
-export async function discover(input: string, opts: DiscoverOptions = {}): Promise<DiscoveryDraft> {
+export async function lookupLink(input: string, opts: DiscoverOptions = {}): Promise<DiscoveryDraft> {
   // A bridged source's own address (from an export, say) is that source again.
   const trimmed = typeof input === "string" ? input.trim() : "";
   if (trimmed.startsWith("bridge:")) {

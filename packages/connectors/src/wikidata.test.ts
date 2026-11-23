@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
 import { crossrefWorksToRss } from "./crossref.ts";
-import { discover, WIKIDATA_NOTE } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink, WIKIDATA_NOTE } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { WHOLE_SITE_NOTE } from "./feed-choice.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
 import { fakeFailure, fakeResponse } from "./testing.ts";
@@ -85,7 +85,7 @@ test("a site that points to no feed: the feeds Wikidata lists for it are offered
     ...wikidata(site, { Q1: { websites: ["https://www.deutschlandfunk.de/"], feeds: ["https://www.deutschlandfunk.de/nachrichten-100.rss", "https://www.deutschlandfunk.de/dead.rss"] } }),
     "https://www.deutschlandfunk.de/nachrichten-100.rss": feed("https://www.deutschlandfunk.de/nachrichten-100.rss", "Nachrichten"),
   });
-  const d = ok(await discover(site, { fetch, now: NOW }));
+  const d = ok(await lookupLink(site, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.note, c.matchesPage]), [["https://www.deutschlandfunk.de/nachrichten-100.rss", WIKIDATA_NOTE, true]]);
 });
 
@@ -97,7 +97,7 @@ test("a site whose own addresses used up the lookup's requests still gets Wikida
     "https://mirror.example/essays.rss": feed("https://mirror.example/essays.rss", "Essays"),
   });
   // A cap the page and its usual addresses use up before the registry's turn.
-  const d = ok(await discover(site, { fetch, now: NOW, maxRequests: 3 }));
+  const d = ok(await lookupLink(site, { fetch, now: NOW, maxRequests: 3 }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.note]), [["https://mirror.example/essays.rss", WIKIDATA_NOTE]]);
   assert.ok(calls.filter((u) => !u.startsWith(site)).length <= 4, "the registry's allowance: its search, its items and the feeds it names");
 });
@@ -109,7 +109,7 @@ test("a section page: the front page's item gives the whole site's feed, labelle
     ...wikidata(section, { Q9: { websites: ["https://news.example.org/"], feeds: ["https://news.example.org/all.rss"], issns: ["0261-3077"] } }),
     "https://news.example.org/all.rss": feed("https://news.example.org/all.rss", "Everything"),
   });
-  const d = ok(await discover(section, { fetch, now: NOW }));
+  const d = ok(await lookupLink(section, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.feedUrl, c.via, c.note, c.matchesPage]), [["https://news.example.org/all.rss", copy.labels.wholeSiteFeed, `${WIKIDATA_NOTE} ${WHOLE_SITE_NOTE}`, false]]);
 });
 
@@ -120,7 +120,7 @@ test("an item the search found whose website isn't the page's (an index that lag
     ...wikidata(site, { Q5: { websites: ["https://elsewhere.example.org/"], feeds: ["https://a.example.org/odd/stream-42.rss"] } }),
     "https://a.example.org/odd/stream-42.rss": feed("https://a.example.org/odd/stream-42.rss", "Not this one"),
   });
-  assert.ok(!(await discover(site, { fetch, now: NOW })).ok);
+  assert.ok(!(await lookupLink(site, { fetch, now: NOW })).ok);
 });
 
 test("a journal page that refuses automated readers: the ISSN Wikidata gives leads to the journal through Crossref", async () => {
@@ -134,7 +134,7 @@ test("a journal page that refuses automated readers: the ISSN Wikidata gives lea
     asked.push(`${t.service.id}/${t.key}`);
     return { status: 200, body: Buffer.from(crossrefWorksToRss({ message: { items: [{ DOI: "10.1177/1", type: "journal-article", title: ["An article"], "container-title": ["Ethnography"] }] } }, t.key)) };
   };
-  const d = ok(await discover(pageUrl, { fetch, bridge, now: NOW }));
+  const d = ok(await lookupLink(pageUrl, { fetch, bridge, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => [c.title, c.feedUrl]), [["Ethnography", "bridge:crossref/14661381"]]);
   assert.deepEqual(asked, ["crossref/14661381"]);
 });
@@ -143,18 +143,18 @@ test("Wikidata is asked only as a last resort, never for a private-looking addre
   // Something was found: Wikidata isn't asked.
   const blog = "https://blog.example.org/";
   const found = stub({ [blog]: fakeResponse(blog, `<html><head><link rel="alternate" type="application/rss+xml" href="${blog}feed"></head></html>`, "text/html"), [`${blog}feed`]: feed(`${blog}feed`, "Blog") });
-  ok(await discover(blog, { fetch: found.fetch, now: NOW }));
+  ok(await lookupLink(blog, { fetch: found.fetch, now: NOW }));
   assert.ok(!found.calls.some((u) => u.startsWith("https://www.wikidata.org/")));
   // A private-looking address is never sent.
   const secret = "https://example.org/private/feeds/a8f3c91d2e7b4f6a9c0d1e2f3a4b5c6d";
   const hidden = stub({ [secret]: page(secret) });
-  await discover(secret, { fetch: hidden.fetch, now: NOW });
+  await lookupLink(secret, { fetch: hidden.fetch, now: NOW });
   assert.ok(!hidden.calls.some((u) => u.startsWith("https://www.wikidata.org/")), "nothing sent for a private-looking address");
   // Wikidata down or timing out: the usual "no feed".
   const site = "https://quiet.example.org/";
   const search = wikidataSearchUrl(addressVariants(new URL(site)))!;
   for (const answer of [fakeResponse(search, "Service Unavailable", "text/plain", 503), fakeFailure("timeout"), json(search, { error: "x" })]) {
-    const d = await discover(site, { fetch: stub({ [site]: page(site), [search]: answer }).fetch, now: NOW });
+    const d = await lookupLink(site, { fetch: stub({ [site]: page(site), [search]: answer }).fetch, now: NOW });
     assert.ok(!d.ok && d.reason === "nofeed", JSON.stringify(d));
   }
 });
@@ -167,7 +167,7 @@ test("Wikidata is asked after a page turns automated readers away or is broken, 
       ...wikidata(site, { Q7: { websites: ["https://walled.example.org/"], feeds: ["https://walled.example.org/odd/news-7.rss"] } }),
       "https://walled.example.org/odd/news-7.rss": feed("https://walled.example.org/odd/news-7.rss", "News"),
     });
-    const d = ok(await discover(site, { fetch, now: NOW }));
+    const d = ok(await lookupLink(site, { fetch, now: NOW }));
     assert.deepEqual(d.candidates.map((c) => c.feedUrl), ["https://walled.example.org/odd/news-7.rss"], String(status));
     assert.equal(calls.filter((u) => u.startsWith("https://www.wikidata.org/")).length, 2, `${status}: one search and one item request`);
   }
@@ -177,13 +177,13 @@ test("Wikidata's feeds keep to the lookup's limit on choices, and a page address
   const site = "https://many.example.org/";
   const feeds = [1, 2, 3, 4].map((n) => `https://many.example.org/odd/f${n}.rss`);
   const { fetch } = stub({ [site]: page(site), ...wikidata(site, { Q3: { websites: [site], feeds } }), ...Object.fromEntries(feeds.map((f, n) => [f, feed(f, `Feed ${n}`)])) });
-  assert.equal(ok(await discover(site, { fetch, now: NOW, maxCandidates: 1 })).candidates.length, 1);
+  assert.equal(ok(await lookupLink(site, { fetch, now: NOW, maxCandidates: 1 })).candidates.length, 1);
   const long = `https://long.example.org/${"section/".repeat(25)}page`;
   const spellings = [...addressVariants(new URL(long)), ...addressVariants(new URL("https://long.example.org/"))];
   assert.equal(wikidataSearchUrl(spellings), null, "too long to send");
   const front = wikidataSearchUrl(addressVariants(new URL("https://long.example.org/")))!;
   const s = stub({ [long]: page(long), [front]: json(front, { query: { search: [] } }) });
-  await discover(long, { fetch: s.fetch, now: NOW });
+  await lookupLink(long, { fetch: s.fetch, now: NOW });
   assert.ok(s.calls.includes(front), "the front page is asked about instead");
   assert.ok(s.calls.every((u) => u.length <= 2048));
 });
@@ -191,7 +191,7 @@ test("Wikidata's feeds keep to the lookup's limit on choices, and a page address
 test("Wikidata isn't asked about a page that isn't there, one that wants a password, or an address by number", async () => {
   for (const [url, status] of [["https://gone.example.org/page", 404], ["https://gone.example.org/old", 410], ["https://login.example.org/", 401], ["https://203.0.113.9/", 403]] as const) {
     const s = stub({ [url]: fakeResponse(url, "x", "text/html", status, status === 401 ? { headers: { "www-authenticate": "Basic" } } : {}) });
-    await discover(url, { fetch: s.fetch, now: NOW, testAllowAddress: () => true });
+    await lookupLink(url, { fetch: s.fetch, now: NOW, testAllowAddress: () => true });
     assert.ok(!s.calls.some((u) => u.startsWith("https://www.wikidata.org/")), url);
   }
 });
@@ -203,7 +203,7 @@ test("on a publishing platform, the front page's item is not the journal's: its 
     ...wikidata(pageUrl, { Q1: { websites: ["https://www.tandfonline.com/"], feeds: ["https://www.tandfonline.com/feed/rss/racl20"] } }),
     "https://www.tandfonline.com/feed/rss/racl20": feed("https://www.tandfonline.com/feed/rss/racl20", "tandf: New Review of Academic Librarianship: Table of Contents"),
   });
-  const d = await discover(pageUrl, { fetch, now: NOW });
+  const d = await lookupLink(pageUrl, { fetch, now: NOW });
   assert.ok(!d.ok, JSON.stringify(d));
   // The same for a journal page on a platform whose own pages are read like any site's (PLOS).
   const plos = "https://journals.plos.org/plosnone/";
@@ -212,5 +212,5 @@ test("on a publishing platform, the front page's item is not the journal's: its 
     ...wikidata(plos, { Q2: { websites: ["https://journals.plos.org/"], feeds: ["https://journals.plos.org/odd/all.rss"] } }),
     "https://journals.plos.org/odd/all.rss": feed("https://journals.plos.org/odd/all.rss", "PLOS"),
   });
-  assert.ok(!(await discover(plos, { fetch: p.fetch, now: NOW })).ok);
+  assert.ok(!(await lookupLink(plos, { fetch: p.fetch, now: NOW })).ok);
 });

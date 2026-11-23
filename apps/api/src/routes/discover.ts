@@ -7,7 +7,7 @@ import { catalogueFor, catalogueIcon } from "../services/discovery-catalogue.ts"
 import { sendIcon } from "./public.ts";
 
 /**
- * Discover suggestions and the catalogue of popular sources (not /api/discover, which looks up a pasted link) for the signed-in account.
+ * Discover suggestions and the catalogue of popular sources (not /api/link-lookup, which looks up a pasted link) for the signed-in account.
  * Suggestions answer "not found" on a self-hosted installation; the catalogue is empty wherever there is no catalogue file.
  */
 export function discoverRouter(): Router<Ctx> {

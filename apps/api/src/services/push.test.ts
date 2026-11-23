@@ -160,7 +160,7 @@ test("bodies follow 'Show item titles in notifications'; read notices aren't han
 
     b.app.db.run("UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'"); // a isNew arrival notification, not a grown one
     b.arrive();
-    b.app.db.run("UPDATE notifications SET read_at = ?", new Date().toISOString());
+    b.app.db.run("UPDATE notifications SET seen_at = ?", new Date().toISOString());
     assert.deepEqual((await b.fetchPending(token)).json.notifications, [], "read in the bell already");
 
     setPreferences(b.app, b.owner.accountId, { notifications: { frequency: "off" } });

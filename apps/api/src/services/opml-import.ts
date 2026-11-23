@@ -2,7 +2,7 @@ import { readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { newId } from "@purss/domain";
 import type { OpmlImportDestination, OpmlImportDTO, OpmlImportEntryDTO, OpmlImportRequest } from "@purss/domain";
-import { discover } from "@purss/connectors";
+import { lookupLink } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { bridgeOptions } from "./bridge.ts";
@@ -311,7 +311,7 @@ function collectionFor(app: App, row: ImportRow, p: Principal, entry: EntryRow):
 }
 
 async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: OpmlImportDeps): Promise<void> {
-  const look = deps.discover ?? ((url: string) => discover(url, bridgeOptions(app)));
+  const look = deps.discover ?? ((url: string) => lookupLink(url, bridgeOptions(app)));
   const dropLink = () => { if (entry.looks_private) removeSecret(app.config.secretsDir, secretName(row.id, entry.position)); };
   const settle = (state: OpmlImportEntryDTO["state"], message: string | null, sourceId: string | null = null) => settleRow(app, row.id, entry.position, state, message, sourceId);
   const p = principalOf(row);

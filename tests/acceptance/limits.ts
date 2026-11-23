@@ -139,7 +139,7 @@ async function main(): Promise<void> {
     step("at the limit, New collection says so before asking for a name, and links to the plan");
 
     // ---------- Add source ----------
-    await page.route("**/api/discover", (route) => route.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
+    await page.route("**/api/link-lookup", (route) => route.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
     await page.getByRole("button", { name: app.words.addSource }).first().click();
     await page.getByLabel(addSourceCopy.linkOrName).fill("https://shows.example.test/quiet.xml");
     await page.getByRole("button", { name: addSourceCopy.find, exact: true }).click();

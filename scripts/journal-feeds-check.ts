@@ -8,7 +8,7 @@
  *
  *   node scripts/journal-feeds-check.ts
  */
-import { discover } from "../packages/connectors/src/discover.ts";
+import { lookupLink } from "../packages/connectors/src/link-lookup.ts";
 
 type Case = { url: string; feed: string } | { url: string; fails: RegExp };
 
@@ -43,7 +43,7 @@ const CASES: Case[] = [
 let differ = 0;
 for (let i = 0; i < CASES.length; i += 3) {
   const batch = CASES.slice(i, i + 3);
-  const results = await Promise.all(batch.map((c) => discover(c.url)));
+  const results = await Promise.all(batch.map((c) => lookupLink(c.url)));
   batch.forEach((c, k) => {
     const r = results[k]!;
     const got = r.ok ? r.candidates.map((x) => x.feedUrl).join(", ") || "(no feeds)" : `${r.reason}: ${r.message}`;

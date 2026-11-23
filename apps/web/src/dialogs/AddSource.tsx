@@ -166,7 +166,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialE
     if (!target) return;
     setPhase("looking"); setError(""); setResult(null); setPick(0); setFullTextChoice(null); setMarkPrivate(null); setStartFrom("now"); setFromSearch(address !== undefined);
     try {
-      const out = await post<DiscoveryResult>("/api/discover", { url: target, entry: chosen ?? typed });
+      const out = await post<DiscoveryResult>("/api/link-lookup", { url: target, entry: chosen ?? typed });
       setResult(out);
       setPick(out.ok ? preselect(out.candidates) : 0);
       setMode(out.ok && out.keep ? "keep" : "follow");
@@ -180,8 +180,8 @@ export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialE
     const run = ++searchRun.current;
     setSearching(true); setError(""); setSites([]); setShows([]); setSiteTrouble(""); setShowTrouble(""); setPhase("results");
     const [siteOut, showOut] = await Promise.allSettled([
-      post<SiteSearchResponse>("/api/discover/sites", { query }),
-      post<PodcastSearchResponse>("/api/discover/podcasts", { query }),
+      post<SiteSearchResponse>("/api/source-search/sites", { query }),
+      post<PodcastSearchResponse>("/api/source-search/podcasts", { query }),
     ]);
     if (run !== searchRun.current) return;
     const trouble = (r: PromiseSettledResult<SiteSearchResponse | PodcastSearchResponse>) => (r.status === "rejected" ? messageOf(r.reason) : r.value.ok ? "" : r.value.message);

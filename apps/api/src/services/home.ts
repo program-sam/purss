@@ -141,7 +141,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const counts = itemCounts(app, ws);
   const boxParams: SqlParam[] = [ws];
   const onBoxes = app.db.all<{ id: string }>(`SELECT s.id FROM sources s WHERE s.account_id = ? AND s.followed = 1 AND ${inHomeBox(app, ws, boxParams)}`, ...boxParams).map((r) => r.id);
-  const unread = counts.sum(onBoxes, (w, isNew) => w === "undecided" && !isNew);
+  const unseen = counts.sum(onBoxes, (w, isNew) => w === "undecided" && !isNew);
   // What the muted words left out of Home: the newest open items it would show, counted among the first thousand (see `mutedScan`).
   // The items are read newest first from the date index and stop at the thousandth; led by the state instead, the planner sorts
   // every open item first.
@@ -160,7 +160,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
     toWatch: { items: pick(toWatch.ids), total: toWatch.total, totalAtMost: toWatch.totalAtMost },
     toListen: { items: pick(toListen.ids), total: toListen.total, totalAtMost: toListen.totalAtMost },
     isNew,
-    unread,
+    unseen,
     mutedHidden: hidden.hidden,
     mutedHiddenAtLeast: hidden.atLeast,
   };

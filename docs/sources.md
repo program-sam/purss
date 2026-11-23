@@ -32,7 +32,7 @@ syncs flow is in [Architecture](architecture.md); the code is in
 
 ## From a link to items
 
-1. **Paste.** `POST /api/discover` runs discovery in the API process, at most 120 lookups per
+1. **Paste.** `POST /api/link-lookup` runs discovery in the API process, at most 120 lookups per
    account per ten minutes (a feed list imported from OPML uses a share of that and leaves the
    rest for Add source).
 2. **Preview.** Discovery returns candidates, each with a title, kind, how often it publishes,
@@ -69,7 +69,7 @@ counts as one), each request 15 seconds, and returns at most 8 candidates.
 Add source sends a name (no scheme, slash, `@` or port, and no dot inside a word) to two searches at
 once, and a result chosen there is looked up like a pasted address:
 
-- **Websites** (`POST /api/discover/sites`, `site-search.ts`): Wikidata's `wbsearchentities` for the
+- **Websites** (`POST /api/source-search/sites`, `site-search.ts`): Wikidata's `wbsearchentities` for the
   name, then the official website (P856, a preferred one first, deprecated ones never) of up to ten
   matches, eight hits at most, the same site written another way once. Choosing one searches that
   website; when it has no feed, the registry fallback below can still find one Wikidata records for it
@@ -81,7 +81,7 @@ once, and a result chosen there is looked up like a pasted address:
   and never with a count. Then come up to five sources of Discover's catalogue of popular sources whose name or
   site contains the name (`catalogNamed`, when the installation has a catalogue; see [Architecture](architecture.md)), most popular
   first. A Wikidata failure still shows those.
-- **Podcasts** (`POST /api/discover/podcasts`, `podcast-search.ts`): Apple's podcast directory.
+- **Podcasts** (`POST /api/source-search/podcasts`, `podcast-search.ts`): Apple's podcast directory.
 
 Each search allows 60 a person per ten minutes. One failing still shows what the other found.
 
@@ -403,7 +403,7 @@ which could go; they are never shown to anyone else.
 | `assistant` | an assistant connected over MCP |
 
 The browser says only `paste`, `site-search`, `podcast-search`, `suggestion` or `shared-link` (the `entry` of `POST
-/api/discover`); a lookup that is only to reconnect a private source's link (`reconnect`) follows nothing and is not counted.
+/api/link-lookup`); a lookup that is only to reconnect a private source's link (`reconnect`) follows nothing and is not counted.
 
 The route and the entry are kept with the preview on the server, like a feed's `large` mark and its newest posts' addresses, and are
 never sent to the browser or an assistant. Two records keep them:

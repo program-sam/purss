@@ -16,7 +16,7 @@ import { createCollection } from "./collections.ts";
 import { followSource, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "./preferences.ts";
-import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotifications, runDigest, runProblemCheck, unreadCount } from "./notifications.ts";
+import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotifications, runDigest, runProblemCheck, unseenCount } from "./notifications.ts";
 import { homeOverview, touchVisit } from "./home.ts";
 import { expireNewMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
 import { activityFor } from "./activity.ts";
@@ -46,7 +46,7 @@ function addItem(app: App, p: Owner, sourceId: string | null, over: Partial<NewI
 
 const fresh = (app: App, id: string) => app.db.get<{ is_new: number }>("SELECT is_new FROM item_state WHERE item_id = ?", id)!.is_new === 1;
 const revision = (app: App, id: string) => app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", id)!.revision;
-const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; read_at: string | null }>("SELECT title, body, source_id, kind, read_at FROM notifications ORDER BY created_at, id");
+const notes = (app: App) => app.db.all<{ title: string; body: string | null; source_id: string | null; kind: string; seen_at: string | null }>("SELECT title, body, source_id, kind, seen_at FROM notifications ORDER BY created_at, id");
 
 // ---------- F22 backlog ----------
 
@@ -398,7 +398,7 @@ test("Home is empty for a new PURSS: nothing to say", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const o = homeOverview(app, p);
-  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, isNew: 0, unread: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
+  assert.deepEqual(o, { lastVisitAt: null, since: null, toRead: { items: [], total: 0, totalAtMost: false }, toWatch: { items: [], total: 0, totalAtMost: false }, toListen: { items: [], total: 0, totalAtMost: false }, isNew: 0, unseen: 0, mutedHidden: 0, mutedHiddenAtLeast: false });
 });
 
 // ---------- Home's lists ----------
@@ -535,9 +535,9 @@ test("a 'Notify me' source's arrivals within the hour share one notification tha
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", chatty);
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
   assert.deepEqual(notes(app).map((n) => n.title), [notifications.newFrom("Chatty")]);
-  app.db.run("UPDATE notifications SET read_at = ?", nowIso());
+  app.db.run("UPDATE notifications SET seen_at = ?", nowIso());
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/1")]));
-  assert.deepEqual(notes(app).map((n) => [n.title, n.read_at]), [[notifications.newCountFrom(3, "Chatty"), null]], "one notification, unread again");
+  assert.deepEqual(notes(app).map((n) => [n.title, n.seen_at]), [[notifications.newCountFrom(3, "Chatty"), null]], "one notification, unseen again");
   // An hour later it starts a new one.
   app.db.run("UPDATE notifications SET created_at = ?", ago(61 * 60_000));
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1")]));
@@ -742,7 +742,7 @@ test("a digest goes by email too, to a confirmed address, unless the person turn
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE kind = 'digest'")!.n, 2);
 });
 
-test("switching digest frequency starts from now; Never doesn't hide other unread notices", (t) => {
+test("switching digest frequency starts from now; Never doesn't hide other unseen notices", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const src = makeSource(app, p, "S", "feed/1");
@@ -751,9 +751,9 @@ test("switching digest frequency starts from now; Never doesn't hide other unrea
   const end = app.db.get<{ w: string }>("SELECT window_end AS w FROM notification_state")!.w;
   assert.ok(Date.now() - Date.parse(end) < 5000, "nothing from before the switch is sent");
   app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at) VALUES ('n1', ?, 'arrivals', 'x', 'k', ?)", p.accountId, nowIso());
-  assert.equal(unreadCount(app, p.accountId), 1);
+  assert.equal(unseenCount(app, p.accountId), 1);
   setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
-  assert.equal(unreadCount(app, p.accountId), 1, "a frequency choice doesn't hide an existing notification");
+  assert.equal(unseenCount(app, p.accountId), 1, "a frequency choice doesn't hide an existing notification");
   assert.equal(listNotifications(app, p).length, 1, "what is already there can still be read");
 });
 

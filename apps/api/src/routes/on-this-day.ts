@@ -5,7 +5,7 @@ import { Router, parse } from "../http.ts";
 import { listReminders, reminderAction } from "../services/reminders.ts";
 
 /** Anniversary reminders ("On this day") over kept items. */
-export function rediscoveryRouter(): Router<Ctx> {
+export function onThisDayRouter(): Router<Ctx> {
   const r = new Router<Ctx>();
   r.get("/api/reminders", (_req, ctx) => listReminders(ctx.app, requirePrincipal(ctx)));
   r.post("/api/reminders/:id", (req, ctx) => {

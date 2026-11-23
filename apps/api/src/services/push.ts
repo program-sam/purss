@@ -79,12 +79,12 @@ export function unregisterPushDevice(app: App, p: Principal): { ok: true } {
   return { ok: true };
 }
 
-const pendingSql = `FROM notifications WHERE account_id = ? AND read_at IS NULL AND COALESCE(changed_at, created_at) > ?`;
+const pendingSql = `FROM notifications WHERE account_id = ? AND seen_at IS NULL AND COALESCE(changed_at, created_at) > ?`;
 /** A phone is woken for what it wasn't handed and arrived since its last wake (a wake it didn't answer isn't repeated). */
 const wakeSince = (d: { shown_until: string; pushed_at: string | null }) => (d.pushed_at && d.pushed_at > d.shown_until ? d.pushed_at : d.shown_until);
 
 /**
- * What a woken phone shows: the unread notifications it hasn't been handed yet (newest few, oldest first),
+ * What a woken phone shows: the unseen notifications it hasn't been handed yet (newest few, oldest first),
  * after which they count as handed. Titles as in the bell; the body only when the person shows titles in
  * notifications, as for browser alerts. With them, how many new items there are, for the app's icon.
  * Null when the credential isn't a live phone's.
@@ -160,7 +160,7 @@ export function wakeHeld(app: App, now = Date.now()): void {
   const accounts = app.db.all<{ account_id: string }>(
     `SELECT DISTINCT pd.account_id FROM push_devices pd JOIN device_tokens d ON d.id = pd.device_id
      WHERE pd.relay = ? AND d.last_used_at > ? AND EXISTS (
-       SELECT 1 FROM notifications n WHERE n.account_id = pd.account_id AND n.read_at IS NULL
+       SELECT 1 FROM notifications n WHERE n.account_id = pd.account_id AND n.seen_at IS NULL
          AND COALESCE(n.changed_at, n.created_at) > pd.shown_until AND COALESCE(n.changed_at, n.created_at) > COALESCE(pd.pushed_at, ''))`,
     app.config.pushRelay, idleCutoff());
   // wakePhones itself leaves out accounts still in quiet hours.

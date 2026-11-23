@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import { discover } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { decodePageKey } from "./page-feeds.ts";
 import { detectPageLists } from "./page-lists.ts";
 import type { SafeFetchResult } from "./safe-fetch.ts";
@@ -58,7 +58,7 @@ test("a page with no feed and a clearly best list of posts: that list is offered
   const html = fixture("anthropic-news.html");
   const asked: string[] = [];
   const { fetch } = site(NEWS, html);
-  const d = ok(await discover(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked) }));
+  const d = ok(await lookupLink(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked) }));
   assert.equal(asked.length, 3, "each list is previewed through the router");
   assert.deepEqual(d.candidates.map((c) => [c.matchesPage, c.pageList?.confidence]), [[true, "high"], [false, "medium"], [false, "medium"]]);
   const [best, second] = d.candidates as [typeof d.candidates[0], typeof d.candidates[0]];
@@ -86,7 +86,7 @@ test("a page with no feed and a clearly best list of posts: that list is offered
 test("lists PURSS is less sure of are offered and none of them is the page's own", async () => {
   const html = fixture("firefox-releases.html");
   const { fetch } = site(FIREFOX, html);
-  const d = ok(await discover(FIREFOX, { fetch, now: NOW, bridge: bridgeFor(html, FIREFOX) }));
+  const d = ok(await lookupLink(FIREFOX, { fetch, now: NOW, bridge: bridgeFor(html, FIREFOX) }));
   assert.equal(d.candidates.length, 3);
   assert.ok(d.candidates.every((c) => c.pageList?.confidence === "medium" && c.matchesPage === false), "no list is marked as the page's own");
   assert.ok(d.candidates.every((c) => c.note!.includes(words.unsure)));
@@ -99,7 +99,7 @@ test("a single list that PURSS is not sure of is offered alone, and still not as
   const url = "https://paulgraham.com/articles.html";
   const html = fixture("paulgraham.html");
   const { fetch } = site(url, html);
-  const d = ok(await discover(url, { fetch, now: NOW, bridge: bridgeFor(html, url) }));
+  const d = ok(await lookupLink(url, { fetch, now: NOW, bridge: bridgeFor(html, url) }));
   assert.deepEqual(d.candidates.map((c) => [c.matchesPage, c.pageList?.confidence, c.via]), [[false, "medium", words.via]]);
 });
 
@@ -108,7 +108,7 @@ test("a page whose best list is only a guess has no list: the usual no-feed answ
   const html = `<html><head><title>About us</title></head><body><main><p>${text}</p><p>${text}</p><a href="/contact">Contact</a><a href="/jobs">Jobs</a></main></body></html>`;
   const asked: string[] = [];
   const url = "https://plain.example/about";
-  const d = await discover(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
+  const d = await lookupLink(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
   assert.ok(!d.ok && d.reason === "nofeed" && d.message === copy.discover.noFeed, JSON.stringify(d));
   assert.deepEqual(asked, []);
 });
@@ -118,7 +118,7 @@ test("a page that draws its list with script says so, instead of the usual no-fe
     const html = fixture(file);
     assert.match(detectPageLists(html, url, NOW()).diagnosis ?? "", /^(appShell|emptyMain)$/, file);
     const asked: string[] = [];
-    const d = await discover(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
+    const d = await lookupLink(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
     assert.ok(!d.ok && d.reason === "nofeed", file);
     assert.equal(d.message, words.scriptPage, file);
     assert.deepEqual(asked, [], file);
@@ -132,7 +132,7 @@ test("a feed the page itself advertises ends the search: the lists of the page a
   const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>News</title><link>${NEWS}</link><description>x</description><item><title>One</title><link>${NEWS}/one</link><guid>1</guid><pubDate>Mon, 16 Nov 2026 10:00:00 GMT</pubDate></item></channel></rss>`;
   const asked: string[] = [];
   const { fetch } = site(NEWS, html, { "https://www.anthropic.com/news/rss": fakeResponse("https://www.anthropic.com/news/rss", rss, "application/rss+xml") });
-  const d = ok(await discover(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked) }));
+  const d = ok(await lookupLink(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked) }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), ["https://www.anthropic.com/news/rss"]);
   assert.deepEqual(asked, []);
 });
@@ -153,11 +153,11 @@ test("a feed Wikidata lists for the page always wins: the lists of the page are 
     [feed]: fakeResponse(feed, rss, "application/rss+xml"),
   };
   const asked: string[] = [];
-  const d = ok(await discover(url, { fetch: site(url, html, routes).fetch, now: NOW, bridge: bridgeFor(html, url, asked) }));
+  const d = ok(await lookupLink(url, { fetch: site(url, html, routes).fetch, now: NOW, bridge: bridgeFor(html, url, asked) }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [feed]);
   assert.deepEqual(asked, [], "the bridge was never asked");
   // Wikidata knows nothing of the page: then the lists are looked for.
-  const nothing = ok(await discover(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url) }));
+  const nothing = ok(await lookupLink(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url) }));
   assert.ok(nothing.candidates.every((c) => c.feedUrl.startsWith("bridge:page/")));
 });
 
@@ -166,16 +166,16 @@ test("the lists of a page are not looked for where the bridge doesn't read them,
   const asked: string[] = [];
   const bridge = bridgeFor(html, NEWS, asked);
   const nofeed = (d: DiscoveryDraft) => assert.ok(!d.ok && d.reason === "nofeed", JSON.stringify(d));
-  nofeed(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW }));
-  nofeed(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge, bridgeServes: (s) => s.id !== "page" }));
+  nofeed(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW }));
+  nofeed(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge, bridgeServes: (s) => s.id !== "page" }));
   // A page that refused automated readers, a page that is a feed or something else, an address that isn't a page.
-  const refused = await discover(NEWS, { fetch: site(NEWS, html, { [NEWS]: fakeResponse(NEWS, html, "text/html", 403) }).fetch, now: NOW, bridge });
+  const refused = await lookupLink(NEWS, { fetch: site(NEWS, html, { [NEWS]: fakeResponse(NEWS, html, "text/html", 403) }).fetch, now: NOW, bridge });
   assert.ok(!refused.ok && refused.message === copy.discover.refused, JSON.stringify(refused));
-  const notHtml = await discover(NEWS, { fetch: site(NEWS, "{\"a\":1}", {}, "application/json").fetch, now: NOW, bridge });
+  const notHtml = await lookupLink(NEWS, { fetch: site(NEWS, "{\"a\":1}", {}, "application/json").fetch, now: NOW, bridge });
   assert.ok(!notHtml.ok && notHtml.reason === "unsupported");
   assert.deepEqual(asked, []);
   // A router that serves page lists but not RSS-Bridge's other services.
-  ok(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge, bridgeServes: (s) => s.id === "page" }));
+  ok(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge, bridgeServes: (s) => s.id === "page" }));
   assert.equal(asked.length, 3);
 });
 
@@ -192,23 +192,23 @@ test("a list is offered only when the router read posts from it just now", async
   ] as BridgeClient[]) {
     let n = 0;
     const bridge: BridgeClient = (t, s) => (n++ === 0 ? real(t, s) : fail(t, s));
-    const d = ok(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge }));
+    const d = ok(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge }));
     assert.deepEqual(d.candidates.map((c) => [c.matchesPage, c.pageList?.confidence, c.via]), [[true, "high", words.via]], "only the list that read is offered, and it is the only one: not numbered");
   }
   // None read: the usual answer, as for a page with no list.
-  const all = await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: async () => ({ status: 503, body: Buffer.from("busy") }) });
+  const all = await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: async () => ({ status: 503, body: Buffer.from("busy") }) });
   assert.ok(!all.ok && all.reason === "nofeed" && all.message === copy.discover.noFeed, JSON.stringify(all));
 });
 
 test("the lookup's budget holds: at most three lists are previewed, none without time to read them, and the lookup's deadline ends them", async () => {
   const html = fixture("anthropic-news.html");
   const asked: string[] = [];
-  ok(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked), maxCandidates: 2 }));
+  ok(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked), maxCandidates: 2 }));
   assert.equal(asked.length, 2, "no more lists than the caller wants");
   assert.equal(asked.length, new Set(asked).size);
   // Too little of the lookup's time left to have the bridge fetch and read the page.
   const tight: string[] = [];
-  const d = await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS, tight), timeoutMs: 5000 });
+  const d = await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS, tight), timeoutMs: 5000 });
   assert.ok(!d.ok && d.reason === "nofeed" && d.message === copy.discover.noFeed);
   assert.deepEqual(tight, []);
   // The deadline arrives while the router is reading: the lookup took too long; no list is offered half-read, and the router was asked to stop.
@@ -218,7 +218,7 @@ test("the lookup's budget holds: at most three lists are previewed, none without
     setTimeout(() => controller.abort(), 20);
     signal.addEventListener("abort", () => { stopped.push(true); resolve({ failed: true }); });
   });
-  const late = await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: slow, signal: controller.signal });
+  const late = await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: slow, signal: controller.signal });
   assert.ok(!late.ok && late.reason === "timeout" && late.message === copy.discover.timeout, JSON.stringify(late));
   assert.equal(stopped.length, 3, "all three previews were stopped");
 });
@@ -232,7 +232,7 @@ test("a site that spends the lookup's whole cap of requests on addresses that re
     return fakeResponse(u, "nope", "text/html", 404, { redirects: [`${u}?a`, `${u}?b`] });
   };
   const asked: string[] = [];
-  const d = ok(await discover(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked), maxRequests: 10 }));
+  const d = ok(await lookupLink(NEWS, { fetch, now: NOW, bridge: bridgeFor(html, NEWS, asked), maxRequests: 10 }));
   assert.ok(calls.length <= 5, `${calls.length} requests made by discovery itself: the cap held`);
   assert.equal(asked.length, 3);
   assert.equal(d.candidates.length, 3);
@@ -242,7 +242,7 @@ test("a page whose address looks to carry a key is not made into a descriptor th
   const url = "https://example.org/private/feeds/a8f3c91d2e7b4f6a9c0d1e2f3a4b5c6d";
   const html = fixture("anthropic-news.html");
   const asked: string[] = [];
-  const d = await discover(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
+  const d = await lookupLink(url, { fetch: site(url, html).fetch, now: NOW, bridge: bridgeFor(html, url, asked) });
   assert.ok(!d.ok && d.reason === "nofeed");
   assert.deepEqual(asked, []);
 });
@@ -253,7 +253,7 @@ test("the key carries the page's final address, and asks for the character-set r
   const keyFor = async (html: string, final = url) => {
     let key = "";
     const bridge: BridgeClient = async (t) => { key = t.key; return previewFor(html, final, t.key); };
-    await discover(url, { fetch: site(url, html, final === url ? {} : { [url]: fakeResponse(url, html, "text/html; charset=utf-8", 200, { redirects: [url] }) }).fetch, now: NOW, bridge });
+    await lookupLink(url, { fetch: site(url, html, final === url ? {} : { [url]: fakeResponse(url, html, "text/html; charset=utf-8", 200, { redirects: [url] }) }).fetch, now: NOW, bridge });
     return decodePageKey(key);
   };
   assert.equal((await keyFor(body("", "Café — Ça va")))?.fixEncoding, true, "UTF-8 letters and no character set in the markup");
@@ -264,10 +264,10 @@ test("the key carries the page's final address, and asks for the character-set r
 
 test("a descriptor from an export is that source again, previewed through the router and described the same way", async () => {
   const html = fixture("anthropic-news.html");
-  const first = ok(await discover(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS) }));
+  const first = ok(await lookupLink(NEWS, { fetch: site(NEWS, html).fetch, now: NOW, bridge: bridgeFor(html, NEWS) }));
   const descriptor = first.candidates[0]!.feedUrl;
   const asked: string[] = [];
-  const again = ok(await discover(descriptor, { bridge: bridgeFor(html, NEWS, asked), now: NOW }));
+  const again = ok(await lookupLink(descriptor, { bridge: bridgeFor(html, NEWS, asked), now: NOW }));
   assert.equal(again.candidates.length, 1);
   assert.equal(again.candidates[0]!.feedUrl, descriptor);
   assert.equal(again.candidates[0]!.siteUrl, NEWS);
@@ -277,13 +277,13 @@ test("a descriptor from an export is that source again, previewed through the ro
   assert.equal(again.candidates[0]!.pageList, undefined, "an exported source is followed as it is, and chosen: it is the one that was exported");
   assert.equal(asked.length, 1);
   // The router can't read it just now: the message names the page, not the key.
-  const broken = await discover(descriptor, { bridge: async () => ({ status: 503, body: Buffer.from("x") }), now: NOW });
+  const broken = await lookupLink(descriptor, { bridge: async () => ({ status: 503, body: Buffer.from("x") }), now: NOW });
   assert.ok(!broken.ok && broken.reason === "unreachable");
   assert.ok(broken.message.includes(NEWS) && !broken.message.includes(descriptor.slice(-30)), broken.message);
   // Without the router, or with a key that isn't one, a descriptor is refused.
-  const none = await discover(descriptor, { now: NOW });
+  const none = await lookupLink(descriptor, { now: NOW });
   assert.ok(!none.ok && none.message === copy.discover.bridgeNotRun);
-  const bad = await discover("bridge:page/AAAAAAAAAA", { bridge: async () => { throw new Error("must not be asked"); }, now: NOW });
+  const bad = await lookupLink("bridge:page/AAAAAAAAAA", { bridge: async () => { throw new Error("must not be asked"); }, now: NOW });
   assert.ok(!bad.ok && bad.message === copy.discover.bridgeNotRun);
 });
 

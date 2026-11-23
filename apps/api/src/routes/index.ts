@@ -19,12 +19,12 @@ import { keptLinksRouter } from "./kept-links.ts";
 import { portabilityRouter } from "./portability.ts";
 import { pushRouter } from "./push.ts";
 import { reconcileRouter } from "./reconcile.ts";
-import { rediscoveryRouter } from "./rediscovery.ts";
+import { onThisDayRouter } from "./on-this-day.ts";
 import { publicPagesRouter, sharingRouter } from "./sharing.ts";
 import { statisticsRouter } from "./statistics.ts";
 
 /** Feature route modules mounted after the core public router. */
 export const extraRouters = {
-  api: (): Router<Ctx>[] => [rediscoveryRouter(), portabilityRouter(), sharingRouter(), reconcileRouter(), adminRouter(), statisticsRouter(), assistantRouter(), capturesRouter(), homeRouter(), keptLinksRouter(), connectRouter(), playbackRouter(), annotationsRouter(), accountEmailRouter(), itemRemindersRouter(), discoverRouter(), aiFiltersRouter(), downloadsRouter(), pushRouter(), appBundleRouter(), billingRouter(), frameCheckRouter()],
+  api: (): Router<Ctx>[] => [onThisDayRouter(), portabilityRouter(), sharingRouter(), reconcileRouter(), adminRouter(), statisticsRouter(), assistantRouter(), capturesRouter(), homeRouter(), keptLinksRouter(), connectRouter(), playbackRouter(), annotationsRouter(), accountEmailRouter(), itemRemindersRouter(), discoverRouter(), aiFiltersRouter(), downloadsRouter(), pushRouter(), appBundleRouter(), billingRouter(), frameCheckRouter()],
   pages: (): Router<Ctx> | undefined => publicPagesRouter(),
 };

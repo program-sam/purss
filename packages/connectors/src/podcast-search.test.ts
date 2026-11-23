@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { server } from "@purss/translations/server";
 import { PODCAST_DIRECTORY, searchPodcasts } from "./podcast-search.ts";
 import { allowLoopback, fakeFailure, fakeResponse, send, startServer } from "./testing.ts";
-import type { FetchFn } from "./discover.ts";
+import type { FetchFn } from "./link-lookup.ts";
 
 const copy = server.sources.connectors.podcastSearch;
 const row = (over: Record<string, unknown>) => ({ collectionName: "Show", artistName: "Maker", artworkUrl100: "https://img.example/100.jpg", feedUrl: "https://feeds.example/show.xml", primaryGenreName: "Sport", ...over });

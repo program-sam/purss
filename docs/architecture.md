@@ -582,7 +582,7 @@ sources, leaving out what the reader has (by `feedKey`, and private sources by t
 `GET /api/suggestions/catalogue/:category` all of one category's. The server orders them by weight plus Gumbel noise on
 each request and never sends a weight or any other popularity figure; the page asks anew on each visit, shuffles the
 boxes and shows six in each; a source's latest posts come from an ordinary
-`POST /api/discover` lookup, and the boxes start folded, the ones opened remembered in the browser's layout hints.
+`POST /api/link-lookup` lookup, and the boxes start folded, the ones opened remembered in the browser's layout hints.
 
 **Outgoing email.** Optional (`PURSS_SMTP_*`, `PURSS_MAIL_FROM`; `apps/api/src/mail`). The API sends
 through nodemailer: invitation links, sign-up links, address confirmation, password-reset links and

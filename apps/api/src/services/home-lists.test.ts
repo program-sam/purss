@@ -209,7 +209,7 @@ test("the queue is each person's own: another account's started and put-aside it
 
 // ---------- what Home can say about the pile ----------
 
-test("Home counts the older unread items it holds, not the ones in hidden collections or already dealt with", (t) => {
+test("Home counts the older unseen items it holds, not the ones in hidden collections or already dealt with", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   const { work, fun, workBox } = twoCollections(app, p);
@@ -217,9 +217,9 @@ test("Home counts the older unread items it holds, not the ones in hidden collec
   const read = addItem(app, p, fun);
   workflow(app, p, read, "finished");
   addItem(app, p, fun, { isNew: true });
-  assert.equal(homeOverview(app, p).unread, 3, "undecided and no longer New, on Home");
+  assert.equal(homeOverview(app, p).unseen, 3, "undecided and no longer New, on Home");
   app.db.run("UPDATE collections SET show_on_home = 0 WHERE id = ?", workBox.id);
-  assert.equal(homeOverview(app, p).unread, 1);
+  assert.equal(homeOverview(app, p).unseen, 1);
 });
 
 // ---------- Home's lists ----------

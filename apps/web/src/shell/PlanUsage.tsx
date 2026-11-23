@@ -53,7 +53,7 @@ export function PlanUsagePanel({ planUsage, paused, onPlan }: { planUsage: PlanU
         {unlimited.length ? t.noLimit(t.listWords(unlimited)) : ""}
         {full("sources") ? t.unfollow : ""}
         {full("collections") ? t.removeCollection : ""}
-        {planUsage.sources.limit !== null ? t.savedLinks : ""}
+        {planUsage.sources.limit !== null ? t.keptLinks : ""}
       </p>
       {onPlan && planUsage.plan && planUsage.plan !== "unlimited" ? <button type="button" className="link" onClick={onPlan}>{planUsage.plan === "free" ? app.words.seePlans : t.managePlan}</button> : null}
     </div>

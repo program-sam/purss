@@ -24,18 +24,18 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
   const q = useQuery(notificationsQuery);
   const noDigest = ws.prefs.notifications.frequency === "off";
   const list = q.data ?? [];
-  const unread = list.filter((n) => !n.read).length;
+  const unseen = list.filter((n) => !n.read).length;
 
-  async function markRead(ids: string[] | "all") {
+  async function markSeen(ids: string[] | "all") {
     try {
-      await post("/api/notifications/read", { ids });
+      await post("/api/notifications/seen", { ids });
       void qc.invalidateQueries({ queryKey: keys.notifications });
       void qc.invalidateQueries({ queryKey: keys.bootstrap });
     } catch (err) { toast(messageOf(err), { tone: "error" }); }
   }
 
   function open(n: NotificationDTO) {
-    if (!n.read) void markRead([n.id]);
+    if (!n.read) void markSeen([n.id]);
     onClose();
     const src = n.sourceId && ws.sourceById.get(n.sourceId) ? n.sourceId : null;
     if (src && n.listFilter === "capture-failed") nav.go({ t: "s", id: src }, { capture: "failed" });
@@ -50,7 +50,7 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
     <div className="notif">
       <div className="notif-h">
         <strong>{app.words.notifications}</strong>
-        {unread ? <button type="button" className="link" onClick={() => void markRead("all")}>{t.markAllRead}</button> : null}
+        {unseen ? <button type="button" className="link" onClick={() => void markSeen("all")}>{t.markAllSeen}</button> : null}
       </div>
       {noDigest ? <p className="fine" style={{ padding: "8px 12px 4px" }}>{t.digestOff}</p> : null}
       <PhoneNotificationsOffer />
@@ -63,7 +63,7 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
             <button type="button" className="notif-i" onClick={() => open(n)}>
               <span className="notif-dot" aria-hidden="true">{n.read ? null : <i className="dot" />}</span>
               <span className="tx">
-                <span className="t">{n.read ? null : <span className="sr">{t.unread}</span>}<bdi>{n.title}</bdi></span>
+                <span className="t">{n.read ? null : <span className="sr">{t.unseen}</span>}<bdi>{n.title}</bdi></span>
                 {n.body ? <span className="b">{n.body}</span> : null}
                 <span className="when">{timeAgo(n.createdAt, Date.now(), ws.prefs.timezone)}</span>
               </span>

@@ -75,7 +75,7 @@ const EXTENSION_ROUTES = new Set([
   "POST /api/items/manual",
   "POST /api/items/browser-capture",
   "GET /api/search",
-  "POST /api/discover",
+  "POST /api/link-lookup",
   "POST /api/sources",
   "DELETE /api/connect/device",
 ]);

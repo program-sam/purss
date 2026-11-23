@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import type { DraftCandidate } from "./discover.ts";
+import type { DraftCandidate } from "./link-lookup.ts";
 import { APPLE_NO_FEED, planKnownFeeds, resolveKnown } from "./known-feeds.ts";
 import type { KnownDeps, KnownPlan, KnownProbe } from "./known-feeds.ts";
 import type { ParsedFeed } from "./feed.ts";

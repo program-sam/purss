@@ -79,9 +79,9 @@ function upsertArrival(app: App, accountId: string, s: Sourcey, count: number, l
     "SELECT id, data FROM notifications WHERE account_id = ? AND source_id = ? AND kind = 'arrivals' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", accountId, s.id, since);
   if (open) {
     const total = (open.data ? (JSON.parse(open.data) as { count: number }).count : 1) + count;
-    // More arrived within the hour: the one notification grows (and is unread again) instead of a second one appearing.
+    // More arrived within the hour: the one notification grows (and is unseen again) instead of a second one appearing.
     // Its new text is news to a phone that was handed the old one (changed_at, services/push.ts).
-    return app.db.run("UPDATE notifications SET title = ?, body = COALESCE(?, body), data = ?, item_id = NULL, read_at = NULL, changed_at = ? WHERE id = ?",
+    return app.db.run("UPDATE notifications SET title = ?, body = COALESCE(?, body), data = ?, item_id = NULL, seen_at = NULL, changed_at = ? WHERE id = ?",
       arrivalTitle(s.title, total), latest, JSON.stringify({ count: total }), nowIso(), open.id).changes;
   }
   return app.db.run(
@@ -310,7 +310,7 @@ export function runProblemCheck(app: App, accountId: string, now: Date = new Dat
  * source no longer followed) is told about under the basket that holds it. Only where the person asked for text: the copy was
  * asked for (Keep in a basket that keeps text, "Keep readable text too" on a link, Try again), the source has full articles on,
  * or a basket that keeps readable text holds the item. An item that has a copy by now (or one on the way) is not news. A later
- * failure the same day grows that day's notification and makes it unread again. Each failure is told about once, however
+ * failure the same day grows that day's notification and makes it unseen again. Each failure is told about once, however
  * often this runs or notifications are pruned.
  */
 function notifyCaptureFailures(app: App, accountId: string, timezone: string | null, now: Date): number {
@@ -355,7 +355,7 @@ function notifyCaptureFailures(app: App, accountId: string, timezone: string | n
     const body = server.api.notifications.captureFailedBody;
     const data = JSON.stringify({ items: [...items], filter: "capture-failed", ...(g.basketId ? { basketId: g.basketId, links } : {}) });
     changed += earlier
-      ? app.db.run("UPDATE notifications SET title = ?, body = ?, data = ?, read_at = NULL WHERE id = ?", title, body, data, earlier.id).changes
+      ? app.db.run("UPDATE notifications SET title = ?, body = ?, data = ?, seen_at = NULL WHERE id = ?", title, body, data, earlier.id).changes
       : app.db.run("INSERT INTO notifications (id, account_id, kind, title, body, source_id, dedup_key, data, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)",
         newId("ntf"), accountId, title, body, g.sourceId, dedup, data, now.toISOString()).changes;
   }
@@ -387,20 +387,20 @@ function captureFailureLink(data: string | null): { listFilter?: "capture-failed
 }
 
 export function listNotifications(app: App, p: Principal, limit = 50): NotificationDTO[] {
-  return app.db.all<{ id: string; kind: NotificationDTO["kind"]; title: string; body: string | null; item_id: string | null; source_id: string | null; data: string | null; created_at: string; read_at: string | null }>(
-    "SELECT id, kind, title, body, item_id, source_id, data, created_at, read_at FROM notifications WHERE account_id = ? ORDER BY created_at DESC LIMIT ?", p.accountId, limit,
-  ).map((n) => ({ id: n.id, kind: n.kind, title: n.title, body: n.body, itemId: n.item_id, sourceId: n.source_id, createdAt: n.created_at, read: n.read_at !== null,
+  return app.db.all<{ id: string; kind: NotificationDTO["kind"]; title: string; body: string | null; item_id: string | null; source_id: string | null; data: string | null; created_at: string; seen_at: string | null }>(
+    "SELECT id, kind, title, body, item_id, source_id, data, created_at, seen_at FROM notifications WHERE account_id = ? ORDER BY created_at DESC LIMIT ?", p.accountId, limit,
+  ).map((n) => ({ id: n.id, kind: n.kind, title: n.title, body: n.body, itemId: n.item_id, sourceId: n.source_id, createdAt: n.created_at, read: n.seen_at !== null,
     ...captureFailureLink(n.data) }));
 }
 
-/** Unread notifications for the bell. Digest frequency does not hide independent notices. */
-export function unreadCount(app: App, accountId: string): number {
-  return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ? AND read_at IS NULL", accountId)!.n;
+/** Unseen notifications for the bell. Digest frequency does not hide independent notices. */
+export function unseenCount(app: App, accountId: string): number {
+  return app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ? AND seen_at IS NULL", accountId)!.n;
 }
 
 export function markNotificationsRead(app: App, p: Principal, ids: string[] | "all"): number {
-  if (ids === "all") return app.db.run("UPDATE notifications SET read_at = ? WHERE account_id = ? AND read_at IS NULL", nowIso(), p.accountId).changes;
+  if (ids === "all") return app.db.run("UPDATE notifications SET seen_at = ? WHERE account_id = ? AND seen_at IS NULL", nowIso(), p.accountId).changes;
   let n = 0;
-  for (const id of ids) n += app.db.run("UPDATE notifications SET read_at = ? WHERE id = ? AND account_id = ? AND read_at IS NULL", nowIso(), id, p.accountId).changes;
+  for (const id of ids) n += app.db.run("UPDATE notifications SET seen_at = ? WHERE id = ? AND account_id = ? AND seen_at IS NULL", nowIso(), id, p.accountId).changes;
   return n;
 }

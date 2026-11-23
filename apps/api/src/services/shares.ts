@@ -457,7 +457,7 @@ export function reportShare(app: App, pub: PublicShare, input: ReportInput, addr
     const body = server.api.shares.reportedBody(REPORT_REASON_LABELS[reason]);
     for (const a of admins) {
       app.db.run(`INSERT INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)
-        ON CONFLICT (account_id, dedup_key) DO UPDATE SET title = excluded.title, body = excluded.body, read_at = NULL`,
+        ON CONFLICT (account_id, dedup_key) DO UPDATE SET title = excluded.title, body = excluded.body, seen_at = NULL`,
       newId("ntf"), a.id, title, body, `share-report:${pub.id}:${now.slice(0, 10)}`, now);
     }
     return admins.map((a) => a.id);

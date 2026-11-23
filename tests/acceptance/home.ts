@@ -681,12 +681,12 @@ async function main(): Promise<void> {
     await findPage.getByText(new RegExp(`^${savedExport.source}`)).waitFor();
     assert.notEqual(await findPage.evaluate(() => document.activeElement === document.body), true, "after the export is saved focus is not on the page");
     assert.match(await findPage.evaluate(() => document.activeElement?.textContent ?? ""), savedExport, "it is on what was saved, which is read out");
-    await findPage.route("**/api/discover/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
-    await findPage.route("**/api/discover/sites", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Press", description: "Harbour newspaper", address: "https://quietharbour.example.test/", site: "quietharbour.example.test", from: "wikidata" }] } }));
-    await findPage.route("**/api/discover", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
+    await findPage.route("**/api/source-search/podcasts", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Radio", author: "Harbour Press", genre: "News", artworkUrl: null, feedUrl: "https://shows.example.test/quiet.xml" }] } }));
+    await findPage.route("**/api/source-search/sites", (r) => r.fulfill({ json: { ok: true, query: "quiet harbour", hits: [{ name: "Quiet Harbour Press", description: "Harbour newspaper", address: "https://quietharbour.example.test/", site: "quietharbour.example.test", from: "wikidata" }] } }));
+    await findPage.route("**/api/link-lookup", (r) => r.fulfill({ json: { ok: true, url: "https://shows.example.test/quiet.xml", candidates: [{ token: "tok_quiet", title: "Quiet Harbour Radio", kind: "feed", origin: "shows.example.test", via: "Posts feed", feedUrl: "https://shows.example.test/quiet.xml", siteUrl: null, cadence: "about 1 post a week", samples: [], summariesOnly: false, alreadyFollowingSourceId: null, privateWarning: null }] } }));
     // What the dialog says about how the person got to a lookup (the administrator's count of discovery routes by entry).
     const lookups: unknown[] = [];
-    findPage.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/discover") lookups.push(req.postDataJSON()); });
+    findPage.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/link-lookup") lookups.push(req.postDataJSON()); });
     await findPage.goto(`${origin}/app/`);
     await findPage.getByRole("button", { name: ADD_SOURCE }).first().click();
     await findPage.getByLabel(addSourceCopy.linkOrName).fill("quiet harbour");
@@ -698,9 +698,9 @@ async function main(): Promise<void> {
     assert.equal(await findPage.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "choosing a show puts focus on the feed that was found");
     step("after the export is saved and after a show is chosen in Add source (a name finds websites and shows), focus is on what the step shows");
     await findPage.keyboard.press("Escape");
-    await findPage.unroute("**/api/discover");
-    await findPage.unroute("**/api/discover/podcasts");
-    await findPage.unroute("**/api/discover/sites");
+    await findPage.unroute("**/api/link-lookup");
+    await findPage.unroute("**/api/source-search/podcasts");
+    await findPage.unroute("**/api/source-search/sites");
 
     // ---------- a basket made from an item's Keep menu: focus goes back to Keep, not to the page ----------
     await findPage.goto(`${origin}/app/c/${seed.reading}?filter=all`);

@@ -39,7 +39,7 @@ export type Handler<C> = (req: Req, ctx: C, res: ServerResponse) => Promise<unkn
 
 /**
  * `bodyLimit` above the default is accepted only from a signed-in caller, refused before anything is read.
- * `ownBody` leaves the body unread for the handler, which takes it itself (saveUpload, to disk).
+ * `ownBody` leaves the body unseen for the handler, which takes it itself (saveUpload, to disk).
  */
 export type RouteOptions = { bodyLimit?: number; ownBody?: boolean };
 export const DEFAULT_BODY_LIMIT = 1_000_000;
@@ -132,7 +132,7 @@ async function* bodyChunks(req: IncomingMessage, limit: number, pace: UploadPace
   const started = Date.now();
   const tooSlow = () => new HttpError(408, "upload_stalled", server.api.http.uploadStalled);
   // Read by events rather than an async iterator: when the sender stalls, waiting stops without destroying the
-  // connection, so the caller can still answer 408 (the server closes it after the answer, its body being unread).
+  // connection, so the caller can still answer 408 (the server closes it after the answer, its body being unseen).
   const queue: Buffer[] = [];
   let ended = false;
   let failure: unknown = null;

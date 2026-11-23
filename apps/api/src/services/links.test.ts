@@ -133,13 +133,13 @@ test("a link kept by hand is marked so, and its source takes the catalogue's nam
   const basket = createBasket(app, owner, { name: "Reading", captureMode: "metadata" }).id;
   const kept = (await keepLink(app, owner, { url: "https://example.org/other", basketId: basket, title: "Other" }, noLookup)).itemId;
   assert.deepEqual([getItem(app, owner, kept).keptByHand, getItem(app, owner, feedItem).keptByHand], [true, false]);
-  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks);
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.keptLinks);
 
   app.db.run("UPDATE sources SET title = 'Old name', origin = 'Old origin' WHERE kind = 'manual'");
   assert.equal(getItem(app, owner, kept).sourceTitle, "Old name");
   nameManualSources(app);
-  assert.deepEqual({ ...app.db.get<{ title: string; origin: string }>("SELECT title, origin FROM sources WHERE kind = 'manual'")! }, { title: server.api.shared.savedLinks, origin: server.api.portability.keptByHand });
-  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.savedLinks, "its items follow");
-  assert.equal(app.db.get<{ source_title: string }>("SELECT source_title FROM items WHERE id = ?", kept)!.source_title, server.api.shared.savedLinks, "and sort under the new name");
+  assert.deepEqual({ ...app.db.get<{ title: string; origin: string }>("SELECT title, origin FROM sources WHERE kind = 'manual'")! }, { title: server.api.shared.keptLinks, origin: server.api.portability.keptByHand });
+  assert.equal(getItem(app, owner, kept).sourceTitle, server.api.shared.keptLinks, "its items follow");
+  assert.equal(app.db.get<{ source_title: string }>("SELECT source_title FROM items WHERE id = ?", kept)!.source_title, server.api.shared.keptLinks, "and sort under the new name");
   assert.equal(getItem(app, owner, feedItem).sourceTitle, "Sediment Letters", "other sources keep theirs");
 });

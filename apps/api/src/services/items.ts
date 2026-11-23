@@ -132,7 +132,7 @@ export function toDTO(r: ItemRow, kept?: KeptDisplay): ItemDTO {
   const linkIsMedia = itemLinkIsMedia(r.url, r.enclosures);
   return {
     // A private source's file address can carry its secret: when the item's link is that file, it is not sent (its media is withheld too).
-    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.savedLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
+    id: r.id, number: r.number, sourceId: r.source_id, sourceTitle: r.source_title ?? server.api.shared.keptLink, keptByHand: r.source_id === null || r.source_kind === "manual", kind: r.kind as ItemDTO["kind"], title: displayTitle(r.title), url: r.is_private === 1 && linkIsMedia ? null : r.url, author: displayAuthor(r.author),
     excerpt: excerptBeyondTitle(r.title, displayExcerpt(r.excerpt)), imageUrl: shownImage(r), durationSeconds: r.duration_seconds, readMinutes: r.read_minutes, doi: r.doi,
     publishedAt: r.published_at, discoveredAt: r.discovered_at, listedAt: r.listed_at, workflow: r.workflow, revision: r.revision, workflowRevision: r.workflow_revision, playbackWorkflowSessionId: r.playback_workflow_session, stateVersion: r.state_version, isNew: r.is_new === 1,
     progress: r.progress, opened: r.opened_at !== null, basketIds: r.basket_ids ? r.basket_ids.split(",") : [], curatorNote: r.curator_note,

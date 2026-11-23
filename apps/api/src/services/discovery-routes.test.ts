@@ -15,7 +15,7 @@ import { generateOpml } from "./opml.ts";
 import { streamExport } from "./portability.ts";
 import { KEEP_DAYS, discoveryRouteStats, recordFollowed, recordOffered } from "./discovery-routes.ts";
 import { adminHealth } from "./admin.ts";
-import { discoverSources, followSource, presentCandidates, unfollowSource } from "./sources.ts";
+import { lookupSources, followSource, presentCandidates, unfollowSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 
 const follow = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
@@ -186,7 +186,7 @@ test("the lookup's answer to the browser and to an assistant carries neither the
   t.after(cleanup);
   const p = makeOwner(app);
   const news = `${app.config.publicOrigin}/news`;
-  const found = await discoverSources(app, p, news, "assistant");
+  const found = await lookupSources(app, p, news, "assistant");
   assert.ok(found.ok);
   for (const c of found.candidates) {
     assert.deepEqual(Object.keys(c).filter((k) => /route|entry/i.test(k)), [], "no route or entry among the candidate's fields");
@@ -207,7 +207,7 @@ test("a lookup from the browser says how the person got there; the extension's t
   t.after(async () => { await srv.close(); cleanup(); });
   const s = signIn(app, owner.accountId);
   const news = `${app.config.publicOrigin}/news`;
-  const ask = (entry?: string) => call(app, srv.base, "POST", "/api/discover", s, { url: news, ...(entry === undefined ? {} : { entry }) }, { headers: { "x-forwarded-for": "198.51.100.7" } });
+  const ask = (entry?: string) => call(app, srv.base, "POST", "/api/link-lookup", s, { url: news, ...(entry === undefined ? {} : { entry }) }, { headers: { "x-forwarded-for": "198.51.100.7" } });
   const counted = () => rows(app).map((r) => `${r.entry}:${r.offered}`);
 
   assert.equal((await ask()).status, 200);
@@ -222,7 +222,7 @@ test("a lookup from the browser says how the person got there; the extension's t
   for (const refused of ["opml-import", "extension", "assistant", "Paste", ""]) assert.equal((await ask(refused)).status, 400, `${refused || "empty"}: the browser cannot name an entry the server decides`);
 
   const token = createDeviceToken(app, owner.accountId, "extension", "Firefox").secret;
-  const viaExtension = await fetch(`${srv.base}/api/discover`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: "moz-extension://abc-123", "content-type": "application/json", "x-forwarded-for": "198.51.100.8" }, body: JSON.stringify({ url: news, entry: "site-search" }) });
+  const viaExtension = await fetch(`${srv.base}/api/link-lookup`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: "moz-extension://abc-123", "content-type": "application/json", "x-forwarded-for": "198.51.100.8" }, body: JSON.stringify({ url: news, entry: "site-search" }) });
   assert.equal(viaExtension.status, 200);
   assert.ok(!/route|entry/.test(await viaExtension.text()));
   assert.ok(counted().includes("extension:1") && counted().includes("site-search:1"), counted().join(" "));

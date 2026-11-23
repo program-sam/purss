@@ -312,7 +312,7 @@ private struct Palette {
 /// Android's Panels.kt does. A source with no title is a link the person saved by hand.
 private enum SourceFace {
     static func name(_ sourceTitle: String) -> String {
-        sourceTitle.isEmpty ? NativeTranslations.Widget.savedLink : sourceTitle
+        sourceTitle.isEmpty ? NativeTranslations.Widget.keptLink : sourceTitle
     }
 
     /// What the app's `[^\p{L}\p{N} ]` keeps: letters and numbers.

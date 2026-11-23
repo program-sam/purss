@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import { discover } from "./discover.ts";
-import type { BridgeClient, DiscoveryDraft, FetchFn } from "./discover.ts";
+import { lookupLink } from "./link-lookup.ts";
+import type { BridgeClient, DiscoveryDraft, FetchFn } from "./link-lookup.ts";
 import { decodePageKey } from "./page-feeds.ts";
 import { detectPageLists } from "./page-lists.ts";
 import { SCRIPT_BYTES, SCRIPT_FEEDS, SCRIPT_FILE_BYTES, SCRIPT_FILES, SCRIPT_SIBLINGS } from "./script-scan.ts";
@@ -71,7 +71,7 @@ test("a feed a script writes out is found, checked like any feed, and offered wi
     "https://www.rotterdam.nl/_next/static/chunks/nieuws-1a2b.js": script("x", `var a="/api/deepl/translate",b="${new URL(feedUrl).pathname}",c="/_next/image";`),
     [feedUrl]: feed(feedUrl, "Nieuws Rotterdam"),
   });
-  const d = ok(await discover(page, { fetch, now: NOW }));
+  const d = ok(await lookupLink(page, { fetch, now: NOW }));
   assert.equal(d.candidates.length, 1);
   const c = d.candidates[0]!;
   assert.deepEqual([c.feedUrl, c.route, c.fromScripts, c.matchesPage, c.note], [feedUrl, "script-feed", true, false, copy.scriptScan.feedNote]);
@@ -95,10 +95,10 @@ test("an address a script names counts only when it answers as a feed with entri
     [url("/rss/d.xml")]: fakeResponse(url("/rss/d.xml"), "", "application/rss+xml", 500),
     [url("/rss/e.xml")]: feed(url("/rss/e.xml"), "The one that works"),
   });
-  const d = ok(await discover(page, { fetch, now: NOW }));
+  const d = ok(await lookupLink(page, { fetch, now: NOW }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), [url("/rss/e.xml")]);
   // Nothing of them answers as a feed: the usual answer.
-  const none = await discover(page, { fetch: site({ [page]: html(page, `<html><head><script src="/app.js"></script></head><body></body></html>`), "https://news.example/app.js": script("x", names.map((n) => `"${n}"`).join(",")) }).fetch, now: NOW });
+  const none = await lookupLink(page, { fetch: site({ [page]: html(page, `<html><head><script src="/app.js"></script></head><body></body></html>`), "https://news.example/app.js": script("x", names.map((n) => `"${n}"`).join(",")) }).fetch, now: NOW });
   assert.ok(!none.ok && none.reason === "nofeed" && none.message === copy.discover.noFeed, JSON.stringify(none));
 });
 
@@ -114,7 +114,7 @@ test("at most three script feeds are offered, one feed written two ways once, an
     "https://blog.example.net/rss/one.xml": fakeResponse("https://blog.example.net/rss/one.xml", same, "application/rss+xml"),
     "https://blog.example.net/comments/rss.xml": feed("https://blog.example.net/comments/rss.xml", "Comments on the blog"),
   });
-  const d = ok(await discover(page, { fetch, now: NOW }));
+  const d = ok(await lookupLink(page, { fetch, now: NOW }));
   assert.ok(d.candidates.length <= 3 && d.candidates.length >= 2, `${d.candidates.length} feeds`);
   assert.ok(!d.candidates.some((c) => c.feedUrl.includes("comments")), "no comment feed");
   assert.equal(d.candidates.filter((c) => c.title === "Shared" || c.feedUrl.endsWith("dup.xml") || c.feedUrl.endsWith("one.xml")).length, 1, "the same posts under two addresses are one choice");
@@ -126,7 +126,7 @@ test("a page of the same site that the scripts name, which shows its list as mar
   const asked: string[] = [];
   const page = shell(`<script type="application/ld+json">{"@type":"BreadcrumbList","itemListElement":[{"item":"${sibling}"},{"item":"${SHELL_URL}#breadcrumb"}]}</script>`);
   const { fetch, calls } = site({ [SHELL_URL]: html(SHELL_URL, page), [sibling]: html(sibling, LISTED) });
-  const d = ok(await discover(SHELL_URL, { fetch, now: NOW, bridge: router({ [sibling]: LISTED }, asked) }));
+  const d = ok(await lookupLink(SHELL_URL, { fetch, now: NOW, bridge: router({ [sibling]: LISTED }, asked) }));
   assert.ok(d.candidates.length >= 1 && d.candidates.length <= 3);
   for (const c of d.candidates) {
     assert.equal(c.route, "script-page");
@@ -151,13 +151,13 @@ test("the usual answer when nothing a script names is a feed or a page with a li
     "https://www.rijksoverheid.nl/app.js": script("x", `const a="/actueel/zoeken", b="/api/rss-nope", c="/over-ons";`),
     "https://www.rijksoverheid.nl/actueel/zoeken": html("https://www.rijksoverheid.nl/actueel/zoeken", "<html><body><p>Search</p></body></html>"),
   });
-  const d = await discover(SHELL_URL, { fetch, now: NOW, bridge: router({}) });
+  const d = await lookupLink(SHELL_URL, { fetch, now: NOW, bridge: router({}) });
   assert.ok(!d.ok && d.reason === "nofeed" && d.message === words.scriptPage, JSON.stringify(d));
   assert.ok(calls.includes("https://www.rijksoverheid.nl/app.js") && calls.includes("https://www.rijksoverheid.nl/actueel/zoeken"), "the scan did look");
   // A plain page with nothing script-built keeps the plain answer.
   const plain = "https://plain.example/about";
   const text = "A long page of ordinary writing about nothing in particular, with no list of posts in it at all. ".repeat(6);
-  const p = await discover(plain, { fetch: site({ [plain]: html(plain, `<html><head><title>About</title><script src="/a.js"></script></head><body><main><p>${text}</p><p>${text}</p></main></body></html>`), "https://plain.example/a.js": script("x", `"/jobs"`) }).fetch, now: NOW, bridge: router({}) });
+  const p = await lookupLink(plain, { fetch: site({ [plain]: html(plain, `<html><head><title>About</title><script src="/a.js"></script></head><body><main><p>${text}</p><p>${text}</p></main></body></html>`), "https://plain.example/a.js": script("x", `"/jobs"`) }).fetch, now: NOW, bridge: router({}) });
   assert.ok(!p.ok && p.message === copy.discover.noFeed);
 });
 
@@ -176,7 +176,7 @@ test("order: a feed found anywhere earlier ends the search, a script feed beats 
     [wdFeed]: feed(wdFeed, "Registry"),
     "https://blog.example.org/feed/from-script.xml": feed("https://blog.example.org/feed/from-script.xml", "From script"),
   });
-  const first = ok(await discover(url, { fetch: registry.fetch, now: NOW }));
+  const first = ok(await lookupLink(url, { fetch: registry.fetch, now: NOW }));
   assert.deepEqual(first.candidates.map((c) => [c.route, c.feedUrl]), [["wikidata", wdFeed]]);
   assert.ok(!registry.calls.includes("https://blog.example.org/app.js"), "no script was read");
 
@@ -187,7 +187,7 @@ test("order: a feed found anywhere earlier ends the search, a script feed beats 
     "https://www.anthropic.com/app.js": script("x", `"/news/rss-feed.xml"`),
     "https://www.anthropic.com/news/rss-feed.xml": feed("https://www.anthropic.com/news/rss-feed.xml", "Anthropic news"),
   });
-  const feedWins = ok(await discover(LIST_URL, { fetch: both.fetch, now: NOW, bridge: router({ [LIST_URL]: LISTED }, asked) }));
+  const feedWins = ok(await lookupLink(LIST_URL, { fetch: both.fetch, now: NOW, bridge: router({ [LIST_URL]: LISTED }, asked) }));
   assert.deepEqual(feedWins.candidates.map((c) => c.route), ["script-feed"]);
   assert.deepEqual(asked, []);
 
@@ -198,7 +198,7 @@ test("order: a feed found anywhere earlier ends the search, a script feed beats 
     "https://www.anthropic.com/app.js": script("x", `"/news/archive"`),
     [sibling]: html(sibling, fixture("anthropic-research.html")),
   });
-  const ownWins = ok(await discover(LIST_URL, { fetch: own.fetch, now: NOW, bridge: router({ [LIST_URL]: LISTED, [sibling]: fixture("anthropic-research.html") }, asked) }));
+  const ownWins = ok(await lookupLink(LIST_URL, { fetch: own.fetch, now: NOW, bridge: router({ [LIST_URL]: LISTED, [sibling]: fixture("anthropic-research.html") }, asked) }));
   assert.ok(ownWins.candidates.every((c) => c.route === "page-list" && !c.fromScripts));
   assert.equal(ownWins.candidates[0]!.matchesPage, true);
   assert.ok(!own.calls.includes(sibling), "the sibling was not asked for");
@@ -215,7 +215,7 @@ test("caps: ten script files, three MiB, six feeds and two pages, only the page'
   routes[page] = html(page, `<html><head>${scripts.map((s) => `<script src="${s}"></script>`).join("")}<script src="https://cdn.third-party.example/lib.js"></script><script src="https://www.googletagmanager.com/gtm.js"></script>
     <script>var names = ${JSON.stringify([...feeds, ...pagesNamed])};</script></head><body></body></html>`);
   const { fetch, calls } = site(routes);
-  const d = await discover(page, { fetch, now: NOW, bridge: router({}) });
+  const d = await lookupLink(page, { fetch, now: NOW, bridge: router({}) });
   assert.ok(!d.ok);
   const fetchedScripts = calls.filter((c) => c.includes("/js/chunk-"));
   assert.equal(fetchedScripts.length, SCRIPT_FILES, "ten files");
@@ -235,7 +235,7 @@ test("the bytes of scripts are bounded: no file past two MiB, all of them togeth
   const routes: Record<string, Route> = { [page]: html(page, `<html><head>${urls.map((u) => `<script src="${u}"></script>`).join("")}</head></html>`) };
   for (const u of urls) routes[u] = (url, opts) => { asked.push(opts?.maxBytes ?? -1); return fakeResponse(url, Buffer.alloc(opts?.maxBytes ?? 0, "x"), "application/javascript"); };
   const { fetch } = site(routes);
-  await discover(page, { fetch, now: NOW });
+  await lookupLink(page, { fetch, now: NOW });
   assert.ok(asked.every((n) => n > 0 && n <= SCRIPT_FILE_BYTES), asked.join(","));
   assert.ok(asked.length <= 3, "the room is gone after the first three or so: two MiB, one MiB, then none");
   assert.ok(asked.reduce((a, b) => a + b, 0) <= SCRIPT_BYTES + SCRIPT_FILE_BYTES, "what was asked for never exceeds the room");
@@ -248,7 +248,7 @@ test("only the page's own site is asked: another site's page is no sibling, and 
     "https://www.example.net/app.js": script("x", `"https://other-company.example/latest","https://www.example.net/feed.xml?token=abc123","https://www.example.net/rss/key.xml?api_key=zz","https://www.example.net/rss/h.xml?sha256=aa","https://www.example.net/rss/s.xml?client_id=1&signature=2","https://www.example.net/rss/hh.xml?hash=1","https://www.example.net/rss/k.xml?key=x1","https://www.example.net/rss/ok.xml?language=en"`),
     "https://www.example.net/rss/ok.xml?language=en": feed("https://www.example.net/rss/ok.xml?language=en"),
   });
-  const d = ok(await discover(page, { fetch, now: NOW, bridge: router({}) }));
+  const d = ok(await lookupLink(page, { fetch, now: NOW, bridge: router({}) }));
   assert.deepEqual(d.candidates.map((c) => c.feedUrl), ["https://www.example.net/rss/ok.xml?language=en"]);
   assert.ok(!calls.some((c) => /other-company|token=|api_key|sha256|client_id|hash=|key=x1/.test(c)), calls.filter((c) => /other|token|key|sha256|client|hash/.test(c)).join("\n"));
 });
@@ -258,11 +258,11 @@ test("the step has requests and time of its own, and gives way when the lookup h
   const body = `<html><head><script src="/a.js"></script><script src="/b.js"></script></head><body>x</body></html>`;
   // The cap of requests is spent already (two): the scripts are still read, from the step's own allowance.
   const used = site({ [page]: html(page, body), "https://www.example.net/a.js": script("x", `"/rss/found.xml"`), "https://www.example.net/rss/found.xml": feed("https://www.example.net/rss/found.xml") });
-  const d = ok(await discover(page, { fetch: used.fetch, now: NOW, maxRequests: 2 }));
+  const d = ok(await lookupLink(page, { fetch: used.fetch, now: NOW, maxRequests: 2 }));
   assert.deepEqual(d.candidates.map((c) => c.route), ["script-feed"]);
   // With only a few seconds of the lookup left, the scripts are not read at all, and the usual answer stands.
   const short = site({ [page]: html(page, body), "https://www.example.net/a.js": script("x", `"/rss/found.xml"`), "https://www.example.net/rss/found.xml": feed("https://www.example.net/rss/found.xml") });
-  const none = await discover(page, { fetch: short.fetch, now: NOW, timeoutMs: 9500 });
+  const none = await lookupLink(page, { fetch: short.fetch, now: NOW, timeoutMs: 9500 });
   assert.ok(!none.ok && none.message === copy.discover.noFeed, JSON.stringify(none));
   assert.ok(!short.calls.some((c) => c.endsWith(".js")), "no script was asked for");
 });
@@ -270,7 +270,7 @@ test("the step has requests and time of its own, and gives way when the lookup h
 test("a page whose address looks to carry a key, and one that is no web page, are left alone", async () => {
   const keyed = "https://example.net/private/feeds/a8f3c91d2e7b4f6a9c0d1e2f3a4b5c6d";
   const k = site({ [keyed]: html(keyed, `<html><head><script src="/a.js"></script></head></html>`), "https://example.net/a.js": script("x", `"/rss/found.xml"`) });
-  const d = await discover(keyed, { fetch: k.fetch, now: NOW });
+  const d = await lookupLink(keyed, { fetch: k.fetch, now: NOW });
   assert.ok(!d.ok);
   assert.ok(!k.calls.some((c) => c.endsWith(".js")), "no script was read");
 });
@@ -286,7 +286,7 @@ test("a sibling the scripts name is asked for at most twice and judged like the 
     // The third that the scripts name is the only one with a list, and the least likely: it is never asked for.
     "https://www.rijksoverheid.nl/actueel/archief": html("https://www.rijksoverheid.nl/actueel/archief", LISTED),
   });
-  const d = await discover(SHELL_URL, { fetch, now: NOW, bridge: router({ "https://www.rijksoverheid.nl/actueel/archief": LISTED }, asked) });
+  const d = await lookupLink(SHELL_URL, { fetch, now: NOW, bridge: router({ "https://www.rijksoverheid.nl/actueel/archief": LISTED }, asked) });
   assert.ok(!d.ok && d.message === words.scriptPage, JSON.stringify(d));
   assert.equal(calls.filter((c) => /\/(actueel|actueel\/archief|nieuws-archief)$/.test(c)).length, SCRIPT_SIBLINGS, "two pages, not three");
   assert.ok(!calls.includes("https://www.rijksoverheid.nl/actueel/archief"));
@@ -297,18 +297,18 @@ test("a sibling that sends the reader to another site, or back to the page, is n
   const sibling = "https://www.rijksoverheid.nl/actueel";
   const moved = fakeResponse("https://elsewhere.example/news", LISTED, "text/html", 200, { redirects: ["https://elsewhere.example/news"] });
   const away = site({ [SHELL_URL]: html(SHELL_URL, shell(`<script>const a = "/actueel";</script>`)), [sibling]: moved });
-  const d = await discover(SHELL_URL, { fetch: away.fetch, now: NOW, bridge: router({ "https://elsewhere.example/news": LISTED }) });
+  const d = await lookupLink(SHELL_URL, { fetch: away.fetch, now: NOW, bridge: router({ "https://elsewhere.example/news": LISTED }) });
   assert.ok(!d.ok, JSON.stringify(d));
   const back = site({ [SHELL_URL]: html(SHELL_URL, shell(`<script>const a = "/actueel";</script>`)), [sibling]: fakeResponse(SHELL_URL, shell(), "text/html", 200, { redirects: [SHELL_URL] }) });
-  assert.ok(!(await discover(SHELL_URL, { fetch: back.fetch, now: NOW, bridge: router({ [SHELL_URL]: LISTED }) })).ok);
+  assert.ok(!(await lookupLink(SHELL_URL, { fetch: back.fetch, now: NOW, bridge: router({ [SHELL_URL]: LISTED }) })).ok);
 });
 
 test("without a router the scripts still give their feeds, and no list is looked for", async () => {
   const page = "https://www.example.net/news";
   const found = site({ [page]: html(page, `<html><head><script src="/a.js"></script></head></html>`), "https://www.example.net/a.js": script("x", `"/rss/found.xml","/news/latest"`), "https://www.example.net/rss/found.xml": feed("https://www.example.net/rss/found.xml") });
-  assert.deepEqual(ok(await discover(page, { fetch: found.fetch, now: NOW })).candidates.map((c) => c.route), ["script-feed"]);
+  assert.deepEqual(ok(await lookupLink(page, { fetch: found.fetch, now: NOW })).candidates.map((c) => c.route), ["script-feed"]);
   const none = site({ [page]: html(page, `<html><head><script src="/a.js"></script></head></html>`), "https://www.example.net/a.js": script("x", `"/news/latest"`), "https://www.example.net/news/latest": html("x", LISTED) });
-  assert.ok(!(await discover(page, { fetch: none.fetch, now: NOW })).ok);
+  assert.ok(!(await lookupLink(page, { fetch: none.fetch, now: NOW })).ok);
   assert.ok(!none.calls.includes("https://www.example.net/news/latest"), "a sibling is asked for only to preview its lists");
 });
 
@@ -318,7 +318,7 @@ test("the page's own links name its parent and sibling pages: a breadcrumb or a 
   const asked: string[] = [];
   const markup = `<html><head><title>Media releases</title></head><body><nav><a href="/media/index.html">Media</a> <a href="/about/index.html">About</a> <a href="/other/page.html">Other</a></nav><div id="app"></div></body></html>`;
   const { fetch, calls } = site({ [page]: html(page, markup), [sibling]: html(sibling, LISTED) });
-  const d = ok(await discover(page, { fetch, now: NOW, bridge: router({ [sibling]: LISTED }, asked) }));
+  const d = ok(await lookupLink(page, { fetch, now: NOW, bridge: router({ [sibling]: LISTED }, asked) }));
   assert.ok(d.candidates.length >= 1 && d.candidates.every((c) => c.route === "linked-page" && c.fromScripts === true && c.matchesPage === false), "named only by the page's links: its own route");
   assert.deepEqual([...new Set(asked)], [sibling]);
   assert.ok(!calls.includes("https://www.cdc.gov/about/index.html") && !calls.includes("https://www.cdc.gov/other/page.html"), "a page about something else is not asked for");
@@ -334,14 +334,14 @@ test("a script file that redirects to another site is not read, and a sibling on
     [moved]: fakeResponse("https://cdn.other.example/app.js", `const f="/feed/rss/nieuws/";`, "application/javascript", 200, { redirects: ["https://cdn.other.example/app.js"] }),
     [feedUrl]: feed(feedUrl),
   });
-  const d = await discover(page, { fetch, now: NOW, bridge: router({}) });
+  const d = await lookupLink(page, { fetch, now: NOW, bridge: router({}) });
   assert.ok(!calls.includes(feedUrl), "the redirected file's addresses were not asked for");
   assert.ok(!d.ok || d.candidates.every((c) => c.route !== "script-feed"));
   // A sibling a script names on another subdomain of the same site is another part of the site, not the page's sibling.
   const named = "https://blog.rijksoverheid.nl/actueel";
   const other = site({ [page]: html(page, shell(`<script>window.r = { a: "https://blog.rijksoverheid.nl/actueel" };</script>`)), [named]: html(named, LISTED) });
   const asked: string[] = [];
-  const e = await discover(page, { fetch: other.fetch, now: NOW, bridge: router({ [named]: LISTED }, asked) });
+  const e = await lookupLink(page, { fetch: other.fetch, now: NOW, bridge: router({ [named]: LISTED }, asked) });
   assert.deepEqual(asked, []);
   assert.ok(!e.ok || e.candidates.every((c) => c.route !== "script-page"));
 });

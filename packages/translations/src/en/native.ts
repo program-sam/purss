@@ -115,7 +115,7 @@ export const native = {
     playing: "Playing",
     paused: "Paused",
     pausedAt: "Paused at {time}",
-    savedLink: "Saved link",
+    keptLink: "Kept link",
   },
   // the iOS app's own text, where it differs from Android's (NativeTranslations.Ios in Swift): its widgets are
   // edited from their touch-and-hold menu, not tapped. `panelChoice` is the widget settings' App Intent names, which

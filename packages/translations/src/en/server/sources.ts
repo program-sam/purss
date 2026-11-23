@@ -194,7 +194,7 @@ export const sources = {
         blueskyBadHandle: "That isn't a valid Bluesky handle. It looks like name.bsky.social or a web address such as example.com.",
         blueskyNoFeed: "Bluesky didn't send the account's feed just now. Try again in a moment.",
         blueskyUnreadable: "Bluesky sent a feed we couldn't read. Try again later.",
-        bridgeNote: "Collected by this server from the public page, as the latest posts at each check. It can stop working when the service changes its site.",
+        bridgeNote: "Fetched by this server from the public page, as the latest posts at each check. It can stop working when the service changes its site.",
         bridgeNoPostsCheck: (service: string, key: string) => `${service} didn't give us the posts of ${key} just now. Check the address, or try again in a few minutes.`,
         bridgeNoPosts: (service: string, key: string) => `${service} didn't give us the posts of ${key} just now. Try again in a few minutes.`,
         bridgeNotRun: "That source comes from a server bridge this installation doesn't run, so it can't be followed here.",

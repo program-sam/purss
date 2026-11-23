@@ -1,6 +1,6 @@
 import { FULL_TEXT_BACKFILL, initialsFor, newId } from "@purss/domain";
 import type { DiscoveryEntry, DiscoveryResult, LookupEntry, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO, SourceHealth } from "@purss/domain";
-import { coreName, discover, searchPodcasts, searchSites } from "@purss/connectors";
+import { coreName, lookupLink, searchPodcasts, searchSites } from "@purss/connectors";
 import type { DiscoveryDraft } from "@purss/connectors";
 import type { PodcastSearchOptions, SiteSearchOptions } from "@purss/connectors";
 import type { z } from "zod";
@@ -113,11 +113,11 @@ export function getSource(app: App, p: Principal, id: string): SourceDTO {
  * administrator's record of discovery routes counts what it shows and what is followed by it); `reconnect` is a lookup for a private
  * source's link, which follows nothing and is not counted.
  */
-export async function discoverSources(app: App, p: Principal, url: string, entry: LookupEntry | DiscoveryEntry = "paste"): Promise<DiscoveryResult> {
+export async function lookupSources(app: App, p: Principal, url: string, entry: LookupEntry | DiscoveryEntry = "paste"): Promise<DiscoveryResult> {
   const how: Presenting = entry === "reconnect" ? { entry: "paste", count: false } : { entry };
   const news = newsCandidate(app, url);
   if (news) return { ok: true, url, candidates: presentCandidates(app, p, [news], how) };
-  const result = await discover(url, bridgeOptions(app));
+  const result = await lookupLink(url, bridgeOptions(app));
   if (!result.ok) {
     recordDiscoveryMiss(app, url, result.reason); // counts the site only, for the administrator; never changes the answer
     return result;
@@ -448,7 +448,7 @@ function pointSubscribeJobs(app: App, sourceId: string, feedUrl: string): void {
  * Shared pages and exports made while the link was public are not taken back.
  */
 export async function setSourcePrivacy(app: App, p: Principal, id: string, makePrivate: boolean,
-  find: (url: string) => Promise<DiscoveryDraft> = (url) => discover(url, bridgeOptions(app))): Promise<SourceDTO> {
+  find: (url: string) => Promise<DiscoveryDraft> = (url) => lookupLink(url, bridgeOptions(app))): Promise<SourceDTO> {
   const s = app.db.get<{ kind: string; feed_url: string | null; site_url: string | null; is_private: number; health: string; builtin: string | null }>(
     "SELECT kind, feed_url, site_url, is_private, health, builtin FROM sources WHERE id = ? AND account_id = ? AND followed = 1 AND kind <> 'manual'", id, p.accountId);
   if (!s) throw notFound(server.api.shared.thatSource);

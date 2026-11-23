@@ -33,9 +33,9 @@ export const isToListen = (i: Aside) => inQueue(i) && i.kind === "podcast";
  * What Home says when nothing is marked New. It follows the facts: while older items nobody has looked at are still on Home it
  * says nothing is new, not that everything is done; "up to date" is only for a Home with nothing waiting.
  */
-export function calmLine(o: Pick<HomeOverview, "unread">, f: { visited: boolean; items: number; showCounts: boolean }): string {
-  if (o.unread > 0) {
-    const older = f.showCounts ? app.lib.returning.olderNotLookedAt(plural(o.unread, app.lib.nouns.olderItem)) : "";
+export function calmLine(o: Pick<HomeOverview, "unseen">, f: { visited: boolean; items: number; showCounts: boolean }): string {
+  if (o.unseen > 0) {
+    const older = f.showCounts ? app.lib.returning.olderNotLookedAt(plural(o.unseen, app.lib.nouns.olderItem)) : "";
     return `${f.visited ? app.lib.returning.nothingNewSince : app.lib.returning.nothingMarkedNew}${older}`;
   }
   return f.items ? app.lib.returning.upToDate : app.lib.returning.nothingArrived;

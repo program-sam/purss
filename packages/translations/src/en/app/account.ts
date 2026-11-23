@@ -174,7 +174,7 @@ export default {
       yourPlan: (plan: string) => `Your plan: ${plan}`,
       unlimitedCollections: ", unlimited collections",
       collectionsOf: (used: number, limit: number) => `, ${used} of ${limit} collections`,
-      savedLinks: "Saved links don't count as sources.",
+      keptLinks: "Kept links don't count as sources.",
       noLimits: "Your account has no limits.",
       administratorSetsPlans: "The administrator of this PURSS sets plans.",
       paidUnavailable: "Paid plans aren't available yet.",

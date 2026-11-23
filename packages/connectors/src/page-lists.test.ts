@@ -419,7 +419,7 @@ test("what is not a web page gives nothing", () => {
   }
 });
 
-test("a page over two mebibytes is refused unread, as is markup too large or too deep to read safely", () => {
+test("a page over two mebibytes is refused unseen, as is markup too large or too deep to read safely", () => {
   assert.deepEqual(detectPageLists(`<html><body>${"<a href='/a'>x</a>".repeat(130_000)}</body></html>`, "https://example.com/", NOW), { candidates: [], diagnosis: "tooLarge" });
   assert.equal(MAX_PAGE_BYTES, 2 * 1024 * 1024);
   // Multi-byte text counts in bytes.
