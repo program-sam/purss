@@ -1,6 +1,6 @@
 # Site
 
-The public website: a home page (`index.html`, built from `src/home.ts`) and the Terms,
+The public site: a home page (`index.html`, built from `src/home.ts`) and the Terms,
 Privacy and Legal notice pages (`terms.html`, `privacy.html`, `legal.html`, from
 `src/legal.ts`). It is static and uses the app's own design tokens, primitives and styles, so
 its picture of PURSS is built from the real app CSS (`src/kit.ts`). All of its text, the Terms,
@@ -13,7 +13,7 @@ npx vite build        # writes apps/site/dist
 
 Every page's HTML and metadata is rendered at build time (and on each request in `vite dev`)
 from `src/pages.ts`, so crawlers and link previews see the whole page without scripts; the
-browser script only runs the home page's switch (a feed full of ads and suggestions turns into a PURSS Home, `src/home.ts`) and the small-screen menu. The page is rendered finished, with the switch on, and the script plays the feed first only when motion is allowed. Each page has its own title,
+browser script only runs the home page's switch (a social feed full of ads and suggestions turns into a PURSS Home, `src/home.ts`) and the small-screen menu. The page is rendered finished, with the switch on, and the script plays the social feed first only when motion is allowed. Each page has its own title,
 description, canonical link and link-preview tags; the home page also has structured data for
 the plans. The build also writes `robots.txt`, `sitemap.xml` and a `404.html`.
 
@@ -31,22 +31,22 @@ are set, the build uses placeholders and warns about each one still on a `.examp
 Set them in the environment or in `apps/site/.env` (ignored by Git), for example
 `SITE_ORIGIN=https://example.org npx vite build`. The defaults live in `src/site.ts`.
 
-In hosted mode the API serves `dist` at the root of the PURSS's address, next to the app at
+In hosted mode the API serves `dist` at the root of the installation's PURSS address, next to the app at
 `/app/`, and answers unknown paths with `404.html` (`apps/api/src/web-routes.ts`). Someone already
-signed in sees the website too: the API marks each page it serves them with `data-session` on
+signed in sees the public site too: the API marks each page it serves them with `data-session` on
 `<html>`, and the header then shows Go to your PURSS instead of Open dashboard and sign-up. The Docker image
-builds it with `SITE_ORIGIN` set to `PURSS_PUBLIC_ORIGIN`. Self-hosted installations have no website:
+builds it with `SITE_ORIGIN` set to `PURSS_PUBLIC_ORIGIN`. Self-hosted installations have no public site:
 their root opens the app.
 
 The site sets no cookies and loads no third-party scripts. Plans, prices and comparison
-figures live in `src/kit.ts`, their wording in the `kit` section of `packages/translations/src/en/site.ts`. Store buttons for the browser extension and the phone app come from
+figures live in `src/kit.ts`, their wording in the `kit` section of `packages/translations/src/en/site.ts`. Store buttons for the browser extension and the mobile app come from
 `packages/domain/src/distribution.ts`, shared with the app's Settings: a store gets a button once its listing
-address is set there, and a card with no listing shows none. The phone card also links the Android APK from the
+address is set there, and a card with no listing shows none. The mobile app's card also links the Android APK from the
 latest release; the desktop card has one download button, which a few lines of script point at the visitor's system,
 and a link to the release page with every system's files. The build and load-unpacked instructions are developer
 links under the install commands in the pricing section's "You run it" box. The picture of Home is a picture: its contents
 are `aria-hidden`, so no button inside it is exposed. Competitor prices must be
-checked against the pricing pages linked in the comparison footnote before publishing.
+checked against the pricing pages linked in the comparison footnote before publishing. The component map is in [architecture](../../docs/architecture.md#components).
 
 `node --test src/pages.test.ts` (part of `npm test`) renders every page and checks that no link
 is dead, the pictures hide their controls, and the page order and the answers people looked for

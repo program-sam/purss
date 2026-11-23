@@ -1,6 +1,6 @@
 # Infrastructure
 
-Two ways to run the stack:
+Two ways to run the stack (the component map is in [architecture](../docs/architecture.md#components)):
 
 - **Local development:** `npm run dev` (FreshRSS in rootless podman; egress, API and worker as
   Node processes). Engine operation is in [engine/README.md](engine/README.md).
@@ -26,9 +26,9 @@ How Compose differs from the dev setup:
   with only the listed bridges enabled. It sits alone on its own internal network (`bridge-net`), and its requests
   and name lookups go through the egress proxy and its resolver, which refuse private addresses.
 - `init` creates the secrets and the engine's install-time settings before the engine starts;
-  `engine-setup` checks the proxy setting and operator sign-in once the engine is healthy.
+  `engine-setup` checks the proxy setting and the engine administrator's sign-in once the engine is healthy.
 - Volumes: `data` (product database), `secrets` (tokens and passwords; the engine can read only
-  its admin helper's token and its operator secret), `engine-data` (FreshRSS).
+  its admin helper's token and its administrator secret), `engine-data` (FreshRSS).
 
 Backups: `docker compose -f infra/compose.yaml exec api node scripts/backup.ts`. See
 [backups and restore](../docs/self-hosting.md#backups-and-restore), and

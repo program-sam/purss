@@ -8,20 +8,20 @@ and released.
 
 | Path | What lives there |
 | --- | --- |
-| `apps/api` | API server (`src/main.ts`), operator CLI (`src/cli.ts`), routes, services, migrations (`src/db/migrations`) |
+| `apps/api` | API server (`src/main.ts`), administrator CLI (`src/cli.ts`), routes, services, migrations (`src/db/migrations`) |
 | `apps/worker` | Job runner and handlers |
 | `apps/egress` | Egress proxy, feed gateway, control listener |
 | `apps/web` | React web app (Vite); feature pages registered in `src/plugins.ts`; platform layer in `src/platform` |
-| `apps/mobile` | Android and iOS apps (Capacitor) around the web app's build; see its README |
+| `apps/mobile` | Mobile app for Android and iOS (Capacitor) around the web app's build; see its README |
 | `apps/desktop` | Desktop app for Windows, macOS and Linux (Tauri) around the web app's build; see its README |
-| `apps/push-relay` | Small service that wakes phone apps; holds the push credentials so a self-hosted PURSS needs none |
-| `apps/site` | The public website: home page and the Terms, Privacy and Legal notice pages |
+| `apps/push-relay` | Small service that delivers phone notifications to the mobile app; holds the push credentials so a self-hosted installation needs none |
+| `apps/site` | The public site: home page and the Terms, Privacy and Legal notice pages |
 | `apps/extension` | Browser extension for Chrome, Edge, Firefox and Safari; built to `apps/extension/dist` (see its README) |
 | `packages/domain` | Shared contracts: IDs, workflow, query tree, API and job schemas |
-| `packages/connectors` | Safe fetch, discovery, feed parsing, readable capture, OPML |
+| `packages/connectors` | Safe fetch, link lookup, feed parsing, readable capture, OPML |
 | `packages/freshrss` | GReader client, sync walk, fixed admin commands, engine lifecycle |
 | `packages/ui` | Design tokens and UI primitives |
-| `packages/translations` | Every word people read: one catalogue each for the website, the app, the UI kit, the extension, the server and shared text (see its README) |
+| `packages/translations` | Every word people read, in translation files: one each for the public site, the app, the UI kit, the extension, the server and shared text (see its README) |
 | `infra` | Compose files, product image, engine image and its admin helper |
 | `scripts` | Dev runner, engine lifecycle, backup and restore, repository check, allowlist generator, dataset generator (size guard) |
 | `tests/engine` | Contract tests against the pinned FreshRSS container |
@@ -65,10 +65,10 @@ start the API with `PURSS_PUBLIC_ORIGIN=http://localhost:5173` so its origin and
 - **The browser imports types only from `@purss/domain`** (`import type`); the domain package's
   runtime uses Node modules and `zod`, which stay on the server.
 - **The API is the only database writer.** Other processes go through its internal routes.
-- **Scoped queries.** Product queries filter by the principal's `workspace_id` or `account_id`.
-- **User-facing messages** are plain language; errors are `{ error: { code, message } }`.
-- **Copy lives in `@purss/translations`.** Visible text, emails and messages people read come from the
-  catalogue for their audience, never inline strings; ids, logs, operator output and labels only screen
+- **Scoped queries.** Product queries filter by the principal's `account_id`.
+- **Messages people read** are plain language; errors are `{ error: { code, message } }`.
+- **Text lives in `@purss/translations`.** Visible text, emails and messages people read come from the
+  translation file for their audience, never inline strings; ids, logs, administrator output and labels only screen
   readers announce stay in code ([packages/translations](../packages/translations/README.md)).
 - **Secrets, runtime data and downloaded content stay out of Git** (`data/`, `.env`, backups).
 
@@ -96,7 +96,7 @@ with what feeds, FreshRSS, publishers' sites and large accounts really do, so:
 - A mock passing is not proof of engine compatibility. Changes to sync, the engine adapter or the
   admin helper run `test:engine` against the pinned container.
 - The core journey follows real public sources through FreshRSS, the egress proxy and the worker.
-- Source discovery and the journal rules are checked against the live sites with
+- Link lookup and the journal rules are checked against the live sites with
   `node scripts/journal-feeds-check.ts`; an RSS-Bridge image is checked against every bridged service
   with `node scripts/bridge-check.ts`. Both need the network and are not part of `npm test`.
 - The page-list detector is measured against saved pages and hand labels (top-1 and top-3 accuracy, titles, dates,
@@ -148,15 +148,15 @@ For a change to a journey, show that these still hold, with the tests that cover
 
 | Area | What must hold | Where it is checked |
 | --- | --- | --- |
-| Add source | A direct feed, a page with alternate links, several candidates, an unsupported address, redirects, an already-followed source and a YouTube channel or video each end in a plain answer | `packages/connectors` discovery tests, `sources-discovery.test.ts`, the core journey, `journal-feeds-check.ts` |
+| Add source | A direct feed, a page with alternate links, several candidates, an unsupported address, redirects, an already-followed source and a YouTube channel or video each end in a plain answer | `packages/connectors` link lookup tests (`link-lookup.test.ts`, `discover-*.test.ts`), `sources-discovery.test.ts`, the core journey, `journal-feeds-check.ts` |
 | Fetching | Private, loopback and metadata addresses are refused, also after a redirect or a DNS answer that changes; oversized, compressed and slow bodies are cut off; no environment variable relaxes the address rules; the engine reaches feeds only through the egress proxy | `safe-fetch.test.ts`, `apps/egress` tests, the egress tests in `tests/engine` |
 | Sync | Paging, resume after a crash between pages, replaying a committed page, upstream edits and late publications; batches sized in UTF-8 bytes, so Arabic and CJK pages stay under the body limit; accounts that follow one public feed cost one upstream request while each keeps only its own items | `packages/freshrss` sync tests, `apps/api` sync tests, `tests/engine` |
 | Identity | Entries of one account never import into another's sources; an upstream edit keeps the item and adds a version; a replacement engine is adopted only after its queue is reviewed, without duplicate items | `core.test.ts`, `reconcile.test.ts`, `item-numbers.test.ts`, `tests/engine` |
 | Workflow | A change made against a revision the item has moved past is refused or dropped with a plain message, never applied over the newer one; a bulk action or a keep gives one undo, and undo restores | `core.test.ts`, `state-change.test.ts`, `apps/web` outbox tests |
-| Baskets and storage | An item kept in several baskets is stored and counted once; a failed capture releases its reservation; a full quota pauses new items and captures while reading, keeping and deleting still work; an import that does not fit writes nothing | `core.test.ts`, `kept-pictures.test.ts`, `used-bytes.test.ts`, `portability.test.ts` |
-| Lists and search | Full-dataset text and state combinations, stable pagination, workspace isolation | `search.test.ts`, `core.test.ts`, the size-guard tests above |
+| Baskets and storage | An item kept in several baskets is stored and counted once; a failed capture releases its reservation; a full storage allowance pauses new items and captures while reading, keeping and deleting still work; an import that does not fit writes nothing | `core.test.ts`, `kept-pictures.test.ts`, `used-bytes.test.ts`, `portability.test.ts` |
+| Lists and search | Full-dataset text and state combinations, stable pagination, account isolation | `search.test.ts`, `core.test.ts`, the size-guard tests above |
 | Accounts | One account never reads or changes another's items, sources or baskets; sign-in methods, recovery and account deletion | `core.test.ts` ("PURSSes are isolated"), `apps/api/src/auth` tests, deletion tests, the core journey |
-| Operations | Backup and restore on a real database (restore refuses a damaged or newer backup and leaves the target as it was), migrations on populated data, graceful shutdown with a job running, an interrupted first run | `backup.test.ts`, `migrations.test.ts`, `transactions.test.ts`, `apps/worker` runner tests, `tests/engine/resume.test.ts` |
+| Operations | Backup and restore on a real database (restore refuses a damaged or newer backup and leaves the target as it was), graceful shutdown with a job running, an interrupted first run | `backup.test.ts`, `transactions.test.ts`, `apps/worker` runner tests, `tests/engine/resume.test.ts` |
 | Privacy | An export holds no secret, private address or engine identifier; a link carrying a key is kept off public pages; feed gateway addresses are logged without their signature | `portability.test.ts`, `public-pages.test.ts`, `privacy.test.ts` |
 | Sharing | The review shows what becomes public; a page stops showing when the plan no longer includes sharing; anyone can report a public page and an administrator can take it down | `routes/sharing.test.ts` |
 | Smart filters | Previews change no post; a person's own change is final; a refused key fails open; people cannot supply a key of their own | `ai-filters.test.ts`, `filter-judge.test.ts` |
@@ -170,12 +170,12 @@ These have no automated check; verify them yourself when a change touches them:
   runs in the tests. The journeys only check that focus and keyboard paths work.
 - Light and dark themes (contrast) and layouts at other sizes than the journeys' phone and desktop
   windows.
-- The phone and desktop apps on a device: the Android app on an emulator or phone, the iOS project on
+- The mobile and desktop apps on a device: the Android app on an emulator or phone, the iOS project on
   a Mac, the desktop app on each system. CI builds them but runs no interface test inside them. Push
   notifications, background downloads and widgets need a device ([mobile README](../apps/mobile/README.md)).
 - The extension's right-click menu and address-bar keyword, which Playwright cannot drive; their logic
   has unit tests.
-- Source discovery on the live web, which changes without notice: `journal-feeds-check.ts`.
+- Link lookup on the live web, which changes without notice: `journal-feeds-check.ts`.
 
 ## Design principles
 
@@ -191,8 +191,8 @@ For anyone changing the interface. The tokens and primitives are in
 - **Show the consequences** of publishing, permanent deletion, privacy and storage where the person
   agrees to them: a share shows what becomes public, a deletion says what goes.
 - **No invented urgency.** New markers and counts are information; people can turn them off. Opening a
-  view or clearing a marker never finishes, ignores or reads an item. No fake unread counts and no hidden
-  changes to a subscription.
+  view or clearing a marker never finishes or ignores an item or marks it seen. No fake counts of unseen items and no hidden
+  changes to a source.
 - **Plain empty states and errors:** one next action, and what happened and how to recover in a short,
   plain sentence. Do not drop titles or source names to make cards look cleaner; missing metadata is
   not invented.
@@ -202,17 +202,20 @@ For anyone changing the interface. The tokens and primitives are in
 
 ## Adding a migration
 
+`apps/api/src/db/migrations/001_schema.sql` is today's database. A later change adds `002_short_name.sql`,
+then `003` and so on:
+
 1. Add `apps/api/src/db/migrations/NNN_short_name.sql` with the next three-digit number.
 2. It runs once, in order, inside a transaction, whenever a process opens the database (API
    start, the CLI, restore), and is recorded by file name in `schema_migrations`.
 3. Applied files are never re-run, so put any change in a new file rather than editing one
    that has run anywhere.
-4. Keep every product table tenant-scoped: an `account_id`/`workspace_id` column, or a parent
+4. Keep every product table scoped to an account: an `account_id` column, or a parent
    row that has one.
 5. There are no down migrations. Restore refuses a backup that has migrations this version
    doesn't know.
 
-Integration tests open a fresh database, so `npm test` exercises the full migration chain.
+Integration tests open a fresh database, so `npm test` applies the schema and every file after it.
 
 ## Regenerating the engine allowlist
 
@@ -238,7 +241,7 @@ On the first of every month [.github/workflows/monthly-updates.yml](../.github/w
 | What | Taken automatically | Reported for a person |
 | --- | --- | --- |
 | npm packages | The newest release within the major version (the minor for 0.x), kept exact or `^` as written, and indirect dependencies within their ranges | A new major version |
-| The phone apps' native plugins (all of `apps/mobile`'s dependencies) | Nothing | Any newer version: it may need an app release ([native level](../apps/mobile/README.md#live-updates-and-the-native-level)) |
+| The mobile app's native plugins (all of `apps/mobile`'s dependencies) | Nothing | Any newer version: it may need an app release ([native level](../apps/mobile/README.md#live-updates-and-the-native-level)) |
 | RSS-Bridge (`infra/compose.yaml`) | The newest image, if no bridged service that works on the current image fails on it (`node scripts/bridge-check.ts`, asking a failing service three times) | |
 | FreshRSS | Nothing: the engine tests need podman networking a CI runner lacks | A new version (check the allowlist and reference commit, above) or a rebuilt image of the pinned one |
 | GitHub Actions | Nothing: workflow files are not something an update may change | A new major version, or a pinned tag that now points at another commit, with the commit to pin |
@@ -255,16 +258,16 @@ base images float on `node:26-bookworm-slim` and are refreshed whenever the serv
 
 ## Adding a page to the web app
 
-Add an entry to `featurePages` in `apps/web/src/features/pages.tsx` (path, title, component,
+Add a page to `featurePages` in `apps/web/src/features/pages.tsx` (path, title, component,
 and optionally `nav`, `parent` or `adminOnly`). The shell supplies the header, sidebar and item
 panel. See the [web README](../apps/web/README.md).
 
-## The phone apps
+## The mobile app
 
 `apps/mobile` wraps the web build in Capacitor; screens stay in `apps/web` and anything that differs
 on a phone goes behind `apps/web/src/platform/` (transport, offline copies, player backend, downloads,
 share intake). Its tests run with `npm test` like the rest. Building the Android app needs the Android
-SDK and JDK 21; the steps, the emulator PURSS (`apps/mobile/scripts/emulator-purss.ts`) and
+SDK and JDK 21; the steps, the emulator installation (`apps/mobile/scripts/emulator-purss.ts`) and
 the iOS steps on a Mac are in [apps/mobile/README.md](../apps/mobile/README.md). Run Gradle and the
 emulator under the host's work lock; the emulator holds several cores while it runs, so shut it down
 when you are done.
@@ -272,7 +275,7 @@ when you are done.
 ## Versions
 
 Every commit on `main` has a version worked out from the history, with no tags or manual bumps. The
-same number goes on the server, the web app, the phone apps, the desktop app and the browser
+same number goes on the server, the web app, the mobile app, the desktop app and the browser
 extension.
 
 ```text
@@ -288,9 +291,9 @@ first-parent line count in order each UTC day, and a merged branch is one commit
 | Build | Where it gets its version |
 | --- | --- |
 | A checkout (development, `npm run build`, the extension) | The git history |
-| The official server | The deploy job writes `version.json` from the full history and adds it to the archive the server builds from |
+| The official installation | The deploy job writes `version.json` from the full history and adds it to the archive the server builds from |
 | A server image built from a git clone | The image reads the clone's history while building |
-| A copy without history | None: the server reports `null`, Settings shows no version, the Android build is `1` / `dev`, the extension `0.0.1` |
+| A checkout without history | None: the server reports `null`, Settings shows no version, the Android build is `1` / `dev`, the extension `0.0.1` |
 
 Google Play takes the number itself as versionName and versionCode; the browser extension stores and
 Apple's version strings take the dotted spelling. iOS sets its version on the Mac before archiving
@@ -306,7 +309,7 @@ sentences about what people get.
 ## Releases
 
 A push to `main` runs [deploy.yml](../.github/workflows/deploy.yml): `npm run check`, `npm test` and
-the build, then, if they pass, the same commit is sent to the official server ([infra](../infra/README.md#deploying-from-github)).
+the build, then, if they pass, the same commit is sent to the official installation ([infra](../infra/README.md#deploying-from-github)).
 Deploys run one at a time, in push order. `gh run list --branch main` shows the run; start one with
 `gh workflow run deploy.yml --ref main` if a push started none.
 

@@ -224,10 +224,10 @@ export default {
       nothingNewYetShort: "Nothing new yet",
       savesText: "Saves the readable text",
       savesLink: "Saves the link and summary",
-      importFromReader: "Import from another reader",
+      importFromReader: "Import from another feed reader",
       customise: "Customise",
       startTitle: "Start with something you already read",
-      startText: "Paste a link to a blog, news site, YouTube channel or podcast, and its new posts arrive here. Switching from another reader? Bring your list with you.",
+      startText: "Paste a link to a blog, news site, YouTube channel or podcast, and its new posts arrive here. Switching from another feed reader? Bring your list with you.",
     },
     listing: {
       quiet: "No new posts for a while. Still following.",

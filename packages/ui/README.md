@@ -21,7 +21,7 @@ app, not here.
 The interface is meant to be understood at a glance, with little instruction text, and to be an inviting place to spend
 time. Code in this package and in `apps/web` follows these rules, which
 [development](../../docs/development.md#design-principles) lists for contributors; here they say which primitive carries
-each one.
+each one. The component map is in [architecture](../../docs/architecture.md#components).
 
 - **Meaning is never carried by an icon, a colour, a hover or a gesture alone.** Use short, concrete labels (Follow,
   Keep, Move, Undo) and pair an icon with a label when its meaning isn't obvious. An icon-only control is an
@@ -39,8 +39,8 @@ each one.
   never dropped to make cards look cleaner. An empty state offers one clear next action, and an error says what happened
   and how to recover in a brief, plain sentence.
 - **No invented urgency.** Counts and freshness cues (the New marker, badges, highlights) are information the person can
-  turn down, never a debt meter or a fake unread count; New is distinct from unread and from the Undecided state, and
-  opening a view or clearing a highlight never silently finishes, ignores or reads an item. Nothing plays or embeds a
+  turn down, never a debt meter or a fake count of unseen items; New is distinct from the Undecided state, and
+  opening a view or clearing a highlight never silently finishes or ignores an item or marks it seen. Nothing plays or embeds a
   third party on its own: playback and platform embeds start only when pressed.
 - **Missing metadata is shown as missing, not invented**, and attribution stays: *Open original* is always there.
 - **Reduced motion is respected.** Animation sits inside `@media (prefers-reduced-motion: no-preference)` (or is switched

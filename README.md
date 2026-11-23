@@ -1,31 +1,31 @@
 # PURSS
 
-PURSS is your purse for the internet: a private, user-curated dashboard to follow sources,
-organize items, keep what matters, and choose how to see it.
+PURSS is your purse for the internet: a private dashboard you curate to follow sources,
+organise items, keep what matters, and choose how to see it.
 
 Self-ownership is the product principle: understandable storage, private-by-default
 organization, and portable data whether self-hosted or using the official
 hosted service.
 
-FreshRSS is the collection engine. The product owns its interface, durable item
-records, baskets, workflow, collections, search, and saved views. Ordinary users
+FreshRSS is the engine, which fetches sources. The product owns its interface, durable item
+records, baskets, workflow, collections and search. Ordinary people
 should not need to understand FreshRSS, API passwords, XPath, or container networks.
 
 ## Status
 
 PURSS runs as the official hosted service at https://purss.app and on your own server. It has
-setup with a one-time code, email address and password sign-in with optional passkeys, guided Add source with
-YouTube, podcast, social and journal discovery, FreshRSS collection through an egress proxy,
-collections, baskets with kept versions and readable-text capture, an in-app player, five views,
+setup with a one-time code, email address and password sign-in with optional passkeys, a guided Add source
+that looks up a pasted link or searches for sites and podcasts, FreshRSS fetching through an egress proxy,
+collections, baskets with kept versions and readable copies, an in-app player, five views,
 workflow with undo, search, storage accounting, reminders, notifications, export
 and import, OPML, shareable collections, hosted Discovery suggestions, engine review, administration, interface
 sounds, backup and restore, and accounts with invitations on every installation.
 Docker Compose packaging runs it on a server (see [docs/self-hosting.md](docs/self-hosting.md)).
-Android and iOS apps reuse the web app through Capacitor ([apps/mobile](apps/mobile/README.md); the
+The mobile app reuses the web app through Capacitor on Android and iOS ([apps/mobile](apps/mobile/README.md); the
 Android app is checked on an emulator, the iOS project has not been built), and a desktop app for Windows,
 macOS and Linux runs through Tauri ([apps/desktop](apps/desktop/README.md); checked on Linux). Open signup is on for the
 official hosted service and off by default elsewhere (it needs outgoing email); paying for a plan goes through a
-separate billing service. Phone notifications go through a push relay ([apps/push-relay](apps/push-relay/README.md)), tested
+separate billing service. Phone notifications go through the push relay ([apps/push-relay](apps/push-relay/README.md)), tested
 against stand-ins for Firebase and Apple's push service. Browsers get no Web Push, and there are no connectors for
 services that need a sign-in.
 
@@ -54,7 +54,7 @@ npm run dev            # builds the web app, starts FreshRSS, egress, API and wo
 
 Open http://localhost:8940 and enter the setup code from `data/secrets/setup-code`.
 Ctrl+C stops everything (add `-- --keep-engine` to leave FreshRSS running). Data and
-secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli.ts`,
+secrets live in `data/` (ignored by Git). Administrator tools: `node apps/api/src/cli.ts`,
 `node scripts/backup.ts`, `node scripts/restore.ts`, `node scripts/engine.ts status`.
 
 ## Start here
@@ -74,20 +74,20 @@ secrets live in `data/` (ignored by Git). Operator tools: `node apps/api/src/cli
 
 | Path | Responsibility |
 | --- | --- |
-| `apps/web` | Responsive PURSS app, views, reader, guided source setup |
-| `apps/site` | Public website: home page, terms, privacy and legal notice |
+| `apps/web` | The web app: views, reading panel, guided source setup |
+| `apps/site` | Public site: home page, terms, privacy and legal notice |
 | `apps/api` | Sessions, authorization, product database, search, commands |
-| `apps/worker` | FreshRSS synchronization and bounded background jobs |
+| `apps/worker` | FreshRSS synchronisation and bounded background jobs |
 | `apps/egress` | Egress proxy for the engine, the feed gateway for big feeds and the bridge router |
-| `apps/mobile` | Android and iOS apps: the web app's build in a Capacitor shell |
-| `apps/desktop` | Windows, macOS and Linux app: the web app's build in a Tauri shell |
+| `apps/mobile` | Mobile app for Android and iOS: the web app's build in a Capacitor shell |
+| `apps/desktop` | Desktop app for Windows, macOS and Linux: the web app's build in a Tauri shell |
 | `apps/extension` | Browser extension for Chrome, Edge, Firefox and Safari |
-| `apps/push-relay` | Content-free relay that wakes the phone apps |
+| `apps/push-relay` | Content-free relay that delivers phone notifications |
 | `packages/domain` | Product identities, state transitions, query contracts |
 | `packages/freshrss` | FreshRSS protocol adapter and capability checks |
-| `packages/connectors` | Discovery and non-feed source connectors |
+| `packages/connectors` | Source connectors: safe fetching, link lookup, feed parsing, bridged services and page lists |
 | `packages/ui` | Original design tokens and reusable UI primitives |
-| `packages/translations` | Every word people read, one catalogue per audience |
+| `packages/translations` | Every word people read, in translation files |
 | `infra` | Docker Compose packaging, engine image and operation notes |
 | `tests/acceptance` | End-to-end product acceptance scenarios |
 | `scripts` | Dev runner, engine lifecycle, backup/restore, repository validation |

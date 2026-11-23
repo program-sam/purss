@@ -9,7 +9,7 @@ Everything the product knows about FreshRSS lives here. The engine stays a black
 | `sync.ts` | forward, resumable, replay-safe walk with deterministic batch idempotency keys; engine-identity check |
 | `admin.ts` | fixed engine administration through `PURSS_ENGINE_EXEC` with structured arguments only (create user, set API password, list users, delete user, refresh, identity hash, archiving read, proxy and fetch-cache config) |
 | `allowlist.ts` | the CLI scripts and snippet hashes the engine image's admin helper accepts: exactly the operations in `admin.ts` |
-| `lifecycle.ts` | podman lifecycle of the pinned engine container used by `scripts/engine.ts` (operator tooling; the worker does not use it) |
+| `lifecycle.ts` | podman lifecycle of the pinned engine container used by `scripts/engine.ts` (administrator tooling; the worker does not use it) |
 | `errors.ts`, `redact.ts` | errors whose messages are always safe to store, and text redaction |
 | `testing/fake-engine.ts` | in-memory GReader stand-in used by unit tests only |
 
@@ -21,7 +21,7 @@ Everything the product knows about FreshRSS lives here. The engine stays a black
 - **Subscriptions are single addresses.** The adapter adds one address at a time through quick-add and
   never uses the engine's OPML import: the engine treats imported OPML as trusted, and that is its only
   route to per-feed options. A person's OPML is parsed and previewed by `@purss/connectors` and each chosen
-  feed is looked up and added as a plain address. Nothing forwards user-supplied options or arbitrary cURL
+  feed is looked up and added as a plain address. Nothing forwards options a person supplies or arbitrary cURL
   settings to the engine. The engine's `#force_feed` marker is added only for an address the product's own
   parser has already read as a feed.
 - **Fixed administration.** The operations in `admin.ts` are constant programs with structured arguments
@@ -62,7 +62,7 @@ API exposes nothing instance-specific, which is why the identity is read through
 
 External item ids are decimal engine entry ids (first-crawl time in microseconds), unique per engine user and meaningless anywhere else.
 They are not GUIDs, and the original feed GUID is not available from the standard stream; subscribing the same feed again gives its
-articles different ids (see CAPABILITIES.md).
+articles different ids (see CAPABILITIES.md). The component map is in [architecture](../../docs/architecture.md#components).
 
 Capabilities observed against the pinned engine, with commands and results: [CAPABILITIES.md](CAPABILITIES.md).
 Operations: [infra/engine/README.md](../../infra/engine/README.md). How a source reaches the engine: [Sources](../../docs/sources.md).

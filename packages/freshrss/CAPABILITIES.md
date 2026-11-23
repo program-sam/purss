@@ -2,7 +2,7 @@
 
 Engine: FreshRSS **1.30.4**, image `docker.io/freshrss/freshrss@sha256:a003730e81c89abf86c3ca9c8b263c818804734b574469d59586234364f425b0`
 (PHP 8.4.27, Apache 2.4.69, SQLite), started rootless with podman 5.8 by `scripts/engine.ts`. Source read for this document is the
-source inside that image (`/var/www/FreshRSS`), which matches upstream `08f97bd497ace733c151ea1c709d85cd5b65cc53` where the plan cites it.
+source inside that image (`/var/www/FreshRSS`), which matches upstream `08f97bd497ace733c151ea1c709d85cd5b65cc53`, the revision [infra/engine/README.md](../../infra/engine/README.md) cites.
 
 Each row says how it is known. **Observed** = a request/response against the running container, repeatable with the named contract test
 (`tests/engine/engine.test.ts`, run `npm run test:engine`). **Source** = read in the pinned source and not (yet) demonstrated.
@@ -26,18 +26,18 @@ statements about real-world feeds (what a given publisher puts in `<guid>`) are 
 | All fetches through an egress proxy | Works through global `curl_options`; fails closed when the proxy is down. |
 | Stable engine identity through the API | **Not available.** Derived through the administration channel from the instance salt. |
 
-Nothing the plan needs is missing from the pinned version; the two real limits are "no GUID in the stream" and "no deletion signal".
+Nothing PURSS needs is missing from the pinned version; the two real limits are "no GUID in the stream" and "no deletion signal".
 
 ## Provisioning and recovery
 
 | Item | Result | Evidence |
 | --- | --- | --- |
 | First install via Docker variables | `FRESHRSS_INSTALL` runs `cli/do-install.php`, `FRESHRSS_USER` runs `cli/create-user.php`. The entrypoint runs both on every start; they exit 3 ("already exists") when there is nothing to do, so a restart never reinstalls. | Observed: `node scripts/engine.ts up` twice; second run `healthy`, no container recreation. Unit: `lifecycle.test.ts` |
-| Interrupted install | `do-install.php` refuses only when `data/applied_migrations.txt` exists, and writes that file last, so a half-done install is simply redone; user creation is skipped when the user directory has a `config.php`. `up` verifies the operator login afterwards, restarts the container once when the user is missing (the entrypoint re-runs user creation) and, if the user exists but cannot log in, resets its API password. A user directory that exists but is corrupt is reported, not repaired. | Observed (`tests/engine/resume.test.ts`): (1) install finished, user never created → `up` creates it, same salt, same credentials; (2) install marker deleted before any user existed → install redone, healthy; (3) operator user directory removed from a stopped engine → recreated at the next start, a second user untouched, same identity; (4) `up` three times → same container id. A crash *inside* `create-user.php` was not induced. |
+| Interrupted install | `do-install.php` refuses only when `data/applied_migrations.txt` exists, and writes that file last, so a half-done install is simply redone; user creation is skipped when the user directory has a `config.php`. `up` verifies the administrator's login afterwards, restarts the container once when the user is missing (the entrypoint re-runs user creation) and, if the user exists but cannot log in, resets its API password. A user directory that exists but is corrupt is reported, not repaired. | Observed (`tests/engine/resume.test.ts`): (1) install finished, user never created → `up` creates it, same salt, same credentials; (2) install marker deleted before any user existed → install redone, healthy; (3) administrator's user directory removed from a stopped engine → recreated at the next start, a second user untouched, same identity; (4) `up` three times → same container id. A crash *inside* `create-user.php` was not induced. |
 | Changing settings without a new volume | `config.php` is edited in place for the proxy keys (`applyEgressConfig`); container-level settings (port, cron) recreate the container only. FreshRSS reads `config.custom.php` and `config-user.custom.php` **only when it installs / creates a user**, so those files cannot change existing installs. | Observed: `data/engine/config.php` contains the proxy keys written from `config.custom.php`; drift correction by `applyEgressConfig`. |
 | API-only users | `create-user.php --no-default-feeds --api-password=…` with no `--password`: the web password hash is empty (no web login) and no default feeds are fetched. | Observed: `passwordHash` is `''`, `apiPasswordHash` set, subscription list empty. Test: "engine users have no web password and no default feeds" |
 | API password rotation | `update-user.php --api-password=…` takes effect immediately; the old password and the previously issued `Auth` value stop working. | Test: "rotating an API password…" |
-| Operator CLI exit codes | `create-user.php` exits 3 when the user exists. `actualize-user.php` exits 1 when no feed was due (not an error). | Observed (probe) |
+| Engine CLI exit codes | `create-user.php` exits 3 when the user exists. `actualize-user.php` exits 1 when no feed was due (not an error). | Observed (probe) |
 | Container user mapping | `--userns keep-id:uid=33,gid=33 --user 0:0`: the host user is `www-data` inside, so files Apache writes belong to the host user. Files written by the entrypoint (root) appear as a subordinate uid with the host user's group and group write access; `podman unshare rm -rf` removes them. | Observed: `ls -l data/engine` |
 
 ## Authentication and API surface
@@ -93,7 +93,7 @@ Nothing the plan needs is missing from the pinned version; the two real limits a
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| Mechanism | `curl_options` in `data/config.php` (`CURLOPT_PROXYTYPE`=`CURLPROXY_HTTP`, `CURLOPT_PROXY`=`ip:port`). Used by feed fetching (SimplePie), quick-add discovery, favicons and website fetching. Per-feed overrides exist only through the trusted OPML import. | Source; Observed that the feed, the homepage and `favicon.ico` requests all reached the proxy |
+| Mechanism | `curl_options` in `data/config.php` (`CURLOPT_PROXYTYPE`=`CURLPROXY_HTTP`, `CURLOPT_PROXY`=`ip:port`). Used by feed fetching (SimplePie), quick-add feed detection, favicons and website fetching. Per-feed overrides exist only through the trusted OPML import. | Source; Observed that the feed, the homepage and `favicon.ico` requests all reached the proxy |
 | Engine's own SSRF guard | With a proxy configured the engine does **not** resolve the target; it checks the proxy's address against `internal_host_allowlist` (`ip:port` or CIDR; `*` disables all checks). The product allows only the proxy's `ip:port`. The proxy name is resolved with DNS only, so it must be an IPv4 literal. | Source; observed that the loopback test feed was fetched (by the proxy) and the proxy's address was the only allowlist entry in `config.php`. Fetching without a proxy was not tried. |
 | Proxy down | The fetch fails (`cURL error 7`) and nothing is fetched directly; the feed server saw no request. | Observed: "with the proxy down, fetching fails…" |
 | Proxy refuses a host | The engine reports HTTP 403 for the feed; there is no fallback. | Observed: "a host the proxy refuses is not fetched…" |

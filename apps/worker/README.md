@@ -31,7 +31,7 @@ comes from the API (`GET /internal/engine-users/:id`), not from worker configura
 | `engine.unsubscribe` | removes the subscription; an already-missing stream is success | `{streamId, removed}` |
 | `engine.rename` | renames the subscription; an unknown stream is a permanent failure | `{streamId, title}` |
 | `engine.sync` | walks the reading list forward from the stored checkpoint, one page per batch | `{pages, entries, accepted, duplicates, identityChanged, newestCrawlUsec}` |
-| `engine.mark_read` | mirrors read/unread into the engine | `{count, read}` |
+| `engine.mark_read` | mirrors an item's seen state into the engine, as read or unread there | `{count, read}` |
 | `capture.fulltext` | runs `captureReadable(url)` from `@purss/connectors` | its result object; `ok:false` fails permanently |
 | `capture.images` | runs `fetchPictures(urls, { maxBytes })` from `@purss/connectors` for one kept item | `{ images: [{ url, contentType, data (base64) }] }`, the ones that could be fetched |
 | `source.icon` | runs `resolveSourceIcon` from `@purss/connectors/icons`, one lookup at a time | `{found: true, data (base64 WebP), width, from}` or `{found: false, reasons}`; finding nothing is not a failure |
@@ -54,7 +54,7 @@ no-op, an edited entry yields a different key, and a crash resumes from the stor
 `engineIdentity` differs from the engine's current identity is ignored and the whole history is offered again for the product's
 reconciliation. Absence of an entry never produces a deletion. Details and observed behaviour: `packages/freshrss/CAPABILITIES.md`.
 
-## Behaviour
+## Behaviour The component map is in [architecture](../../docs/architecture.md#components).
 
 - Leases up to `concurrency - running` jobs per request; jobs for the same engine user run one at a time.
 - Heartbeats each running job at a third of its lease time. A heartbeat answered with 404/409/410, or a lease that could not be renewed

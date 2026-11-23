@@ -1,15 +1,15 @@
 # User guide
 
-PURSS collects what your sources publish, lets you organise it, and keeps what you
+PURSS fetches what your sources publish, lets you organise it, and keeps what you
 choose. This guide covers what the app does.
 
 ## First-time setup
 
-1. Open the PURSS address your operator gave you (on your own machine this is usually
+1. Open the PURSS address your administrator gave you (on your own machine this is usually
    `http://localhost:8940`).
-2. Enter the **setup code**. The operator reads it from the server (see
+2. Enter the **setup code**. The administrator reads it from the server (see
    [self-hosting](self-hosting.md#the-first-administrator)). Whoever enters it first becomes the
-   owner and administrator, and the code stops working.
+   administrator, and the code stops working.
 3. Enter your **email address** and choose a **password** (typed twice); a name is optional. You
    sign in with the address and password on any computer, including borrowed ones.
 4. Add a **passkey** if you like: your fingerprint, face or screen lock (Touch ID, Face ID,
@@ -25,7 +25,7 @@ server as well as a hosted one. Where the server sends email the invitation arri
 (`/app/invite?code=…`); otherwise the administrator gives you the link or code. Type the address you
 were invited with, choose a password and, if you like, a name; the rest is the same as above.
 
-A hosted installation may also offer *create an account* on the sign-in page when its operator has
+A hosted installation may also offer *create an account* on the sign-in page when its administrator has
 turned open sign-up on. It starts with your email address: a link arrives there, and opening it lets
 you choose your password and finish (no card needed). No account exists until you open the link. If
 the address already has an account, the message says so and links to signing in and resetting the
@@ -38,8 +38,8 @@ finished, sign in with your address and password.
   belongs to one account; capital letters don't matter.
 - **Passkey:** sign in with your fingerprint, face or screen lock (Touch ID, Face ID, Windows
   Hello) or a password manager, once you have added one in *Settings → Security*.
-- **External sign-in** (OpenID Connect) appears only when the operator has configured a
-  provider, and only for an identity you linked while signed in (*Settings → Security*).
+- **External sign-in** (OpenID Connect) appears only when the administrator has configured a
+  sign-in provider, and only for an identity you linked while signed in (*Settings → Security*).
 
 Your browser stays signed in while you use it, and signs out after 30 days without a visit. On
 the sign-in page, choose **This is a shared computer** on a library, work or borrowed computer:
@@ -69,7 +69,7 @@ signs you out everywhere, disconnects your connected apps and assistants, and th
 The address is otherwise used for messages about your account and, if you choose that in
 *Settings → Notifications and New*, for [reminders](#reminders). Every link in a message is on a line
 of its own, so nothing gets stuck to its end. Administrator accounts get a password reset link from
-the operator at the server instead.
+the administrator at the server instead.
 
 ## Adding sources
 
@@ -80,7 +80,7 @@ how often it publishes ("about 2 posts a week"), a few recent items, and whether
 gives summaries. Pick one and **Follow**. When a page lists several feeds, the one that is the page's own
 is chosen for you; if none of them clearly is, none is chosen until you pick. A feed with no posts yet
 can still be followed ("No posts yet" shows on its page until the first one arrives). If you already
-follow a source with the same name under another address, the result says so before you follow a second. The same feed written another way (`http` or `https`, with or without a trailing slash or tracking parameters) is the one you already follow, and Follow opens it. A feed at a different address whose newest posts are those of a source you follow (a site's own feed and its FeedBurner copy, say) is pointed out too, as the same posts under another address; following it anyway makes a second source. A section's feed inside a site's whole feed is not taken for it. The collection starts as *No collection*: you never
+follow a source with the same name under another address, the result says so before you follow a second. The same feed written another way (`http` or `https`, with or without a trailing slash or tracking parameters) is the one you already follow, and Follow opens it. A feed at a different address whose newest posts are those of a source you follow (a site's own feed and its FeedBurner mirror, say) is pointed out too, as the same posts under another address; following it anyway makes a second source. A section's feed inside a site's whole feed is not taken for it. The collection starts as *No collection*: you never
 have to name one to follow something (choose an existing collection, or *New collection…*, if
 you want to group it). *Posts the source already has* starts on **Start from now**: only posts that come out after
 you follow are New, and what the feed already had is kept as Ignored: search finds it ([Backlog](#sources)). Choose
@@ -88,7 +88,7 @@ you follow are New, and what the feed already had is kept as Ignored: search fin
 storage for every new post (see [Full articles](#full-articles)); tick it for a feed whose posts you
 want to read in full. A source in no collection is listed in the sidebar and shows in the *Other sources* box on Home.
 
-The first items appear once the collection engine has fetched the feed. By default it checks
+The first items appear once the engine has fetched the feed. By default it checks
 feeds about every 15 minutes, and PURSS picks up new items every two minutes, so new
 posts take a while to show.
 
@@ -96,15 +96,15 @@ What you can paste:
 
 | Link | What happens |
 | --- | --- |
-| A website or blog page | The page's advertised feeds are offered (feeds with the same entries, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If a name without `www.` refuses (a bot check in front of the bare name answers 403), fails or doesn't answer, the same address with `www.` is asked for next (before the bare name's plain-`http` form, with the lookup's time shared between the two so the wait is no longer), and the site's feed is offered from there as if the bare name had sent you on; a name that already starts with `www.`, a number, or one with a port written after it (`:443` and `:80` included) has no such second try, and a page that isn't found (404) or a site asking you to slow down (429) isn't retried. If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as the user "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
-| A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the collection engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
+| A website or blog page | The page's advertised feeds are offered (feeds with the same items, such as a site's RSS and Atom versions, once), or the usual feed addresses on the same site are tried (`/feed`, `/rss`, `/atom.xml`, `/rss.php`, `/comic/rss`, `/xml/rss2_0.xml` and a few more). If a name without `www.` refuses (a bot check in front of the bare name answers 403), fails or doesn't answer, the same address with `www.` is asked for next (before the bare name's plain-`http` form, with the lookup's time shared between the two so the wait is no longer), and the site's feed is offered from there as if the bare name had sent you on; a name that already starts with `www.`, a number, or one with a port written after it (`:443` and `:80` included) has no such second try, and a page that isn't found (404) or a site asking you to slow down (429) isn't retried. If the front page itself fails or refuses (an error 500 or 403) those addresses are still tried, and the result says the front page didn't open. A usual address that the site sends to a person's page or feed (a site that reads `/atom.xml` as an account named "atom") is not taken for the site's feed. A page whose only feed is one of comments isn't offered as the site's posts: the search goes on, and if only comments are found you're told so (paste the comments feed's own address if that is what you want). A link on the page to an empty "Subscribe" feed is the site's sign-up, not its posts, and is skipped; so is the feed of a wiki's recent changes that every page of a wiki advertises, which says nothing of the article you pasted |
+| A feed address (RSS, Atom, JSON Feed, or `feed:`/`podcast:` links) | Followed directly. A feed that a publisher serves without saying what it is (no content type), which the engine would refuse, is followed all the same once PURSS itself has read it as a feed; an address that isn't a feed is never forced |
 | A podcast feed | Followed as a podcast; episodes play in PURSS ([Listening and watching](#listening-and-watching)) |
 | A YouTube channel (`youtube.com/@name`, `/channel/UC…`, `/user/…`) | The channel's video feed |
 | A YouTube video | Keeping the video (with its real title, channel and picture) and following its channel are choices in one list, starting on keeping the video. If the link names a playlist, that playlist is offered too |
-| A site's or podcast's name instead of a link | **Search** looks the name up in two places at once (what you typed is sent there, and the screen says so): Wikidata, the open knowledge base, for the official websites of things with that name, and Apple's podcast directory for shows. On a hosted server that shares sources, sources many of its readers follow under that name come first, marked *Followed by other readers here* (never a private source), then sources of that name from Discovery's popular sources. Choose a website and it is searched like a pasted link; choose a show to see its latest episodes, then follow its own feed. A name Wikidata doesn't know (a small blog, say) finds nothing there: paste the site's address instead |
+| A site's or podcast's name instead of a link | **Search** looks the name up in two places at once (what you typed is sent there, and the screen says so): Wikidata, the open knowledge base, for the official websites of things with that name, and Apple's podcast directory for shows. On a hosted server that shares sources, sources many people here follow under that name come first, marked *Followed by other people here* (never a private source), then sources of that name from Discovery's popular sources. Choose a website and it is searched like a pasted link; choose a show to see its latest episodes, then follow its own feed. A name Wikidata doesn't know (a small blog, say) finds nothing there: paste the site's address instead |
 | A series page of the Guardian whose series is a podcast | The podcast feed is offered first and chosen; the articles feed comes second |
 | A GitHub repository (`github.com/owner/repo`) | Its *Releases* feed, and its *Tags* feed when it lists tags that have no release (otherwise the two feeds are the same) |
-| A GitHub user or organisation (`github.com/name`) | Its public activity feed |
+| A GitHub account or organisation (`github.com/name`) | Its public activity feed |
 | A game's page in the Steam store (`store.steampowered.com/app/…`) | The game's news feed, named after the game as the address spells it |
 | An arXiv listing (`arxiv.org/list/cs.LG/…`) | The category's daily feed. It is empty at weekends and says so |
 | A Dailymotion channel (`dailymotion.com/name`), an Odysee channel (`odysee.com/@name:id`, the form Odysee's own links take), a DeviantArt profile or gallery (`deviantart.com/name`) or a Behance profile (`behance.net/name`) | That account's own feed. Pages of those sites that aren't an account (search, settings, a single project or video) are looked at like any other page |
@@ -114,9 +114,9 @@ What you can paste:
 | The European Commission's Press Corner (`ec.europa.eu/commission/presscorner/…`) | Its press releases feed, in the language the address names |
 | Rijksoverheid's front or news page (`rijksoverheid.nl/actueel/nieuws`) | The government's news feed that the page's *RSS-link kopiëren* button makes |
 | An Apple Podcasts show link | The show's own feed, looked up from Apple's public podcast directory |
-| A scholarly journal's page, or one of its issue pages, on Wiley Online Library, Taylor & Francis, the University of Chicago Press journals site, Berghahn Journals, Project MUSE or ScienceDirect | The journal's feed of new articles, named after the journal, even though those sites turn automated readers away. Where the journal has more feeds with other contents they are offered too, each saying what it holds: on Wiley, Taylor & Francis and Chicago the articles published online that aren't in an issue yet, on Project MUSE one entry per new issue. Feeds with the same entries under different addresses are offered once. For ScienceDirect the journal's name from the address is looked up in Crossref's public journal list (the name is sent there). A journal on Open Journal Systems also offers its announcements (news and calls for papers) when it publishes them. A society's page for its journal that links to the journal on one of those sites offers the journal's feed first and the society's own feed after it; a journal the page only links to, without being shown to be the page's own, says *Linked from that page*. Duke University Press can't be reached, but its journals are found in Crossref by the name in the address (below); one Crossref doesn't know tells you to copy the RSS link from the journal's issue page |
-| A SAGE Journals journal page, issue page or issue list (`journals.sagepub.com/home/code`, `/toc/code/…`, `/loi/code`) | The journal's table-of-contents feed, named after the journal, even when the page blocks automated readers |
-| A journal on IEEE Xplore (an address with `punumber=`), IOPscience (`/journal/<ISSN>` or an article), the ACM Digital Library (`/journal/code`, `/toc/code/…`), Springer Nature Link (`/journal/<number>`), MDPI (`/journal/name`), PLOS (`/plosone/…`, an article included) or Frontiers (`/journals/name/…`, an article included) | The journal's own feed of new articles, named after the journal, made from the address even when the page turns automated readers away. Springer's feed doesn't name its journal, so the journal of its newest article is looked up in Crossref (the article's DOI is sent there). On MDPI, its feed of all its journals' new articles is offered after the journal's own, as the whole site's feed |
+| A scholarly journal's page, or one of its issue pages, on Wiley Online Library, Taylor & Francis, the University of Chicago Press journals site, Berghahn Journals, Project MUSE or ScienceDirect | The journal's feed of new articles, named after the journal, even though those sites turn automated requests away. Where the journal has more feeds with other contents they are offered too, each saying what it holds: on Wiley, Taylor & Francis and Chicago the articles published online that aren't in an issue yet, on Project MUSE one item per new issue. Feeds with the same items under different addresses are offered once. For ScienceDirect the journal's name from the address is looked up in Crossref's public journal list (the name is sent there). A journal on Open Journal Systems also offers its announcements (news and calls for papers) when it publishes them. A society's page for its journal that links to the journal on one of those sites offers the journal's feed first and the society's own feed after it; a journal the page only links to, without being shown to be the page's own, says *Linked from that page*. Duke University Press can't be reached, but its journals are found in Crossref by the name in the address (below); one Crossref doesn't know tells you to copy the RSS link from the journal's issue page |
+| A SAGE Journals journal page, issue page or issue list (`journals.sagepub.com/home/code`, `/toc/code/…`, `/loi/code`) | The journal's table-of-contents feed, named after the journal, even when the page blocks automated requests |
+| A journal on IEEE Xplore (an address with `punumber=`), IOPscience (`/journal/<ISSN>` or an article), the ACM Digital Library (`/journal/code`, `/toc/code/…`), Springer Nature Link (`/journal/<number>`), MDPI (`/journal/name`), PLOS (`/plosone/…`, an article included) or Frontiers (`/journals/name/…`, an article included) | The journal's own feed of new articles, named after the journal, made from the address even when the page turns automated requests away. Springer's feed doesn't name its journal, so the journal of its newest article is looked up in Crossref (the article's DOI is sent there). On MDPI, its feed of all its journals' new articles is offered after the journal's own, as the whole site's feed |
 | An article's DOI (`10.1111/…`, `doi:10.1111/…`, a `doi.org` link) or an article link on Wiley, Taylor & Francis or the University of Chicago Press journals site | The DOI is looked up in Crossref's public metadata (the DOI is sent there) to find the journal. The feed of a Wiley or Elsevier journal is offered. For other publishers the DOI's page is looked at like any other page; if that finds nothing, you're told which journal the article is in so you can paste the journal's own page |
 | A journal found in any of the ways above, a journal's ISSN (`1534-8687`, `ISSN 1534-8687`) or its ISSN portal page | The journal through **Crossref**, the open registry where publishers register every article: one more choice, after the journal's own feeds, listing each article as it is registered, with its authors and, where the publisher sends one, its abstract, linked to its DOI. It is chosen at the start only when the journal has no working feed of its own (some publishers have switched theirs off). It can arrive a few days after the publisher's feed. The journal's name or ISSN is looked up in Crossref's public journal list (the name or ISSN is sent there), and this server then asks Crossref for the journal's newest articles at each check |
 | A page where nothing else finds a feed | As a last step, Wikidata, the open knowledge base, is asked which site or journal has that page as its official website (the page's address and its site's front page, without anything after a `?`, are sent there; nothing is sent for an address that looks private). Feeds Wikidata lists for it are offered when they answer, saying that Wikidata named them; a journal's ISSN leads to the journal through Crossref |
@@ -131,7 +131,7 @@ What you can paste:
 | A Mastodon or other fediverse account: `@name@server`, or its profile page (`https://server/@name`) | The account's public feed, which its profile page advertises |
 | A Bluesky account: `@name.bsky.social`, a custom-domain handle such as `@example.com`, `name.bsky.social`, or a `bsky.app/profile/…` link | The account's public feed on bsky.app; a post link offers its author to confirm |
 | A private feed link (one containing a token or key) | Followed and marked private (below) |
-| A public Telegram channel (`t.me/name`, `t.me/s/name`, or one of its posts), a Bandcamp artist or label (`name.bandcamp.com`), a SoundCloud account (`soundcloud.com/name`), a Twitch channel's videos (`twitch.tv/name`), a Mixcloud account's own shows (`mixcloud.com/name`), a Rutube channel (`rutube.ru/channel/123…`), an Apple Music artist's releases (`music.apple.com/…/artist/…/123…`) a public Instagram account (`instagram.com/name`; its latest six posts, as captions, with the post itself shown on request), a MangaDex title's chapters (`mangadex.org/title/…`; in every language, each marked in its title) or a VK Video channel (`vkvideo.ru/@name`) | Collected by the server's bridge from the public page, as the latest posts at each check. The preview says so. A bridge source can stop working when the service changes its site, and an export lists it by its page address. A server without the bridge says the service has no feeds |
+| A public Telegram channel (`t.me/name`, `t.me/s/name`, or one of its posts), a Bandcamp artist or label (`name.bandcamp.com`), a SoundCloud account (`soundcloud.com/name`), a Twitch channel's videos (`twitch.tv/name`), a Mixcloud account's own shows (`mixcloud.com/name`), a Rutube channel (`rutube.ru/channel/123…`), an Apple Music artist's releases (`music.apple.com/…/artist/…/123…`) a public Instagram account (`instagram.com/name`; its latest six posts, as captions, with the post itself shown on request), a MangaDex title's chapters (`mangadex.org/title/…`; in every language, each marked in its title) or a VK Video channel (`vkvideo.ru/@name`) | Fetched through the server's bridge from the public page, as the latest posts at each check. The preview says so. A bridge source can stop working when the service changes its site, and an export lists it by its page address. A server without the bridge says the service has no feeds |
 
 What doesn't work:
 
@@ -160,7 +160,7 @@ What doesn't work:
   later. YouTube sometimes refuses its feed for a while; you're told when that happens.
 - A bare `@name`: paste the full address or the whole handle (`@name@server`, `@name.bsky.social`).
 - Bluesky custom feeds, lists and hashtags, Mastodon hashtags, and fediverse accounts whose server
-  publishes no feed (GoToSocial only does when the account's owner turns it on). A Bluesky account
+  publishes no feed (GoToSocial only does when the account's own settings turn it on). A Bluesky account
   that asks not to be shown to signed-out people can't be followed.
 - Services without a feed that would need an account connection. No service connectors are
   built.
@@ -175,7 +175,7 @@ the start of the text stands in (a long post continues in the line under it, so 
 and marks a quote or attachment with a placeholder; PURSS shows the placeholder as *[quote or attachment: open the post to see it]*, and asks Bluesky's
 public service (from the server, never from your browser) for the pictures of the account's posts of the last three days, at most three tries each,
 and shows the first one with the post. A post that quotes another one and has no picture of its own shows the quoted post's first picture (its images, video still or link card; one level only). A post that Bluesky doesn't answer for keeps the text alone; nothing about the posts is ever held back for this. A post its author later deletes or edits stays in your
-PURSS as it was collected.
+PURSS as it was fetched.
 
 **Private links.** If a feed address looks like it contains a secret, the option to mark it
 private starts ticked; untick it if the link is an ordinary public feed. A source marked private is treated as private: the address is stored apart from your
@@ -190,7 +190,7 @@ feeds); a long random value right after a word like `/feed/`, `/rss/`, `/u/` or 
 id (Serious Eats, Al Jazeera, podcast hosts such as Acast, Omny, Megaphone and Simplecast), a topic in the query (`?key=tech-news`) and ordinary slugs, including those ending in an article's number,
 are not taken for private links. A link that holds a secret in a shape PURSS doesn't know is not warned about: if you know it is private, *Manage → Keep this feed's link private* marks it.
 
-**Importing a list.** *Your data → OPML* takes a subscription list from another reader. You
+**Importing a list.** *Your data → OPML* takes a list of subscriptions from another feed reader. You
 pick which feeds to follow, and each one goes through the same look-up as pasting a link, keeping
 the name the file gave it. The list is followed on the server, one feed after the other: you can
 close the window, leave the page or sign out, and the progress and the result of every feed are on
@@ -227,7 +227,7 @@ gives the browser's own menu).
   counts; opening it, reading it partway, keeping it in a basket (a basket shows what is kept in it,
   Ignored or not), highlighting it or adding a note leaves it as it is. Sources you followed before this
   choice existed keep showing their backlog as older items, as they did.
-- **Unfollow:** collection stops and the source leaves your collections. Kept items stay; the
+- **Unfollow:** fetching stops and the source leaves your collections. Kept items stay; the
   rest no longer show in lists or search. Tick *Also delete the items you haven't kept* to
   delete those permanently and free their storage (kept and shared items are never deleted).
   You can follow the source again later.
@@ -242,48 +242,48 @@ gives the browser's own menu).
   you've followed it, or shows it again if it was marked private by mistake. Showing it again
   looks the feed up once more, so the feed has to be reachable; full articles stay off until you
   turn them on. Shared pages and exports made while the link was public can't be taken back.
-- The source's status shows when something needs attention: still collecting the first items,
+- The source's status shows when something needs attention: still fetching the first items,
   quiet (nothing new for 30 days), failing, paused, or needs reconnecting (a private source
   whose link is missing, for example after an import).
-- A source that couldn't be collected shows the reason in the words PURSS gives (for example that it is waiting to try again, or has given up) and offers **Try again** on its page, in *Needs attention* on Home, in the activity list and in its right-click menu.
+- A source that couldn't be fetched shows the reason in the words PURSS gives (for example that it is waiting to try again, or has given up) and offers **Try again** on its page, in *Needs attention* on Home, in the activity list and in its right-click menu.
 - **PURSS news:** once the installation's administrators publish their first post,
-  every PURSS gets this source, with the newest three posts; later posts arrive as New
+  every account gets this source, with the newest three posts; later posts arrive as New
   (paused or full accounts get them once they can take them again). It shows the app's own icon
   and works like any source:
   pause, rename, mute or unfollow it. Unfollowed, it stays unfollowed; to follow it again, add
-  the news page (`/news` on your PURSS's address) as a source. Its posts are also public at
+  the news page (`/news` on your installation's address) as a source. Its posts are also public at
   `/news` and in the Atom feed `/news/feed.atom`, for any feed reader. When an administrator
-  edits a post your copy changes too, unless you kept it; when they delete one, your copy goes
+  edits a post your item changes too, unless you kept it; when they delete one, your item goes
   unless you kept it, published it or wrote notes on it. Administrators see, per post, how many
-  PURSSes opened, kept or ignored it, never whose.
+  accounts opened, kept or ignored it, never whose.
 
 ## Full articles
 
 Many feeds carry only a summary. Turn on **Full articles** on a source's page (or *Fetch full
 articles* in its right-click menu) and PURSS fetches each new post's page and saves a
-readable copy of the article. The reader then shows that copy instead of the summary, search
+readable copy of the article. The reader then shows that readable copy instead of the summary, search
 covers it, and it is there for [offline reading](#install-and-offline-reading).
 
 - It applies to new items, and to up to 20 of the source's newest items you haven't finished or
-  ignored when you turn it on. Copies are fetched a few seconds apart, so a burst of new posts
+  ignored when you turn it on. Readable copies are fetched a few seconds apart, so a burst of new posts
   takes a little while. A source followed from now keeps its [backlog](#sources), which is
-  Ignored, as it came: no copies are fetched by themselves for the posts it already had, so a site that refuses
-  automated readers doesn't fail them one by one. Keeping one of those posts in a basket that makes
-  a readable copy, or *Try again*, still fetches its copy.
+  Ignored, as it came: no readable copies are fetched by themselves for the posts it already had, so a site that refuses
+  automated requests doesn't fail them one by one. Keeping one of those posts in a basket that makes
+  a readable copy, or *Try again*, still fetches its readable copy.
 - It is the same readable copy a *Readable copy too* basket makes: text and links, no
-  scripts. The copy reflects the page when it was fetched. Some sites need a login, block
-  automated readers or only work with JavaScript; then the item keeps its feed summary and its
-  panel says the copy failed.
-- A copy is checked before it is called the article. A cookie banner (found by the names pages give them, and taken out before the article is looked for), a sign-in, subscription or consent page,
-  a page that is only its menus, a page of mostly references, or a copy much shorter than the feed's own text is only part of the page: the item says *Only part of the page could be saved*, shows the feed's own text first, and keeps the copy behind a toggle. A page whose only text is a cookie notice or its menus gives no copy at all, and the panel lists the failed copy with **Try again**.
-- When the server is short of space, new items still arrive, without a copy. Deleting or cleaning up an item deletes its copy.
-- Turning it off stops new copies; copies already saved stay, and ones already waiting still
+  scripts. The readable copy reflects the page when it was fetched. Some sites need a login, block
+  automated requests or only work with JavaScript; then the item keeps its feed summary and its
+  panel says the readable copy failed.
+- A readable copy is checked before it is called the article. A cookie banner (found by the names pages give them, and taken out before the article is looked for), a sign-in, subscription or consent page,
+  a page that is only its menus, a page of mostly references, or a readable copy much shorter than the feed's own text is only part of the page: the item says *Only part of the page could be saved*, shows the feed's own text first, and keeps the readable copy behind a toggle. A page whose only text is a cookie notice or its menus gives no readable copy at all, and the panel lists the failed readable copy with **Try again**.
+- When the server is short of space, new items still arrive, without a readable copy. Deleting or cleaning up an item deletes its readable copy.
+- Turning it off stops new readable copies; readable copies already saved stay, and ones already waiting still
   finish.
 - Not available for private sources, YouTube channels, podcasts or links you kept by hand.
 - When a feed gave only a summary and no readable copy has been made, the item panel says
   **Summary only — the full article stays on the original site**, and the reading time (which
-  would only describe the summary) is left out. When a copy is made, the reading time is
-  worked out again from it. If a copy failed, the panel lists it with **Try again**.
+  would only describe the summary) is left out. When a readable copy is made, the reading time is
+  worked out again from it. If a readable copy failed, the panel lists it with **Try again**.
 - When a feed's own text can't be kept in full, the item keeps its details and summary, and the panel says **Summary only**: the full article stays on the original site.
 
 ## Listening and watching
@@ -308,7 +308,7 @@ and the previous button skips back 15.
   ("podcast@radiofrance.com (Radio France)" shows as "Radio France"); an address with no name shows no byline, and a name
   given twice shows once. Only what is shown changes: the feed's own line stays stored, search reads it, and your export
   carries it.
-- **Where it plays from:** the publisher's site (or, in the phone apps, the download on your phone when
+- **Where it plays from:** the publisher's site (or, in the mobile app, the download on your phone when
   you have one). The player says which. PURSS never stores audio or video files: it only plays the
   publisher's own file, so if the publisher removes it, it is gone. Streaming from the publisher works like
   loading their images: they see your address.
@@ -318,7 +318,7 @@ and the previous button skips back 15.
   the panel, and your place in it isn't kept. Some videos can't be played outside their site (the player
   says so); *Open on YouTube* (or the other site) beside it always opens the video's own page. Twitch plays
   here only when PURSS is on an https address (or `localhost`). In the desktop app on a Mac or Linux and
-  in the iPhone app, only Odysee plays here: the other sites refuse to play inside those apps, so their
+  in the mobile app on an iPhone, only Odysee plays here: the other sites refuse to play inside those apps, so their
   videos open on the site. Other sites, PeerTube included, open in a new tab.
 - **Instagram posts** show the post itself (its pictures or video) in Instagram's own embed above its
   caption, as soon as you open it; that loads it from Instagram. Instagram doesn't let its pictures be
@@ -326,7 +326,7 @@ and the previous button skips back 15.
   to *Readable copy too* has kept it (see Baskets). A kept post shows its kept pictures in a slideshow
   instead (swipe, the arrows, or the arrow keys once you've clicked it), and *Show the post here*
   loads Instagram's embed under it, for a reel's video. *Open on Instagram* opens the post on Instagram.
-- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player, and on the system's media controls in a browser; the phone apps' lock screen shows only a picture the publisher's own site serves).
+- **Pictures:** an episode shows its own picture, or the show's when it has none (in lists, on cards and in the player, and on the system's media controls in a browser; the mobile app's lock screen shows only a picture the publisher's own site serves).
 - **Picking up where you stopped:** the position is kept on the server, so another device offers
   *Listen from 12:34*. A position reached without a connection is kept on the device and sent once
   it is back; whichever position was reached last wins. Within 15 seconds of the end, it starts from the beginning next time.
@@ -346,9 +346,9 @@ and the previous button skips back 15.
   A YouTube video opened with **Play here** is marked **In progress** when you press play. PURSS can't
   tell when the embedded player reaches the end (that would need YouTube's own script, which PURSS's
   page policy doesn't allow), so it is never marked Finished automatically.
-- **Downloading a file** is only for the phone apps: *Download to this device* in the reader, or the
+- **Downloading a file** is only for the mobile app: *Download to this device* in the reader, or the
   download button on a row or card, keeps the file on your phone (see *Downloaded* below). A browser has
-  no download button, because PURSS has no copy to give you.
+  no download button, because PURSS has no file to give you.
 - Not available for private sources: their file links can contain your membership key.
 
 ## Collections and baskets
@@ -365,16 +365,16 @@ A collection is one of two kinds:
 
 Deleting a collection removes only the grouping. Sources and items stay.
 
-A **basket** is how you gather individual items by hand, from any source, and it keeps a copy
-of each item as it is when you keep it (⋯ → *Keep in…*, right-click, or the item panel). That copy stays even if the feed later
+A **basket** is how you gather individual items by hand, from any source, and it keeps each item
+as it is when you keep it (⋯ → *Keep in…*, right-click, or the item panel), as its kept version. That version stays even if the feed later
 drops the item or the original changes; when the original has changed you can see both. An item can be in several baskets and is stored
 once. Each basket has a capture mode:
 
 - **Link and summary** (the default): keeps the item's details and whatever content its
-  feed supplied, with no extra copy of the page.
+  feed supplied, with no readable copy of the page.
 - **Readable copy too:** also queues a readable copy of the page in the background (unless the
-  item already has one, or it is a video, podcast episode or post (Bluesky, Instagram) from a feed: those keep what the feed gave and no copy of their page is tried, so no
-  "couldn't save the text" follows; a page you keep by hand always gets its copy). The copy reflects the page when it is fetched, if it can be fetched.
+  item already has one, or it is a video, podcast episode or post (Bluesky, Instagram) from a feed: those keep what the feed gave and no readable copy of their page is tried, so no
+  "couldn't save the text" follows; a page you keep by hand always gets its readable copy). The readable copy reflects the page when it is fetched, if it can be fetched.
   Not done for private sources, or when the server is short of space. The basket also keeps the item's picture
   and the pictures inside the readable text (up to 20 pictures and 10 MB for one item), so a
   webcomic or a visual reference stays whole. A page that loads its pictures with a script (a gallery of thumbnails, say) keeps them too: a thumbnail that links to its full-size picture keeps the full-size one. They are kept once, however many baskets keep the
@@ -516,12 +516,12 @@ ask your administrator.
 
 An item's **More** menu has two links. **Copy link to the original** copies the original page's address: the one to
 send to someone, who can open it without an account here (an episode whose feed gives only its audio file has no
-page, so the entry isn't offered). **Copy your private link to this
+page, so that link isn't offered). **Copy your private link to this
 item** copies the item's short link, such as `/app/i/48213`: every item has a number of its own in your PURSS,
 and no other item ever gets it, even after the item is deleted. Only you can open the link (anyone
-else gets the sign-in page). On a device that saved the item for offline reading, the link opens it
+else gets the sign-in page). On a device that holds the item for offline reading, the link opens it
 without a connection too. Your export keeps each item's number, so importing it into a new, empty
-PURSS keeps your links working; an import into a PURSS that already used those numbers gives the
+account keeps your links working; an import into an account that already used those numbers gives the
 imported items new ones. You can also share a whole basket or collection as a
 [public page](#sharing-a-basket-or-collection).
 
@@ -590,7 +590,7 @@ its words. If the passage is no longer in the text shown, the highlight stays in
 quote, marked *Not found in the text shown*; it is never dropped. Search finds items by your comments,
 notes and highlighted passages. Highlights and notes are private: they never appear on shared pages.
 
-**Offline:** highlights and notes are saved with the offline reading copies, and you can add,
+**Offline:** highlights and notes are held with the offline copies, and you can add,
 change and remove them without a connection. Each change waits on this device, marked **Waiting to
 sync**, survives closing the app, and is sent when the connection is back. If the same note was
 changed on two devices, the later change wins. Signing out deletes changes that haven't synced yet,
@@ -621,9 +621,9 @@ in Settings.
 ## Search
 
 Press `/` or `Ctrl K` (`⌘K` on a Mac). Search covers item titles, summaries, authors, feed
-content and saved readable text, your highlights, comments and notes, plus the names of sources,
+content and readable copies, your highlights, comments and notes, plus the names of sources,
 collections and baskets, and the app's actions. Pick a result to jump to it. Search starts with
-the eight best-matching items; when there are more, the last entry in the list is **Show more
+the eight best-matching items; when there are more, the last row in the list is **Show more
 results** (reach it with the arrow keys and press Enter, or select it). Each press adds 24 more, up
 to 100 items, and the one you were on stays highlighted on the first new item; past that, add a
 word to narrow the search.
@@ -680,7 +680,7 @@ select it to see collections too.
 - On a hosted installation every account has a plan: **Free** allows 100 sources and 5
   collections, **Plus** 1,000 sources and any number of collections, and **Pro** 5,000 sources,
   any number of collections and [Smart filters](#smart-filters).
-  Administrators are not limited. Saved links and sources you no longer follow don't count.
+  Administrators are not limited. Kept links and sources you no longer follow don't count.
 - At the limit, following another source, adding a collection or importing more than fits is
   refused with a message; unfollow a source or remove a collection first. A Free account that
   has all 5 collections is told so before it starts another: *New collection* says it instead of
@@ -693,7 +693,7 @@ select it to see collections too.
   period you paid for, then moves to Free; nothing you follow or keep is removed.
 - A self-hosted PURSS has no plans or limits.
 - To protect the server, each account also has a limit on the space it takes (set by an
-  administrator; a self-hosted install has none unless its operator sets one). If an account
+  administrator; a self-hosted install has none unless its administrator sets one). If an account
   reaches it, or the server's disk runs low, reading and organising keep working while new items
   and readable copies pause. Nothing you kept is ever removed to make space.
 
@@ -730,7 +730,7 @@ export and import.
 ## Discovery
 
 On the hosted service, **Discovery** helps you find new sources. The first box,
-**Recommended based on your sources**, suggests sources picked from what readers like you follow.
+**Recommended based on your sources**, suggests sources picked from what people like you follow.
 Each suggestion says which of your sources led to it. A few random picks are mixed in, and the list
 changes daily. **Follow…** opens Add source; **Not interested** hides a suggestion for good.
 
@@ -748,7 +748,7 @@ Your sources then count anonymously: a source only counts once 10 people follow 
 who follows what, and private sources never count. Turn it off and your sources leave the counts
 within minutes, and you stop getting suggestions.
 
-The first box says **Coming soon** until enough people share. A self-hosted PURSS has no
+The first box says **Coming soon** until enough people share. A self-hosted installation has no
 suggestions; it shows popular sources only if its administrator added a catalogue of them.
 
 ## Reminders
@@ -777,9 +777,9 @@ to five years ahead. An item has one reminder: change it or remove it from the s
   import (days that have gone by are left out).
 
 Reminders are never inferred. Nothing is reminded that you didn't ask about, apart from the
-anniversaries below.
+On this day notes below.
 
-**Anniversaries.** Home sometimes shows a quiet note about something you kept on this date in an
+**On this day.** Home sometimes shows a quiet note about something you kept on this date in an
 earlier year. Hide or snooze each one, or turn them off in *Settings → General → Anniversary
 reminders*. The bell says "On this day" for these.
 
@@ -797,7 +797,7 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
   to you), but never those of private sources.
 - **What about:** new items from every collection shown on Home, or only from the collections you
   tick; sources that stop working; reminders ("On this day" notes and the days you set with
-  [Remind me](#reminders)); saved text that couldn't be saved. These come whatever the digest setting,
+  [Remind me](#reminders)); readable copies that couldn't be made. These come whatever the digest setting,
   also with *Never*.
   Collections you hide from Home are left out unless you tick them. A source's own setting wins:
   *Mute* never notifies; *Notify me* tells you as items arrive, also with *Never* (at most one
@@ -808,12 +808,12 @@ The bell lists what you chose to be told about. *Settings → Notifications and 
   source's name is still shown ("New from …"), and a private source's titles are never shown.
 - **Quiet hours:** browser alerts are held back; everything still waits in the bell.
 
-*Never* stops digests, but not sources set to *Notify me*, reminders or problem notices: their unread items
+*Never* stops digests, but not sources set to *Notify me*, reminders or problem notices: their unseen items
 still count in the bell. Notifications are deleted after 90 days (and only the newest 500 are kept),
 and a source's notifications go when you unfollow it. Browser alerts show only while PURSS is open in
-a tab. In the phone apps, *Settings → This device → Notifications on this phone* (where the build has
+a tab. In the mobile app, *Settings → This device → Notifications on this phone* (where the build has
 it) shows these as system notifications even with the app closed: they follow your notification
-settings and quiet hours, and the phone asks your PURSS for the text before showing it.
+settings and quiet hours, and the phone asks your installation for the text before showing it.
 Email carries the digest (unless you turn it off), your [reminders](#reminders) when you ask for that,
 and your account's own messages; source alerts, failing sources and failed text saves stay in the bell.
 
@@ -823,10 +823,10 @@ number or only a dot, and its settings can turn it off.
 
 - **Desktop app:** on the taskbar button (Windows), the dock (macOS), or the launcher on Linux
   where it shows counts (KDE Plasma, Ubuntu's dock), installed from the `.deb` or `.rpm`. The AppImage
-  has no launcher entry for the count to go on. The tray icon's tooltip says it too.
+  has no installed launcher for the count to go on. The tray icon's tooltip says it too.
 - **Installed web app:** in Chrome or Edge on a computer, and on an iPhone or iPad from the home
   screen once notifications are allowed. A plain tab shows none.
-- **Phone app:** on iOS on the icon, once notifications are allowed. Android draws a dot or number
+- **Mobile app:** on iOS on the icon, once notifications are allowed. Android draws a dot or number
   only while PURSS has a notification showing, so there the count rides on PURSS's notifications.
   With the app closed it is updated when a notification arrives.
 
@@ -847,24 +847,24 @@ reading list on this device:
   text (up to 100, the most recently kept first), with the text you kept; then items that are
   **New** and still **Undecided**, newest first; up to 200 items in all, with each item's text as
   PURSS holds it (the feed's content, or the readable text when one was captured);
-- Home, your collections and the sources behind those items, as they were when they were saved,
+- Home, your collections and the sources behind those items, as they were when this device last updated them,
   plus any page or item you opened while online.
 
-Saved items carry no mark: keeping your reading list readable is what the app does. That copy is
+Items held offline carry no mark: keeping your reading list readable is what the app does. That offline copy is
 the text only, as PURSS holds it; to keep an episode's or video's file, or an article's
 full text when PURSS has only its summary, download the item (see *Downloaded*), which
 marks it **Downloaded**.
 
-The saved set is rebuilt whenever it is missing or out of date, not only when you switch the
-setting: when the app opens, at once if the device has lost copies it should hold (a browser that
+The offline set is rebuilt whenever it is missing or out of date, not only when you switch the
+setting: when the app opens, at once if the device has lost offline copies it should hold (a browser that
 cleared its storage, say), within about half a minute of you marking something To read or keeping
 something (only the reading list is refreshed then), when new items arrive and when the connection
 comes back. Apart from those, it saves no more than every 15 minutes. **Article images are not
 saved**, so offline you read the text and images need a connection. Settings shows how many items are saved, when they were last saved, and
-how much of **this device's browser storage** the app uses. Saved copies take no space on the
+how much of **this device's browser storage** the app uses. Offline copies take no space on the
 server.
 
-While you are offline, or when what you see came from the saved copies, a notice under the header
+While you are offline, or when what you see came from the offline copies, a notice under the header
 says **Offline · showing what this device saved**. You can open lists and items that were saved.
 Changes to items (marking one, keeping it in a basket or taking it out, clearing New markers) are
 **kept on this device and sent when the connection is back**, in the order you made them; the
@@ -875,12 +875,12 @@ a plain message. Search, Sharing, Your data, administration and sign-in settings
 saved, so they need a connection.
 
 - **It is on by default only in the installed app.** In an ordinary browser tab it is off, so a
-  shared computer's browser doesn't quietly keep a copy of what you read. You can change it either
+  shared computer's browser doesn't quietly keep an offline copy of what you read. You can change it either
   way. The choice belongs to this device, like Sounds.
 - **Turning it off, pressing *Remove offline copies*, or signing out deletes the copies.** The app
   itself, which holds none of your data, stays so it can start. *Remove offline copies* also turns
   the setting off; turn it on again to save afresh.
-- **Copies are a convenience, not a keep.** They follow your reading list, a browser may clear
+- **Offline copies are a convenience, not a keep.** They follow your reading list, a browser may clear
   them to free space, and they aren't a guarantee about the original page. To keep an item,
   put it in a basket.
 
@@ -895,9 +895,9 @@ under **Apps and extensions**; Add source, an empty basket and the command palet
 - **Browser extension** (Chrome, Edge, Firefox and Safari): keep the page you are reading, add its
   site as a source and search your PURSS from the address bar. See
   [Browser extension and bookmarklets](#browser-extension-and-bookmarklets).
-- **Phone and tablet app** (Android and iOS): the same PURSS made for a phone, with listening
+- **Mobile app** (Android and iOS, phones and tablets): the same PURSS made for a phone, with listening
   while the screen is off, downloads for reading offline and sharing links into it. See
-  [The phone app](#the-phone-app).
+  [The mobile app](#the-mobile-app).
 - **Desktop app** (Windows, Mac and Linux): the same PURSS in its own window, running on in the
   tray with notifications and downloads, opening feed links and OPML files. See
   [The desktop app](#the-desktop-app).
@@ -911,9 +911,9 @@ under **Apps and extensions**; Add source, an empty basket and the command palet
 **Where to get them.** The browser extension is in the
 [Chrome Web Store](https://chromewebstore.google.com/detail/purss/hbchpheipggpppbilgepkalcnnemnldl)
 and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/purss/), and updates itself from there.
-It isn't in Edge Add-ons; Edge can install it from the Chrome Web Store. The phone app isn't in
+It isn't in Edge Add-ons; Edge can install it from the Chrome Web Store. The mobile app isn't in
 any app store (the desktop app and the Android APK are downloaded from this project's releases);
-Settings shows a store button for each store an app is in. Otherwise the phone app is built from the
+Settings shows a store button for each store an app is in. Otherwise the mobile app is built from the
 source code as described in [the mobile README](../apps/mobile/README.md#build). Bookmarklets,
 assistants, the e-ink display and installing the web app need nothing extra.
 
@@ -932,7 +932,7 @@ for yourself in *Settings → Assistants*.
 
 Some assistants, such as Claude and ChatGPT custom connectors, don't take a token: they ask you to
 sign in. Where your PURSS offers this (the official hosted service does; a self-hosted one
-only if its operator turned it on), *Settings → Assistants* shows the address to add as a custom
+only if its administrator turned it on), *Settings → Assistants* shows the address to add as a custom
 connector. The assistant then opens a page of your PURSS that asks whether to allow it:
 
 - It names the assistant, the site that identifies it, and where you'll be sent back. Allow only
@@ -947,7 +947,7 @@ were last used; **Disconnect** stops one at once. One that isn't used for 90 day
 
 What a token or a connected assistant may do:
 
-- **Read only:** search; list and read items (with their saved full text and your own highlights
+- **Read only:** search; list and read items (with their readable copies and your own highlights
   and notes, labelled as yours), sources, collections and baskets. Assistants can't change
   highlights or notes.
 - **Read and organise:** also change workflow states, clear New markers, keep items in baskets or
@@ -958,7 +958,7 @@ An assistant can never delete anything permanently, share or publish, export, ch
 or reach administration, and it only ever sees your own PURSS. Links of items from private
 sources are left out.
 
-- What the assistant reads is sent to it and to its provider.
+- What the assistant reads is sent to it and to its AI provider.
 - Item text comes from the publishers you follow. A page could contain text meant to steer an
   assistant; PURSS labels it as the publisher's text, but check what an assistant proposes
   before it changes many things or unfollows a source.
@@ -969,39 +969,39 @@ sources are left out.
 
 ## Connected apps
 
-The PURSS app for phones and the browser extension connect to your PURSS without sharing
-your password. When an app asks to connect, your browser opens PURSS's **Connect** page:
+The mobile app and the browser extension connect to your PURSS without sharing
+your password. When an app asks to connect, your browser opens the installation's **Connect** page:
 
 1. Sign in if needed (you return to the page afterwards). If you signed in a while ago, you confirm
    it's you.
-2. Check what is asking (the phone app or a browser extension) and give it a name you'll recognise.
+2. Check what is asking (the mobile app or a browser extension) and give it a name you'll recognise.
 3. Press **Connect**. You go back to the app, or, for apps that can't receive that, you get a short
    code to type into the app. It works once, for five minutes. Never give it to anyone.
 
 Only connect what you started yourself, just now. **Don't connect** sends nothing.
 
-- The phone app can do what you do in PURSS, except sign-in and security settings,
+- The mobile app can do what you do in PURSS, except sign-in and security settings,
   administration and assistant access, which stay in the browser.
 - The extension can only keep links (with the page's text, if you ask), check whether you already
   have a page and which of your sources it belongs to, search, and find and follow sources. See
   [Browser extension and bookmarklets](#browser-extension-and-bookmarklets).
 - *Settings → Connected apps* lists each app with when it was connected and last used.
   **Disconnect** stops it at once. An app that isn't used for 90 days is disconnected on its own.
-  An administrator suspending your account, or a password reset (by email, or with a link the operator
+  An administrator suspending your account, or a password reset (by email, or with a link the administrator
   made at the server), disconnects them all.
 
 ## The desktop app
 
-The app for Windows, Mac and Linux is the same PURSS in a window of its own. Download it from the website or
+The app for Windows, Mac and Linux is the same PURSS in a window of its own. Download it from the public site or
 from *Settings → Connected apps*; it updates itself. It isn't signed by Microsoft or Apple, so the first time you
 open it Windows asks you to confirm (*More info*, then *Run anyway*) and a Mac asks you to allow it in
 *System Settings → Privacy & Security*.
 
-**Connecting.** As in the phone app: sign in to the official server, or choose *Use another server*, with your
+**Connecting.** As in the mobile app: sign in to the official installation, or choose *Use another PURSS*, with your
 email address and password. To use a passkey or a linked account, choose *Sign in in your browser*:
-your browser opens the server's Connect page, and the app connects when you press *Connect* there. Your connection
-is kept in your computer's keyring (on a Linux computer without one, in a file only your user account can read).
-The app connects only to servers updated for it; to the app an older one looks unreachable.
+your browser opens the installation's Connect page, and the app connects when you press *Connect* there. Your connection
+is kept in your computer's keyring (on a Linux computer without one, in a file only your own account on that computer can read).
+The app connects only to installations updated for it; to the app an older one looks unreachable.
 
 **In the background.** Closing the window keeps the app running in the tray (the system tray or menu bar), so
 notifications and automatic downloads go on; quit it from the tray icon. *Settings → This device → Start when you
@@ -1021,15 +1021,15 @@ address filled in, and OPML files open the list of their feeds to choose from, a
 
 **Updates.** New versions of the app download by themselves. A notification says when one is ready, and the
 tray's menu and *Settings → This device* offer *Restart to update*; quitting from the tray installs it too. If the
-computer shuts down with the app still running, the new version is installed the next time the app starts. The PURSS you are connected to can also update the app's screens,
-as in the phone app.
+computer shuts down with the app still running, the new version is installed the next time the app starts. The installation you are connected to can also update the app's screens,
+as in the mobile app.
 
-## The phone app
+## The mobile app
 
 The Android and iOS app is the same PURSS as in the browser, made for a phone. It connects to
-the official server unless you choose another one: your own, or another hosted one.
+the official installation unless you choose another one: your own, or another hosted one.
 
-**Signing in.** The app opens on the official server's sign-in: sign in with your email address and
+**Signing in.** The app opens on the official installation's sign-in: sign in with your email address and
 password. Where the server sends email, *Forgot your password?* emails you a link to set a
 new one; on a server that doesn't, its administrator can give you a reset link to open in a browser. To sign in with a passkey or a linked account, choose *Use a passkey or a linked account*:
 a sign-in tab opens the server's Connect page; sign in there, check that it names this device, and
@@ -1040,16 +1040,16 @@ were invited with, your name if you like, and a password; the app connects strai
 server lets anyone sign up, enter your email address instead: open the link that arrives, finish
 creating the account in the browser, then sign in in the app.
 
-**Another server.** Press **Use another server** under the sign-in and type the address you open
+**Another installation.** Press **Use another PURSS** under the sign-in and type the address you open
 your PURSS at (it needs **https://**, except on your own computer or home network, where the
-app warns that plain http isn't encrypted). The app remembers the server you chose and opens on it
-next time. *Settings → This device* shows which server the app is connected to; to change it, press
+app warns that plain http isn't encrypted). The app remembers the installation you chose and opens on it
+next time. *Settings → This device* shows which installation the app is connected to; to change it, press
 *Disconnect this app* there and connect again.
 
-**Updates.** The app's screens update from the server you're connected to, without an update from
-the app store, so they match the PURSS that server runs. The update takes over the next time
+**Updates.** The app's screens update from the installation you're connected to, without an update from
+the app store, so they match the version the installation runs. The update takes over the next time
 you open the app, or when you come back to it after an hour away (never while something is playing).
-A server other than the official one asks first: *Let PURSS update the app?* That code runs in
+An installation other than the official one asks first: *Let PURSS update the app?* That code runs in
 the app with your sign-in, so allow it only for a server you trust. You can change your answer in
 *Settings → This device → Updates of the app*. Changes to the app itself (new permissions and the
 like) come as a new version of the app: Google Play, F-Droid and the App Store install it as they do for
@@ -1063,7 +1063,7 @@ the app tells you once, and *Settings → This device → New version of the app
 - Everything in the browser is in the app too: Settings (with *This device* for downloads and the
   connection), Security, Connected apps, Assistants, *Your data* and administration. When the app
   asks you to confirm it's you, use your password (or a passkey where the app has it). Exports
-  open the share sheet, so you can save them to Files or a cloud drive.
+  open the share sheet, so you can store them in Files or a cloud drive.
 - Links to other sites open in a browser tab over the app.
 - **Listening** carries on with the screen off or in another app, with play, pause and skipping on
   the lock screen and in the notification.
@@ -1087,7 +1087,7 @@ notes, and its audio or video file on this phone, to read and play without a con
   reader says *Downloaded to this device*. A download that didn't finish shows a warning instead;
   press it to try again.
 - **Articles your PURSS has only a summary of:** the download reads the full article from the
-  publisher's page, on the phone, and the reader shows it with a note saying so. That copy stays on
+  publisher's page, on the phone, and the reader shows it with a note saying so. That offline copy stays on
   this device only: your PURSS and your other devices keep the summary, and you can't highlight
   on it. Only secure (`https`) pages on public sites are fetched, and the publisher sees this
   device's address. If the page can't be read (gone, behind a login, built with JavaScript), the
@@ -1095,10 +1095,10 @@ notes, and its audio or video file on this phone, to read and play without a con
   from the publisher, so they show only with a connection.
 - *All downloads*, under *Downloaded to this device* in the reader, opens the **Downloaded** page.
 
-- A download is a copy on this device only. PURSS stores no audio or video files, so an
+- A download is held on this device only. PURSS stores no audio or video files, so an
   episode's file comes straight from the publisher
   (over a secure connection only), who sees this device's address.
-- Nothing guarantees the publisher keeps the original available; if it goes, a download on this device is the only copy.
+- Nothing guarantees the publisher keeps the original available; if it goes, a download on this device is all that remains.
 - *Settings → This device → Automatic downloads*: download To read podcast episodes; only on Wi-Fi
   (on unless you change it); a limit that
   automatic downloads never pass (downloads you start yourself always go ahead and count toward
@@ -1128,7 +1128,7 @@ type its address first; the extension remembers it. Then:
 - **The toolbar button** on any page says whether it is already kept and in which baskets, and which
   of your sources publish on that site. Pick a basket and press **Keep**. The basket you used last is
   picked next time.
-- **Also keep its text as you see it** saves the readable part of the page as your browser shows it,
+- **Also keep its text as you see it** keeps the readable part of the page as your browser shows it,
   including pages you are signed in to. The item then says **Saved from your browser** with the
   date: PURSS didn't fetch that page, so it can't confirm the text matches the original.
   If the server can't take it, the link is still kept and the popup says why.
@@ -1164,7 +1164,7 @@ hosted installations sharing is part of Plus; a self-hosted PURSS always has it.
    account), an optional description, and whether search engines may list the page (off unless
    you turn it on).
 2. **Review** what visitors will see, the exact page, and what of yours becomes public: sharing a
-   basket shows everything you keep in it from then on, links you saved yourself show with the
+   basket shows everything you keep in it from then on, kept links show with the
    title you gave them, and your public notes show with your name. Then confirm and **Share**.
 
 The page shows each item's title, link, a short summary, source name and date, newest first (for a
@@ -1172,12 +1172,12 @@ basket: most recently kept first), up to 200 items, and its feed the newest 100.
 sources and links that carry a key never show. A collection's page leaves out what its list leaves out: Ignored items, which include the
 backlog of a source you followed from now ([Sources](#sources)), are not on it, unless you move a
 post to another state. A basket's page shows everything kept in it. Your reading progress and states, private notes and
-highlights, and saved text never do. The page is live: what you keep in the basket, or what the
+highlights, and readable copies never do. The page is live: what you keep in the basket, or what the
 collection gathers, appears on it without another review; taking something out of the basket takes
 it off the page.
 
 A filter collection can be shared unless its rules use your reading state (To read and the other
-states, New, opened, saved text). If you change its rules that way later, its page stops showing
+states, New, opened, readable copy). If you change its rules that way later, its page stops showing
 until you change them back. A text rule on a shared page matches the items' own text only, never
 your notes and highlights. Rules on baskets are allowed; the review says the page then shows what
 you keep.
@@ -1188,18 +1188,18 @@ on a public page, as soon as you save it. The editor says so each time.
 
 **Managing it.** Share shows the page's three addresses: the **Page**, its **Feed**, and a **Follow
 link**. The follow link opens a page where people follow it in their PURSS here (after signing
-in), or copy its feed into any other reader; share it anywhere. Other PURSSes can also follow
+in), or copy its feed into any other feed reader; share it anywhere. Other installations can also follow
 the page by pasting its link into Add source. **Pause** hides the page and feed until you review and
 share again; **Stop sharing** removes the page, its address and its public notes. Deleting the
 basket or collection stops sharing it. Turning on search-engine listing for a page that is already
 public asks you to confirm first; unless you turned it on, search engines are asked not to index
-the page, but that is a request, not access control. Copies people already fetched can't be
+the page, but that is a request, not access control. Pages people already fetched can't be
 recalled. The **Sharing** page lists everything you share, with its state.
 
 **Reports and takedowns.** Every public page has a **Report this page** link. Visitors pick a
 reason and explain; only what they type is kept, never their address, and you don't see it. An
 administrator reviews reports under *Administration → Reports* (only reported pages are shown
-there, as visitors see them). If they take a page down, the server stops showing its page and feed at once (a copy fetched in
+there, as visitors see them). If they take a page down, the server stops showing its page and feed at once (a page fetched in
 the minute before may still show in a browser or feed reader), Share and
 the Sharing page say why and the bell tells you; you can still change it, but sharing it again (or
 removing it) waits until an administrator restores it.
@@ -1207,16 +1207,16 @@ removing it) waits until an administrator restores it.
 ## A Follow button for your site
 
 Write a blog or run a site? In *Settings → Connected apps → Follow button for your site*, paste
-its feed address. You get a button to paste into your pages, and the plain follow link. Readers who
-press it land on this PURSS's follow page: they follow your site here, or copy the feed into
-their own reader. The button is one link with no script or image, so nobody is tracked.
+its feed address. You get a button to paste into your pages, and the plain follow link. People who
+press it land on this installation's follow page: they follow your site here, or copy the feed into
+their own feed reader. The button is one link with no script or image, so nobody is tracked.
 
 ## Your data
 
 *Settings → General → Your data*:
 
 - **Export everything:** one JSON file with your sources, collections, baskets and kept items,
-  saved text and the pictures kept with it, states and the log of your workflow changes, your
+  readable copies and the pictures kept with it, states and the log of your workflow changes, your
   highlights and notes, your [reminders](#reminders), preferences and shared-collection
   definitions. It leaves
   out sign-in methods, sessions and private links.
@@ -1232,7 +1232,7 @@ their own reader. The button is one link with no script or image, so nobody is t
 - **OPML:** export the public feeds you follow, or import a list (see above).
 - **Reconnect** a private source by pasting its link again.
 
-If the collection engine is replaced by a different installation, its entries wait on a
+If the engine is replaced by a different installation, its entries (the page calls them incoming items) wait on a
 **Review** page, announced on Home, where you match each to an item you already have, add it as new, or dismiss it.
 
 How storage is counted, and what PURSS keeps and removes, is in
@@ -1241,46 +1241,46 @@ How storage is counted, and what PURSS keeps and removes, is in
 ## Deleting your account
 
 *Settings → Account → Delete account* deletes your PURSS: sources, collections, baskets
-and everything kept in them, saved text and browser captures, and where you
+and everything kept in them, readable copies and browser captures, and where you
 stopped listening, highlights and notes, reading history and statistics, preferences, shared
 collections, your email address, sign-in methods, connected apps and assistants. The dialog offers **Export first**, so you
-can keep a copy to import elsewhere. To confirm, type your display name exactly as shown (or
+can keep an export to import elsewhere. To confirm, type your display name exactly as shown (or
 the word `delete` if your account has none), and confirm it's you with a passkey or a password
 if you haven't signed in recently.
 
-- **Straight away:** you are signed out on every device, the phone apps and browser extension
+- **Straight away:** you are signed out on every device, the mobile app and browser extension
   are disconnected, assistants (tokens and those connected with OAuth) stop working, your shared pages are switched off, and nothing new is
-  collected for you. Offline copies and downloads on the device you used are deleted; other
+  fetched for you. Offline copies and downloads on the device you used are deleted; other
   devices remove theirs when they next notice they were signed out.
 - **For 7 days:** signing in (any way you normally do) doesn't open PURSS; it asks
   whether to **Keep my account** or **Leave it**. Keeping it ends the deletion and signs you in
   with everything as it was; shared pages stay switched off until you share them again,
   and apps, extensions and assistants have to be connected again. If you forgot your password,
-  a reset by email, or a link from the operator, still works during these days.
+  a reset by email, or a link from the administrator, still works during these days.
 - **After 7 days:** signing in is refused and the account can't be kept. Everything is removed
-  from PURSS and from the collection engine. Only the administration audit log keeps a
+  from PURSS and from the engine. Only the administration audit log keeps a
   record that an account with that id was deleted.
 
 The last administrator of an installation can't delete their account; make someone else an
-administrator first. Copies of shared pages that visitors already fetched, and backups an
-operator made earlier, aren't recalled.
+administrator first. Shared pages that visitors already fetched, and backups an
+administrator made earlier, aren't recalled.
 
 ## Settings
 
 At the bottom of Settings is the version you're running, e.g. **Version 2631214**: mention it when you report
-a problem, and look for it in update posts. In the phone app the line also names the installed app's version,
+a problem, and look for it in update posts. In the mobile app the line also names the installed app's version,
 and the server's when the app runs other screens than the server offers.
 
-- **General:** theme (light, dark, match device), accent colour, density, anniversary reminders, muted words, time zone (used for "Today" and "Yesterday"; taken from your device the
+- **General:** theme (light, dark, match device), accent colour, density, On this day notes, muted words, time zone (used for "Today" and "Yesterday"; taken from your device the
   first time you sign in), **E-ink display**, **Text size** and **Sounds**.
 - **E-ink display:** for e-readers. Pure black on white with nothing that moves, no
   shadows or shading, row actions always shown, larger buttons, and **Page up** / **Page down**
   buttons on lists and articles that move one screen at a time instead of scrolling. It overrides
   the theme on that device only and is saved on this device; it is never switched on by itself.
 - **Offline reading:** see [Install and offline reading](#install-and-offline-reading).
-- **Connected apps:** where to get the extension and the phone app ([Apps and extensions](#apps-and-extensions)),
+- **Connected apps:** where to get the extension and the mobile app ([Apps and extensions](#apps-and-extensions)),
   what is connected ([Connected apps](#connected-apps)), and the bookmarklets.
-- **This device** (the phone app only): see [The phone app](#the-phone-app).
+- **This device** (the mobile app only): see [The mobile app](#the-mobile-app).
 - **Assistants:** see [Assistants (MCP)](#assistants-mcp).
 - **Text size:** 100%, 115%, 130% or 150%. It scales the text and controls of the whole app and
   is saved on this device only. (Your browser's own zoom works as well.)

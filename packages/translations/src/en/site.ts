@@ -208,7 +208,7 @@ export const legal = {
 <li><b>${plans.plus}</b>, ${plans.plusYear} per year or ${plans.plusMonth} per month, including VAT: unlimited collections, up to 1,000 sources, and sharing baskets and collections as public pages.</li>
 <li><b>${plans.pro}</b>, ${plans.proYear} per year or ${plans.proMonth} per month, including VAT: everything in Plus, up to 5,000 sources, and Smart filters under fair use. If an account reaches the week's fair-use limit, its filters pause until the next week and new posts arrive unfiltered.</li>
 </ul>
-<p>Every plan includes the full reader: every view, baskets, search, and export of everything. Kept links don't count as sources. To protect the service, each account also has a limit on the space it takes on our server; ordinary use stays well below it. If an account reaches it, new items and readable copies pause until we give it more; nothing is deleted.</p>
+<p>Every plan includes the full app: every view, baskets, search, and export of everything. Kept links don't count as sources. To protect the service, each account also has a limit on the space it takes on our server; ordinary use stays well below it. If an account reaches it, new items and readable copies pause until we give it more; nothing is deleted.</p>
 
 <h2>2. Paying and cancelling</h2>
 <p>Plus and Pro are billed in advance, yearly or monthly, as you choose. You can cancel at any time. Your plan then runs to the end of the year or month you paid for, after which your account moves to the Free limits. We don't charge you again after you cancel. Deleting your account cancels its plan too.</p>

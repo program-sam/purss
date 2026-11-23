@@ -9,10 +9,10 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 
 - **FreshRSS is the only ingestion engine.** It polls feeds; PURSS reads its entries through the GReader
   API. A service that has no feed is turned into one (the bridge router) and followed like any other, and a
-  feed too big for the engine reaches it as a smaller copy (the feed gateway), so no connector writes
+  feed too big for the engine reaches it as a trimmed version (the feed gateway), so no connector writes
   product items itself. Only what has nothing to poll is written directly: pages the person keeps by hand
   and the installation's own news posts.
-- **The product owns what a reader keeps.** Item IDs, workflow, baskets, annotations and search live in
+- **The product owns what a person keeps.** Item IDs, workflow, baskets, annotations and search live in
   PURSS's own database. FreshRSS holds a bounded buffer of recent entries, not a library.
 - **Separate facts stay separate.** Reading progress, workflow state, collection membership, basket
   membership and retention are different fields or tables. Opening an item never finishes it, putting a
@@ -24,8 +24,11 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
 
 ## Components
 
+This is the one component map: the other pages and the component READMEs link here instead of describing
+the whole system again. The names are the [glossary](glossary.md)'s.
+
 ```text
- browser ──HTTPS──► api ── public listener :8940 ── website /, web app /app/, /api, /api/events (SSE), /p/<slug>
+ browser ──HTTPS──► API ── public listener :8940 ── public site /, web app /app/, /api, /api/events (SSE), /p/<slug>
                      │
                      │  sole writer of product.db (SQLite, WAL, FTS5)
                      │
@@ -33,33 +36,35 @@ and [development](development.md#testing-and-acceptance) for how the parts are t
                                                       │
                           GReader API + fixed admin ops│
                                                       ▼
- internet ◄── egress proxy :8946 ◄── all fetches ── FreshRSS (no other route out)
-              feed gateway :8947 ──► FreshRSS (big feeds, trimmed to their newest items)
-              bridge router :8945 ──► FreshRSS (via the proxy alias) and api previews; asks RSS-Bridge
-              control :8949 ◄── api (status, bridge fetch log)
- internet ◄── egress proxy + DNS (bridge network) ◄── RSS-Bridge (no other route out)
+ internet ◄── egress proxy :8946 ◄── all fetches ── engine (FreshRSS; no other route out)
+              feed gateway :8947 ──► engine (big feeds, trimmed to their newest items)
+              bridge router :8945 ──► engine (via the proxy alias) and API previews; asks the bridge
+              control :8949 ◄── API (status, bridge fetch log)
+ internet ◄── egress proxy + DNS (bridge network) ◄── bridge (RSS-Bridge; no other route out)
 ```
 
 | Component | Code | Responsibility |
 | --- | --- | --- |
 | Web app | `apps/web` | React app served by the API at `/app/`; its requests go only to `/api` (feed images, and the audio and video it plays, load from publishers) |
-| Phone apps | `apps/mobile` | The web app's build in a Capacitor shell for Android and iOS, talking to a connected PURSS's `/api` with a device token |
-| Website | `apps/site` | Static public website, served by the API at `/` in hosted mode; self-hosted, `/` opens the app |
+| Mobile app | `apps/mobile` | The web app's build in a Capacitor native shell for Android and iOS, talking to a connected installation's `/api` with a device token |
+| Desktop app | `apps/desktop` | The web app's build in a Tauri native shell for Windows, macOS and Linux, connected to an installation the same way |
+| Browser extension | `apps/extension` | Popup, right-click menu, address-bar search and browser-assisted capture in the person's browser; talks only to the installation it is connected to, with a device token |
+| Public site | `apps/site` | Static public site, served by the API at `/` in hosted mode; self-hosted, `/` opens the app |
 | API | `apps/api` | Sessions, authorization, product database, search, storage ledger, job queue, share pages, maintenance tick |
-| Worker | `apps/worker` | Leases jobs over the internal listener; talks to FreshRSS; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
-| Egress | `apps/egress` | Forward proxy enforcing address rules for FreshRSS and RSS-Bridge; feed gateway (trimmed copies of big feeds); bridge router and its fetch log; control listener |
-| RSS-Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | Turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video), and a list of posts found on a page that has no feed (XPathBridge, [Page lists](sources.md#page-lists)), into feeds; pinned upstream image, only the listed bridges enabled |
-| FreshRSS | `infra/engine` | Polls feeds on a schedule and holds recent entries; a bounded buffer, not a library |
-| Push relay | `apps/push-relay` | Run by the project, apart from any PURSS: holds the phone apps' FCM and APNs credentials and wakes a phone by handle, without content |
-| Browser extension | `apps/extension` | Popup, right-click menu, address-bar search and browser-assisted capture in the person's browser; talks only to the PURSS it is connected to, with a device token |
+| Worker | `apps/worker` | Leases jobs over the internal listener; talks to the engine; runs readable-text capture, kept-picture and source-icon fetches and Smart-filter judging; never opens the database |
+| Engine | `infra/engine` (FreshRSS), `packages/freshrss` (its adapter) | FreshRSS fetches feeds on a schedule and holds recent entries, a bounded buffer and not a library; the adapter is the GReader client, sync walk, fixed admin commands and local engine lifecycle |
+| Bridge | `infra/compose.yaml` (`bridge`), `scripts/bridge.ts` | RSS-Bridge turns the public pages of a few services without feeds (Telegram, Bandcamp, SoundCloud, Twitch, Mixcloud, Rutube, Apple Music, Instagram, MangaDex, VK Video), and a list of posts found on a page that has no feed (XPathBridge, [Page lists](sources.md#page-lists)), into feeds; pinned upstream image, only the listed bridges enabled |
+| Egress | `apps/egress` | Forward proxy enforcing address rules for the engine and the bridge; feed gateway (trimmed versions of big feeds); bridge router and its fetch log; control listener |
+| Push relay | `apps/push-relay` | Run by the project, apart from any installation: holds the mobile app's FCM and APNs credentials and delivers phone notifications by waking a phone by handle, without content |
+| Connectors | `packages/connectors` | Safe fetch, link lookup, feed parsing, readable capture, OPML |
 | Domain | `packages/domain` | IDs, workflow states, query tree, API and job contracts |
-| Connectors | `packages/connectors` | Safe fetch, discovery, feed parsing, readable capture, OPML |
-| FreshRSS adapter | `packages/freshrss` | GReader client, sync walk, fixed admin commands, local engine lifecycle |
+| Translations | `packages/translations` | Every word people read, in translation files per audience |
+| UI | `packages/ui` | Design tokens and reusable UI primitives |
 
 ## Ownership rules
 
 - **The API is the only database writer.** The worker posts results; the API commits them.
-- **Product data is tenant-scoped,** directly by `account_id`/`workspace_id` or through an owned
+- **Product data is scoped to an account,** directly by `account_id` or through an owned
   parent row. Queries resolve a principal from the session first and enforce that ownership.
   Each account has its own FreshRSS user, but FreshRSS shares its fetch cache across users (keyed by feed address), so accounts following one public feed cost one request per refresh run, and each account still stores its own items.
 - **FreshRSS is a black box:** reached only through its GReader API and a closed set of
@@ -86,11 +91,11 @@ addresses, not GUIDs.
   Matching adds a mapping to the existing item. PURSS never merges two existing items.
 - **A replaced engine** is recognised by its identity, a hash of the install salt FreshRSS generates once
   (`freshrss:` and 32 hex characters), which survives restarts, upgrades and a restore of the same data
-  directory and changes for a fresh installation. Each sync batch carries it. When it differs from the stored
+  directory and changes for a fresh or replacement engine install. Each sync batch carries it. When it differs from the stored
   one and the account already has history, the batch's entries go to the reconciliation queue
   (`reconciliation_queue`, one open row per entry) instead of becoming items, and the new identity waits as
   `pending_engine_identity`.
-- **The Review page** lists the queue (`apps/api/src/services/reconcile.ts`). Each entry suggests *match*
+- **The Review page** lists the queue (`apps/api/src/services/reconcile.ts`); it calls the entries incoming items. Each entry suggests *match*
   (the only item of that source with the same link), *new* (nothing matches) or *review* (several items share
   the link). The person decides one entry at a time (match it to an item, add it as a new item, or dismiss
   it), or accepts every entry that has one clear match; ambiguous entries are never matched for them. Each
@@ -99,15 +104,15 @@ addresses, not GUIDs.
 
 ## Data model
 
-One SQLite file, `product.db`, written only by the API. Migrations are numbered SQL files in
-`apps/api/src/db/migrations/`, applied in order whenever the database is opened, each in its own
-transaction.
+One SQLite file, `product.db`, written only by the API. `apps/api/src/db/migrations/001_schema.sql` is
+today's database; a later change adds `002` onward. The files are applied in order whenever the database is
+opened, each in its own transaction and recorded in `schema_migrations`.
 
 | Area | Main tables | Holds |
 | --- | --- | --- |
-| Accounts | `accounts`, `workspaces`, `sessions`, `sign_in_methods`, `auth_challenges`, `role_grants`, `invites`, `email_tokens`, `signup_requests`, `account_deletions` | One workspace per account (the unit every product row belongs to), sign-in methods, sessions, administrator grants, invitations, email links, deletion requests |
+| Accounts | `accounts`, `sessions`, `sign_in_methods`, `auth_challenges`, `role_grants`, `invites`, `email_tokens`, `signup_requests`, `account_deletions` | The account (the unit every product row belongs to), sign-in methods, sessions, administrator grants, invitations, email links, deletion requests |
 | Credentials of other programs | `device_tokens`, `connect_codes`, `assistant_tokens`, `oauth_grants`, `oauth_access_tokens`, `oauth_refreshes`, `push_devices` | Connected apps, assistants and phones; only SHA-256 of each secret |
-| Sources and the engine | `sources`, `source_icons`, `engine_users`, `sync_checkpoints`, `applied_batches`, `external_ids`, `item_tombstones`, `reconciliation_queue`, `opml_imports`, `opml_import_entries` | What is followed (a private source's link is a file, not a column), each account's FreshRSS user, where the sync walk stands, the batches already applied, entry-to-item mappings, deleted entries, review entries |
+| Sources and the engine | `sources`, `source_icons`, `engine_users`, `sync_checkpoints`, `applied_batches`, `external_ids`, `item_tombstones`, `reconciliation_queue`, `opml_imports`, `opml_import_entries` | What is followed (a private source's link is a file, not a column), each account's FreshRSS user, where the sync walk stands, the batches already applied, entry-to-item mappings, deleted entries, entries waiting for review |
 | Items | `items`, `item_versions`, `item_state`, `state_log`, `captures`, `item_images`, `annotations`, `playback_positions`, `item_reminders`, `reminders` | An item (kind, link, `url_key`, `link_key`, date, current version), its immutable versions, its workflow state and progress, workflow history, readable copies, kept pictures, the person's highlights and notes, playback position, reminders |
 | Search | `items_fts`, `annotations_fts`, `search_index_state` | Full-text indexes over items and the person's notes, and how far a rebuild got |
 | Organising | `baskets`, `basket_items`, `collections`, `collection_sources`, `preferences`, `undo_tokens`, `confirm_tokens`, `import_stages` | Baskets and their pins (each names the version it keeps), collections and their query trees, preferences, 15-minute undo records, preview tokens for confirmed actions, staged imports |
@@ -116,9 +121,9 @@ transaction.
 | Work | `jobs` | Durable background work with leases, attempts and idempotency keys |
 | Notifications and mail | `notifications`, `notification_state`, `mail_queue`, `mail_log` | The bell, digests, queued and logged outgoing messages |
 | Smart filters | `ai_filters`, `ai_filter_verdicts`, `ai_usage` | Filters, what they decided about each post, weekly use |
-| Installation | `installation`, `news_posts`, `news_deliveries`, `audit_events`, `discovery_*` | Installation settings, the news feed and its deliveries, the audit log, discovery aggregates (counts only) and the sites people could not follow |
+| Installation | `installation`, `news_posts`, `news_deliveries`, `audit_events`, `discovery_*` | Installation settings, the news feed and its deliveries, the audit log, Discovery's aggregates (counts only), the routes link lookup used and the sites people could not follow |
 
-Every table that holds a person's data carries `account_id` or `workspace_id`, or reaches one through
+Every table that holds a person's data carries `account_id`, or reaches one through
 its owning row. [Storage and retention](storage-and-retention.md) says which of these rows are metered.
 
 ## Sync
@@ -149,14 +154,14 @@ What holds however the walk is interrupted:
 - **Edits become versions.** An entry whose text changed upstream returns in the next pass; when its content
   hash differs, the item gets a new current version. A version a basket pins is never changed (see Keeping
   below).
-- **A full quota or a low disk stops growth, not the person's data.** A batch that needs room it does not
+- **A full storage allowance or a low disk stops growth, not the person's data.** A batch that needs room it does not
   have rolls back whole, the checkpoint stays, and the pass is tried again by the tick; an edit to an
   existing item waits without failing the batch. See [storage and retention](storage-and-retention.md).
-- **Read state goes one way.** Finished and Ignored are mirrored to FreshRSS as read, every other state as
-  unread, through `engine.mark_read` jobs (up to 200 entries each) enqueued in the transaction that changes
-  the state, so a failed call retries without undoing anything. FreshRSS's own read state never changes a
+- **Read marks go one way.** Finished and Ignored are marked read in FreshRSS, every other state unread,
+  through `engine.mark_read` jobs (up to 200 entries each) enqueued in the transaction that changes
+  the state, so a failed call retries without undoing anything. FreshRSS's own read mark never changes a
   product state, no basket is written to it as a star or a label, and no entry is starred.
-- **A paused source collects nothing.** Entries of a paused source are skipped; items it already has still
+- **A paused source fetches nothing.** Entries of a paused source are skipped; items it already has still
   receive their edits.
 
 ## Query contract
@@ -164,12 +169,15 @@ What holds however the walk is interrupted:
 Lists, filter collections, shared pages and assistants read items through one typed model
 (`packages/domain/src/query.ts`, compiled in `apps/api/src/services/items.ts`).
 
-- **A filter collection stores a query tree, never SQL or a pattern.** A leaf tests one field: text, source,
-  collection, basket, kind, workflow state, author, New, opened, kept, capture level (saved details, feed
+- **A filter collection stores a query tree, never SQL or a pattern.** (A collection's `mode` is `filter`, or `sources` for a
+  source collection.) A leaf tests one field: text, source,
+  collection, basket, kind, workflow state, author, New, opened, kept, capture level (metadata, feed
   text, full text, pending, failed) or a date (published, discovered or kept). `all`, `any` and `not`
   combine leaves. The server validates the tree when it is written and every time it is read: at most 4
   levels deep, 24 leaves and 12 children per node, each list of values bounded and de-duplicated. It
-  compiles to parameterised SQL scoped to the workspace.
+  compiles to parameterised SQL scoped to the account.
+- **A list's state filter is one of a fixed few:** `all` (everything but Ignored), `all_with_ignored`, `new` (the New marker)
+  or a workflow state (`undecided`, `toread`, `inprogress`, `finished`, `ignored`).
 - **Sorts come from a fixed list:** newest, oldest, source, title and kept time. Ties break on the item ID, so
   an order is deterministic.
 - **A page is addressed by an opaque cursor,** the last row's sort key and ID (for Home's lists also the run
@@ -182,49 +190,49 @@ Lists, filter collections, shared pages and assistants read items through one ty
 
 ## Flows
 
-**Adding a source.** The API runs discovery (`packages/connectors`, safe fetch) and holds the
+**Adding a source.** The API runs link lookup (`lookupLink` in `packages/connectors`, safe fetch) and holds the
 candidates in memory behind opaque tokens. Following one inserts the source and an
 `engine.subscribe` job in one transaction. Private feed URLs go to `secrets/source-urls/` and
 never into the database or job payloads; the job refers to them by name. To recognise the same
-private link a second time, the source row keeps `feed_key`: an HMAC-SHA-256 of the workspace and the
+private link a second time, the source row keeps `feed_key`: an HMAC-SHA-256 of the account and the
 normalised link, made with `secrets/feed-key`. The database holds a fingerprint of that key
 (`installation.feed_key_check`); when the file is lost, damaged or replaced, the API logs a warning at
 the next start and makes every private source's key again from its link file.
 
 **Installation news.** Administrators' posts live in `news_posts`. Publishing one (and the
-maintenance tick) gives every usable PURSS that never had it a source with `builtin = 'news'`
+maintenance tick) gives every usable account that never had it a source with `builtin = 'news'`
 and its newest three posts, then writes each published post into every followed, unpaused news
 source created before it, through the same `insertItem` as feed items; `news_deliveries` records
-each post per workspace, so nothing arrives twice and a deleted copy stays deleted. No engine
-subscription exists for it, and discovery recognises the installation's own `/news` address
+each post per account, so nothing arrives twice and a deleted item stays deleted. No engine
+subscription exists for it, and link lookup recognises the installation's own `/news` address
 without fetching. Edits go through the feed edit path (a kept version stays); deleting a post
-deletes the unkept copies. `/news`, `/news/<id>` and `/news/feed.atom` are public pages.
+deletes the items nobody kept. `/news`, `/news/<id>` and `/news/feed.atom` are public pages.
 
 **Bridged sources.** A page of a listed service
-(`packages/connectors/src/bridges.ts`) is discovered as the descriptor `bridge:<service>/<key>`,
+(`packages/connectors/src/bridges.ts`) is found by link lookup as the descriptor `bridge:<service>/<key>`,
 previewed by the API through the bridge router, and stored as the source's feed address; exports
 write the service's page instead. A page with no feed can also be a bridged source: the list of posts the detector
 finds on it, as `bridge:page/<key>` where the key is its page and recipe ([Page lists](sources.md#page-lists)). Only the worker turns the descriptor into an engine address,
 `http://feed-bridge.internal:8945/b/<service>/<key>/<HMAC>` under `secrets/bridge-key`, so the
 router answers nothing a feed could redirect FreshRSS to. The router asks RSS-Bridge (one fetch
-per source at a time, four at once, ten-minute cache, back-off after failures), gives every entry
+per source at a time, four at once, ten-minute cache, back-off after failures), gives every item
 the post's own id (`telegram:durov/552`) so a backend change keeps items, never serves a failure
 as an empty feed, and records each answer in the fetch log the Service health page reads. The
 services and how their pages are read are in [sources](sources.md).
 
 **Big feeds.** FreshRSS parses a feed whole in PHP's 128 MB limit and the
-largest podcast feeds are tens of megabytes, so a feed larger than 4 MiB (what discovery reads before it knows
+largest podcast feeds are tens of megabytes, so a feed larger than 4 MiB (what link lookup reads before it knows
 its size) or with more than 1,000 items is followed through the egress feed gateway: `GET /t/<HMAC>/<address>` on the gateway listener, where
 egress's `TrimService` streams the feed through `safeFetch` (a `sink` reads the body without buffering it),
-`FeedTrimmer` reads the feed to its end (or to its 64 MiB ceiling, past which the newest items of what was read are the answer) and keeps the channel's metadata and the newest 50 items byte for byte, and FreshRSS gets that copy
+`FeedTrimmer` reads the feed to its end (or to its 64 MiB ceiling, past which the newest items of what was read are the answer) and keeps the channel's metadata and the newest 50 items byte for byte, and FreshRSS gets that trimmed version
 (its root element carrying an `xml:base` of the publisher's address, so relative links keep resolving there). The trimmed answer is kept in memory per upstream address and
 shared by every account that follows the feed, and a stale one is renewed with a conditional request (`304`) rather than a second full read.
 The source row keeps the feed's own address and a flag (`sources.via_gateway`); only the worker turns the job's
-`trim` instruction into the signed gateway address, under `secrets/feed-trim-key`. A subscription the engine itself fails on
+`trim` instruction into the signed gateway address, under `secrets/feed-trim-key`. A source whose feed the engine itself fails on
 (an HTTP 500 or a dropped connection, with no reason about the feed's site) is checked by the worker and moved to the gateway when the feed really is that big
 (an import or a retry has no preview that says so). Size is never worded to a person: the gateway serves what it could read, and what the engine can't follow fails with the generic message.
 
-**State.** Workflow, the New marker (`fresh`), reading progress, collection membership and basket membership
+**State.** Workflow, the New marker (`is_new`), reading progress, collection membership and basket membership
 are separate fields and tables. State changes carry `expectedRevision` (409 on conflict) and
 return an undo token (15 minutes). The player's own changes to In progress and Finished carry a playback session and the workflow
 revision instead (see Media below), so only a change to the workflow can refuse them. Opening an item or changing its workflow, progress or basket membership
@@ -236,24 +244,24 @@ from `items` and read every other cell (the items acted on, the New ones, the Ig
 are not that cell; each state row repeats its item's source (`item_state.source_id`, stated by the two writers of the row) so the index alone answers, however
 many items are Ignored (most of an account that followed its sources from now).
 
-**Coming back.** New markers are only the `fresh` field of an item's state. An entry a source already had when it
+**Coming back.** New markers are only the `is_new` field of an item's state. An entry a source already had when it
 was followed (published, or undated, before the follow time, until a sync walk that began after the engine confirmed the
 subscription has finished) is stored without one and tells no one. What the person chose when following (`sources.start_from`) decides what else
 happens to it: followed from now (the default, and what an OPML import does), it is stored with workflow Ignored (`arrivalOf` in `services/sync.ts`), so lists hide it
 (their default filter leaves Ignored out; "Show ignored" has it), Home, collection totals and every count of items not looked at leave it out, a search
 (`q`, which lists every state) finds it, and nothing marks it but the state itself: no log entry, no `engine.mark_read` job, and the person can move it to any
 state like any other item; followed with the last week, entries published in the 7 days before the follow are New like any
-arrival; a source whose choice is `all` shows its backlog as ordinary older items. Automatic full-text copies and Smart-filter
+arrival; a source whose choice is `all` shows its backlog as ordinary older items. Automatic readable copies and Smart-filter
 judging are for New arrivals only, so they skip it. Opening an item, finishing it or ignoring it clears the marker in the same change; a pass in the
 tick (`services/returning.ts`, throttled: every five minutes and every hour) expires markers older than the person's
 choice, resumes sources whose pause ran out, makes the digest that has come due, tells about sources that stopped
 working and failed text saves, and prunes notifications. `POST /api/activity/visit`, sent by the web app from any page on foreground interaction, records the start of a visit (after 30
 minutes of quiet) and `GET /api/home` returns, read-only, what Home says before its boxes (filter collections
-leave out what Home leaves out, `services/home-sources.ts`; the put-aside rows are `toRead` for articles, `toWatch` for videos and `toListen` for podcasts, each the queue of its kind: In progress items first, then To read, oldest first). `GET /api/items?scope=toread` is that queue as a page: every To read and In progress item of the workspace, In progress first (two runs, as Home's lists have, each in the list's own order), found by state in the workspace's `item_state` index. `GET /api/items?mix=home` is a list as Home shows it (its boxes
-and its one feed, with `filter=new`: Undecided items only; the *Only new* layout's with `filter=fresh`): only sources with a box on Home, Undecided items first and then the rest the filter allows, newest first within each, listed as two
+leave out what Home leaves out, `services/home-sources.ts`; the put-aside rows are `toRead` for articles, `toWatch` for videos and `toListen` for podcasts, each the queue of its kind: In progress items first, then To read, oldest first). `GET /api/items?scope=toread` is that queue as a page: every To read and In progress item of the account, In progress first (two runs, as Home's lists have, each in the list's own order), found by state in the account's `item_state` index. `GET /api/items?mix=home` is a list as Home shows it (its boxes
+and its one feed, with `filter=undecided`: Undecided items only; the *Only new* layout's with `filter=new`): only sources with a box on Home, Undecided items first and then the rest the filter allows, newest first within each, listed as two
 runs in date order and paged from a snapshot of the newest item when paging began. Lists also take `type`, `length`, `source`, `without` (one source left out) and
-`capture=failed`; with `mix=home` these narrow what Home would show (hidden collections stay out). Unless `muted=show`, lists leave out the items the PURSS's muted words match (title or summary, whole words, kept in the preferences; matched on the row
-a query looks at by the SQL function `purss_muted`, so the cost follows the rows looked at, never other workspaces or how many items a word matches; words are
+`capture=failed`; with `mix=home` these narrow what Home would show (hidden collections stay out). Unless `muted=show`, lists leave out the items the person's muted words match (title or summary, whole words, kept in the preferences; matched on the row
+a query looks at by the SQL function `purss_muted`, so the cost follows the rows looked at, never other accounts or how many items a word matches; words are
 compared as the text index compares them, so accents are dropped from Latin letters only, and a section or page asks about the rows it takes once they are in
 order); the first page says how many (`mutedHidden`, counted among the first 1,000 candidates; `mutedHiddenAtLeast` says when a longer list was counted in part,
 and Home's To read `total` is then an upper bound, `totalAtMost`). `mix=home` refuses `q` and any order but newest.
@@ -271,7 +279,7 @@ basket (capture mode `text`), keeping also reserves storage and enqueues a `capt
 and extracts readable text, and the API settles the reservation to the real size or releases it on
 failure. When the reservation does not fit, the keep still stands and says that no readable copy was made. A source with full articles
 on (`sources.full_text`) gets the same capture for every new item, queued in the sync batch's
-transaction and spaced a few seconds apart per PURSS. These optional copies reserve nothing,
+transaction and spaced a few seconds apart per installation. These optional readable copies reserve nothing,
 so they never hold room the items themselves need: each is admitted when it completes if it fits,
 and is otherwise dropped without marking growth paused.
 
@@ -282,12 +290,12 @@ or one under 60% of the feed's own text (`short`) is stored as `quality = 'parti
 stored and counted, but is not "Full text saved": the item's detail returns the feed's own text as
 `contentHtml` and the capture as `partialCopy` for a toggle, and the capture sets no reading time and is not
 searched. Readable copies stored without a verdict are checked in the background at start-up; browser captures are the
-person's browser's own text and are not checked. One meaning of "has a copy" runs through all of it
-(`services/capture-state.ts`): an item has a *settled* copy when one is pending, or finished and passed the checks.
-A partial copy is kept and shown but does not settle the item, so a try that fails after it is a failed copy: told
-about in the bell and listed by `capture=failed`. Any finished copy, partial included, stops anything from fetching the
+person's browser's own text and are not checked. One meaning of "has a readable copy" runs through all of it
+(`services/capture-state.ts`): an item has a *settled* readable copy when one is pending, or finished and passed the checks.
+A partial readable copy is kept and shown but does not settle the item, so a try that fails after it is a failed readable copy: told
+about in the bell and listed by `capture=failed`. Any finished readable copy, partial included, stops anything from fetching the
 page again by itself (keeping the item into another basket, a source's full-articles setting); only Try again does.
-Its result replaces the copy only when it is better: full beats partial, and a partial one ranks by its reason before
+Its result replaces the readable copy only when it is better: full beats partial, and a partial one ranks by its reason before
 its length (a fragment of the article, `short`, then a bibliography, `references`, then a wall, `gated`; the length only
 breaks a tie between the same reason), so real text is never replaced by a wall however long. A result that is no better
 is not kept and the room held for it is given back, but it is recorded as a failed try carrying the reason: the item
@@ -297,11 +305,11 @@ too", Try again; or the source's full articles; or a text basket holds the item)
 an item of an unfollowed source has no feed to open, so its notification names the basket instead. `GET /api/items?capture=failed`
 lists the items such a notification opens.
 
-**Pictures in kept copies.** An item held by a basket that keeps readable text also keeps its own picture and
-the pictures in its text (those of the readable copy, or of the feed's text until a complete copy exists): keeping
-it, or its copy completing or failing, or the person's browser replacing its text, queues one `capture.images` job (`queueItemImages`) naming the missing
+**Pictures kept with an item.** An item held by a basket that keeps readable text also keeps its own picture and
+the pictures in its text (those of the readable copy, or of the feed's text until a complete readable copy exists): keeping
+it, or its readable copy completing or failing, or the person's browser replacing its text, queues one `capture.images` job (`queueItemImages`) naming the missing
 addresses, at most 20 pictures and 10 MB per item. Pictures are optional: queueing them runs in its own savepoint and
-logs instead of throwing, so it cannot break keeping, a copy completing or failing, or the recovery of expired leases. The worker fetches them with `fetchPictures` (safe-fetch rules,
+logs instead of throwing, so it cannot break keeping, a readable copy completing or failing, or the recovery of expired leases. The worker fetches them with `fetchPictures` (safe-fetch rules,
 type read from the bytes, no SVG) and answers with the bytes in the job result, which the API checks again and
 stores in `item_images`, each counted once as an `image` object (no reservation: a picture that does not fit is
 left out and growth is not paused). They belong to the item, not to a basket, so an item in two baskets has one
@@ -319,11 +327,11 @@ type ItemMedia = { url: string; kind: "audio" | "video"; type: string | null; le
 `url` is the address of the item's first audio or video enclosure, chosen by its declared type, or by file
 extension when the type is missing or generic; `type` and `length` are as the feed declares them and may be
 missing or wrong. Streaming playlists, web pages and platform video pages are never media, and an item of a
-private source carries none, because enclosure addresses can hold the subscriber's secret. `linkIsMedia`
+private source carries none, because enclosure addresses can hold its owner's secret. `linkIsMedia`
 marks an item whose own link is its file (the same address as an enclosure, or ending in a media file name),
 so the reader does not offer the file as the item's page; a private source's items are judged the same
 way. The web player streams the file from the publisher over `https` (the page's policy allows media only
-from `https:`), the phone apps can also download it to the device, and a YouTube, Vimeo, Dailymotion, Odysee
+from `https:`), the mobile app can also download it to the device, and a YouTube, Vimeo, Dailymotion, Odysee
 or Twitch page plays in the platform's own embedded player, loaded when the person presses play.
 
 | Method and path | Does |
@@ -368,15 +376,15 @@ checked or were last checked more than a week ago, with the feed link redacted f
 sources. The worker finds and re-encodes the icon (see the connectors README) and posts back
 a WebP. The API checks it is one and stores it in `source_icons`, one per source. A check
 that finds nothing keeps the stored icon. The web app loads it from
-`/api/sources/:id/icon?v=<digest>`, which only the owning PURSS can read; the response is
+`/api/sources/:id/icon?v=<digest>`, which only the owning account can read; the response is
 cached privately and sent with a sandboxing CSP. Icons are re-derivable, so they are not
-exported or counted against storage quota.
+exported or counted against the storage allowance.
 
 **Storage ledger.** Usage is the sum of measured, live stored objects (item versions, readable copies,
 kept pictures, small records). Admission happens inside the
 writing transaction against the allowance plus reservations; small state writes get a bounded
-headroom. A full quota or low disk pauses growth (a sync batch that needs the room is tried again by the next
-pass) and never evicts kept content. Deleting an item releases its objects and is never blocked by quota.
+headroom. A full storage allowance or low disk pauses growth (a sync batch that needs the room is tried again by the next
+pass) and never evicts kept content. Deleting an item releases its objects and is never blocked by the storage allowance.
 [Storage and retention](storage-and-retention.md) has the rules.
 
 **Account deletion.** Asking to delete an account (a recent sign-in plus the typed display name)
@@ -401,7 +409,7 @@ account's address cleared, its `mail_log` lines kept without the account id), an
 `engine.delete_user`. The worker records an
 attempt, runs FreshRSS's `delete-user.php`, confirms with `list-users.php`, deletes the engine
 user's password file and asks the API to finalize, which deletes the engine bookkeeping, the
-job, the workspace and the account. A user missing after an unconfirmed attempt waits for an
+job and the account. An engine user missing after an unconfirmed attempt waits for an
 administrator to confirm instead. Only the audit log keeps the bare account id.
 
 **Live updates.** The API keeps an in-process event emitter per account and streams changes to
@@ -413,23 +421,23 @@ the app shell per build (page, built files, manifest and icons) and nothing pers
 person's own reading (session, bootstrap, preferences, notifications, reminders, item lists and
 details, an item's annotations, statistics; never `/api/events`, sign-in, administration, exports,
 storage, search or public pages) in a cache named for that account, serving them with an
-`x-purss-offline` header when the network fails or is slow. The worker never intercepts or queues
+`x-purss-offline` header when the network fails or is slow. The service worker never intercepts or queues
 changes. The page keeps the reading queue (To read, In progress, New and Undecided; up to 200 items)
 saved by fetching the same lists, item details and annotations the pages use, at most every 15
 minutes. Annotation changes alone go through an outbox in the page's IndexedDB (`purss-annotations`):
 each is recorded there first, replaces any unsent change of the same annotation, and is sent in order
-when the connection allows; entries belong to an account and are deleted at sign-out or when another
+when the connection allows; unsent changes belong to an account and are deleted at sign-out or when another
 account signs in. Another account, sign-out, an expired session or
-turning the setting off deletes the copies. Pictures PURSS serves whose address changes with their
-bytes (a source's icon, versioned by its digest, and a picture stored with a kept copy) are kept in a
+turning the setting off deletes the offline copies. Pictures PURSS serves whose address changes with their
+bytes (a source's icon, versioned by its digest, and a picture stored with a kept item) are kept in a
 second cache of the account's (`purss-pictures:`), served from there before the network, and deleted
-with the copies; the pack saves every source's icon and the stored pictures of the kept items it saves,
+with the offline copies; the pack saves every source's icon and the stored pictures of the kept items it saves,
 and lets go of the rest. Publishers' own images in an article are not saved.
 
 **Sharing.** A basket or a collection can be shared as a public page and an Atom feed (`shares`,
 `share_notes`; `apps/api/src/services/shares.ts`). The page is a live projection of what the owner's own list
 of it shows, built on each request: per item only the title, link, a short plain-text summary, the source
-name and date and the owner's public note, never reading state, private notes, highlights or saved text,
+name and date and the owner's public note, never reading state, private notes, highlights or readable copies,
 and never items of private sources or links that carry a key. A filter collection whose rules read reading
 state cannot be shared. The public listener serves `/p/<slug>`, `/p/<slug>/feed.atom` and a report form for
 published pages only, rate-limited per address; the slug is the title followed by 12 random letters. On
@@ -439,7 +447,7 @@ pauses it until restored. Every page has one address: a
 redirected (301) to it; `/api` answers only at its exact paths.
 
 **Export and import.** Export streams a JSON archive with a manifest of counts and hashes,
-secret-free, and works over quota. Import stages and previews first (including whether it
+secret-free, and works over the storage allowance. Import stages and previews first (including whether it
 fits the allowance), then applies. What the archive holds and leaves out is in
 [storage and retention](storage-and-retention.md#export-and-import).
 
@@ -460,7 +468,7 @@ no redirects, cached). Codes come from the same core as connected apps; access t
 refresh tokens rotate and a reused one revokes the grant. An OAuth access token resolves to the
 same caller a personal access token of that level would, under the same two switches.
 
-**Connected apps.** The phone app, the desktop app (which connects as kind `mobile`) and the browser
+**Connected apps.** The mobile app, the desktop app (which connects as kind `mobile`) and the browser
 extension are other programs, not pages of PURSS, so they cannot use the session cookie with its same-origin
 and CSRF checks. They connect through `/connect` in the system browser: the signed-in person approves, the API
 issues a one-time code bound to the app's PKCE challenge and fixed return address, and the app exchanges it
@@ -474,7 +482,7 @@ the client kinds, return addresses and reach are fixed in code.
 | Codes | Five minutes, single use, SHA-256 stored, bound to the challenge, kind and return address; a failed exchange burns the code. Exchanges are limited to 30 per 10 minutes per address, approvals to 30 per 10 minutes per account |
 | Approval | Same-origin POST with the CSRF header, a recent sign-in (a step-up when the last is older than 10 minutes), on a page that cannot be framed |
 | Token | `purss_dev_` and 32 random bytes, SHA-256 stored, shown once, up to 20 per account; it ends after 90 days without use, and the person or the app (`DELETE /api/connect/device`) can revoke it. It is looked up on every request, so revocation applies to the next one and closes that app's event stream |
-| Reach | The phone and desktop token is a full sign-in, an administrator's included, with its own `auth_at` clock for recent-sign-in checks (*confirm it's you* refreshes it); it cannot approve another app's connection (`/api/connect/request`, `/approve`) or an assistant's sign-in (`/api/assistant/oauth/*`). The extension reaches an exact list (session, baskets, collections, URL lookup, keep a link, browser capture, search, finding and following a source, disconnecting itself), is never an administrator and never counts as a recent sign-in |
+| Reach | The mobile and desktop app's token is a full sign-in, an administrator's included, with its own `auth_at` clock for recent-sign-in checks (*confirm it's you* refreshes it); it cannot approve another app's connection (`/api/connect/request`, `/approve`) or an assistant's sign-in (`/api/assistant/oauth/*`). The extension reaches an exact list (session, baskets, collections, page lookup, keep a link, browser capture, search, finding and following a source, disconnecting itself), is never an administrator and never counts as a recent sign-in |
 | Before a token exists | `GET /api/connect/info` names the connect page, the token address, the return addresses and the feature flags (`urlLookup`, `browserCapture`); sign-in and sign-up for the apps are open endpoints that read no cookie |
 
 On `/api`, a request with `Authorization: Bearer purss_dev_…` is decided before cookies are read: cookies are
@@ -483,18 +491,18 @@ CORS answers only the apps' origins (Capacitor and Tauri pages, extension pages)
 a token or use the open endpoints, and never with credentials. Requests without a bearer token take the cookie
 path unchanged. [Security](security.md) has the threats these rules answer.
 
-**Phone apps.** `apps/mobile` bundles the web app's build in Capacitor. The connected server also
-offers the build of the interface it runs (`GET /api/app/bundle`, packed by the server image), which
+**Mobile app.** `apps/mobile` bundles the web app's build in Capacitor. The connected installation also
+offers the build of the interface it runs (`GET /api/app/bundle`, packed by the product image), which
 the app installs when it fits the app's native code. What differs from a browser is behind `apps/web/src/platform/`: requests go to the connected
 origin with the device token (token in the Keychain or Android Keystore), live updates are read with
-fetch, the offline worker that the web's service worker runs is called in the page with copies in
+fetch, the `OfflineServiceWorker` that the web's service worker runs is called in the page with offline copies in
 IndexedDB, audio plays in the system's player (a foreground media service on Android), and
-*Downloaded* keeps device copies of items and their media on the device only (for an
+*Downloaded* keeps downloads of items and their media on the device only (for an
 item PURSS has only a summary of, the app reads the article from the publisher's `https` page
 itself and keeps it on the device only; PURSS's own capture pipeline isn't involved). The app's own
 behaviour is in [apps/mobile](../apps/mobile/README.md).
 
-**Notifications on the phone.** A phone app that turns them on registers its push address with the
+**Notifications on the phone.** The mobile app, once the person turns them on, registers its push address with the
 project's push relay (`apps/push-relay`, deployed on its own), gives PURSS only the relay's handle
 (`push_devices`, per device token) and gets a narrow fetch credential for its native code. When a
 notification is made or grows, the API (`services/push.ts`), outside quiet hours and unless notifications
@@ -502,7 +510,7 @@ are off, asks the relay through `safeFetch` to wake the phone; the push carries 
 fetches the texts with `POST /api/push/pending`. The relay is described in [apps/push-relay](../apps/push-relay/README.md).
 
 **Keeping a link.** `items.url_key` is a comparison key of the item's address (`services/url-key.ts`),
-indexed per workspace as `(workspace_id, url_key)`, so a page PURSS already has is kept once. The key:
+indexed per account as `(account_id, url_key)` (`items_account_url_key`), so a page PURSS already has is kept once. The key:
 
 - exists only for http and https addresses and leaves out the scheme, so `http://x/a` and `https://x/a`
   match;
@@ -516,12 +524,12 @@ indexed per workspace as `(workspace_id, url_key)`, so a page PURSS already has 
 
 `POST /api/items/manual` keeps the item PURSS already has for that key (one a basket already holds first, then
 one shown in lists, then the oldest) in the chosen basket and answers `existing` and `alreadyInBasket`; only a
-page PURSS has no item for becomes a saved link, which asks the page what it calls itself (Open Graph or
+page PURSS has no item for becomes a kept link, which asks the page what it calls itself (Open Graph or
 oEmbed, through `safeFetch`) for a title, picture and site, and keeps the address when the page says nothing.
 `GET /api/items/lookup?url=` answers the best match (id, title, address, workflow state, baskets, when its text
 was captured in a browser) and the followed sources whose site address contains the page (same host ignoring
 `www.`, within the site's path, so a YouTube channel does not claim every video). Following a site never
-means that every page of it was collected. A looser `items.link_key` (scheme, `www.`, tracking parameters,
+means that every page of it was fetched. A looser `items.link_key` (scheme, `www.`, tracking parameters,
 parameter order and trailing slashes ignored) is used only by sync, to recognise a feed reissuing a post.
 
 **Browser extension and deep links.** `/?dialog=add&url=…`, `/?dialog=keep&url=…&title=…` and
@@ -543,15 +551,15 @@ be framed. `GET /api/frame-check?url=` reads the page's headers on the server (`
 `packages/connectors/src/frame-policy.ts`, through `safeFetch`: the first 16 kB, 8 s) and judges them against
 `PURSS_PUBLIC_ORIGIN` as a browser would: `Content-Security-Policy: frame-ancestors` by CSP Level 3 source
 matching, otherwise `X-Frame-Options` `DENY` and `SAMEORIGIN` (unknown values such as `ALLOW-FROM` allow).
-Only a 2xx answer counts, a download (`Content-Disposition: attachment`) is never framed, and an https PURSS
+Only a 2xx answer counts, a download (`Content-Disposition: attachment`) is never framed, and an installation on https
 never frames a plain-http page. The answer is `{ frame: true, url }`, where the page's redirects ended, or
-`{ frame: false }`. Answers are remembered for 6 hours, separately for each PURSS and address (fragment
+`{ frame: false }`. Answers are remembered for 6 hours, separately for each account and address (fragment
 dropped, at most 5,000 in all), and a failed check is remembered as "no frame", so one account cannot learn
 from timing which pages another opened. Only a check the server has to make counts against the limit of 300 per
 account per 10 minutes. The web app asks when an item opens, for its original, and when the pointer rests on
 or focus reaches a link in the article; a press that comes before an answer opens a new tab, which no popup
 blocker interferes with. The frame is sandboxed (`allow-scripts allow-same-origin allow-forms allow-popups
-allow-popups-to-escape-sandbox`, never `allow-top-navigation`) and sends PURSS's origin as referrer; the
+allow-popups-to-escape-sandbox`, never `allow-top-navigation`) and sends the installation's origin as referrer; the
 server's and the bundled page's policy allow frames from `https:` and `http:`, the apps' connected policy
 narrows frames back to the video players, and the desktop app shows originals in its own web view
 ([apps/desktop](../apps/desktop/README.md)).
@@ -562,14 +570,14 @@ the sharing preference, and a self-hosted installation builds and keeps none. On
 count, and only their public feed, YouTube and podcast sources, matched across accounts by `urlKey`. A source
 enters the graph only when at least 10 accounts follow it, and a pair only when 10 follow both; the two
 aggregate tables (`discovery_sources`, `discovery_pairs`) hold counts and no account. A candidate scores the
-sum over the reader's sources of `together(a, b) / sqrt(followers(a) * followers(b))`, so popular sources do
-not crowd out closer matches. Each score gets Gumbel noise seeded by the workspace and the UTC date, so the
+sum over the person's sources of `together(a, b) / sqrt(followers(a) * followers(b))`, so popular sources do
+not crowd out closer matches. Each score gets Gumbel noise seeded by the account and the UTC date, so the
 order holds within a day and changes between days; every fourth place is a wildcard drawn from popular
-sources, a reader whose sources match nothing gets popular sources with noise, and at most 20 suggestions
-show, each naming the reader's own sources that led to it. The rebuild is quadratic in each account's followed
+sources, a person whose sources match nothing gets popular sources with noise, and at most 20 suggestions
+show, each naming the person's own sources that led to it. The rebuild is quadratic in each account's followed
 sources.
 
-The Discover page also shows popular sources by category from a catalogue file, `discovery-catalogue.sqlite` in the
+The Discovery page also shows popular sources by category from a catalogue file, `discovery-catalogue.sqlite` in the
 data directory (`services/discovery-catalogue.ts`). The hosted service's is its own editorial file, kept on its server
 and never in the repository; any installation reads one if it is there (`installation.catalogue` in the session says
 so, and shows the page), read-only, keeping it in memory until the file changes on disk and leaving out one it
@@ -578,7 +586,7 @@ kind (feed, YouTube, podcast), a language, a short description, a popularity wei
 an icon (a WebP as a followed source's icon is stored); only English rows are served, each with the hue and initials
 a source without an icon shows, and an icon is read from the file when `GET /api/suggestions/catalogue/icons/:digest`
 asks for it ([A catalogue of popular sources](self-hosting.md#a-catalogue-of-popular-sources)). `GET /api/suggestions/catalogue` sends each category's 24 most popular
-sources, leaving out what the reader has (by `feedKey`, and private sources by their keyed hash), and
+sources, leaving out what the person already has (by `feedKey`, and private sources by their keyed hash), and
 `GET /api/suggestions/catalogue/:category` all of one category's. The server orders them by weight plus Gumbel noise on
 each request and never sends a weight or any other popularity figure; the page asks anew on each visit, shuffles the
 boxes and shows six in each; a source's latest posts come from an ordinary
@@ -591,7 +599,7 @@ change notices. Every account signs in with its email address, one account per a
 are proven by links: open sign-up makes the account only from its link (`signup_requests`), and a new
 address takes over only once confirmed. Messages that must not reveal whether an account
 exists are sent after the response, through a queue in the database (`mail_queue`, sealed with a key
-from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens` and `signup_requests` (the operator's `password-reset-link` command makes the same kind of reset token at the server and sends nothing); `mail_log` keeps kind,
+from the secrets folder) that survives restarts and retries while the server is down. Links are single-use tokens stored as SHA-256 in `email_tokens` and `signup_requests` (the administrator's `password-reset-link` command makes the same kind of reset token at the server and sends nothing); `mail_log` keeps kind,
 masked recipient, outcome and error code, never a body. The server is checked at start and every 10
 minutes while failing; hosted open sign-up is open only while that check passes. Setting it up is in
 [self-hosting](self-hosting.md#outgoing-email).
@@ -607,11 +615,11 @@ minutes while failing; hosted open sign-up is open only while that check passes.
 | Phones' notification registrations | `product.db`, `push_devices` (relay handle, SHA-256 of the fetch credential, what was handed; goes with its device token); the push relay keeps its own `relay.db` |
 | Account email | `product.db`: `accounts.email` (the sign-in address), `email_tokens` and `signup_requests` (SHA-256 of each link), `mail_queue` (messages waiting to be sent, sealed with `secrets/mail-queue-key`, at most a day), `mail_log` (no bodies, 90 days) |
 | Account deletions | `product.db`, `account_deletions` (one row per account being deleted, gone with the account) |
-| Installation news | `product.db`: `news_posts` (posts; the author link is cleared when that account is deleted), `news_deliveries` (which workspace got which post, for its copy and the counts) |
-| Which discovery routes are used | `product.db`, `discovery_routes`: per UTC day, entry (how the person got to the lookup) and route (which way discovery found the candidate), the number of candidates offered and the number followed; two ids from closed lists in `packages/domain`, 180 days. No account, workspace, source, address or title. A followed source keeps its own route and entry (`sources.discovery_route`, `discovery_entry`, and `unfollowed_at`), which no export, archive or OPML file carries |
-| Sites people couldn't follow | `product.db`, `discovery_misses`: per UTC day, the site (registrable domain) and the failure reason, with a count; 180 days. No account, workspace or address is stored, so it is no part of any account's data or export |
-| Secrets | `secrets/`: service token, setup code, engine operator and engine-user passwords, private source URLs, `oauth-refresh-key` (signs OAuth refresh tokens) |
-| FreshRSS data | `engine/` locally, the `engine-data` volume under Compose |
+| Installation news | `product.db`: `news_posts` (posts; the author link is cleared when that account is deleted), `news_deliveries` (which account got which post, for its items and the counts) |
+| Which routes link lookup uses | `product.db`, `discovery_routes`: per UTC day, entry point (how the person got to the lookup) and route (which way link lookup found the candidate), the number of candidates offered and the number followed; two ids from closed lists in `packages/domain`, 180 days. No account, source, address or title. A followed source keeps its own route and entry point (`sources.discovery_route`, `discovery_entry`, and `unfollowed_at`), which no export, archive or OPML file carries |
+| Sites people couldn't follow | `product.db`, `discovery_misses`: per UTC day, the site (registrable domain) and the failure reason, with a count; 180 days. No account or address is stored, so it is no part of any account's data or export |
+| Secrets | `secrets/`: service token, setup code, engine administrator and engine-user passwords, private source URLs, `oauth-refresh-key` (signs OAuth refresh tokens) |
+| Engine data | `engine/` locally, the `engine-data` volume under Compose |
 | Offline copies | The browser's own Cache Storage on each device (`purss-api:<account>`), plus a small record in its local storage; never on the server, deleted at sign-out |
 | Browser extension | The browser's extension storage on each device: the PURSS address, its device token, basket names for the menu, settings; never synced |
 | Unsent annotation changes | The browser's IndexedDB on each device (`purss-annotations`), until sent; deleted at sign-out |

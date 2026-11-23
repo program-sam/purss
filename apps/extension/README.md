@@ -1,6 +1,6 @@
 # Browser extension
 
-Keep the page you're reading in your PURSS, hand its site to Add source, and search the
+Keep the page you're reading in your PURSS, hand its site to Add source, and search your
 PURSS from the address bar. One Manifest V3 code base builds for Chrome and Edge (`chromium`),
 Firefox (`firefox`) and Safari (`safari`); the manifests differ only in how the background runs (service worker or
 event page), Firefox's add-on id and data-collection declaration, and Safari having no `identity` API. How people use
@@ -13,11 +13,11 @@ token reaches and the threats considered: [security](../../docs/security.md#brow
 | --- | --- | --- |
 | Toolbar popup | On open, three requests side by side: a lookup of the page (kept, in which baskets, followed sources that publish on that site), the baskets, and the page's feed hints. **Keep** with a basket picker (it starts on the last basket used), optionally **Also keep its text as you see it**, **Add as a source** when the page advertises a feed or is a YouTube channel or video, and **Open it in your PURSS** | Do anything without a click |
 | Right-click menu | *Keep page in ›* and *Keep link in ›* with up to 12 baskets (names cached from the last popup, connection or browser start); the toolbar shows ✓ or ! with the outcome. Not where the browser has no context menus (iOS) | Send more than the address and title, or read the page |
-| Toolbar mark | The popup sets ✓ on the tab after its lookup. Marking pages as they open is a setting, **off by default**; turning it on asks for the `tabs` permission at that moment. Each page opened in a normal window (never a private one) is then looked up after 1.2 s on it, with answers kept 10 minutes per address (fragment ignored, at most 500) | Send addresses of visited pages to the PURSS unless that setting is on |
-| Address bar | The keyword `purss`: Enter opens search in the PURSS (`/?dialog=search&q=…`) | Suggest while typing, since each keystroke would go to the PURSS |
+| Toolbar mark | The popup sets ✓ on the tab after its lookup. Marking pages as they open is a setting, **off by default**; turning it on asks for the `tabs` permission at that moment. Each page opened in a normal window (never a private one) is then looked up after 1.2 s on it, with answers kept 10 minutes per address (fragment ignored, at most 500) | Send addresses of visited pages to the installation unless that setting is on |
+| Address bar | The keyword `purss`: Enter opens search in your PURSS (`/?dialog=search&q=…`) | Suggest while typing, since each keystroke would go to the installation |
 
-The extension never re-implements discovery, following or the choice of a collection: **Add as a source** and a keep
-that needs a basket choice open the PURSS in a tab through deep links (`/?dialog=add&url=…`,
+The extension never re-implements link lookup, following or the choice of a collection: **Add as a source** and a keep
+that needs a basket choice open your PURSS in a tab through deep links (`/?dialog=add&url=…`,
 `/?dialog=keep&url=…&title=…`, `/?dialog=search&q=…`), which survive signing in. A deep link only fills a dialog in:
 nothing is looked up until the person presses Find, and nothing is kept until they press Keep. Feed hints are
 addresses that go through Add source's safe fetching: the extension sends addresses, never feed contents, so FreshRSS
@@ -34,38 +34,38 @@ itself is untouched), at most 2,000,000 characters; `POST /api/items/browser-cap
 `/api/items/manual` (same duplicate rules) and stores the HTML as a capture of kind `browser`, sanitized again with the
 server's allowlist. The server fetches nothing, so the text is what the person saw, including a page behind their own
 sign-in. The item says *Saved from your browser* with the date, and an assistant's `get_item` reports the text source as
-text saved from the person's browser: it is never presented as a copy the server fetched or a promise about the
+text saved from the person's browser: it is never presented as a readable copy the server fetched or a promise about the
 original. An item has at most one browser capture; capturing again replaces its text in place (keeping its id, so
 highlights made on it still name it), and the popup says *Replaces the text kept from your browser on …* first. The
-text counts against the account's storage like a server capture; text that doesn't fit is refused while the link is
+text counts against the account's storage allowance like a server capture; text that doesn't fit is refused while the link is
 still kept. Limits: request body 8 MB, 60 captures per 10 minutes per account, title at most 300 characters.
 
 ## Permissions and the connection
 
 The manifest asks for `activeTab`, `scripting`, `storage`, `contextMenus` and `identity` (not Safari), and the optional
 `tabs` for the toolbar mark. It declares no host permissions, no content scripts, no `<all_urls>`, cookies or web
-requests: the PURSS answers the extension's requests with CORS, and a page is read only when the person opens the popup
+requests: the installation answers the extension's requests with CORS, and a page is read only when the person opens the popup
 or the right-click menu on it (`activeTab`), by a script injected for that purpose. That gives a short install warning
 and a faster store review.
 
-- **Server.** The official server (`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`) is preselected:
+- **Installation.** The official installation (`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`) is preselected:
   the options page shows *Server: …* and **Connect**, with a small **Change server** that reveals the address field (and
-  *Use the official server* to go back). The server last connected to is remembered in the extension's storage, also
+  *Use the official server* to go back). The installation last connected to is remembered in the extension's storage, also
   after disconnecting. With the constant empty only the address field is shown.
 - **Address rule.** One rule with the apps (`parsePurssAddress` in `packages/domain/src/purss-address.ts`):
   `https://` when no scheme is typed, and plain `http://` only for this computer, private, shared (CGNAT) and link-local
   ranges (IPv4 and IPv6) and the names `.local`, `.lan`, `.internal` and `.home.arpa`, with a warning when it isn't
   loopback.
-- **Connecting.** The options page checks that `/api/connect/info` names a PURSS that calls itself by that address, then
-  `identity.launchWebAuthFlow` opens the server's `/connect` page with PKCE (S256), a fresh `state` and the browser's own
+- **Connecting.** The options page checks that `/api/connect/info` names an installation that calls itself by that address, then
+  `identity.launchWebAuthFlow` opens the installation's `/connect` page with PKCE (S256), a fresh `state` and the browser's own
   redirect (`https://<id>.chromiumapp.org/…`, `https://<hash>.extensions.allizom.org/…`). The answer must carry that
-  `state` and an `iss` equal to the PURSS. Safari, and anyone who prefers it, types the short code the approval page
+  `state` and an `iss` equal to the installation. Safari, and anyone who prefers it, types the short code the approval page
   shows. The connection runs in the options tab, because a popup closes when the approval window takes focus.
 - **Token.** Kept in the extension's local storage, never synced; sent only as a bearer header with
-  `credentials: "omit"`, and only to the connected PURSS. The server gives an `extension` token an exact list of routes
+  `credentials: "omit"`, and only to the connected installation. The server gives an `extension` token an exact list of routes
   (look up a page, list baskets and collections, keep a link, keep a link with the page's text, search, find and follow a
   source, read the session, disconnect itself), never an administrator's rights or a recent sign-in. A 401 makes the
-  extension forget the token; **Disconnect** calls `DELETE /api/connect/device` and forgets it even when the PURSS can't be
+  extension forget the token; **Disconnect** calls `DELETE /api/connect/device` and forgets it even when the installation can't be
   reached.
 
 ## Build
@@ -100,10 +100,10 @@ Build first, then:
   Xcode project, run it, turn on *Develop → Allow Unsigned Extensions* and enable the extension in
   Safari's settings. Safari connects with the typed code (it has no `identity` API).
 
-Then open the extension's options and press **Connect** for the official server
+Then open the extension's options and press **Connect** for the official installation
 (`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`), or **Change server** and
 enter your PURSS address (for a local development stack, `localhost:8940`), and approve the
-connection in the PURSS. The extension remembers the server it last connected to.
+connection in your PURSS. The extension remembers the installation it last connected to.
 
 ## Layout
 
@@ -113,7 +113,7 @@ connection in the PURSS. The extension remembers the server it last connected to
 | `src/popup/` | The toolbar popup for the open page |
 | `src/options/` | Connecting, disconnecting, settings |
 | `src/content/` | The two scripts injected into a page on request: feed hints, readable text |
-| `src/lib/` | Address rules and deep links, the workspace client, connecting (PKCE), feed detection, capture, popup wording, menus, the mark's cache; each with tests |
+| `src/lib/` | Address rules and deep links, the API client, connecting (PKCE), feed detection, capture, popup wording, menus, the mark's cache; each with tests |
 | `src/packaging/` | Manifests per browser, the ZIP writer, the build script, the store uploads |
 
 The extension imports only types from `@purss/domain` and the design tokens and primitives (CSS) from
@@ -137,14 +137,14 @@ review (`src/packaging/stores.ts`). Its keys are the repository secrets `CHROME_
 (a Google Cloud service account's JSON key; add the account under *Account* in the Chrome Web Store
 dashboard) and `AMO_JWT_ISSUER` with `AMO_JWT_SECRET` (addons.mozilla.org → Tools → Manage API Keys). When a
 listing is live, put its address in
-`STORE_LISTINGS` in `packages/domain/src/distribution.ts`: Settings → Connected apps and the website
+`STORE_LISTINGS` in `packages/domain/src/distribution.ts`: Settings → Connected apps and the public site
 then show its store button instead of naming the store as "not … yet".
 
 - **Chrome Web Store:** register a developer account (one-time fee), create an item in the
   Developer Dashboard and upload `purss-chromium.zip`. In *Privacy*, state the single
   purpose (keep pages in your own PURSS), justify each permission (`activeTab`, `scripting`,
   `storage`, `contextMenus`, `identity`, optional `tabs`), and declare that page addresses and, on
-  request, page text are sent to the PURSS the user connects, not to the developer. Review takes
+  request, page text are sent to the installation the person connects, not to the developer. Review takes
   days; there are no host permissions to slow it down.
 - **Microsoft Edge Add-ons:** in Partner Center, upload the same `purss-chromium.zip`.
 - **Firefox (addons.mozilla.org):** the add-on id (`FIREFOX_ID` in `src/packaging/manifest.ts`) is
@@ -156,9 +156,9 @@ then show its store button instead of naming the store as "not … yet".
 - **Safari (macOS and iOS):** needs an Apple Developer Program membership. In App Store Connect,
   use the Safari Web Extension Packager with `purss-safari.zip` (or, on a Mac, Xcode with
   `safari-web-extension-converter`); it produces the app that contains the extension, which goes
-  through TestFlight and App Review. Updates ship as new app versions.
+  through TestFlight and App Review. Updates ship as new app versions. The component map is in [architecture](../../docs/architecture.md#components).
 
 Firefox can be checked locally before uploading with `npx web-ext lint --source-dir apps/extension/dist/firefox`.
 It reports no errors; it warns that Firefox for Android reads the data-collection declaration only
 from version 142 (Android isn't a target), and about `innerHTML` inside the bundled Readability,
-which works on a copy of the page, never on the page itself.
+which works on a clone of the page, never on the page itself.
