@@ -41,7 +41,7 @@ function Reason({ s }: { s: DiscoverSuggestion }) {
 /** Following goes through Add source, which looks the address up again like any pasted link. */
 function FollowButton({ feedUrl }: { feedUrl: string }) {
   const overlays = useOverlays();
-  return <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: feedUrl, entry: "suggestion" })}><Icon name="plus" size="sm" />{copy.follow}</Button>;
+  return <Button variant="primary" onClick={() => overlays.open({ kind: "add-source", url: feedUrl, entry: "suggestion" })}><Icon name="plus" size="sm" /><span className="disc-follow">{copy.follow}</span></Button>;
 }
 
 function Row({ s, onDismiss }: { s: DiscoverSuggestion; onDismiss: (s: DiscoverSuggestion) => void }) {
