@@ -173,7 +173,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
   setShareNote(a, pa, shareId, noted, "Worth it for the maps.");
   // An item of a source followed from now that nobody has touched arrives Ignored: it goes in the export as any Ignored item does, and stays so after the move.
   const leftOut = a.db.get<{ id: string; title: string }>(
-    `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'new' AND st.opened_at IS NULL AND st.progress = 0
+    `SELECT i.id, i.title FROM items i JOIN item_state st ON st.item_id = i.id WHERE st.workflow = 'undecided' AND st.opened_at IS NULL AND st.progress = 0
        AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AND NOT EXISTS (SELECT 1 FROM annotations n WHERE n.item_id = i.id) ORDER BY i.seq LIMIT 1`)!;
   a.db.run("UPDATE item_state SET fresh = 0, workflow = 'ignored' WHERE item_id = ?", leftOut.id);
   const { doc } = await exportDoc(a, pa);
@@ -339,7 +339,7 @@ test("an older export that marked back catalogue with `backlog` imports its unto
   seedLibrary(a.app, pa);
   const { doc } = await exportDoc(a.app, pa);
   const by = (title: string) => doc.items.find((i: any) => i.title.startsWith(title)) as any;
-  const untouched = { workflow: "new", fresh: false, progress: 0, openedAt: null };
+  const untouched = { workflow: "undecided", fresh: false, progress: 0, openedAt: null };
   const third = by("Third post").id as string;
   const kept = by("Second post").id as string; // in a basket in the file
   const [firstId, privateId] = [by("Tidal flats").id as string, by("Private note").id as string];
@@ -370,20 +370,20 @@ test("an older export that marked back catalogue with `backlog` imports its unto
   });
   const { b, pb, workflows } = imported(file);
   assert.equal(workflows["Third post"], "ignored", "an untouched item that was back catalogue arrives the way it is stored now");
-  assert.equal(workflows["Second post"], "new", "one that was kept is an ordinary item");
+  assert.equal(workflows["Second post"], "undecided", "one that was kept is an ordinary item");
   assert.equal(workflows[by("Tidal flats").title], "toread", "one the person had acted on stays as they left it");
-  assert.equal(workflows["Private note"], "new", "and one marked New");
+  assert.equal(workflows["Private note"], "undecided", "and one marked New");
   assert.equal(b.db.all("SELECT 1 FROM pragma_table_info('items') WHERE name = 'backlog'").length, 0, "the database has no such mark");
-  assert.equal(imported(legacy(() => {})).workflows["Third post"], "new", "an item with no mark is as it was written");
-  assert.equal(imported(legacy((items) => { items[third].backlog = false; })).workflows["Third post"], "new", "so is one marked false");
+  assert.equal(imported(legacy(() => {})).workflows["Third post"], "undecided", "an item with no mark is as it was written");
+  assert.equal(imported(legacy((items) => { items[third].backlog = false; })).workflows["Third post"], "undecided", "so is one marked false");
 
   // An annotation or a "started" state in the file also means the person had touched it.
   const noted = legacy((items) => { items[third].backlog = true; }, {
     annotations: [{ id: "ann_1", itemId: third, kind: "note", quote: null, position: null, target: null, body: "mine", createdAt: "2026-10-30T09:00:00.000Z", updatedAt: "2026-10-30T09:00:00.000Z" }],
   });
-  assert.equal(imported(noted).workflows["Third post"], "new");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.progress = 0.4; })).workflows["Third post"], "new");
-  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.openedAt = "2026-10-30T09:00:00.000Z"; })).workflows["Third post"], "new");
+  assert.equal(imported(noted).workflows["Third post"], "undecided");
+  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.progress = 0.4; })).workflows["Third post"], "undecided");
+  assert.equal(imported(legacy((items) => { items[third].backlog = true; items[third].state.openedAt = "2026-10-30T09:00:00.000Z"; })).workflows["Third post"], "undecided");
 
   // It round-trips as an ordinary Ignored item: the next export has the state and no mark.
   const { doc: again } = await exportDoc(b, pb);

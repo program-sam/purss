@@ -183,7 +183,7 @@ export function useItemActions() {
     async function restore(id: string): Promise<void> {
       noteManualWorkflowChange(id);
       const prev = previousWorkflow.get(id);
-      await changeWorkflow(id, prev && prev !== "ignored" ? prev : "new", "restore");
+      await changeWorkflow(id, prev && prev !== "ignored" ? prev : "undecided", "restore");
     }
 
     /**

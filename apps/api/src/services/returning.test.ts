@@ -221,14 +221,14 @@ test("opening an item or changing its state clears its New marker, and Undo brin
   const opened = changeState(app, p, a, { opened: true, expectedRevision: revision(app, a) });
   assert.equal(opened.item.fresh, false, "the response carries the updated item");
   assert.equal(opened.item.opened, true);
-  assert.equal(opened.item.workflow, "new", "opening changes nothing else");
+  assert.equal(opened.item.workflow, "undecided", "opening changes nothing else");
   applyUndo(app, p, opened.undoToken);
   assert.equal(fresh(app, a), true);
 
   const finished = changeState(app, p, b, { workflow: "finished", expectedRevision: revision(app, b) });
   assert.equal(finished.item.fresh, false);
   applyUndo(app, p, finished.undoToken);
-  assert.deepEqual([fresh(app, b), app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", b)!.w], [true, "new"]);
+  assert.deepEqual([fresh(app, b), app.db.get<{ w: string }>("SELECT workflow AS w FROM item_state WHERE item_id = ?", b)!.w], [true, "undecided"]);
 
   const out = bulk(app, p, [b, c], { type: "workflow", workflow: "ignored" });
   assert.equal(out.changed, 2);
@@ -408,7 +408,7 @@ function pages(app: App, p: Owner, query: { scope: string; filter?: "open" | "fr
   const out: string[] = [];
   let cursor: string | undefined;
   for (let n = 0; n < 400; n++) {
-    const page = listItems(app, p, { filter: "new", ...query, cursor, mix: "home" });
+    const page = listItems(app, p, { filter: "undecided", ...query, cursor, mix: "home" });
     out.push(...page.items.map((i) => i.id));
     between(n);
     if (!page.nextCursor) break;
@@ -485,9 +485,9 @@ test("Home lists of scopes that are not a set of sources keep Home's filter and 
   const a = makeSource(app, p, "A", "feed/1");
   const ids = [feedItem(app, p, a, 5), feedItem(app, p, a, 4), feedItem(app, p, a, 3)];
   for (const id of ids.slice(0, 2)) setWorkflow(app, p, id, "toread");
-  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
+  assert.deepEqual(listItems(app, p, { scope: "toread", filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [], "nothing in the queue is Undecided");
   const saved = createCollection(app, p, { name: "Filter", emoji: null, mode: "query", sourceIds: [], query: { all: [{ field: "source", value: [a] }] }, view: "list" });
-  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "new", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
+  assert.deepEqual(listItems(app, p, { scope: `collection:${saved.id}`, filter: "undecided", limit: 10, mix: "home" }).items.map((i) => i.id), [ids[2]]);
   assert.throws(() => listItems(app, p, { scope: "collection:col_missing", limit: 10, mix: "home" }), { message: server.api.http.notFound(shared.thatCollection) });
 });
 
@@ -952,7 +952,7 @@ test("a PURSS's Home, digest and activity never include another's", (t) => {
   assert.deepEqual(o.since!.boxes.map((b) => b.name), [shared.otherSources]);
   assert.equal(o.since!.total, 1);
   assert.equal(o.toRead.total, 0);
-  assert.deepEqual(listItems(app, p, { scope: "home", filter: "new", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
+  assert.deepEqual(listItems(app, p, { scope: "home", filter: "undecided", mix: "home" }).items.map((i) => i.sourceTitle), ["Mine"]);
   assert.deepEqual(activityFor(app, p).sources.map((s) => s.title), ["Mine"]);
   assert.equal(digestFor(app, p.accountId, { from: ago(DAY), to: ahead(DAY) }).total, 1);
 });

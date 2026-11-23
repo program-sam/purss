@@ -161,11 +161,11 @@ const itemSchema = z.object({
   versions: z.array(versionSchema).max(50).default([]),
   captures: z.array(captureSchema).max(50).default([]),
   state: z.object({
-    workflow: z.enum(WORKFLOW_STATES).default("new"),
+    workflow: z.enum(WORKFLOW_STATES).default("undecided"),
     fresh: z.boolean().default(false),
     progress: z.number().min(0).max(1).default(0),
     openedAt: iso,
-  }).default({ workflow: "new", fresh: false, progress: 0, openedAt: null }),
+  }).default({ workflow: "undecided", fresh: false, progress: 0, openedAt: null }),
   originalGuids: z.array(text(2000)).max(5).default([]),
   /** Only ever read, from files made when a source's back catalogue was marked this way instead of Ignored; `parseArchive` turns it into the workflow state and nothing keeps it. */
   backlog: z.boolean().optional(),
@@ -337,7 +337,7 @@ export function parseArchive(raw: unknown): Archive {
 }
 
 /**
- * A file made when the back catalogue of a source followed from now was marked `backlog: true` (and its items left `workflow: "new"`) is read
+ * A file made when the back catalogue of a source followed from now was marked `backlog: true` (and its items left `workflow: "undecided"`) is read
  * the way those items are stored now: Ignored. Only an item still in the default state was ever marked (the old version cleared the mark when
  * the item was opened, started, made New or changed in state, kept in a basket or annotated), so one that is no longer in it is left as the person had it.
  */
@@ -347,7 +347,7 @@ function ignoreMarkedBackCatalogue(doc: Archive): Archive {
     const marked = item.backlog === true;
     delete item.backlog;
     const { workflow, fresh, progress, openedAt } = item.state;
-    if (marked && workflow === "new" && !fresh && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
+    if (marked && workflow === "undecided" && !fresh && progress === 0 && openedAt === null && !touched.has(item.id)) item.state.workflow = "ignored";
   }
   return doc;
 }

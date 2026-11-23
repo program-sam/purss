@@ -69,7 +69,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
   const boardRef = useRef<HTMLDivElement>(null);
   const columns: ColumnKey[] = [...BOARD_COLUMNS, "ignored"];
   // A fixed set of columns, so the hooks are always called in the same order.
-  const cols = { new: useColumn(params, "new"), toread: useColumn(params, "toread"), inprogress: useColumn(params, "inprogress"), finished: useColumn(params, "finished"), ignored: useColumn(params, "ignored") };
+  const cols = { undecided: useColumn(params, "undecided"), toread: useColumn(params, "toread"), inprogress: useColumn(params, "inprogress"), finished: useColumn(params, "finished"), ignored: useColumn(params, "ignored") };
   // Every loaded card goes in the column of its current state, so a moved card shows in its new
   // column straight away instead of vanishing until that column reloads.
   const buckets = useMemo(() => {
@@ -78,10 +78,10 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
       const had = latest.get(it.id);
       if (!had || it.revision > had.revision) latest.set(it.id, it);
     }
-    const out = { new: [], toread: [], inprogress: [], finished: [], ignored: [] } as Record<ColumnKey, ItemDTO[]>;
+    const out = { undecided: [], toread: [], inprogress: [], finished: [], ignored: [] } as Record<ColumnKey, ItemDTO[]>;
     for (const it of latest.values()) out[it.workflow]?.push(it);
     return out;
-  }, [cols.new.data, cols.toread.data, cols.inprogress.data, cols.finished.data, cols.ignored.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cols.undecided.data, cols.toread.data, cols.inprogress.data, cols.finished.data, cols.ignored.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const by = (k: ColumnKey) => buckets[k];
   const count = (k: ColumnKey) => cols[k].data?.pages[0]?.total ?? buckets[k].length;
 

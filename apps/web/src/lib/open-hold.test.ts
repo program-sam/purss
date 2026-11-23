@@ -4,7 +4,7 @@ import type { ItemDTO } from "@purss/domain";
 import { createOpenHold, withOpenItem } from "./open-hold.ts";
 import { matchesFilter } from "./items.ts";
 
-const item = (id: string, over: Partial<ItemDTO> = {}): ItemDTO => ({ id, fresh: false, workflow: "new", ...over }) as ItemDTO;
+const item = (id: string, over: Partial<ItemDTO> = {}): ItemDTO => ({ id, fresh: false, workflow: "undecided", ...over }) as ItemDTO;
 const ids = (list: ItemDTO[]) => list.map((i) => i.id);
 const tick = () => new Promise((r) => setTimeout(r, 1));
 const isNew = (i: ItemDTO) => matchesFilter(i, "fresh");

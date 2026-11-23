@@ -26,7 +26,7 @@ export const FINISHED_AFTER_PLAYED_SECONDS = 3;
 
 /** States playback may move to In progress by itself. */
 export function canPlaybackStart(workflow: WorkflowState): boolean {
-  return workflow === "new" || workflow === "toread";
+  return workflow === "undecided" || workflow === "toread";
 }
 
 /** States playback may move forward from by itself (to Finished, or to In progress first). Ignored and Finished are left alone. */

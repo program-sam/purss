@@ -33,7 +33,7 @@ test("opening, reading progress and workflow changes clear the New marker; Undo 
   assert.equal(getItem(app, p, c).workflow, "toread");
   applyUndo(app, p, marked.undoToken);
   assert.equal(getItem(app, p, c).fresh, true, "Undo restores the marker");
-  assert.equal(getItem(app, p, c).workflow, "new");
+  assert.equal(getItem(app, p, c).workflow, "undecided");
 });
 
 test("keeping and bulk workflow changes clear the New marker; Undo restores it", (t) => {
@@ -52,10 +52,10 @@ test("keeping and bulk workflow changes clear the New marker; Undo restores it",
   assert.equal(getItem(app, p, c).fresh, false);
   applyUndo(app, p, many.undoToken);
   assert.equal(getItem(app, p, b).fresh, true);
-  assert.equal(getItem(app, p, c).workflow, "new");
+  assert.equal(getItem(app, p, c).workflow, "undecided");
 
   // A no-op (already in that state or basket) is not an interaction and leaves the marker alone.
-  bulk(app, p, [b], { type: "workflow", workflow: "new" });
+  bulk(app, p, [b], { type: "workflow", workflow: "undecided" });
   bulk(app, p, [b], { type: "unkeep", basketId: basket.id });
   assert.equal(getItem(app, p, b).fresh, true);
   const keptMany = bulk(app, p, [b], { type: "keep", basketId: basket.id });

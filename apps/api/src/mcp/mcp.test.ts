@@ -195,7 +195,7 @@ test("a token acts only for its own account", async (t) => {
   const change = await callTool(b, otherToken, "set_item_state", { itemIds: [lib.pinnedOld.itemId], state: "ignored" });
   assert.equal(change.json.result.isError, true);
   assert.equal((await callTool(b, otherToken, "list_sources")).json.result.structuredContent.sources.length, 0);
-  assert.equal(b.app.db.get<{ workflow: string }>("SELECT workflow FROM item_state WHERE item_id = ?", lib.pinnedOld.itemId)!.workflow, "new");
+  assert.equal(b.app.db.get<{ workflow: string }>("SELECT workflow FROM item_state WHERE item_id = ?", lib.pinnedOld.itemId)!.workflow, "undecided");
 });
 
 test("writing tools organise items and sources through the same rules as the app, and are audited", async (t) => {

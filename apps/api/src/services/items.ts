@@ -71,7 +71,7 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
     "INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     versionId, id, n.accountId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
   );
-  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, fresh, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "new", n.fresh ? 1 : 0, now);
+  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, fresh, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.fresh ? 1 : 0, now);
   indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
   admitObject(app, {
     accountId: n.accountId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
@@ -350,7 +350,7 @@ function listSort(app: App, p: Principal, q: { scope: string; source?: string; s
  * Home's order: Undecided items first, then the rest the filter allows (the Only new layout's New items put aside), newest first within each. Listed as two runs, each
  * in the date order, so each reads the date index in order instead of sorting every candidate.
  */
-const HOME_RUNS = ["st.workflow = 'new'", "st.workflow <> 'new'"] as const;
+const HOME_RUNS = ["st.workflow = 'undecided'", "st.workflow <> 'undecided'"] as const;
 /** The queue's order: what is started first, then what is waiting, each in the list's own order. */
 const QUEUE_RUNS = ["st.workflow = 'inprogress'", "st.workflow = 'toread'"] as const;
 /** The runs a list is read in, or none when it is read in one pass. */

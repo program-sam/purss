@@ -3,7 +3,7 @@ import type { ItemKind, WorkflowState } from "@purss/domain";
 import { workflowLabel } from "./constants.ts";
 
 /** The reading path the status button steps along, one click per step. */
-const NEXT: Partial<Record<WorkflowState, WorkflowState>> = { new: "toread", toread: "inprogress", inprogress: "finished" };
+const NEXT: Partial<Record<WorkflowState, WorkflowState>> = { undecided: "toread", toread: "inprogress", inprogress: "finished" };
 
 /**
  * What the status button on an item says. While the item is on the reading path (Undecided, To read, In progress) the

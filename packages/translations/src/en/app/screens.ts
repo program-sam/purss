@@ -623,9 +623,9 @@ export default {
       views: { list: "List", cards: "Cards", board: "Board", table: "Table", timeline: "Timeline" },
       kinds: { article: words.article, video: "Video", paper: "Paper", post: words.postCapital, podcast: words.podcast, link: words.link },
       sorts: { newest: "Newest", oldest: "Oldest", source: words.source, title: words.title, kept: "Recently kept" },
-      filters: { active: "All", all: "All + ignored", fresh: "New", new: words.undecided, toread: words.toRead, inprogress: words.inProgress, finished: words.finished, ignored: words.ignored },
+      filters: { active: "All", all: "All + ignored", fresh: "New", undecided: words.undecided, toread: words.toRead, inprogress: words.inProgress, finished: words.finished, ignored: words.ignored },
       toReadTitle: "To read, watch and listen",
-      workflow: { new: words.undecided, toread: words.toRead, inprogress: words.inProgress, finished: words.finished, ignored: words.ignored },
+      workflow: { undecided: words.undecided, toread: words.toRead, inprogress: words.inProgress, finished: words.finished, ignored: words.ignored },
     },
     stats: {
       sparkline: (weeks: number, weekly: string, average: number) =>

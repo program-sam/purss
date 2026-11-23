@@ -31,7 +31,7 @@ test("the end of an item starts at 95% or two minutes from the end, whichever co
 });
 
 test("which states the player may move", () => {
-  for (const state of ["new", "toread"] as const) { assert.equal(canPlaybackStart(state), true, state); assert.equal(canPlaybackMove(state), true, state); }
+  for (const state of ["undecided", "toread"] as const) { assert.equal(canPlaybackStart(state), true, state); assert.equal(canPlaybackMove(state), true, state); }
   assert.equal(canPlaybackStart("inprogress"), false);
   assert.equal(canPlaybackMove("inprogress"), true, "it can still finish");
   for (const state of ["finished", "ignored"] as const) { assert.equal(canPlaybackStart(state), false, state); assert.equal(canPlaybackMove(state), false, state); }

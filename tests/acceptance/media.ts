@@ -358,7 +358,7 @@ async function main(): Promise<void> {
     // played into its end, never for a jump to the end, and with no message.
     const toasts = page.locator("#toasts");
     await openEpisode(page, sourceId, "Long wave serial");
-    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new");
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "undecided");
     await page.getByRole("button", { name: mediaCopy.listen, exact: true }).click();
     const slider = bar.getByRole("slider", { name: "Position" });
     await waitFor("playback to move", async () => Number(await slider.inputValue()) >= 2, 15_000);
@@ -366,7 +366,7 @@ async function main(): Promise<void> {
     await page.keyboard.press("End");
     await bar.getByRole("button", { name: "Play", exact: true }).waitFor();
     await new Promise((r) => setTimeout(r, 4000));
-    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "new", "a jump to the end is not listening to it, and a few seconds are not 30");
+    assert.equal((await itemDetail(page, "Long wave serial")).workflow, "undecided", "a jump to the end is not listening to it, and a few seconds are not 30");
     step("jumping to the end of an episode changes nothing");
 
     await bar.getByRole("button", { name: "Play", exact: true }).click();

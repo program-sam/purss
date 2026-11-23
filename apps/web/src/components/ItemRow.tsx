@@ -63,7 +63,7 @@ export function TriageActions({ item, tipAt }: { item: ItemDTO; tipAt?: "above" 
     <>
       <DownloadButton item={item} tipAt={tipAt} />
       <button type="button" className={`rq tr${later ? " on" : ""}`} data-tip={later ? t.inQueue(put) : put} data-tip-at={tipAt}
-        aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "new" : "toread")}><Icon name="item" /></button>
+        aria-pressed={later} aria-label={`${put}: ${item.title}`} onClick={() => c.onWorkflow(item, later ? "undecided" : "toread")}><Icon name="item" /></button>
       {c.basket ? (
         <button type="button" className="rq ig" data-tip={t.removeFrom(c.basket.name)} data-tip-at={tipAt} aria-label={`Remove from ${c.basket.name}: ${item.title}`} onClick={() => c.onRemove(item)}><Icon name="x" /></button>
       ) : (

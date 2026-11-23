@@ -7,7 +7,7 @@ import { findItem, itemDetailQuery, itemListQuery, itemPreviewQuery, keys, putIt
 function item(over: Partial<ItemDTO> = {}): ItemDTO {
   return {
     id: "itm_a", number: 1, sourceId: "src_a", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: null, author: null, excerpt: null, imageUrl: null, durationSeconds: null, readMinutes: null,
-    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+    doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 5, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
     progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null, ...over,
   };
 }
@@ -79,6 +79,6 @@ test("a list reload answered from an older saved copy doesn't put back a state c
   assert.equal(preview.items[0]!.workflow, "finished", "Home's previews too");
   const detail = (itemDetailQuery("itm_a").structuralSharing as (a: unknown, b: unknown) => unknown)({ ...shown, contentHtml: null }, { ...saved, contentHtml: "<p>x</p>" }) as ItemDTO & { contentHtml: string };
   assert.deepEqual([detail.workflow, detail.contentHtml], ["finished", "<p>x</p>"], "and the item itself");
-  const newer = item({ workflow: "new", stateVersion: 9 });
-  assert.equal((share({ pages: [page([shown])], pageParams: [undefined] }, { pages: [page([newer])], pageParams: [undefined] }) as { pages: { items: ItemDTO[] }[] }).pages[0]!.items[0]!.workflow, "new", "a newer answer wins");
+  const newer = item({ workflow: "undecided", stateVersion: 9 });
+  assert.equal((share({ pages: [page([shown])], pageParams: [undefined] }, { pages: [page([newer])], pageParams: [undefined] }) as { pages: { items: ItemDTO[] }[] }).pages[0]!.items[0]!.workflow, "undecided", "a newer answer wins");
 });

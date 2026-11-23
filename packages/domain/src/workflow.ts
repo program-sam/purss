@@ -1,11 +1,10 @@
 import { common } from "@purss/translations/common";
 
-export const WORKFLOW_STATES = ["new", "toread", "inprogress", "finished", "ignored"] as const;
+export const WORKFLOW_STATES = ["undecided", "toread", "inprogress", "finished", "ignored"] as const;
 export type WorkflowState = (typeof WORKFLOW_STATES)[number];
 
-/** The stored workflow value `new` is shown as Undecided; the `fresh` item flag is shown as New. */
 export const WORKFLOW_LABELS: Record<WorkflowState, string> = {
-  new: common.workflow.undecided,
+  undecided: common.workflow.undecided,
   toread: common.workflow.toRead,
   inprogress: common.workflow.inProgress,
   finished: common.workflow.finished,
@@ -13,7 +12,7 @@ export const WORKFLOW_LABELS: Record<WorkflowState, string> = {
 };
 
 /** The board's columns; Ignored is an outcome shown separately. */
-export const BOARD_COLUMNS: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished"];
+export const BOARD_COLUMNS: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished"];
 
 export function isWorkflowState(v: unknown): v is WorkflowState {
   return typeof v === "string" && (WORKFLOW_STATES as readonly string[]).includes(v);

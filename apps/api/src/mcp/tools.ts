@@ -32,8 +32,8 @@ export const SERVER_INSTRUCTIONS = [
 
 const STATE_NAMES = ["undecided", "toread", "inprogress", "finished", "ignored"] as const;
 type StateName = (typeof STATE_NAMES)[number];
-const toWorkflow = (s: StateName): WorkflowState => (s === "undecided" ? "new" : s);
-const fromWorkflow = (w: WorkflowState): StateName => (w === "new" ? "undecided" : w);
+const toWorkflow = (s: StateName): WorkflowState => (s === "undecided" ? "undecided" : s);
+const fromWorkflow = (w: WorkflowState): StateName => (w === "undecided" ? "undecided" : w);
 
 const DEFAULT_TEXT_CHARS = 20_000;
 const MAX_TEXT_CHARS = 60_000;

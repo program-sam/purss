@@ -31,7 +31,7 @@ type Sid = string | null;
 function emptyNumbers(): StatsNumbers {
   return {
     totalItems: 0, weekly: new Array<number>(STATS_WEEKS).fill(0), lastItemAt: null, longestGapDays: null,
-    workflow: { new: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
+    workflow: { undecided: 0, toread: 0, inprogress: 0, finished: 0, ignored: 0 },
     opened: 0, kept: 0, finishedLast30Days: 0, ignoredLast30Days: 0, filteredOut: 0,
   };
 }

@@ -202,7 +202,7 @@ CREATE TABLE reconciliation_queue (
 CREATE TABLE item_state (
   item_id TEXT PRIMARY KEY REFERENCES items(id),
   account_id TEXT NOT NULL REFERENCES accounts(id),
-  workflow TEXT NOT NULL DEFAULT 'new' CHECK (workflow IN ('new', 'toread', 'inprogress', 'finished', 'ignored')),
+  workflow TEXT NOT NULL DEFAULT 'undecided' CHECK (workflow IN ('undecided', 'toread', 'inprogress', 'finished', 'ignored')),
   fresh INTEGER NOT NULL DEFAULT 1,
   progress REAL NOT NULL DEFAULT 0,
   opened_at TEXT,
@@ -369,8 +369,8 @@ CREATE TABLE state_log (
   seq INTEGER PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES accounts(id),
   item_id TEXT NOT NULL REFERENCES items(id),
-  from_state TEXT NOT NULL CHECK (from_state IN ('new', 'toread', 'inprogress', 'finished', 'ignored')),
-  to_state TEXT NOT NULL CHECK (to_state IN ('new', 'toread', 'inprogress', 'finished', 'ignored')),
+  from_state TEXT NOT NULL CHECK (from_state IN ('undecided', 'toread', 'inprogress', 'finished', 'ignored')),
+  to_state TEXT NOT NULL CHECK (to_state IN ('undecided', 'toread', 'inprogress', 'finished', 'ignored')),
   at TEXT NOT NULL
 ) STRICT;
 
@@ -965,7 +965,7 @@ CREATE UNIQUE INDEX items_account_number ON items(account_id, number);
 
 CREATE INDEX items_embed_todo ON items(discovered_at) WHERE kind = 'post' AND image_url IS NULL AND embed_tries < 3;
 
-CREATE INDEX item_state_rare ON item_state(account_id, workflow, fresh, source_id) WHERE NOT (workflow = 'new' AND fresh = 0);
+CREATE INDEX item_state_rare ON item_state(account_id, workflow, fresh, source_id) WHERE NOT (workflow = 'undecided' AND fresh = 0);
 
 CREATE INDEX items_account_sortkey ON items(account_id, listed_at DESC, id DESC);
 

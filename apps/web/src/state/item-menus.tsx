@@ -88,7 +88,7 @@ export function useItemMenus() {
 
   /** Board cards put "Move to" first: the keyboard and touch alternative to dragging. */
   const openBoardMenu = useCallback((item: ItemDTO, anchor: HTMLElement) => {
-    const moves: MenuEntry[] = (["new", "toread", "inprogress", "finished"] as const).map((k) => ({
+    const moves: MenuEntry[] = (["undecided", "toread", "inprogress", "finished"] as const).map((k) => ({
       type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k, onSelect: () => void actions.setWorkflow([item.id], k),
     }));
     popups.menu(anchor, [

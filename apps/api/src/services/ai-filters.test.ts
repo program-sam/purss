@@ -153,11 +153,11 @@ test("a source filter marks the posts it drops Ignored, keeps the rest, and anno
 
   const kept = post(b.app, b.owner.accountId, "Sediment cores from the delta");
   const dropped = post(b.app, b.owner.accountId, "We're hiring a designer");
-  assert.equal(kept.workflow, "new");
+  assert.equal(kept.workflow, "undecided");
   assert.equal(kept.fresh, 1);
   assert.equal(dropped.workflow, "ignored");
   assert.equal(dropped.fresh, 0, "Ignored is no longer New, as when the person ignores it");
-  assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'new' AND to_state = 'ignored'", dropped.id), "the change is in the workflow log");
+  assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'undecided' AND to_state = 'ignored'", dropped.id), "the change is in the workflow log");
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.mark_read'"), "and mirrored to the engine as read, like the person's own");
   assert.deepEqual(arrivals(b.app, b.owner.accountId), [copy.api.notifications.newFrom("Delta Notes")], "only the kept post is announced");
 
@@ -190,16 +190,16 @@ test("the person's change is their last word; a looser filter gives back only un
   await runJudging(b);
   assert.equal(post(b.app, b.owner.accountId, "Hiring now").workflow, "ignored");
   assert.equal(post(b.app, b.owner.accountId, "Hiring again").workflow, "ignored");
-  assert.equal(post(b.app, b.owner.accountId, "Opened before judging").workflow, "new");
+  assert.equal(post(b.app, b.owner.accountId, "Opened before judging").workflow, "undecided");
 
   // The person takes one back.
   const back = post(b.app, b.owner.accountId, "Hiring now");
-  changeState(b.app, b.owner, back.id, { workflow: "new", expectedRevision: back.revision });
+  changeState(b.app, b.owner, back.id, { workflow: "undecided", expectedRevision: back.revision });
 
   // Tighter words would drop it again; the person's word stands.
   await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment cores only" });
   await runJudging(b);
-  assert.equal(post(b.app, b.owner.accountId, "Hiring now").workflow, "new", "the person's own change is not undone");
+  assert.equal(post(b.app, b.owner.accountId, "Hiring now").workflow, "undecided", "the person's own change is not undone");
 
   // Opening a dropped post (in Ignored) is a touch too, though it doesn't move the revision: it is not given back.
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Hiring, opened in Ignored", "feed/1")]));
@@ -211,9 +211,9 @@ test("the person's change is their last word; a looser filter gives back only un
   // Looser words keep hiring posts: the one the filter dropped and nobody touched comes back.
   await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment or hiring" });
   await runJudging(b);
-  assert.equal(post(b.app, b.owner.accountId, "Hiring again").workflow, "new", "given back");
-  assert.equal(post(b.app, b.owner.accountId, "Hiring now").workflow, "new");
-  assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'ignored' AND to_state = 'new'", post(b.app, b.owner.accountId, "Hiring again").id));
+  assert.equal(post(b.app, b.owner.accountId, "Hiring again").workflow, "undecided", "given back");
+  assert.equal(post(b.app, b.owner.accountId, "Hiring now").workflow, "undecided");
+  assert.ok(b.app.db.get("SELECT 1 FROM state_log WHERE item_id = ? AND from_state = 'ignored' AND to_state = 'undecided'", post(b.app, b.owner.accountId, "Hiring again").id));
   assert.equal(post(b.app, b.owner.accountId, "Hiring, opened in Ignored").workflow, "ignored", "opened while Ignored: the person's");
 });
 
@@ -232,7 +232,7 @@ test("statistics count what a Smart filter filtered out, until the person change
   const done = post(b.app, b.owner.accountId, "Hiring now");
   changeState(b.app, b.owner, done.id, { workflow: "finished", expectedRevision: done.revision });
   const manual = post(b.app, b.owner.accountId, "Hiring again");
-  changeState(b.app, b.owner, manual.id, { workflow: "new", expectedRevision: manual.revision });
+  changeState(b.app, b.owner, manual.id, { workflow: "undecided", expectedRevision: manual.revision });
   changeState(b.app, b.owner, manual.id, { workflow: "ignored", expectedRevision: post(b.app, b.owner.accountId, "Hiring again").revision });
 
   const stats = sourceStats(b.app, b.owner, source).stats;
@@ -256,16 +256,16 @@ test("a kept post is never dropped, a filter changed mid-flight waits for its ow
   await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment and tides" });
   const stale = { route: input.route, model: null, keyRejected: false, keyFingerprint: null, unfinished: [], verdicts: input.requests.map((r) => ({ itemId: r.itemId, answers: Object.fromEntries(Object.keys(r.questions).map((k) => [k, 0.01])), inputTokens: 10 })) };
   assert.equal((await internalPost(b, `/internal/jobs/${job.id}/complete`, { leaseId: job.leaseId, result: stale })).status, 200);
-  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "new", "an answer to the old words changes nothing");
+  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "undecided", "an answer to the old words changes nothing");
   await runJudging(b); // the re-check the change queued
   assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "ignored");
-  assert.equal(post(b.app, b.owner.accountId, "Kept off-topic post").workflow, "new", "a kept post stays");
+  assert.equal(post(b.app, b.owner.accountId, "Kept off-topic post").workflow, "undecided", "a kept post stays");
 
   await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment and tides", enabled: false });
   assert.equal(listSources(b.app, b.owner)[0]!.aiFiltered, false, "a filter that is off isn't marked");
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Another off-topic post", "feed/1")]));
   assert.equal(await runJudging(b), 0, "a filter that is off judges nothing");
-  assert.equal(post(b.app, b.owner.accountId, "Another off-topic post").workflow, "new");
+  assert.equal(post(b.app, b.owner.accountId, "Another off-topic post").workflow, "undecided");
 });
 
 test("a collection's filter covers its sources and goes with the collection; previews change nothing", async (t) => {
@@ -281,13 +281,13 @@ test("a collection's filter covers its sources and goes with the collection; pre
   const preview = await b.api("POST", `/api/collections/${col.id}/ai-filter/preview`, { keep: "sediment", whenUnsure: "drop" });
   assert.equal(preview.status, 200, preview.text);
   assert.deepEqual(preview.json.posts.map((p: any) => [p.title, p.dropped]).sort(), [["Gossip two", true], ["Sediment one", false]]);
-  assert.equal(post(b.app, b.owner.accountId, "Gossip two").workflow, "new", "a preview changes no post");
+  assert.equal(post(b.app, b.owner.accountId, "Gossip two").workflow, "undecided", "a preview changes no post");
   assert.equal(usageRow(b)?.tokens, 300, "but its tokens count");
 
   await b.api("PUT", `/api/collections/${col.id}/ai-filter`, { keep: "sediment" });
   await runJudging(b); // the re-check of the collection's recent Undecided posts
   assert.equal(post(b.app, b.owner.accountId, "Gossip two").workflow, "ignored");
-  assert.equal(post(b.app, b.owner.accountId, "Gossip elsewhere").workflow, "new", "a source outside the collection is not filtered");
+  assert.equal(post(b.app, b.owner.accountId, "Gossip elsewhere").workflow, "undecided", "a source outside the collection is not filtered");
   // The sidebar marks the collection whose filter is on, not each of its sources; a source's own filter marks the source.
   await b.api("PUT", `/api/sources/${two}/ai-filter`, { keep: "tides" });
   const marked = Object.fromEntries(listSources(b.app, b.owner).map((x) => [x.title, x.aiFiltered]));
@@ -322,7 +322,7 @@ test("a key Jev refuses: posts stay as they are and are announced, the key is ma
   b.jev.setStatus(401);
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Off-topic post", "feed/1")]));
   await runJudging(b);
-  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "new");
+  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "undecided");
   assert.deepEqual(arrivals(b.app, b.owner.accountId), [copy.api.notifications.newFrom("Delta Notes")], "announced as if there were no filter");
   assert.equal((await b.api("GET", "/api/ai")).json.ready, false);
   assert.deepEqual((await b.api("GET", "/api/admin/ai", undefined, b.adminSession)).json.key, { hint: "1234", rejected: true });
@@ -416,7 +416,7 @@ test("self-hosted: a server key an administrator sets serves every account, with
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Off-topic post", "feed/1")]));
   b.jev.setStatus(401);
   await runJudging(b);
-  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "new", "fails open");
+  assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "undecided", "fails open");
   assert.deepEqual((await b.api("GET", "/api/admin/ai", undefined, adminSession)).json.key, { hint: "9999", rejected: true });
   assert.equal((await b.api("GET", "/api/ai")).json.ready, false, "a refused key isn't used");
   await b.api("PUT", "/api/admin/ai/key", { key: "server-key-0000" }, adminSession);
@@ -442,7 +442,7 @@ test("the posts a source already had when it was followed from now arrive Ignore
   assert.equal(await runJudging(b), 1);
   assert.deepEqual(b.jev.seen.map((s) => s.body.state.title).sort(), ["Sediment cores from the delta", "We're hiring a designer"]);
   assert.equal(post(b.app, b.owner.accountId, "We're hiring a designer").workflow, "ignored");
-  assert.equal(post(b.app, b.owner.accountId, "Sediment cores from the delta").workflow, "new");
+  assert.equal(post(b.app, b.owner.accountId, "Sediment cores from the delta").workflow, "undecided");
 
   // A looser filter gives back what it dropped, and re-checks what is Undecided: never the back catalogue, which no filter had a say in.
   b.jev.seen.length = 0;

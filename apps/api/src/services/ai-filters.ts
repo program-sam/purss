@@ -137,7 +137,7 @@ function queueRecheck(app: App, owner: Owner, filterId: string): void {
   const since = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const undecided = app.db.all<{ id: string }>(
     `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.account_id = ? AND i.source_id IN (${filterSourcesSql()}) AND st.workflow = 'new' AND st.opened_at IS NULL AND ${UNTOUCHED}
+     WHERE i.account_id = ? AND i.source_id IN (${filterSourcesSql()}) AND st.workflow = 'undecided' AND st.opened_at IS NULL AND ${UNTOUCHED}
        AND i.discovered_at >= ? AND NOT EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)
      ORDER BY i.discovered_at DESC LIMIT ${RECHECK_MAX}`, owner.accountId, filterId, filterId, since).map((r) => r.id);
   // What this filter dropped and nobody has touched since: a looser filter gives it back.
@@ -285,7 +285,7 @@ export function completeJudging(app: App, job: { account_id: string | null; payl
       `SELECT i.id, i.source_id, st.workflow, st.revision, st.fresh, st.opened_at, EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) AS kept
        FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.id = ? AND i.account_id = ?`, itemId, owner.accountId);
     if (!item) continue;
-    const fresh = item.workflow === "new" && item.fresh === 1;
+    const fresh = item.workflow === "undecided" && item.fresh === 1;
     if (unjudged) {
       if (fresh) keep(item.source_id, itemId);
       continue;
@@ -306,9 +306,9 @@ export function completeJudging(app: App, job: { account_id: string | null; payl
     // The person's own change to the post is their last word on it: a filter changes only posts nobody else has.
     const untouched = item.revision === (lastByFilter ?? 0);
     let to: WorkflowState | null = null;
-    if (dropping && untouched && item.workflow === "new" && !item.opened_at && !item.kept) to = "ignored";
+    if (dropping && untouched && item.workflow === "undecided" && !item.opened_at && !item.kept) to = "ignored";
     // Opening or keeping a post doesn't move its revision, but it is the person's touch all the same.
-    else if (!dropping && untouched && item.workflow === "ignored" && !item.opened_at && !item.kept) to = "new";
+    else if (!dropping && untouched && item.workflow === "ignored" && !item.opened_at && !item.kept) to = "undecided";
     if (to) {
       const revision = setWorkflowByFilter(app, owner, itemId, item.workflow, to);
       app.db.run("UPDATE ai_filter_verdicts SET applied_revision = ? WHERE item_id = ?", revision, itemId);
@@ -328,7 +328,7 @@ export function failJudging(app: App, payload: Record<string, unknown>): void {
   const itemIds = Array.isArray(payload.itemIds) ? payload.itemIds.map(String) : [];
   const rows = app.db.all<{ account_id: string; source_id: string; n: number }>(
     `SELECT i.account_id, i.source_id, COUNT(*) AS n FROM json_each(?) j JOIN items i ON i.id = j.value JOIN item_state st ON st.item_id = i.id
-     WHERE i.source_id IS NOT NULL AND st.fresh = 1 AND st.workflow = 'new' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));
+     WHERE i.source_id IS NOT NULL AND st.fresh = 1 AND st.workflow = 'undecided' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));
   for (const accountId of new Set(rows.map((r) => r.account_id))) {
     notifyArrivals(app, accountId, rows.filter((r) => r.account_id === accountId).map((r) => [r.source_id, r.n]));
   }

@@ -17,8 +17,8 @@ test("the queue is what was chosen to read, newest first, then new undecided ite
   const a = item({ workflow: "toread" });
   const b = item({ workflow: "inprogress" });
   const c = item({ workflow: "toread" });
-  const u1 = item({ workflow: "new", fresh: true });
-  const u2 = item({ workflow: "new", fresh: true });
+  const u1 = item({ workflow: "undecided", fresh: true });
+  const u2 = item({ workflow: "undecided", fresh: true });
   const queue = selectQueue({ toread: [a, c], inprogress: [b], fresh: [u1, u2] });
   assert.deepEqual(queue.map((i) => i.id), [c.id, b.id, a.id, u2.id, u1.id]);
 });
@@ -27,22 +27,22 @@ test("only undecided items that are New join; New items already chosen, finished
   const chosen = item({ workflow: "toread", fresh: true });
   const done = item({ workflow: "finished", fresh: true });
   const ignored = item({ workflow: "ignored", fresh: true });
-  const stale = item({ workflow: "new", fresh: false });
-  const keep = item({ workflow: "new", fresh: true });
+  const stale = item({ workflow: "undecided", fresh: false });
+  const keep = item({ workflow: "undecided", fresh: true });
   const queue = selectQueue({ toread: [chosen], inprogress: [], fresh: [chosen, done, ignored, stale, keep] });
   assert.deepEqual(queue.map((i) => i.id), [chosen.id, keep.id]);
 });
 
 test("a cap of 200 never lets arrivals push out what was chosen", () => {
   const chosen = Array.from({ length: 150 }, () => item({ workflow: "toread" }));
-  const fresh = Array.from({ length: 300 }, () => item({ workflow: "new", fresh: true }));
+  const fresh = Array.from({ length: 300 }, () => item({ workflow: "undecided", fresh: true }));
   const queue = selectQueue({ toread: chosen, inprogress: [], fresh });
   assert.equal(queue.length, 200);
   assert.equal(chosen.every((c) => queue.some((q) => q.id === c.id)), true);
-  assert.equal(queue.filter((q) => q.workflow === "new").length, 50);
+  assert.equal(queue.filter((q) => q.workflow === "undecided").length, 50);
   const crowded = selectQueue({ toread: Array.from({ length: 260 }, () => item({ workflow: "toread" })), inprogress: [], fresh });
   assert.equal(crowded.length, 200);
-  assert.equal(crowded.some((q) => q.workflow === "new"), false);
+  assert.equal(crowded.some((q) => q.workflow === "undecided"), false);
 });
 
 test("the queue copes with nothing, and with an item listed twice", () => {
@@ -130,9 +130,9 @@ test("the pages worth saving are the sources behind the queue, busiest first", (
 
 test("kept items from text baskets join after what was chosen to read and before what merely arrived", () => {
   const chosen = item({ workflow: "toread" });
-  const keptNew = item({ workflow: "new" });
+  const keptNew = item({ workflow: "undecided" });
   const keptFinished = item({ workflow: "finished" });
-  const undecided = item({ workflow: "new", fresh: true });
+  const undecided = item({ workflow: "undecided", fresh: true });
   const queue = selectQueue({ toread: [chosen], inprogress: [], fresh: [undecided, keptNew], kept: [keptFinished, chosen, keptNew] });
   assert.deepEqual(queue.map((i) => i.id), [chosen.id, keptFinished.id, keptNew.id, undecided.id], "the kept ones keep the order they were listed in, and nothing is saved twice");
   const many = Array.from({ length: PACK_KEPT_LIMIT + 30 }, () => item({ workflow: "finished" }));

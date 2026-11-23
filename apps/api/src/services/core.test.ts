@@ -165,7 +165,7 @@ test("workflow revisions prevent silent overwrites; undo restores", (t) => {
   assert.throws(() => changeState(app, p, item.id, { workflow: "finished", expectedRevision: item.revision }), (err: unknown) => err instanceof HttpError && err.status === 409);
   applyUndo(app, p, first.undoToken);
   const back = listItems(app, p, { scope: "all" }).items[0]!;
-  assert.equal(back.workflow, "new");
+  assert.equal(back.workflow, "undecided");
   assert.equal(back.fresh, true, "freshness independent of workflow");
   // Finishing mirrors read state to the engine through the outbox.
   changeState(app, p, item.id, { workflow: "finished", expectedRevision: back.revision });
@@ -186,11 +186,11 @@ test("the Undecided filter leaves out what was put aside, started, finished or i
   bulk(app, p, [ids[1]!], { type: "workflow", workflow: "ignored" });
   bulk(app, p, [ids[2]!], { type: "workflow", workflow: "toread" });
   bulk(app, p, [ids[3]!], { type: "workflow", workflow: "inprogress" });
-  const listed = listItems(app, p, { scope: "all", filter: "new" });
+  const listed = listItems(app, p, { scope: "all", filter: "undecided" });
   assert.deepEqual(listed.items.map((i) => i.id), [ids[4]]);
   assert.equal(listed.total, 1);
-  assert.deepEqual(listItems(app, p, { scope: "all", filter: "new", q: "post" }).items.map((i) => i.id), [ids[4]]);
-  const home = listItems(app, p, { scope: "home", filter: "new", mix: "home", limit: 10 });
+  assert.deepEqual(listItems(app, p, { scope: "all", filter: "undecided", q: "post" }).items.map((i) => i.id), [ids[4]]);
+  const home = listItems(app, p, { scope: "home", filter: "undecided", mix: "home", limit: 10 });
   assert.deepEqual(home.items.map((i) => i.id), [ids[4]]);
   assert.equal(listItems(app, p, { scope: "all", filter: "active" }).total, 4, "active still shows finished");
 });

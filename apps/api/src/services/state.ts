@@ -62,7 +62,7 @@ export function changeState(app: App, p: Principal, itemId: string, change: Stat
     const auto = automaticChange(change);
     if (auto) {
       const chain = cur.workflow_revision === auto.expected && (cur.workflow_revision === auto.started || cur.playback_workflow_session === auto.session);
-      const forward = auto.to === "inprogress" ? cur.workflow === "new" || cur.workflow === "toread" : cur.workflow === "new" || cur.workflow === "toread" || cur.workflow === "inprogress";
+      const forward = auto.to === "inprogress" ? cur.workflow === "undecided" || cur.workflow === "toread" : cur.workflow === "undecided" || cur.workflow === "toread" || cur.workflow === "inprogress";
       if (!chain || !forward) throw conflict(server.api.state.changedDuringPlayback);
     } else if (cur.revision !== change.expectedRevision) {
       throw new HttpError(409, "conflict", server.api.state.changedElsewhere);

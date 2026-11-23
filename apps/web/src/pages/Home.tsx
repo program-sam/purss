@@ -57,7 +57,7 @@ const GROUP_ITEMS = 25;
  * Home's lists show Undecided items (`new`), newest first; the Only new layout shows New items (`fresh`), Undecided first. The server orders them (`mix=home`).
  * `showMuted` lists what muted words leave out.
  */
-const homeParams = (scope: string, filter: "new" | "fresh", o: { showMuted?: boolean } = {}): ListParams =>
+const homeParams = (scope: string, filter: "undecided" | "fresh", o: { showMuted?: boolean } = {}): ListParams =>
   ({ scope, filter, sort: "newest", mix: "home", ...(o.showMuted ? { muted: "show" as const } : {}) });
 
 /** Whether the person asked to see the items that muted words leave out (`?muted=show`). */
@@ -77,7 +77,7 @@ function useBoxes(): CollectionDTO[] {
  * collapsed box): only the items shown count against the boxes after it. A change made here (an item put aside, ignored or
  * finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place.
  */
-function useBoxLists(boxes: readonly CollectionDTO[], filter: "new" | "fresh", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
+function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "fresh", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
   const showMuted = useShowMuted();
   const results = useQueries({ queries: boxes.map((c) => itemPreviewQuery(homeParams(boxScope(c), filter, { showMuted }), limit + DEDUPE_SLACK)) });
   const held = useOpenHold();
@@ -87,12 +87,12 @@ function useBoxLists(boxes: readonly CollectionDTO[], filter: "new" | "fresh", l
 
 /** The item requests Home makes for a layout, so the offline pack can save the same answers. Keep in step with the layouts below. */
 export function homeRequests(layout: Preferences["homeLayout"], shown: readonly CollectionDTO[]): { params: ListParams; limit: number }[] {
-  const inCollection = (c: CollectionDTO, filter: "new" | "fresh", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
+  const inCollection = (c: CollectionDTO, filter: "undecided" | "fresh", limit: number) => ({ params: homeParams(boxScope(c), filter), limit: limit + DEDUPE_SLACK });
   switch (layout) {
-    case "collections": return shown.map((c) => inCollection(c, "new", moduleItems(shown.length)));
-    case "feed": return [{ params: homeParams("home", "new"), limit: PAGE }];
+    case "collections": return shown.map((c) => inCollection(c, "undecided", moduleItems(shown.length)));
+    case "feed": return [{ params: homeParams("home", "undecided"), limit: PAGE }];
     case "new": return shown.map((c) => inCollection(c, "fresh", GROUP_ITEMS));
-    case "front": return shown.map((c) => inCollection(c, "new", HEADLINE_ITEMS));
+    case "front": return shown.map((c) => inCollection(c, "undecided", HEADLINE_ITEMS));
   }
 }
 
@@ -175,7 +175,7 @@ function CollectionsLayout() {
   const limit = moduleItems(boxes.length);
   // A collapsed box shows no rows, so it keeps no item from the boxes after it; in one column a box shows fewer rows.
   const rows = boxes.map((c) => (hints.collapsed.includes(`mod:${c.id}`) ? 0 : n === 1 ? Math.min(limit, ONE_COLUMN_ROWS) : limit));
-  const lists = useBoxLists(boxes, "new", limit, rows);
+  const lists = useBoxLists(boxes, "undecided", limit, rows);
 
   function menu(c: CollectionDTO, anchor: HTMLElement) {
     // The saved order holds every collection, so moving a box swaps it with its neighbour among the boxes shown.
@@ -215,11 +215,11 @@ function CollectionsLayout() {
 /** Everything in one list, paged by the server and strictly newest first: the sources of the boxes shown on Home, whichever boxes are hidden. */
 function useFeedItems(): { items: ItemDTO[]; loading: boolean; more: (() => void) | null } {
   const showMuted = useShowMuted();
-  const paged = useInfiniteQuery(itemListQuery(homeParams("home", "new", { showMuted })));
+  const paged = useInfiniteQuery(itemListQuery(homeParams("home", "undecided", { showMuted })));
   const held = useOpenHold();
   return useMemo(
     () => ({
-      items: withOpenItem(paged.data?.pages.flatMap((p) => p.items) ?? [], (it) => matchesFilter(it, "new"), held),
+      items: withOpenItem(paged.data?.pages.flatMap((p) => p.items) ?? [], (it) => matchesFilter(it, "undecided"), held),
       loading: paged.isPending, more: paged.hasNextPage && !paged.isFetchingNextPage ? () => void paged.fetchNextPage() : null,
     }),
     [paged.data, paged.isPending, paged.hasNextPage, paged.isFetchingNextPage, held]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -285,7 +285,7 @@ function Headline({ c, items, pending }: { c: CollectionDTO; items: ItemDTO[]; p
           <li key={it.id} className="irow" data-item={it.id}>
             <button type="button" className="hli" data-act="open" onClick={() => rc.onOpen(it)}>
               <span className="hlt"><FreshDot fresh={it.fresh} /><span className="title" dir="auto">{it.title}</span></span>
-              <span className="m"><bdi>{it.sourceTitle}</bdi>, {timeAgo(itemDate(it), rc.now, rc.timeZone)}{it.workflow !== "new" ? `, ${workflowLabel(it.workflow, it.kind)}` : ""}</span>
+              <span className="m"><bdi>{it.sourceTitle}</bdi>, {timeAgo(itemDate(it), rc.now, rc.timeZone)}{it.workflow !== "undecided" ? `, ${workflowLabel(it.workflow, it.kind)}` : ""}</span>
             </button>
           </li>
         )) : <li><p className="fine" style={{ padding: "8px 0" }}>{pending ? app.words.loading : t.nothingNewYetShort}</p></li>}
@@ -298,7 +298,7 @@ function FrontLayout() {
   const ws = usePurss();
   const nav = useNav();
   const boxes = useBoxes();
-  const lists = useBoxLists(boxes, "new", HEADLINE_ITEMS);
+  const lists = useBoxLists(boxes, "undecided", HEADLINE_ITEMS);
   return (
     <>
       <section className="sec" aria-labelledby="fcol"><h2 id="fcol">{app.words.collections}</h2>
@@ -343,7 +343,7 @@ export function HomePage() {
   const ws = usePurss();
   const overlays = useOverlays();
   const layout = ws.prefs.homeLayout;
-  const homeFilter = layout === "new" ? "fresh" : "new";
+  const homeFilter = layout === "new" ? "fresh" : "undecided";
   const keeps = useCallback((i: ItemDTO) => matchesFilter(i, homeFilter), [homeFilter]);
   const value = useRowContextValue(null, keeps);
   const narrow = layout === "feed" || layout === "new" ? " narrow" : "";

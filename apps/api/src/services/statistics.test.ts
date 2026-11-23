@@ -69,7 +69,7 @@ test("source statistics: counts, publication-date weeks, gaps, states, opened, k
   assert.equal(stats.lastItemAt, ago(1.5), "the future-dated item does not become the last item");
   // Items dated within the last 12 months: c, b, a. The 400-day-old and future items are outside.
   assert.equal(stats.longestGapDays, 56, "from 64.5 to 8.5 days ago");
-  assert.deepEqual(stats.workflow, { new: 2, toread: 1, inprogress: 0, finished: 1, ignored: 1 });
+  assert.deepEqual(stats.workflow, { undecided: 2, toread: 1, inprogress: 0, finished: 1, ignored: 1 });
   assert.equal(stats.opened, 1);
   assert.equal(stats.kept, 1);
   assert.equal(stats.finishedLast30Days, 1);
@@ -123,7 +123,7 @@ test("statistics are scoped to the signed-in account", (t) => {
   assert.equal(sourceStats(app, p1, s1).stats.totalItems, 1);
   assert.equal(sourceStats(app, p2, s2).stats.totalItems, 2);
   // A filter collection in one account never counts the other account's items.
-  const f = createCollection(app, p1, { name: "Everything unread", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["new"] }, view: "list" });
+  const f = createCollection(app, p1, { name: "Everything unread", emoji: null, mode: "query", sourceIds: [], query: { field: "workflow", value: ["undecided"] }, view: "list" });
   assert.deepEqual(collectionStats(app, p1, f.id).sources.map((r) => r.sourceId), [s1]);
   assert.equal(collectionStats(app, p1, f.id).totals.totalItems, 1);
 });
@@ -175,7 +175,7 @@ test("a filter collection is computed over the items that match its filter, grou
   assert.equal(r.mode, "query");
   assert.deepEqual(r.sources.map((s) => [s.title, s.stats.totalItems]), [["One", 1], ["Two", 1]]);
   assert.equal(r.totals.totalItems, 2);
-  assert.deepEqual(r.totals.workflow, { new: 0, toread: 0, inprogress: 0, finished: 2, ignored: 0 });
+  assert.deepEqual(r.totals.workflow, { undecided: 0, toread: 0, inprogress: 0, finished: 2, ignored: 0 });
 });
 
 test("the 30-day counts come from the log, count each item once and ignore older rows", (t) => {
@@ -189,7 +189,7 @@ test("the 30-day counts come from the log, count each item once and ignore older
   setFlow(app, p, x, "toread");
   setFlow(app, p, x, "finished"); // two changes to Finished, one item
   setFlow(app, p, y, "ignored");
-  app.db.run("INSERT INTO state_log (account_id, item_id, from_state, to_state, at) VALUES (?, ?, 'new', 'finished', ?)", p.accountId, y, ago(40));
+  app.db.run("INSERT INTO state_log (account_id, item_id, from_state, to_state, at) VALUES (?, ?, 'undecided', 'finished', ?)", p.accountId, y, ago(40));
   const stats = sourceStats(app, p, src).stats;
   assert.deepEqual([stats.finishedLast30Days, stats.ignoredLast30Days], [1, 1]);
 });
@@ -203,7 +203,7 @@ test("workflow changes write the log: single, bulk and undo; no-ops and other fi
   const y = addItem(app, p, src, ago(3.5));
 
   setFlow(app, p, x, "toread");
-  assert.deepEqual(logRows(app, x).map((r) => [r.from_state, r.to_state]), [["new", "toread"]]);
+  assert.deepEqual(logRows(app, x).map((r) => [r.from_state, r.to_state]), [["undecided", "toread"]]);
   setFlow(app, p, x, "toread");
   changeState(app, p, x, { progress: 0.4, expectedRevision: stateOf(app, x) });
   changeState(app, p, x, { fresh: false, expectedRevision: stateOf(app, x) });
@@ -212,18 +212,18 @@ test("workflow changes write the log: single, bulk and undo; no-ops and other fi
   const undoOne = changeState(app, p, x, { workflow: "finished", expectedRevision: stateOf(app, x) }).undoToken;
   assert.deepEqual(logRows(app, x).map((r) => r.to_state), ["toread", "finished"]);
   applyUndo(app, p, undoOne);
-  assert.deepEqual(logRows(app, x).map((r) => [r.from_state, r.to_state]), [["new", "toread"], ["toread", "finished"], ["finished", "toread"]], "an undo is a change like any other");
+  assert.deepEqual(logRows(app, x).map((r) => [r.from_state, r.to_state]), [["undecided", "toread"], ["toread", "finished"], ["finished", "toread"]], "an undo is a change like any other");
 
   const res = bulk(app, p, [x, y], { type: "workflow", workflow: "ignored" });
   assert.equal(res.changed, 2);
-  assert.deepEqual(logRows(app, y).map((r) => [r.from_state, r.to_state]), [["new", "ignored"]]);
+  assert.deepEqual(logRows(app, y).map((r) => [r.from_state, r.to_state]), [["undecided", "ignored"]]);
   const last = logRows(app, x).at(-1)!;
   assert.deepEqual([last.from_state, last.to_state], ["toread", "ignored"]);
   assert.equal(bulk(app, p, [x, y], { type: "workflow", workflow: "ignored" }).changed, 0);
   assert.equal(logRows(app).length, 5, "an unchanged bulk adds nothing");
 
   applyUndo(app, p, res.undoToken);
-  assert.deepEqual(logRows(app, y).map((r) => [r.from_state, r.to_state]), [["new", "ignored"], ["ignored", "new"]]);
+  assert.deepEqual(logRows(app, y).map((r) => [r.from_state, r.to_state]), [["undecided", "ignored"], ["ignored", "undecided"]]);
   for (const row of logRows(app)) assert.ok(!Number.isNaN(Date.parse(row.at)));
   assert.equal(app.db.all("SELECT 1 FROM state_log WHERE account_id <> ?", p.accountId).length, 0, "every row carries the account and account");
 });
@@ -235,7 +235,7 @@ test("the log is counted in storage once per item, and deleting an item deletes 
   const src = makeSource(app, p, "S", "feed/1");
   const x = addItem(app, p, src, ago(2.5));
   const y = addItem(app, p, src, ago(3.5));
-  for (const w of ["toread", "inprogress", "finished", "new"] as const) setFlow(app, p, x, w);
+  for (const w of ["toread", "inprogress", "finished", "undecided"] as const) setFlow(app, p, x, w);
   bulk(app, p, [x, y], { type: "workflow", workflow: "ignored" });
   assert.equal(logRows(app, x).length, 5);
   const records = (id: string) => app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM stored_objects WHERE kind = 'record' AND ref_id = ? AND released_at IS NULL", `state:${id}`)!.n;
@@ -285,7 +285,7 @@ test("the log travels in the export and imports idempotently; older files withou
 
   const doc = await exportDoc(a.app, pa);
   assert.equal(doc.stateLog.length, 3);
-  assert.deepEqual(doc.stateLog.map((l: any) => [l.from, l.to]), [["new", "toread"], ["toread", "finished"], ["new", "ignored"]]);
+  assert.deepEqual(doc.stateLog.map((l: any) => [l.from, l.to]), [["undecided", "toread"], ["toread", "finished"], ["undecided", "ignored"]]);
   assert.deepEqual(Object.keys(doc.stateLog[0]).sort(), ["at", "from", "itemId", "to"], "nothing but the change itself");
   assert.equal(doc.manifest.sections.stateLog.count, 3);
   assert.equal(parseArchive(doc).stateLog.length, 3);
@@ -348,7 +348,7 @@ test("history for an item that already exists is added with its small record, an
   const before = b.app.db.get<{ n: number }>("SELECT COALESCE(SUM(bytes), 0) AS n FROM stored_objects WHERE released_at IS NULL")!.n;
   const preview = stageImport(b.app, pb, newer);
   applyImport(b.app, pb, preview.token);
-  assert.deepEqual(historyOf(b.app, title).map((r) => [r.from_state, r.to_state]), [["new", "finished"]]);
+  assert.deepEqual(historyOf(b.app, title).map((r) => [r.from_state, r.to_state]), [["undecided", "finished"]]);
   const after = b.app.db.get<{ n: number }>("SELECT COALESCE(SUM(bytes), 0) AS n FROM stored_objects WHERE released_at IS NULL")!.n;
   assert.equal(after - before, preview.requiredBytes);
   assert.ok(preview.requiredBytes > 0, "the history needs its small record");

@@ -73,7 +73,7 @@ const pageAll = (app: App, p: Owner, q: ItemListQuery): string[] => {
   return out;
 };
 /** Home's one feed, with Only new off: New items first, then what is left undecided or put aside. */
-const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "new" }));
+const homeFeed = (app: App, p: Owner) => new Set(pageAll(app, p, { scope: "home", limit: 10, mix: "home", filter: "undecided" }));
 
 /** A source followed from now, its back catalogue stored (`size` posts) and the source settled, then one post that really is new. */
 function followedFromNow(app: App, p: Owner, collectionId: string | null = null, size = 7) {
@@ -141,7 +141,7 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
 
   // Statistics count what the PURSS holds, by state: the Ignored posts are there as Ignored, and nothing the person did is claimed.
   const stats = collectionStats(app, p, box.id).totals;
-  assert.deepEqual([stats.totalItems, stats.workflow.new, stats.workflow.ignored, stats.ignoredLast30Days], [back.length + 1, 1, back.length, 0]);
+  assert.deepEqual([stats.totalItems, stats.workflow.undecided, stats.workflow.ignored, stats.ignoredLast30Days], [back.length + 1, 1, back.length, 0]);
   assert.equal(sourceStats(app, p, src).stats.totalItems, back.length + 1);
   const home = homeOverview(app, p);
   assert.equal(home.unread, 0, "nothing older is waiting: 'up to date', not 'N older items not looked at'");
@@ -233,15 +233,15 @@ test("an Ignored back-catalogue post is the person's to change: To read or Undec
   for (const id of [toread, undecided, opened, partway, kept, highlighted, noted, untouched]) assert.equal(workflowOf(app, id), "ignored");
 
   changeState(app, p, toread, { workflow: "toread", expectedRevision: revision(app, toread) });
-  changeState(app, p, undecided, { workflow: "new", expectedRevision: revision(app, undecided) });
+  changeState(app, p, undecided, { workflow: "undecided", expectedRevision: revision(app, undecided) });
   changeState(app, p, opened, { opened: true, expectedRevision: revision(app, opened) });
   changeState(app, p, partway, { progress: 0.4, expectedRevision: revision(app, partway) });
   keepItem(app, p, kept, basket.id);
   putAnnotation(app, p, highlighted, newId("ann"), { kind: "highlight", quote: { exact: "tidal flats", prefix: "", suffix: "" }, position: { start: 0, end: 11 }, target: null, body: null, updatedAt: nowIso() });
   putAnnotation(app, p, noted, newId("ann"), { kind: "note", body: "Compare with the delta paper.", updatedAt: nowIso() });
-  assert.deepEqual([toread, undecided].map((id) => workflowOf(app, id)), ["toread", "new"]);
+  assert.deepEqual([toread, undecided].map((id) => workflowOf(app, id)), ["toread", "undecided"]);
   for (const id of [opened, partway, kept, highlighted, noted, untouched]) assert.equal(workflowOf(app, id), "ignored", "what the person does with the post does not change its state; they do");
-  assert.deepEqual(app.db.all<{ t: string }>("SELECT to_state AS t FROM state_log ORDER BY seq").map((r) => r.t), ["toread", "new"], "and the log has what they did");
+  assert.deepEqual(app.db.all<{ t: string }>("SELECT to_state AS t FROM state_log ORDER BY seq").map((r) => r.t), ["toread", "undecided"], "and the log has what they did");
 
   // Where they show: Home's To read row for the one put aside and Home's feed for the Undecided one; every list but a basket and search hides the rest.
   assert.deepEqual(ids(homeOverview(app, p).toRead.items), [toread]);
@@ -311,7 +311,7 @@ test("the queries that hide the Ignored posts and count what is left read their 
   const original = { all: db.all, get: db.get, run: db.run };
   for (const k of ["all", "get", "run"] as const) db[k] = (sql, ...params) => { seen.push({ sql, params }); return original[k].call(app.db, sql, ...params); };
   try {
-    listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
+    listItems(app, p, { scope: "home", mix: "home", filter: "undecided", limit: 50 });
     listItems(app, p, { scope: "all", limit: 50 });
     homeOverview(app, p);
     listSources(app, p);
@@ -332,7 +332,7 @@ test("the queries that hide the Ignored posts and count what is left read their 
   assert.ok(counting, "the counts ask for the Ignored items like any other state that is not the default");
   const counted = plan(counting);
   assert.ok(counted.some((l) => /COVERING INDEX item_state_rare/.test(l)) && !counted.some((l) => /^SCAN/.test(l) && !/INDEX/.test(l)) && !counted.some((l) => /items/.test(l)), `counted from the partial index alone, with no visit to the items however many are Ignored:\n${counted.join("\n")}`);
-  const muted = seen.find((q) => /purss_muted/.test(q.sql) && /st\.workflow IN \('new', 'toread'\)/.test(q.sql));
+  const muted = seen.find((q) => /purss_muted/.test(q.sql) && /st\.workflow IN \('undecided', 'toread'\)/.test(q.sql));
   assert.ok(muted, "what the muted words left out of Home is counted among the items that show");
 });
 

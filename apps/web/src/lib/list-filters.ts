@@ -48,7 +48,7 @@ export function filterFor(place: Place | null, named: ListFilter | undefined, fa
 /** The filters a page's menu offers: a basket's All already includes ignored items, so it has no Ignored choice. */
 export function filterChoices(place: Place | null): ListFilter[] {
   if (place?.t === "r") return [...QUEUE_FILTERS];
-  return place?.t === "b" ? ["all", "fresh", "new", "toread", "inprogress", "finished"] : ["active", "fresh", "new", "toread", "inprogress", "finished", "ignored"];
+  return place?.t === "b" ? ["all", "fresh", "undecided", "toread", "inprogress", "finished"] : ["active", "fresh", "undecided", "toread", "inprogress", "finished", "ignored"];
 }
 
 /** A filter's name on this page: a basket calls its everything filter All. */

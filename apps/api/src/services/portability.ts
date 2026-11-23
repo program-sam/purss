@@ -352,7 +352,7 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
       bytes: done ? measureBytes({ title: c.title, text: c.text ?? "", html: html ?? "", finalUrl }) : 0,
     };
   });
-  const nonDefault = item.state.workflow !== "new" || item.state.progress > 0 || item.state.openedAt !== null;
+  const nonDefault = item.state.workflow !== "undecided" || item.state.progress > 0 || item.state.openedAt !== null;
   const stateBytes = nonDefault ? STATE_RECORD_BYTES : 0;
   const summaryText = toText(current.summaryHtml);
   return {

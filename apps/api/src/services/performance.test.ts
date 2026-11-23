@@ -115,7 +115,7 @@ test("the bootstrap queries and the sync path never read a whole table to find r
     assert.ok(hits.length > 0, `bootstrap runs ${what}`);
     for (const q of hits) assert.ok(planOf(q).some((l) => expected.test(l)), `${what} should plan as ${expected}:\n${planOf(q).join("\n")}`);
   };
-  designed(/FROM item_state\s+WHERE account_id = \? AND NOT \(workflow = 'new' AND fresh = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
+  designed(/FROM item_state\s+WHERE account_id = \? AND NOT \(workflow = 'undecided' AND fresh = 0\)/, /COVERING INDEX item_state_rare/, "the counts of acted-on, New and Ignored items, from the index alone");
 
   // A page in the default order or in title order is read from its index in order, with no sorting of the rest.
   for (const [sort, index] of [["newest", "items_account_sortkey"], ["title", "items_account_title"]] as const) {
@@ -208,14 +208,14 @@ test("an account that followed its sources from now has most items Ignored: Home
     try {
       return recordQueries(app, () => {
         const home = homeOverview(app, p);
-        const page = listItems(app, p, { scope: "home", mix: "home", filter: "new", limit: 50 });
+        const page = listItems(app, p, { scope: "home", mix: "home", filter: "undecided", limit: 50 });
         const collection = listItems(app, p, { scope: `collection:${listCollections(app, p)[0]!.id}`, limit: 50 });
         listSources(app, p);
         return { home, page, collection };
       });
     } finally { listTuning.countFromRowsBelowShare = was; }
   })();
-  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'new' AND st.fresh = 0");
+  const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'undecided' AND st.fresh = 0");
   assert.equal(result.home.unread, shown, "Home counts the older items that show, not the Ignored ones");
   const ignoredIds = new Set(app.db.all<{ id: string }>("SELECT item_id AS id FROM item_state WHERE account_id = ? AND workflow = 'ignored'", p.accountId).map((r) => r.id));
   assert.ok(result.page.items.length > 0 && result.page.items.every((i) => !ignoredIds.has(i.id)) && result.collection.items.every((i) => !ignoredIds.has(i.id)), "no Ignored item on Home or in the collection");
@@ -304,7 +304,7 @@ test("Home reads New items, the newest open items and its rows by id, and the ke
   try {
     const candidates = app.db.all<{ id: string; title: string; excerpt: string | null; key: string }>(
       `SELECT i.id, i.title, i.excerpt, i.listed_at AS key FROM items i JOIN item_state st ON st.item_id = i.id
-       WHERE i.account_id = ? AND st.workflow IN ('new', 'toread')`, p.accountId)
+       WHERE i.account_id = ? AND st.workflow IN ('undecided', 'toread')`, p.accountId)
       .sort((a, b) => (a.key === b.key ? (a.id < b.id ? 1 : -1) : a.key < b.key ? 1 : -1)).slice(0, mutedScan.rows + 1);
     const patterns = mutedPatterns(["garden"])!;
     const home = homeOverview(app, p);

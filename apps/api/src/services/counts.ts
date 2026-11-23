@@ -6,14 +6,14 @@ import type { App } from "../app.ts";
  *
  * The source list, the collection list and the totals of item lists all need these numbers, and computing each from the
  * item rows costs a probe per item. Here the cost follows what is rare: most items are in the default cell (workflow
- * "new", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
+ * "undecided", not New), so that cell is the source's item count (read from an index alone) minus the other nine cells, and the
  * other nine are found through a partial index on `item_state` that holds only those rows: a few New items, the items a person
  * has moved to To read, In progress, Finished or Ignored, and the back catalogue of sources followed from now, which arrives Ignored
  * (in a PURSS that has just followed many sources that is most of the items). `item_state.source_id` is there for that: the counts never
  * join to `items` for the source of a state row.
  */
 
-const STATES: readonly WorkflowState[] = ["new", "toread", "inprogress", "finished", "ignored"];
+const STATES: readonly WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
 const cellOf = (workflow: string, fresh: number): number => STATES.indexOf(workflow as WorkflowState) * 2 + fresh;
 
 export type CellFilter = (workflow: WorkflowState, fresh: boolean) => boolean;
@@ -86,17 +86,17 @@ function computeCounts(app: App, accountId: string): ItemCounts {
   };
   // Each source's items, from an index alone.
   for (const r of app.db.all<{ source_id: string | null; n: number }>("SELECT source_id, COUNT(*) AS n FROM items WHERE account_id = ? GROUP BY source_id", accountId)) {
-    cells(r.source_id)[cellOf("new", 0)] = r.n;
+    cells(r.source_id)[cellOf("undecided", 0)] = r.n;
   }
   // The other cells: the items a person has acted on, the New ones and the Ignored ones (the back catalogue of a source followed from now
   // arrives so). The partial index holds exactly those rows and each one's source, so they are counted from it alone, however many there are.
   for (const r of app.db.all<{ source_id: string | null; workflow: string; fresh: number; n: number }>(
     // The condition is the partial index's own, which lets the planner use it.
     `SELECT source_id, workflow, fresh, COUNT(*) AS n FROM item_state
-     WHERE account_id = ? AND NOT (workflow = 'new' AND fresh = 0) GROUP BY source_id, workflow, fresh`, accountId)) {
+     WHERE account_id = ? AND NOT (workflow = 'undecided' AND fresh = 0) GROUP BY source_id, workflow, fresh`, accountId)) {
     const c = cells(r.source_id);
     c[cellOf(r.workflow, r.fresh)] = r.n;
-    c[cellOf("new", 0)]! -= r.n;
+    c[cellOf("undecided", 0)]! -= r.n;
   }
   return new ItemCounts(bySource);
 }

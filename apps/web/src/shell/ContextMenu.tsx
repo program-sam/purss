@@ -68,7 +68,7 @@ export function ContextMenus() {
         if (!item) return null;
         const place = placeOf(appPathname());
         const basketId = place && place.t === "b" ? place.id : null;
-        const states = (["new", "toread", "inprogress", "finished"] as const).map<MenuEntry>((k) => ({
+        const states = (["undecided", "toread", "inprogress", "finished"] as const).map<MenuEntry>((k) => ({
           type: "radio", label: workflowLabel(k, item.kind), on: item.workflow === k,
           onSelect: () => void actions.setWorkflow([item.id], k),
         }));
@@ -136,7 +136,7 @@ export function ContextMenus() {
           ],
         };
       }
-      // Empty space inside PURSS: the common "new" actions.
+      // Empty space inside PURSS: the common "undecided" actions.
       if (!t.closest(".app")) return null;
       return {
         label: "PURSS",

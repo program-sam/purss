@@ -61,20 +61,20 @@ test("Home does not say it is up to date while older items nobody has looked at 
 });
 
 test("what was put aside lands in one row by kind: articles To read, videos To watch, podcasts To listen", () => {
-  const rows = (workflow: "toread" | "inprogress" | "new" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
+  const rows = (workflow: "toread" | "inprogress" | "undecided" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
   assert.deepEqual(rows("toread", "article"), [true, false, false]);
   assert.deepEqual(rows("toread", "paper"), [true, false, false], "every kind that is not a video or a podcast is read");
   assert.deepEqual(rows("toread", "video"), [false, true, false]);
   assert.deepEqual(rows("toread", "podcast"), [false, false, true]);
-  assert.deepEqual(rows("new", "video"), [false, false, false], "only what was put aside");
+  assert.deepEqual(rows("undecided", "video"), [false, false, false], "only what was put aside");
   assert.deepEqual(rows("finished", "podcast"), [false, false, false]);
 });
 
 test("the queue is what was put aside and what was started: an episode half heard stays in its row", () => {
-  const rows = (workflow: "toread" | "inprogress" | "new" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
+  const rows = (workflow: "toread" | "inprogress" | "undecided" | "finished" | "ignored", kind: string) => [isToRead, isToWatch, isToListen].map((keeps) => keeps({ workflow, kind } as never));
   assert.deepEqual(rows("inprogress", "podcast"), [false, false, true]);
   assert.deepEqual(rows("inprogress", "video"), [false, true, false]);
   assert.deepEqual(rows("inprogress", "article"), [true, false, false]);
   assert.deepEqual(rows("ignored", "podcast"), [false, false, false]);
-  assert.deepEqual(["new", "toread", "inprogress", "finished", "ignored"].map((workflow) => inQueue({ workflow } as never)), [false, true, true, false, false]);
+  assert.deepEqual(["undecided", "toread", "inprogress", "finished", "ignored"].map((workflow) => inQueue({ workflow } as never)), [false, true, true, false, false]);
 });

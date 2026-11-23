@@ -41,7 +41,7 @@ export function selectQueue(lists: QueueLists, limit = PACK_LIMIT): ItemDTO[] {
     out.push(it);
     keptCount++;
   }
-  const undecided = (lists.fresh).filter((it) => it.fresh && it.workflow === "new" && !have.has(it.id)).sort(newestFirst);
+  const undecided = (lists.fresh).filter((it) => it.fresh && it.workflow === "undecided" && !have.has(it.id)).sort(newestFirst);
   for (const it of undecided) {
     if (out.length >= limit) break;
     if (!have.has(it.id)) { have.add(it.id); out.push(it); }

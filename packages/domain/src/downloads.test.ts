@@ -31,7 +31,7 @@ test("Wi-Fi only: automatic downloads wait for Wi-Fi; never without a connection
 });
 
 test("To read podcast episodes, newest first, only what isn't here yet, and nothing past the limit", () => {
-  const list = [ep("e1"), ep("e3"), ep("e2"), ep("e4", { workflow: "new" }), ep("e5", { kind: "article" }), ep("e6", { media: null })];
+  const list = [ep("e1"), ep("e3"), ep("e2"), ep("e4", { workflow: "undecided" }), ep("e5", { kind: "article" }), ep("e6", { media: null })];
   assert.deepEqual(ids(chooseDownloads(S(), list, new Set(), 0)), ["e3", "e2", "e1"]);
   assert.deepEqual(ids(chooseDownloads(S(), list, new Set(["e3"]), 0)), ["e2", "e1"], "already downloaded, or failed: a failed one is retried only by hand");
   assert.deepEqual(ids(chooseDownloads(S({ limitBytes: 120 * MB }), list, new Set(), 0)), ["e3", "e2"], "the third would pass the limit");
@@ -54,9 +54,9 @@ test("finished means marked Finished or Ignored, or played to the end; cleanup o
 });
 
 test("downloading a podcast episode by hand moves it to To read unless it is To read or In progress already", () => {
-  for (const workflow of ["new", "finished", "ignored"]) assert.equal(downloadMovesToRead({ kind: "podcast", workflow }), true, workflow);
+  for (const workflow of ["undecided", "finished", "ignored"]) assert.equal(downloadMovesToRead({ kind: "podcast", workflow }), true, workflow);
   for (const workflow of ["toread", "inprogress"]) assert.equal(downloadMovesToRead({ kind: "podcast", workflow }), false, workflow);
-  for (const kind of ["video", "article"]) assert.equal(downloadMovesToRead({ kind, workflow: "new" }), false, kind);
+  for (const kind of ["video", "article"]) assert.equal(downloadMovesToRead({ kind, workflow: "undecided" }), false, kind);
 });
 
 test("settings read back field by field, with the defaults for anything damaged", () => {

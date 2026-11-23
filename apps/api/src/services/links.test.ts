@@ -72,7 +72,7 @@ test("lookup reports the item, its baskets and state, and followed sources whose
   const hit = lookupUrl(app, owner, "http://blog.example/notes/1#x");
   assert.equal(hit.item?.id, kept.itemId);
   assert.equal(hit.item?.title, "Note one");
-  assert.equal(hit.item?.workflow, "new");
+  assert.equal(hit.item?.workflow, "undecided");
   assert.deepEqual(hit.item?.baskets, [{ id: basket, name: "Reading" }]);
   assert.deepEqual(hit.followedSources, [{ id: src, title: "Blog notes" }]);
 

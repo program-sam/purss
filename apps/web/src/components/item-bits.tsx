@@ -71,11 +71,11 @@ export function useItemLabel(item: ItemDTO, o: { source: string; when: string; s
   const lookups = useRowLookups();
   const n = item.basketIds.length;
   const kept = o.showKept && n ? `Kept in ${n === 1 ? lookups.basketName(item.basketIds[0]!) ?? t.oneBasket : t.baskets(n)}` : null;
-  return [item.fresh ? "New" : null, item.title, o.source, o.when, item.workflow !== "new" ? workflowLabel(item.workflow, item.kind) : null, kept, o.showCopy && item.kept ? COPY[item.kept.copy].text : null].filter(Boolean).join(", ");
+  return [item.fresh ? "New" : null, item.title, o.source, o.when, item.workflow !== "undecided" ? workflowLabel(item.workflow, item.kind) : null, kept, o.showCopy && item.kept ? COPY[item.kept.copy].text : null].filter(Boolean).join(", ");
 }
 
 export function WfTag({ workflow, kind }: { workflow: ItemDTO["workflow"]; kind?: ItemKind }) {
-  return workflow !== "new" ? <span className="wf" data-wf={workflow}>{workflowLabel(workflow, kind)}</span> : null;
+  return workflow !== "undecided" ? <span className="wf" data-wf={workflow}>{workflowLabel(workflow, kind)}</span> : null;
 }
 
 /**

@@ -9,7 +9,7 @@ const papers = { id: "bsk_p", name: "Papers" };
 const later = { id: "bsk_l", name: "Later" };
 const none: UrlLookup = { item: null, followedSources: [] };
 const have = (baskets: { id: string; name: string }[], browserCapturedAt: string | null = null): UrlLookup => ({
-  item: { id: "itm_1", title: "T", url: "https://a.example/", workflow: "new", baskets, browserCapturedAt }, followedSources: [],
+  item: { id: "itm_1", title: "T", url: "https://a.example/", workflow: "undecided", baskets, browserCapturedAt }, followedSources: [],
 });
 
 const t = extension.popup;

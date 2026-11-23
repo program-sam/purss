@@ -7,7 +7,7 @@ import { workflowLabel } from "./constants.ts";
 
 const base: ItemDTO = {
   id: "itm_x", number: 1, sourceId: "src_x", sourceTitle: "S", keptByHand: false, kind: "article", title: "T", url: "https://example.com/a", author: null, excerpt: null, imageUrl: null,
-  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "new", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
+  durationSeconds: null, readMinutes: 4, doi: null, publishedAt: null, discoveredAt: "2026-11-03T08:00:00Z", listedAt: "2026-11-03T08:00:00Z", workflow: "undecided", revision: 0, workflowRevision: 0, playbackWorkflowSessionId: null, stateVersion: 4, fresh: true,
   progress: 0, opened: false, basketIds: [], curatorNote: null, media: null, annotatedAt: null,
 };
 
@@ -19,8 +19,8 @@ test("filters judge workflow and freshness independently", () => {
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "toread"), true);
   assert.equal(matchesFilter({ ...base, workflow: "toread" }, "finished"), false);
   assert.equal(matchesFilter({ ...base, fresh: false, workflow: "finished" }, "fresh"), false);
-  assert.equal(matchesFilter({ ...base, workflow: "new" }, "new"), true);
-  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "new"), false, "Home's boxes leave out what was put aside");
+  assert.equal(matchesFilter({ ...base, workflow: "undecided" }, "undecided"), true);
+  assert.equal(matchesFilter({ ...base, workflow: "toread" }, "undecided"), false, "Home's boxes leave out what was put aside");
 });
 
 test("an item's date is its time in lists; the publisher's date is shown apart only when it is more than an hour away", () => {
@@ -62,7 +62,7 @@ test("videos and podcasts are told apart from text, and their to-do state has it
   assert.equal(workflowLabel("toread", "paper"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("toread"), app.lib.constants.workflow.toread);
   assert.equal(workflowLabel("finished", "video"), app.lib.constants.workflow.finished);
-  assert.equal(workflowLabel("new", "podcast"), app.lib.constants.workflow.new);
+  assert.equal(workflowLabel("undecided", "podcast"), app.lib.constants.workflow.undecided);
 });
 
 test("a change that took the New marker away is told apart from one that left it", () => {
@@ -104,7 +104,7 @@ test("the To read page keeps only To read items, whatever its filter", () => {
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "active"), true, "started: stays on the page, first among what is waiting");
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "inprogress"), true);
   assert.equal(belongsInList({ ...base, workflow: "inprogress" }, "toread", "toread"), false, "the To read filter is what has not been started");
-  assert.equal(belongsInList({ ...base, workflow: "new" }, "toread", "active"), false, "not put aside or started");
+  assert.equal(belongsInList({ ...base, workflow: "undecided" }, "toread", "active"), false, "not put aside or started");
   assert.equal(belongsInList({ ...base, workflow: "ignored" }, "toread", "all"), false);
   assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "active"), false, "marked Finished: leaves the To read page");
   assert.equal(belongsInList({ ...base, workflow: "finished" }, "toread", "all"), false);
@@ -117,7 +117,7 @@ test("a reloaded copy keeps the newer state of the item, and its own content", (
   const merged = withNewerState(saved, finished);
   assert.deepEqual([merged.workflow, merged.revision, merged.stateVersion, merged.fresh, merged.opened, merged.progress], ["finished", 2, 6, false, true, 1]);
   assert.equal(merged.title, "Renamed");
-  const fresher: ItemDTO = { ...base, workflow: "new", stateVersion: 7 };
+  const fresher: ItemDTO = { ...base, workflow: "undecided", stateVersion: 7 };
   assert.equal(withNewerState(fresher, finished), fresher, "a newer answer wins as it is");
   assert.equal(withNewerState(saved, undefined), saved);
 });
