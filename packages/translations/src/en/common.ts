@@ -49,7 +49,7 @@ export const common = {
     tooManyConditions: "That filter has too many conditions.",
     dateNeedsBound: "A date condition needs a start or an end.",
   },
-  workspaceAddress: {
+  purssAddress: {
     empty: "Enter your PURSS's address.",
     notWebAddress: "That doesn't look like a web address.",
     notHttps: "Use the address you open the PURSS at, starting with https://.",

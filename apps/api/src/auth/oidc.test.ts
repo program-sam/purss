@@ -171,7 +171,7 @@ test("sign-up through a provider creates one account: confirmed email, name from
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM mail_queue")!.n, 0, "and no mail sent");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM signup_creations WHERE account_id = ?", account.id)!.n, 1, "counted like any sign-up");
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM audit_events WHERE action = 'signup' AND outcome = 'success' AND actor_account_id = ?", account.id)!.n, 1);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM engine_users WHERE account_id = ?", account.id)!.n, 1, "its own workspace and engine user");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) n FROM engine_users WHERE account_id = ?", account.id)!.n, 1, "its own account and engine user");
   assert.equal(app.db.get("SELECT 1 FROM role_grants WHERE account_id = ?", account.id), undefined, "an ordinary account, never an administrator");
 
   // Signing in again with the same identity signs in the same account.

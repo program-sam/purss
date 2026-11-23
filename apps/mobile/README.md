@@ -18,7 +18,7 @@ device tokens is in [security](../../docs/security.md#connected-apps).
 | `android/app/src/main/res/values/` | `strings.xml` and `widget_strings.xml` hold every text people read in the Android app (notifications, widgets, the widget picker's sample rows). They are written by `scripts/native-translations.ts` from `packages/translations/src/en/native.ts` (its `android` and `widget` sections): change the catalog and run `npm run translations:native`, never the files. `app_identifiers.xml` (application id, URL scheme) is not text and is edited by hand |
 | `android/app/src/main/java/app/purss/device/` | The app's own native code (Kotlin): the `PurssDevice` plugin (downloads that can be stopped), the background download job, the home-screen widget |
 | `ios/App/` | The Xcode project: the app, its entitlements, and the `ShareExtension` and `Widgets` targets; `App/PurssDevice/` is the iOS side of the app's own plugin and background job. The widgets' and notification extension's text is `Widgets/NativeTranslations.swift`, written by `scripts/native-translations.ts` from `packages/translations/src/en/native.ts` (its `widget` section, shared with Android, and `ios`); change the catalog and run `npm run translations:native`, never the file |
-| `scripts/emulator-workspace.ts` | A throwaway PURSS with a small library, for trying the app on an emulator or phone |
+| `scripts/emulator-purss.ts` | A throwaway PURSS with a small library, for trying the app on an emulator or phone |
 | `android/app/src/full/` | Full Android distribution's `PurssPushPlugin`, Firebase messaging service and fetcher ([Notifications](#phone-notifications)) |
 | `android/app/src/fullDebug/` | Full debug builds only: a broadcast that runs what an arriving push runs, for the emulator |
 
@@ -53,7 +53,7 @@ to the notification. iOS is unchanged. Video plays in the page's media element, 
 
 ## Connecting
 
-The app opens on the official server's sign-in (`OFFICIAL_WORKSPACE_ORIGIN` in `packages/domain/src/distribution.ts`);
+The app opens on the official server's sign-in (`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`);
 **Use another server** under it reveals the address field, and the server last connected to is remembered, also after
 disconnecting. Signing in goes one of two ways: email address and password (or the phone's passkey, see below) typed
 in the app, or the system browser (Custom Tabs, SFSafariViewController) at the server's `/connect` page with PKCE (S256)
@@ -70,7 +70,7 @@ sign-in inside an app's web view. Device tokens, their lifetime and what a token
   allows any http(s) PURSS (the server is chosen at run time); once connected, a second policy for that origin is added
   before any request (connect, images and media from the PURSS and https publishers, frames only from the video players
   the reader embeds).
-- **Addresses.** One rule with the browser extension (`parseWorkspaceAddress`, `packages/domain/src/workspace-address.ts`):
+- **Addresses.** One rule with the browser extension (`parsePurssAddress`, `packages/domain/src/purss-address.ts`):
   HTTPS, except this device and the local network (private, CGNAT and link-local ranges, IPv6 unique-local and
   link-local, and the names `.local`, `.lan`, `.internal` and `.home.arpa`), where plain HTTP is allowed with a visible
   *not encrypted* note on the connect screen and in Settings → This device. Android's network rules can't list address
@@ -405,7 +405,7 @@ confirming an address, invitations) are pasted into the app.
 
 ```sh
 npm run build                                           # the PURSS's own build, served at /app/
-node apps/mobile/scripts/emulator-workspace.ts 19990   # prints an email address and password; Ctrl+C deletes everything
+node apps/mobile/scripts/emulator-purss.ts 19990   # prints an email address and password; Ctrl+C deletes everything
 adb reverse tcp:19990 tcp:19990                          # the emulator's localhost is this computer
 adb install -r apps/mobile/android/app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
@@ -417,7 +417,7 @@ Where SELinux is enforcing (Fedora, for one), the emulator's default software re
 The app opens on the official server's sign-in; press **Use another server**, type
 `http://localhost:19990`, and sign in with the email address and password it printed. The app
 remembers that server for next time. Plain HTTP works only for addresses on this device or the local network
-(the rule in `packages/domain/src/workspace-address.ts`, shared with the extension); a PURSS
+(the rule in `packages/domain/src/purss-address.ts`, shared with the extension); a PURSS
 elsewhere needs HTTPS. Debug builds let Chrome's
 `chrome://inspect` (or `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`) inspect
 the app's page.
@@ -446,7 +446,7 @@ exists only in debug builds.
 
 ```sh
 PURSS_RELAY_PORT=8950 PURSS_RELAY_DATA_DIR=/tmp/purss-relay node apps/push-relay/src/main.ts &
-PURSS_PUSH_RELAY_URL=http://localhost:8950 node apps/mobile/scripts/emulator-workspace.ts 19990
+PURSS_PUSH_RELAY_URL=http://localhost:8950 node apps/mobile/scripts/emulator-purss.ts 19990
 adb reverse tcp:19990 tcp:19990 && adb reverse tcp:8950 tcp:8950
 cd apps/mobile/android && ./gradlew assembleFullDebug -PpurssPushRelay=http://localhost:8950 -PpurssPushDebugToken=emulator-debug-token-0123456789
 ```
@@ -460,7 +460,7 @@ this machine.)
 ## iOS: what to do on a Mac
 
 The iOS project has not been compiled: it can't be on Linux. Its texts (the widgets' headings, descriptions and
-empty messages in `Widgets/WorkspaceWidget.swift`, `Widgets/PanelChoice.swift` and `Widgets/WidgetLists.swift`, and the
+empty messages in `Widgets/PurssWidget.swift`, `Widgets/PanelChoice.swift` and `Widgets/WidgetLists.swift`, and the
 notification extension's "more in your PURSS" line) are still written in the Swift files, not in `packages/translations`: the
 project lists its files one by one, so a generated Swift file has to be added to its targets in Xcode first. On a Mac with
 Xcode 16 or later:
@@ -531,7 +531,7 @@ Xcode 16 or later:
 ## The official server
 
 The apps and the browser extension connect to the official server unless the person chooses
-another one. Its address is `OFFICIAL_WORKSPACE_ORIGIN` in `packages/domain/src/distribution.ts`:
+another one. Its address is `OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`:
 change that one value when the server moves (an empty string shows only the address field).
 The app opens straight on its sign-in; nobody has to type or confirm a server.
 

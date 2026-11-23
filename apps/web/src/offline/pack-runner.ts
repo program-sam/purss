@@ -5,7 +5,7 @@ import { PAGE, bootstrapQuery, itemsRequest, notificationsQuery, remindersQuery,
 import type { ListParams } from "../api/queries.ts";
 import { comingUpQuery } from "../api/reminder-queries.ts";
 import { homeRequests } from "../pages/Home.tsx";
-import { orderHome } from "../state/workspace.tsx";
+import { orderHome } from "../state/purss.tsx";
 import { platform } from "../platform/index.ts";
 import { NO_COPY_HEADER, pictureCacheName } from "../sw/protocol.ts";
 import {

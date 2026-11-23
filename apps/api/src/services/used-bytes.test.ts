@@ -66,7 +66,7 @@ test("through random operations the used-bytes total equals a recount, the ledge
         makeSource(app, p, "S", `feed/${i}`);
         return { p, entries: [], stream: `feed/${i}`, baskets: [createBasket(app, p, { name: "Text", captureMode: "text" }).id, createBasket(app, p, { name: "Plain", captureMode: "metadata" }).id] };
       });
-      const itemsOf = (a: Acct) => app.db.all<{ id: string; url: string }>("SELECT id, url FROM items WHERE workspace_id = ? ORDER BY seq", a.p.workspaceId);
+      const itemsOf = (a: Acct) => app.db.all<{ id: string; url: string }>("SELECT id, url FROM items WHERE account_id = ? ORDER BY seq", a.p.accountId);
       const check = (where: string) => {
         for (const a of accts) {
           const id = a.p.accountId;
@@ -98,11 +98,11 @@ test("through random operations the used-bytes total equals a recount, the ledge
           if (refused(() => keepItem(app, a.p, it.id, a.baskets[Math.floor(r() * 2)]!))) refusals++;
         } else if (roll < 0.63) {
           what = "unkeep";
-          const kept = app.db.all<{ item_id: string; basket_id: string }>("SELECT item_id, basket_id FROM basket_items WHERE workspace_id = ?", a.p.workspaceId);
+          const kept = app.db.all<{ item_id: string; basket_id: string }>("SELECT item_id, basket_id FROM basket_items WHERE account_id = ?", a.p.accountId);
           if (kept.length) { const k = kept[Math.floor(r() * kept.length)]!; unkeepItem(app, a.p, k.item_id, k.basket_id); }
         } else if (roll < 0.74) {
           what = "capture";
-          const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE workspace_id = ? AND status = 'pending' LIMIT 1", a.p.workspaceId);
+          const cap = app.db.get<{ id: string }>("SELECT id FROM captures WHERE account_id = ? AND status = 'pending' LIMIT 1", a.p.accountId);
           if (cap) {
             if (r() < 0.75) app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "t", text: "readable ".repeat(1 + Math.floor(r() * 4000)), html: "<p>readable</p>", finalUrl: "https://example.org/x", bytes: 8 }));
             else app.db.tx(() => failCapture(app, cap.id, "The page couldn't be captured."));
@@ -165,7 +165,7 @@ test("an account with objects but no storage row gets one, with its total", () =
   try {
     const a = makeOwner(app);
     app.db.run("DELETE FROM storage_accounts WHERE account_id = ?", a.accountId);
-    app.db.tx(() => admitObject(app, { accountId: a.accountId, workspaceId: a.workspaceId, kind: "record", refId: "r1", bytes: 40, reason: "test" }));
+    app.db.tx(() => admitObject(app, { accountId: a.accountId, kind: "record", refId: "r1", bytes: 40, reason: "test" }));
     assert.equal(usedBytes(app, a.accountId), 40);
     assert.equal(app.db.get("SELECT allocation_bytes FROM storage_accounts WHERE account_id = ?", a.accountId)?.allocation_bytes, null, "unallocated, as before");
     app.db.tx(() => releaseObject(app, "record", "r1", "test"));
@@ -180,13 +180,13 @@ test("a refused admission leaves the total as it was", () => {
   const { app, cleanup } = makeTestApp();
   try {
     const p = makeOwner(app, { allocationBytes: 1000 });
-    app.db.tx(() => admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: "a", bytes: 900, reason: "test" }));
-    assert.throws(() => app.db.tx(() => admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: "b", bytes: 200, reason: "test" })), HttpError);
+    app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "a", bytes: 900, reason: "test" }));
+    assert.throws(() => app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "b", bytes: 200, reason: "test" })), HttpError);
     assert.equal(usedBytes(app, p.accountId), 900);
     assert.equal(liveBytes(app, p.accountId), 900);
     // The quota counts the object that is there, once; releasing it makes room again.
     app.db.tx(() => releaseObject(app, "record", "a", "test"));
-    app.db.tx(() => admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: "b", bytes: 200, reason: "test" }));
+    app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "b", bytes: 200, reason: "test" }));
     assert.equal(usedBytes(app, p.accountId), 200);
   } finally { cleanup(); }
 });

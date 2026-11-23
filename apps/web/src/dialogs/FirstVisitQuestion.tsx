@@ -7,7 +7,7 @@ import { useSession } from "../api/hooks.ts";
 import { accountEmailQuery } from "../auth/AccountEmailSection.tsx";
 import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.ts";
 import { useSavePreferences } from "../state/prefs.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.firstVisitQuestion;
 
@@ -18,13 +18,13 @@ const CHOICES: NotificationFrequency[] = ["weekly", "daily", "off"];
  * told about new things, and how long items stay marked New. Skipping keeps what is set; both stay in Settings.
  */
 export function FirstVisitQuestion() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   if (ws.data.preferences.welcomeAsked) return null;
   return <Question />;
 }
 
 function Question() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const preferences = ws.data.preferences;
   const n = ws.data.preferences.notifications;

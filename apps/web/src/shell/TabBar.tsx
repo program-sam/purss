@@ -3,7 +3,7 @@ import { Icon } from "@purss/ui";
 import type { IconName } from "@purss/ui";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useCurrentPlace } from "./place.ts";
 
 
@@ -11,7 +11,7 @@ import { useCurrentPlace } from "./place.ts";
 export function TabBar({ drawerOpen, onBrowse }: { drawerOpen: boolean; onBrowse: () => void }) {
   const nav = useNav();
   const overlays = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const place = useCurrentPlace();
   const home = place?.t === "home" && !drawerOpen;
   const browsing = drawerOpen || place?.t === "c" || place?.t === "s" || place?.t === "b";

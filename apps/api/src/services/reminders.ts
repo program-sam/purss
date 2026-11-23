@@ -98,8 +98,8 @@ function captureLabel(c: { version_has_content: number; has_fulltext: number }):
  * Today's reminders for a PURSS, creating any that are missing. Safe to call any number
  * of times; returns [] when reminders are switched off.
  */
-export function remindersForToday(app: App, workspaceId: string, accountId: string, now: Date = new Date()): ReminderDTO[] {
-  const prefs = getPreferences(app, workspaceId);
+export function remindersForToday(app: App, accountId: string, now: Date = new Date()): ReminderDTO[] {
+  const prefs = getPreferences(app, accountId);
   if (!prefs.reminders) return [];
   const tz = validTimezone(prefs.timezone);
   const today = localDate(now, tz);
@@ -117,9 +117,9 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
      JOIN baskets k ON k.id = b.basket_id
      JOIN item_versions v ON v.id = b.version_id
      LEFT JOIN sources s ON s.id = i.source_id
-     WHERE b.workspace_id = ? AND st.workflow <> 'ignored' AND substr(b.kept_at, 6, 5) IN (${days.map(() => "?").join(",")})
+     WHERE b.account_id = ? AND st.workflow <> 'ignored' AND substr(b.kept_at, 6, 5) IN (${days.map(() => "?").join(",")})
      ORDER BY b.kept_at, b.basket_id`,
-    workspaceId, ...days,
+    accountId, ...days,
   );
 
   const firstPerItem = new Map<string, Candidate>();
@@ -131,8 +131,8 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
   app.db.tx(() => {
     for (const c of firstPerItem.values()) {
       app.db.run(
-        "INSERT OR IGNORE INTO reminders (id, workspace_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        newId("rem"), workspaceId, c.item_id, c.basket_id, c.kept_at, forDate, ts,
+        "INSERT OR IGNORE INTO reminders (id, account_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        newId("rem"), accountId, c.item_id, c.basket_id, c.kept_at, forDate, ts,
       );
     }
   });
@@ -149,10 +149,10 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
      JOIN baskets k ON k.id = r.basket_id
      JOIN item_versions v ON v.id = b.version_id
      LEFT JOIN sources s ON s.id = i.source_id
-     WHERE r.workspace_id = ? AND st.workflow <> 'ignored'
+     WHERE r.account_id = ? AND st.workflow <> 'ignored'
        AND ((r.for_date = ? AND r.status = 'shown') OR (r.status = 'snoozed' AND r.snoozed_until = ?))
      ORDER BY r.kept_at, r.id`,
-    workspaceId, forDate, forDate,
+    accountId, forDate, forDate,
   );
   const seen = new Set<string>();
   const out: ReminderDTO[] = [];
@@ -173,8 +173,8 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
     const isPrivate = single ? !!app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", single.itemId) : false;
     const body = prefs.notifications.previews && single && !isPrivate ? single.title : null;
     const created = app.db.run(
-      "INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
-      newId("ntf"), workspaceId, out.length === 1 ? server.api.reminders.onThisDayOne : server.api.reminders.onThisDayMany(out.length), body, `reminder:${forDate}`, ts,
+      "INSERT OR IGNORE INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
+      newId("ntf"), accountId, out.length === 1 ? server.api.reminders.onThisDayOne : server.api.reminders.onThisDayMany(out.length), body, `reminder:${forDate}`, ts,
     ).changes;
     if (created) emit(app, accountId, { type: "notification" });
   }
@@ -182,17 +182,17 @@ export function remindersForToday(app: App, workspaceId: string, accountId: stri
 }
 
 export function listReminders(app: App, p: Principal, now: Date = new Date()): ReminderDTO[] {
-  return remindersForToday(app, p.workspaceId, p.accountId, now);
+  return remindersForToday(app, p.accountId, now);
 }
 
 /** Hide ends this reminder for good; snooze brings it back on the next local day. */
 export function reminderAction(app: App, p: Principal, id: string, action: "hide" | "snooze", now: Date = new Date()): { ok: true } {
-  const row = app.db.get<{ id: string }>("SELECT id FROM reminders WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
+  const row = app.db.get<{ id: string }>("SELECT id FROM reminders WHERE id = ? AND account_id = ?", id, p.accountId);
   if (!row) throw notFound(server.api.reminders.thatReminder);
   if (action === "hide") {
     app.db.run("UPDATE reminders SET status = 'hidden', snoozed_until = NULL WHERE id = ?", id);
   } else {
-    const tz = validTimezone(getPreferences(app, p.workspaceId).timezone);
+    const tz = validTimezone(getPreferences(app, p.accountId).timezone);
     const tomorrow = ymdString(addDays(localDate(now, tz), 1));
     app.db.run("UPDATE reminders SET status = 'snoozed', snoozed_until = ? WHERE id = ?", tomorrow, id);
   }
@@ -201,8 +201,8 @@ export function reminderAction(app: App, p: Principal, id: string, action: "hide
 
 /** Maintenance pass for the periodic tick: creates today's reminders (and their one daily notification) for every PURSS. */
 export function runReminderPass(app: App, now: Date = new Date()): number {
-  const rows = app.db.all<{ id: string; account_id: string }>(`SELECT w.id, w.account_id FROM workspaces w WHERE ${usableAccountSql("w.account_id")}`);
+  const rows = app.db.all<{ id: string }>(`SELECT a.id FROM accounts a WHERE ${usableAccountSql("a.id")}`);
   let n = 0;
-  for (const w of rows) n += remindersForToday(app, w.id, w.account_id, now).length;
+  for (const a of rows) n += remindersForToday(app, a.id, now).length;
   return n;
 }

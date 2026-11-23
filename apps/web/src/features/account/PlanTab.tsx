@@ -8,7 +8,7 @@ import { messageOf, post } from "../../api/client.ts";
 import { useSession } from "../../api/hooks.ts";
 import { keys } from "../../api/queries.ts";
 import { platform } from "../../platform/index.ts";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { capacityLine } from "../../shell/Capacity.tsx";
 
 const copy = app.account.planTab;
@@ -30,7 +30,7 @@ const PAID = [
  */
 export function PlanTab() {
   const qc = useQueryClient();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const installation = useSession().data?.installation;
   const billing = installation?.billing ?? false;
   const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;

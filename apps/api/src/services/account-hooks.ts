@@ -1,6 +1,6 @@
 import type { App } from "../app.ts";
 
-type Hook = (app: App, accountId: string, workspaceId: string) => void;
+type Hook = (app: App, accountId: string) => void;
 const hooks: Hook[] = [];
 
 /**
@@ -12,6 +12,6 @@ export function onAccountCreated(hook: Hook): void {
   if (!hooks.includes(hook)) hooks.push(hook);
 }
 
-export function runAccountCreated(app: App, accountId: string, workspaceId: string): void {
-  for (const hook of hooks) hook(app, accountId, workspaceId);
+export function runAccountCreated(app: App, accountId: string): void {
+  for (const hook of hooks) hook(app, accountId);
 }

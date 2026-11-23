@@ -6,11 +6,11 @@ import { formatCount, plural } from "../lib/format.ts";
 import { setHints, toggleGroup, useHints, useOpenGroups } from "../state/ui-store.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useSession } from "../api/hooks.ts";
 import { useNav } from "../nav.ts";
 import type { Place } from "../nav.ts";
-import { workspacePages } from "../plugins.ts";
+import { purssPages } from "../plugins.ts";
 import { hasKeyboard } from "../lib/returning.ts";
 import { FirstVisitQuestion } from "../dialogs/FirstVisitQuestion.tsx";
 import { InterfaceUpdateQuestion } from "./InterfaceUpdates.tsx";
@@ -112,7 +112,7 @@ const GROUP_PREVIEW = 6;
  * onClose: a drawer carries a Close button, as the page behind it can't be reached while it is open.
  */
 export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; onToggle?: () => void; onClose?: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const place = useCurrentPlace();
   const pathname = usePathname();
@@ -123,7 +123,7 @@ export function Sidebar({ mode, onToggle, onClose }: { mode: "full" | "rail"; on
   const capacity = (ws.data as { capacity?: Capacity }).capacity ?? null;
   const paused = ws.data.paused ?? null;
   const hosted = session?.installation.mode === "hosted";
-  const pages = workspacePages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
+  const pages = purssPages.filter((p) => p.nav && (!p.adminOnly || session?.account?.isAdmin) && (!p.available || (!!session && p.available(session.installation))));
   // A single administrator page sits under More rather than under a heading with the same name.
   const adminOnly = pages.filter((p) => p.adminOnly);
   const morePages = pages.filter((p) => !p.adminOnly || adminOnly.length === 1);

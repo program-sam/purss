@@ -226,7 +226,7 @@ export type Bootstrap = {
 export type CaptureLevel = "metadata" | "feed" | "fulltext" | "partial" | "browser" | "pending" | "failed";
 export type ItemDTO = {
   id: string;
-  /** The item's number in its workspace: short, never given to another item, for its short link (itemPath). */
+  /** The item's number in its account: short, never given to another item, for its short link (itemPath). */
   number: number;
   sourceId: string | null; // null for manual keeps
   sourceTitle: string;

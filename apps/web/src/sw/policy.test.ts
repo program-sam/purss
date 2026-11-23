@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { classifyRequest, copiesToEvict, isCopyableApi } from "./policy.ts";
 import type { RequestInfo } from "./policy.ts";
 
-const ORIGIN = "http://workspace.test";
+const ORIGIN = "http://purss.test";
 const precached = new Set(["/app/index.html", "/app/manifest.webmanifest", "/app/icon.svg", "/app/assets/app-abc123.js"]);
 const kind = (path: string, over: Partial<RequestInfo> = {}) =>
   classifyRequest({ method: "GET", url: new URL(path, ORIGIN).href, mode: "cors", ...over }, ORIGIN, precached);

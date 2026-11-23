@@ -47,12 +47,12 @@ function build(seed: number): World {
   // Items without a source, and items of the hand-kept source.
   for (let i = 0; i < 6; i++) {
     insertItem(app, {
-      accountId: p.accountId, workspaceId: p.workspaceId, sourceId: i < 3 ? null : manual, kind: "article", title: `Kept by hand ${i}`, url: `https://example.org/hand/${i}`,
+      accountId: p.accountId, sourceId: i < 3 ? null : manual, kind: "article", title: `Kept by hand ${i}`, url: `https://example.org/hand/${i}`,
       author: null, summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
       publishedAt: null, discoveredAt: new Date().toISOString(), enclosures: [], fresh: r() < 0.5, reason: "keep",
     });
   }
-  const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((x) => x.id);
+  const ids = () => app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((x) => x.id);
   // The back catalogue of sources followed from now arrives Ignored and not New (sync.ts arrivalOf); the actions below act on some of them.
   const backCatalogue = ids().filter(() => r() < 0.3);
   bulk(app, p, backCatalogue, { type: "clearFresh" });
@@ -82,8 +82,8 @@ function build(seed: number): World {
 
 /** The queries the counts replaced. */
 function referenceTotal(app: App, p: Principal, scope: string, filter: string): number {
-  const params: SqlParam[] = [p.workspaceId];
-  const where = ["i.workspace_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
+  const params: SqlParam[] = [p.accountId];
+  const where = ["i.account_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
   if (filter === "fresh") where.push("st.fresh = 1");
   else if (filter === "active") where.push("st.workflow <> 'ignored'");
   else if (filter !== "all") { where.push("st.workflow = ?"); params.push(filter); }
@@ -108,7 +108,7 @@ test("source and collection counts equal the queries they replaced, in every awk
         if (c.mode !== "sources") continue;
         const row = w.app.db.get<{ fresh: number; items: number }>(
           `SELECT COALESCE(SUM(st.fresh), 0) AS fresh, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
-           WHERE i.workspace_id = ? AND st.workflow <> 'ignored' AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.workspaceId, c.id)!;
+           WHERE i.account_id = ? AND st.workflow <> 'ignored' AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)`, w.p.accountId, c.id)!;
         assert.deepEqual([c.freshCount, c.itemCount], [row.fresh, row.items], `seed ${seed}, ${c.name}`);
       }
     } finally { w.cleanup(); }
@@ -151,10 +151,10 @@ function everyListTotal(): number {
 test("counts are reused until something is written, and never kept from inside a transaction that rolls back", () => {
   const w = build(7);
   try {
-    const first = itemCounts(w.app, w.p.workspaceId);
-    assert.equal(itemCounts(w.app, w.p.workspaceId), first, "nothing written: the same counts");
+    const first = itemCounts(w.app, w.p.accountId);
+    assert.equal(itemCounts(w.app, w.p.accountId), first, "nothing written: the same counts");
     applySyncBatch(w.app, w.p.engineUserId, batch([entry("feed/0")]));
-    const second = itemCounts(w.app, w.p.workspaceId);
+    const second = itemCounts(w.app, w.p.accountId);
     assert.notEqual(second, first, "a write: counted again");
     assert.equal(second.items(w.sources[0]!), first.items(w.sources[0]!) + 1);
 
@@ -162,10 +162,10 @@ test("counts are reused until something is written, and never kept from inside a
     const before = second.items(w.sources[0]!);
     assert.throws(() => w.app.db.tx(() => {
       applySyncBatch(w.app, w.p.engineUserId, batch([entry("feed/0"), entry("feed/0")]));
-      assert.equal(itemCounts(w.app, w.p.workspaceId).items(w.sources[0]!), before + 2);
+      assert.equal(itemCounts(w.app, w.p.accountId).items(w.sources[0]!), before + 2);
       throw new Error("roll back");
     }), /roll back/);
-    assert.equal(itemCounts(w.app, w.p.workspaceId).items(w.sources[0]!), before, "the rolled-back items are not counted");
+    assert.equal(itemCounts(w.app, w.p.accountId).items(w.sources[0]!), before, "the rolled-back items are not counted");
   } finally { w.cleanup(); }
 });
 

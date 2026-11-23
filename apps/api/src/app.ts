@@ -16,7 +16,6 @@ export type App = {
 /** Resolved identity of a request. Every product query is scoped through it. */
 export type Principal = {
   accountId: string;
-  workspaceId: string;
   isAdmin: boolean;
   sessionId: string;
   csrf: string;

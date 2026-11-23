@@ -26,7 +26,7 @@ import { stageFile } from "./portability.ts";
 import { createNewsPost } from "./news.ts";
 
 const principal = (m: Member): Principal & { engineUserId: string } =>
-  ({ accountId: m.accountId, workspaceId: m.workspaceId, isAdmin: false, sessionId: "seed", csrf: "", authAt: nowIso(), engineUserId: m.engineUserId });
+  ({ accountId: m.accountId, isAdmin: false, sessionId: "seed", csrf: "", authAt: nowIso(), engineUserId: m.engineUserId });
 
 async function requested(b: DeletionBoot, m: Member, name: string): Promise<void> {
   const r = await b.api(signIn(b.app, m.accountId), "POST", "/api/account/deletion", { confirm: name });
@@ -36,12 +36,12 @@ async function requested(b: DeletionBoot, m: Member, name: string): Promise<void
 /** A private source with its secret file, and a staged import with its file: what the manifest must name. */
 function withFiles(app: App, m: Member): { secret: string; stage: string } {
   const sourceId = newId("src");
-  app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, is_private, engine_stream_id, health, created_at) VALUES (?, ?, ?, 'private', 'Private', 'RSS feed', 1, ?, 'ok', ?)",
-    sourceId, m.accountId, m.workspaceId, `feed/${sourceId}`, nowIso());
+  app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, is_private, engine_stream_id, health, created_at) VALUES (?, ?, 'private', 'Private', 'RSS feed', 1, ?, 'ok', ?)",
+    sourceId, m.accountId, `feed/${sourceId}`, nowIso());
   writeSecret(app.config.secretsDir, `source-urls/${sourceId}`, "https://feeds.example/secret?token=abc");
   const token = newId("stg");
-  app.db.run("INSERT INTO import_stages (token, account_id, workspace_id, bytes, sha256, summary, created_at, expires_at) VALUES (?, ?, ?, 2, 'x', '{}', ?, ?)",
-    token, m.accountId, m.workspaceId, nowIso(), new Date(Date.now() + 3600_000).toISOString());
+  app.db.run("INSERT INTO import_stages (token, account_id, bytes, sha256, summary, created_at, expires_at) VALUES (?, ?, 2, 'x', '{}', ?, ?)",
+    token, m.accountId, nowIso(), new Date(Date.now() + 3600_000).toISOString());
   mkdirSync(path.dirname(stageFile(app, token)), { recursive: true });
   writeFileSync(stageFile(app, token), "{}");
   return { secret: path.join(app.config.secretsDir, "source-urls", sourceId), stage: stageFile(app, token) };
@@ -55,25 +55,25 @@ function populate(app: App, m: Member, owner: Member): string[] {
   const reading = createCollection(app, p, { name: "Reading", emoji: null, mode: "sources", sourceIds: [lib.publicSource], query: null, view: "list" });
   // Smart filters: a filter on a source and one on a collection, an answer and a week's usage.
   const sourceFilter = newId("aif");
-  app.db.run("INSERT INTO ai_filters (id, workspace_id, source_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep posts about sediment', ?, ?)", sourceFilter, m.workspaceId, lib.publicSource, nowIso(), nowIso());
-  app.db.run("INSERT INTO ai_filters (id, workspace_id, collection_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep long reads', ?, ?)", newId("aif"), m.workspaceId, reading.id, nowIso(), nowIso());
-  app.db.run("INSERT INTO ai_filter_verdicts (filter_id, item_id, workspace_id, version, keep_probability, dropped, judged_at) VALUES (?, ?, ?, 1, 0.9, 0, ?)", sourceFilter, lib.itemIds[0]!, m.workspaceId, nowIso());
+  app.db.run("INSERT INTO ai_filters (id, account_id, source_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep posts about sediment', ?, ?)", sourceFilter, m.accountId, lib.publicSource, nowIso(), nowIso());
+  app.db.run("INSERT INTO ai_filters (id, account_id, collection_id, keep_text, created_at, updated_at) VALUES (?, ?, ?, 'Keep long reads', ?, ?)", newId("aif"), m.accountId, reading.id, nowIso(), nowIso());
+  app.db.run("INSERT INTO ai_filter_verdicts (filter_id, item_id, account_id, version, keep_probability, dropped, judged_at) VALUES (?, ?, ?, 1, 0.9, 0, ?)", sourceFilter, lib.itemIds[0]!, m.accountId, nowIso());
   app.db.run("INSERT INTO ai_usage (account_id, week, input_tokens, requests) VALUES (?, '2026-W46', 300, 1)", m.accountId);
   const revision = app.db.get<{ revision: number }>("SELECT revision FROM item_state WHERE item_id = ?", lib.itemIds[1])!.revision;
   changeState(app, p, lib.itemIds[1], { workflow: "toread", expectedRevision: revision }); // state, state log, undo token
-  setPreferences(app, m.workspaceId, { theme: "dark" });
+  setPreferences(app, m.accountId, { theme: "dark" });
   const shareId = shareRow(app, p, "basket", lib.baskets.reading, "published", "M");
   setShareNote(app, p, shareId, lib.keptIds[0]!, "A public note.");
   app.db.run("INSERT INTO share_reports (id, share_id, reason, details, created_at) VALUES (?, ?, 'spam', 'A visitor reported it.', ?)", newId("rpt"), shareId, nowIso());
-  app.db.run("INSERT INTO confirm_tokens (token, workspace_id, purpose, data, expires_at) VALUES ('ct1', ?, 'item-delete', '[]', ?)", m.workspaceId, new Date(Date.now() + 600_000).toISOString());
-  app.db.run("INSERT INTO reminders (id, workspace_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, '2026-11-05', ?)", newId("rem"), m.workspaceId, lib.keptIds[0]!, lib.baskets.reading, nowIso(), nowIso());
-  app.db.run("INSERT INTO item_reminders (id, account_id, workspace_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, ?, '2026-11-20', 'Ask again', ?)", newId("irm"), m.accountId, m.workspaceId, lib.keptIds[0]!, nowIso()); // "Remind me"
-  app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) VALUES (?, 'example.org/not-for-me.xml', ?)", m.workspaceId, nowIso()); // "Not interested" in Discover
-  app.db.run("INSERT INTO notifications (id, workspace_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'New', 'n1', ?)", newId("ntf"), m.workspaceId, nowIso());
-  app.db.run("INSERT INTO notification_state (workspace_id, window_end) VALUES (?, ?)", m.workspaceId, nowIso()); // digest watermark
+  app.db.run("INSERT INTO confirm_tokens (token, account_id, purpose, data, expires_at) VALUES ('ct1', ?, 'item-delete', '[]', ?)", m.accountId, new Date(Date.now() + 600_000).toISOString());
+  app.db.run("INSERT INTO reminders (id, account_id, item_id, basket_id, kept_at, for_date, created_at) VALUES (?, ?, ?, ?, ?, '2026-11-05', ?)", newId("rem"), m.accountId, lib.keptIds[0]!, lib.baskets.reading, nowIso(), nowIso());
+  app.db.run("INSERT INTO item_reminders (id, account_id, item_id, remind_on, note, created_at) VALUES (?, ?, ?, '2026-11-20', 'Ask again', ?)", newId("irm"), m.accountId, lib.keptIds[0]!, nowIso()); // "Remind me"
+  app.db.run("INSERT INTO discovery_dismissed (account_id, key, created_at) VALUES (?, 'example.org/not-for-me.xml', ?)", m.accountId, nowIso()); // "Not interested" in Discover
+  app.db.run("INSERT INTO notifications (id, account_id, kind, title, dedup_key, created_at) VALUES (?, ?, 'arrivals', 'New', 'n1', ?)", newId("ntf"), m.accountId, nowIso());
+  app.db.run("INSERT INTO notification_state (account_id, window_end) VALUES (?, ?)", m.accountId, nowIso()); // digest watermark
   app.db.run("INSERT OR IGNORE INTO signup_creations (account_id, address_hash, created_at) VALUES (?, 'address', ?)", m.accountId, nowIso()); // counted against the sign-up limit
-  app.db.run("INSERT INTO reconciliation_queue (id, workspace_id, engine_user_id, entry, created_at) VALUES (?, ?, ?, '{}', ?)", newId("rec"), m.workspaceId, m.engineUserId, nowIso());
-  app.db.run("INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, x'00', 'd', 'https://example.org/i.png', ?)", lib.publicSource, m.accountId, m.workspaceId, nowIso());
+  app.db.run("INSERT INTO reconciliation_queue (id, account_id, engine_user_id, entry, created_at) VALUES (?, ?, ?, '{}', ?)", newId("rec"), m.accountId, m.engineUserId, nowIso());
+  app.db.run("INSERT INTO source_icons (source_id, account_id, bytes, digest, found_url, updated_at) VALUES (?, ?, x'00', 'd', 'https://example.org/i.png', ?)", lib.publicSource, m.accountId, nowIso());
   app.db.run("INSERT INTO item_tombstones (engine_user_id, external_id, deleted_at) VALUES (?, 'gone', ?)", m.engineUserId, nowIso());
   app.db.run("INSERT INTO auth_challenges (id, purpose, account_id, challenge, expires_at) VALUES (?, 'register', ?, 'c', ?)", newId("chl"), m.accountId, new Date(Date.now() + 300_000).toISOString());
   app.db.run("INSERT INTO assistant_tokens (id, account_id, name, access, token_hash, created_at) VALUES (?, ?, 'T', 'read', ?, ?)", newId("tok"), m.accountId, newId("hash"), nowIso());
@@ -85,11 +85,11 @@ function populate(app: App, m: Member, owner: Member): string[] {
   reserve(app, m.accountId, 10, "test", `res:${m.accountId}`);
   recordSyncSuccess(app, m.engineUserId);
   signIn(app, m.accountId);
-  enqueue(app, "engine.sync", { engineUserId: m.engineUserId }, { accountId: m.accountId, workspaceId: m.workspaceId });
+  enqueue(app, "engine.sync", { engineUserId: m.engineUserId }, { accountId: m.accountId});
   seedAdjacent(app, p); // connected apps, playback, annotations, browser capture, a kept picture, email, OAuth
   // A list of feeds being followed, with a private link waiting in the secrets folder.
   const list = newId("opl");
-  app.db.run("INSERT INTO opml_imports (id, account_id, workspace_id, file_name, destination, status, created_at) VALUES (?, ?, ?, 'list.opml', 'none', 'running', ?)", list, m.accountId, m.workspaceId, nowIso());
+  app.db.run("INSERT INTO opml_imports (id, account_id, file_name, destination, status, created_at) VALUES (?, ?, 'list.opml', 'none', 'running', ?)", list, m.accountId, nowIso());
   app.db.run("INSERT INTO opml_import_entries (import_id, position, title, host, feed_url, looks_private) VALUES (?, 0, 'Private one', 'feeds.example', NULL, 1)", list);
   writeSecret(app.config.secretsDir, `opml-imports/${list}/0`, "https://feeds.example/private?token=listed");
   // A news post the member wrote (as an administrator once): it stays for everyone, without its author. Its copy in the member's PURSS goes.
@@ -103,7 +103,7 @@ function ownerLibrary(app: App, p: Principal & { engineUserId: string }): string
   const priv = makeSource(app, p, "Owner's secret", "feed/2", { isPrivate: true });
   writeSecret(app.config.secretsDir, `source-urls/${priv}`, "https://feeds.example/owner?token=OWNER");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { title: "Owner on sediment" }), entry("feed/2", { title: "Owner's private sediment note" })]));
-  const item = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq LIMIT 1", p.workspaceId)!.id;
+  const item = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq LIMIT 1", p.accountId)!.id;
   keepItem(app, p, item, createBasket(app, p, { name: "Owner's basket", captureMode: "metadata" }).id);
   return path.join(app.config.secretsDir, "source-urls", priv);
 }
@@ -214,7 +214,7 @@ test("a crash between the phase-1 steps is resumed by the next tick", async (t) 
   b.app.db.exec("DROP TRIGGER crash");
   runDeletions(b.app);
   assert.equal(b.app.db.get<{ phase1_done: number }>("SELECT phase1_done FROM account_deletions WHERE account_id = ?", m.accountId)!.phase1_done, 1);
-  assert.equal(b.app.db.get("SELECT 1 FROM items WHERE workspace_id = ?", m.workspaceId), undefined);
+  assert.equal(b.app.db.get("SELECT 1 FROM items WHERE account_id = ?", m.accountId), undefined);
   assert.ok(b.app.db.get("SELECT 1 FROM jobs WHERE kind = 'engine.delete_user' AND account_id = ?", m.accountId));
   runDeletions(b.app);
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'engine.delete_user'")!.n, 1, "a rerun queues nothing twice");
@@ -228,21 +228,21 @@ test("on a populated database the purge passes every foreign key, and afterwards
   const files = populate(b.app, m, owner);
   const ownerSecret = ownerLibrary(b.app, principal(owner));
 
-  const memberIds = [m.accountId, m.workspaceId, m.engineUserId,
-    ...b.app.db.all<{ id: string }>(`SELECT id FROM items WHERE workspace_id = ? UNION SELECT id FROM sources WHERE workspace_id = ? UNION SELECT id FROM collections WHERE workspace_id = ?
-      UNION SELECT id FROM baskets WHERE workspace_id = ? UNION SELECT id FROM shares WHERE workspace_id = ?`, m.workspaceId, m.workspaceId, m.workspaceId, m.workspaceId, m.workspaceId).map((r) => r.id),
+  const memberIds = [m.accountId, m.engineUserId,
+    ...b.app.db.all<{ id: string }>(`SELECT id FROM items WHERE account_id = ? UNION SELECT id FROM sources WHERE account_id = ? UNION SELECT id FROM collections WHERE account_id = ?
+      UNION SELECT id FROM baskets WHERE account_id = ? UNION SELECT id FROM shares WHERE account_id = ?`, m.accountId, m.accountId, m.accountId, m.accountId, m.accountId).map((r) => r.id),
     ...b.app.db.all<{ id: string }>("SELECT id FROM oauth_grants WHERE account_id = ?", m.accountId).map((r) => r.id), // its access tokens name only the grant
     ...b.app.db.all<{ id: string }>("SELECT id FROM opml_imports WHERE account_id = ?", m.accountId).map((r) => r.id)]; // its feeds name only the list
   // Every table that holds account data has rows for the member, so the order really is exercised.
   const scoped = b.app.db.all<{ name: string }>(`SELECT DISTINCT m.name FROM sqlite_master m, pragma_table_info(m.name) c
-    WHERE m.type = 'table' AND c.name IN ('account_id', 'workspace_id', 'engine_user_id') AND m.name NOT IN ('audit_events', 'account_deletions')`).map((r) => r.name);
-  const mentioned = new Set(rowsMentioning(b.app, [m.accountId, m.workspaceId, m.engineUserId]).map((s) => s.split(".")[0]));
+    WHERE m.type = 'table' AND c.name IN ('account_id', 'account_id', 'engine_user_id') AND m.name NOT IN ('audit_events', 'account_deletions')`).map((r) => r.name);
+  const mentioned = new Set(rowsMentioning(b.app, [m.accountId, m.engineUserId]).map((s) => s.split(".")[0]));
   for (const table of scoped) assert.ok(mentioned.has(table), `${table} has rows of the member before the purge`);
   for (const table of ["share_notes", "share_reports", "collection_sources", "items_fts_docsize", "annotations_fts_docsize", "oauth_access_tokens"]) {
     assert.ok(b.app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`)!.n > 0, `${table} is populated`);
   }
   const ownerBefore = snapshotWithout(b.app, memberIds);
-  const ownerSearch = () => b.app.db.all<{ rowid: number }>("SELECT rowid FROM items_fts WHERE items_fts MATCH 'sediment' AND rowid IN (SELECT seq FROM items WHERE workspace_id = ?) ORDER BY rowid", owner.workspaceId);
+  const ownerSearch = () => b.app.db.all<{ rowid: number }>("SELECT rowid FROM items_fts WHERE items_fts MATCH 'sediment' AND rowid IN (SELECT seq FROM items WHERE account_id = ?) ORDER BY rowid", owner.accountId);
   const searchBefore = ownerSearch();
   assert.ok(searchBefore.length > 0);
 
@@ -253,7 +253,7 @@ test("on a populated database the purge passes every foreign key, and afterwards
   assert.deepEqual(b.app.db.all("PRAGMA foreign_key_check"), []);
   for (const f of files) assert.ok(!existsSync(f), `${path.basename(f)} is removed`);
   assert.ok(existsSync(ownerSecret), "the owner's private feed address stays");
-  for (const kept of ["accounts", "workspaces", "engine_users"]) {
+  for (const kept of ["accounts", "engine_users"]) {
     assert.ok(b.app.db.get(`SELECT 1 FROM ${kept} WHERE ${kept === "accounts" ? "id" : "account_id"} = ?`, m.accountId), `${kept} stays until phase 2`);
   }
 
@@ -270,7 +270,7 @@ test("on a populated database the purge passes every foreign key, and afterwards
   assert.deepEqual(done.json, { finalized: true });
   assert.deepEqual((await b.worker(`/internal/deletions/${m.engineUserId}/finalize`, lease_)).json, { finalized: false }, "a repeat after a lost answer is a no-op success");
 
-  assert.deepEqual(rowsMentioning(b.app, memberIds), [], "no row in any table refers to the account, its workspace or its data");
+  assert.deepEqual(rowsMentioning(b.app, memberIds), [], "no row in any table refers to the account or its data");
   assert.deepEqual(b.app.db.all("PRAGMA foreign_key_check"), []);
   const audit = b.app.db.get<{ actor_account_id: string | null; target: string; detail: string | null }>("SELECT actor_account_id, target, detail FROM audit_events WHERE action = 'account_deleted'")!;
   assert.deepEqual({ ...audit }, { actor_account_id: null, target: m.accountId, detail: null }, "the audit log keeps the bare id only");
@@ -337,5 +337,5 @@ test("an account without an engine user is finalized by phase 1 itself", async (
   makeDue(b.app, m.accountId);
   runDeletions(b.app);
   assert.equal(b.app.db.get("SELECT 1 FROM accounts WHERE id = ?", m.accountId), undefined);
-  assert.deepEqual(rowsMentioning(b.app, [m.accountId, m.workspaceId]), []);
+  assert.deepEqual(rowsMentioning(b.app, [m.accountId, m.accountId]), []);
 });

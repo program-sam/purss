@@ -24,7 +24,7 @@ function kept() {
 }
 
 const capture = (app: ReturnType<typeof kept>["app"], p: ReturnType<typeof kept>["p"], itemId: string, status: string, quality: string | null) =>
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, quality, created_at) VALUES (?, ?, ?, 'fulltext', ?, ?, ?)", `cap_${itemId}_${status}_${quality}`, p.workspaceId, itemId, status, quality, at());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, quality, created_at) VALUES (?, ?, ?, 'fulltext', ?, ?, ?)", `cap_${itemId}_${status}_${quality}`, p.accountId, itemId, status, quality, at());
 
 test("a kept item's copy is read from its captures: text, part of the page, being saved, failed, or only the summary", () => {
   assert.equal(keptCopyOf([]), "summary");
@@ -63,10 +63,10 @@ test("a removed note leaves no line, and another PURSS's notes are never read", 
   const { app, p, ids, cleanup } = kept();
   t.after(cleanup);
   putAnnotation(app, p, ids["Mains supply"]!, "ann_1", { kind: "note", body: "First", updatedAt: at() } as never);
-  assert.equal(keptDisplays(app, p.workspaceId, [ids["Mains supply"]!]).get(ids["Mains supply"]!)!.noteLine, "First");
+  assert.equal(keptDisplays(app, p.accountId, [ids["Mains supply"]!]).get(ids["Mains supply"]!)!.noteLine, "First");
   assert.equal(keptDisplays(app, "wsp_other", [ids["Mains supply"]!]).get(ids["Mains supply"]!)!.noteLine, null);
   app.db.run("UPDATE annotations SET deleted_at = ? WHERE id = 'ann_1'", at());
-  assert.equal(keptDisplays(app, p.workspaceId, [ids["Mains supply"]!]).get(ids["Mains supply"]!)!.noteLine, null);
+  assert.equal(keptDisplays(app, p.accountId, [ids["Mains supply"]!]).get(ids["Mains supply"]!)!.noteLine, null);
 });
 
 test("a search that matched only a note gets a snippet from the note", (t) => {

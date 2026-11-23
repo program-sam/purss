@@ -11,7 +11,7 @@ import { notifyArrivals } from "./notifications.ts";
 import { fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { queueNewPosts } from "./ai-filters.ts";
 
-type EngineUser = { id: string; account_id: string; workspace_id: string; engine_identity: string | null };
+type EngineUser = { id: string; account_id: string; engine_identity: string | null };
 
 export type BatchResult = { accepted: number; updated: number; duplicates: number; unknownStreams: number; queuedForReview: number; skippedPaused: number };
 
@@ -21,7 +21,7 @@ export type BatchResult = { accepted: number; updated: number; duplicates: numbe
  * deletes anything. A changed engine identity routes entries to reconciliation.
  */
 export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch): BatchResult {
-  const eu = app.db.get<EngineUser>("SELECT id, account_id, workspace_id, engine_identity FROM engine_users WHERE id = ?", engineUserId);
+  const eu = app.db.get<EngineUser>("SELECT id, account_id, engine_identity FROM engine_users WHERE id = ?", engineUserId);
   if (!eu) throw new HttpError(404, "not_found", "Unknown engine user.");
   const prior = app.db.get<{ result: string }>("SELECT result FROM applied_batches WHERE idempotency_key = ?", batch.idempotencyKey);
   if (prior) return { ...(JSON.parse(prior.result) as BatchResult), duplicates: batch.entries.length };
@@ -55,7 +55,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
         continue;
       }
       const source = app.db.get<{ id: string; kind: string; followed: number; curator: string | null; paused: number; is_private: number; full_text: number; created_at: string; backlog_settled_at: string | null; start_from: StartFrom }>(
-        "SELECT id, kind, followed, curator, paused, is_private, full_text, created_at, backlog_settled_at, start_from FROM sources WHERE workspace_id = ? AND engine_stream_id = ? AND followed = 1", eu.workspace_id, entry.streamId);
+        "SELECT id, kind, followed, curator, paused, is_private, full_text, created_at, backlog_settled_at, start_from FROM sources WHERE account_id = ? AND engine_stream_id = ? AND followed = 1", eu.account_id, entry.streamId);
       if (!source) { result.unknownStreams++; continue; }
       // Paused: nothing new is collected for this source until it is resumed (edits to existing items still apply).
       if (source.paused && !app.db.get("SELECT 1 FROM external_ids WHERE engine_user_id = ? AND external_id = ?", eu.id, entry.externalId)) {
@@ -68,8 +68,8 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
           result.duplicates++;
           continue;
         }
-        app.db.run("INSERT INTO reconciliation_queue (id, workspace_id, engine_user_id, entry, candidate_item_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-          newId("rec"), eu.workspace_id, eu.id, JSON.stringify(entry), matchByGuid(app, eu.workspace_id, source.id, entry), now);
+        app.db.run("INSERT INTO reconciliation_queue (id, account_id, engine_user_id, entry, candidate_item_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          newId("rec"), eu.account_id, eu.id, JSON.stringify(entry), matchByGuid(app, eu.account_id, source.id, entry), now);
         result.queuedForReview++;
         continue;
       }
@@ -82,7 +82,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
       }
       // Same source + original GUID already known (e.g. reconnect), or an imported item with
       // the same link that this engine never delivered: attach a mapping instead of a duplicate.
-      const guidMatch = matchByGuid(app, eu.workspace_id, source.id, entry) ?? matchUnmapped(app, eu, source.id, entry) ?? matchSameLink(app, eu.workspace_id, source.id, entry);
+      const guidMatch = matchByGuid(app, eu.account_id, source.id, entry) ?? matchUnmapped(app, eu, source.id, entry) ?? matchSameLink(app, eu.account_id, source.id, entry);
       if (guidMatch) {
         addMapping(app, eu, guidMatch, entry);
         result.duplicates++;
@@ -93,7 +93,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
       addMapping(app, eu, created, entry);
       // A copy is made by itself only for what the person will see: a source's back catalogue (a source followed from now) arrives Ignored and
       // stays as it came, and a copy of it is made when the person keeps it or asks for one.
-      if (!ignored && source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, workspaceId: eu.workspace_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
+      if (!ignored && source.full_text && fullTextAvailable(source)) queueAutoCapture(app, { accountId: eu.account_id, itemId: created, url: app.db.get<{ url: string | null }>("SELECT url FROM items WHERE id = ?", created)!.url });
       result.accepted++;
       touchedSources.set(source.id, (touchedSources.get(source.id) ?? 0) + 1);
       if (fresh) {
@@ -108,14 +108,14 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
     // stored with the checkpoint, so it holds across batches, retries and restarts.
     if (batch.done && !replacement && checkpoint?.last_walk_done_at) {
       app.db.run(
-        `UPDATE sources SET backlog_settled_at = ? WHERE workspace_id = ? AND followed = 1 AND engine_stream_id IS NOT NULL
-           AND backlog_settled_at IS NULL AND subscribed_at IS NOT NULL AND subscribed_at <= ?`, now, eu.workspace_id, checkpoint.last_walk_done_at);
+        `UPDATE sources SET backlog_settled_at = ? WHERE account_id = ? AND followed = 1 AND engine_stream_id IS NOT NULL
+           AND backlog_settled_at IS NULL AND subscribed_at IS NOT NULL AND subscribed_at <= ?`, now, eu.account_id, checkpoint.last_walk_done_at);
     }
 
     for (const [sourceId] of touchedSources) {
       // The newest item is the first in the source's own index order: one row, not every item the source has.
-      app.db.run("UPDATE sources SET last_item_at = (SELECT listed_at FROM items WHERE workspace_id = ? AND source_id = ? ORDER BY listed_at DESC LIMIT 1), health = CASE WHEN health IN ('pending', 'quiet') THEN 'ok' ELSE health END, health_text = CASE WHEN health IN ('pending', 'quiet') THEN NULL ELSE health_text END, last_success_at = ? WHERE id = ?",
-        eu.workspace_id, sourceId, now, sourceId);
+      app.db.run("UPDATE sources SET last_item_at = (SELECT listed_at FROM items WHERE account_id = ? AND source_id = ? ORDER BY listed_at DESC LIMIT 1), health = CASE WHEN health IN ('pending', 'quiet') THEN 'ok' ELSE health END, health_text = CASE WHEN health IN ('pending', 'quiet') THEN NULL ELSE health_text END, last_success_at = ? WHERE id = ?",
+        eu.account_id, sourceId, now, sourceId);
     }
     app.db.run(
       `INSERT INTO sync_checkpoints (engine_user_id, engine_identity, continuation, newest_crawl_usec, last_success_at, last_attempt_at, last_error)
@@ -130,8 +130,8 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
     if (replacement) app.db.run("UPDATE sync_checkpoints SET pending_engine_identity = ? WHERE engine_user_id = ?", batch.engineIdentity, eu.id);
     if (!replacement && !eu.engine_identity) app.db.run("UPDATE engine_users SET engine_identity = ? WHERE id = ?", batch.engineIdentity, eu.id);
     // Posts a Smart filter judges are announced once it has, so a post it drops is never announced.
-    for (const sourceId of queueNewPosts(app, { accountId: eu.account_id, workspaceId: eu.workspace_id }, freshPosts)) freshArrivals.delete(sourceId);
-    if (freshArrivals.size) notifyArrivals(app, eu.workspace_id, [...freshArrivals.entries()], batch.idempotencyKey);
+    for (const sourceId of queueNewPosts(app, { accountId: eu.account_id}, freshPosts)) freshArrivals.delete(sourceId);
+    if (freshArrivals.size) notifyArrivals(app, eu.account_id, [...freshArrivals.entries()], batch.idempotencyKey);
     app.db.run("INSERT INTO applied_batches (idempotency_key, engine_user_id, applied_at, result) VALUES (?, ?, ?, ?)",
       batch.idempotencyKey, eu.id, now, JSON.stringify(result));
   });
@@ -149,11 +149,11 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
   return result;
 }
 
-function matchByGuid(app: App, workspaceId: string, sourceId: string, entry: SyncEntry): string | null {
+function matchByGuid(app: App, accountId: string, sourceId: string, entry: SyncEntry): string | null {
   if (!entry.originalGuid) return null;
   const rows = app.db.all<{ item_id: string }>(
     `SELECT DISTINCT e.item_id FROM external_ids e JOIN items i ON i.id = e.item_id
-     WHERE e.workspace_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2`, workspaceId, sourceId, entry.originalGuid);
+     WHERE e.account_id = ? AND i.source_id = ? AND e.original_guid = ? LIMIT 2`, accountId, sourceId, entry.originalGuid);
   return rows.length === 1 ? rows[0]!.item_id : null; // ambiguous (reused GUID) -> no automatic match
 }
 
@@ -177,8 +177,8 @@ function matchUnmapped(app: App, eu: EngineUser, sourceId: string, entry: SyncEn
 }
 
 function addMapping(app: App, eu: EngineUser, itemId: string, entry: SyncEntry): void {
-  app.db.run("INSERT OR IGNORE INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    newId("ext"), eu.workspace_id, itemId, eu.id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
+  app.db.run("INSERT OR IGNORE INTO external_ids (id, account_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    newId("ext"), eu.account_id, itemId, eu.id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
 }
 
 /**
@@ -227,15 +227,15 @@ const titleKey = (title: string) => title.replace(/\s+/g, " ").trim().toLowerCas
  * entry is attached to the item it repeats. Conservative: the same source, the same address and the same headline,
  * within 30 days. A feed that gives many posts one address (a link to its home page) keeps them apart by headline.
  */
-function matchSameLink(app: App, workspaceId: string, sourceId: string, entry: SyncEntry): string | null {
+function matchSameLink(app: App, accountId: string, sourceId: string, entry: SyncEntry): string | null {
   const key = entry.url ? linkKey(entry.url) : null;
   const title = titleKey(entry.title);
   if (!key || !title) return null;
   const since = new Date(Date.parse(entry.crawledAt) - 30 * 86_400_000).toISOString();
   // Looked up by the stored key (items.link_key, indexed): a source with many recent items is not scanned row by row.
   const rows = app.db.all<{ id: string; title: string }>(
-    "SELECT id, title FROM items WHERE workspace_id = ? AND source_id = ? AND link_key = ? AND discovered_at >= ? LIMIT 20",
-    workspaceId, sourceId, key, since);
+    "SELECT id, title FROM items WHERE account_id = ? AND source_id = ? AND link_key = ? AND discovered_at >= ? LIMIT 20",
+    accountId, sourceId, key, since);
   return rows.find((r) => titleKey(r.title) === title)?.id ?? null;
 }
 
@@ -246,7 +246,6 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
   const kind = detectKind({ sourceKind: source.kind, url: entry.url, doi, enclosures: entry.enclosures });
   return insertItem(app, {
     accountId: eu.account_id,
-    workspaceId: eu.workspace_id,
     sourceId: source.id,
     kind,
     title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
@@ -276,7 +275,7 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
  */
 export type ItemRevision = Pick<SyncEntry, "title" | "url" | "author" | "summaryHtml" | "contentHtml" | "imageUrl" | "enclosures" | "publishedAt" | "contentOmitted">;
 
-export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "workspace_id">, itemId: string, entry: ItemRevision): boolean {
+export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "account_id">, itemId: string, entry: ItemRevision): boolean {
   const cur = app.db.get<{ current_version_id: string; content_hash: string; source_id: string | null }>(
     "SELECT i.current_version_id, v.content_hash, i.source_id FROM items i JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?", itemId);
   if (!cur) return false;
@@ -295,10 +294,10 @@ export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "worksp
   const now = nowIso();
   try {
     app.db.tx(() => {
-      app.db.run("INSERT INTO item_versions (id, item_id, workspace_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        versionId, itemId, eu.workspace_id, title, entry.url, summaryHtml, contentHtml, hash, contentOmitted, now);
+      app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        versionId, itemId, eu.account_id, title, entry.url, summaryHtml, contentHtml, hash, contentOmitted, now);
       admitObject(app, {
-        accountId: eu.account_id, workspaceId: eu.workspace_id, kind: "item_version", refId: versionId, itemId, sourceId: cur.source_id,
+        accountId: eu.account_id, kind: "item_version", refId: versionId, itemId, sourceId: cur.source_id,
         bytes: versionBytes({ title, url: entry.url, author: entry.author, summaryHtml, contentHtml, imageUrl: entry.imageUrl, enclosures: entry.enclosures, publishedAt: entry.publishedAt }),
         reason: "feed item update",
       });

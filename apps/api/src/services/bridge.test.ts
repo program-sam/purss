@@ -12,7 +12,7 @@ import { followSource } from "./sources.ts";
 import type { App, Principal } from "../app.ts";
 
 function followBridged(app: App, p: Principal, key = "durov"): string {
-  holdCandidate(`dsc_${key}`, p.workspaceId, {
+  holdCandidate(`dsc_${key}`, p.accountId, {
     feedUrl: `bridge:telegram/${key}`, siteUrl: `https://t.me/${key}`, title: key, kind: "feed",
     origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], route: "bridge:telegram", entry: "paste", summariesOnly: false, privateWarning: null,
   });
@@ -23,7 +23,7 @@ test("a bridged source is followed as its descriptor, never as a private link, a
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
-  holdCandidate("dsc_bridge", p.workspaceId, {
+  holdCandidate("dsc_bridge", p.accountId, {
     feedUrl: "bridge:telegram/durov", siteUrl: "https://t.me/durov", title: "Pavel Durov (@durov)", kind: "feed",
     origin: "Telegram channel", via: "Posts feed", cadence: null, samples: [], route: "bridge:telegram", entry: "paste", summariesOnly: false, privateWarning: null,
   });
@@ -52,7 +52,7 @@ test("an archive restores a bridged source as itself, into an empty PURSS and in
   t.after(empty.cleanup);
   const pe = makeOwner(empty.app);
   applyImport(empty.app, pe, stageImport(empty.app, pe, doc).token);
-  const row = empty.app.db.get<{ feed_url: string; is_private: number; health: string }>("SELECT feed_url, is_private, health FROM sources WHERE workspace_id = ? AND kind <> 'manual'", pe.workspaceId)!;
+  const row = empty.app.db.get<{ feed_url: string; is_private: number; health: string }>("SELECT feed_url, is_private, health FROM sources WHERE account_id = ? AND kind <> 'manual'", pe.accountId)!;
   assert.deepEqual({ feed_url: row.feed_url, is_private: row.is_private }, { feed_url: "bridge:telegram/durov", is_private: 0 });
   assert.notEqual(row.health, "reconnect");
   assert.ok(empty.app.db.all<{ payload: string }>("SELECT payload FROM jobs WHERE kind = 'engine.subscribe'").some((j) => JSON.parse(j.payload).feedUrl === "bridge:telegram/durov"));
@@ -63,7 +63,7 @@ test("an archive restores a bridged source as itself, into an empty PURSS and in
   followBridged(same.app, ps);
   const preview = stageImport(same.app, ps, doc);
   applyImport(same.app, ps, preview.token);
-  assert.equal(same.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE workspace_id = ? AND kind <> 'manual'", ps.workspaceId)!.n, 1, "not added twice");
+  assert.equal(same.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE account_id = ? AND kind <> 'manual'", ps.accountId)!.n, 1, "not added twice");
 });
 
 test("an OPML list naming a followed bridged source's page shows it as already followed", (t) => {
@@ -99,7 +99,7 @@ test("a page list is followed as its descriptor, never as a private link, though
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
-  holdCandidate("dsc_page", p.workspaceId, {
+  holdCandidate("dsc_page", p.accountId, {
     feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
     cadence: null, samples: [], route: "bridge:page", entry: "paste", summariesOnly: false, privateWarning: null,
   });
@@ -127,7 +127,7 @@ test("an archive restores a page list as itself", async (t) => {
   const from = makeTestApp();
   t.after(from.cleanup);
   const pa = makeOwner(from.app);
-  holdCandidate("dsc_page", pa.workspaceId, {
+  holdCandidate("dsc_page", pa.accountId, {
     feedUrl: `bridge:page/${PAGE_KEY}`, siteUrl: "https://www.anthropic.com/news", title: "Newsroom", kind: "feed", origin: "Page list", via: "Posts listed on this page",
     cadence: null, samples: [], route: "bridge:page", entry: "paste", summariesOnly: false, privateWarning: null,
   });
@@ -138,6 +138,6 @@ test("an archive restores a page list as itself", async (t) => {
   t.after(into.cleanup);
   const pi = makeOwner(into.app);
   applyImport(into.app, pi, stageImport(into.app, pi, JSON.parse(parts.join(""))).token);
-  const row = into.app.db.get<{ feed_url: string; is_private: number }>("SELECT feed_url, is_private FROM sources WHERE workspace_id = ? AND kind <> 'manual'", pi.workspaceId)!;
+  const row = into.app.db.get<{ feed_url: string; is_private: number }>("SELECT feed_url, is_private FROM sources WHERE account_id = ? AND kind <> 'manual'", pi.accountId)!;
   assert.deepEqual({ ...row }, { feed_url: `bridge:page/${PAGE_KEY}`, is_private: 0 });
 });

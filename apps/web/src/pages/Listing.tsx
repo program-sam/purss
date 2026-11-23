@@ -8,7 +8,7 @@ import { Avatar, AvatarStack, Button, Icon, useBreakpoint } from "@purss/ui";
 import type { MenuEntry } from "@purss/ui";
 import { get, messageOf, patch, post } from "../api/client.ts";
 import type { ListParams } from "../api/queries.ts";
-import { itemListQuery, refreshWorkspace } from "../api/queries.ts";
+import { itemListQuery, refreshPurss } from "../api/queries.ts";
 import { QUILT } from "./Home.tsx";
 import { EngineNotice } from "../components/EngineNotice.tsx";
 import { RetrySource } from "../components/RetrySource.tsx";
@@ -34,7 +34,7 @@ import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
 import { useSelection } from "../state/selection.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { BoardView } from "../views/BoardView.tsx";
 import { CardsView } from "../views/CardsView.tsx";
 import { ListView } from "../views/ListView.tsx";
@@ -95,7 +95,7 @@ function SourceNotes({ s, tz }: { s: SourceDTO; tz: string }) {
 
 function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere: number; onClearFresh: () => void }) {
   const tools = <ListTools place={place} />;
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const qc = useQueryClient();
   const ls = useListState(place);
@@ -142,8 +142,8 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
     const pause = async (pauseFor: "week" | "month" | "until-resumed") => {
       try {
         await patch(url, { pauseFor });
-        refreshWorkspace(qc);
-        toast(t.pausedToast(isolate(s.title), pauseFor), { undo: async () => { await patch(url, { paused: false }); refreshWorkspace(qc); } });
+        refreshPurss(qc);
+        toast(t.pausedToast(isolate(s.title), pauseFor), { undo: async () => { await patch(url, { paused: false }); refreshPurss(qc); } });
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const resume = async () => {
@@ -152,18 +152,18 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       const back = left === null ? "until-resumed" : left > 8 * 86_400_000 ? "month" : "week";
       try {
         await patch(url, { paused: false });
-        refreshWorkspace(qc);
-        toast(t.resumedToast(isolate(s.title)), { undo: async () => { await patch(url, { pauseFor: back }); refreshWorkspace(qc); } });
+        refreshPurss(qc);
+        toast(t.resumedToast(isolate(s.title)), { undo: async () => { await patch(url, { pauseFor: back }); refreshPurss(qc); } });
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const setNotify = async (notify: SourceDTO["notify"]) => {
-      try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, { notify }); refreshWorkspace(qc, { items: false }); toast(t.notificationsToast(isolate(s.title), notify)); }
+      try { await patch(`/api/sources/${encodeURIComponent(s.id)}`, { notify }); refreshPurss(qc, { items: false }); toast(t.notificationsToast(isolate(s.title), notify)); }
       catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
     const setFullText = async (fullText: boolean) => {
       try {
         await patch(`/api/sources/${encodeURIComponent(s.id)}`, { fullText });
-        refreshWorkspace(qc, { items: false });
+        refreshPurss(qc, { items: false });
         toast(fullText ? t.savingFullToast(isolate(s.title), FULL_TEXT_BACKFILL) : t.stoppedFullToast(isolate(s.title)));
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
@@ -172,7 +172,7 @@ function Head({ place, freshHere, onClearFresh }: { place: ListPlace; freshHere:
       if (!makePrivate && !window.confirm(t.showLinkConfirm(s.title))) return;
       try {
         await post(`/api/sources/${encodeURIComponent(s.id)}/privacy`, { private: makePrivate });
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         toast(makePrivate ? t.nowPrivate(isolate(s.title)) : t.nowPublic(isolate(s.title)));
       } catch (err) { toast(messageOf(err), { tone: "error" }); }
     };
@@ -298,7 +298,7 @@ function IgnoredHidden({ ls }: { ls: ReturnType<typeof useListState> }) {
 function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typeof useListState>; hasSources: boolean }) {
   const nav = useNav();
   const overlays = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   // A basket's everything filter includes ignored items; elsewhere it leaves them out.
   const everything = place.t === "b" ? "all" : "active";
   if (ls.filter !== everything || isNarrowed(ls)) {
@@ -330,7 +330,7 @@ function Empty({ place, ls, hasSources }: { place: ListPlace; ls: ReturnType<typ
 }
 
 export function ListingPage({ place }: { place: ListPlace }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const sel = useSelection();
   const actions = useItemActions();

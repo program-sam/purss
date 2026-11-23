@@ -6,7 +6,7 @@ import type { App } from "../app.ts";
  * Which discovery routes are used: for each way discovery found a candidate (its route) and each way the person got to the lookup (its
  * entry), how many candidates were shown ("offered") and how many were followed, per UTC day, across the whole installation. It is the
  * administrator's record of which routes earn their keep and which could go. It stores the two closed ids of domain/discovery-routes.ts and
- * a count, no account, workspace, source, address or title, so it is no part of any account's data or export. Kept 180 days.
+ * a count, no account, source, address or title, so it is no part of any account's data or export. Kept 180 days.
  * A followed source keeps its own route and entry (sources.discovery_route, discovery_entry) for what became of it.
  */
 

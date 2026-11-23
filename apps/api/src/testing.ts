@@ -36,10 +36,10 @@ export function testEmail(name = "tester"): string {
 }
 
 export function makeOwner(app: App, opts: { allocationBytes?: number | null; admin?: boolean } = {}): Principal & { engineUserId: string } {
-  const { accountId, workspaceId } = app.db.tx(() => createAccount(app, { email: testEmail(), emailConfirmed: false, displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
+  const { accountId } = app.db.tx(() => createAccount(app, { email: testEmail(), emailConfirmed: false, displayName: null, admin: opts.admin ?? true, allocationBytes: opts.allocationBytes ?? null, grantedBy: null, password: testPassword() }));
   const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
   app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-  return { accountId, workspaceId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };
+  return { accountId, isAdmin: opts.admin ?? true, sessionId: "test-session", csrf: "x", authAt: nowIso(), engineUserId: eu.id };
 }
 
 /**
@@ -59,8 +59,8 @@ export function makeSource(app: App, p: Principal, title: string, streamId: stri
   // Established by default: its first sync is over, so what it brings is New. `settled: false` is a source just followed.
   // `startFrom`: what it does with its back catalogue (see sync.ts arrivalOf); "all" is a source followed before that choice existed.
   app.db.run(
-    "INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, feed_url, is_private, engine_stream_id, health, created_at, subscribed_at, backlog_settled_at, start_from) VALUES (?, ?, ?, ?, ?, 'RSS feed', ?, ?, ?, 'ok', ?, ?, ?, ?)",
-    id, p.accountId, p.workspaceId, extra.kind ?? "feed", title, extra.isPrivate ? null : `https://example.org/${streamId}.xml`, extra.isPrivate ? 1 : 0, streamId, nowIso(), nowIso(), extra.settled === false ? null : nowIso(), extra.startFrom ?? "all",
+    "INSERT INTO sources (id, account_id, kind, title, origin, feed_url, is_private, engine_stream_id, health, created_at, subscribed_at, backlog_settled_at, start_from) VALUES (?, ?, ?, ?, 'RSS feed', ?, ?, ?, 'ok', ?, ?, ?, ?)",
+    id, p.accountId, extra.kind ?? "feed", title, extra.isPrivate ? null : `https://example.org/${streamId}.xml`, extra.isPrivate ? 1 : 0, streamId, nowIso(), nowIso(), extra.settled === false ? null : nowIso(), extra.startFrom ?? "all",
   );
   return id;
 }

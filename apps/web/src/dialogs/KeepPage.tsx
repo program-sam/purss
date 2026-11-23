@@ -4,12 +4,12 @@ import { app } from "@purss/translations/app";
 import type { BasketDTO, UrlLookup } from "@purss/domain";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { get, messageOf, post } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import type { ManualKeepResult } from "../api/types.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.keepPage;
 
@@ -33,7 +33,7 @@ const webAddress = (raw: string): string | null => {
  */
 export function KeepPageDialog({ url: raw, title: initialTitle }: { url: string; title?: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -58,7 +58,7 @@ export function KeepPageDialog({ url: raw, title: initialTitle }: { url: string;
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url, basketId, ...(title.trim() ? { title: title.trim() } : {}) });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       toast(keptMessage(out, basketName), { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }

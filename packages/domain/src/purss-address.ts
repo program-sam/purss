@@ -9,7 +9,7 @@
 
 import { common } from "@purss/translations/common";
 
-export type WorkspaceAddress = { ok: true; origin: string; unencrypted: boolean } | { ok: false; message: string };
+export type PurssAddress = { ok: true; origin: string; unencrypted: boolean } | { ok: false; message: string };
 
 /** Names that only resolve on a local network (RFC 6762 .local, RFC 8375 .home.arpa, and common private ones). */
 const LOCAL_SUFFIXES = [".local", ".lan", ".internal", ".home.arpa"];
@@ -57,39 +57,39 @@ export function isLocalNetworkHost(hostname: string): boolean {
  * address on this device or the local network, which means http. `unencrypted`: plain HTTP that
  * leaves this device, which the person is told about.
  */
-export function parseWorkspaceAddress(input: string): WorkspaceAddress {
+export function parsePurssAddress(input: string): PurssAddress {
   const raw = input.trim();
-  if (!raw) return { ok: false, message: common.workspaceAddress.empty };
+  if (!raw) return { ok: false, message: common.purssAddress.empty };
   let url: URL;
   try {
     const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
     url = new URL(hasScheme ? raw : `https://${raw}`);
     if (!hasScheme && isLocalNetworkHost(url.hostname)) url = new URL(`http://${raw}`);
   } catch {
-    return { ok: false, message: common.workspaceAddress.notWebAddress };
+    return { ok: false, message: common.purssAddress.notWebAddress };
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return { ok: false, message: common.workspaceAddress.notHttps };
-  if (!url.hostname) return { ok: false, message: common.workspaceAddress.notWebAddress };
-  if (url.username || url.password) return { ok: false, message: common.workspaceAddress.hasLogin };
+  if (url.protocol !== "https:" && url.protocol !== "http:") return { ok: false, message: common.purssAddress.notHttps };
+  if (!url.hostname) return { ok: false, message: common.purssAddress.notWebAddress };
+  if (url.username || url.password) return { ok: false, message: common.purssAddress.hasLogin };
   if (url.protocol === "http:" && !isLocalNetworkHost(url.hostname)) {
-    return { ok: false, message: common.workspaceAddress.unencryptedRefused };
+    return { ok: false, message: common.purssAddress.unencryptedRefused };
   }
   return { ok: true, origin: url.origin, unencrypted: url.protocol === "http:" && !isLoopbackHost(url.hostname) };
 }
 
 /** What the apps and the extension say about an unencrypted PURSS address. */
-export const UNENCRYPTED_NOTE = common.workspaceAddress.unencryptedNote;
+export const UNENCRYPTED_NOTE = common.purssAddress.unencryptedNote;
 
 export type ServerChoice = { kind: "official"; origin: string } | { kind: "other"; address: string };
 
 /**
- * Which server a connect screen starts on: the official one (`official`, OFFICIAL_WORKSPACE_ORIGIN in
+ * Which server a connect screen starts on: the official one (`official`, OFFICIAL_PURSS_ORIGIN in
  * distribution.ts), unless the person chose another one before (`remembered`). With no official server,
  * always the address field, prefilled with what was remembered.
  */
 export function startingServer(remembered: string | null | undefined, official: string): ServerChoice {
-  const off = official.trim() ? parseWorkspaceAddress(official) : null;
-  const before = remembered?.trim() ? parseWorkspaceAddress(remembered) : null;
+  const off = official.trim() ? parsePurssAddress(official) : null;
+  const before = remembered?.trim() ? parsePurssAddress(remembered) : null;
   if (off?.ok && (!before?.ok || before.origin === off.origin)) return { kind: "official", origin: off.origin };
   return { kind: "other", address: before?.ok ? before.origin : (remembered ?? "") };
 }

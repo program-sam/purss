@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNav } from "../nav.ts";
 import { platform } from "../platform/index.ts";
 import { useOverlays } from "../state/overlays.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { widgetListPlace } from "../device/widget.ts";
 import { notificationPlace } from "./notification-target.ts";
 
@@ -13,7 +13,7 @@ import { notificationPlace } from "./notification-target.ts";
  */
 export function OpenLinks() {
   const nav = useNav();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const overlays = useOverlays();
   const latest = useRef({ nav, sources: ws.sourceById, overlays });
   latest.current = { nav, sources: ws.sourceById, overlays };

@@ -286,7 +286,7 @@ enum WidgetRefresh {
         let old = WidgetLists.decode(WidgetFiles.read(WidgetFiles.listsName))
         if wanted.isEmpty && old.isEmpty && !needBootstrap { return .stop }
 
-        let api = WorkspaceAPI(connection)
+        let api = PurssAPI(connection)
         do {
             var wrote = false
             var catalog: WidgetLists.Catalog?
@@ -335,7 +335,7 @@ enum WidgetRefresh {
             if wrote { WidgetCenter.shared.reloadAllTimelines() }
             return .done
         } catch JobError.refused {
-            NSLog("PurssWidgets: the workspace refused the token; removing what the app kept")
+            NSLog("PurssWidgets: the installation refused the token; removing what the app kept")
             // An old connection's refusal: a refresh asked for by the new one still runs.
             return WidgetData.lost(since: since) ? .stop : .done
         } catch is CancellationError {

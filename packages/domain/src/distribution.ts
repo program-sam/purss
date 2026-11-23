@@ -30,7 +30,7 @@ export const STORE_NAMES: Readonly<Record<StoreId, string>> = copy.stores;
  * person chooses another server. Change this value to move the official server; an empty string means
  * there is none, and the apps and the extension ask for an address instead.
  */
-export const OFFICIAL_WORKSPACE_ORIGIN = "https://purss.app";
+export const OFFICIAL_PURSS_ORIGIN = "https://purss.app";
 
 /** The source code and its documentation. */
 export const SOURCE_URL = "https://github.com/program-sam/purss";

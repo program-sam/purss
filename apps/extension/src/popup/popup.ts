@@ -5,7 +5,7 @@ import "@purss/ui/primitives.css";
 import "../lib/pages.css";
 import type { BasketDTO, UrlLookup } from "@purss/domain";
 import { deepLink, isWebPage, itemLink } from "../lib/address.ts";
-import { signedOut, workspace } from "../lib/api.ts";
+import { signedOut, purssClient } from "../lib/api.ts";
 import type { Connection } from "../lib/api.ts";
 import { KEPT_MARK } from "../lib/badge.ts";
 import { ext } from "../lib/browser.ts";
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
 }
 
 async function showPage(conn: Connection, tab: Tab & { id: number; url: string }): Promise<void> {
-  const ws = workspace(conn);
+  const ws = purssClient(conn);
   const settings = await getSettings();
   const status = h("div", { id: "status" }, spinner(extension.popup.checking));
   const result = h("p", { class: "result", id: "result", role: "status" });

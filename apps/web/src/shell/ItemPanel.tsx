@@ -29,7 +29,7 @@ import { useItemMenus } from "../state/item-menus.tsx";
 import { useCurrentPlace } from "./place.ts";
 import { usePopups } from "../state/popups.tsx";
 import type { MenuEntry } from "@purss/ui";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useCachedItem } from "../api/use-item.ts";
 import { MediaSection } from "../player/MediaSection.tsx";
 import { DownloadSection } from "../downloads/DownloadSection.tsx";
@@ -88,7 +88,7 @@ export function ItemPanel({ itemId }: { itemId: string }) {
 const NO_ANNOTATIONS: readonly ViewAnnotation[] = [];
 
 function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDetail | undefined; loading: boolean }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const overlays = useOverlays();
   const actions = useItemActions();

@@ -13,7 +13,7 @@ import { itemDate } from "../lib/items.ts";
 import { useNav } from "../nav.ts";
 import type { Place } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.palette;
 
@@ -34,7 +34,7 @@ function useDebounced<T>(value: T, ms: number): T {
 /** Search and jump (Cmd/Ctrl+K or "/"): items from the server, places and actions from what's already loaded. */
 export function PaletteDialog({ query }: { query?: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const [q, setQ] = useState(query ?? "");
   const [active, setActive] = useState(0);

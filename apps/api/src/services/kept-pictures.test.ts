@@ -322,12 +322,12 @@ test("replacement text from the browser brings the pictures it is missing, also 
   keepItem(app, p, id, text);
   assert.deepEqual(jobs(app), [], "the server's own copy is pending: pictures wait for it");
   // The person's browser sends the text it showed, for an item that is already kept.
-  const first = saveBrowserCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: id, url: "https://comic.example/b", title: "T", html: `<p>${"word ".repeat(100)}</p>${img("browser-1")}`, text: "word ".repeat(100) });
+  const first = saveBrowserCapture(app, { accountId: p.accountId, itemId: id, url: "https://comic.example/b", title: "T", html: `<p>${"word ".repeat(100)}</p>${img("browser-1")}`, text: "word ".repeat(100) });
   assert.equal(first.saved, true);
   assert.deepEqual(jobs(app).map((j) => j.urls), [[url("cover"), url("browser-1")]]);
   // Replacing it with a text that has another picture asks for that one only.
   app.db.tx(() => completeImages(app, { itemId: id, urls: [url("cover"), url("browser-1")] }, delivered([url("cover"), url("browser-1")])));
-  saveBrowserCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: id, url: "https://comic.example/b", title: "T", html: `<p>${"word ".repeat(100)}</p>${img("browser-1")}${img("browser-2")}`, text: "word ".repeat(100) });
+  saveBrowserCapture(app, { accountId: p.accountId, itemId: id, url: "https://comic.example/b", title: "T", html: `<p>${"word ".repeat(100)}</p>${img("browser-1")}${img("browser-2")}`, text: "word ".repeat(100) });
   assert.deepEqual(jobs(app).at(-1)!.urls, [url("browser-2")]);
 });
 

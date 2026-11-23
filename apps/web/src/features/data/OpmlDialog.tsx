@@ -4,10 +4,10 @@ import type { OpmlImportDestination, OpmlImportDTO, OpmlImportEntryDTO, OpmlPrev
 import { app } from "@purss/translations/app";
 import { Button, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, get, messageOf, post } from "../../api/client.ts";
-import { refreshWorkspace } from "../../api/queries.ts";
+import { refreshPurss } from "../../api/queries.ts";
 import { plural } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 
 const t = app.data.opmlDialog;
 
@@ -71,17 +71,17 @@ export function importSummary(i: OpmlImportDTO): string {
 export function OpmlProgressDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const qc = useQueryClient();
   const nav = useNav();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const q = useQuery(opmlImportQuery(id));
   const stop = useMutation({
     mutationFn: () => post<OpmlImportDTO>(`/api/opml/imports/${encodeURIComponent(id)}/stop`),
-    onSuccess: (out) => { qc.setQueryData(["opml-imports", id], out); void qc.invalidateQueries({ queryKey: ["opml-imports"] }); refreshWorkspace(qc); },
+    onSuccess: (out) => { qc.setQueryData(["opml-imports", id], out); void qc.invalidateQueries({ queryKey: ["opml-imports"] }); refreshPurss(qc); },
   });
   const list = q.data;
   const running = list?.status === "running";
   // Sources appear in the sidebar as they are followed.
   const followed = list?.followed ?? 0;
-  useEffect(() => { if (followed) refreshWorkspace(qc); }, [followed, qc]);
+  useEffect(() => { if (followed) refreshPurss(qc); }, [followed, qc]);
   return (
     <Dialog title={running ? t.progress.runningTitle : t.progress.title} size="md" onClose={onClose}
       footer={running
@@ -143,7 +143,7 @@ export function OpmlImports() {
  * first just like Add source, so the list goes on when this window is closed.
  */
 export function OpmlDialog({ preview, fileName, onClose }: { preview: OpmlPreview; fileName: string; onClose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const feeds = preview.feeds;
   const selectable = (f: OpmlPreviewEntry) => !f.alreadyFollowing;
@@ -170,7 +170,7 @@ export function OpmlDialog({ preview, fileName, onClose }: { preview: OpmlPrevie
       const out = await post<OpmlImportDTO>("/api/opml/imports", { fileName, destination: destination(), feeds: chosen.map(([f]) => ({ title: f.title, feedUrl: f.feedUrl, siteUrl: f.siteUrl, folder: f.folder })) });
       qc.setQueryData(["opml-imports", out.id], out);
       void qc.invalidateQueries({ queryKey: ["opml-imports"] });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       setStarted(out.id);
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }

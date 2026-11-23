@@ -4,21 +4,21 @@ import { app } from "@purss/translations/app";
 import type { SourceDTO } from "@purss/domain";
 import { Avatar, Button, Check, Dialog, Field, Icon, TextInput } from "@purss/ui";
 import { del, messageOf, patch } from "../api/client.ts";
-import { putSource, refreshWorkspace } from "../api/queries.ts";
+import { putSource, refreshPurss } from "../api/queries.ts";
 import { isolate } from "../lib/bidi.ts";
 import type { UnfollowResult } from "../api/types.ts";
 import { plural } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.sources;
 
 /** Give a source a name of your own (feeds often have long or generic titles). */
 export function RenameSourceDialog({ id }: { id: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const { toast } = useToasts();
   const s = ws.sourceById.get(id);
@@ -33,9 +33,9 @@ export function RenameSourceDialog({ id }: { id: string }) {
     setBusy(true); setError("");
     try {
       putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: next }));
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
-      toast(t.rename.renamed(isolate(next)), { undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: before })); refreshWorkspace(qc); } });
+      toast(t.rename.renamed(isolate(next)), { undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { title: before })); refreshPurss(qc); } });
     } catch (err) { setError(messageOf(err)); setBusy(false); }
   }
   return (
@@ -54,7 +54,7 @@ export function RenameSourceDialog({ id }: { id: string }) {
 /** Choose the collections a source belongs to. A source may be in several, or none. */
 export function MoveSourceDialog({ id }: { id: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const { toast } = useToasts();
   const s = ws.sourceById.get(id);
@@ -69,11 +69,11 @@ export function MoveSourceDialog({ id }: { id: string }) {
     setBusy(true); setError("");
     try {
       putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { collectionIds: ids }));
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       const before = s.collectionIds;
       toast(ids.length ? t.move.isIn(isolate(s.title), ids.map((c) => ws.collectionById.get(c)?.name).filter((n): n is string => !!n).map(isolate).join(", ")) : t.move.noLonger(isolate(s.title)), {
-        undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { collectionIds: before })); refreshWorkspace(qc); },
+        undo: async () => { putSource(qc, await patch<SourceDTO>(`/api/sources/${encodeURIComponent(id)}`, { collectionIds: before })); refreshPurss(qc); },
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
@@ -104,7 +104,7 @@ export function MoveSourceDialog({ id }: { id: string }) {
 
 export function UnfollowDialog({ id }: { id: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -119,7 +119,7 @@ export function UnfollowDialog({ id }: { id: string }) {
     setBusy(true); setError("");
     try {
       const out = await del<UnfollowResult>(`/api/sources/${encodeURIComponent(id)}${deleteUnkept ? "?deleteUnkept=1" : ""}`);
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       nav.go(s.collectionIds[0] ? { t: "c", id: s.collectionIds[0] } : { t: "home" });
       toast(`${t.unfollow.unfollowed(isolate(s.title))}${out.deletedItems ? t.unfollow.deletedUnkept(plural(out.deletedItems, app.words.item)) : ""}${out.keptItems ? t.unfollow.keptStay(plural(out.keptItems, app.words.keptItem)) : ""}`);

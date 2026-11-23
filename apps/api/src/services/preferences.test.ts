@@ -7,12 +7,12 @@ test("time zone: unset for a new account until a browser reports one", (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);
   const p = makeOwner(app);
-  assert.equal(getPreferences(app, p.workspaceId).timezone, null);
+  assert.equal(getPreferences(app, p.accountId).timezone, null);
   // Saving another preference first must not pin the zone to a default.
-  setPreferences(app, p.workspaceId, { density: "compact" });
-  assert.equal(getPreferences(app, p.workspaceId).timezone, null);
-  setPreferences(app, p.workspaceId, { timezone: "Europe/Brussels" });
-  assert.equal(getPreferences(app, p.workspaceId).timezone, "Europe/Brussels");
+  setPreferences(app, p.accountId, { density: "compact" });
+  assert.equal(getPreferences(app, p.accountId).timezone, null);
+  setPreferences(app, p.accountId, { timezone: "Europe/Brussels" });
+  assert.equal(getPreferences(app, p.accountId).timezone, "Europe/Brussels");
 });
 
 test("time zone: an exported unset zone imports cleanly; unknown zones are refused", () => {

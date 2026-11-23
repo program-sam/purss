@@ -41,7 +41,7 @@ const paragraphs = (n: number) => Array.from({ length: n }, (_, i) => `Paragraph
 function capture(app: App, p: Owner, src: string, feedSummary: string, text: string): { itemId: string; captureId: string } {
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1", { summaryHtml: `<p>${feedSummary}</p>`, contentHtml: null })]));
   const item = listItems(app, p, { scope: `source:${src}`, sort: "newest" }).items[0]!;
-  queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item.id, url: item.url! });
+  queueCapture(app, { accountId: p.accountId, itemId: item.id, url: item.url! });
   const captureId = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ? AND status = 'pending'", item.id)!.id;
   app.db.tx(() => completeCapture(app, captureId, { ok: true, title: "T", text, html: text.split("\n\n").map((t) => `<p>${t}</p>`).join(""), finalUrl: item.url!, bytes: text.length }));
   return { itemId: item.id, captureId };
@@ -124,7 +124,7 @@ test("a partial capture does not set the reading time or pollute search, and doe
   assert.equal(listItems(app, p, { scope: `source:${src}`, q: "groundwater" }).items.length, 1, "its own text still does");
 
   const params: never[] = [];
-  const where = compileQuery({ field: "capture", value: ["fulltext"] }, params, p.workspaceId);
+  const where = compileQuery({ field: "capture", value: ["fulltext"] }, params, p.accountId);
   assert.equal(app.db.get(`SELECT 1 FROM items i WHERE i.id = ? AND ${where}`, itemId), undefined, "not the full text");
   // It is still stored, and counted: nothing is dropped silently.
   assert.ok(usedBytes(app, p.accountId) > esurf.length / 2);
@@ -145,7 +145,7 @@ test("copies saved before the check are checked at start-up, and a fresh databas
   assert.deepEqual(states(good), { quality: "full", partial_reason: null });
   assert.equal(stepCaptureCheck(app), true, "nothing left to check");
   // A browser capture is the person's own browser's text, not checked.
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, text, html, created_at) VALUES ('cap_b', ?, ?, 'browser', 'done', 'x', '<p>x</p>', ?)", p.workspaceId, itemId, new Date().toISOString());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, created_at) VALUES ('cap_b', ?, ?, 'browser', 'done', 'x', '<p>x</p>', ?)", p.accountId, itemId, new Date().toISOString());
   assert.equal(stepCaptureCheck(app), true);
   assert.equal(app.db.get<{ quality: string | null }>("SELECT quality FROM captures WHERE id = 'cap_b'")!.quality, null);
 });
@@ -345,7 +345,7 @@ test("a try that is no better is recorded, so the item is still listed and told 
   assert.equal(tried.note, items.stillPartial(captureQuality.gated.split(": ").slice(1).join(": ")));
   assert.equal(detail.partialCopy?.reason, "short", "the copy it had is still what the toggle shows");
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [itemId], "still listed as failed to improve");
-  runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 1000));
+  runProblemCheck(app, p.accountId, new Date(Date.now() + 1000));
   assert.equal(app.db.all("SELECT 1 FROM notifications WHERE title = ?", notifications.captureFailedFromSource(1, "Journal")).length, 1, "and told about");
 
   // Trying again once more replaces that record with the new attempt, and a better page ends it.

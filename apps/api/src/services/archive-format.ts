@@ -7,7 +7,7 @@ import { server } from "@purss/translations/server";
  * PURSS export archive, schema version 1.
  *
  * One JSON document, written as a stream. Top-level fields, in order:
- *   format           "purss-workspace-export"
+ *   format           "purss-export"
  *   schemaVersion    1; an importer rejects a newer version instead of guessing
  *   exportedAt       ISO time
  *   omitted          plain-language list of what is deliberately not in the file
@@ -41,7 +41,7 @@ import { server } from "@purss/translations/server";
  * addresses and collection-engine identifiers are never written.
  */
 
-export const ARCHIVE_FORMAT = "purss-workspace-export";
+export const ARCHIVE_FORMAT = "purss-export";
 export const ARCHIVE_SCHEMA_VERSION = 1;
 export const SECTION_NAMES = ["sources", "collections", "baskets", "memberships", "items", "preferences"] as const;
 /** Sections an older export lacks; when present they are checked against the manifest like the others. */
@@ -139,7 +139,7 @@ const captureSchema = z.object({
 
 const itemSchema = z.object({
   id,
-  /** The item's number in the workspace it came from (its short link); files made before items had numbers lack it. */
+  /** The item's number in the account it came from (its short link); files made before items had numbers lack it. */
   number: z.number().int().min(1).max(999_999_999_999_999).optional(), // 15 digits, as the short link takes
   sourceId: id.nullable().default(null),
   kind: z.string().max(20).default("article"),

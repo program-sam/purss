@@ -228,10 +228,10 @@ is never in a publication.
 ## Adding a page (data, sharing, admin)
 
 Add an entry to `featurePages` in `src/features/pages.tsx` (discovery, sharing, your data, review and administration are
-there), or push one onto `workspacePages` in `src/plugins.ts` before the router is created:
+there), or push one onto `purssPages` in `src/plugins.ts` before the router is created:
 
 ```ts
-workspacePages.push({ path: "/sharing", title: "Sharing", component: SharingPage, nav: { label: "Sharing", icon: "link" } });
+purssPages.push({ path: "/sharing", title: "Sharing", component: SharingPage, nav: { label: "Sharing", icon: "link" } });
 ```
 
 The route is mounted under the signed-in shell automatically; `nav` adds a sidebar entry,

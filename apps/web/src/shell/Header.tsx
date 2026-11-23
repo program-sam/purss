@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import { Icon, useBreakpoint } from "@purss/ui";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useSession } from "../api/hooks.ts";
 import { HeaderAccount } from "../auth/HeaderAccount.tsx";
 import { useOfflineStatus, showsSavedCopy } from "../offline/status.ts";
@@ -69,7 +69,7 @@ function useCornerReserve(shown: boolean) {
 /** The top of the page area: the notifications bell in the corner, and on phones and tablets, where the sidebar
  *  is a drawer, a slim bar with its toggle and the way back. Desktop pages carry their own heading and tools. */
 export function Header({ drawerOpen, overlaySidebar, onToggleSidebar }: { drawerOpen: boolean; overlaySidebar: boolean; onToggleSidebar: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const place = useCurrentPlace();
   const overlays = useOverlays();
   const popups = usePopups();

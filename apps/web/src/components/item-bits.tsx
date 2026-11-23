@@ -7,7 +7,7 @@ import type { IconName } from "@purss/ui";
 import { workflowLabel } from "../lib/constants.ts";
 import { isTimeBased, isYouTube, itemExcerpt, itemPicture, lengthText, manualSiteName, safeHref } from "../lib/items.ts";
 import { usePendingMark } from "../outbox/hooks.ts";
-import { useRowLookups } from "../state/workspace.tsx";
+import { useRowLookups } from "../state/purss.tsx";
 
 const t = app.components.itemBits;
 

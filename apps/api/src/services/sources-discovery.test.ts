@@ -136,7 +136,7 @@ test("the same feed written another way (http or https, a trailing slash, tracki
   // Following it returns the source already followed instead of a second one.
   const { followSource } = sourcesModule;
   assert.equal(followSource(app, p, { token: found[0]!.token, collectionId: null, newCollectionName: null }).id, existing);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE workspace_id = ?", p.workspaceId)!.n, 1);
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE account_id = ?", p.accountId)!.n, 1);
 });
 
 test("a feed whose newest posts are a followed source's (the same feed at another address) is pointed out; a section inside it, or a few shared posts, is not", (t) => {

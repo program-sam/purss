@@ -3,9 +3,9 @@ import "@purss/ui/tokens.css";
 import "@purss/ui/primitives.css";
 import "../lib/pages.css";
 import type { ConnectInfo } from "@purss/domain";
-import { OFFICIAL_WORKSPACE_ORIGIN } from "@purss/domain/distribution";
-import { parseWorkspaceAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain/workspace-address";
-import { WorkspaceError, exchangeCode, fetchInfo, workspace } from "../lib/api.ts";
+import { OFFICIAL_PURSS_ORIGIN } from "@purss/domain/distribution";
+import { parsePurssAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain/purss-address";
+import { PurssError, exchangeCode, fetchInfo, purssClient } from "../lib/api.ts";
 import type { Connection } from "../lib/api.ts";
 import { ext } from "../lib/browser.ts";
 import { challengeFor, cleanTypedCode, connectPageUrl, deviceNameFor, randomVerifier, readRedirect } from "../lib/connect.ts";
@@ -34,13 +34,13 @@ async function finish(origin: string, info: ConnectInfo, p: { code: string; veri
   const conn: Connection = { origin, name: info.name, token: out.token, deviceId: out.device.id, deviceName: out.device.name, browserCapture: info.features.browserCapture === true };
   await setConnection(conn);
   typed = null;
-  await setBaskets(await workspace(conn).baskets()).catch(() => undefined);
+  await setBaskets(await purssClient(conn).baskets()).catch(() => undefined);
   await render();
 }
 
 function connectForm(remembered: string | null): HTMLElement {
-  const choice = startingServer(remembered, OFFICIAL_WORKSPACE_ORIGIN);
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const choice = startingServer(remembered, OFFICIAL_PURSS_ORIGIN);
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   let other = choice.kind === "other";
   const address = h("input", { class: "in", id: "address", type: "text", inputmode: "url", autocomplete: "url", spellcheck: "false", placeholder: extension.options.connect.addressPlaceholder });
   address.value = choice.kind === "other" ? choice.address : "";
@@ -63,7 +63,7 @@ function connectForm(remembered: string | null): HTMLElement {
       h("button", { class: "btn primary", type: "button", id: "finish", onclick: () => void finishTyped() }, extension.options.connect.finish)));
 
   async function start(mode: "redirect" | "typed") {
-    const parsed = parseWorkspaceAddress(other || official.kind !== "official" ? address.value : official.origin);
+    const parsed = parsePurssAddress(other || official.kind !== "official" ? address.value : official.origin);
     if (!parsed.ok) return message(status, parsed.message, "error");
     message(status, extension.options.connect.looking);
     try {
@@ -106,7 +106,7 @@ function connectForm(remembered: string | null): HTMLElement {
     try {
       await finish(typed.origin, typed.info, { code, verifier: typed.verifier });
     } catch (err) {
-      message(status, err instanceof WorkspaceError && err.code === "invalid_grant" ? extension.options.connect.codeDidntWork : errorText(err), "error");
+      message(status, err instanceof PurssError && err.code === "invalid_grant" ? extension.options.connect.codeDidntWork : errorText(err), "error");
     }
   }
 
@@ -132,7 +132,7 @@ function connected(conn: Connection): HTMLElement {
     h("div", { class: "hrow" }, h("button", { class: "btn", type: "button", id: "disconnect", onclick: () => void (async () => {
       message(status, extension.options.connected.disconnecting);
       // Revoke the token on the PURSS; forget it here even if the PURSS can't be reached.
-      await workspace(conn).disconnect().catch(() => undefined);
+      await purssClient(conn).disconnect().catch(() => undefined);
       await forgetConnection();
       await render();
     })() }, extension.options.connected.disconnect)),

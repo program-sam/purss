@@ -9,7 +9,7 @@ import { useItemActions } from "../state/actions.ts";
 import { useItemMenus } from "../state/item-menus.tsx";
 import { useQuickDownload } from "../player/quick-download.ts";
 import { useSelection } from "../state/selection.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import type { RowCtx, RowMarks } from "./row-context.tsx";
 
 function createMarks(active: string | undefined, selected: ReadonlySet<string>) {
@@ -35,7 +35,7 @@ function createMarks(active: string | undefined, selected: ReadonlySet<string>) 
  */
 export function useRowContextValue(basket: BasketDTO | null, keeps: (item: ItemDTO) => boolean): RowCtx {
   const nav = useNav();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const sel = useSelection();
   const actions = useItemActions();
   const menus = useItemMenus();

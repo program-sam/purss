@@ -307,8 +307,7 @@ export function updateAccount(app: App, admin: Principal, id: string, patch: { a
       changes.push(`status ${acct.status} -> ${patch.status}`);
       if (patch.status === "suspended") {
         signOutEverywhere(app, id, "suspension");
-        const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", id);
-        if (ws) pauseAllShares(app, ws.id); // suspension ends public sharing; copies already fetched can't be recalled
+        pauseAllShares(app, id); // suspension ends public sharing; copies already fetched can't be recalled
       }
     }
     if (patch.isAdmin !== undefined) {

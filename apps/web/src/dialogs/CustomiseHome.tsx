@@ -4,12 +4,12 @@ import { app } from "@purss/translations/app";
 import type { Bootstrap, Preferences } from "@purss/domain";
 import { Button, Dialog, Icon, IconButton, Segmented, Check } from "@purss/ui";
 import { messageOf, patch } from "../api/client.ts";
-import { keys, refreshWorkspace } from "../api/queries.ts";
+import { keys, refreshPurss } from "../api/queries.ts";
 import { OTHER_BOX_ID, homeBoxes } from "../pages/home-boxes.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useSavePreferences } from "../state/prefs.ts";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.customiseHome;
 
@@ -29,7 +29,7 @@ const LAYOUTS: { value: Layout; label: string; blurb: string; thumb: ReactNode }
 /** Layout, which collections show and in what order, and density. Saved as you go, and Home follows at once. */
 export function CustomiseHomeDialog() {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const save = useSavePreferences();
   const { toast } = useToasts();
@@ -57,7 +57,7 @@ export function CustomiseHomeDialog() {
     try { await patch(`/api/collections/${encodeURIComponent(id)}`, { showOnHome: on }); } catch (err) {
       if (before) qc.setQueryData<Bootstrap>(keys.bootstrap, (cur) => (cur ? { ...cur, collections: cur.collections.map((c) => (c.id === id ? { ...c, showOnHome: !on } : c)) } : cur));
       toast(messageOf(err), { tone: "error" });
-    } finally { refreshWorkspace(qc, { items: false }); }
+    } finally { refreshPurss(qc, { items: false }); }
   }
   async function reset() {
     await save({ homeLayout: "collections", homeCollectionIds: [], homeOther: true, density: "comfortable" });

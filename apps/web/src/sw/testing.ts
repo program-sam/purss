@@ -30,7 +30,7 @@ export class FakeCaches {
   names(): string[] { return [...this.stores.keys()].sort(); }
 }
 
-export const ORIGIN = "http://workspace.test";
+export const ORIGIN = "http://purss.test";
 
 export type Network = {
   /** Answers by path (and query); a function can decide per request. */

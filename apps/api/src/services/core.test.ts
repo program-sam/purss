@@ -300,7 +300,7 @@ test("re-following an imported feed attaches mappings instead of duplicating", (
   t.after(cleanup);
   const e = entry("feed/1");
   // An imported item: same source and link, but no engine mapping.
-  app.db.tx(() => insertItem(app, { accountId: p.accountId, workspaceId: p.workspaceId, sourceId: src, kind: "article", title: e.title, url: e.url, author: null,
+  app.db.tx(() => insertItem(app, { accountId: p.accountId, sourceId: src, kind: "article", title: e.title, url: e.url, author: null,
     summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: e.publishedAt, discoveredAt: e.crawledAt, enclosures: [], fresh: false, reason: "import" }));
   const r = applySyncBatch(app, p.engineUserId, batch([{ ...e, originalGuid: null }]));
   assert.equal(r.accepted, 0);
@@ -429,7 +429,7 @@ test("private sources never put item titles in notifications", (t) => {
   t.after(cleanup);
   const patron = makeSource(app, p, "Patron feed", "feed/9", { isPrivate: true });
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", patron);
-  app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ notifications: { mode: "browser", previews: true, quietStart: null, quietEnd: null } }), "x");
+  app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?)", p.accountId, JSON.stringify({ notifications: { mode: "browser", previews: true, quietStart: null, quietEnd: null } }), "x");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/9", { title: "Secret patron-only episode" })]));
   const n = app.db.get<{ title: string; body: string | null }>("SELECT title, body FROM notifications")!;
   assert.equal(n.body, null);
@@ -444,7 +444,7 @@ test("an expired reservation is not subtracted twice when its capture settles la
   const basket = createBasket(app, p, { name: "Text", captureMode: "text" });
   keepItem(app, p, item.id, basket.id);
   app.db.run("UPDATE reservations SET expires_at = '2000-01-01T00:00:00.000Z'");
-  app.db.tx(() => admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: "filler", bytes: 1_200_000, reason: "test", control: true }));
+  app.db.tx(() => admitObject(app, { accountId: p.accountId, kind: "record", refId: "filler", bytes: 1_200_000, reason: "test", control: true }));
   const cap = app.db.get<{ id: string }>("SELECT id FROM captures")!;
   app.db.tx(() => completeCapture(app, cap.id, { ok: true, title: "T", text: "x".repeat(2_500_000), html: "<p>x</p>", finalUrl: "https://example.org/", bytes: 1 }));
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures")!.status, "failed", "over the allocation, so the copy is refused");
@@ -503,7 +503,7 @@ test("a source set to notify still notifies when the PURSS setting is off; other
   t.after(cleanup);
   const loud = makeSource(app, p, "Loud", "feed/5");
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", loud);
-  app.db.run("INSERT INTO preferences (workspace_id, value, updated_at) VALUES (?, ?, ?)", p.workspaceId, JSON.stringify({ notifications: { mode: "off" } }), "x");
+  app.db.run("INSERT INTO preferences (account_id, value, updated_at) VALUES (?, ?, ?)", p.accountId, JSON.stringify({ notifications: { mode: "off" } }), "x");
   applySyncBatch(app, p.engineUserId, batch([entry("feed/1"), entry("feed/5")]));
   const rows = app.db.all<{ source_id: string }>("SELECT source_id FROM notifications");
   assert.deepEqual(rows.map((r) => r.source_id), [loud]);

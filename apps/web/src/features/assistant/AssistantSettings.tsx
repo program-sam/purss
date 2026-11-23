@@ -9,7 +9,7 @@ import { shortDate, timeAgo } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useOverlays } from "../../state/overlays.tsx";
 import { useToasts } from "../../state/toasts.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { CopyButton, Note } from "../shared/bits.tsx";
 import { useStepUp } from "../shared/step-up.tsx";
 
@@ -36,7 +36,7 @@ function ConnectInstructions({ endpoint, secret, access }: { endpoint: string; s
 }
 
 function TokenRow({ t, onRevoke }: { t: AssistantTokenDTO; onRevoke: () => void }) {
-  const tz = useWorkspace().prefs.timezone;
+  const tz = usePurss().prefs.timezone;
   const expired = t.expiresAt !== null && Date.parse(t.expiresAt) <= Date.now();
   return (
     <li>
@@ -55,7 +55,7 @@ function TokenRow({ t, onRevoke }: { t: AssistantTokenDTO; onRevoke: () => void 
 }
 
 function GrantRow({ g, onRevoke }: { g: AssistantGrantDTO; onRevoke: () => void }) {
-  const tz = useWorkspace().prefs.timezone;
+  const tz = usePurss().prefs.timezone;
   return (
     <li>
       <Icon name="user" />

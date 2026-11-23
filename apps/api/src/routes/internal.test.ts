@@ -39,8 +39,8 @@ function leaseOne(app: App, kind: Parameters<typeof leaseJobs>[1][number]) {
   return job;
 }
 
-const syncJob = (app: App, owner: { accountId: string; workspaceId: string; engineUserId: string }) =>
-  enqueue(app, "engine.sync", { engineUserId: owner.engineUserId }, { accountId: owner.accountId, workspaceId: owner.workspaceId, idempotencyKey: `sync:${owner.engineUserId}` });
+const syncJob = (app: App, owner: { accountId: string; engineUserId: string }) =>
+  enqueue(app, "engine.sync", { engineUserId: owner.engineUserId }, { accountId: owner.accountId, idempotencyKey: `sync:${owner.engineUserId}` });
 
 const checkpoint = (app: App, engineUserId: string) =>
   app.db.get<{ last_error: string | null; last_attempt_at: string | null; consecutive_failures: number }>("SELECT last_error, last_attempt_at, consecutive_failures FROM sync_checkpoints WHERE engine_user_id = ?", engineUserId);
@@ -146,7 +146,7 @@ test("the wait after consecutive sync failures is 1, 5, 15 then 60 minutes, neve
 function pendingSource(app: App, owner: Principal & { engineUserId: string }, stream = "feed/9") {
   const id = makeSource(app, owner, "Reddit: r/x", stream);
   app.db.run("UPDATE sources SET engine_stream_id = NULL, health = 'pending', health_text = 'Getting the first items…' WHERE id = ?", id);
-  enqueue(app, "engine.subscribe", { engineUserId: owner.engineUserId, sourceId: id, feedUrl: "https://www.reddit.com/r/x/.rss", title: "Reddit: r/x" }, { accountId: owner.accountId, workspaceId: owner.workspaceId, idempotencyKey: `subscribe:${id}` });
+  enqueue(app, "engine.subscribe", { engineUserId: owner.engineUserId, sourceId: id, feedUrl: "https://www.reddit.com/r/x/.rss", title: "Reddit: r/x" }, { accountId: owner.accountId, idempotencyKey: `subscribe:${id}` });
   return id;
 }
 

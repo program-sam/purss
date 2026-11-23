@@ -12,7 +12,7 @@ import { planOf } from "./plans.ts";
  * rows with what they belong to.
  */
 
-type Owner = Pick<Principal, "accountId" | "workspaceId">;
+type Owner = Pick<Principal, "accountId" | "accountId">;
 
 /** The server's key, set by an administrator (Admin → Smart filters). */
 const SERVER_KEY_FILE = "jev-server-key";
@@ -109,8 +109,8 @@ export function serverTokensOf(app: App, accountId: string): number | null {
 // ---------- rows that go with what they belong to ----------
 
 /** A collection that is deleted takes its filter with it. Call in the deleting transaction, before the collection goes. */
-export function forgetCollectionFilter(app: App, workspaceId: string, collectionId: string): void {
-  const r = app.db.get<{ id: string }>("SELECT id FROM ai_filters WHERE collection_id = ? AND workspace_id = ?", collectionId, workspaceId);
+export function forgetCollectionFilter(app: App, accountId: string, collectionId: string): void {
+  const r = app.db.get<{ id: string }>("SELECT id FROM ai_filters WHERE collection_id = ? AND account_id = ?", collectionId, accountId);
   if (!r) return;
   app.db.run("DELETE FROM ai_filter_verdicts WHERE filter_id = ?", r.id);
   app.db.run("DELETE FROM ai_filters WHERE id = ?", r.id);

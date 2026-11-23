@@ -16,7 +16,7 @@ import type { ListFilter } from "./lib/constants.ts";
 import type { ListSearch } from "./nav.ts";
 import { HomePage } from "./pages/Home.tsx";
 import { ListingPage } from "./pages/Listing.tsx";
-import { workspacePages } from "./plugins.ts";
+import { purssPages } from "./plugins.ts";
 import { Shell } from "./shell/Shell.tsx";
 
 // Pages few visits need load when first opened, so PURSS starts with less code.
@@ -147,8 +147,8 @@ const tokenSearch = (s: Record<string, unknown>) => compact({ token: str(s.token
 const verifyEmailRoute = createRoute({ getParentRoute: () => rootRoute, path: "/verify-email", component: VerifyEmailPage, validateSearch: tokenSearch });
 const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: "/reset-password", component: ResetPasswordPage, validateSearch: tokenSearch });
 
-const workspaceRoute = createRoute({
-  getParentRoute: () => rootRoute, id: "workspace", component: Shell,
+const purssRoute = createRoute({
+  getParentRoute: () => rootRoute, id: "purss", component: Shell,
   beforeLoad: async ({ context, location }) => {
     const s = await sessionOf(context.queryClient);
     // A link into PURSS (a basket, or a deep link from the extension or a bookmarklet) survives signing in.
@@ -162,7 +162,7 @@ const workspaceRoute = createRoute({
  * saved first, so a saved item's link opens without a connection, and asked of the PURSS otherwise.
  */
 const shortItemRoute = createRoute({
-  getParentRoute: () => workspaceRoute, path: "/i/$number",
+  getParentRoute: () => purssRoute, path: "/i/$number",
   beforeLoad: async ({ context, params }) => {
     if (!/^[1-9][0-9]{0,14}$/.test(params.number)) throw notFound();
     const number = Number(params.number);
@@ -181,11 +181,11 @@ const shortItemRoute = createRoute({
   },
 });
 
-const homeRoute = createRoute({ getParentRoute: () => workspaceRoute, path: "/", validateSearch: homeSearch, component: HomePage });
+const homeRoute = createRoute({ getParentRoute: () => purssRoute, path: "/", validateSearch: homeSearch, component: HomePage });
 
 function listing(t: "c" | "s" | "b" | "r") {
   return createRoute({
-    getParentRoute: () => workspaceRoute, path: `/${t}/$id`, validateSearch: listSearch,
+    getParentRoute: () => purssRoute, path: `/${t}/$id`, validateSearch: listSearch,
     component: function ListingRoute() {
       const { id } = useParams({ strict: false }) as { id: string };
       return <ListingPage key={`${t}:${id}`} place={{ t, id }} />;
@@ -196,7 +196,7 @@ function listing(t: "c" | "s" | "b" | "r") {
 /** Private statistics for a collection or a source, reached from its page header. */
 function statsPage(t: "c" | "s") {
   return createRoute({
-    getParentRoute: () => workspaceRoute, path: `/${t}/$id/stats`, validateSearch: itemAndDialog,
+    getParentRoute: () => purssRoute, path: `/${t}/$id/stats`, validateSearch: itemAndDialog,
     component: function StatsRoute() {
       const { id } = useParams({ strict: false }) as { id: string };
       return <StatsPage key={`${t}:${id}`} place={{ t, id }} />;
@@ -209,12 +209,12 @@ function statsPage(t: "c" | "s") {
  * Reading the registry when the tree is built means a page registered before startup gets its route.
  */
 function pluginRoutes() {
-  return workspacePages.map((p) => createRoute({ getParentRoute: () => workspaceRoute, path: p.path, validateSearch: itemAndDialog, component: p.component }));
+  return purssPages.map((p) => createRoute({ getParentRoute: () => purssRoute, path: p.path, validateSearch: itemAndDialog, component: p.component }));
 }
 
 export function buildRouteTree() {
   return rootRoute.addChildren([
     setupRoute, signinRoute, inviteRoute, signupRoute, connectRoute, authorizeRoute, verifyEmailRoute, resetPasswordRoute,
-    workspaceRoute.addChildren([homeRoute, shortItemRoute, listing("c"), listing("s"), listing("b"), listing("r"), statsPage("c"), statsPage("s"), ...pluginRoutes()]),
+    purssRoute.addChildren([homeRoute, shortItemRoute, listing("c"), listing("s"), listing("b"), listing("r"), statsPage("c"), statsPage("s"), ...pluginRoutes()]),
   ]);
 }

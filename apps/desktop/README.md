@@ -171,7 +171,7 @@ level in its `app-build.json` against its own. The built-in interface is the one
 
 ## Trying it
 
-`apps/mobile/scripts/emulator-workspace.ts` gives a throwaway PURSS with a small library: start it, run the app,
+`apps/mobile/scripts/emulator-purss.ts` gives a throwaway PURSS with a small library: start it, run the app,
 choose *Use another server*, type `http://localhost:19990` and sign in with the email address and password it printed. The app keeps
 its state in the system's usual places (on Linux `~/.local/share/app.purss` and
 `~/.config/app.purss`) and its downloads in `~/Downloads/PURSS`.

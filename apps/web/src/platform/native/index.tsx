@@ -6,7 +6,7 @@ import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import type { BundleInfo } from "@capgo/capacitor-updater";
-import { APPS_RELEASE_MANIFEST, OFFICIAL_WORKSPACE_ORIGIN, startingServer } from "@purss/domain";
+import { APPS_RELEASE_MANIFEST, OFFICIAL_PURSS_ORIGIN, startingServer } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
 import { CapacitorShareTarget } from "@capgo/capacitor-share-target";
 import { AudioPlayer } from "@mediagrid/capacitor-native-audio";
@@ -22,7 +22,7 @@ import { wipeOfflineCopies } from "../../offline/worker-link.ts";
 import { clearHints } from "../../state/ui-store.ts";
 import { OfflineWorker } from "../../sw/offline-worker.ts";
 import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
-import { workspacePolicy } from "../csp.ts";
+import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
 import { browserNotifier } from "../web.ts";
 import type { AppConnection, OfflineHost, Platform, Transport } from "../types.ts";
@@ -145,7 +145,7 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
   const phone = conn && pushConfig ? devicePush(conn.origin, pushConfig) : null;
 
   let player: AppPlayerBackend | null = null;
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   const updates = conn ? createInterfaceUpdates({
     origin: conn.origin,
     official: official.kind === "official" && official.origin === conn.origin,
@@ -294,7 +294,7 @@ const LAUNCH_KEY = "purss:launch-opened";
 function limitPageTo(origin: string, relay: string): void {
   const meta = document.createElement("meta");
   meta.httpEquiv = "Content-Security-Policy";
-  meta.content = workspacePolicy(origin, [relay]);
+  meta.content = purssPolicy(origin, [relay]);
   document.head.prepend(meta);
 }
 

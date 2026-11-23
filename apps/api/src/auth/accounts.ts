@@ -70,25 +70,23 @@ export function emailInUse(app: App, email: string): boolean {
  * whether the address was proven (a link it received, or a provider that vouched for it). An address another account
  * has is refused (409 email_in_use).
  */
-export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string; workspaceId: string } {
+export function createAccount(app: App, opts: { email: string; emailConfirmed: boolean; displayName: string | null; admin: boolean; allocationBytes: number | null; grantedBy: string | null; password: PreparedPassword | null }): { accountId: string } {
   const accountId = newId("acc");
-  const workspaceId = newId("wsp");
   const now = nowIso();
   if (emailInUse(app, opts.email)) throw new HttpError(409, "email_in_use", server.api.accounts.emailInUseSignInOrReset);
   app.db.run("INSERT INTO accounts (id, display_name, email, email_verified_at, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     accountId, opts.displayName, opts.email.trim(), opts.emailConfirmed ? now : null, initialPlan(app), now);
   if (opts.password) storePassword(app, accountId, opts.password);
-  app.db.run("INSERT INTO workspaces (id, account_id, created_at) VALUES (?, ?, ?)", workspaceId, accountId, now);
   app.db.run("INSERT INTO storage_accounts (account_id, allocation_bytes) VALUES (?, ?)", accountId, opts.allocationBytes);
   if (opts.admin) app.db.run("INSERT INTO role_grants (account_id, role, granted_at, granted_by) VALUES (?, 'admin', ?, ?)", accountId, now, opts.grantedBy);
   // Each account gets its own engine user (never one shared upstream user).
   const engineUserId = newId("eng");
   const username = `purss${engineUserId.slice(-12)}`;
-  app.db.run("INSERT INTO engine_users (id, account_id, workspace_id, username, created_at) VALUES (?, ?, ?, ?, ?)", engineUserId, accountId, workspaceId, username, now);
-  enqueue(app, "engine.provision", { engineUserId, username }, { accountId, workspaceId, idempotencyKey: `provision:${engineUserId}`, maxAttempts: 20 });
+  app.db.run("INSERT INTO engine_users (id, account_id, username, created_at) VALUES (?, ?, ?, ?)", engineUserId, accountId, username, now);
+  enqueue(app, "engine.provision", { engineUserId, username }, { accountId, idempotencyKey: `provision:${engineUserId}`, maxAttempts: 20 });
   // Such as the installation's news source with its newest posts (services/news.ts), from the first visit on.
-  runAccountCreated(app, accountId, workspaceId);
-  return { accountId, workspaceId };
+  runAccountCreated(app, accountId);
+  return { accountId };
 }
 
 // ---------- sessions ----------
@@ -183,9 +181,9 @@ export function recentAuthAvailable(app: App, accountId: string, sessionId: stri
 export function resolvePrincipal(app: App, cookieToken: string | undefined): Principal | null {
   if (!cookieToken) return null;
   const id = sha256(cookieToken);
-  const row = app.db.get<{ id: string; account_id: string; csrf: string; expires_at: string; auth_at: string; last_seen_at: string; status: string; workspace_id: string; session_class: string }>(
-    `SELECT s.id, s.account_id, s.csrf, s.expires_at, s.auth_at, s.last_seen_at, s.session_class, a.status, w.id AS workspace_id
-     FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN workspaces w ON w.account_id = a.id WHERE s.id = ?`, id);
+  const row = app.db.get<{ id: string; account_id: string; csrf: string; expires_at: string; auth_at: string; last_seen_at: string; status: string; session_class: string }>(
+    `SELECT s.id, s.account_id, s.csrf, s.expires_at, s.auth_at, s.last_seen_at, s.session_class, a.status
+     FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?`, id);
   if (!row || row.expires_at <= nowIso() || !isAccountUsable(app, row.account_id)) return null;
   let renewed = false;
   if (Date.now() - Date.parse(row.last_seen_at) > 60_000) {
@@ -194,7 +192,7 @@ export function resolvePrincipal(app: App, cookieToken: string | undefined): Pri
     renewed = true;
   }
   const isAdmin = !!app.db.get("SELECT 1 FROM role_grants WHERE account_id = ? AND role = 'admin'", row.account_id);
-  return { accountId: row.account_id, workspaceId: row.workspace_id, isAdmin, sessionId: row.id, csrf: row.csrf, authAt: row.auth_at, renewed };
+  return { accountId: row.account_id, isAdmin, sessionId: row.id, csrf: row.csrf, authAt: row.auth_at, renewed };
 }
 
 export function sessionInfo(ctx: Ctx): SessionInfo {

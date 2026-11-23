@@ -5,7 +5,7 @@ import type { DiscoveryCandidate, DiscoveryResult, SourceDTO } from "@purss/doma
 import { app } from "@purss/translations/app";
 import { Button, Dialog, Icon } from "@purss/ui";
 import { messageOf, post } from "../../api/client.ts";
-import { refreshWorkspace } from "../../api/queries.ts";
+import { refreshPurss } from "../../api/queries.ts";
 import { preselect } from "../../lib/discovery.ts";
 import { useToasts } from "../../state/toasts.tsx";
 
@@ -40,7 +40,7 @@ export function ReconnectDialog({ source, onClose }: { source: SourceDTO; onClos
     setBusy(true); setError("");
     try {
       await post(`/api/sources/${encodeURIComponent(source.id)}/reconnect`, { token: cand.token });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       onClose();
       toast(t.reconnected(source.title));
     } catch (err) { setError(messageOf(err)); setBusy(false); }

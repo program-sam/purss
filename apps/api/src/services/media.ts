@@ -29,9 +29,9 @@ export function itemLinkIsMedia(url: string | null, enclosuresJson: string | nul
 
 // ---------------------------------------------------------------- playback position
 
-export function getPlayback(app: App, workspaceId: string, itemId: string): PlaybackPosition | null {
+export function getPlayback(app: App, accountId: string, itemId: string): PlaybackPosition | null {
   const r = app.db.get<{ position_seconds: number; duration_seconds: number | null; updated_at: string }>(
-    "SELECT position_seconds, duration_seconds, updated_at FROM playback_positions WHERE item_id = ? AND workspace_id = ?", itemId, workspaceId);
+    "SELECT position_seconds, duration_seconds, updated_at FROM playback_positions WHERE item_id = ? AND account_id = ?", itemId, accountId);
   return r ? { positionSeconds: r.position_seconds, durationSeconds: r.duration_seconds, updatedAt: r.updated_at } : null;
 }
 
@@ -47,18 +47,18 @@ export function savePlayback(app: App, p: Principal, itemId: string, input: { po
   const recorded = input.recordedAt ? new Date(input.recordedAt) : now;
   const at = (Number.isNaN(recorded.getTime()) || recorded > now ? now : recorded).toISOString();
   app.db.tx(() => {
-    if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", itemId, p.workspaceId)) throw notFound(server.api.shared.thatItem);
+    if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND account_id = ?", itemId, p.accountId)) throw notFound(server.api.shared.thatItem);
     app.db.run(
-      `INSERT INTO playback_positions (item_id, account_id, workspace_id, position_seconds, duration_seconds, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO playback_positions (item_id, account_id, position_seconds, duration_seconds, updated_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(item_id) DO UPDATE SET position_seconds = excluded.position_seconds, duration_seconds = COALESCE(excluded.duration_seconds, duration_seconds), updated_at = excluded.updated_at
        WHERE excluded.updated_at >= playback_positions.updated_at`,
-      itemId, p.accountId, p.workspaceId, position, input.durationSeconds, at);
+      itemId, p.accountId, position, input.durationSeconds, at);
     const key = `playback:${itemId}`;
     if (!app.db.get("SELECT 1 FROM stored_objects WHERE kind = 'record' AND ref_id = ? AND released_at IS NULL", key)) {
-      admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, itemId, bytes: STATE_RECORD_BYTES, reason: "playback position", control: true });
+      admitObject(app, { accountId: p.accountId, kind: "record", refId: key, itemId, bytes: STATE_RECORD_BYTES, reason: "playback position", control: true });
     }
   });
-  return getPlayback(app, p.workspaceId, itemId)!;
+  return getPlayback(app, p.accountId, itemId)!;
 }
 
 /** Called inside deleteItemNow's transaction: drop the item's playback position (its ledger record is released with the item's other objects). */

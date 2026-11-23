@@ -10,7 +10,7 @@ import { FREQUENCY_LABELS, WEEKDAYS, freshDaysChoices } from "../lib/returning.t
 import { OTHER_BOX_ID } from "../pages/home-boxes.ts";
 import { useSavePreferences } from "../state/prefs.ts";
 import { platform } from "../platform/index.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.notificationSettings;
 
@@ -18,7 +18,7 @@ const FREQUENCIES: NotificationFrequency[] = ["daily", "weekly", "off"];
 
 /** Settings → Notifications and New: how and when to be told, what about, quiet hours, and how New markers behave. */
 export function NotificationSettings() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const p = ws.prefs;
   const n = p.notifications;

@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ToastView } from "@purss/ui";
 import type { ToastAction } from "@purss/ui";
 import { messageOf, post } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import type { UndoResult } from "../api/types.ts";
 import { isTypingTarget, isUndoKey } from "../lib/keys.ts";
 import { keyboardLikely } from "../lib/keyboard.ts";
@@ -86,7 +86,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback((message: string, opts: ToastOptions = {}) => {
     const id = ++seq.current;
-    const undoFn = opts.undo ?? (opts.undoToken ? async () => { await post<UndoResult>("/api/undo", { undoToken: opts.undoToken }); refreshWorkspace(qc); } : null);
+    const undoFn = opts.undo ?? (opts.undoToken ? async () => { await post<UndoResult>("/api/undo", { undoToken: opts.undoToken }); refreshPurss(qc); } : null);
     const next: Live = {
       id, message, sticky: !!opts.sticky, actions: (opts.actions ?? []).map((a) => ({ ...a, onSelect: () => { dismiss(); a.onSelect(); } })),
       undo: undoFn ? () => {

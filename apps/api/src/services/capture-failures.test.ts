@@ -35,8 +35,8 @@ let attempt = 0;
 /** A readable copy that failed at `at`. */
 function failed(app: App, p: Owner, itemId: string, at: Date): string {
   const id = `cap_f${++attempt}`;
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?, ?)",
-    id, p.workspaceId, itemId, at.toISOString(), at.toISOString());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'failed', 'x', ?, ?)",
+    id, p.accountId, itemId, at.toISOString(), at.toISOString());
   return id;
 }
 
@@ -58,12 +58,12 @@ test("a source's failed texts are one named notification for the day that counts
 
   failed(app, p, posts[0]!, minutes(-50));
   failed(app, p, kept[0]!, minutes(-45));
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, minutes(-40)), 2);
+  assert.equal(runProblemCheck(app, p.accountId, minutes(-40)), 2);
   failed(app, p, kept[0]!, minutes(-30)); // the same item again
   failed(app, p, posts[1]!, minutes(-20));
   failed(app, p, posts[2]!, minutes(-10));
   failed(app, p, kept[1]!, minutes(-5));
-  runProblemCheck(app, p.workspaceId, p.accountId, NOW);
+  runProblemCheck(app, p.accountId, NOW);
 
   const rows = bell(app, p);
   assert.deepEqual(rows.map((n) => n.title).sort(), [notifications.captureFailedFromSource(2, "A family blog"), notifications.captureFailedFromSource(3, "r/Genealogy")],
@@ -84,9 +84,9 @@ test("Never still announces readable text that failed to save", (t) => {
   const src = makeSource(app, p, "Journal", "feed/never");
   app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
   const [item] = items(app, p, src, "feed/never", 1);
-  setPreferences(app, p.workspaceId, { notifications: { frequency: "off" } });
+  setPreferences(app, p.accountId, { notifications: { frequency: "off" } });
   failed(app, p, item!, minutes(-5));
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, NOW), 1);
+  assert.equal(runProblemCheck(app, p.accountId, NOW), 1);
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
 });
 
@@ -97,17 +97,17 @@ test("a later failure the same day grows that day's notification and makes it un
   app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
   const [a, b, c] = items(app, p, src, "feed/1", 3);
   failed(app, p, a!, minutes(-60));
-  runProblemCheck(app, p.workspaceId, p.accountId, minutes(-50));
+  runProblemCheck(app, p.accountId, minutes(-50));
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
   app.db.run("UPDATE notifications SET read_at = ?", NOW.toISOString());
 
   failed(app, p, b!, minutes(-30));
-  runProblemCheck(app, p.workspaceId, p.accountId, minutes(-20));
+  runProblemCheck(app, p.accountId, minutes(-20));
   assert.deepEqual(bell(app, p).map((n) => [n.title, n.read]), [[notifications.captureFailedFromSource(2, "Journal"), false]], "the same row, grown and unread again");
 
   const tomorrow = new Date(NOW.getTime() + 24 * 3_600_000);
   failed(app, p, c!, new Date(tomorrow.getTime() - 60_000));
-  runProblemCheck(app, p.workspaceId, p.accountId, tomorrow);
+  runProblemCheck(app, p.accountId, tomorrow);
   assert.deepEqual(bell(app, p).map((n) => n.title).sort(), [notifications.captureFailedFromSource(1, "Journal"), notifications.captureFailedFromSource(2, "Journal")]);
 });
 
@@ -121,11 +121,11 @@ test("only where the person turned text saving on: a source with full articles, 
   // The text copies of the first two are not something this person asked for; nothing says so.
   failed(app, p, loose!, minutes(-10));
   failed(app, p, inMetadataBasket!, minutes(-10));
-  assert.equal(runProblemCheck(app, p.workspaceId, p.accountId, NOW), 0);
+  assert.equal(runProblemCheck(app, p.accountId, NOW), 0);
   assert.deepEqual(bell(app, p), []);
 
   failed(app, p, inTextBasket!, minutes(-5));
-  runProblemCheck(app, p.workspaceId, p.accountId, NOW);
+  runProblemCheck(app, p.accountId, NOW);
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Plain")]);
 
   // Turned off again, a new failure on an item no text basket holds is not news.
@@ -133,7 +133,7 @@ test("only where the person turned text saving on: a source with full articles, 
   const [fresh] = items(app, p, plain, "feed/plain", 1);
   app.db.run("UPDATE sources SET full_text = 0 WHERE id = ?", plain);
   failed(app, p, fresh!, minutes(-1));
-  runProblemCheck(app, p.workspaceId, p.accountId, minutes(1));
+  runProblemCheck(app, p.accountId, minutes(1));
   assert.equal(bell(app, p)[0]!.title, notifications.captureFailedFromSource(1, "Plain"));
 });
 
@@ -144,16 +144,16 @@ test("an item that has a copy by now, or a muted source, is not news; kept links
   app.db.run("UPDATE sources SET full_text = 1 WHERE id = ?", src);
   const [recovered, stillFailed] = items(app, p, src, "feed/1", 2);
   failed(app, p, recovered!, minutes(-10));
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at, completed_at) VALUES ('cap_ok', ?, ?, 'fulltext', 'done', ?, ?)", p.workspaceId, recovered!, minutes(-5).toISOString(), minutes(-5).toISOString());
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, created_at, completed_at) VALUES ('cap_ok', ?, ?, 'fulltext', 'done', ?, ?)", p.accountId, recovered!, minutes(-5).toISOString(), minutes(-5).toISOString());
   failed(app, p, stillFailed!, minutes(-10));
-  runProblemCheck(app, p.workspaceId, p.accountId, NOW);
+  runProblemCheck(app, p.accountId, NOW);
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")], "the item that now has its text is left out");
   assert.deepEqual(listItems(app, p, { scope: "all", capture: "failed" }).items.map((i) => i.id), [stillFailed], "and is not in the filtered list either");
 
   const noisy = makeSource(app, p, "Noisy", "feed/noisy");
   app.db.run("UPDATE sources SET full_text = 1, notify = 'muted' WHERE id = ?", noisy);
   failed(app, p, items(app, p, noisy, "feed/noisy", 1)[0]!, minutes(-3));
-  runProblemCheck(app, p.workspaceId, p.accountId, minutes(1));
+  runProblemCheck(app, p.accountId, minutes(1));
   assert.equal(bell(app, p).length, 1, "a source set to muted never notifies");
 
 });
@@ -167,7 +167,7 @@ test("a kept link has no feed to open: its notification names the basket and ope
   for (const id of [a!, b!]) keepItem(app, p, id, pages);
   failed(app, p, a!, minutes(-5));
   failed(app, p, b!, minutes(-4));
-  runProblemCheck(app, p.workspaceId, p.accountId, NOW);
+  runProblemCheck(app, p.accountId, NOW);
   const row = bell(app, p).find((n) => n.listFilter === "capture-failed")!;
   assert.equal(row.title, notifications.captureFailedInBasket(2, true, "Pages"));
   assert.equal(row.sourceId, null, "the Saved links source is not a page of its own");
@@ -182,7 +182,7 @@ test("a kept link has no feed to open: its notification names the basket and ope
   keepItem(app, p, c!, more);
   app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", gone);
   failed(app, p, c!, minutes(-3));
-  runProblemCheck(app, p.workspaceId, p.accountId, minutes(1));
+  runProblemCheck(app, p.accountId, minutes(1));
   const unfollowed = bell(app, p).find((n) => n.basketId === more)!;
   assert.equal(unfollowed.title, notifications.captureFailedInBasket(1, false, "More"));
   assert.equal(unfollowed.sourceId, null);
@@ -203,7 +203,7 @@ test("a readable copy asked for on one link counts, in a basket that keeps only 
   // The same basket without the box ticked: no copy was asked for, and a failed one (made some other way) is not news.
   await keepLink(app, p, { url: "https://plain.example/b", basketId: details }, async () => null);
   failed(app, p, b!, minutes(-5));
-  runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 60_000));
+  runProblemCheck(app, p.accountId, new Date(Date.now() + 60_000));
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Plain")]);
 });
 
@@ -222,13 +222,13 @@ test("a link of a private source is not fetched for its readable text, however i
   assert.equal(app.db.get("SELECT 1 FROM jobs WHERE kind = 'capture.fulltext'"), undefined, "and nothing is queued for the worker");
   assert.ok(app.db.get("SELECT 1 FROM basket_items WHERE item_id = ?", item), "the link itself is kept");
   // queueCapture itself refuses, so no other caller can bypass it.
-  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: item, url: "https://secret.example/post/1" }), false);
+  assert.equal(queueCapture(app, { accountId: p.accountId, itemId: item, url: "https://secret.example/post/1" }), false);
 });
 
 test("following a source starts text saving only when it is asked for", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);
-  const candidate = (token: string, feedUrl: string) => holdCandidate(token, p.workspaceId, { feedUrl, siteUrl: "https://s.example/", title: feedUrl, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
+  const candidate = (token: string, feedUrl: string) => holdCandidate(token, p.accountId, { feedUrl, siteUrl: "https://s.example/", title: feedUrl, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: true, privateWarning: null });
   // A summaries-only feed, followed with the box left alone: the request carries no choice at all.
   candidate("dsc_a", "https://a.example/feed.xml");
   const left = followSource(app, p, followSchema.parse({ token: "dsc_a", collectionId: null, newCollectionName: null }));
@@ -260,7 +260,7 @@ test("a try again that fails after a partial copy is told about and listed, like
   const again = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ? AND status = 'pending'", item)!.id;
   app.db.tx(() => failCapture(app, again, "The page couldn't be captured."));
 
-  runProblemCheck(app, p.workspaceId, p.accountId, new Date(Date.now() + 1000));
+  runProblemCheck(app, p.accountId, new Date(Date.now() + 1000));
   assert.deepEqual(bell(app, p).map((n) => n.title), [notifications.captureFailedFromSource(1, "Journal")]);
   assert.deepEqual(listItems(app, p, { scope: `source:${src}`, capture: "failed" }).items.map((i) => i.id), [item]);
   // An item that only has a partial copy, and nothing failed, is neither.
@@ -299,7 +299,7 @@ test("a video or a podcast episode kept in a text basket queues no readable copy
   assert.deepEqual(bell(app, p), [], "nothing failed, so nothing is reported");
 
   // The person's own choice still works: a page kept by hand, and trying a failed copy again.
-  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: video!.id, url: video!.url! }), false, "even asked for directly, the feed's own video page is not read");
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at) VALUES ('cap_old', ?, ?, 'fulltext', 'failed', 'x', ?)", p.workspaceId, video!.id, new Date().toISOString());
-  assert.equal(queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId: video!.id, url: video!.url! }, { again: true }), true, "trying again is the person's request");
+  assert.equal(queueCapture(app, { accountId: p.accountId, itemId: video!.id, url: video!.url! }), false, "even asked for directly, the feed's own video page is not read");
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at) VALUES ('cap_old', ?, ?, 'fulltext', 'failed', 'x', ?)", p.accountId, video!.id, new Date().toISOString());
+  assert.equal(queueCapture(app, { accountId: p.accountId, itemId: video!.id, url: video!.url! }, { again: true }), true, "trying again is the person's request");
 });

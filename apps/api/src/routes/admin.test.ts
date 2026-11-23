@@ -429,7 +429,7 @@ test("usage reconciliation reports differences per account, changes no object, a
   const clean = (await b.as(s).post("/api/admin/usage/reconcile")).json;
   assert.equal(clean.mismatched, 0);
   assert.equal(clean.accounts[0].differenceBytes, 0);
-  b.app.db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, ?, 'record', 'orphan', 777, 'x')", p.accountId, p.workspaceId);
+  b.app.db.run("INSERT INTO stored_objects (id, account_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, 'record', 'orphan', 777, 'x')", p.accountId);
   const bad = (await b.as(s).post("/api/admin/usage/reconcile")).json;
   assert.equal(bad.mismatched, 1);
   assert.equal(bad.accounts[0].differenceBytes, -777);

@@ -22,7 +22,7 @@ export function frameCheck(app: App, p: Principal, raw: string, checker: FrameCh
   try { url = new URL(raw); } catch { throw badRequest(server.api.frameCheck.notWebAddress); }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw badRequest(server.api.frameCheck.onlyWebAddresses);
   url.hash = "";
-  const key = `${p.workspaceId} ${url.href}`;
+  const key = `${p.accountId} ${url.href}`;
   const now = Date.now();
   const hit = known.get(key);
   if (hit && hit.expires > now) return hit.check;

@@ -73,10 +73,9 @@ function prepare(): void {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, NAME, testPassword());
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: ws, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     const ids = SOURCES.map((title, i) => makeSource(app, p, title, `feed/${i + 1}`));
     applySyncBatch(app, eu, batch([

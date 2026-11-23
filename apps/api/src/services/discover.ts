@@ -124,7 +124,7 @@ function sharedFollows(app: App): FollowRow[] {
     `SELECT s.account_id, s.feed_url, s.title, s.site_url, s.kind FROM sources s
      WHERE s.followed = 1 AND s.is_private = 0 AND s.feed_url IS NOT NULL AND s.kind IN (${KINDS.map((k) => `'${k}'`).join(", ")})
        AND ${usableAccountSql("s.account_id")}
-       AND COALESCE((SELECT json_extract(p.value, '$.discoveryShare') FROM preferences p WHERE p.workspace_id = s.workspace_id), 1) = 1`);
+       AND COALESCE((SELECT json_extract(p.value, '$.discoveryShare') FROM preferences p WHERE p.account_id = s.account_id), 1) = 1`);
 }
 
 /** Replace the graph with one built from the follows that count now. */
@@ -203,7 +203,7 @@ export function ownSources(app: App, p: Principal): { skip: Set<string>; mine: M
   const skip = new Set<string>();
   const mine = new Map<string, string>();
   for (const s of app.db.all<{ id: string; feed_url: string; followed: number }>(
-    "SELECT id, feed_url, followed FROM sources WHERE workspace_id = ? AND feed_url IS NOT NULL ORDER BY created_at, id", p.workspaceId)) {
+    "SELECT id, feed_url, followed FROM sources WHERE account_id = ? AND feed_url IS NOT NULL ORDER BY created_at, id", p.accountId)) {
     const k = feedKey(s.feed_url);
     if (!k) continue;
     skip.add(k);
@@ -214,8 +214,8 @@ export function ownSources(app: App, p: Principal): { skip: Set<string>; mine: M
 
 /** A private source keeps only a keyed hash of its address: a candidate with the same hash is the reader's already, and joins `skip`. */
 export function skipPrivate(app: App, p: Principal, candidates: readonly { key: string; feed_url: string }[], skip: Set<string>): void {
-  const privateKeys = new Set(app.db.all<{ feed_key: string }>("SELECT feed_key FROM sources WHERE workspace_id = ? AND feed_key IS NOT NULL", p.workspaceId).map((r) => r.feed_key));
-  if (privateKeys.size) for (const r of candidates) { const k = privateFeedKey(app, p.workspaceId, r.feed_url); if (k && privateKeys.has(k)) skip.add(r.key); }
+  const privateKeys = new Set(app.db.all<{ feed_key: string }>("SELECT feed_key FROM sources WHERE account_id = ? AND feed_key IS NOT NULL", p.accountId).map((r) => r.feed_key));
+  if (privateKeys.size) for (const r of candidates) { const k = privateFeedKey(app, p.accountId, r.feed_url); if (k && privateKeys.has(k)) skip.add(r.key); }
 }
 
 const CHUNK = 400;
@@ -225,12 +225,12 @@ export function suggestionsFor(app: App, p: Principal, now = new Date()): Discov
   if (app.config.mode !== "hosted") throw notFound(server.api.discover.discoverName);
   // Suggestions are for readers who share their own sources: that is the exchange. Until the graph holds
   // a source, there is nothing to suggest to anyone and the page says it is coming.
-  const sharing = getPreferences(app, p.workspaceId).discoveryShare;
+  const sharing = getPreferences(app, p.accountId).discoveryShare;
   const ready = !!app.db.get("SELECT 1 FROM discovery_sources LIMIT 1");
   if (!sharing || !ready) return { sharing, ready, suggestions: [] };
   // What the reader follows, followed once, or said no to never comes back as a suggestion.
   const { skip, mine } = ownSources(app, p);
-  for (const d of app.db.all<{ key: string }>("SELECT key FROM discovery_dismissed WHERE workspace_id = ?", p.workspaceId)) skip.add(d.key);
+  for (const d of app.db.all<{ key: string }>("SELECT key FROM discovery_dismissed WHERE account_id = ?", p.accountId)) skip.add(d.key);
 
   const all = app.db.all<{ key: string; feed_url: string; followers: number }>("SELECT key, feed_url, followers FROM discovery_sources");
   const followers = new Map(all.map((r) => [r.key, r.followers]));
@@ -253,7 +253,7 @@ export function suggestionsFor(app: App, p: Principal, now = new Date()): Discov
     key, score: s.score, because: s.parts.sort((x, y) => y.w - x.w).slice(0, 2).map((x) => x.id),
   }));
   const popular = [...followers].map(([key, n]) => ({ key, followers: n }));
-  const picked = arrange(matched, popular, skip, `${p.workspaceId}:${now.toISOString().slice(0, 10)}`);
+  const picked = arrange(matched, popular, skip, `${p.accountId}:${now.toISOString().slice(0, 10)}`);
 
   const info = new Map<string, { feed_url: string; title: string; host: string | null; kind: Kind }>();
   const pickedKeys = picked.map((x) => x.key);
@@ -275,7 +275,7 @@ export function suggestionsFor(app: App, p: Principal, now = new Date()): Discov
 export function dismissSuggestion(app: App, p: Principal, key: string): { ok: true } {
   if (app.config.mode !== "hosted") throw notFound(server.api.discover.discoverName);
   // Only a source that can be suggested is remembered, so the list can't grow with made-up keys.
-  app.db.run("INSERT INTO discovery_dismissed (workspace_id, key, created_at) SELECT ?, key, ? FROM discovery_sources WHERE key = ? ON CONFLICT DO NOTHING", p.workspaceId, nowIso(), key);
+  app.db.run("INSERT INTO discovery_dismissed (account_id, key, created_at) SELECT ?, key, ? FROM discovery_sources WHERE key = ? ON CONFLICT DO NOTHING", p.accountId, nowIso(), key);
   return { ok: true };
 }
 
@@ -290,7 +290,7 @@ export const letters = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]/gu,
  * then the most followed; the counts themselves are not returned.
  */
 export function sourcesNamed(app: App, p: Principal, query: string): { title: string; host: string | null; feedUrl: string }[] {
-  if (app.config.mode !== "hosted" || !getPreferences(app, p.workspaceId).discoveryShare) return [];
+  if (app.config.mode !== "hosted" || !getPreferences(app, p.accountId).discoveryShare) return [];
   const q = letters(query);
   if (q.length < 2) return [];
   const rows = app.db.all<{ title: string; host: string | null; feed_url: string; followers: number }>("SELECT title, host, feed_url, followers FROM discovery_sources");

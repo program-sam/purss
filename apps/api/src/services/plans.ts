@@ -12,7 +12,7 @@ import { server } from "@purss/translations/server";
  */
 
 const FOLLOWED_SOURCES = "SELECT COUNT(*) AS n FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual'";
-const COLLECTIONS = "SELECT COUNT(*) AS n FROM collections c JOIN workspaces w ON w.id = c.workspace_id WHERE w.account_id = ?";
+const COLLECTIONS = "SELECT COUNT(*) AS n FROM collections c WHERE c.account_id = ?";
 
 const isPlan = (v: string | null): v is Plan => v !== null && (PLAN_NAMES as readonly string[]).includes(v);
 

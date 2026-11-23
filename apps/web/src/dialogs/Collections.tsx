@@ -4,7 +4,7 @@ import { app } from "@purss/translations/app";
 import type { CollectionDTO, ViewMode } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, Segmented, TextInput } from "@purss/ui";
 import { del, messageOf, patch, post } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import { VIEW_LABELS, VIEW_MODES } from "../lib/constants.ts";
 import { plural } from "../lib/format.ts";
 import { capacityOf, collectionLimitNote } from "../lib/plan-limits.ts";
@@ -14,7 +14,7 @@ import type { QueryDraft } from "../lib/query-builder.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { EmojiField, QueryBuilder, SourcePicks } from "./parts.tsx";
 
 const t = app.dialogs.collections;
@@ -23,7 +23,7 @@ type Mode = CollectionDTO["mode"];
 
 export function NewCollectionDialog() {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -49,10 +49,10 @@ export function NewCollectionDialog() {
     setBusy(true);
     try {
       const c = await post<CollectionDTO>("/api/collections", { name: name.trim(), emoji: emoji.trim() || null, mode, sourceIds: mode === "sources" ? sourceIds : [], query, view: "list" });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       toast(t.newCollection.created(c.name, mode === "sources" && sourceIds.length ? t.newCollection.withSources(plural(sourceIds.length, app.words.sourceLower)) : ""), {
-        undo: async () => { await del(`/api/collections/${encodeURIComponent(c.id)}`); refreshWorkspace(qc); },
+        undo: async () => { await del(`/api/collections/${encodeURIComponent(c.id)}`); refreshPurss(qc); },
         actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "c", id: c.id }) }],
       });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
@@ -91,7 +91,7 @@ export function NewCollectionDialog() {
 
 export function CollectionSettingsDialog({ id }: { id: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -126,9 +126,9 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
     setBusy(true);
     try {
       await patch(`/api/collections/${encodeURIComponent(id)}`, body);
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
-      toast(t.settings.saved, { undo: async () => { await patch(`/api/collections/${encodeURIComponent(id)}`, before); refreshWorkspace(qc); } });
+      toast(t.settings.saved, { undo: async () => { await patch(`/api/collections/${encodeURIComponent(id)}`, before); refreshPurss(qc); } });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
 
@@ -137,7 +137,7 @@ export function CollectionSettingsDialog({ id }: { id: string }) {
     setBusy(true);
     try {
       await del(`/api/collections/${encodeURIComponent(id)}`);
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       nav.go({ t: "home" });
       toast(t.settings.deleted(c.name));

@@ -38,7 +38,7 @@ function rebuild(doc: any): any {
   return { ...doc, manifest: { algorithm: "sha256", sections } };
 }
 
-function twoWorkspaces(allocationB: number | null = null) {
+function twoAccounts(allocationB: number | null = null) {
   const a = makeTestApp();
   const b = makeTestApp();
   const pa = makeOwner(a.app);
@@ -59,11 +59,11 @@ test("export holds no secrets, no private addresses and no engine identifiers", 
   const { text, doc } = await exportDoc(app, p);
 
   for (const forbidden of [PRIVATE_FEED_URL, "SUPERSECRETTOKEN123", PRIVATE_ITEM_URL, "ITEMSECRET456", "feeds.example", "test-token", "CREDENTIALID123", "Z2tIGr5Ikvymvbvh", "ABCDEF123456",
-    "tag:google.com", '"feed/1"', '"feed/2"', p.accountId, p.workspaceId, p.engineUserId, "engine_stream", "secret_hash", "csrf"]) {
+    "tag:google.com", '"feed/1"', '"feed/2"', p.accountId, p.engineUserId, "engine_stream", "secret_hash", "csrf"]) {
     assert.ok(!text.includes(forbidden), `export must not contain ${forbidden}`);
   }
   parseArchive(doc); // manifest, counts and hashes verify
-  assert.equal(doc.format, "purss-workspace-export");
+  assert.equal(doc.format, "purss-export");
   assert.equal(doc.schemaVersion, 1);
   assert.ok(!("savedQueries" in doc), "saved searches no longer exist, so an export has no section for them");
   assert.ok(doc.omitted.length >= 5 && doc.omitted.includes(archiveFormat.privateLinksLeftOut), "an omitted section explains the exclusions");
@@ -159,7 +159,7 @@ test("damaged, cut-short, foreign and newer archives are rejected with plain mes
 });
 
 test("import round trip into a fresh PURSS keeps everything, including kept versions and captures", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   changeState(a, pa, lib.pinnedOld.itemId, { workflow: "toread", progress: 0.5, expectedRevision: 0 });
@@ -275,7 +275,7 @@ test("import round trip into a fresh PURSS keeps everything, including kept vers
 });
 
 test("an older export with hand-picked collections imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   createCollection(a, pa, { name: "Letters", emoji: null, mode: "sources", sourceIds: [lib.publicSource], query: null, view: "list" });
@@ -302,7 +302,7 @@ test("an older export with hand-picked collections imports without them, says so
 });
 
 test("an older export with saved searches imports without them, says so, and keeps everything else", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const { doc } = await exportDoc(a, pa);
@@ -392,7 +392,7 @@ test("an older export that marked back catalogue with `backlog` imports its unto
 });
 
 test("highlights and notes round-trip: removed ones stay out, text references follow the new ids, and a second import adds none", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const at = "2026-10-30T09:00:00.000Z";
@@ -431,7 +431,7 @@ test("highlights and notes round-trip: removed ones stay out, text references fo
   assert.equal(listItems(b, pb, { scope: "all", filter: "all", q: "bioturbation" }).total, 1, "imported notes are searchable");
 
   // Times from the future in a file are capped at the import, so an imported annotation can't win every later edit.
-  const { b: f, pb: pf, cleanup: cleanupF } = twoWorkspaces();
+  const { b: f, pb: pf, cleanup: cleanupF } = twoAccounts();
   t.after(cleanupF);
   const future = rebuild({ ...doc, annotations: doc.annotations.map((x: Record<string, unknown>) => ({ ...x, createdAt: "2099-01-01T00:00:00.000Z", updatedAt: "2099-01-02T00:00:00.000Z" })) });
   const importedAt = new Date().toISOString();
@@ -446,19 +446,19 @@ test("highlights and notes round-trip: removed ones stay out, text references fo
   assert.equal(count(b, "annotations"), 2);
 
   // An older file without the section still imports; an annotation on an item the file doesn't hold is skipped.
-  const { b: c, pb: pc, cleanup: cleanupC } = twoWorkspaces();
+  const { b: c, pb: pc, cleanup: cleanupC } = twoAccounts();
   t.after(cleanupC);
   const old = rebuild({ ...doc, annotations: undefined });
   delete old.annotations;
   assert.equal(applyImport(c, pc, stageImport(c, pc, old).token).created.annotations, 0);
   const stray = rebuild({ ...doc, annotations: [{ ...doc.annotations[0], itemId: "itm_not_in_file" }] });
-  const { b: d, pb: pd, cleanup: cleanupD } = twoWorkspaces();
+  const { b: d, pb: pd, cleanup: cleanupD } = twoAccounts();
   t.after(cleanupD);
   assert.equal(applyImport(d, pd, stageImport(d, pd, stray).token).created.annotations, 0);
 });
 
 test("import into an occupied PURSS reconciles by source and link, merges baskets, and keeps existing state", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const { doc } = await exportDoc(a, pa);
@@ -501,7 +501,7 @@ test("import into an occupied PURSS reconciles by source and link, merges basket
 });
 
 test("an import that does not fit writes nothing and stays staged until there is room", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces(400);
+  const { a, b, pa, pb, cleanup } = twoAccounts(400);
   t.after(cleanup);
   seedLibrary(a, pa);
   const { doc } = await exportDoc(a, pa);
@@ -519,7 +519,7 @@ test("an import that does not fit writes nothing and stays staged until there is
 });
 
 test("space is checked again when the import is applied, not only at preview time", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const preview = stageImport(b, pb, (await exportDoc(a, pa)).doc);
@@ -530,7 +530,7 @@ test("space is checked again when the import is applied, not only at preview tim
 });
 
 test("a hostile archive cannot smuggle scripts, credentials or private links into the PURSS", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const doc = (await exportDoc(a, pa)).doc;
@@ -561,7 +561,7 @@ test("a hostile archive cannot smuggle scripts, credentials or private links int
 });
 
 test("a private source restored as 'Reconnect required' resumes only when the owner supplies the link again", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   applyImport(b, pb, stageImport(b, pb, (await exportDoc(a, pa)).doc).token);
@@ -571,7 +571,7 @@ test("a private source restored as 'Reconnect required' resumes only when the ow
   assert.throws(() => reconnectSource(b, pb, priv, "no-such-token"), (e: unknown) => e instanceof HttpError && e.status === 400);
 
   const token = newId("dsc");
-  holdCandidate(token, pb.workspaceId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
+  holdCandidate(token, pb.accountId, { feedUrl: PRIVATE_FEED_URL, siteUrl: null, title: "x", kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   reconnectSource(b, pb, priv, token);
   const row = b.db.get<{ paused: number; health: string; feed_url: string | null }>("SELECT paused, health, feed_url FROM sources WHERE id = ?", priv)!;
   assert.deepEqual([row.paused, row.health, row.feed_url], [0, "pending", null], "the address stays outside the database");
@@ -582,7 +582,7 @@ test("a private source restored as 'Reconnect required' resumes only when the ow
 });
 
 test("a staged import belongs to its PURSS and expires", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   seedLibrary(a, pa);
   const preview = stageImport(b, pb, (await exportDoc(a, pa)).doc);
@@ -597,7 +597,7 @@ test("a staged import belongs to its PURSS and expires", async (t) => {
 });
 
 test("imported items are searchable in their folded form, like collected ones", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   makeSource(a, pa, "حبر", "feed/arabic");
   applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/arabic", { title: "الكِتَابُ الجديد في عمّان", url: "https://example.org/kitab" })]));
@@ -608,7 +608,7 @@ test("imported items are searchable in their folded form, like collected ones", 
 });
 
 test("Remind me days round-trip with their notes; days gone by, items not kept and days already set are left alone", async (t) => {
-  const { a, b, pa, pb, cleanup } = twoWorkspaces();
+  const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);
   const lib = seedLibrary(a, pa);
   const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
@@ -631,7 +631,7 @@ test("Remind me days round-trip with their notes; days gone by, items not kept a
   assert.equal(applyImport(b, pb, stageImport(b, pb, doc).token).created.reminders, 0, "the same file again adds none");
 
   // A day that has gone by, and a reminder on an item the file doesn't hold, are skipped.
-  const { b: c, pb: pc, cleanup: cleanupC } = twoWorkspaces();
+  const { b: c, pb: pc, cleanup: cleanupC } = twoAccounts();
   t.after(cleanupC);
   const odd = rebuild({ ...doc, itemReminders: [{ itemId: doc.itemReminders[0].itemId, remindOn: day(-3), note: "too late" }, { itemId: "itm_not_in_file", remindOn: day(4), note: null }] });
   assert.equal(applyImport(c, pc, stageImport(c, pc, odd).token).created.reminders, 0);

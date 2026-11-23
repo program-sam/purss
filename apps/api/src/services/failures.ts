@@ -109,8 +109,8 @@ export function settleFailedJob(app: App, job: { kind: string; payload: Record<s
  * has no subscription job waiting or running, so a retry already on its way is not doubled.
  */
 export function retryOverloadedSubscribes(app: App): void {
-  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; workspace_id: string; eu: string }>(
-    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, eu.id AS eu
+  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; eu: string }>(
+    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, eu.id AS eu
      FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
      WHERE s.followed = 1 AND s.kind <> 'manual' AND s.builtin IS NULL AND s.via_gateway = 0 AND s.health = 'error' AND s.engine_stream_id IS NULL
        AND s.health_reason = 'unavailable'
@@ -121,7 +121,7 @@ export function retryOverloadedSubscribes(app: App): void {
     const feedUrl = s.is_private ? `secret:source-urls/${s.id}` : s.feed_url;
     if (!feedUrl || feedUrl.startsWith("bridge:")) continue;
     try {
-      enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
+      enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title }, { accountId: s.account_id, idempotencyKey: `gateway-retry:${s.id}` });
     } catch (err) {
       // An account that is suspended or being deleted starts nothing; it is looked at again when it is usable.
       if (!(err instanceof HttpError)) throw err;
@@ -149,8 +149,8 @@ export const EARLIER_NOT_A_FEED_TEXT = "The address answers, but not with a feed
  * not followed, a subscription already waiting) is reworded and left. An account that is suspended or being deleted is left as it is until it is usable.
  */
 export function retryEarlierSizeFailures(app: App): void {
-  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; workspace_id: string; eu: string; health_text: string; retryable: number; waiting: number }>(
-    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.workspace_id, s.health_text, eu.id AS eu,
+  const rows = app.db.all<{ id: string; title: string; feed_url: string | null; is_private: number; account_id: string; eu: string; health_text: string; retryable: number; waiting: number }>(
+    `SELECT s.id, s.title, s.feed_url, s.is_private, s.account_id, s.health_text, eu.id AS eu,
             (s.followed = 1 AND s.kind <> 'manual' AND s.builtin IS NULL AND s.engine_stream_id IS NULL) AS retryable,
             EXISTS (SELECT 1 FROM jobs j WHERE j.idempotency_key = 'subscribe:' || s.id AND j.status IN ('queued', 'leased')) AS waiting
      FROM sources s JOIN engine_users eu ON eu.account_id = s.account_id AND eu.status = 'ready'
@@ -163,7 +163,7 @@ export function retryEarlierSizeFailures(app: App): void {
     try {
       app.db.tx(() => {
         app.db.run("UPDATE sources SET health_text = ?, health_reason = ? WHERE id = ? AND health = 'error' AND health_text = ?", subscribeGaveUpText(tooLarge ? undefined : "not_a_feed"), tooLarge ? null : "not_a_feed", s.id, s.health_text);
-        if (retry) enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title, trim: true }, { accountId: s.account_id, workspaceId: s.workspace_id, idempotencyKey: `gateway-retry:${s.id}` });
+        if (retry) enqueue(app, "engine.subscribe", { engineUserId: s.eu, sourceId: s.id, feedUrl, title: s.title, trim: true }, { accountId: s.account_id, idempotencyKey: `gateway-retry:${s.id}` });
       });
     } catch (err) {
       // An account that became unusable since it was read starts nothing, and keeps its text for the next time; any other failure is not hidden.

@@ -18,7 +18,7 @@ import { calmLine, isToListen, isToRead, isToWatch, sinceLine } from "../lib/ret
 import { useNav } from "../nav.ts";
 import { useItemActions } from "../state/actions.ts";
 import { setHints, useHints } from "../state/ui-store.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import "./home.css";
 
 const t = app.pages.welcomeBack;
@@ -42,7 +42,7 @@ function useLive(items: readonly ItemDTO[]): ItemDTO[] {
 
 /** The line under the Home title: today's date, and what is New, since the last visit when there was one. */
 export function HomeBand() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const q = useHomeOverview();
   if (!ws.data.sources.length) return null;
@@ -75,7 +75,7 @@ export function HomeBand() {
 
 function RowBox({ id, title, count, children }: { id: string; title: string; count?: number; children: ReactNode }) {
   const hints = useHints();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const key = `home:${id}`;
   // Closed until the user opens it; opening it is remembered on this browser.
   const shut = !hints.opened.includes(key);
@@ -99,7 +99,7 @@ function RowBox({ id, title, count, children }: { id: string; title: string; cou
 const PROBLEM_HEALTH: ReadonlySet<SourceDTO["health"]> = new Set(["error", "login", "reconnect", "paused"]);
 
 function Attention() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const sources = ws.data.sources.filter((s) => PROBLEM_HEALTH.has(s.health));
   if (!sources.length) return null;
@@ -124,7 +124,7 @@ function Attention() {
 
 /** Under Home's rows: how many items the muted words left out of Home, and a way to see them. */
 export function MutedLine() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const o = useHomeOverview().data;
   const showing = (useSearch({ strict: false }) as { muted?: string }).muted === "show" && ws.prefs.mutedWords.length > 0;
   return <MutedNotice hidden={o?.mutedHidden ?? 0} atLeast={o?.mutedHiddenAtLeast} showing={showing} />;
@@ -156,7 +156,7 @@ function PutAsideRow({ id, title, row, keeps, type }: { id: string; title: strin
 
 /** To read, To watch, To listen, Needs attention and Mark all as seen. Each row shows only when it has items. */
 export function WelcomeRows() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const actions = useItemActions();
   const o = useHomeOverview().data;
   const fresh = o?.fresh ?? 0;

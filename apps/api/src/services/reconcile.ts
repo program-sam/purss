@@ -18,23 +18,23 @@ import { server } from "@purss/translations/server";
  * without a decision, and ambiguous entries are never suggested as matches.
  */
 
-type QueueRow = { id: string; workspace_id: string; engine_user_id: string; entry: string; candidate_item_id: string | null; status: string; created_at: string };
+type QueueRow = { id: string; account_id: string; engine_user_id: string; entry: string; candidate_item_id: string | null; status: string; created_at: string };
 
 type Source = { id: string; title: string; kind: string };
 
-function sourceFor(app: App, workspaceId: string, streamId: string): Source | null {
-  return app.db.get<Source>("SELECT id, title, kind FROM sources WHERE workspace_id = ? AND engine_stream_id = ?", workspaceId, streamId) ?? null;
+function sourceFor(app: App, accountId: string, streamId: string): Source | null {
+  return app.db.get<Source>("SELECT id, title, kind FROM sources WHERE account_id = ? AND engine_stream_id = ?", accountId, streamId) ?? null;
 }
 
 type Candidate = { itemId: string; reason: string } | { ambiguous: string } | null;
 
 /** The existing item an entry most likely is: the one found at queue time by source + original id, else the single item with the same link. */
 function candidateFor(app: App, row: QueueRow, entry: SyncEntry, source: Source | null): Candidate {
-  if (row.candidate_item_id && app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", row.candidate_item_id, row.workspace_id)) {
+  if (row.candidate_item_id && app.db.get("SELECT 1 FROM items WHERE id = ? AND account_id = ?", row.candidate_item_id, row.account_id)) {
     return { itemId: row.candidate_item_id, reason: server.api.reconcile.sameOriginalId };
   }
   if (!source || !entry.url) return null;
-  const same = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ?", row.workspace_id, source.id, entry.url);
+  const same = app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ?", row.account_id, source.id, entry.url);
   if (same.length === 1) return { itemId: same[0]!.id, reason: server.api.reconcile.sameLink };
   if (same.length > 1) return { ambiguous: server.api.reconcile.moreThanOneWithLink };
   return null;
@@ -42,7 +42,7 @@ function candidateFor(app: App, row: QueueRow, entry: SyncEntry, source: Source 
 
 function toDTO(app: App, row: QueueRow): ReconcileEntryDTO {
   const entry = JSON.parse(row.entry) as SyncEntry;
-  const source = sourceFor(app, row.workspace_id, entry.streamId);
+  const source = sourceFor(app, row.account_id, entry.streamId);
   const c = candidateFor(app, row, entry, source);
   let candidate: ReconcileEntryDTO["candidate"] = null;
   if (c && "itemId" in c) {
@@ -60,8 +60,8 @@ function toDTO(app: App, row: QueueRow): ReconcileEntryDTO {
 }
 
 export function listReconciliation(app: App, p: Principal, limit = 100): ReconcileList {
-  const rows = app.db.all<QueueRow>("SELECT * FROM reconciliation_queue WHERE workspace_id = ? AND status = 'open' ORDER BY created_at, id LIMIT ?", p.workspaceId, limit);
-  const total = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reconciliation_queue WHERE workspace_id = ? AND status = 'open'", p.workspaceId)!.n;
+  const rows = app.db.all<QueueRow>("SELECT * FROM reconciliation_queue WHERE account_id = ? AND status = 'open' ORDER BY created_at, id LIMIT ?", p.accountId, limit);
+  const total = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reconciliation_queue WHERE account_id = ? AND status = 'open'", p.accountId)!.n;
   const entries = rows.map((r) => toDTO(app, r));
   return { entries, total, suggestedMatches: entries.filter((e) => e.suggestion === "match").length };
 }
@@ -71,11 +71,11 @@ export type ReconcileAction = "match" | "new" | "dismiss";
 /** Apply one decision. The whole decision commits or none of it does; a handled entry cannot be handled twice. */
 export function resolveEntry(app: App, p: Principal, id: string, action: ReconcileAction, itemId?: string): { status: "matched" | "new" | "dismissed"; itemId: string | null } {
   const out = app.db.tx((): { status: "matched" | "new" | "dismissed"; itemId: string | null } => {
-    const row = app.db.get<QueueRow>("SELECT * FROM reconciliation_queue WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
+    const row = app.db.get<QueueRow>("SELECT * FROM reconciliation_queue WHERE id = ? AND account_id = ?", id, p.accountId);
     if (!row) throw notFound(server.api.reconcile.thatEntry);
     if (row.status !== "open") throw conflict(server.api.reconcile.alreadyHandled);
     const entry = JSON.parse(row.entry) as SyncEntry;
-    const source = sourceFor(app, p.workspaceId, entry.streamId);
+    const source = sourceFor(app, p.accountId, entry.streamId);
 
     if (action === "dismiss") {
       app.db.run("UPDATE reconciliation_queue SET status = 'dismissed' WHERE id = ?", id);
@@ -87,11 +87,11 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
       const c = itemId ? { itemId } : candidateFor(app, row, entry, source);
       const target = c && "itemId" in c ? c.itemId : null;
       if (!target) throw badRequest(server.api.reconcile.chooseItem, "choose_item");
-      if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND workspace_id = ?", target, p.workspaceId)) throw notFound(server.api.shared.thatItem);
+      if (!app.db.get("SELECT 1 FROM items WHERE id = ? AND account_id = ?", target, p.accountId)) throw notFound(server.api.shared.thatItem);
       if (existingMap && existingMap.item_id !== target) throw conflict(server.api.reconcile.linkedToOther);
       if (!existingMap) {
-        app.db.run("INSERT INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          newId("ext"), p.workspaceId, target, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
+        app.db.run("INSERT INTO external_ids (id, account_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          newId("ext"), p.accountId, target, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
       }
       app.db.run("UPDATE reconciliation_queue SET status = 'matched', candidate_item_id = ? WHERE id = ?", target, id);
       return { status: "matched", itemId: target };
@@ -105,7 +105,7 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
     if (!source) throw new HttpError(409, "source_gone", server.api.reconcile.sourceGone);
     const doi = findDoi(entry.url, entry.summaryHtml, entry.contentHtml);
     const created = insertItem(app, {
-      accountId: p.accountId, workspaceId: p.workspaceId, sourceId: source.id,
+      accountId: p.accountId, sourceId: source.id,
       kind: detectKind({ sourceKind: source.kind, url: entry.url, doi, enclosures: entry.enclosures }),
       title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
       url: entry.url, author: entry.author, summaryHtml: entry.summaryHtml, contentHtml: entry.contentHtml, imageUrl: entry.imageUrl,
@@ -113,8 +113,8 @@ export function resolveEntry(app: App, p: Principal, id: string, action: Reconci
       fresh: false, // history coming back from a restored engine is not "new since you last looked"
       reason: "reconciled feed item",
     });
-    app.db.run("INSERT INTO external_ids (id, workspace_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      newId("ext"), p.workspaceId, created.id, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
+    app.db.run("INSERT INTO external_ids (id, account_id, item_id, engine_user_id, external_id, stream_id, original_guid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      newId("ext"), p.accountId, created.id, row.engine_user_id, entry.externalId, entry.streamId, entry.originalGuid, nowIso());
     app.db.run("UPDATE sources SET last_item_at = (SELECT MAX(listed_at) FROM items WHERE source_id = ?) WHERE id = ?", source.id, source.id);
     app.db.run("UPDATE reconciliation_queue SET status = 'new', candidate_item_id = ? WHERE id = ?", created.id, id);
     return { status: "new", itemId: created.id };
@@ -134,13 +134,13 @@ export function acceptSuggested(app: App, p: Principal, ids?: string[]): { match
   const wanted = ids ? new Set(ids) : null;
   let after = "";
   for (;;) {
-    const rows = app.db.all<QueueRow>("SELECT * FROM reconciliation_queue WHERE workspace_id = ? AND status = 'open' AND id > ? ORDER BY id LIMIT 200", p.workspaceId, after);
+    const rows = app.db.all<QueueRow>("SELECT * FROM reconciliation_queue WHERE account_id = ? AND status = 'open' AND id > ? ORDER BY id LIMIT 200", p.accountId, after);
     if (!rows.length) break;
     after = rows[rows.length - 1]!.id;
     for (const row of rows) {
       if (wanted && !wanted.has(row.id)) continue;
       const entry = JSON.parse(row.entry) as SyncEntry;
-      const c = candidateFor(app, row, entry, sourceFor(app, p.workspaceId, entry.streamId));
+      const c = candidateFor(app, row, entry, sourceFor(app, p.accountId, entry.streamId));
       if (!c || !("itemId" in c)) { skipped++; continue; }
       try {
         resolveEntry(app, p, row.id, "match", c.itemId);
@@ -151,6 +151,6 @@ export function acceptSuggested(app: App, p: Principal, ids?: string[]): { match
       }
     }
   }
-  const remaining = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reconciliation_queue WHERE workspace_id = ? AND status = 'open'", p.workspaceId)!.n;
+  const remaining = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM reconciliation_queue WHERE account_id = ? AND status = 'open'", p.accountId)!.n;
   return { matched, skipped, remaining };
 }

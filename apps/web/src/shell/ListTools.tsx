@@ -13,7 +13,7 @@ import { useListState } from "../pages/list-state.ts";
 import { useSelection } from "../state/selection.tsx";
 import { useOverlays } from "../state/overlays.tsx";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { useMainWidth } from "../lib/use-now.ts";
 
 const t = app.shell.listTools;
@@ -22,7 +22,7 @@ const isBasketView = (v: ViewMode): v is BasketViewMode => (BASKET_VIEW_MODES as
 
 /** A list page's view, filter, sort and select controls; the page places them in its own header. */
 export function ListTools({ place }: { place: Exclude<Place, { t: "home" }> }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const overlays = useOverlays();
   const popups = usePopups();

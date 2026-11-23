@@ -222,16 +222,16 @@ export function revokeByToken(app: App, token: string): void {
 export function resolveAccessToken(app: App, secret: string): AssistantCaller | { error: "invalid" | "off" } {
   if (!app.config.assistantOAuth || !secret.startsWith(ACCESS_TOKEN_PREFIX)) return { error: "invalid" };
   const now = nowIso();
-  const row = app.db.get<{ grant_id: string; account_id: string; access: AssistantAccessLevel; resource: string; last_used_at: string; assistant_access: number; workspace_id: string }>(
-    `SELECT g.id AS grant_id, g.account_id, g.access, g.resource, g.last_used_at, a.assistant_access, w.id AS workspace_id
-     FROM oauth_access_tokens t JOIN oauth_grants g ON g.id = t.grant_id JOIN accounts a ON a.id = g.account_id JOIN workspaces w ON w.account_id = a.id
+  const row = app.db.get<{ grant_id: string; account_id: string; access: AssistantAccessLevel; resource: string; last_used_at: string; assistant_access: number; }>(
+    `SELECT g.id AS grant_id, g.account_id, g.access, g.resource, g.last_used_at, a.assistant_access
+     FROM oauth_access_tokens t JOIN oauth_grants g ON g.id = t.grant_id JOIN accounts a ON a.id = g.account_id
      WHERE t.token_hash = ? AND t.expires_at > ?`, sha256(secret), now);
   // Audience (RFC 8707): only tokens issued for this server's /mcp address.
   if (!row || !isAccountUsable(app, row.account_id) || row.resource !== endpointFor(app)) return { error: "invalid" };
   if (!installationEnabled(app) || row.assistant_access !== 1) return { error: "off" };
   if (Date.now() - Date.parse(row.last_used_at) > LAST_USED_GRANULARITY_MS) app.db.run("UPDATE oauth_grants SET last_used_at = ? WHERE id = ?", now, row.grant_id);
   return {
-    principal: { accountId: row.account_id, workspaceId: row.workspace_id, isAdmin: false, sessionId: `${OAUTH_SESSION_PREFIX}${row.grant_id}`, csrf: "", authAt: new Date(0).toISOString() },
+    principal: { accountId: row.account_id, isAdmin: false, sessionId: `${OAUTH_SESSION_PREFIX}${row.grant_id}`, csrf: "", authAt: new Date(0).toISOString() },
     access: row.access,
     tokenId: row.grant_id,
   };

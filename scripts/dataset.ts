@@ -221,7 +221,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     const published = followed + Math.floor((i / arrivals) * (end - followed));
     return { published, crawled: published + 60_000 };
   }, "arrivals");
-  const itemIds = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((row) => row.id);
+  const itemIds = app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((row) => row.id);
 
   // A returning reader: some items are in a workflow state, and some of the new arrivals have been looked at (their New
   // marker cleared). New markers last 30 days by default: older ones have expired, as the product's maintenance pass clears them.
@@ -235,7 +235,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
   }
   const looked = itemIds.slice(itemIds.length - arrivals).filter(() => r() < 0.4);
   for (let from = 0; from < looked.length; from += 500) bulk(app, p, looked.slice(from, from + 500), { type: "clearFresh" });
-  expireFreshMarkers(app, p.workspaceId);
+  expireFreshMarkers(app, p.accountId);
   log(`${tag}: states set`);
 
   // Kept items (about 1.5%), most of them in "Read later" with a readable-text capture that finished.
@@ -244,7 +244,7 @@ function buildAccount(app: App, index: number, opts: Required<Omit<DatasetOption
     const itemId = itemIds[Math.floor(r() * itemIds.length)]!;
     keepItem(app, p, itemId, r() < 0.7 ? readLater.id : reference.id);
   }
-  for (const cap of app.db.all<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE workspace_id = ? AND status = 'pending'", p.workspaceId)) {
+  for (const cap of app.db.all<{ id: string; item_id: string }>("SELECT id, item_id FROM captures WHERE account_id = ? AND status = 'pending'", p.accountId)) {
     if (r() < 0.1) { failCapture(app, cap.id, "The page couldn't be captured."); continue; }
     if (r() < 0.2) continue; // still waiting
     const text = sentence(r, LANGUAGES[0]!.lang, 800 + Math.floor(r() * 3000));

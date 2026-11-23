@@ -439,10 +439,10 @@ export function publicRouter(): Router<Ctx> {
       collections: listCollections(ctx.app, p),
       sources: listSources(ctx.app, p),
       baskets: listBaskets(ctx.app, p),
-      preferences: getPreferences(ctx.app, p.workspaceId),
+      preferences: getPreferences(ctx.app, p.accountId),
       capacity: capacity(ctx.app, p.accountId),
       paused: pausedReason(ctx.app, p.accountId),
-      unreadNotifications: unreadCount(ctx.app, p.workspaceId),
+      unreadNotifications: unreadCount(ctx.app, p.accountId),
       engine: {
         status: eu?.status === "ready" ? (cp?.last_error ? "unavailable" : "ok") : eu?.status === "error" ? "unavailable" : "starting",
         lastSyncAt: cp?.last_success_at ?? null,
@@ -458,8 +458,8 @@ export function publicRouter(): Router<Ctx> {
     };
   });
 
-  r.get("/api/preferences", (_req, ctx) => getPreferences(ctx.app, requirePrincipal(ctx).workspaceId));
-  r.patch("/api/preferences", (req, ctx) => setPreferences(ctx.app, requirePrincipal(ctx).workspaceId, parse(preferencesPatchSchema, req.body)));
+  r.get("/api/preferences", (_req, ctx) => getPreferences(ctx.app, requirePrincipal(ctx).accountId));
+  r.patch("/api/preferences", (req, ctx) => setPreferences(ctx.app, requirePrincipal(ctx).accountId, parse(preferencesPatchSchema, req.body)));
 
   // ---------- items ----------
   r.get("/api/items", (req, ctx) => {
@@ -542,9 +542,9 @@ export function publicRouter(): Router<Ctx> {
       hasMore: found.length > limit,
       snippets,
       noteSnippets: noteSnippets(ctx.app, p, items.map((i) => i.id).filter((id) => !snippets[id]), q),
-      sources: ctx.app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE workspace_id = ? AND followed = 1 AND title LIKE ? LIMIT 5", p.workspaceId, like),
-      collections: ctx.app.db.all<{ id: string; name: string }>("SELECT id, name FROM collections WHERE workspace_id = ? AND name LIKE ? LIMIT 5", p.workspaceId, like),
-      baskets: ctx.app.db.all<{ id: string; name: string }>("SELECT id, name FROM baskets WHERE workspace_id = ? AND name LIKE ? LIMIT 5", p.workspaceId, like),
+      sources: ctx.app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ? AND followed = 1 AND title LIKE ? LIMIT 5", p.accountId, like),
+      collections: ctx.app.db.all<{ id: string; name: string }>("SELECT id, name FROM collections WHERE account_id = ? AND name LIKE ? LIMIT 5", p.accountId, like),
+      baskets: ctx.app.db.all<{ id: string; name: string }>("SELECT id, name FROM baskets WHERE account_id = ? AND name LIKE ? LIMIT 5", p.accountId, like),
     };
   });
 

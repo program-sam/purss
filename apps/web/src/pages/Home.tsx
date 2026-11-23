@@ -28,7 +28,7 @@ import { useSavePreferences } from "../state/prefs.ts";
 import { useItemActions } from "../state/actions.ts";
 import { useRowCtx } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { HomeBand, MutedLine, WelcomeRows } from "./WelcomeBack.tsx";
 import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox } from "./home-boxes.ts";
 import "./home.css";
@@ -67,7 +67,7 @@ function useShowMuted(): boolean {
 
 /** The Home boxes: the collections chosen for Home, and "Other sources" when it has any. */
 function useBoxes(): CollectionDTO[] {
-  const ws = useWorkspace();
+  const ws = usePurss();
   return useMemo(() => homeBoxes(ws.homeCollections, ws.looseSources, ws.prefs), [ws.homeCollections, ws.looseSources, ws.prefs]);
 }
 
@@ -97,7 +97,7 @@ export function homeRequests(layout: Preferences["homeLayout"], shown: readonly 
 }
 
 function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDTO[]; pending: boolean; onMenu: (c: CollectionDTO, anchor: HTMLElement) => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const hints = useHints();
   const sources = ws.sourcesOf(c);
@@ -134,7 +134,7 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
 
 /** Home shows collections, so say why none are here and offer the step that fixes it. */
 function NoHomeCollections({ inline = false }: { inline?: boolean }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const overlays = useOverlays();
   const [title, text, action]: [string, string | null, { label: string; open: () => void }] = ws.collections.length
     ? [t.noCollectionsOnHome, null, { label: app.words.customiseHome, open: () => overlays.open({ kind: "customise-home" }) }]
@@ -164,7 +164,7 @@ export function useColumns(): number {
 }
 
 function CollectionsLayout() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const popups = usePopups();
   const overlays = useOverlays();
   const save = useSavePreferences();
@@ -243,7 +243,7 @@ function FeedLayout() {
 }
 
 function NewGroup({ c, items }: { c: CollectionDTO; items: ItemDTO[] }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const other = isOtherBox(c);
   const heading = <><span className="t" dir="auto">{c.name}</span>{other ? null : <Icon name="chev" size="sm" className="go" />}<AvatarStack sources={ws.sourcesOf(c)} /></>;
@@ -295,7 +295,7 @@ function Headline({ c, items, pending }: { c: CollectionDTO; items: ItemDTO[]; p
 }
 
 function FrontLayout() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const boxes = useBoxes();
   const lists = useBoxLists(boxes, "new", HEADLINE_ITEMS);
@@ -340,7 +340,7 @@ function ImportListButton() {
 }
 
 export function HomePage() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const overlays = useOverlays();
   const layout = ws.prefs.homeLayout;
   const homeFilter = layout === "new" ? "fresh" : "new";

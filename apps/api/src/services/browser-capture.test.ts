@@ -91,7 +91,7 @@ test("a server capture and a browser capture of the same item live side by side"
   const src = makeSource(app, owner, "Quiet Essays", "feed/1");
   applySyncBatch(app, owner.engineUserId, batch([entry("feed/1", { url: "https://quiet.example/essays/tides", title: "Tides" })]));
   const item = one<{ id: string }>(app, "SELECT id FROM items WHERE source_id = ?", src)!.id;
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, text, html, created_at, completed_at) VALUES ('cap_server', ?, ?, 'fulltext', 'done', 'server text', '<p>server text</p>', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')", owner.workspaceId, item);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, created_at, completed_at) VALUES ('cap_server', ?, ?, 'fulltext', 'done', 'server text', '<p>server text</p>', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')", owner.accountId, item);
   const out = keepWithBrowserCapture(app, owner, { url: PAGE, basketId: basket, html: "<p>Browser text.</p>" });
   assert.equal(out.itemId, item, "the feed item, not a duplicate");
   assert.deepEqual(getItemDetail(app, owner, item).captures.map((c) => c.level), ["metadata", "fulltext", "browser"]);
@@ -128,7 +128,7 @@ test("nothing is kept when no readable text survives, or the basket isn't the pe
   assert.throws(() => keepWithBrowserCapture(app, owner, { url: PAGE, basketId: theirs, html: HTML }), (e) => e instanceof HttpError && e.status === 404);
   assert.throws(() => keepWithBrowserCapture(app, owner, { url: "ftp://quiet.example/x", basketId: theirs, html: HTML }), (e) => e instanceof HttpError && e.status === 400);
   for (const table of ["captures", "basket_items"]) assert.equal(one<{ n: number }>(app, `SELECT COUNT(*) AS n FROM ${table}`)!.n, 0, table);
-  assert.equal(one<{ n: number }>(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ?", owner.workspaceId)!.n, 0, "no stray item");
+  assert.equal(one<{ n: number }>(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ?", owner.accountId)!.n, 0, "no stray item");
 });
 
 test("another PURSS's copy of the page is never touched", (t) => {

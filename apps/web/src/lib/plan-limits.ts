@@ -3,7 +3,7 @@ import { PLAN_LABELS, PLAN_LIMITS } from "@purss/domain";
 import type { Capacity } from "@purss/domain";
 import { plural } from "./format.ts";
 
-/** What the account's plan uses, when the workspace carries it (a copy saved offline by an earlier version has none). */
+/** What the account's plan uses, when the account carries it (a copy saved offline by an earlier version has none). */
 export const capacityOf = (data: object): Capacity | null => (data as { capacity?: Capacity }).capacity ?? null;
 
 /**

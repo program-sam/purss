@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 import { Button, Check, Dialog } from "@purss/ui";
 import { platform } from "../platform/index.ts";
 import type { InterfaceUpdates, InterfaceUpdateState } from "../platform/types.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.shell.interfaceUpdates;
 
@@ -25,7 +25,7 @@ const what = () => platform.desktop ? t.whatDesktop : t.whatPhone;
  */
 export function InterfaceUpdateQuestion() {
   const u = useInterfaceUpdates();
-  const ws = useWorkspace();
+  const ws = usePurss();
   if (!u?.state.asking || !ws.data.preferences.welcomeAsked || !platform.connection) return null;
   const answer = (allow: boolean) => void u.updates.answer(allow);
   return (

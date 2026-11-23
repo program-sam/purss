@@ -17,7 +17,7 @@ export type Connection = {
 };
 
 /** A failure with a message to show. `code` "device_signed_out" means the token no longer works. */
-export class WorkspaceError extends Error {
+export class PurssError extends Error {
   readonly status: number;
   readonly code: string;
   constructor(status: number, code: string, message: string) {
@@ -27,7 +27,7 @@ export class WorkspaceError extends Error {
   }
 }
 
-export const signedOut = (err: unknown): boolean => err instanceof WorkspaceError && err.code === "device_signed_out";
+export const signedOut = (err: unknown): boolean => err instanceof PurssError && err.code === "device_signed_out";
 
 type Fetch = typeof fetch;
 
@@ -36,16 +36,16 @@ async function request<T>(fetchImpl: Fetch, url: string, init: RequestInit): Pro
   try {
     res = await fetchImpl(url, { ...init, credentials: "omit", cache: "no-store" });
   } catch {
-    throw new WorkspaceError(0, "offline", extension.api.offline);
+    throw new PurssError(0, "offline", extension.api.offline);
   }
   const text = await res.text();
   let body: unknown = null;
   try { body = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
   if (!res.ok) {
     const e = (body as { error?: { code?: string; message?: string } } | null)?.error;
-    if (res.status === 401) throw new WorkspaceError(401, "device_signed_out", e?.message ?? extension.api.signedOut);
-    if (res.status === 413) throw new WorkspaceError(413, "too_large", extension.api.tooLarge);
-    throw new WorkspaceError(res.status, e?.code ?? "failed", e?.message ?? extension.api.failed(res.status));
+    if (res.status === 401) throw new PurssError(401, "device_signed_out", e?.message ?? extension.api.signedOut);
+    if (res.status === 413) throw new PurssError(413, "too_large", extension.api.tooLarge);
+    throw new PurssError(res.status, e?.code ?? "failed", e?.message ?? extension.api.failed(res.status));
   }
   return body as T;
 }
@@ -53,11 +53,11 @@ async function request<T>(fetchImpl: Fetch, url: string, init: RequestInit): Pro
 /** Check that an origin is a PURSS and what it supports. Needs no sign-in. */
 export async function fetchInfo(origin: string, fetchImpl: Fetch = fetch): Promise<ConnectInfo> {
   const info = await request<ConnectInfo>(fetchImpl, `${origin}/api/connect/info`, { method: "GET" }).catch((err) => {
-    if (err instanceof WorkspaceError && err.status !== 0) throw new WorkspaceError(err.status, "not_workspace", extension.api.notPurssOrTooOld);
+    if (err instanceof PurssError && err.status !== 0) throw new PurssError(err.status, "not_purss", extension.api.notPurssOrTooOld);
     throw err;
   });
-  if (info?.service !== "purss" || typeof info.origin !== "string") throw new WorkspaceError(0, "not_workspace", extension.api.notPurss);
-  if (info.origin !== origin) throw new WorkspaceError(0, "other_origin", extension.api.otherAddress(info.origin));
+  if (info?.service !== "purss" || typeof info.origin !== "string") throw new PurssError(0, "not_purss", extension.api.notPurss);
+  if (info.origin !== origin) throw new PurssError(0, "other_origin", extension.api.otherAddress(info.origin));
   return info;
 }
 
@@ -70,7 +70,7 @@ export function exchangeCode(origin: string, p: { code: string; verifier: string
 }
 
 /** A client for one connected PURSS. */
-export function workspace(conn: Pick<Connection, "origin" | "token">, fetchImpl: Fetch = fetch) {
+export function purssClient(conn: Pick<Connection, "origin" | "token">, fetchImpl: Fetch = fetch) {
   const call = <T>(method: string, path: string, body?: unknown) => request<T>(fetchImpl, `${conn.origin}${path}`, {
     method,
     headers: { authorization: `Bearer ${conn.token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
@@ -85,4 +85,4 @@ export function workspace(conn: Pick<Connection, "origin" | "token">, fetchImpl:
     disconnect: () => call<{ ok: true }>("DELETE", "/api/connect/device"),
   };
 }
-export type Workspace = ReturnType<typeof workspace>;
+export type PurssClient = ReturnType<typeof purssClient>;

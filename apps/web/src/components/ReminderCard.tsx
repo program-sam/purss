@@ -7,7 +7,7 @@ import { keys, remindersQuery } from "../api/queries.ts";
 import { shortDate } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.components.reminderCard;
 
@@ -19,7 +19,7 @@ const actionPath = (id: string) => `/api/reminders/${encodeURIComponent(id)}`;
  * infers liking, and changes nothing about the item. Rendered only when the server returns one.
  */
 export function ReminderCard() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();

@@ -364,7 +364,7 @@ test("forgetting a list takes its link folder first: when that fails, the record
 // ---------- hosted plans (main's rules for imports, carried into the server-side import) ----------
 
 function hostedSetup(t: test.TestContext) {
-  const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://workspace.example" });
+  const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://purss.example" });
   t.after(cleanup);
   return { app, p: makeOwner(app, { admin: false }) };
 }

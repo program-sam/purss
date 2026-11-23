@@ -20,7 +20,7 @@ export type UndoOp =
   | { type: "progress"; itemId: string; progress: number };
 
 /** Whose item it is; what the workflow log, the storage record and read mirroring need. */
-type Owner = Pick<Principal, "accountId" | "workspaceId">;
+type Owner = Pick<Principal, "accountId" | "accountId">;
 
 /** An AI filter setting an item to one of these has dealt with it, so it is no longer New. (The person's own changes always clear it.) */
 const SEEN_WORKFLOWS: ReadonlySet<WorkflowState> = new Set<WorkflowState>(["finished", "ignored"]);
@@ -31,20 +31,20 @@ type OwnedBasket = { id: string; capture_mode: "metadata" | "text"; name: string
 function ownItem(app: App, p: Principal, itemId: string): OwnedItem {
   const row = app.db.get<OwnedItem>(
     `SELECT i.id, i.url, i.source_id, i.current_version_id, st.workflow, st.fresh, st.revision, st.workflow_revision, st.playback_workflow_session, st.progress, st.opened_at, s.is_private
-     FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?`, itemId, p.workspaceId);
+     FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.account_id = ?`, itemId, p.accountId);
   if (!row) throw notFound(server.api.shared.thatItem);
   return row;
 }
 
 function ownBasket(app: App, p: Principal, basketId: string): OwnedBasket {
-  const b = app.db.get<OwnedBasket>("SELECT id, capture_mode, name FROM baskets WHERE id = ? AND workspace_id = ?", basketId, p.workspaceId);
+  const b = app.db.get<OwnedBasket>("SELECT id, capture_mode, name FROM baskets WHERE id = ? AND account_id = ?", basketId, p.accountId);
   if (!b) throw notFound(server.api.shared.thatBasket);
   return b;
 }
 
 function saveUndo(app: App, p: Principal, ops: UndoOp[]): string {
   const id = newId("und");
-  app.db.run("INSERT INTO undo_tokens (id, workspace_id, ops, created_at, expires_at) VALUES (?, ?, ?, ?, ?)", id, p.workspaceId, JSON.stringify(ops), nowIso(), addSeconds(15 * 60));
+  app.db.run("INSERT INTO undo_tokens (id, account_id, ops, created_at, expires_at) VALUES (?, ?, ?, ?, ?)", id, p.accountId, JSON.stringify(ops), nowIso(), addSeconds(15 * 60));
   return id;
 }
 
@@ -110,8 +110,8 @@ function automaticChange(change: StateChange): { session: string; expected: numb
  * the log adds no object of its own and nothing is counted twice.
  */
 function logWorkflow(app: App, p: Owner, itemId: string, from: WorkflowState, to: WorkflowState): void {
-  app.db.run("INSERT INTO state_log (account_id, workspace_id, item_id, from_state, to_state, at) VALUES (?, ?, ?, ?, ?, ?)",
-    p.accountId, p.workspaceId, itemId, from, to, nowIso());
+  app.db.run("INSERT INTO state_log (account_id, item_id, from_state, to_state, at) VALUES (?, ?, ?, ?, ?)",
+    p.accountId, itemId, from, to, nowIso());
   recordControlWrite(app, p, `state:${itemId}`);
 }
 
@@ -131,19 +131,19 @@ export function setWorkflowByFilter(app: App, owner: Owner, itemId: string, from
 /** State writes count as small "Other" records, admitted with bounded headroom when the quota is full. */
 function recordControlWrite(app: App, p: Owner, key: string): void {
   if (app.db.get("SELECT 1 FROM stored_objects WHERE kind = 'record' AND ref_id = ? AND released_at IS NULL", key)) return;
-  admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, bytes: STATE_RECORD_BYTES, reason: "state", control: true });
+  admitObject(app, { accountId: p.accountId, kind: "record", refId: key, bytes: STATE_RECORD_BYTES, reason: "state", control: true });
 }
 
 /** Optional read mirroring to the engine through the outbox. */
 function mirrorRead(app: App, p: Owner, itemIds: string[], workflow: WorkflowState): void {
   const read = workflow === "finished" || workflow === "ignored";
   const rows = app.db.all<{ engine_user_id: string; external_id: string }>(
-    `SELECT engine_user_id, external_id FROM external_ids WHERE workspace_id = ? AND item_id IN (${itemIds.map(() => "?").join(",")})`, p.workspaceId, ...itemIds);
+    `SELECT engine_user_id, external_id FROM external_ids WHERE account_id = ? AND item_id IN (${itemIds.map(() => "?").join(",")})`, p.accountId, ...itemIds);
   const byUser = new Map<string, string[]>();
   for (const r of rows) byUser.set(r.engine_user_id, [...(byUser.get(r.engine_user_id) ?? []), r.external_id]);
   for (const [engineUserId, ids] of byUser) {
     for (let i = 0; i < ids.length; i += 200) {
-      enqueue(app, "engine.mark_read", { engineUserId, externalIds: ids.slice(i, i + 200), read }, { accountId: p.accountId, workspaceId: p.workspaceId });
+      enqueue(app, "engine.mark_read", { engineUserId, externalIds: ids.slice(i, i + 200), read }, { accountId: p.accountId});
     }
   }
 }
@@ -152,10 +152,10 @@ function mirrorRead(app: App, p: Owner, itemIds: string[], workflow: WorkflowSta
  * Which baskets hold an item is part of the copy that caches and the offline pack keep (`basketIds`), so a change to it moves the
  * state version like any other change to the item. The revision stays where it is, and `updated_at` too: Home orders the items
  * in progress by it, and keeping an item is not reading it. It also stores again when the item was last kept, which lists sorted
- * by kept time read (migration 058). Call in the transaction that adds or removes the membership, after it.
+ * by kept time read. Call in the transaction that adds or removes the membership, after it.
  */
-export function markMembershipChanged(app: App, workspaceId: string, itemId: string): void {
-  app.db.run("UPDATE item_state SET state_version = state_version + 1 WHERE item_id = ? AND workspace_id = ?", itemId, workspaceId);
+export function markMembershipChanged(app: App, accountId: string, itemId: string): void {
+  app.db.run("UPDATE item_state SET state_version = state_version + 1 WHERE item_id = ? AND account_id = ?", itemId, accountId);
   app.db.run("UPDATE items SET kept_key = COALESCE((SELECT MAX(kept_at) FROM basket_items WHERE item_id = ?), '') WHERE id = ?", itemId, itemId);
 }
 
@@ -175,16 +175,16 @@ function keepOwned(app: App, p: Principal, item: OwnedItem, basket: OwnedBasket,
   const keptAt = nowIso();
   const key = `basket:${basketId}:${itemId}`;
   // The membership pins the existing immutable version; only the small record is new growth.
-  admitObject(app, { accountId: p.accountId, workspaceId: p.workspaceId, kind: "record", refId: key, itemId, bytes: measureBytes({ basketId, itemId, keptAt }), reason: "keep", control: true });
-  app.db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", basketId, itemId, p.workspaceId, item.current_version_id, keptAt);
-  markMembershipChanged(app, p.workspaceId, itemId);
+  admitObject(app, { accountId: p.accountId, kind: "record", refId: key, itemId, bytes: measureBytes({ basketId, itemId, keptAt }), reason: "keep", control: true });
+  app.db.run("INSERT INTO basket_items (basket_id, item_id, account_id, version_id, kept_at) VALUES (?, ?, ?, ?, ?)", basketId, itemId, p.accountId, item.current_version_id, keptAt);
+  markMembershipChanged(app, p.accountId, itemId);
   ops?.push({ type: "unkeep", itemId, basketId });
 
   let captureQueued = false;
   let captureNote: string | null = null;
   if (basket.capture_mode === "text" && item.url && !item.is_private) {
     try {
-      captureQueued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId, url: item.url });
+      captureQueued = queueCapture(app, { accountId: p.accountId, itemId, url: item.url });
     } catch (err) {
       if (!(err instanceof StorageFull)) throw err;
       markPaused(app, err);
@@ -208,7 +208,7 @@ export function unkeepItem(app: App, p: Principal, itemId: string, basketId: str
 function unkeepOwned(app: App, p: Principal, itemId: string, basketId: string, ops?: UndoOp[]): boolean {
   const r = app.db.run("DELETE FROM basket_items WHERE basket_id = ? AND item_id = ?", basketId, itemId);
   if (r.changes) {
-    markMembershipChanged(app, p.workspaceId, itemId);
+    markMembershipChanged(app, p.accountId, itemId);
     releaseObject(app, "record", `basket:${basketId}:${itemId}`, "unkeep");
     pruneUnreferencedVersions(app, itemId);
     ops?.push({ type: "keep", itemId, basketId });
@@ -302,13 +302,13 @@ export function clearFreshAll(app: App, p: Principal, scope: string): { changed:
   let changed = 0;
   for (;;) {
     const page = app.db.tx(() => {
-      const params: SqlParam[] = [p.workspaceId];
-      const where = ["i.workspace_id = ?", "st.fresh = 1", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
+      const params: SqlParam[] = [p.accountId];
+      const where = ["i.account_id = ?", "st.fresh = 1", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
       const ids = app.db.all<{ id: string }>(
         `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")} LIMIT ?`,
         ...params, CLEAR_PAGE).map((r) => r.id);
       if (ids.length) {
-        app.db.run(`UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE workspace_id = ? AND fresh = 1 AND item_id IN (${ids.map(() => "?").join(",")})`, nowIso(), p.workspaceId, ...ids);
+        app.db.run(`UPDATE item_state SET fresh = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND fresh = 1 AND item_id IN (${ids.map(() => "?").join(",")})`, nowIso(), p.accountId, ...ids);
       }
       return ids;
     });
@@ -323,22 +323,22 @@ export function clearFreshAll(app: App, p: Principal, scope: string): { changed:
 }
 
 export function applyUndo(app: App, p: Principal, token: string): { applied: number } {
-  const row = app.db.get<{ ops: string; expires_at: string }>("SELECT ops, expires_at FROM undo_tokens WHERE id = ? AND workspace_id = ?", token, p.workspaceId);
+  const row = app.db.get<{ ops: string; expires_at: string }>("SELECT ops, expires_at FROM undo_tokens WHERE id = ? AND account_id = ?", token, p.accountId);
   if (!row || row.expires_at < nowIso()) throw conflict(server.api.state.cannotUndo);
   const ops = JSON.parse(row.ops) as UndoOp[];
   app.db.tx(() => {
     for (const op of ops.reverse()) {
       if (op.type === "workflow") {
-        const cur = app.db.get<{ workflow: WorkflowState }>("SELECT workflow FROM item_state WHERE item_id = ? AND workspace_id = ?", op.itemId, p.workspaceId);
-        app.db.run("UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND workspace_id = ?", op.workflow, nowIso(), op.itemId, p.workspaceId);
+        const cur = app.db.get<{ workflow: WorkflowState }>("SELECT workflow FROM item_state WHERE item_id = ? AND account_id = ?", op.itemId, p.accountId);
+        app.db.run("UPDATE item_state SET workflow = ?, workflow_revision = workflow_revision + 1, playback_workflow_session = NULL, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.workflow, nowIso(), op.itemId, p.accountId);
         if (cur && cur.workflow !== op.workflow) logWorkflow(app, p, op.itemId, cur.workflow, op.workflow);
         mirrorRead(app, p, [op.itemId], op.workflow);
       } else if (op.type === "fresh") {
-        app.db.run("UPDATE item_state SET fresh = ?, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND workspace_id = ?", op.fresh ? 1 : 0, nowIso(), op.itemId, p.workspaceId);
+        app.db.run("UPDATE item_state SET fresh = ?, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.fresh ? 1 : 0, nowIso(), op.itemId, p.accountId);
       } else if (op.type === "freshSet") {
-        app.db.run(`UPDATE item_state SET fresh = 1, state_version = state_version + 1, updated_at = ? WHERE workspace_id = ? AND item_id IN (${op.itemIds.map(() => "?").join(",")})`, nowIso(), p.workspaceId, ...op.itemIds);
+        app.db.run(`UPDATE item_state SET fresh = 1, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND item_id IN (${op.itemIds.map(() => "?").join(",")})`, nowIso(), p.accountId, ...op.itemIds);
       } else if (op.type === "progress") {
-        app.db.run("UPDATE item_state SET progress = ?, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND workspace_id = ?", op.progress, nowIso(), op.itemId, p.workspaceId);
+        app.db.run("UPDATE item_state SET progress = ?, revision = revision + 1, state_version = state_version + 1, updated_at = ? WHERE item_id = ? AND account_id = ?", op.progress, nowIso(), op.itemId, p.accountId);
       } else if (op.type === "keep") {
         keepItem(app, p, op.itemId, op.basketId);
       } else if (op.type === "unkeep") {

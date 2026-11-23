@@ -5,12 +5,12 @@ import { AI_FILTER_PREVIEW_POSTS, AI_FILTER_TEXT_MAX } from "@purss/domain";
 import type { AiFilterDTO, AiFilterPreview, AiFilterScope, AiSettingsDTO, WhenUnsure } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, Segmented, TextInput } from "@purss/ui";
 import { del, get, messageOf, post, put } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import { isolate } from "../lib/bidi.ts";
 import { plural } from "../lib/format.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 /*
  * Smart filters: describe which posts of a source or collection to keep, try the words on the latest posts, then turn the
@@ -31,7 +31,7 @@ function useAiSettings() {
 
 export function AiFilterDialog({ scope }: { scope: AiFilterScope }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const { toast } = useToasts();
   const name = "sourceId" in scope ? ws.sourceById.get(scope.sourceId)?.title : ws.collectionById.get(scope.collectionId)?.name;
@@ -40,7 +40,7 @@ export function AiFilterDialog({ scope }: { scope: AiFilterScope }) {
   if (!name || !settings.data || !current.data) {
     return <Dialog title={t.dialog.loadingTitle} size="md" onClose={ov.close}>{settings.error || current.error ? <p className="state note" role="alert"><Icon name="info" /><span>{messageOf(settings.error ?? current.error)}</span></p> : <p className="fine">{app.words.loading}</p>}</Dialog>;
   }
-  return <FilterEditor scope={scope} name={name} settings={settings.data} filter={current.data.filter} onDone={(text) => { void qc.invalidateQueries({ queryKey: aiKey }); void qc.invalidateQueries({ queryKey: filterKey(scope) }); refreshWorkspace(qc); ov.close(); toast(text); }} onClose={ov.close} />;
+  return <FilterEditor scope={scope} name={name} settings={settings.data} filter={current.data.filter} onDone={(text) => { void qc.invalidateQueries({ queryKey: aiKey }); void qc.invalidateQueries({ queryKey: filterKey(scope) }); refreshPurss(qc); ov.close(); toast(text); }} onClose={ov.close} />;
 }
 
 function FilterEditor({ scope, name, settings, filter, onDone, onClose }: { scope: AiFilterScope; name: string; settings: AiSettingsDTO; filter: AiFilterDTO | null; onDone: (toast: string) => void; onClose: () => void }) {

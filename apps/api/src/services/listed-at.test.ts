@@ -7,7 +7,7 @@ import { listItems } from "./items.ts";
 import { searchItems } from "./search.ts";
 
 /*
- * An item's time in lists (migration 071): a post that came after its source was followed is listed when it arrived, whatever date
+ * An item's time in lists: a post that came after its source was followed is listed when it arrived, whatever date
  * its publisher gave it, so a post dated hours before it was in the feed is not listed below posts that came before it. The back
  * catalogue is listed at its publication date. The publication date itself is kept and given with the item.
  */

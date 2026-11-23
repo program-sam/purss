@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isLocalNetworkHost, isLoopbackHost, parseWorkspaceAddress, startingServer } from "./workspace-address.ts";
+import { isLocalNetworkHost, isLoopbackHost, parsePurssAddress, startingServer } from "./purss-address.ts";
 
 test("a typed PURSS address becomes its origin; plain http only on this device or the local network", () => {
-  const ok = (input: string) => { const r = parseWorkspaceAddress(input); assert.ok(r.ok, `${input}: ${!r.ok ? r.message : ""}`); return r; };
+  const ok = (input: string) => { const r = parsePurssAddress(input); assert.ok(r.ok, `${input}: ${!r.ok ? r.message : ""}`); return r; };
   assert.deepEqual(ok("ws.example.org"), { ok: true, origin: "https://ws.example.org", unencrypted: false });
   assert.deepEqual(ok("  https://WS.example.org/some/page?x=1#y "), { ok: true, origin: "https://ws.example.org", unencrypted: false });
   assert.deepEqual(ok("https://ws.example.org:8443"), { ok: true, origin: "https://ws.example.org:8443", unencrypted: false });
@@ -16,7 +16,7 @@ test("a typed PURSS address becomes its origin; plain http only on this device o
   assert.deepEqual(ok("http://[fd12:3456::1]:8940"), { ok: true, origin: "http://[fd12:3456::1]:8940", unencrypted: true });
   assert.deepEqual(ok("https://192.168.1.20"), { ok: true, origin: "https://192.168.1.20", unencrypted: false });
   for (const bad of ["", "   ", "http://ws.example.org", "ftp://ws.example.org", "https://user:pw@ws.example.org", "javascript:alert(1)", "http://8.8.8.8", "http://[2001:db8::1]", "https://", "http://local", "http://.lan"]) {
-    assert.equal(parseWorkspaceAddress(bad).ok, false, bad);
+    assert.equal(parsePurssAddress(bad).ok, false, bad);
   }
 });
 
@@ -34,10 +34,10 @@ test("local hosts are loopback, private, shared and link-local ranges, and local
 });
 
 test("a connect screen starts on the official server unless another one was chosen before", () => {
-  const official = "https://workspace.example.org";
+  const official = "https://purss.example.org";
   assert.deepEqual(startingServer(null, official), { kind: "official", origin: official });
   assert.deepEqual(startingServer("", official), { kind: "official", origin: official });
-  assert.deepEqual(startingServer("https://workspace.example.org", official), { kind: "official", origin: official }, "the official server, chosen before");
+  assert.deepEqual(startingServer("https://purss.example.org", official), { kind: "official", origin: official }, "the official server, chosen before");
   assert.deepEqual(startingServer("https://ws.home.example", official), { kind: "other", address: "https://ws.home.example" });
   assert.deepEqual(startingServer("http://192.168.1.20:8940", official), { kind: "other", address: "http://192.168.1.20:8940" }, "a remembered local server keeps its http");
   assert.deepEqual(startingServer("http://8.8.8.8", official), { kind: "official", origin: official }, "a remembered address the rules refuse isn't taken");

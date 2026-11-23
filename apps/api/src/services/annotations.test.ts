@@ -157,7 +157,7 @@ test("another PURSS can't read, write or remove annotations on this item, or tak
   const other = makeOwner(app, { admin: false });
   makeSource(app, other, "Their source", "feed/9");
   applySyncBatch(app, other.engineUserId, batch([entry("feed/9", { title: "Their item" })]));
-  const theirItem = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ?", other.workspaceId)!.id;
+  const theirItem = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ?", other.accountId)!.id;
   const id = newId("ann");
   putAnnotation(app, p, itemId, id, highlight("Mud moves with every tide.", 0, "mine"));
   const notFound = (e: HttpError) => e.status === 404;
@@ -212,8 +212,8 @@ test("an item holds a bounded number of annotations", (t) => {
   const { app, p, itemId, cleanup } = setup();
   t.after(cleanup);
   for (let i = 0; i < ANNOTATIONS_PER_ITEM; i++) {
-    app.db.run(`INSERT INTO annotations (id, account_id, workspace_id, item_id, kind, body, created_at, updated_at) VALUES (?, ?, ?, ?, 'note', 'n', ?, ?)`,
-      newId("ann"), p.accountId, p.workspaceId, itemId, at(0), at(0));
+    app.db.run(`INSERT INTO annotations (id, account_id, item_id, kind, body, created_at, updated_at) VALUES (?, ?, ?, 'note', 'n', ?, ?)`,
+      newId("ann"), p.accountId, itemId, at(0), at(0));
   }
   assert.throws(() => putAnnotation(app, p, itemId, newId("ann"), note("one too many", 1)), (e: HttpError) => e.code === "too_many");
 });

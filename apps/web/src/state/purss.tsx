@@ -3,7 +3,7 @@ import { createContext, useContext, useMemo } from "react";
 import type { BasketDTO, Bootstrap, CollectionDTO, Preferences, SourceDTO } from "@purss/domain";
 
 /** The loaded PURSS (sidebar data and preferences) with lookups, available below the shell. */
-export type Workspace = {
+export type PurssState = {
   data: Bootstrap;
   /** Preferences with the time zone resolved: the account's choice, else this device's. */
   prefs: Preferences & { timezone: string };
@@ -25,7 +25,7 @@ export function deviceTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; }
 }
 
-const Ctx = createContext<Workspace | null>(null);
+const Ctx = createContext<PurssState | null>(null);
 
 /** What item rows show of their source and baskets. Keeps its identity while only counts change, so rows stay put. */
 export type RowLookups = {
@@ -52,8 +52,8 @@ export function orderHome(collections: CollectionDTO[], order: string[]): Collec
   });
 }
 
-export function WorkspaceProvider({ data, children }: { data: Bootstrap; children: ReactNode }) {
-  const value = useMemo<Workspace>(() => {
+export function PurssProvider({ data, children }: { data: Bootstrap; children: ReactNode }) {
+  const value = useMemo<PurssState>(() => {
     const sourceById = new Map(data.sources.map((s) => [s.id, s]));
     const collections = [...data.collections].sort((a, b) => a.position - b.position);
     const inCollection = new Set(collections.flatMap((c) => c.sourceIds));
@@ -79,12 +79,12 @@ export function WorkspaceProvider({ data, children }: { data: Bootstrap; childre
 
 export function useRowLookups(): RowLookups {
   const v = useContext(LookupCtx);
-  if (!v) throw new Error("WorkspaceProvider is missing");
+  if (!v) throw new Error("PurssProvider is missing");
   return v;
 }
 
-export function useWorkspace(): Workspace {
+export function usePurss(): PurssState {
   const v = useContext(Ctx);
-  if (!v) throw new Error("WorkspaceProvider is missing");
+  if (!v) throw new Error("PurssProvider is missing");
   return v;
 }

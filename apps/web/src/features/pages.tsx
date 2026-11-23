@@ -1,6 +1,6 @@
 import "./features.css";
 import { app } from "@purss/translations/app";
-import type { WorkspacePage } from "../plugins.ts";
+import type { PurssPage } from "../plugins.ts";
 import { CATALOG_CATEGORIES } from "@purss/domain";
 import type { SessionInfo } from "@purss/domain";
 import { AdminPageRoute, DataPageRoute, DiscoverPageRoute, ReviewPageRoute, SharingPageRoute, discoverCategoryRoute } from "./lazy.tsx";
@@ -10,7 +10,7 @@ import { AdminPageRoute, DataPageRoute, DiscoverPageRoute, ReviewPageRoute, Shar
 const discoveryAvailable = (i: SessionInfo["installation"]) => i.mode === "hosted" || i.catalog;
 
 /** The pages built on the feature routes. Registered through plugins.ts before the router is created. */
-export const featurePages: WorkspacePage[] = [
+export const featurePages: PurssPage[] = [
   { path: "/discover", title: app.words.discovery, component: DiscoverPageRoute, available: discoveryAvailable, nav: { label: app.words.discovery, icon: "compass" } },
   // Each category of Discovery's popular sources, reached from its box.
   ...CATALOG_CATEGORIES.map((id) => ({

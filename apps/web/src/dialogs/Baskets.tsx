@@ -5,14 +5,14 @@ import type { BasketDTO } from "@purss/domain";
 import { Button, Dialog, Icon, TextInput } from "@purss/ui";
 import { messageOf, patch, post, put } from "../api/client.ts";
 import type { BasketDeletePreview, KeepResult } from "../api/types.ts";
-import { keys, putBasket, putItem, refreshWorkspace } from "../api/queries.ts";
+import { keys, putBasket, putItem, refreshPurss } from "../api/queries.ts";
 import { isolate } from "../lib/bidi.ts";
 import { plural } from "../lib/format.ts";
 import { useAlertFocus } from "../lib/use-focus.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.dialogs.baskets;
 
@@ -24,7 +24,7 @@ const MODES: { value: BasketDTO["captureMode"]; label: string; blurb: string }[]
 /** Create a basket, or change its name and what it saves. Opened from an item's keep controls, the new basket keeps that item. */
 export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -40,16 +40,16 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
     try {
       if (existing) {
         await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: name.trim(), captureMode: mode });
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         ov.close();
-        toast(t.form.savedSettings, { undo: async () => { await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: existing.name, captureMode: existing.captureMode }); refreshWorkspace(qc); } });
+        toast(t.form.savedSettings, { undo: async () => { await patch(`/api/baskets/${encodeURIComponent(existing.id)}`, { name: existing.name, captureMode: existing.captureMode }); refreshPurss(qc); } });
       } else {
         const b = await post<BasketDTO>("/api/baskets", { name: name.trim(), captureMode: mode });
         putBasket(qc, b);
         ov.close();
         const open = { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: b.id }) }] };
         if (!keepItemId) {
-          refreshWorkspace(qc, { items: false });
+          refreshPurss(qc, { items: false });
           toast(t.form.created(isolate(b.name)), open);
           return;
         }
@@ -61,7 +61,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
           toast(t.form.createdAndKept(isolate(b.name), out.captureNote), open);
         } catch (err) {
           toast(t.form.createdNotKept(isolate(b.name), messageOf(err)), { tone: "error", ...open });
-        } finally { refreshWorkspace(qc); }
+        } finally { refreshPurss(qc); }
       }
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }
   }
@@ -94,7 +94,7 @@ export function BasketFormDialog({ id, keepItemId }: { id?: string; keepItemId?:
 /** Deleting a basket shows what it holds first, and what is kept nowhere else. */
 export function BasketDeleteDialog({ id }: { id: string }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -109,7 +109,7 @@ export function BasketDeleteDialog({ id }: { id: string }) {
     setBusy(true); setError("");
     try {
       await post(`/api/baskets/${encodeURIComponent(id)}/delete`, { confirmToken: preview.data.confirmToken });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       nav.go({ t: "home" });
       toast(t.delete.deleted(isolate(basket!.name)));

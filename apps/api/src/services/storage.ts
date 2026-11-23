@@ -142,7 +142,6 @@ export function refreshPause(app: App, accountId: string): void {
 
 export type ObjectSpec = {
   accountId: string;
-  workspaceId: string;
   kind: StoredObjectKind;
   refId: string;
   itemId?: string | null;
@@ -161,8 +160,8 @@ export function admitObject(app: App, spec: ObjectSpec): string {
   const id = newId("obj");
   const now = nowIso();
   app.db.run(
-    "INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, spec.accountId, spec.workspaceId, spec.kind, spec.refId, spec.itemId ?? null, spec.sourceId ?? null, spec.bytes, now,
+    "INSERT INTO stored_objects (id, account_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    id, spec.accountId, spec.kind, spec.refId, spec.itemId ?? null, spec.sourceId ?? null, spec.bytes, now,
   );
   app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     newId("use"), spec.accountId, `admit:${id}`, id, spec.bytes, spec.reason, now);

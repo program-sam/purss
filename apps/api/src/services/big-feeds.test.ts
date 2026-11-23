@@ -18,7 +18,7 @@ const draft = (feedUrl: string, over: Record<string, unknown> = {}) => ({ feedUr
 
 function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {}): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, draft(feedUrl, over) as never);
+  holdCandidate(token, p.accountId, draft(feedUrl, over) as never);
   return token;
 }
 type Row = { via_gateway: number; feed_url: string | null; health: string; health_text: string | null; engine_stream_id: string | null };

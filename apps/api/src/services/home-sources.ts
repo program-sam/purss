@@ -10,8 +10,8 @@ import { getPreferences } from "./preferences.ts";
  */
 
 /** A condition over a source row `s`: the source has a box on Home. Appends its one parameter. */
-export function inHomeBox(app: App, workspaceId: string, params: SqlParam[]): string {
-  params.push(getPreferences(app, workspaceId).homeOther ? 1 : 0);
+export function inHomeBox(app: App, accountId: string, params: SqlParam[]): string {
+  params.push(getPreferences(app, accountId).homeOther ? 1 : 0);
   return `(s.followed = 0 OR s.kind = 'manual'
     OR EXISTS (SELECT 1 FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.source_id = s.id AND c.mode = 'sources' AND c.show_on_home = 1)
     OR (? = 1 AND NOT EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.source_id = s.id)))`;
@@ -21,6 +21,6 @@ export function inHomeBox(app: App, workspaceId: string, params: SqlParam[]): st
  * A condition over `items i` joined to `LEFT JOIN sources s`: Home may show the item. An item with no source can be shown;
  * one from a source without a box on Home cannot.
  */
-export function onHomeItem(app: App, workspaceId: string, params: SqlParam[]): string {
-  return `(i.source_id IS NULL OR ${inHomeBox(app, workspaceId, params)})`;
+export function onHomeItem(app: App, accountId: string, params: SqlParam[]): string {
+  return `(i.source_id IS NULL OR ${inHomeBox(app, accountId, params)})`;
 }

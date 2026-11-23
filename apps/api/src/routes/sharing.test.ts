@@ -368,9 +368,9 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.ok(!JSON.stringify(row).includes("198.51.100.7"), "the reporter's address isn't kept");
   // Every administrator gets one bell entry per page per day, however many reports arrive; the owner gets none.
   await report(b, pub.slug, { reason: "spam", details: "Also it is spam, honestly." }, "198.51.100.8");
-  const adminBell = b.app.db.all<{ title: string }>("SELECT title FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", b.owner.workspaceId);
+  const adminBell = b.app.db.all<{ title: string }>("SELECT title FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-report:%'", b.owner.accountId);
   assert.deepEqual(adminBell.map((n) => n.title), [shares.reportedTitle("Dubious picks")]);
-  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-report:%'", member.workspaceId)!.n, 0);
+  assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-report:%'", member.accountId)!.n, 0);
 
   // Five reports an hour from one address; then a polite refusal.
   for (let i = 0; i < 3; i++) assert.equal((await report(b, pub.slug, { reason: "other", details: `Report number ${i} here.` }, "198.51.100.9")).status, 200);
@@ -419,7 +419,7 @@ test("anyone can report a public page; administrators review it, take it down wi
   assert.equal((await asMember("DELETE", `/api/shares/${pub.id}`)).json.error.code, "taken_down", "a taken-down page can't be removed to share it afresh");
   const { confirmToken } = basketDeletePreview(b.app, member, lib.baskets.later);
   assert.throws(() => deleteBasket(b.app, member, lib.baskets.later, confirmToken), (e: unknown) => e instanceof HttpError && e.code === "taken_down", "nor can its basket be deleted to get rid of it");
-  const told = b.app.db.get<{ title: string; body: string }>("SELECT title, body FROM notifications WHERE workspace_id = ? AND dedup_key LIKE 'share-takedown:%'", member.workspaceId)!;
+  const told = b.app.db.get<{ title: string; body: string }>("SELECT title, body FROM notifications WHERE account_id = ? AND dedup_key LIKE 'share-takedown:%'", member.accountId)!;
   assert.equal(told.title, shares.takenDownTitle("Dubious picks"));
   assert.match(told.body, /Copies a photographer's work\./);
 

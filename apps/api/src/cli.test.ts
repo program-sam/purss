@@ -200,7 +200,7 @@ test("reconcile-usage reports ledger differences and exits non-zero, changing no
   assert.match(ok.out, /All accounts agree/);
   assert.doesNotMatch(ok.out, /corrected/);
   // An object written around the product: the ledger differs, and so does the total kept for the quota check.
-  app.db.run("INSERT INTO stored_objects (id, account_id, workspace_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, ?, 'record', 'orphan', 500, 'x')", p.accountId, p.workspaceId);
+  app.db.run("INSERT INTO stored_objects (id, account_id, kind, ref_id, bytes, created_at) VALUES ('obj_orphan', ?, 'record', 'orphan', 500, 'x')", p.accountId);
   const before = usedBytes(app, p.accountId);
   const bad = (await run(app, ["reconcile-usage"]));
   assert.equal(bad.code, 1);

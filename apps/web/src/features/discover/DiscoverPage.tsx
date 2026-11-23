@@ -13,7 +13,7 @@ import { useOverlays } from "../../state/overlays.tsx";
 import { setHints, useHints } from "../../state/ui-store.ts";
 import { useSavePreferences } from "../../state/prefs.ts";
 import { useToasts } from "../../state/toasts.tsx";
-import { useWorkspace } from "../../state/workspace.tsx";
+import { usePurss } from "../../state/purss.tsx";
 import { catalogQuery, fkeys, suggestionsQuery } from "../shared/api.ts";
 import { Loading, LoadFailed, Note, Page, Section } from "../shared/bits.tsx";
 
@@ -30,7 +30,7 @@ function names(titles: string[]): string {
 }
 
 function Reason({ s }: { s: DiscoverSuggestion }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   if (s.reason.kind === "because") {
     const titles = s.reason.sourceIds.map((id) => ws.sourceById.get(id)?.title).filter((t): t is string => !!t);
     return <span className="fine">{titles.length ? <>{copy.followedBy}<span dir="auto">{names(titles)}</span></> : copy.followedByLikeYou}</span>;
@@ -153,7 +153,7 @@ function Fold({ shut, name, onToggle }: { shut: boolean; name: string; onToggle:
 
 /** What the reader has since following one, left out at once (the server leaves them out on the next load). */
 function useNotFollowed(): (s: CatalogSource) => boolean {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const followed = useMemo(() => new Set(ws.data.sources.flatMap((s) => (s.feedUrl ? [s.feedUrl] : []))), [ws.data.sources]);
   return (s) => !followed.has(s.feedUrl);
 }
@@ -196,7 +196,7 @@ function Categories() {
 }
 
 function SharingChoice() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const qc = useQueryClient();
   return (

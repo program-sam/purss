@@ -8,7 +8,7 @@ const t = app.lib.copyLink;
 
 function run(url: string | null, media: ItemDTO["media"] = null, linkIsMedia?: boolean) {
   const copied: [string, string][] = [];
-  const entries = copyLinkEntries({ url, media, ...(linkIsMedia === undefined ? {} : { linkIsMedia }) }, { workspaceLink: "https://work.example/app/?item=itm_1", copy: (text, message) => copied.push([text, message]) });
+  const entries = copyLinkEntries({ url, media, ...(linkIsMedia === undefined ? {} : { linkIsMedia }) }, { purssLink: "https://work.example/app/?item=itm_1", copy: (text, message) => copied.push([text, message]) });
   for (const e of entries) if (e.type === undefined || e.type === "item") e.onSelect();
   return { labels: entries.map((e) => ("label" in e ? e.label : "")), copied };
 }

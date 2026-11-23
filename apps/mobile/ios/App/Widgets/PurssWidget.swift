@@ -697,7 +697,7 @@ struct SourceWidget: Widget {
 }
 
 @main
-struct WorkspaceWidgetBundle: WidgetBundle {
+struct PurssWidgetBundle: WidgetBundle {
     var body: some Widget {
         FixedPanelWidget(panel: .toRead)
         FixedPanelWidget(panel: .toListen)

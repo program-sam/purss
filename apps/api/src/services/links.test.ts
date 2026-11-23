@@ -34,7 +34,7 @@ test("keeping a page the PURSS already has keeps that item instead of making a d
   assert.deepEqual([again.itemId, again.existing, again.alreadyInBasket], [feedItem, true, true]);
   const elsewhere = (await keepLink(app, owner, { url: "https://example.org/post/7", basketId: later }, noLookup));
   assert.equal(elsewhere.itemId, feedItem);
-  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ?", owner.workspaceId), 1, "still one item");
+  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ?", owner.accountId), 1, "still one item");
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM basket_items WHERE item_id = ?", feedItem), 2, "in both baskets");
 
   // A new page becomes a saved link, and keeping it again finds it.
@@ -98,7 +98,7 @@ test("keeping cannot reach another account's items or baskets", async (t) => {
   assert.notEqual(out.itemId, theirItem);
   await assert.rejects(keepLink(app, owner, { url: "https://example.org/a", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
   await assert.rejects(keepLink(app, owner, { url: "https://example.org/b", basketId: theirs }, noLookup), { message: server.api.http.notFound(server.api.shared.thatBasket) });
-  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND url_key = 'example.org/b'", owner.workspaceId), 0, "a refused keep leaves nothing behind");
+  assert.equal(count(app, "SELECT COUNT(*) AS n FROM items WHERE account_id = ? AND url_key = 'example.org/b'", owner.accountId), 0, "a refused keep leaves nothing behind");
   assert.equal(count(app, "SELECT COUNT(*) AS n FROM basket_items WHERE basket_id = ?", theirs), 1);
 });
 

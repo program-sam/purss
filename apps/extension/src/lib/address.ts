@@ -1,16 +1,16 @@
 /*
  * Addresses: the pages the extension looks at and the deep links it opens in the PURSS.
- * The PURSS's own address follows the rule shared with the apps (parseWorkspaceAddress in
+ * The PURSS's own address follows the rule shared with the apps (parsePurssAddress in
  * @purss/domain). Pure functions, tested in address.test.ts.
  */
 import { appUrl } from "@purss/domain/paths";
 
 /** A page the extension can offer to keep or look up: a web page, and not the PURSS itself. */
-export function isWebPage(url: string | undefined, workspaceOrigin: string | null): url is string {
+export function isWebPage(url: string | undefined, purssOrigin: string | null): url is string {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return (u.protocol === "https:" || u.protocol === "http:") && u.origin !== workspaceOrigin;
+    return (u.protocol === "https:" || u.protocol === "http:") && u.origin !== purssOrigin;
   } catch {
     return false;
   }

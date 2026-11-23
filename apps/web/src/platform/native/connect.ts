@@ -1,4 +1,4 @@
-import { parseWorkspaceAddress } from "@purss/domain";
+import { parsePurssAddress } from "@purss/domain";
 import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
 import { app } from "@purss/translations/app";
@@ -135,6 +135,6 @@ export type Connection = { origin: string; token: string; passkeys?: boolean };
 export function parseConnection(v: unknown): Connection | null {
   const c = v as Partial<Connection> | null;
   if (!c || typeof c.origin !== "string" || typeof c.token !== "string" || !c.token.startsWith("purss_dev_")) return null;
-  const n = parseWorkspaceAddress(c.origin);
+  const n = parsePurssAddress(c.origin);
   return n.ok && n.origin === c.origin ? { origin: c.origin, token: c.token, passkeys: c.passkeys === true } : null;
 }

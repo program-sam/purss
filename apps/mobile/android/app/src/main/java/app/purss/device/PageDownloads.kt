@@ -216,7 +216,7 @@ object PageDownloads {
         val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
         val tap = open?.let { PendingIntent.getActivity(ctx, NOTIFICATION, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) }
         val b = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_workspace)
+            .setSmallIcon(R.drawable.ic_stat_purss)
             .setContentTitle(ctx.getString(R.string.downloads_notification_title))
             .setOngoing(true)
             .setOnlyAlertOnce(true)

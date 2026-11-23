@@ -91,7 +91,7 @@ test("Discovery's catalog lists each category's popular sources, most popular fi
   b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", follow(b.app, reader, "https://techcrunch.com/feed/"));
   const { privateFeedKey } = await import("./feed-keys.ts");
   const secret = makeSource(b.app, reader, "Mine", "secret", { isPrivate: true });
-  b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.workspaceId, "https://feeds.bbci.co.uk/news/rss.xml"), secret);
+  b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.accountId, "https://feeds.bbci.co.uk/news/rss.xml"), secret);
   const mine = (await get(b, reader)).json as CatalogResponse;
   assert.deepEqual(mine.categories.map((c) => [c.id, c.total, c.sources.map((s) => s.title).sort()]), [["technology", 3, ["A Show", "Plain Show", "Some Channel"]]], "a category with nothing left is left out");
 

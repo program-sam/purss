@@ -48,11 +48,11 @@ requests: the PURSS answers the extension's requests with CORS, and a page is re
 or the right-click menu on it (`activeTab`), by a script injected for that purpose. That gives a short install warning
 and a faster store review.
 
-- **Server.** The official server (`OFFICIAL_WORKSPACE_ORIGIN` in `packages/domain/src/distribution.ts`) is preselected:
+- **Server.** The official server (`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`) is preselected:
   the options page shows *Server: …* and **Connect**, with a small **Change server** that reveals the address field (and
   *Use the official server* to go back). The server last connected to is remembered in the extension's storage, also
   after disconnecting. With the constant empty only the address field is shown.
-- **Address rule.** One rule with the apps (`parseWorkspaceAddress` in `packages/domain/src/workspace-address.ts`):
+- **Address rule.** One rule with the apps (`parsePurssAddress` in `packages/domain/src/purss-address.ts`):
   `https://` when no scheme is typed, and plain `http://` only for this computer, private, shared (CGNAT) and link-local
   ranges (IPv4 and IPv6) and the names `.local`, `.lan`, `.internal` and `.home.arpa`, with a warning when it isn't
   loopback.
@@ -101,7 +101,7 @@ Build first, then:
   Safari's settings. Safari connects with the typed code (it has no `identity` API).
 
 Then open the extension's options and press **Connect** for the official server
-(`OFFICIAL_WORKSPACE_ORIGIN` in `packages/domain/src/distribution.ts`), or **Change server** and
+(`OFFICIAL_PURSS_ORIGIN` in `packages/domain/src/distribution.ts`), or **Change server** and
 enter your PURSS address (for a local development stack, `localhost:8940`), and approve the
 connection in the PURSS. The extension remembers the server it last connected to.
 

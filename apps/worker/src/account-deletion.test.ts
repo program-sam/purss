@@ -69,7 +69,7 @@ test("a job running when its account asks to be deleted goes back to the queue u
     makeOwner(s.app, { admin: true });
     const m = makeOwner(s.app, { admin: false });
     s.app.db.run("DELETE FROM jobs");
-    const id = enqueue(s.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, workspaceId: m.workspaceId, maxAttempts: 1 });
+    const id = enqueue(s.app, "engine.rename", { engineUserId: m.engineUserId, streamId: "feed/1", title: "t" }, { accountId: m.accountId, maxAttempts: 1 });
     s.start();
     await until(() => runs === 1);
     assert.equal(job(s.app, id).attempts, 1, "its only attempt is running");

@@ -27,7 +27,7 @@ let serial = 0;
 function addItem(app: App, p: Owner, sourceId: string, published: string | null, discovered: string = published ?? NOW_ISO): string {
   serial++;
   return insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId, kind: "article", title: `Post ${serial}`, url: `https://example.org/stats/${serial}`, author: null,
+    accountId: p.accountId, sourceId, kind: "article", title: `Post ${serial}`, url: `https://example.org/stats/${serial}`, author: null,
     summaryHtml: `<p>Summary ${serial}</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
     publishedAt: published, discoveredAt: discovered, enclosures: [], fresh: false, reason: "feed item",
   }).id;
@@ -189,7 +189,7 @@ test("the 30-day counts come from the log, count each item once and ignore older
   setFlow(app, p, x, "toread");
   setFlow(app, p, x, "finished"); // two changes to Finished, one item
   setFlow(app, p, y, "ignored");
-  app.db.run("INSERT INTO state_log (account_id, workspace_id, item_id, from_state, to_state, at) VALUES (?, ?, ?, 'new', 'finished', ?)", p.accountId, p.workspaceId, y, ago(40));
+  app.db.run("INSERT INTO state_log (account_id, item_id, from_state, to_state, at) VALUES (?, ?, 'new', 'finished', ?)", p.accountId, y, ago(40));
   const stats = sourceStats(app, p, src).stats;
   assert.deepEqual([stats.finishedLast30Days, stats.ignoredLast30Days], [1, 1]);
 });
@@ -225,7 +225,7 @@ test("workflow changes write the log: single, bulk and undo; no-ops and other fi
   applyUndo(app, p, res.undoToken);
   assert.deepEqual(logRows(app, y).map((r) => [r.from_state, r.to_state]), [["new", "ignored"], ["ignored", "new"]]);
   for (const row of logRows(app)) assert.ok(!Number.isNaN(Date.parse(row.at)));
-  assert.equal(app.db.all("SELECT 1 FROM state_log WHERE account_id <> ? OR workspace_id <> ?", p.accountId, p.workspaceId).length, 0, "every row carries the account and workspace");
+  assert.equal(app.db.all("SELECT 1 FROM state_log WHERE account_id <> ?", p.accountId).length, 0, "every row carries the account and account");
 });
 
 test("the log is counted in storage once per item, and deleting an item deletes its rows and releases that record", (t) => {

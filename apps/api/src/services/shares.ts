@@ -42,7 +42,7 @@ const takenDownBlocker = (app: App) => app.config.mode === "hosted"
 const PLUS_ONLY = server.api.shares.plusOnly;
 
 type ShareRow = {
-  id: string; workspace_id: string; target_kind: ShareTarget; target_id: string; slug: string; curator_name: string; description: string | null;
+  id: string; account_id: string; target_kind: ShareTarget; target_id: string; slug: string; curator_name: string; description: string | null;
   status: "draft" | "published" | "paused"; listed: number; taken_down_at: string | null; takedown_reason: string | null;
   created_at: string; published_at: string | null; updated_at: string;
 };
@@ -81,18 +81,18 @@ function fields(node: QueryNode, out = new Set<string>()): Set<string> {
   return out;
 }
 
-type Target = { kind: ShareTarget; id: string; name: string; workspaceId: string; mode: "basket" | "sources" | "query"; query: QueryNode | null };
+type Target = { kind: ShareTarget; id: string; name: string; accountId: string; mode: "basket" | "sources" | "query"; query: QueryNode | null };
 
-function target(app: App, kind: ShareTarget, id: string, workspaceId: string): Target | null {
+function target(app: App, kind: ShareTarget, id: string, accountId: string): Target | null {
   if (kind === "basket") {
-    const b = app.db.get<{ name: string }>("SELECT name FROM baskets WHERE id = ? AND workspace_id = ?", id, workspaceId);
-    return b ? { kind, id, name: b.name, workspaceId, mode: "basket", query: null } : null;
+    const b = app.db.get<{ name: string }>("SELECT name FROM baskets WHERE id = ? AND account_id = ?", id, accountId);
+    return b ? { kind, id, name: b.name, accountId, mode: "basket", query: null } : null;
   }
-  const c = app.db.get<{ name: string; mode: string; query: string | null }>("SELECT name, mode, query FROM collections WHERE id = ? AND workspace_id = ?", id, workspaceId);
+  const c = app.db.get<{ name: string; mode: string; query: string | null }>("SELECT name, mode, query FROM collections WHERE id = ? AND account_id = ?", id, accountId);
   if (!c) return null;
-  if (c.mode === "sources") return { kind, id, name: c.name, workspaceId, mode: "sources", query: null };
+  if (c.mode === "sources") return { kind, id, name: c.name, accountId, mode: "sources", query: null };
   const q = checkQuery(JSON.parse(c.query ?? "null"));
-  return { kind, id, name: c.name, workspaceId, mode: "query", query: q.ok ? q.query : null };
+  return { kind, id, name: c.name, accountId, mode: "query", query: q.ok ? q.query : null };
 }
 
 /** Why this target can't be shared right now, or null. */
@@ -109,8 +109,6 @@ export function canShare(app: App, accountId: string): boolean {
   return plan === null || planShares(plan);
 }
 
-const accountOf = (app: App, workspaceId: string) => app.db.get<{ account_id: string }>("SELECT account_id FROM workspaces WHERE id = ?", workspaceId)!.account_id;
-
 // ---------- the live projection
 
 type Row = { id: string; title: string; url: string | null; excerpt: string | null; published_at: string | null; discovered_at: string; source_title: string | null; source_kind: string | null; note: string | null };
@@ -120,10 +118,10 @@ type Row = { id: string; title: string; url: string | null; excerpt: string | nu
  * what its owner's list of it shows: Ignored items, which include the back catalogue of a source followed from now, are not in it.
  * A basket shows everything kept in it, as its owner's list of it does.
  */
-export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" | "target_id" | "workspace_id">, limit = PAGE_ITEMS): (PageItem & { itemId: string; ownLink: boolean })[] | null {
-  const t = target(app, share.target_kind, share.target_id, share.workspace_id);
+export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" | "target_id" | "account_id">, limit = PAGE_ITEMS): (PageItem & { itemId: string; ownLink: boolean })[] | null {
+  const t = target(app, share.target_kind, share.target_id, share.account_id);
   if (!t || unshareable(t)) return null;
-  const params: SqlParam[] = [share.id, share.workspace_id];
+  const params: SqlParam[] = [share.id, share.account_id];
   let scope: string;
   let order = "COALESCE(i.published_at, i.discovered_at) DESC, i.id";
   if (t.mode === "basket") {
@@ -134,14 +132,14 @@ export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" 
     params.push(t.id);
     scope = "s.followed = 1 AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)";
   } else {
-    scope = `(s.followed = 1 OR s.kind = 'manual' OR EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)) AND ${compileQuery(t.query!, params, share.workspace_id, { itemTextOnly: true })}`;
+    scope = `(s.followed = 1 OR s.kind = 'manual' OR EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)) AND ${compileQuery(t.query!, params, share.account_id, { itemTextOnly: true })}`;
   }
   if (t.mode === "basket") params.push(t.id);
   // Read a margin past the limit: links that carry a key (in the query or the path) are dropped below, after the query.
   const rows = app.db.all<Row>(
     `SELECT i.id, i.title, i.url, i.excerpt, i.published_at, i.discovered_at, s.title AS source_title, s.kind AS source_kind, n.note
      FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id LEFT JOIN share_notes n ON n.share_id = ? AND n.item_id = i.id
-     WHERE i.workspace_id = ? AND COALESCE(s.is_private, 0) = 0 AND i.url IS NOT NULL AND ${t.mode === "basket" ? "1" : "st.workflow <> 'ignored'"} AND ${scope}
+     WHERE i.account_id = ? AND COALESCE(s.is_private, 0) = 0 AND i.url IS NOT NULL AND ${t.mode === "basket" ? "1" : "st.workflow <> 'ignored'"} AND ${scope}
      ORDER BY ${order} LIMIT ${Math.ceil(limit * 1.5) + 20}`, ...params);
   const sha = (s: string) => createHash("sha256").update(s).digest("hex");
   const out: (PageItem & { itemId: string; ownLink: boolean })[] = [];
@@ -162,46 +160,46 @@ export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" 
 // ---------- owner-facing
 
 function toDTO(app: App, r: ShareRow): ShareDTO {
-  const t = target(app, r.target_kind, r.target_id, r.workspace_id);
+  const t = target(app, r.target_kind, r.target_id, r.account_id);
   return {
     id: r.id, slug: r.slug, targetKind: r.target_kind, targetId: r.target_id, title: t?.name ?? "", description: r.description, curatorName: r.curator_name,
     status: r.status, listed: r.listed === 1, takenDown: takenDown(r), ...urls(app, r.slug), publishedAt: r.published_at,
     noteCount: app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM share_notes WHERE share_id = ?", r.id)!.n,
-    problem: !t ? "gone" : unshareable(t) ? "rules" : !canShare(app, accountOf(app, r.workspace_id)) ? "plan" : null,
+    problem: !t ? "gone" : unshareable(t) ? "rules" : !canShare(app, r.account_id) ? "plan" : null,
   };
 }
 
 function own(app: App, p: Principal, id: string): ShareRow {
-  const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE id = ? AND workspace_id = ?", id, p.workspaceId);
+  const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE id = ? AND account_id = ?", id, p.accountId);
   if (!r) throw notFound(server.api.shares.thatSharedPage);
   return r;
 }
 
 /** Everything this PURSS shares or has prepared to share: the Sharing page's overview. */
 export function listShares(app: App, p: Principal): ShareDTO[] {
-  return app.db.all<ShareRow>("SELECT * FROM shares WHERE workspace_id = ? ORDER BY created_at, id", p.workspaceId).map((r) => toDTO(app, r));
+  return app.db.all<ShareRow>("SELECT * FROM shares WHERE account_id = ? ORDER BY created_at, id", p.accountId).map((r) => toDTO(app, r));
 }
 
 /** A basket's or collection's sharing: its share if any, and whether it can be shared (with why not). */
 export function shareFor(app: App, p: Principal, kind: ShareTarget, id: string): { share: ShareDTO | null; blocked: string | null } {
-  const t = target(app, kind, id, p.workspaceId);
+  const t = target(app, kind, id, p.accountId);
   if (!t) throw notFound(kind === "basket" ? server.api.shared.thatBasket : server.api.shared.thatCollection);
-  const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND workspace_id = ?", kind, id, p.workspaceId);
+  const r = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND account_id = ?", kind, id, p.accountId);
   return { share: r ? toDTO(app, r) : null, blocked: !canShare(app, p.accountId) ? PLUS_ONLY : unshareable(t) };
 }
 
 /** Set up or change a basket's or collection's sharing settings. A new one starts as a draft: nothing is public until published. */
 export function saveShare(app: App, p: Principal, kind: ShareTarget, id: string, input: z.infer<typeof shareSettingsSchema>): ShareDTO {
-  const t = target(app, kind, id, p.workspaceId);
+  const t = target(app, kind, id, p.accountId);
   if (!t) throw notFound(kind === "basket" ? server.api.shared.thatBasket : server.api.shared.thatCollection);
-  const cur = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND workspace_id = ?", kind, id, p.workspaceId);
+  const cur = app.db.get<ShareRow>("SELECT * FROM shares WHERE target_kind = ? AND target_id = ? AND account_id = ?", kind, id, p.accountId);
   const now = nowIso();
   if (!cur) {
     if (!canShare(app, p.accountId)) throw new HttpError(403, "plan_sharing", PLUS_ONLY);
     const sid = newId("shr");
     // The name shown is whatever the person typed; it is never defaulted from account data.
-    app.db.run("INSERT INTO shares (id, workspace_id, target_kind, target_id, slug, curator_name, description, listed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      sid, p.workspaceId, kind, id, makeSlug(t.name), input.curatorName, input.description ?? null, input.listed ? 1 : 0, now, now);
+    app.db.run("INSERT INTO shares (id, account_id, target_kind, target_id, slug, curator_name, description, listed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      sid, p.accountId, kind, id, makeSlug(t.name), input.curatorName, input.description ?? null, input.listed ? 1 : 0, now, now);
     audit(app, p.accountId, "share_create", sid, "success");
     return toDTO(app, own(app, p, sid));
   }
@@ -250,7 +248,7 @@ function confirmHash(r: ShareRow): string {
 
 export function previewShare(app: App, p: Principal, id: string): SharePreview {
   const r = own(app, p, id);
-  const t = target(app, r.target_kind, r.target_id, r.workspace_id);
+  const t = target(app, r.target_kind, r.target_id, r.account_id);
   const items = projection(app, r) ?? [];
   const blockers: string[] = [];
   if (!t) blockers.push(server.api.shares.noLongerExists);
@@ -263,8 +261,8 @@ export function previewShare(app: App, p: Principal, id: string): SharePreview {
   let confirmation: SharePreview["confirmation"] = null;
   if (!blockers.length && r.status !== "published") {
     const token = randomToken(18);
-    app.db.run("INSERT INTO confirm_tokens (token, workspace_id, purpose, data, expires_at) VALUES (?, ?, 'share-publish', ?, ?)",
-      token, p.workspaceId, JSON.stringify({ id, hash: confirmHash(r) }), addSeconds(600));
+    app.db.run("INSERT INTO confirm_tokens (token, account_id, purpose, data, expires_at) VALUES (?, ?, 'share-publish', ?, ?)",
+      token, p.accountId, JSON.stringify({ id, hash: confirmHash(r) }), addSeconds(600));
     confirmation = { token, statement: shareStatement(r.listed === 1) };
   }
   return {
@@ -283,10 +281,10 @@ export function publishShare(app: App, p: Principal, id: string, confirmToken: s
     const r = own(app, p, id);
     if (r.taken_down_at) throw new HttpError(403, "taken_down", takenDownBlocker(app));
     if (!canShare(app, p.accountId)) throw new HttpError(403, "plan_sharing", PLUS_ONLY);
-    const t = target(app, r.target_kind, r.target_id, r.workspace_id);
+    const t = target(app, r.target_kind, r.target_id, r.account_id);
     const why = t ? unshareable(t) : server.api.shares.noLongerExists;
     if (why) throw badRequest(why, "unshareable");
-    const tok = app.db.get<{ data: string }>("SELECT data FROM confirm_tokens WHERE token = ? AND workspace_id = ? AND purpose = 'share-publish' AND expires_at > ?", confirmToken, p.workspaceId, nowIso());
+    const tok = app.db.get<{ data: string }>("SELECT data FROM confirm_tokens WHERE token = ? AND account_id = ? AND purpose = 'share-publish' AND expires_at > ?", confirmToken, p.accountId, nowIso());
     if (!tok) throw badRequest(server.api.shares.reviewVisitors, "confirm");
     const planned = JSON.parse(tok.data) as { id: string; hash: string };
     if (planned.id !== id || planned.hash !== confirmHash(r)) throw badRequest(server.api.shares.settingsChanged, "confirm");
@@ -322,8 +320,8 @@ export function deleteSharesOf(app: App, kind: ShareTarget, id: string): void {
 }
 
 /** Suspension or account removal ends public sharing; copies already fetched are not recalled. */
-export function pauseAllShares(app: App, workspaceId: string): number {
-  return app.db.run("UPDATE shares SET status = 'paused', updated_at = ? WHERE workspace_id = ? AND status = 'published'", nowIso(), workspaceId).changes;
+export function pauseAllShares(app: App, accountId: string): number {
+  return app.db.run("UPDATE shares SET status = 'paused', updated_at = ? WHERE account_id = ? AND status = 'published'", nowIso(), accountId).changes;
 }
 
 // ---------- rendering
@@ -336,7 +334,7 @@ function shortDate(iso: string | null): string | null {
 
 export type ShareHead = { slug: string; title: string; description: string | null; curatorName: string; listed: boolean };
 const head = (app: App, r: ShareRow): ShareHead => ({
-  slug: r.slug, title: target(app, r.target_kind, r.target_id, r.workspace_id)?.name ?? "", description: r.description, curatorName: r.curator_name, listed: r.listed === 1,
+  slug: r.slug, title: target(app, r.target_kind, r.target_id, r.account_id)?.name ?? "", description: r.description, curatorName: r.curator_name, listed: r.listed === 1,
 });
 
 /** The public page: server-rendered, no scripts, no external resources, no internal identifiers. */
@@ -402,9 +400,9 @@ export type PublicShare = ShareHead & { id: string; updatedAt: string; items: Pa
 export function findPublished(app: App, slug: string): PublicShare | null {
   if (!/^[a-z0-9-]{3,80}$/.test(slug)) return null;
   const r = app.db.get<ShareRow & { account_status: string }>(
-    `SELECT sh.*, a.status AS account_status FROM shares sh JOIN workspaces w ON w.id = sh.workspace_id JOIN accounts a ON a.id = w.account_id
+    `SELECT sh.*, a.status AS account_status FROM shares sh JOIN accounts a ON a.id = sh.account_id
      WHERE sh.slug = ? AND sh.status = 'published' AND sh.taken_down_at IS NULL`, slug);
-  if (!r || r.account_status !== "active" || !canShare(app, accountOf(app, r.workspace_id))) return null;
+  if (!r || r.account_status !== "active" || !canShare(app, r.account_id)) return null;
   const items = projection(app, r);
   return items ? { ...head(app, r), id: r.id, updatedAt: r.updated_at, items } : null;
 }
@@ -454,15 +452,15 @@ export function reportShare(app: App, pub: PublicShare, input: ReportInput, addr
   const now = nowIso();
   const told = app.db.tx(() => {
     app.db.run("INSERT INTO share_reports (id, share_id, reason, details, contact, created_at) VALUES (?, ?, ?, ?, ?, ?)", newId("rpt"), pub.id, reason, details, contact, now);
-    const admins = app.db.all<{ id: string; account_id: string }>("SELECT w.id, w.account_id FROM workspaces w JOIN role_grants g ON g.account_id = w.account_id AND g.role = 'admin'");
+    const admins = app.db.all<{ id: string }>("SELECT account_id AS id FROM role_grants WHERE role = 'admin'");
     const title = server.api.shares.reportedTitle(plainText(pub.title, 80));
     const body = server.api.shares.reportedBody(REPORT_REASON_LABELS[reason]);
     for (const a of admins) {
-      app.db.run(`INSERT INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)
-        ON CONFLICT (workspace_id, dedup_key) DO UPDATE SET title = excluded.title, body = excluded.body, read_at = NULL`,
+      app.db.run(`INSERT INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)
+        ON CONFLICT (account_id, dedup_key) DO UPDATE SET title = excluded.title, body = excluded.body, read_at = NULL`,
       newId("ntf"), a.id, title, body, `share-report:${pub.id}:${now.slice(0, 10)}`, now);
     }
-    return admins.map((a) => a.account_id);
+    return admins.map((a) => a.id);
   });
   for (const accountId of told) emit(app, accountId, { type: "notification" });
   audit(app, null, "share_report", pub.id, "success", reason);
@@ -503,8 +501,8 @@ export function reportedPage(app: App, id: string): { html: string } {
 }
 
 function tellOwner(app: App, r: ShareRow, title: string, body: string, key: string): void {
-  app.db.run("INSERT OR IGNORE INTO notifications (id, workspace_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)",
-    newId("ntf"), r.workspace_id, title, body, key, nowIso());
+  app.db.run("INSERT OR IGNORE INTO notifications (id, account_id, kind, title, body, dedup_key, created_at) VALUES (?, ?, 'system', ?, ?, ?, ?)",
+    newId("ntf"), r.account_id, title, body, key, nowIso());
 }
 
 /** Take a reported page down: it stops showing at once, its open reports are closed, and its owner is told why. */
@@ -521,7 +519,7 @@ export function takeDownShare(app: App, admin: Principal, id: string, reason: st
       server.api.shares.takenDownBody(app.config.mode, text), `share-takedown:${id}:${now}`);
     return cur;
   });
-  emit(app, accountOf(app, r.workspace_id), { type: "notification" });
+  emit(app, r.account_id, { type: "notification" });
   audit(app, admin.accountId, "share_takedown", id, "success");
   return { ok: true };
 }
@@ -536,7 +534,7 @@ export function restoreShare(app: App, admin: Principal, id: string): { ok: true
       server.api.shares.canShareAgainBody(app.config.mode), `share-restore:${id}:${nowIso()}`);
     return cur;
   });
-  emit(app, accountOf(app, r.workspace_id), { type: "notification" });
+  emit(app, r.account_id, { type: "notification" });
   audit(app, admin.accountId, "share_restore", id, "success");
   return { ok: true };
 }

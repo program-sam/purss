@@ -20,7 +20,7 @@ import { featurePages } from "./features/pages.tsx";
  * - `adminOnly` hides the page and its nav entry from people who are not administrators
  * - `available` hides the nav entry on an installation it returns false for (the page itself must say it isn't available there)
  */
-export type WorkspacePage = {
+export type PurssPage = {
   path: string;
   title: string;
   component: () => ReactNode;
@@ -30,10 +30,10 @@ export type WorkspacePage = {
   available?: (installation: SessionInfo["installation"]) => boolean;
 };
 
-export const workspacePages: WorkspacePage[] = [...featurePages];
+export const purssPages: PurssPage[] = [...featurePages];
 
-export function pageFor(path: string): WorkspacePage | undefined {
-  return workspacePages.find((p) => p.path === path);
+export function pageFor(path: string): PurssPage | undefined {
+  return purssPages.find((p) => p.path === path);
 }
 
 export function hasPage(path: string): boolean {

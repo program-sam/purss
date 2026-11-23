@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { OFFICIAL_WORKSPACE_ORIGIN, parseWorkspaceAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
+import { OFFICIAL_PURSS_ORIGIN, parsePurssAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
 import type { ConnectInfo, ConnectSignupInput, ConnectTokenResult } from "@purss/domain";
 import { Button, Field, Icon, IconSprite, TextInput } from "@purss/ui";
 import { AuthFrame } from "../../auth/AuthFrame.tsx";
@@ -14,7 +14,7 @@ import { app } from "@purss/translations/app";
 const t = app.platform.connectScreen;
 
 /**
- * The apps' first screen: straight to signing in on the official server (OFFICIAL_WORKSPACE_ORIGIN), or
+ * The apps' first screen: straight to signing in on the official server (OFFICIAL_PURSS_ORIGIN), or
  * on the server chosen before; an address is asked only after *Use another server*, or when there is no official
  * server. After a check that the server is a PURSS: signing in right
  * here (an email address and password; a forgotten password is reset by email) or creating an
@@ -60,14 +60,14 @@ async function getJson(url: string, init: RequestInit = {}): Promise<{ status: n
 }
 
 /** A PURSS the address led to, and what it lets the app do itself. */
-type Workspace = { origin: string; info: ConnectInfo; signup: { start: string | null; passwordMin: number } | null; passkeys: boolean; providers: { id: string; label: string; start: string }[] };
+type Installation = { origin: string; info: ConnectInfo; signup: { start: string | null; passwordMin: number } | null; passkeys: boolean; providers: { id: string; label: string; start: string }[] };
 type SigninFields = { method: "password"; email: string; password: string } | { method: "passkey" };
 /** What signing in came to: an error to show, an account set to be deleted that can still be kept, or (empty) connected. */
 type SigninAnswer = { error?: string; keep?: { token: string; dueAt: string } };
 
 type Phase = { kind: "address" } | { kind: "checking" } | { kind: "opening"; origin: string } | { kind: "unreachable"; origin: string } | { kind: "waiting"; pending: Pending; page: string } | { kind: "finishing" }
-  | { kind: "signin"; ws: Workspace }
-  | { kind: "signup"; ws: Workspace; start: string | null; passwordMin: number };
+  | { kind: "signin"; ws: Installation }
+  | { kind: "signup"; ws: Installation; start: string | null; passwordMin: number };
 
 const errorMessage = (body: unknown, fallback: string) => (body as { error?: { message?: string } } | null)?.error?.message ?? fallback;
 const offline = (err: unknown) => !(err instanceof Error) || !err.message || /fetch|network|abort/i.test(err.message);
@@ -75,8 +75,8 @@ const offline = (err: unknown) => !(err instanceof Error) || !err.message || /fe
 export function ConnectScreen({ notice, shell }: { notice: string | null; shell: ConnectShell }) {
   const deviceName = () => shell.deviceName();
   const saveConnection = (c: Connection) => shell.save(c);
-  const [start0] = useState(() => startingServer(localStorage.getItem(ADDRESS_KEY), OFFICIAL_WORKSPACE_ORIGIN));
-  const official = startingServer(null, OFFICIAL_WORKSPACE_ORIGIN);
+  const [start0] = useState(() => startingServer(localStorage.getItem(ADDRESS_KEY), OFFICIAL_PURSS_ORIGIN));
+  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
   const officialOrigin = official.kind === "official" ? official.origin : null;
   const [address, setAddress] = useState(start0.kind === "other" ? start0.address : "");
   const [phase, setPhase] = useState<Phase>(() => start0.kind === "official" ? { kind: "opening", origin: start0.origin } : { kind: "address" });
@@ -133,7 +133,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
    */
   async function open(input: string, keepError = "", typed = false) {
     setError(keepError);
-    const n = parseWorkspaceAddress(input);
+    const n = parsePurssAddress(input);
     if (!n.ok) { setPhase({ kind: "address" }); setError(n.message); return; }
     setPhase(typed ? { kind: "checking" } : { kind: "opening", origin: n.origin });
     const failed = (message: string) => { setError(message); setPhase(typed ? { kind: "address" } : { kind: "unreachable", origin: n.origin }); };
@@ -142,7 +142,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
       const checked = out.status === 200 ? checkInfo(out.body) : { ok: false as const, message: out.status === 404 ? app.words.thatAddressAnswersButItIsn : t.didntAnswer };
       if (!checked.ok) { failed(checked.message); return; }
       localStorage.setItem(ADDRESS_KEY, n.origin);
-      const ws: Workspace = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info), providers: providersOffered(checked.info) };
+      const ws: Installation = { origin: n.origin, info: checked.info, signup: signupOffer(checked.info), passkeys: shell.passkeys !== null && passkeysOffered(checked.info), providers: providersOffered(checked.info) };
       if (!signinOffered(checked.info)) { await openBrowser(ws); return; }
       setPhase({ kind: "signin", ws });
     } catch {
@@ -161,7 +161,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
    * Passkeys and linked accounts: approve this app on PURSS's Connect page in the system browser. With `provider` (Continue with
    * Google) the browser starts at that provider's sign-in and ends on the same page. Never the app's own web view: Google refuses it.
    */
-  async function openBrowser(ws: Workspace, provider?: Workspace["providers"][number]) {
+  async function openBrowser(ws: Installation, provider?: Installation["providers"][number]) {
     const p = await pkce();
     const pending: Pending = { origin: ws.origin, issuer: ws.info.origin, verifier: p.verifier, state: p.state, startedAt: Date.now(), passkeys: ws.passkeys };
     pendingRef.current = pending;
@@ -173,7 +173,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   }
 
   /** Sign in (or keep an account set to be deleted, with the token sign-in gave) and connect. */
-  async function signIn(ws: Workspace, input: SigninFields | { keepToken: string }): Promise<SigninAnswer> {
+  async function signIn(ws: Installation, input: SigninFields | { keepToken: string }): Promise<SigninAnswer> {
     const origin = ws.origin;
     try {
       const keeping = "keepToken" in input;
@@ -233,7 +233,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
   }
 
   /** Accept an invitation and connect. */
-  async function createAccount(ws: Workspace, input: Omit<ConnectSignupInput, "client" | "deviceName">): Promise<string | null> {
+  async function createAccount(ws: Installation, input: Omit<ConnectSignupInput, "client" | "deviceName">): Promise<string | null> {
     const origin = ws.origin;
     try {
       const out = await getJson(`${origin}/api/connect/signup`, { method: "POST", body: JSON.stringify({ ...input, client: "mobile", deviceName: await deviceName() }) });
@@ -257,7 +257,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
     restart(pendingOrigin, "");
   }
 
-  const typed = parseWorkspaceAddress(address);
+  const typed = parsePurssAddress(address);
   const unencrypted = typed.ok && typed.unencrypted;
   const officialHost = officialOrigin ? new URL(officialOrigin).host : "";
   const serverLine = (origin: string) => (
@@ -325,7 +325,7 @@ export function ConnectScreen({ notice, shell }: { notice: string | null; shell:
  */
 function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, onProvider }: {
   start: string | null; passwordMin: number; onSubmit: (input: Omit<ConnectSignupInput, "client" | "deviceName">) => Promise<string | null>; onStart: (email: string) => Promise<string | null>; onBack: () => void;
-  providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
+  providers: Installation["providers"]; onProvider: (provider: Installation["providers"][number]) => void;
 }) {
   // Where anyone may sign up, an email address is asked; someone with an invitation can use it instead (it may carry more room).
   const [withInvite, setWithInvite] = useState(start === null);
@@ -400,9 +400,9 @@ function SignupForm({ start, passwordMin, onSubmit, onStart, onBack, providers, 
 
 /** Signing in here: an email address and password; a passkey or linked account through the browser. */
 function SigninForm({ ws, onSignIn, onReset, onNewPassword, onBrowser, browserLabel, providers, onProvider, onSignup, server }: {
-  ws: Workspace; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (email: string) => Promise<string | null>;
+  ws: Installation; onSignIn: (input: SigninFields | { keepToken: string }) => Promise<SigninAnswer>; onReset: (email: string) => Promise<string | null>;
   onNewPassword: (token: string, password: string) => Promise<string | null>;
-  onBrowser: () => void; browserLabel: string; providers: Workspace["providers"]; onProvider: (provider: Workspace["providers"][number]) => void;
+  onBrowser: () => void; browserLabel: string; providers: Installation["providers"]; onProvider: (provider: Installation["providers"][number]) => void;
   onSignup: (() => void) | null; server: ReactNode;
 }) {
   const [mode, setMode] = useState<"password" | "reset" | "reset-sent" | "reset-done">("password");

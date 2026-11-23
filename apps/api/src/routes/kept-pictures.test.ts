@@ -16,7 +16,7 @@ test("the worker brings a kept item's pictures back through the internal listene
   t.after(b.close);
   const owner = await member(b.app, "Owner", { admin: true });
   const other = await member(b.app, "Other");
-  const p = { accountId: owner.accountId, workspaceId: owner.workspaceId, isAdmin: true, sessionId: "t", csrf: "x", authAt: new Date().toISOString() };
+  const p = { accountId: owner.accountId, isAdmin: true, sessionId: "t", csrf: "x", authAt: new Date().toISOString() };
   makeSource(b.app, p, "Webcomic", "feed/1");
   const cover = "https://pictures.example/cover.png";
   const panel = "https://pictures.example/panel.png";

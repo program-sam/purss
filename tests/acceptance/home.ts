@@ -113,10 +113,9 @@ function prepare(): Seed {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!.id;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: ws, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu };
     const para = (n: number) => `<p>${Array.from({ length: 60 }, (_, i) => `word${(n * 7 + i) % 97}`).join(" ")}.</p>`;
     const paras = (count: number) => Array.from({ length: count }, (_, i) => para(i)).join("\n");
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();

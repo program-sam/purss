@@ -137,7 +137,7 @@ test("a damaged backup, a backup from a newer version, or one with broken refere
 
   // Broken references: a database that passes the page-level check but not the foreign-key check is not kept.
   app.db.exec("PRAGMA foreign_keys = OFF");
-  app.db.run("INSERT INTO basket_items (basket_id, item_id, workspace_id, version_id, kept_at) VALUES ('bsk_missing', 'itm_missing', 'wsp_missing', 'ver_missing', 'x')");
+  app.db.run("INSERT INTO basket_items (basket_id, item_id, account_id, version_id, kept_at) VALUES ('bsk_missing', 'itm_missing', 'wsp_missing', 'ver_missing', 'x')");
   app.db.exec("PRAGMA foreign_keys = ON");
   const broken = await createBackup({ dataDir: app.config.dataDir, outDir: out, now: new Date("2026-11-03T10:00:03.000Z") });
   const occupied = tmp("occupied-ok");

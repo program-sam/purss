@@ -4,7 +4,7 @@
 // none, and the sample addresses play nothing) and articles with readable text, some To read. Everything is
 // deleted when it stops.
 //
-//   npm run build && node apps/mobile/scripts/emulator-workspace.ts [port]
+//   npm run build && node apps/mobile/scripts/emulator-purss.ts [port]
 //   adb reverse tcp:<port> tcp:<port>     # the emulator's localhost is then this computer's
 //
 // Connect the app to http://localhost:<port> and sign in with the email address and password it prints. Ctrl+C stops it.
@@ -42,10 +42,9 @@ function prepare(): void {
   try {
     const code = ensureClaimCode(app)!;
     const { accountId } = claim(app, code, EMAIL, "Phone tester", testPassword());
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId: ws.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     makeSource(app, p, "Slow Radio", "feed/1", { kind: "podcast" });
     makeSource(app, p, "Tidal Notes", "feed/2");
     applySyncBatch(app, eu.id, batch([
@@ -82,7 +81,7 @@ async function main(): Promise<void> {
     if (Date.now() > until) throw new Error("The API didn't start");
     await new Promise((r) => setTimeout(r, 200));
   }
-  console.log(`\nWorkspace ready at ${origin}\nSign in with the email address ${EMAIL} and the password ${TEST_PASSWORD}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
+  console.log(`\nPurss ready at ${origin}\nSign in with the email address ${EMAIL} and the password ${TEST_PASSWORD}\nOn the emulator: adb reverse tcp:${PORT} tcp:${PORT}, then connect the app to ${origin}\n`);
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => void stop().then(() => process.exit(0)));
 }
 

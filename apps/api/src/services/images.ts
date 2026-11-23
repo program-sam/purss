@@ -91,8 +91,8 @@ export function queueItemImages(app: App, itemId: string): boolean {
 }
 
 function queue(app: App, itemId: string): boolean {
-  const item = app.db.get<{ workspace_id: string; image_url: string | null; enclosures: string | null; account_id: string; is_private: number | null }>(
-    `SELECT i.workspace_id, i.image_url, i.enclosures, w.account_id, s.is_private FROM items i JOIN workspaces w ON w.id = i.workspace_id
+  const item = app.db.get<{ account_id: string; image_url: string | null; enclosures: string | null; is_private: number | null }>(
+    `SELECT i.account_id, i.image_url, i.enclosures, i.account_id, s.is_private FROM items i
      LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, itemId);
   if (!item || item.is_private || !isAccountUsable(app, item.account_id) || !keepsText(app, itemId)) return false;
   const held = app.db.get<{ n: number; bytes: number }>("SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS bytes FROM item_images WHERE item_id = ?", itemId)!;
@@ -117,7 +117,7 @@ function queue(app: App, itemId: string): boolean {
   }
   const key = createHash("sha256").update(urls.join("\n")).digest("hex").slice(0, 16);
   enqueue(app, "capture.images", { itemId, urls, maxBytes: roomBytes, ...(urls.some(copyOnlyPicture) ? { shrink: true } : {}) },
-    { accountId: item.account_id, workspaceId: item.workspace_id, idempotencyKey: `images:${itemId}:${key}`, maxAttempts: 3 });
+    { accountId: item.account_id, idempotencyKey: `images:${itemId}:${key}`, maxAttempts: 3 });
   return true;
 }
 
@@ -137,8 +137,8 @@ const resultSchema = z.object({
  */
 export function completeImages(app: App, payload: { itemId: string; urls: string[] }, raw: unknown): void {
   const parsed = resultSchema.safeParse(raw);
-  const item = app.db.get<{ workspace_id: string; source_id: string | null; image_url: string | null; account_id: string; is_private: number | null }>(
-    `SELECT i.workspace_id, i.source_id, i.image_url, w.account_id, s.is_private FROM items i JOIN workspaces w ON w.id = i.workspace_id
+  const item = app.db.get<{ account_id: string; source_id: string | null; image_url: string | null; is_private: number | null }>(
+    `SELECT i.account_id, i.source_id, i.image_url, i.account_id, s.is_private FROM items i
      LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, payload.itemId);
   // Its source may have been made private while the pictures were fetched.
   if (!parsed.success || !item || item.is_private) return;
@@ -152,13 +152,13 @@ export function completeImages(app: App, payload: { itemId: string; urls: string
     if (app.db.get("SELECT 1 FROM item_images WHERE item_id = ? AND url = ?", payload.itemId, image.url)) continue;
     const id = newId("img");
     try {
-      admitObject(app, { accountId: item.account_id, workspaceId: item.workspace_id, kind: "image", refId: id, itemId: payload.itemId, sourceId: item.source_id, bytes: data.length, reason: "kept picture" });
+      admitObject(app, { accountId: item.account_id, kind: "image", refId: id, itemId: payload.itemId, sourceId: item.source_id, bytes: data.length, reason: "kept picture" });
     } catch (err) {
       if (!(err instanceof StorageFull)) throw err;
       break; // optional, like an automatic readable copy: it doesn't pause new items
     }
-    app.db.run("INSERT INTO item_images (id, item_id, workspace_id, url, role, content_type, bytes, sha256, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      id, payload.itemId, item.workspace_id, image.url, image.url === item.image_url ? "cover" : "inline", contentType, data.length, createHash("sha256").update(data).digest("hex"), data, nowIso());
+    app.db.run("INSERT INTO item_images (id, item_id, account_id, url, role, content_type, bytes, sha256, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      id, payload.itemId, item.account_id, image.url, image.url === item.image_url ? "cover" : "inline", contentType, data.length, createHash("sha256").update(data).digest("hex"), data, nowIso());
     n++; bytes += data.length; saved++;
   }
   if (saved) emit(app, item.account_id, { type: "storage" });
@@ -207,7 +207,7 @@ export function postGallery(app: App, itemId: string, stored: Map<string, string
 /** One stored picture, for the item's owner. */
 export function readPicture(app: App, p: Principal, itemId: string, imageId: string): { data: Uint8Array; contentType: string; sha256: string } {
   const row = app.db.get<{ data: Uint8Array; content_type: string; sha256: string }>(
-    "SELECT data, content_type, sha256 FROM item_images WHERE id = ? AND item_id = ? AND workspace_id = ?", imageId, itemId, p.workspaceId);
+    "SELECT data, content_type, sha256 FROM item_images WHERE id = ? AND item_id = ? AND account_id = ?", imageId, itemId, p.accountId);
   if (!row) throw notFound(server.api.images.thatPicture);
   return { data: row.data, contentType: row.content_type, sha256: row.sha256 };
 }

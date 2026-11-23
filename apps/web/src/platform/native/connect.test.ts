@@ -1,16 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseWorkspaceAddress } from "@purss/domain";
+import { parsePurssAddress } from "@purss/domain";
 import { checkInfo, connectPageUrl, parseConnection, parsePending, pkce, providersOffered, providerStartUrl, readAppCode, readCallback, signinOffered, signupOffer } from "./connect.ts";
 
 test("the app takes the same addresses as the extension: https, or plain http on this device or the local network, flagged as unencrypted", () => {
-  assert.deepEqual(parseWorkspaceAddress(" workspace.example.org/inbox?x=1 "), { ok: true, origin: "https://workspace.example.org", unencrypted: false });
-  assert.deepEqual(parseWorkspaceAddress("http://localhost:19990"), { ok: true, origin: "http://localhost:19990", unencrypted: false });
-  assert.deepEqual(parseWorkspaceAddress("http://192.168.1.20:8940"), { ok: true, origin: "http://192.168.1.20:8940", unencrypted: true });
-  for (const bad of ["", "http://workspace.example", "ftp://x.example", "https://me:pw@ws.example", "https://"]) assert.equal(parseWorkspaceAddress(bad).ok, false, bad);
+  assert.deepEqual(parsePurssAddress(" purss.example.org/inbox?x=1 "), { ok: true, origin: "https://purss.example.org", unencrypted: false });
+  assert.deepEqual(parsePurssAddress("http://localhost:19990"), { ok: true, origin: "http://localhost:19990", unencrypted: false });
+  assert.deepEqual(parsePurssAddress("http://192.168.1.20:8940"), { ok: true, origin: "http://192.168.1.20:8940", unencrypted: true });
+  for (const bad of ["", "http://purss.example", "ftp://x.example", "https://me:pw@ws.example", "https://"]) assert.equal(parsePurssAddress(bad).ok, false, bad);
   assert.deepEqual(parseConnection({ origin: "http://nas.local:8940", token: "purss_dev_x" }), { origin: "http://nas.local:8940", token: "purss_dev_x", passkeys: false });
   assert.equal(parseConnection({ origin: "https://ws.example", token: "purss_dev_x", passkeys: true })?.passkeys, true);
-  assert.equal(parseConnection({ origin: "http://workspace.example", token: "purss_dev_x" }), null);
+  assert.equal(parseConnection({ origin: "http://purss.example", token: "purss_dev_x" }), null);
 });
 
 const info = { service: "purss", name: "PURSS", origin: "https://ws.example", hosted: false,

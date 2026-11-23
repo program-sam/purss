@@ -124,7 +124,7 @@ object WidgetRefresh {
         val choices = WidgetLists.decodeChoices(DeviceStore.choices(ctx))
         val wanted = placed.mapNotNull { (id, kind) -> if (WidgetLists.isKey(kind)) kind else choices[id] }.distinct()
         if (wanted.isEmpty()) return
-        val api = WorkspaceApi(conn)
+        val api = PurssApi(conn)
         val old = WidgetLists.decode(DeviceStore.lists(ctx))
         try {
             // Names, and whether a chosen collection or source is still there (a removed source stays readable by id).
@@ -155,7 +155,7 @@ object WidgetRefresh {
             WidgetData.ifCurrent(since) { DeviceStore.setLists(ctx, WidgetLists.encode(out)) } ?: return
             Panels.redrawAll(ctx)
         } catch (e: Refused) {
-            Log.i(TAG, "The workspace refused the token; removing what the app kept")
+            Log.i(TAG, "The installation refused the token; removing what the app kept")
             WidgetData.lost(ctx, since)
         } catch (e: Exception) {
             // Offline or the PURSS is busy: the last lists stay, and the next run tries again.

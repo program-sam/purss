@@ -96,11 +96,10 @@ function prepare(): void {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
+        const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const src = makeSource(app, p, "Tidal Notes", "feed/1");
     app.db.run("UPDATE sources SET site_url = 'https://tidal.example/notes/' WHERE id = ?", src);
     applySyncBatch(app, eu.id, batch([entry("feed/1", { title: "Tidal flats and sediment", url: KEPT_URL })]));

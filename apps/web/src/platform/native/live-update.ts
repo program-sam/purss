@@ -157,7 +157,7 @@ export function createInterfaceUpdates(deps: Deps): InterfaceUpdates & {
   }
 
   /** PURSS's offer: null when it has none; undefined when it couldn't be asked (try again later). */
-  async function askWorkspace(): Promise<AppBundleOffer | null | undefined> {
+  async function askPurss(): Promise<AppBundleOffer | null | undefined> {
     try {
       const res = await deps.fetch(`${deps.origin}/api/app/bundle`, { credentials: "omit", signal: AbortSignal.timeout(15_000) });
       if (res.status === 404) return null;
@@ -179,7 +179,7 @@ export function createInterfaceUpdates(deps: Deps): InterfaceUpdates & {
   async function run(): Promise<void> {
     lastCheck = deps.now();
     const failed = await failedVersions();
-    const offer = await askWorkspace();
+    const offer = await askPurss();
     if (offer === undefined) return;
     const nativeLevel = parseBundleVersion(await deps.updater.builtinVersion())?.native ?? null;
     const target = chooseTarget({ offer, nativeLevel, failed, consent: consentOf() });

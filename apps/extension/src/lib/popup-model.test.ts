@@ -49,8 +49,8 @@ test("after keeping, one line says what happened, including to the text", () => 
   assert.equal(keptLine({ ...base, existing: true, alreadyInBasket: true, textSaved: true, textReplaced: true, textNote: null }, "Reading"), `${t.kept.alreadyIn("Reading")}. ${t.kept.textReplaced}`);
   assert.equal(keptLine({ ...base, existing: false, alreadyInBasket: false, textSaved: false, textReplaced: false, textNote: "There isn't enough storage for the text, so only the link was kept." }, "Reading"),
     `${t.kept.keptIn("Reading")}. There isn't enough storage for the text, so only the link was kept.`);
-  assert.equal(keptLine({ ...base, captureNote: "Kept with its details and feed content. A readable copy wasn't made because this workspace is out of space.", existing: false, alreadyInBasket: false }, "Archive"),
-    `${t.kept.keptIn("Archive")}. Kept with its details and feed content. A readable copy wasn't made because this workspace is out of space.`);
+  assert.equal(keptLine({ ...base, captureNote: "Kept with its details and feed content. A readable copy wasn't made because this account is out of space.", existing: false, alreadyInBasket: false }, "Archive"),
+    `${t.kept.keptIn("Archive")}. Kept with its details and feed content. A readable copy wasn't made because this account is out of space.`);
 });
 
 test("Add as a source offers the channel or the advertised feeds, and nothing otherwise", () => {

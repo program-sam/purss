@@ -9,7 +9,7 @@ import Foundation
 /// The `kind` of each widget the extension offers. The first widget's kind stays as it was, so a copy placed before
 /// the panels existed keeps working as the To read panel.
 enum WidgetKinds {
-    static let toRead = "WorkspaceWidget"
+    static let toRead = "PurssWidget"
     static let toListen = "ToListenWidget"
     static let new = "NewWidget"
     static let collection = "CollectionWidget"

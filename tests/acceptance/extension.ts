@@ -28,7 +28,7 @@ import { loadConfig } from "../../apps/api/src/config.ts";
 import { createApp } from "../../apps/api/src/main.ts";
 import { createBasket } from "../../apps/api/src/services/collections.ts";
 import { TEST_PASSWORD, testPassword } from "../../apps/api/src/testing.ts";
-import { OFFICIAL_WORKSPACE_ORIGIN } from "../../packages/domain/src/distribution.ts";
+import { OFFICIAL_PURSS_ORIGIN } from "../../packages/domain/src/distribution.ts";
 
 declare const chrome: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- evaluated inside extension pages
 
@@ -104,9 +104,8 @@ function prepare(): void {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    const p: Principal = { accountId, workspaceId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    setPreferences(app, accountId, { welcomeAsked: true });
+        const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     createBasket(app, p, { name: "Read later", captureMode: "metadata" });
     createBasket(app, p, { name: "Papers", captureMode: "metadata" });
   } finally {
@@ -192,7 +191,7 @@ async function main(): Promise<void> {
     options.on("pageerror", (e) => errors.push(`options: ${e.message}`));
     await options.goto(`chrome-extension://${extId}/options/options.html`);
     // The official server is preselected; another one is a small "Change server" away.
-    await options.locator("#server").getByText(extension.options.connect.server(new URL(OFFICIAL_WORKSPACE_ORIGIN).host)).waitFor();
+    await options.locator("#server").getByText(extension.options.connect.server(new URL(OFFICIAL_PURSS_ORIGIN).host)).waitFor();
     assert.ok(!(await options.locator("#address").isVisible()), "no address field until the person changes server");
     await options.locator("#change-server").click();
     await options.locator("#address").fill(origin.replace("http://", ""));

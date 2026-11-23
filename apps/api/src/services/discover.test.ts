@@ -177,7 +177,7 @@ test("a reader's unfollowed and privately followed feeds don't come back as sugg
   // A private source: its address is a secret, only a keyed hash of it is in the database.
   const { privateFeedKey } = await import("./feed-keys.ts");
   const secret = add(b.app, reader, "c-private", { isPrivate: true });
-  b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.workspaceId, "https://example.org/c.xml"), secret);
+  b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.accountId, "https://example.org/c.xml"), secret);
   assert.deepEqual((await get(b, reader)).json.suggestions.map((s) => s.key), ["example.org/d.xml"]);
 });
 
@@ -269,7 +269,7 @@ test("a name search lists only the graph's public sources, under names many read
   resetSiteSearchCache();
 
   const { setPreferences } = await import("./preferences.ts");
-  setPreferences(b.app, reader.workspaceId, { discoveryShare: false });
+  setPreferences(b.app, reader.accountId, { discoveryShare: false });
   assert.deepEqual(sourcesNamed(b.app, reader, "the verge"), []);
 });
 

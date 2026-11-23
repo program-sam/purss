@@ -8,7 +8,7 @@ import { del, messageOf, put } from "../api/client.ts";
 import { itemReminderQuery, reminderKeys } from "../api/reminder-queries.ts";
 import { addDays, dayIn, dayLabel } from "../lib/reminder-days.ts";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import "./reminders.css";
 
 const t = app.components.itemReminder;
@@ -18,7 +18,7 @@ const t = app.components.itemReminder;
  * is set up and chosen), and Home's "Coming up" lists it beforehand. Shown only for items that are kept.
  */
 export function ItemReminder({ itemId }: { itemId: string }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const { toast } = useToasts();
   const q = useQuery(itemReminderQuery(itemId));

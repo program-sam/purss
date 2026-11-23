@@ -5,7 +5,7 @@ import { app } from "@purss/translations/app";
 import type { BasketDTO, DiscoveryCandidate, DiscoveryResult, KeepOffer, LookupEntry, PodcastSearchHit, PodcastSearchResponse, SiteSearchHit, SiteSearchResponse, SourceDTO } from "@purss/domain";
 import { Button, Check, Dialog, Field, Icon, SelectInput, TextInput } from "@purss/ui";
 import { del, messageOf, post } from "../api/client.ts";
-import { refreshWorkspace } from "../api/queries.ts";
+import { refreshPurss } from "../api/queries.ts";
 import type { ManualKeepResult } from "../api/types.ts";
 import { addSourceStatus, focusTargets } from "../lib/add-source-status.ts";
 import { focusFirst, focusLost } from "../lib/focus.ts";
@@ -15,7 +15,7 @@ import { useNav } from "../nav.ts";
 import { keptMessage } from "./KeepPage.tsx";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { hasPage } from "../plugins.ts";
 import { platform } from "../platform/index.ts";
 import { isolate } from "../lib/bidi.ts";
@@ -98,7 +98,7 @@ function KeepOfferCard({ offer, checked, onPick }: { offer: KeepOffer; checked: 
  */
 export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialEntry }: { collectionId?: string; url?: string; entry?: "suggestion" | "shared-link" }) {
   const ov = useOverlays();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const { toast } = useToasts();
@@ -212,14 +212,14 @@ export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialE
         fullText,
         startFrom,
       });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       const createdCollection = colChoice === NEW ? src.collectionIds[0] : undefined;
       toast(`${t.following(isolate(src.title))}${colChoice !== LOOSE ? t.inCollection(isolate(ws.collectionById.get(colChoice)?.name ?? newName.trim())) : ""}`, {
         undo: async () => {
           await del(`/api/sources/${encodeURIComponent(src.id)}`);
           if (createdCollection) await del(`/api/collections/${encodeURIComponent(createdCollection)}`).catch(() => undefined);
-          refreshWorkspace(qc);
+          refreshPurss(qc);
         },
         actions: [{ label: t.openSource, onSelect: () => nav.go({ t: "s", id: src.id }) }],
       });
@@ -239,7 +239,7 @@ export function AddSourceDialog({ collectionId, url: initialUrl, entry: initialE
         basketId = b.id; basketName = b.name;
       }
       const out = await post<ManualKeepResult>("/api/items/manual", { url: target, basketId, ...(linkTitle.trim() ? { title: linkTitle.trim() } : {}), ...(readableText ? { readableText: true } : {}) });
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       ov.close();
       toast(keptMessage(out, basketName, noun), { actions: [{ label: app.words.open, onSelect: () => nav.go({ t: "b", id: basketId }, { item: out.itemId }) }] });
     } catch (err) { setError(messageOf(err)); } finally { setBusy(false); }

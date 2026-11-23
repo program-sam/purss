@@ -5,7 +5,7 @@ import { useNav } from "../nav.ts";
 import type { Place } from "../nav.ts";
 import { useListState } from "../pages/list-state.ts";
 import { usePopups } from "../state/popups.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 
 const t = app.shell.sourceFilter;
 
@@ -34,7 +34,7 @@ function useSourcePick(place: ListPlace, sources: SourceDTO[]) {
 
 /** The open list: each source switches on or off and the list stays open; Only shows just that one. */
 function SourceList({ place, onClose }: { place: ListPlace; onClose: (restore?: boolean) => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const c = ws.collectionById.get(place.id);
   const sources = c ? ws.sourcesOf(c) : [];
   const { isOn, pick, toggle, on } = useSourcePick(place, sources);

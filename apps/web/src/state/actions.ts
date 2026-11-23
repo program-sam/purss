@@ -7,7 +7,7 @@ import { ApiError, messageOf, patch, post } from "../api/client.ts";
 import { useSession } from "../api/hooks.ts";
 import type { ClearFreshResult, StateChangeResult } from "../api/types.ts";
 import { homeOverviewKey } from "../api/home-queries.ts";
-import { dropFromScope, findItem, keys, putItem, refreshWorkspace } from "../api/queries.ts";
+import { dropFromScope, findItem, keys, putItem, refreshPurss } from "../api/queries.ts";
 import { workflowLabel } from "../lib/constants.ts";
 import { newMarkerCleared } from "../lib/items.ts";
 import { openItem, undoSeen } from "../lib/open-item.ts";
@@ -25,7 +25,7 @@ import { worthRetrying } from "../lib/late-writes.ts";
 import { settleProgress } from "./late-progress.ts";
 import { progressStore } from "./late-progress-sync.ts";
 import { useToasts } from "./toasts.tsx";
-import { useWorkspace } from "./workspace.tsx";
+import { usePurss } from "./purss.tsx";
 import { noteManualWorkflowChange } from "./workflow-intent.ts";
 
 /** What an ignored item was before, so Restore can put it back (kept for this visit only). */
@@ -64,7 +64,7 @@ function refreshAfterNewCleared(qc: QueryClient, before: ItemDTO, after: ItemDTO
 export function useItemActions() {
   const qc = useQueryClient();
   const { toast } = useToasts();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const session = useSession();
   const accountId = session.data?.state === "signed_in" ? session.data.account?.id ?? null : null;
 
@@ -139,7 +139,7 @@ export function useItemActions() {
       });
       const sum = summariseBatch(changes, outs);
       sum.dropped.forEach((d) => hooks.revert(d.change));
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       const refused = sum.dropped.length ? droppedLine(sum.dropped) : "";
       if (!sum.items) { toast(refused, { tone: "error" }); return; }
       const message = [sum.waiting.length ? t.withNote(describe(sum.items), t.notSent) : describe(sum.items), refused].filter(Boolean).join(" ");
@@ -155,7 +155,7 @@ export function useItemActions() {
             else { const inv = hooks.inverse(w.change, r.revision); if (inv) opposite.push(inv); }
           }
           if (opposite.length) await outbox.submitMany(opposite).catch(() => undefined);
-          refreshWorkspace(qc);
+          refreshPurss(qc);
         },
       });
     }
@@ -267,7 +267,7 @@ export function useItemActions() {
       if (typeof navigator !== "undefined" && navigator.onLine === false) { needsConnection(); return; }
       try {
         const out = await post<ClearFreshResult>("/api/items/clear-fresh", { scope });
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         if (!out.changed || !out.undoToken) { toast(t.nothingNew); return; }
         toast(t.markedSeen(plural(out.changed, app.words.item)), { undoToken: out.undoToken });
       } catch (err) {
@@ -283,14 +283,14 @@ export function useItemActions() {
         out = await outbox.submit({ kind: "clearFresh", itemIds: ids });
       } catch (err) { before.forEach((it) => putItem(qc, it)); fail(err); return; }
       if (out.status === "sent" && out.result.kind === "clearFresh") {
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         if (!out.result.changed || !out.result.undoToken) { toast(t.notMarkedNew(ids.length === 1)); return; }
         toast(t.markedSeen(plural(out.result.changed, app.words.item)), { undoToken: out.result.undoToken });
       } else if (out.status === "deferred") {
         toast(t.markedSeenLater);
       } else if (out.status === "dropped") {
         before.forEach((it) => putItem(qc, it));
-        refreshWorkspace(qc);
+        refreshPurss(qc);
         toast(out.message, { tone: "error" });
       }
     }
@@ -320,7 +320,7 @@ export function useItemActions() {
         put: (item) => putItem(qc, item),
         undo: async (undoToken) => { await post("/api/undo", { undoToken }); },
         seen: seenNotices,
-        refresh: () => refreshWorkspace(qc),
+        refresh: () => refreshPurss(qc),
         fail: (err) => toast(messageOf(err), { tone: "error" }),
       });
     }

@@ -31,7 +31,7 @@ export { NEWS_INITIAL_POSTS, NEWS_TITLE } from "./news-address.ts";
 const FEED_POSTS = 30;
 
 type PostRow = { id: string; title: string; body: string; status: "draft" | "published"; created_at: string; updated_at: string; published_at: string | null };
-type NewsSource = { id: string; account_id: string; workspace_id: string };
+type NewsSource = { id: string; account_id: string; };
 
 // ---------- the body's markup
 
@@ -71,20 +71,20 @@ const hasPublished = (app: App) => !!app.db.get("SELECT 1 FROM news_posts WHERE 
  */
 function deliver(app: App, s: NewsSource, post: PostRow, fresh: boolean): boolean {
   const url = newsUrls(app).post(post.id);
-  const present = app.db.get<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? AND source_id = ? AND url = ? LIMIT 1", s.workspace_id, s.id, url);
+  const present = app.db.get<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ? LIMIT 1", s.account_id, s.id, url);
   if (present) {
     // Its text may be older than the post's: left unrevised, the next pass brings it up to date.
-    app.db.run("INSERT OR IGNORE INTO news_deliveries (post_id, workspace_id, item_id, delivered_at) VALUES (?, ?, ?, ?)", post.id, s.workspace_id, present.id, nowIso());
+    app.db.run("INSERT OR IGNORE INTO news_deliveries (post_id, account_id, item_id, delivered_at) VALUES (?, ?, ?, ?)", post.id, s.account_id, present.id, nowIso());
     return false;
   }
   try {
     app.db.tx(() => {
       const itemId = insertItem(app, {
-        accountId: s.account_id, workspaceId: s.workspace_id, sourceId: s.id, kind: "article", title: post.title, url,
+        accountId: s.account_id, sourceId: s.id, kind: "article", title: post.title, url,
         author: null, summaryHtml: null, contentHtml: renderNewsBody(post.body), imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
         publishedAt: post.published_at, discoveredAt: nowIso(), enclosures: [], fresh, reason: "news post",
       }).id;
-      app.db.run("INSERT INTO news_deliveries (post_id, workspace_id, item_id, delivered_at, revised_at) VALUES (?, ?, ?, ?, ?)", post.id, s.workspace_id, itemId, nowIso(), post.updated_at);
+      app.db.run("INSERT INTO news_deliveries (post_id, account_id, item_id, delivered_at, revised_at) VALUES (?, ?, ?, ?, ?)", post.id, s.account_id, itemId, nowIso(), post.updated_at);
       app.db.run("UPDATE sources SET last_item_at = MAX(COALESCE(last_item_at, ''), ?), last_success_at = ?, health = 'ok', health_text = NULL WHERE id = ?", post.published_at, nowIso(), s.id);
     });
     return true;
@@ -97,7 +97,7 @@ function deliver(app: App, s: NewsSource, post: PostRow, fresh: boolean): boolea
 /** Tell the PURSS what arrived: lists refresh, and the source's notification setting decides about a notification. */
 function announce(app: App, s: NewsSource, count: number, notify: boolean): void {
   if (!count) return;
-  if (notify) notifyArrivals(app, s.workspace_id, [[s.id, count]]);
+  if (notify) notifyArrivals(app, s.account_id, [[s.id, count]]);
   emit(app, s.account_id, { type: "items", sourceIds: [s.id], count });
   emit(app, s.account_id, { type: "storage" });
 }
@@ -106,15 +106,15 @@ function announce(app: App, s: NewsSource, count: number, notify: boolean): void
  * Give a PURSS its news source, once, with the newest few posts. Nothing happens before the installation has
  * published a post, or when the PURSS already has the source (followed or not: an unfollow is respected).
  */
-export function addNewsSource(app: App, accountId: string, workspaceId: string): void {
-  if (!hasPublished(app) || app.db.get("SELECT 1 FROM sources WHERE workspace_id = ? AND builtin = 'news'", workspaceId)) return;
-  const s: NewsSource = { id: newId("src"), account_id: accountId, workspace_id: workspaceId };
+export function addNewsSource(app: App, accountId: string): void {
+  if (!hasPublished(app) || app.db.get("SELECT 1 FROM sources WHERE account_id = ? AND builtin = 'news'", accountId)) return;
+  const s: NewsSource = { id: newId("src"), account_id: accountId };
   const { page, feed } = newsUrls(app);
   // A source of this kind is like any feed to the person; it has no engine subscription, so it never waits for one.
   app.db.run(
-    `INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, site_url, feed_url, hue, health, builtin, created_at)
-     VALUES (?, ?, ?, 'feed', ?, ?, ?, ?, ?, 'ok', 'news', ?)`,
-    s.id, accountId, workspaceId, NEWS_TITLE, server.api.shared.newsFrom(PRODUCT_NAME), page, feed, hueFor(NEWS_TITLE), nowIso());
+    `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, hue, health, builtin, created_at)
+     VALUES (?, ?, 'feed', ?, ?, ?, ?, ?, 'ok', 'news', ?)`,
+    s.id, accountId, NEWS_TITLE, server.api.shared.newsFrom(PRODUCT_NAME), page, feed, hueFor(NEWS_TITLE), nowIso());
   const posts = app.db.all<PostRow>("SELECT * FROM news_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT ?", NEWS_INITIAL_POSTS);
   let n = 0;
   for (const post of posts.reverse()) if (deliver(app, s, post, true)) n++;
@@ -133,15 +133,15 @@ const NEWS_ICON_DIGEST = createHash("sha256").update(NEWS_ICON).digest("hex");
 
 /** Every news source shows the app's icon: new ones, ones followed again, and all of them after the icon changes. */
 function giveNewsIcons(app: App): void {
-  const missing = app.db.all<{ id: string; account_id: string; workspace_id: string }>(
-    `SELECT s.id, s.account_id, s.workspace_id FROM sources s LEFT JOIN source_icons si ON si.source_id = s.id
+  const missing = app.db.all<{ id: string; account_id: string; }>(
+    `SELECT s.id, s.account_id FROM sources s LEFT JOIN source_icons si ON si.source_id = s.id
      WHERE s.builtin = 'news' AND (si.digest IS NULL OR si.digest <> ?) LIMIT 500`, NEWS_ICON_DIGEST);
   const now = nowIso();
   for (const s of missing) {
     app.db.run(
-      `INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO source_icons (source_id, account_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (source_id) DO UPDATE SET bytes = excluded.bytes, digest = excluded.digest, found_url = excluded.found_url, updated_at = excluded.updated_at`,
-      s.id, s.account_id, s.workspace_id, NEWS_ICON, NEWS_ICON_DIGEST, `${app.config.publicOrigin}${APP_PATH}/icon-512.png`, now);
+      s.id, s.account_id, NEWS_ICON, NEWS_ICON_DIGEST, `${app.config.publicOrigin}${APP_PATH}/icon-512.png`, now);
     app.db.run("UPDATE sources SET icon_checked_at = ? WHERE id = ?", now, s.id);
     emit(app, s.account_id, { type: "source", sourceId: s.id });
   }
@@ -158,19 +158,19 @@ onAccountCreated(addNewsSource);
 export function deliverNews(app: App): void {
   giveNewsIcons(app);
   if (!hasPublished(app)) return;
-  for (const w of app.db.all<{ id: string; account_id: string }>(
-    `SELECT w.id, w.account_id FROM workspaces w WHERE ${usableAccountSql("w.account_id")}
-       AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.workspace_id = w.id AND s.builtin = 'news') LIMIT 200`)) {
-    addNewsSource(app, w.account_id, w.id);
+  for (const a of app.db.all<{ id: string }>(
+    `SELECT a.id FROM accounts a WHERE ${usableAccountSql("a.id")}
+       AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.account_id = a.id AND s.builtin = 'news') LIMIT 200`)) {
+    addNewsSource(app, a.id);
   }
   const pending = app.db.all<NewsSource & { post: string }>(
-    `SELECT s.id, s.account_id, s.workspace_id, json_object('id', p.id, 'title', p.title, 'body', p.body, 'status', p.status, 'created_at', p.created_at,
+    `SELECT s.id, s.account_id, json_object('id', p.id, 'title', p.title, 'body', p.body, 'status', p.status, 'created_at', p.created_at,
        'updated_at', p.updated_at, 'published_at', p.published_at) AS post FROM sources s
      JOIN news_posts p ON p.status = 'published' AND (p.published_at >= s.created_at
        OR p.id IN (SELECT id FROM news_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT ${NEWS_INITIAL_POSTS}))
      WHERE s.builtin = 'news' AND s.followed = 1 AND s.paused = 0 AND ${usableAccountSql("s.account_id")}
        AND NOT EXISTS (SELECT 1 FROM storage_accounts sa WHERE sa.account_id = s.account_id AND sa.paused_reason IS NOT NULL)
-       AND NOT EXISTS (SELECT 1 FROM news_deliveries d WHERE d.post_id = p.id AND d.workspace_id = s.workspace_id)
+       AND NOT EXISTS (SELECT 1 FROM news_deliveries d WHERE d.post_id = p.id AND d.account_id = s.account_id)
      ORDER BY p.published_at LIMIT 500`);
   const arrived = new Map<string, { s: NewsSource; n: number }>();
   for (const row of pending) {
@@ -186,8 +186,8 @@ export function deliverNews(app: App): void {
 /** A published post was edited: every copy gets the new text (a kept copy keeps the version it was kept with). */
 function reviseCopies(app: App): void {
   // A full account's copies wait (updateItem would only defer them) until it has room again; the tick asks again.
-  const copies = app.db.all<{ post_id: string; item_id: string; account_id: string; workspace_id: string; title: string; body: string; published_at: string; updated_at: string }>(
-    `SELECT d.post_id, d.item_id, i.account_id, i.workspace_id, p.title, p.body, p.published_at, p.updated_at
+  const copies = app.db.all<{ post_id: string; item_id: string; account_id: string; title: string; body: string; published_at: string; updated_at: string }>(
+    `SELECT d.post_id, d.item_id, i.account_id, p.title, p.body, p.published_at, p.updated_at
      FROM news_deliveries d JOIN news_posts p ON p.id = d.post_id AND p.status = 'published' JOIN items i ON i.id = d.item_id
      WHERE d.revised_at < p.updated_at AND NOT EXISTS (SELECT 1 FROM storage_accounts sa WHERE sa.account_id = i.account_id AND sa.paused_reason IS NOT NULL)
      LIMIT 500`);
@@ -198,7 +198,7 @@ function reviseCopies(app: App): void {
     });
     // Unchanged or revised now: up to date. Deferred because the account just filled up: left for later.
     if (!app.db.get("SELECT 1 FROM storage_accounts WHERE account_id = ? AND paused_reason IS NOT NULL", c.account_id)) {
-      app.db.run("UPDATE news_deliveries SET revised_at = ? WHERE post_id = ? AND workspace_id = ?", c.updated_at, c.post_id, c.workspace_id);
+      app.db.run("UPDATE news_deliveries SET revised_at = ? WHERE post_id = ? AND account_id = ?", c.updated_at, c.post_id, c.account_id);
     }
     if (changed) emit(app, c.account_id, { type: "items", sourceIds: [], count: 0 });
   }
@@ -272,13 +272,13 @@ export function deleteNewsPost(app: App, admin: Principal, id: string): { remove
   let keptCopies = 0;
   const touched = new Set<string>();
   app.db.tx(() => {
-    const copies = app.db.all<{ item_id: string; account_id: string; workspace_id: string; held: number }>(
-      `SELECT d.item_id, i.account_id, i.workspace_id,
+    const copies = app.db.all<{ item_id: string; account_id: string; held: number }>(
+      `SELECT d.item_id, i.account_id,
          (EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id) OR EXISTS (SELECT 1 FROM share_notes sn WHERE sn.item_id = i.id) OR ${HAS_ANNOTATIONS}) AS held
        FROM news_deliveries d JOIN items i ON i.id = d.item_id WHERE d.post_id = ?`, id);
     for (const c of copies) {
       if (c.held) { keptCopies++; continue; }
-      if (deleteItemNow(app, { workspaceId: c.workspace_id }, c.item_id) !== null) { removedCopies++; touched.add(c.account_id); }
+      if (deleteItemNow(app, { accountId: c.account_id }, c.item_id) !== null) { removedCopies++; touched.add(c.account_id); }
     }
     app.db.run("DELETE FROM news_deliveries WHERE post_id = ?", id);
     app.db.run("DELETE FROM news_posts WHERE id = ?", id);

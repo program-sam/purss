@@ -10,7 +10,7 @@ export function homeRouter(): Router<Ctx> {
   r.get("/api/home", (_req, ctx) => homeOverview(ctx.app, requirePrincipal(ctx)));
   // Sent by the web app from any page when the person interacts with it in the foreground, every few minutes at most. A
   // mutation, so it carries the same origin and CSRF checks as every other.
-  r.post("/api/activity/visit", (_req, ctx) => touchVisit(ctx.app, requirePrincipal(ctx).workspaceId));
+  r.post("/api/activity/visit", (_req, ctx) => touchVisit(ctx.app, requirePrincipal(ctx).accountId));
   r.get("/api/activity", (_req, ctx) => activityFor(ctx.app, requirePrincipal(ctx)));
   return r;
 }

@@ -8,7 +8,7 @@ import { timeAgo } from "../lib/format.ts";
 import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { notificationPlace } from "./notification-target.ts";
 import { PhoneNotificationsOffer } from "./PhoneNotifications.tsx";
 
@@ -16,7 +16,7 @@ const t = app.shell.notifications;
 
 /** The quiet bell's list. Real notifications only; nothing is invented to create urgency. */
 export function NotificationsPanel({ onClose }: { onClose: () => void }) {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const nav = useNav();
   const overlays = useOverlays();

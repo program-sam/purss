@@ -41,7 +41,7 @@ const MAX_TEXT_CHARS = 60_000;
 type Ctx = { app: App; p: Principal; privateSources: Set<string> };
 
 function privateSourceIds(app: App, p: Principal): Set<string> {
-  return new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE workspace_id = ? AND is_private = 1", p.workspaceId).map((r) => r.id));
+  return new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND is_private = 1", p.accountId).map((r) => r.id));
 }
 
 /** Links of private sources can carry their secret, and links with credentials never leave. */

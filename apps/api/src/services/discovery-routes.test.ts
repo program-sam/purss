@@ -118,7 +118,7 @@ test("a follow that is refused counts nothing, and sources made before the recor
   holdCandidate("dsc_elsewhere", "wsp_other", { ...draft("https://example.org/feed.xml", "alternate-link"), entry: "paste" });
   assert.throws(() => followSource(app, p, { ...follow, token: "dsc_elsewhere" }), { message: copy.api.shared.lookupExpired });
   assert.deepEqual(rows(app), []);
-  app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, created_at) VALUES ('src_old', ?, ?, 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')", p.accountId, p.workspaceId);
+  app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, health, created_at) VALUES ('src_old', ?, 'feed', 'Old', 'RSS feed', 'ok', '2026-01-01T00:00:00.000Z')", p.accountId);
   assert.deepEqual({ ...app.db.get("SELECT discovery_route, discovery_entry, unfollowed_at FROM sources WHERE id = 'src_old'")! }, { discovery_route: null, discovery_entry: null, unfollowed_at: null });
 });
 
@@ -135,8 +135,8 @@ test("the counts: per route and per entry, the sources followed in the window th
   counter(10, "extension", "wikidata", 2, 0);
   const source = (id: string, route: string | null, entry: string | null, startedDaysAgo: number, unfollowedAfterDays: number | null) => {
     const started = ago(startedDaysAgo);
-    app.db.run("INSERT INTO sources (id, account_id, workspace_id, kind, title, origin, health, followed, created_at, discovery_route, discovery_entry, unfollowed_at) VALUES (?, ?, ?, 'feed', ?, 'RSS feed', 'ok', ?, ?, ?, ?, ?)",
-      id, p.accountId, p.workspaceId, id, unfollowedAfterDays === null ? 1 : 0, started.toISOString(), route, entry, unfollowedAfterDays === null ? null : new Date(started.getTime() + unfollowedAfterDays * DAY).toISOString());
+    app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, health, followed, created_at, discovery_route, discovery_entry, unfollowed_at) VALUES (?, ?, 'feed', ?, 'RSS feed', 'ok', ?, ?, ?, ?, ?)",
+      id, p.accountId, id, unfollowedAfterDays === null ? 1 : 0, started.toISOString(), route, entry, unfollowedAfterDays === null ? null : new Date(started.getTime() + unfollowedAfterDays * DAY).toISOString());
   };
   source("a-new", "alternate-link", "paste", 3, null); // too young to say anything about a month
   source("a-kept", "alternate-link", "paste", 60, null); // old and still followed
@@ -175,7 +175,7 @@ test("the administrator's health holds the counts, and nothing in the counters n
   const health = await adminHealth(app);
   assert.deepEqual(health.discoveryRoutes.routes, [{ id: "alternate-link", offered: 1, followed: 1, following: 1, aged: 0, agedStill: 0 }]);
   const stored = JSON.stringify(app.db.all("SELECT * FROM discovery_routes"));
-  for (const secret of ["secret-name", "sekrit", "Private Title", admin.accountId, admin.workspaceId]) assert.ok(!stored.includes(secret), `the counters don't hold ${secret}`);
+  for (const secret of ["secret-name", "sekrit", "Private Title", admin.accountId, admin.accountId]) assert.ok(!stored.includes(secret), `the counters don't hold ${secret}`);
   assert.deepEqual(app.db.all<{ name: string }>("SELECT name FROM pragma_table_info('discovery_routes') ORDER BY cid").map((c) => c.name), ["day", "entry", "route", "offered", "followed"]);
   assert.equal(app.db.all("SELECT 1 FROM pragma_foreign_key_list('discovery_routes')").length, 0, "no link to an account");
   assert.ok(!JSON.stringify(health.discoveryRoutes).includes(admin.accountId));

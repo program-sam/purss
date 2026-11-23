@@ -90,7 +90,7 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Plain HTTP only on the local network, the rule the app shares with the browser extension (parseWorkspaceAddress in packages/domain):
+	<!-- Plain HTTP only on the local network, the rule the app shares with the browser extension (parsePurssAddress in packages/domain):
 	     NSAllowsLocalNetworking covers .local names, unqualified names and IP addresses; the other local-only names are listed. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

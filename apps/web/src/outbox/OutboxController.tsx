@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { setSignOutGate } from "../api/client.ts";
-import { putItem, refreshWorkspace } from "../api/queries.ts";
+import { putItem, refreshPurss } from "../api/queries.ts";
 import { onResume } from "../offline/status.ts";
 import { useToasts } from "../state/toasts.tsx";
 import { outbox } from "./instance.ts";
@@ -50,7 +50,7 @@ export function OutboxController() {
       b.timer = null;
       const { sent, dropped } = b;
       b.sent = 0; b.dropped = [];
-      refreshWorkspace(qc);
+      refreshPurss(qc);
       if (dropped.length) toast(droppedLine(dropped), { tone: "error" });
       else if (sent) toast(sentLine(sent), { tone: "none" });
     }, 800);

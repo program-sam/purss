@@ -15,11 +15,11 @@ import { OPTIONAL_SECTION_NAMES, SECTION_NAMES, sha256Hex } from "./archive-form
 
 const { plans } = server.api;
 const base = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
-const hosted = () => makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://workspace.example" });
+const hosted = () => makeTestApp({ PURSS_MODE: "hosted", PURSS_PUBLIC_ORIGIN: "https://purss.example" });
 
 function hold(p: Principal, n: number): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, {
+  holdCandidate(token, p.accountId, {
     feedUrl: `https://example.org/new/${n}.xml`, siteUrl: "https://example.org/", title: `New ${n}`, kind: "feed",
     origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null,
   });

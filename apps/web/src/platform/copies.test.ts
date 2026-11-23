@@ -5,7 +5,7 @@ import { OFFLINE_HEADER } from "../sw/protocol.ts";
 import { fakeNetwork, json } from "../sw/testing.ts";
 import { MemoryCopyBackend, StoredCaches } from "./copies.ts";
 
-const ORIGIN = "https://workspace.example";
+const ORIGIN = "https://purss.example";
 
 test("stored caches answer like Cache Storage: open, put, match, keys, delete, has", async () => {
   const caches = new StoredCaches(new MemoryCopyBackend());

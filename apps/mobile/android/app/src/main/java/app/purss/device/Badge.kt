@@ -14,7 +14,7 @@ import android.util.Log
  */
 object Badge {
     /** The channel of PURSS's notifications (PushFetcher's, in the full build). */
-    const val CHANNEL = "workspace"
+    const val CHANNEL = "purss"
     private const val TAG = "PurssBadge"
 
     /**

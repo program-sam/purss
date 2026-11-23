@@ -16,7 +16,7 @@ async function boot() {
   return { app, owner, server, close: async () => { await server.close(); cleanup(); } };
 }
 const visitColumns = (b: Awaited<ReturnType<typeof boot>>) =>
-  b.app.db.get<{ a: string | null; b: string | null; c: string | null }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM workspaces WHERE id = ?", b.owner.workspaceId)!;
+  b.app.db.get<{ a: string | null; b: string | null; c: string | null }>("SELECT last_visit_at AS a, visit_started_at AS b, last_activity_at AS c FROM accounts WHERE id = ?", b.owner.accountId)!;
 
 test("reading Home changes nothing; the visit is recorded by a protected POST that moves both timestamps together", async (t) => {
   const b = await boot();
@@ -35,7 +35,7 @@ test("reading Home changes nothing; the visit is recorded by a protected POST th
   assert.ok(after.b && after.c && after.a === null);
 
   // Half an hour of quiet, then the next call (from whatever page): the visit that ended becomes the last one.
-  b.app.db.run("UPDATE workspaces SET visit_started_at = ?, last_activity_at = ? WHERE id = ?", "2026-11-01T09:00:00.000Z", "2026-11-01T09:20:00.000Z", b.owner.workspaceId);
+  b.app.db.run("UPDATE accounts SET visit_started_at = ?, last_activity_at = ? WHERE id = ?", "2026-11-01T09:00:00.000Z", "2026-11-01T09:20:00.000Z", b.owner.accountId);
   const second = await call(b.app, b.server.base, "POST", "/api/activity/visit", s, {});
   assert.deepEqual(second.json, { lastVisitAt: "2026-11-01T09:00:00.000Z", started: true });
   const moved = visitColumns(b);
@@ -63,7 +63,7 @@ test("the visit call needs a signed-in session, the CSRF token and this site as 
 
 function addItem(b: Awaited<ReturnType<typeof boot>>, sourceId: string, title: string, over: Partial<NewItem> = {}): string {
   return b.app.db.tx(() => insertItem(b.app, {
-    accountId: b.owner.accountId, workspaceId: b.owner.workspaceId, sourceId, kind: "article", title, url: `https://example.org/${title.replace(/\W+/g, "-")}`, author: null,
+    accountId: b.owner.accountId, sourceId, kind: "article", title, url: `https://example.org/${title.replace(/\W+/g, "-")}`, author: null,
     summaryHtml: `<p>${title}.</p>`, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: null, discoveredAt: nowIso(),
     enclosures: [], fresh: false, reason: "test", ...over,
   })).id;
@@ -115,9 +115,9 @@ test("a Home list narrowed by type, length, source or a failed copy still shows 
   const clipHidden = video(hidden, "clip hidden", 9, 100);
   const otherClip = video(other, "clip other", 6, 60), otherText = item(other, "text other", 12);
   const failing = item(a, "failing", 5);
-  b.app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f1', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.workspaceId, failing, at(5), at(5));
+  b.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f1', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.accountId, failing, at(5), at(5));
   const hiddenFailing = item(hidden, "failing hidden", 5);
-  b.app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f2', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.workspaceId, hiddenFailing, at(5), at(5));
+  b.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, error, created_at, completed_at) VALUES ('cap_f2', ?, ?, 'fulltext', 'failed', 'x', ?, ?)", b.owner.accountId, hiddenFailing, at(5), at(5));
 
   const get = async (query: string) => {
     const r = await call(b.app, b.server.base, "GET", `/api/items?mix=home&limit=50&${query}`, s);

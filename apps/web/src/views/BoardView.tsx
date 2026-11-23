@@ -9,7 +9,7 @@ import { Avatar, Icon, useBreakpoint } from "@purss/ui";
 import { BOARD_COLUMNS, WORKFLOW_LABELS } from "../lib/constants.ts";
 import { excludesWorkflow } from "../lib/query-builder.ts";
 import { useCurrentPlace } from "../shell/place.ts";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { plural, timeAgo } from "../lib/format.ts";
 import { itemDate } from "../lib/items.ts";
 import { FreshDot, KeptTag, PendingMark, useFace, useItemLabel } from "../components/item-bits.tsx";
@@ -63,7 +63,7 @@ export function BoardView({ params, onMove }: { params: BoardParams; onMove: (id
   const [over, setOver] = useState<ColumnKey | null>(null);
   const endDrag = useCallback(() => { setDragId(null); setOver(null); }, []);
   const [note, setNote] = useState<string | null>(null);
-  const ws = useWorkspace();
+  const ws = usePurss();
   const place = useCurrentPlace();
   const collection = place?.t === "c" ? ws.collectionById.get(place.id) : undefined;
   const boardRef = useRef<HTMLDivElement>(null);

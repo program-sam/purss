@@ -100,10 +100,9 @@ function prepare(): { accountId: string } {
     const code = ensureClaimCode(app);
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
-    const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal & { engineUserId: string } = { accountId, workspaceId: row.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu.id };
+    const p: Principal & { engineUserId: string } = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString(), engineUserId: eu.id };
     const tidal = makeSource(app, p, "Tidal Notes", "feed/1");
     const radio = makeSource(app, p, "Slow Radio", "feed/2");
     const long = (n: number) => `<p>The tide leaves thin layers of silt across the flats, and each layer tells the story of one storm (${n}).</p><p>Walking out at low water, the surface is firm, ribbed, and cold underfoot.</p>`;

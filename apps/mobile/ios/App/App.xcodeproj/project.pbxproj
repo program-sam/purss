@@ -29,7 +29,7 @@
 		7E5B00000000000000000004 /* ForegroundDownloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000014 /* ForegroundDownloads.swift */; };
 		7E5B00000000000000000005 /* BackgroundJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000015 /* BackgroundJob.swift */; };
 		7E5B00000000000000000006 /* BackgroundTransfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000016 /* BackgroundTransfers.swift */; };
-		7E5B00000000000000000007 /* WorkspaceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000017 /* WorkspaceWidget.swift */; };
+		7E5B00000000000000000007 /* PurssWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000017 /* PurssWidget.swift */; };
 		7E5B00000000000000000061 /* WidgetLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000051 /* WidgetLists.swift */; };
 		7E5B00000000000000000062 /* WidgetLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000051 /* WidgetLists.swift */; };
 		7E5B00000000000000000063 /* PanelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B00000000000000000052 /* PanelChoice.swift */; };
@@ -111,7 +111,7 @@
 		7E5B00000000000000000014 /* ForegroundDownloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundDownloads.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000015 /* BackgroundJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundJob.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000016 /* BackgroundTransfers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfers.swift; sourceTree = "<group>"; };
-		7E5B00000000000000000017 /* WorkspaceWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceWidget.swift; sourceTree = "<group>"; };
+		7E5B00000000000000000017 /* PurssWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurssWidget.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000051 /* WidgetLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLists.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000052 /* PanelChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelChoice.swift; sourceTree = "<group>"; };
 		7E5B00000000000000000070 /* NativeTranslations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTranslations.swift; sourceTree = "<group>"; };
@@ -225,7 +225,7 @@
 		7E5B00000000000000000022 /* Widgets */ = {
 			isa = PBXGroup;
 			children = (
-				7E5B00000000000000000017 /* WorkspaceWidget.swift */,
+				7E5B00000000000000000017 /* PurssWidget.swift */,
 				7E5B00000000000000000051 /* WidgetLists.swift */,
 				7E5B00000000000000000052 /* PanelChoice.swift */,
 				7E5B00000000000000000070 /* NativeTranslations.swift */,
@@ -448,7 +448,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7E5B00000000000000000007 /* WorkspaceWidget.swift in Sources */,
+				7E5B00000000000000000007 /* PurssWidget.swift in Sources */,
 				7E5B00000000000000000062 /* WidgetLists.swift in Sources */,
 				7E5B00000000000000000064 /* PanelChoice.swift in Sources */,
 				7E5B00000000000000000072 /* NativeTranslations.swift in Sources */,

@@ -28,7 +28,7 @@ test("there is nothing to say while there is room, without a limit, or on a self
   assert.equal(collectionLimitNote(null), null, "a copy saved offline by an earlier version has no capacity");
 });
 
-test("capacity is read from the workspace when it carries it", () => {
+test("capacity is read from the account when it carries it", () => {
   const c = cap("free", 5, 5);
   assert.equal(capacityOf({ capacity: c }), c);
   assert.equal(capacityOf({}), null);

@@ -36,7 +36,7 @@ import { PageNav } from "../components/PageNav.tsx";
 import { useDisplayMode } from "../lib/display.ts";
 import { SelectionProvider, useSelection } from "../state/selection.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
-import { WorkspaceProvider, useWorkspace } from "../state/workspace.tsx";
+import { PurssProvider, usePurss } from "../state/purss.tsx";
 import { PlayerProvider, usePlayer } from "../player/PlayerProvider.tsx";
 import { DeviceRunner } from "../device/DeviceRunner.tsx";
 import { PlayerBar, focusPlayer } from "../player/PlayerBar.tsx";
@@ -69,7 +69,7 @@ export function Shell() {
     );
   }
   return (
-    <WorkspaceProvider data={q.data}>
+    <PurssProvider data={q.data}>
       <SelectionProvider>
         <PopupProvider>
           <PlayerProvider>
@@ -77,12 +77,12 @@ export function Shell() {
           </PlayerProvider>
         </PopupProvider>
       </SelectionProvider>
-    </WorkspaceProvider>
+    </PurssProvider>
   );
 }
 
 function ShellFrame() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const nav = useNav();
   const qc = useQueryClient();
   const bp = useBreakpoint();

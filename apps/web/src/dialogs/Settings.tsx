@@ -17,7 +17,7 @@ import { useNav } from "../nav.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { useSavePreferences } from "../state/prefs.ts";
 import { useToasts } from "../state/toasts.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { SOUND_MATERIALS, cue, soundSettings, subscribeSounds, updateSounds } from "../lib/sound.ts";
 import { setDisplayMode, useDisplayMode } from "../lib/display.ts";
 import { OfflineField } from "../offline/OfflineSettings.tsx";
@@ -82,7 +82,7 @@ function DisplayField() {
 }
 
 function GeneralTab() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const save = useSavePreferences();
   const qc = useQueryClient();
   const ov = useOverlays();
@@ -146,7 +146,7 @@ function GeneralTab() {
 type Step = { kind: "main" } | { kind: "stepup"; then: () => Promise<void> } | { kind: "password" };
 
 function SecurityTab() {
-  const ws = useWorkspace();
+  const ws = usePurss();
   const qc = useQueryClient();
   const { toast } = useToasts();
   const session = useSession().data;

@@ -28,7 +28,7 @@ import { server } from "@purss/translations/server";
  */
 
 type EntryRow = { import_id: string; position: number; title: string; host: string; feed_url: string | null; folder: string | null; looks_private: number; state: OpmlImportEntryDTO["state"]; message: string | null; source_id: string | null };
-type ImportRow = { id: string; account_id: string; workspace_id: string; file_name: string; destination: OpmlImportDestination["kind"]; collection_id: string | null; collection_name: string | null; status: OpmlImportDTO["status"]; created_at: string; finished_at: string | null };
+type ImportRow = { id: string; account_id: string; file_name: string; destination: OpmlImportDestination["kind"]; collection_id: string | null; collection_name: string | null; status: OpmlImportDTO["status"]; created_at: string; finished_at: string | null };
 
 /** Imports that have an entry in hand in this process: a list is followed one feed at a time. */
 const inFlight = new Set<string>();
@@ -74,7 +74,7 @@ function toDTO(app: App, row: ImportRow, withEntries: boolean): OpmlImportDTO {
 }
 
 function ownImport(app: App, p: Principal, id: string): ImportRow {
-  const row = app.db.get<ImportRow>("SELECT * FROM opml_imports WHERE id = ? AND account_id = ? AND workspace_id = ?", id, p.accountId, p.workspaceId);
+  const row = app.db.get<ImportRow>("SELECT * FROM opml_imports WHERE id = ? AND account_id = ?", id, p.accountId);
   if (!row) throw notFound(server.api.opmlImport.thatImport);
   return row;
 }
@@ -85,7 +85,7 @@ export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest
     throw new HttpError(409, "import_running", server.api.opmlImport.listAlreadyRunning);
   }
   const d = input.destination;
-  if (d.kind === "collection" && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND workspace_id = ? AND mode = 'sources'", d.id, p.workspaceId)) throw notFound(server.api.shared.thatCollection);
+  if (d.kind === "collection" && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND account_id = ? AND mode = 'sources'", d.id, p.accountId)) throw notFound(server.api.shared.thatCollection);
   if (d.kind === "new" && !d.name.trim()) throw badRequest(server.api.opmlImport.nameNewCollection);
   const seen = new Set<string>();
   const feeds: { title: string; feedUrl: string; folder: string | null; private: boolean }[] = [];
@@ -103,8 +103,8 @@ export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest
   const id = newId("opl");
   try {
     app.db.tx(() => {
-      app.db.run("INSERT INTO opml_imports (id, account_id, workspace_id, file_name, destination, collection_id, collection_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)",
-        id, p.accountId, p.workspaceId, input.fileName.slice(0, 200), d.kind, d.kind === "collection" ? d.id : null, d.kind === "new" ? d.name.trim().slice(0, 80) : null, nowIso());
+      app.db.run("INSERT INTO opml_imports (id, account_id, file_name, destination, collection_id, collection_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?)",
+        id, p.accountId, input.fileName.slice(0, 200), d.kind, d.kind === "collection" ? d.id : null, d.kind === "new" ? d.name.trim().slice(0, 80) : null, nowIso());
       feeds.forEach((f, position) => {
         // A secret link never enters the database: it waits in the secrets folder, apart from the rest.
         if (f.private) writeSecret(app.config.secretsDir, secretName(id, position), f.feedUrl);
@@ -120,7 +120,7 @@ export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest
 }
 
 export function listOpmlImports(app: App, p: Principal): OpmlImportDTO[] {
-  return app.db.all<ImportRow>("SELECT * FROM opml_imports WHERE account_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 10", p.accountId, p.workspaceId).map((r) => toDTO(app, r, false));
+  return app.db.all<ImportRow>("SELECT * FROM opml_imports WHERE account_id = ? ORDER BY created_at DESC LIMIT 10", p.accountId).map((r) => toDTO(app, r, false));
 }
 
 export function getOpmlImport(app: App, p: Principal, id: string): OpmlImportDTO {
@@ -223,7 +223,7 @@ function noRoomFor(app: App, accountId: string): string | null {
 }
 
 function principalOf(row: ImportRow): Principal {
-  return { accountId: row.account_id, workspaceId: row.workspace_id, isAdmin: false, sessionId: "opml-import", csrf: "", authAt: nowIso() };
+  return { accountId: row.account_id, isAdmin: false, sessionId: "opml-import", csrf: "", authAt: nowIso() };
 }
 
 async function work(app: App, deps: OpmlImportDeps): Promise<void> {
@@ -298,7 +298,7 @@ type Target = { target: { id: string } | { name: string } | null; note: string |
  */
 function collectionFor(app: App, row: ImportRow, p: Principal, entry: EntryRow): Target {
   const named = (name: string): Target => {
-    const existing = app.db.get<{ id: string; mode: string }>("SELECT id, mode FROM collections WHERE workspace_id = ? AND lower(name) = lower(?)", p.workspaceId, name);
+    const existing = app.db.get<{ id: string; mode: string }>("SELECT id, mode FROM collections WHERE account_id = ? AND lower(name) = lower(?)", p.accountId, name);
     if (!existing) return { target: { name: name.trim() }, note: null };
     return existing.mode === "sources" ? { target: { id: existing.id }, note: null } : { target: null, note: server.api.opmlImport.notPutIn(name) };
   };

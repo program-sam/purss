@@ -13,7 +13,7 @@ import { discoverSources, followSource, getSource, patchSource, unfollowSource }
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, createNewsPost, deleteNewsPost, deliverNews, newsAdmin, renderNewsAtom, renderNewsBody, updateNewsPost } from "./news.ts";
 
 type Owner = ReturnType<typeof makeOwner>;
-const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE workspace_id = ? AND builtin = 'news'", p.workspaceId);
+const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE account_id = ? AND builtin = 'news'", p.accountId);
 const copies = (app: App, p: Owner) => listItems(app, p, { scope: "all" }).items.filter((i) => i.sourceTitle === NEWS_TITLE);
 const publish = (app: App, admin: Owner, title: string, body = `About ${title}.`) => createNewsPost(app, admin, { title, body, publish: true });
 const follow = { collectionId: null, newCollectionName: null, markPrivate: false, fullText: false };
@@ -58,7 +58,7 @@ test("an unfollowed news source stays unfollowed; following its address again ta
   publish(app, admin, "Second");
   deliverNews(app);
   assert.equal(newsSource(app, reader)!.followed, 0, "not added back");
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE workspace_id = ? AND source_id = ?", reader.workspaceId, id)!.n, 1, "and nothing new arrives");
+  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items WHERE account_id = ? AND source_id = ?", reader.accountId, id)!.n, 1, "and nothing new arrives");
 
   // Pasting the news address finds it without a fetch (the engine and discovery never fetch this server's own address).
   const found = await discoverSources(app, reader, `${app.config.publicOrigin}/news`);
@@ -99,14 +99,14 @@ test("a copy the PURSS already has (brought back by an import) is recorded, not 
   patchSource(app, reader, source, { paused: true });
   const post = publish(app, admin, "Second");
   const imported = insertItem(app, {
-    accountId: reader.accountId, workspaceId: reader.workspaceId, sourceId: source, kind: "article", title: "Second", url: post.url, author: null,
+    accountId: reader.accountId, sourceId: source, kind: "article", title: "Second", url: post.url, author: null,
     summaryHtml: null, contentHtml: "<p>About Second.</p>", imageUrl: null, durationSeconds: null, doi: null, curatorNote: null,
     publishedAt: post.publishedAt, discoveredAt: post.publishedAt!, enclosures: [], fresh: true, reason: "test import",
   }).id;
   patchSource(app, reader, source, { paused: false });
   deliverNews(app);
   assert.deepEqual(copies(app, reader).map((i) => i.title).sort(), ["First", "Second"]);
-  assert.equal(app.db.get<{ item_id: string }>("SELECT item_id FROM news_deliveries WHERE post_id = ? AND workspace_id = ?", post.id, reader.workspaceId)!.item_id, imported);
+  assert.equal(app.db.get<{ item_id: string }>("SELECT item_id FROM news_deliveries WHERE post_id = ? AND account_id = ?", post.id, reader.accountId)!.item_id, imported);
 });
 
 test("editing a published post changes every copy, except the version someone kept; deleting it leaves only kept copies", (t) => {

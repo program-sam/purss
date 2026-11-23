@@ -5,7 +5,7 @@ import { useDisplayMode } from "../lib/display.ts";
 import { onItemsChanged, onReadingChanged } from "../offline/signals.ts";
 import { platform } from "../platform/index.ts";
 import { usePlayer } from "../player/PlayerProvider.tsx";
-import { useWorkspace } from "../state/workspace.tsx";
+import { usePurss } from "../state/purss.tsx";
 import { buildWidgetSnapshot, sameWidget } from "./widget.ts";
 import type { WidgetSnapshot } from "./widget.ts";
 
@@ -21,7 +21,7 @@ export function DeviceRunner() {
   const widget = platform.widget;
   const qc = useQueryClient();
   const { snap } = usePlayer();
-  const ws = useWorkspace();
+  const ws = usePurss();
   const eink = useDisplayMode() === "eink";
   const last = useRef<WidgetSnapshot | null>(null);
   // The stored snapshot is read first: it keeps the last played episode across starts of the app.

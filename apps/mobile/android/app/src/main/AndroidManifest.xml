@@ -73,7 +73,7 @@
 
         <!-- The home-screen panels, their setup and the To listen panel's play/pause. -->
         <receiver
-            android:name=".device.WorkspaceWidget"
+            android:name=".device.PurssWidget"
             android:label="@string/widget_to_read"
             android:exported="true">
             <intent-filter>
@@ -81,7 +81,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/workspace_widget" />
+                android:resource="@xml/purss_widget" />
         </receiver>
         <receiver
             android:name=".device.ToListenWidget"

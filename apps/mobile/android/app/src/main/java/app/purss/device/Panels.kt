@@ -54,7 +54,7 @@ abstract class PanelWidget(private val kind: String) : AppWidgetProvider() {
     }
 }
 
-class WorkspaceWidget : PanelWidget("toread")
+class PurssWidget : PanelWidget("toread")
 class ToListenWidget : PanelWidget("tolisten")
 class NewWidget : PanelWidget("new")
 class CollectionWidget : PanelWidget("collection")
@@ -62,7 +62,7 @@ class SourceWidget : PanelWidget("source")
 
 object Panels {
     private val KINDS = listOf(
-        WorkspaceWidget::class.java to "toread",
+        PurssWidget::class.java to "toread",
         ToListenWidget::class.java to "tolisten",
         NewWidget::class.java to "new",
         CollectionWidget::class.java to "collection",

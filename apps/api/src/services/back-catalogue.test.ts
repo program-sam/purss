@@ -43,7 +43,7 @@ function setup() {
 /** Follow a feed the way the app does (a held candidate, then the engine confirming it). */
 function follow(app: App, p: Owner, title: string, stream: string, startFrom?: "now" | "week", collectionId: string | null = null): string {
   const token = newId("dsc");
-  holdCandidate(token, p.workspaceId, { feedUrl: `https://example.org/${stream}.xml`, siteUrl: null, title, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
+  holdCandidate(token, p.accountId, { feedUrl: `https://example.org/${stream}.xml`, siteUrl: null, title, kind: "feed", origin: "RSS feed", via: "Posts feed", cadence: null, samples: [], route: "feed-address", entry: "paste", summariesOnly: false, privateWarning: null });
   const src = followSource(app, p, { token, collectionId, newCollectionName: null, markPrivate: false, fullText: false, ...(startFrom ? { startFrom } : {}) }).id;
   onSubscribed(app, src, stream);
   return src;
@@ -146,8 +146,8 @@ test("followed from now, the back catalogue arrives Ignored: hidden from lists, 
   const home = homeOverview(app, p);
   assert.equal(home.unread, 0, "nothing older is waiting: 'up to date', not 'N older items not looked at'");
   assert.equal(home.fresh, 1);
-  assert.equal(itemCounts(app, p.workspaceId).items(src), back.length + 1, "the counts keep the whole of it for the source's page");
-  assert.equal(itemCounts(app, p.workspaceId).sum([src], (w) => w === "ignored"), back.length);
+  assert.equal(itemCounts(app, p.accountId).items(src), back.length + 1, "the counts keep the whole of it for the source's page");
+  assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), back.length);
   assert.deepEqual(notes(app), [notifications.newFrom("Old podcast")], "and it tells no one: only the post that is new does");
   const activity = activityFor(app, p);
   assert.equal(activity.sources.find((s) => s.id === src)!.arrived, 1, "the activity panel does not report it as arrived today");
@@ -252,7 +252,7 @@ test("an Ignored back-catalogue post is the person's to change: To read or Undec
   assert.equal(listItems(app, p, { scope: "all", limit: 10, filter: "all" }).total, 10, "all nine of the back catalogue and the brand new post");
   assert.deepEqual(pageAll(app, p, { scope: `basket:${basket.id}`, limit: 10, filter: "all" }), [kept], "a basket shows what is kept in it, Ignored or not");
   assert.equal(homeOverview(app, p).unread, 1, "Undecided and no longer New, like any older post; the Ignored ones are not counted");
-  assert.equal(itemCounts(app, p.workspaceId).sum([src], (w) => w === "ignored"), 7);
+  assert.equal(itemCounts(app, p.accountId).sum([src], (w) => w === "ignored"), 7);
   // Search finds the posts that were highlighted or noted, and the one that is kept.
   const found = new Set(searchItems(app, p, "tidal", 50).map((i) => i.id));
   for (const id of [kept, highlighted, noted, untouched]) assert.ok(found.has(id));
@@ -278,7 +278,7 @@ test("a shared collection shows what its owner's list of it shows: the Ignored b
   const filter = createCollection(app, p, { name: "Every article", emoji: null, mode: "query", sourceIds: [], query: { field: "kind", value: ["article"] }, view: "list" });
   const basket = createBasket(app, p, { name: "Keep", captureMode: "metadata" });
   const { back, brandNew } = followedFromNow(app, p, box.id);
-  const published = (kind: "collection" | "basket", target: string) => projection(app, { id: "shr_test", target_kind: kind, target_id: target, workspace_id: p.workspaceId })!.map((i) => i.url);
+  const published = (kind: "collection" | "basket", target: string) => projection(app, { id: "shr_test", target_kind: kind, target_id: target, account_id: p.accountId })!.map((i) => i.url);
   for (const c of [box.id, filter.id]) assert.deepEqual(published("collection", c), [urlOf(brandNew)]);
   changeState(app, p, idOf(app, back[0]!), { workflow: "toread", expectedRevision: revision(app, idOf(app, back[0]!)) });
   for (const c of [box.id, filter.id]) assert.deepEqual(new Set(published("collection", c)), new Set([urlOf(brandNew), urlOf(back[0]!)]), "a post the owner put aside is theirs to publish");
@@ -294,7 +294,7 @@ test("one PURSS's back catalogue never reaches another's counts or lists", (t) =
   const mine = followedFromNow(app, p);
   const theirs = follow(app, other, "Theirs", "feed/9", "now");
   walk(app, other, [entry("feed/9", { publishedAt: ago(40 * DAY) }), entry("feed/9", { publishedAt: ago(41 * DAY) })]);
-  const ignored = (o: Owner, source: string) => itemCounts(app, o.workspaceId).sum([source], (w) => w === "ignored");
+  const ignored = (o: Owner, source: string) => itemCounts(app, o.accountId).sum([source], (w) => w === "ignored");
   assert.deepEqual([ignored(p, mine.src), ignored(p, theirs), ignored(other, theirs), ignored(other, mine.src)], [mine.back.length, 0, 2, 0]);
   assert.equal(homeOverview(app, other).unread, 0);
   assert.deepEqual(pageAll(app, other, { scope: "all", limit: 10 }), []);
@@ -305,7 +305,7 @@ test("the queries that hide the Ignored posts and count what is left read their 
   const { app, p, cleanup } = setup();
   t.after(cleanup);
   followedFromNow(app, p);
-  setPreferences(app, p.workspaceId, { mutedWords: [{ text: "football", until: null }] });
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
   const seen: { sql: string; params: unknown[] }[] = [];
   const db = app.db as unknown as Record<"all" | "get" | "run", (sql: string, ...params: unknown[]) => unknown>;
   const original = { all: db.all, get: db.get, run: db.run };
@@ -323,12 +323,12 @@ test("the queries that hide the Ignored posts and count what is left read their 
   assert.ok(pages.length >= 3, "Home's two runs and the plain list hide them");
   for (const q of pages) {
     const lines = plan(q);
-    assert.ok(lines.some((l) => /^SEARCH i USING (COVERING )?INDEX items_ws_sortkey/.test(l)), `read in date order from the date index:\n${lines.join("\n")}`);
+    assert.ok(lines.some((l) => /^SEARCH i USING (COVERING )?INDEX items_account_sortkey/.test(l)), `read in date order from the date index:\n${lines.join("\n")}`);
     assert.ok(!lines.some((l) => /TEMP B-TREE FOR ORDER BY/.test(l)), lines.join("\n"));
     assert.ok(!lines.some((l) => /^SCAN (i|items)\b/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /^SEARCH st USING INDEX/.test(l)), `a row's state is one probe, as for any other state:\n${lines.join("\n")}`);
   }
-  const counting = seen.find((q) => /FROM item_state\s+WHERE workspace_id = \?/.test(q.sql) && /GROUP BY source_id, workflow, fresh/.test(q.sql));
+  const counting = seen.find((q) => /FROM item_state\s+WHERE account_id = \?/.test(q.sql) && /GROUP BY source_id, workflow, fresh/.test(q.sql));
   assert.ok(counting, "the counts ask for the Ignored items like any other state that is not the default");
   const counted = plan(counting);
   assert.ok(counted.some((l) => /COVERING INDEX item_state_rare/.test(l)) && !counted.some((l) => /^SCAN/.test(l) && !/INDEX/.test(l)) && !counted.some((l) => /items/.test(l)), `counted from the partial index alone, with no visit to the items however many are Ignored:\n${counted.join("\n")}`);

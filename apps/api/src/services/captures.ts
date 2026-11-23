@@ -45,14 +45,14 @@ const hasCapture = (app: App, itemId: string) => !!app.db.get("SELECT 1 FROM cap
  * person tried again, see capture-state.ts), belongs to a private source (whose pages are never fetched), or is a feed's video,
  * podcast episode or post (unless `again`). Throws StorageFull when there is no room. The person asked for this copy, so a failure of it is theirs to hear about.
  */
-export function queueCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string }, opts: { again?: boolean } = {}): boolean {
+export function queueCapture(app: App, target: { accountId: string; itemId: string; url: string }, opts: { again?: boolean } = {}): boolean {
   if (opts.again ? app.db.get(`SELECT 1 WHERE ${settledCopy("?")}`, target.itemId) : hasCapture(app, target.itemId)) return false;
   if (app.db.get("SELECT 1 FROM items i JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND s.is_private = 1", target.itemId)) return false;
   if (!opts.again && !pageHasReadableText(app, target.itemId)) return false;
   const captureId = newId("cap");
   const reservationId = reserve(app, target.accountId, CAPTURE_RESERVE_BYTES, "capture", `capture:${captureId}`);
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, requested, created_at) VALUES (?, ?, ?, 'fulltext', 'pending', 1, ?)", captureId, target.workspaceId, target.itemId, nowIso());
-  enqueue(app, "capture.fulltext", { captureId, url: target.url }, { accountId: target.accountId, workspaceId: target.workspaceId, idempotencyKey: `capture:${captureId}:${reservationId}` });
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, requested, created_at) VALUES (?, ?, ?, 'fulltext', 'pending', 1, ?)", captureId, target.accountId, target.itemId, nowIso());
+  enqueue(app, "capture.fulltext", { captureId, url: target.url }, { accountId: target.accountId, idempotencyKey: `capture:${captureId}:${reservationId}` });
   return true;
 }
 
@@ -64,7 +64,7 @@ export function queueCapture(app: App, target: { accountId: string; workspaceId:
  * after the last capture scheduled in the PURSS, so a burst of new items is spread out. A feed's video, podcast episode or post
  * has no page to copy (pageHasReadableText).
  */
-export function queueAutoCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string | null }): boolean {
+export function queueAutoCapture(app: App, target: { accountId: string; itemId: string; url: string | null }): boolean {
   if (!target.url || hasCapture(app, target.itemId) || !pageHasReadableText(app, target.itemId)) return false;
   try {
     checkGrowth(app, target.accountId, 1);
@@ -74,11 +74,11 @@ export function queueAutoCapture(app: App, target: { accountId: string; workspac
   }
   const captureId = newId("cap");
   const last = app.db.get<{ at: string | null }>(
-    "SELECT MAX(run_after) AS at FROM jobs WHERE kind = 'capture.fulltext' AND workspace_id = ? AND status IN ('queued', 'leased')", target.workspaceId)!.at;
+    "SELECT MAX(run_after) AS at FROM jobs WHERE kind = 'capture.fulltext' AND account_id = ? AND status IN ('queued', 'leased')", target.accountId)!.at;
   const now = Date.now();
   const slot = last && Date.parse(last) > now - AUTO_CAPTURE_SPACING_SECONDS * 1000 ? Date.parse(last) + AUTO_CAPTURE_SPACING_SECONDS * 1000 : now;
-  app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'pending', ?)", captureId, target.workspaceId, target.itemId, nowIso());
-  enqueue(app, "capture.fulltext", { captureId, url: target.url }, { accountId: target.accountId, workspaceId: target.workspaceId, idempotencyKey: `capture:${captureId}`, runAfter: new Date(slot).toISOString() });
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'fulltext', 'pending', ?)", captureId, target.accountId, target.itemId, nowIso());
+  enqueue(app, "capture.fulltext", { captureId, url: target.url }, { accountId: target.accountId, idempotencyKey: `capture:${captureId}`, runAfter: new Date(slot).toISOString() });
   return true;
 }
 
@@ -93,7 +93,7 @@ const captureResult = z.object({
 
 /** Settle a readable-text capture against its reservation, inside the caller's transaction. */
 export function completeCapture(app: App, captureId: string, raw: unknown): void {
-  const cap = app.db.get<{ id: string; item_id: string; workspace_id: string; status: string }>("SELECT id, item_id, workspace_id, status FROM captures WHERE id = ?", captureId);
+  const cap = app.db.get<{ id: string; item_id: string; account_id: string; status: string }>("SELECT id, item_id, account_id, status FROM captures WHERE id = ?", captureId);
   if (!cap || cap.status !== "pending") return; // replay-safe
   const reservation = app.db.get<{ id: string }>("SELECT id FROM reservations WHERE idempotency_key = ? AND settled_at IS NULL AND released_at IS NULL", `capture:${captureId}`);
   const parsed = captureResult.safeParse(raw);
@@ -102,7 +102,6 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
     return;
   }
   const html = sanitize(parsed.data.html) ?? "";
-  const ws = app.db.get<{ account_id: string }>("SELECT account_id FROM workspaces WHERE id = ?", cap.workspace_id)!;
   const bytes = measureBytes({ title: parsed.data.title, text: parsed.data.text, html, finalUrl: parsed.data.finalUrl });
   const verdict = assessCapture({ text: parsed.data.text, feedTextLength: feedTextLength(app, cap.item_id) });
   // A try again replaces the copy it has only with a better one (see `betterThan`).
@@ -111,7 +110,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
   const complete = !!app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND id <> ? AND status = 'done' AND quality IS NOT 'partial'", cap.item_id, captureId);
   if (!verdict.full && (complete || !earlier.every((e) => betterThan({ reason: verdict.reason, length: parsed.data.text.length }, { reason: e.partial_reason ?? "references", length: e.length })))) {
     rejectCapture(app, captureId, verdict.reason);
-    emit(app, ws.account_id, { type: "storage" });
+    emit(app, cap.account_id, { type: "storage" });
     return;
   }
   try {
@@ -121,7 +120,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
         releaseObject(app, "capture", old.id, "replaced by a better copy");
         app.db.run("DELETE FROM captures WHERE id = ?", old.id);
       }
-      admitObject(app, { accountId: ws.account_id, workspaceId: cap.workspace_id, kind: "capture", refId: captureId, itemId: cap.item_id, bytes, reason: "readable text capture", reservationId: reservation?.id });
+      admitObject(app, { accountId: cap.account_id, kind: "capture", refId: captureId, itemId: cap.item_id, bytes, reason: "readable text capture", reservationId: reservation?.id });
     });
   } catch (err) {
     if (!(err instanceof StorageFull)) throw err;
@@ -136,7 +135,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
   if (verdict.full) app.db.run("UPDATE items SET read_minutes = ? WHERE id = ? AND kind NOT IN ('video', 'podcast')", readMinutes(parsed.data.text), cap.item_id);
   reindex(app, cap.item_id);
   queueItemImages(app, cap.item_id);
-  emit(app, ws.account_id, { type: "storage" });
+  emit(app, cap.account_id, { type: "storage" });
 }
 
 /** The length of the plain text the feed itself gave for an item (its current version), 0 when it gave none. */
@@ -228,7 +227,7 @@ export function cleanBrowserHtml(raw: string): { html: string; text: string } | 
  * (the earlier capture stays) and the reason is returned. It is optional, so a refusal doesn't pause
  * growth. The server fetches nothing.
  */
-export function saveBrowserCapture(app: App, target: { accountId: string; workspaceId: string; itemId: string; url: string; title: string | null; html: string; text: string }):
+export function saveBrowserCapture(app: App, target: { accountId: string; itemId: string; url: string; title: string | null; html: string; text: string }):
   { saved: boolean; replaced: boolean; note: string | null } {
   const earlier = app.db.get<{ id: string }>("SELECT id FROM captures WHERE item_id = ? AND kind = 'browser'", target.itemId);
   const bytes = measureBytes({ title: target.title, text: target.text, html: target.html, finalUrl: target.url });
@@ -236,14 +235,14 @@ export function saveBrowserCapture(app: App, target: { accountId: string; worksp
     app.db.tx(() => {
       const id = earlier?.id ?? newId("cap");
       if (earlier) releaseObject(app, "capture", id, "browser capture replaced");
-      admitObject(app, { accountId: target.accountId, workspaceId: target.workspaceId, kind: "capture", refId: id, itemId: target.itemId, bytes, reason: "browser capture" });
+      admitObject(app, { accountId: target.accountId, kind: "capture", refId: id, itemId: target.itemId, bytes, reason: "browser capture" });
       const now = nowIso();
       if (earlier) {
         app.db.run("UPDATE captures SET status = 'done', title = ?, text = ?, html = ?, final_url = ?, error = NULL, created_at = ?, completed_at = ? WHERE id = ?",
           target.title, target.text, target.html, target.url, now, now, id);
       } else {
-        app.db.run("INSERT INTO captures (id, workspace_id, item_id, kind, status, title, text, html, final_url, created_at, completed_at) VALUES (?, ?, ?, 'browser', 'done', ?, ?, ?, ?, ?, ?)",
-          id, target.workspaceId, target.itemId, target.title, target.text, target.html, target.url, now, now);
+        app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, title, text, html, final_url, created_at, completed_at) VALUES (?, ?, ?, 'browser', 'done', ?, ?, ?, ?, ?, ?)",
+          id, target.accountId, target.itemId, target.title, target.text, target.html, target.url, now, now);
       }
       reindex(app, target.itemId);
       // The replacement text may name pictures the kept copy doesn't have yet, whether or not the item was kept just now.
@@ -267,13 +266,13 @@ export function saveBrowserCapture(app: App, target: { accountId: string; worksp
 export function retryCapture(app: App, p: Principal, itemId: string): { queued: boolean } {
   return app.db.tx(() => {
     const item = app.db.get<{ id: string; url: string | null; is_private: number | null }>(
-      "SELECT i.id, i.url, s.is_private FROM items i LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.workspace_id = ?", itemId, p.workspaceId);
+      "SELECT i.id, i.url, s.is_private FROM items i LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ? AND i.account_id = ?", itemId, p.accountId);
     if (!item) throw notFound(server.api.shared.thatItem);
     if (app.db.get(`SELECT 1 WHERE ${settledCopy("?")}`, itemId)) return { queued: false };
     if (!app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND (status = 'failed' OR (status = 'done' AND quality = 'partial'))", itemId)) throw badRequest(server.api.captures.noFailedCopy);
     if (!item.url) throw badRequest(server.api.captures.noPageToRead);
     if (item.is_private) throw badRequest(server.api.shared.privateNoCopies);
-    const queued = queueCapture(app, { accountId: p.accountId, workspaceId: p.workspaceId, itemId, url: item.url }, { again: true });
+    const queued = queueCapture(app, { accountId: p.accountId, itemId, url: item.url }, { again: true });
     // The new attempt takes the failed one's place in "What was kept".
     app.db.run("DELETE FROM captures WHERE item_id = ? AND status = 'failed'", itemId);
     return { queued };

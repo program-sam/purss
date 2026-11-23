@@ -11,7 +11,7 @@ import { patchSource, unfollowSource } from "./sources.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
 
 /*
- * Lists sorted by when items were kept, and by source, read keys stored with the items (migration 058) instead of working each
+ * Lists sorted by when items were kept, and by source, read keys stored with the items instead of working each
  * one out. These tests pin that such a list is, page by page and cursor by cursor, what the keys as they were defined give: the
  * latest keep of the item's memberships ('' when none), and the source's title, char(1) and the item's time in lists; ties go by id.
  */
@@ -27,7 +27,7 @@ function defined(app: App, p: Principal, sort: Sorted, extra = "1"): { id: strin
   const { key, dir } = DEFINED[sort];
   return app.db.all<{ id: string; key: string }>(
     `SELECT i.id, ${key} AS key FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id
-     WHERE i.workspace_id = ? AND ${VISIBLE_SOURCE} AND ${extra} ORDER BY key ${dir}, i.id ${dir}`, p.workspaceId).map((r) => ({ id: r.id, key: r.key }));
+     WHERE i.account_id = ? AND ${VISIBLE_SOURCE} AND ${extra} ORDER BY key ${dir}, i.id ${dir}`, p.accountId).map((r) => ({ id: r.id, key: r.key }));
 }
 
 /** The list page by page, with the key each page's cursor carries. */
@@ -72,7 +72,7 @@ function assertSorted(app: App, p: Principal, what: string, sourceId?: string): 
 
 function looseItem(app: App, p: Principal, title: string, publishedAt: string | null): string {
   return insertItem(app, {
-    accountId: p.accountId, workspaceId: p.workspaceId, sourceId: null, kind: "link", title, url: `https://example.org/${newId("x")}`, author: null,
+    accountId: p.accountId, sourceId: null, kind: "link", title, url: `https://example.org/${newId("x")}`, author: null,
     summaryHtml: null, contentHtml: null, imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt,
     discoveredAt: "2026-10-02T00:00:00.000Z", enclosures: [], fresh: false, reason: "test",
   }).id;
@@ -95,7 +95,7 @@ test("lists by kept time and by source follow the keys' definitions through ever
   applySyncBatch(app, other.engineUserId, batch([entry("feed/other"), entry("feed/other", { publishedAt: same })]));
   looseItem(app, p, "Loose one", same);
   looseItem(app, p, "Loose two", null);
-  const ids = app.db.all<{ id: string }>("SELECT id FROM items WHERE workspace_id = ? ORDER BY seq", p.workspaceId).map((r) => r.id);
+  const ids = app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? ORDER BY seq", p.accountId).map((r) => r.id);
   assertSorted(app, p, "as synced", sources[1]);
 
   // Keeps at the same instant (ties go by id), and an item kept again later in another basket.

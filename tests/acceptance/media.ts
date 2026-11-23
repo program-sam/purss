@@ -103,11 +103,10 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
     const code = ensureClaimCode(app)!;
     const { accountId } = claim(app, code, EMAIL, "Listener", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId: ws.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Slow Radio", "feed/1", { kind: "podcast" });
     app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", SHOW_SITE, sourceId);
     // A second show with no website of its own.
@@ -117,8 +116,8 @@ function prepare(): { sourceId: string; quietId: string; membersId: string } {
     app.db.run("UPDATE sources SET site_url = ? WHERE id = ?", MEMBERS_SITE, membersId);
     // The show has cover art (a one-pixel WebP stands in for it); its episodes have none of their own.
     const art = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
-    app.db.run("INSERT INTO source_icons (source_id, account_id, workspace_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      sourceId, accountId, ws.id, art, createHash("sha256").update(art).digest("hex"), "https://cdn.example.invalid/art.webp", new Date().toISOString());
+    app.db.run("INSERT INTO source_icons (source_id, account_id, bytes, digest, found_url, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      sourceId, accountId, art, createHash("sha256").update(art).digest("hex"), "https://cdn.example.invalid/art.webp", new Date().toISOString());
     applySyncBatch(app, eu.id, batch([
       entry("feed/1", { title: "Night shipping forecast", enclosures: [{ url: FORECAST, type: "audio/wav", length: WAV.length }] }),
       entry("feed/1", { title: "Crackle on the long wave", enclosures: [{ url: "https://cdn.example.invalid/crackle.mp3", type: "audio/mpeg", length: 5_000_000 }] }),

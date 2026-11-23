@@ -67,7 +67,7 @@ public final class PushFetcher {
                 return;
             }
             if (status != 200) {
-                Log.w(TAG, "The workspace answered " + status + " when asked for notifications.");
+                Log.w(TAG, "The installation answered " + status + " when asked for notifications.");
                 return;
             }
             JSONObject answer = new JSONObject(read(c.getInputStream()));
@@ -86,7 +86,7 @@ public final class PushFetcher {
             if (!shown.isEmpty()) ensureChannel(ctx);
             for (int i = 0; i < shown.size(); i++) show(ctx, shown.get(i), numbers == null ? 0 : numbers.get(i));
         } catch (Exception e) {
-            Log.w(TAG, "Couldn't fetch notifications from the workspace: " + e.getClass().getSimpleName());
+            Log.w(TAG, "Couldn't fetch notifications from the installation: " + e.getClass().getSimpleName());
         } finally {
             if (c != null) c.disconnect();
         }
@@ -135,11 +135,11 @@ public final class PushFetcher {
         PendingIntent tap = PendingIntent.getActivity(ctx, id.hashCode(), open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         // On a locked screen that hides contents, only this shows.
         NotificationCompat.Builder hidden = new NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_workspace)
+            .setSmallIcon(R.drawable.ic_stat_purss)
             .setContentTitle(ctx.getString(R.string.app_name))
             .setContentText(ctx.getString(R.string.push_hidden_text));
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_workspace)
+            .setSmallIcon(R.drawable.ic_stat_purss)
             .setContentTitle(title)
             .setAutoCancel(true)
             .setContentIntent(tap)

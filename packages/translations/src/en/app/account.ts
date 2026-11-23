@@ -329,7 +329,7 @@ export default {
     push: {
       messages: {
         unavailable: words.thisBuildOfTheAppCan,
-        workspaceOff: "This PURSS doesn't send phone notifications; its operator has turned them off.",
+        purssOff: "This PURSS doesn't send phone notifications; its operator has turned them off.",
         otherRelay: "This PURSS sends phone notifications through another relay than this app uses, so they can't reach it.",
         denied: "Notifications for this app are blocked in the phone's settings. Allow them there, then turn this on again.",
         relayDown: "The notification relay couldn't be reached. Try again later.",

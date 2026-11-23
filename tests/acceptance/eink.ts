@@ -79,11 +79,10 @@ function prepare(): { sourceId: string; longItemId: string } {
     assert.ok(code, "a fresh installation has a setup code");
     const { accountId } = claim(app, code, EMAIL, "Reader", testPassword());
     // The first-visit question has its own journey (run.ts); this one starts after it.
-    setPreferences(app, app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id, { welcomeAsked: true });
-    const row = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
+    setPreferences(app, accountId, { welcomeAsked: true });
     const eu = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", accountId)!;
     app.db.run("UPDATE engine_users SET status = 'ready' WHERE id = ?", eu.id);
-    const p: Principal = { accountId, workspaceId: row.id, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
+    const p: Principal = { accountId, isAdmin: true, sessionId: "prep", csrf: "x", authAt: new Date().toISOString() };
     const sourceId = makeSource(app, p, "Tidal Notes", "feed/1");
     const paragraph = (n: number) => `<p>Paragraph ${n}. The tide leaves thin layers of silt across the flats, and each layer tells the story of one storm. Walking out at low water, the surface is firm, ribbed, and cold underfoot.</p>`;
     const long = Array.from({ length: 60 }, (_, i) => paragraph(i + 1)).join("");

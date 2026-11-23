@@ -264,7 +264,7 @@ panel. See the [web README](../apps/web/README.md).
 `apps/mobile` wraps the web build in Capacitor; screens stay in `apps/web` and anything that differs
 on a phone goes behind `apps/web/src/platform/` (transport, offline copies, player backend, downloads,
 share intake). Its tests run with `npm test` like the rest. Building the Android app needs the Android
-SDK and JDK 21; the steps, the emulator PURSS (`apps/mobile/scripts/emulator-workspace.ts`) and
+SDK and JDK 21; the steps, the emulator PURSS (`apps/mobile/scripts/emulator-purss.ts`) and
 the iOS steps on a Mac are in [apps/mobile/README.md](../apps/mobile/README.md). Run Gradle and the
 emulator under the host's work lock; the emulator holds several cores while it runs, so shut it down
 when you are done.

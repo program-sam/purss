@@ -127,8 +127,8 @@ test("the state version moves on every change to an item's state, by every write
 
   // The marker running out is a change too.
   app.db.run("UPDATE items SET discovered_at = '2020-01-01T00:00:00.000Z' WHERE id = ?", c!.id);
-  setPreferences(app, p.workspaceId, { freshDays: 30 });
-  grows(c!.id, "the marker expiring", () => assert.equal(expireFreshMarkers(app, p.workspaceId), 1));
+  setPreferences(app, p.accountId, { freshDays: 30 });
+  grows(c!.id, "the marker expiring", () => assert.equal(expireFreshMarkers(app, p.accountId), 1));
 
   // Which baskets hold an item is part of its copy (basketIds), so keeping moves the version too. The revision stays, and so does
   // updated_at: Home orders the items in progress by it, and keeping an item is not reading it.

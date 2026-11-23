@@ -95,7 +95,7 @@ export function requestDeletion(app: App, p: Principal, confirm: string): Deleti
     const dueAt = addSeconds(GRACE_DAYS * 86_400);
     app.db.run("INSERT INTO account_deletions (account_id, request_id, requested_at, due_at, state) VALUES (?, ?, ?, ?, 'pending')", p.accountId, newId("adr"), now, dueAt);
     signOutEverywhere(app, p.accountId, "everything");
-    pauseAllShares(app, p.workspaceId);
+    pauseAllShares(app, p.accountId);
     // Jobs aren't cancelled: running ones go back to the queue with their attempt refunded, so the
     // worker's next call for them answers lease_lost and they resume intact if the account is kept.
     app.db.run("UPDATE jobs SET status = 'queued', lease_id = NULL, lease_expires_at = NULL, attempts = MAX(attempts - 1, 0), updated_at = ? WHERE account_id = ? AND status = 'leased'", now, p.accountId);
@@ -128,21 +128,20 @@ export function keepTokenFor(app: App, accountId: string, method: string): { tok
     throw new HttpError(403, "account_deleting", server.api.deletion.beingDeletedNoSignIn);
   }
   const token = randomToken(32);
-  const ws = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!;
-  app.db.run("INSERT INTO confirm_tokens (token, workspace_id, purpose, data, expires_at) VALUES (?, ?, ?, ?, ?)",
-    sha256(token), ws.id, CANCEL_PURPOSE, JSON.stringify({ accountId, requestId: row.request_id, method }), addSeconds(CANCEL_SECONDS));
+  app.db.run("INSERT INTO confirm_tokens (token, account_id, purpose, data, expires_at) VALUES (?, ?, ?, ?, ?)",
+    sha256(token), accountId, CANCEL_PURPOSE, JSON.stringify({ requestId: row.request_id, method }), addSeconds(CANCEL_SECONDS));
   return { token, dueAt: row.due_at };
 }
 
-type CancelToken = { hash: string; workspaceId: string; accountId: string; requestId: string; method: string };
+type CancelToken = { hash: string; accountId: string; requestId: string; method: string };
 
 function cancelToken(app: App, cookie: string | undefined): CancelToken | null {
   if (!cookie) return null;
   const hash = sha256(cookie);
-  const t = app.db.get<{ workspace_id: string; data: string }>("SELECT workspace_id, data FROM confirm_tokens WHERE token = ? AND purpose = ? AND expires_at > ?", hash, CANCEL_PURPOSE, nowIso());
+  const t = app.db.get<{ account_id: string; data: string }>("SELECT account_id, data FROM confirm_tokens WHERE token = ? AND purpose = ? AND expires_at > ?", hash, CANCEL_PURPOSE, nowIso());
   if (!t) return null;
-  const data = JSON.parse(t.data) as { accountId: string; requestId: string; method: string };
-  return { hash, workspaceId: t.workspace_id, ...data };
+  const data = JSON.parse(t.data) as { requestId: string; method: string };
+  return { hash, accountId: t.account_id, ...data };
 }
 
 /** The deletion this browser may cancel, if its cookie is still good. */
@@ -173,7 +172,7 @@ export function endDeletion(app: App, rawToken: string | undefined): { accountId
     if (!row || row.request_id !== t.requestId) throw expired();
     if (row.state !== "pending" || row.due_at <= nowIso()) throw new HttpError(403, "account_deleting", server.api.deletion.beingDeletedCannotKeep);
     app.db.run("DELETE FROM account_deletions WHERE account_id = ?", t.accountId);
-    app.db.run("DELETE FROM confirm_tokens WHERE workspace_id = ? AND purpose = ?", t.workspaceId, CANCEL_PURPOSE);
+    app.db.run("DELETE FROM confirm_tokens WHERE account_id = ? AND purpose = ?", t.accountId, CANCEL_PURPOSE);
     audit(app, t.accountId, "account_deletion_cancelled", t.accountId, "success");
     return { accountId: t.accountId, method: t.method };
   });
@@ -222,45 +221,44 @@ function removeDataFile(app: App, relative: string): void {
  * Children before parents, so every delete passes the foreign keys. Per-account rows that other
  * accounts point at (who granted a role, who used an invitation) lose that reference instead.
  */
-function deleteAccountRows(app: App, accountId: string, workspaceId: string): void {
-  const byWorkspace = (table: string) => app.db.run(`DELETE FROM ${table} WHERE workspace_id = ?`, workspaceId);
+function deleteAccountRows(app: App, accountId: string): void {
   const byAccount = (table: string) => app.db.run(`DELETE FROM ${table} WHERE account_id = ?`, accountId);
-  app.db.run("DELETE FROM items_fts WHERE rowid IN (SELECT seq FROM items WHERE workspace_id = ?)", workspaceId);
-  app.db.run("DELETE FROM annotations_fts WHERE rowid IN (SELECT seq FROM annotations WHERE workspace_id = ?)", workspaceId);
-  byWorkspace("ai_filter_verdicts");
-  byWorkspace("ai_filters");
+  app.db.run("DELETE FROM items_fts WHERE rowid IN (SELECT seq FROM items WHERE account_id = ?)", accountId);
+  app.db.run("DELETE FROM annotations_fts WHERE rowid IN (SELECT seq FROM annotations WHERE account_id = ?)", accountId);
+  byAccount("ai_filter_verdicts");
+  byAccount("ai_filters");
   byAccount("ai_usage");
-  byWorkspace("annotations");
-  byWorkspace("playback_positions");
-  app.db.run("DELETE FROM share_notes WHERE share_id IN (SELECT id FROM shares WHERE workspace_id = ?)", workspaceId);
-  app.db.run("DELETE FROM share_reports WHERE share_id IN (SELECT id FROM shares WHERE workspace_id = ?)", workspaceId);
-  byWorkspace("basket_items");
-  byWorkspace("captures");
-  byWorkspace("item_images");
-  byWorkspace("item_versions");
-  byWorkspace("baskets");
-  app.db.run("DELETE FROM collection_sources WHERE collection_id IN (SELECT id FROM collections WHERE workspace_id = ?)", workspaceId);
-  byWorkspace("collections");
-  byWorkspace("item_state");
-  byWorkspace("state_log");
-  byWorkspace("external_ids");
-  byWorkspace("reconciliation_queue");
-  byWorkspace("notifications");
-  byWorkspace("notification_state");
-  byWorkspace("reminders");
-  byWorkspace("item_reminders");
-  byWorkspace("preferences");
-  byWorkspace("discovery_dismissed");
-  byWorkspace("shares");
-  byWorkspace("undo_tokens");
-  byWorkspace("confirm_tokens");
+  byAccount("annotations");
+  byAccount("playback_positions");
+  app.db.run("DELETE FROM share_notes WHERE share_id IN (SELECT id FROM shares WHERE account_id = ?)", accountId);
+  app.db.run("DELETE FROM share_reports WHERE share_id IN (SELECT id FROM shares WHERE account_id = ?)", accountId);
+  byAccount("basket_items");
+  byAccount("captures");
+  byAccount("item_images");
+  byAccount("item_versions");
+  byAccount("baskets");
+  app.db.run("DELETE FROM collection_sources WHERE collection_id IN (SELECT id FROM collections WHERE account_id = ?)", accountId);
+  byAccount("collections");
+  byAccount("item_state");
+  byAccount("state_log");
+  byAccount("external_ids");
+  byAccount("reconciliation_queue");
+  byAccount("notifications");
+  byAccount("notification_state");
+  byAccount("reminders");
+  byAccount("item_reminders");
+  byAccount("preferences");
+  byAccount("discovery_dismissed");
+  byAccount("shares");
+  byAccount("undo_tokens");
+  byAccount("confirm_tokens");
   byAccount("import_stages");
   app.db.run("DELETE FROM opml_import_entries WHERE import_id IN (SELECT id FROM opml_imports WHERE account_id = ?)", accountId);
   byAccount("opml_imports");
-  byWorkspace("news_deliveries");
-  byWorkspace("items");
+  byAccount("news_deliveries");
+  byAccount("items");
   byAccount("source_icons");
-  byWorkspace("sources");
+  byAccount("sources");
   byAccount("stored_objects");
   byAccount("reservations");
   byAccount("storage_accounts");
@@ -294,11 +292,10 @@ export function purgeAccountData(app: App, accountId: string): void {
   if (!row) return;
   for (const file of JSON.parse(row.files ?? "[]") as string[]) removeDataFile(app, file);
   app.db.tx(() => {
-    const workspaceId = app.db.get<{ id: string }>("SELECT id FROM workspaces WHERE account_id = ?", accountId)!.id;
-    deleteAccountRows(app, accountId, workspaceId);
+    deleteAccountRows(app, accountId);
     app.db.run("UPDATE account_deletions SET phase1_done = 1 WHERE account_id = ?", accountId);
     const eu = app.db.get<{ id: string; username: string }>("SELECT id, username FROM engine_users WHERE account_id = ?", accountId);
-    if (eu) enqueue(app, "engine.delete_user", { engineUserId: eu.id, username: eu.username }, { accountId, workspaceId, idempotencyKey: `delete-user:${accountId}`, maxAttempts: 20 });
+    if (eu) enqueue(app, "engine.delete_user", { engineUserId: eu.id, username: eu.username }, { accountId, idempotencyKey: `delete-user:${accountId}`, maxAttempts: 20 });
     else finalizeAccount(app, accountId);
   });
 }
@@ -374,12 +371,12 @@ export function openEngineReview(app: App, engineUserId: string, jobId: string, 
 /** An administrator confirms the engine user's data is gone; the deletion job resumes and finishes. */
 export function confirmEngineRemoved(app: App, admin: Principal, accountId: string): void {
   app.db.tx(() => {
-    const row = app.db.get<{ workspace_id: string; engine_user_id: string; username: string }>(
-      `SELECT w.id AS workspace_id, e.id AS engine_user_id, e.username FROM account_deletions d JOIN workspaces w ON w.account_id = d.account_id JOIN engine_users e ON e.account_id = d.account_id
+    const row = app.db.get<{ account_id: string; engine_user_id: string; username: string }>(
+      `SELECT d.account_id, e.id AS engine_user_id, e.username FROM account_deletions d JOIN engine_users e ON e.account_id = d.account_id
        WHERE d.account_id = ? AND d.engine_review_at IS NOT NULL AND d.engine_removed_at IS NULL`, accountId);
     if (!row) throw new HttpError(409, "conflict", server.api.deletion.notWaiting);
     app.db.run("UPDATE account_deletions SET engine_removed_at = ?, engine_review_at = NULL WHERE account_id = ?", nowIso(), accountId);
-    enqueue(app, "engine.delete_user", { engineUserId: row.engine_user_id, username: row.username }, { accountId, workspaceId: row.workspace_id, idempotencyKey: `delete-user:${accountId}`, maxAttempts: 20 });
+    enqueue(app, "engine.delete_user", { engineUserId: row.engine_user_id, username: row.username }, { accountId, idempotencyKey: `delete-user:${accountId}`, maxAttempts: 20 });
     audit(app, admin.accountId, "admin_deletion_engine_confirmed", accountId, "success");
   });
 }
@@ -391,7 +388,6 @@ function finalizeAccount(app: App, accountId: string): void {
   }
   app.db.run("DELETE FROM jobs WHERE account_id = ?", accountId);
   app.db.run("DELETE FROM engine_users WHERE account_id = ?", accountId);
-  app.db.run("DELETE FROM workspaces WHERE account_id = ?", accountId);
   app.db.run("DELETE FROM account_deletions WHERE account_id = ?", accountId);
   app.db.run("DELETE FROM accounts WHERE id = ?", accountId);
   audit(app, null, "account_deleted", accountId, "success");
