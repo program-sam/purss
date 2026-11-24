@@ -33,7 +33,7 @@ function prerender(site: Site): Plugin {
           if (body === undefined) return next();
           res.setHeader("Content-Type", name.endsWith(".xml") ? "application/xml" : "text/plain");
           res.end(body);
-        }, next);
+        }).catch(next);
       });
     },
     buildStart() {

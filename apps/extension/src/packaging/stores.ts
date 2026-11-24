@@ -118,7 +118,7 @@ const b64url = (v: string | Buffer) => Buffer.from(v).toString("base64url");
 /** The parts of the stores' JSON replies this script reads; anything else they send is ignored. */
 type ChromeRevision = { state?: string; distributionChannels?: { crxVersion?: string }[] };
 type ChromeStatus = { takenDown?: boolean; submittedItemRevisionStatus?: ChromeRevision; publishedItemRevisionStatus?: ChromeRevision; lastAsyncUploadState?: string };
-type AmoVersion = { version: string; file: { status?: string; url: string } };
+type AmoVersion = { version: string; file?: { status?: string; url: string } };
 type AmoUpload = { uuid: string; processed?: boolean; valid?: boolean; validation?: { messages?: { type?: string }[] } };
 
 /** The reply's JSON, or an error naming the request when the store refused it. */
@@ -197,8 +197,8 @@ class Firefox {
     const latest = list.results?.[0];
     if (!latest) return { inReview: null, published: null };
     return {
-      inReview: latest.file.status === "unreviewed" ? latest.version : null,
-      published: { version: latest.version, files: async () => unzip(await download(latest.file.url, this.auth)) },
+      inReview: latest.file?.status === "unreviewed" ? latest.version : null,
+      published: { version: latest.version, files: async () => unzip(await download(latest.file!.url, this.auth)) },
     };
   }
 
