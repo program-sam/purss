@@ -91,6 +91,22 @@ test("a provisioned engine user is ready with the engine's identity, which the f
   assert.equal(eu().status, "error", "a worker that keeps dying on it");
 });
 
+test("metadata the worker reports in an odd shape never fails a provisioning: an identity that is not a string is not recorded", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const eu = () => app.db.get<{ status: string; engine_identity: string | null }>("SELECT status, engine_identity FROM engine_users WHERE id = ?", p.engineUserId)!;
+  app.db.run("UPDATE jobs SET status = 'cancelled'");
+  for (const engineIdentity of [null, 7, false, { id: "freshrss:a" }, ["freshrss:a"]]) {
+    app.db.run("UPDATE engine_users SET status = 'pending', engine_identity = NULL WHERE id = ?", p.engineUserId);
+    enqueue(app, "engine.provision", { engineUserId: p.engineUserId, username: "u" }, { accountId: p.accountId, idempotencyKey: `provision:${p.engineUserId}`, maxAttempts: 20 });
+    const job = leaseOne(app, "engine.provision");
+    assert.equal(complete(app, job, { engineUserId: p.engineUserId, username: "u", engineIdentity, created: true }), true, JSON.stringify(engineIdentity));
+    assert.deepEqual({ ...eu() }, { status: "ready", engine_identity: null }, JSON.stringify(engineIdentity));
+    assert.equal(jobRow(app, job.id).status, "done");
+  }
+});
+
 // ---------- engine.subscribe
 
 /** A source whose subscribe job is waiting, as just after Follow. */
@@ -261,6 +277,23 @@ test("a subscription result without a stream id is refused, and the job is still
   assert.equal(getSource(app, owner, id).health, "pending");
   assert.equal(fail(app, job, { retryable: false, reason: "other" }), true);
   assert.equal(jobRow(app, job.id).status, "failed");
+});
+
+test("metadata the worker reports in an odd shape never fails a subscription: a word about the feed that is not literally true says nothing", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const owner = makeOwner(app);
+  const odds = [{ empty: null }, { viaGateway: null }, { empty: "yes", viaGateway: 1 }, { empty: "true", viaGateway: "true" }, { empty: [true], viaGateway: {} }];
+  odds.forEach((odd, i) => {
+    const id = pendingSource(app, owner, `feed/${i + 1}`);
+    const job = leaseOne(app, "engine.subscribe");
+    assert.equal(complete(app, job, { streamId: `feed/9${i}`, title: "T", alreadySubscribed: false, ...odd }), true, JSON.stringify(odd));
+    const s = getSource(app, owner, id);
+    assert.deepEqual([s.health, s.healthText], ["pending", "Getting the first items…"], `${JSON.stringify(odd)}: following, nothing claimed about the feed`);
+    const row = app.db.get<{ via_gateway: number; engine_stream_id: string }>("SELECT via_gateway, engine_stream_id FROM sources WHERE id = ?", id)!;
+    assert.deepEqual({ ...row }, { via_gateway: 0, engine_stream_id: `feed/9${i}` });
+    assert.equal(jobRow(app, job.id).status, "done");
+  });
 });
 
 // ---------- engine.sync

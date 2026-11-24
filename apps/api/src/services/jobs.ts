@@ -80,7 +80,7 @@ type JobKindRules<K extends JobKind> = {
 const JOB_RULES: { [K in JobKind]: JobKindRules<K> } = {
   "engine.provision": {
     onComplete: (app, { payload }, result) => {
-      app.db.run("UPDATE engine_users SET status = 'ready', engine_identity = COALESCE(engine_identity, ?) WHERE id = ?", result.engineIdentity ?? null, payload.engineUserId);
+      app.db.run("UPDATE engine_users SET status = 'ready', engine_identity = COALESCE(engine_identity, ?) WHERE id = ?", typeof result.engineIdentity === "string" ? result.engineIdentity : null, payload.engineUserId);
     },
     onFinalFailure: (app, { payload }) => {
       app.db.run("UPDATE engine_users SET status = 'error' WHERE id = ?", payload.engineUserId);

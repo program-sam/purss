@@ -45,16 +45,20 @@ export type JobPayload<K extends JobKind> = z.infer<(typeof jobPayloadSchemas)[K
 
 /**
  * What a worker reports when a job ran, by kind. A schema names only the fields the API uses and lets any other pass, and a
- * field a worker of another version may not send is optional, so the wire stays compatible across a rolling deploy. The
+ * field a worker of another version may not send is optional, so the wire stays compatible across a rolling deploy. A result
+ * the API refuses ends the job for good (the worker takes a 400 as a failure that will not pass on a retry), so only what the
+ * API cannot complete without is checked: the stream id of a subscription, and a Smart filter answer. Metadata about the
+ * run (an engine identity, a word about the feed) is `unknown` here, and the API acts on it only in the shape it expects. The
  * results of `capture.fulltext`, `capture.images` and `source.icon` are any object here: what the worker fetched is checked
  * where it is stored (captured text, pictures and icon bytes), and a result that fails there settles the copy, picture or
  * icon check, rather than refusing a request the worker would retry.
  */
 const anyResult = z.record(z.string(), z.unknown());
 export const jobResultSchemas = {
-  "engine.provision": z.looseObject({ engineIdentity: z.string().optional() }),
-  // empty: the engine says the feed it just fetched has nothing in it; viaGateway: the engine follows the feed gateway's copy of a big feed.
-  "engine.subscribe": z.looseObject({ streamId: z.string().min(1), empty: z.boolean().optional(), viaGateway: z.boolean().optional() }),
+  // engineIdentity: a string says which engine this is.
+  "engine.provision": z.looseObject({ engineIdentity: z.unknown().optional() }),
+  // empty: the engine says the feed it just fetched has nothing in it; viaGateway: the engine follows the feed gateway's copy of a big feed. Each counts only when it is true.
+  "engine.subscribe": z.looseObject({ streamId: z.string().min(1), empty: z.unknown().optional(), viaGateway: z.unknown().optional() }),
   "engine.unsubscribe": anyResult,
   "engine.rename": anyResult,
   "engine.sync": anyResult,

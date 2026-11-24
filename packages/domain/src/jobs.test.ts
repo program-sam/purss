@@ -13,16 +13,17 @@ test("every kind has a result schema, and kinds are told apart from names a work
   for (const other of ["media.save", "", "constructor", "__proto__"]) assert.equal(isJobKind(other), false, other);
 });
 
-test("a provision or subscribe result is accepted with the fields of older and newer workers, and an unusable one is refused", () => {
+test("a provision or subscribe result is accepted with the fields of older and newer workers, whatever shape its metadata has; only a missing stream id is refused", () => {
   const provision = jobResultSchemas["engine.provision"];
   assert.ok(provision.safeParse({ engineUserId: "eu", username: "u", engineIdentity: "freshrss:a", created: true }).success);
   assert.ok(provision.safeParse({}).success, "a worker that doesn't say which engine it is");
-  assert.equal(provision.safeParse({ engineIdentity: 7 }).success, false);
+  for (const engineIdentity of [null, 7, { id: 1 }]) assert.ok(provision.safeParse({ engineIdentity }).success, JSON.stringify(engineIdentity));
 
   const subscribe = jobResultSchemas["engine.subscribe"];
   assert.ok(subscribe.safeParse({ streamId: "feed/9", title: "T", alreadySubscribed: false }).success, "before it reported empty feeds and the gateway");
   assert.ok(subscribe.safeParse({ streamId: "feed/9", title: "T", alreadySubscribed: true, viaGateway: true, empty: false, something: "newer" }).success);
-  for (const bad of [{}, { streamId: "" }, { streamId: 9 }, { streamId: "feed/9", empty: "yes" }]) assert.equal(subscribe.safeParse(bad).success, false, JSON.stringify(bad));
+  for (const odd of [{ empty: null }, { viaGateway: null }, { empty: "yes", viaGateway: 1 }]) assert.ok(subscribe.safeParse({ streamId: "feed/9", ...odd }).success, JSON.stringify(odd));
+  for (const bad of [{}, { streamId: "" }, { streamId: 9 }, { streamId: null }, { empty: true }]) assert.equal(subscribe.safeParse(bad).success, false, JSON.stringify(bad));
 });
 
 test("a Smart filter result is accepted without the fields an older worker did not send, and the missing ones read as nothing", () => {

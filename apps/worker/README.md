@@ -60,7 +60,7 @@ reconciliation. Absence of an entry never produces a deletion. Details and obser
 - Heartbeats each running job at a third of its lease time. A heartbeat answered with 404/409/410, or a lease that could not be renewed
   before it expired, aborts the job and reports nothing (the API owns what happens next).
 - Success: `complete` with the handler's result, unless the handler's last API call already settled the job (`engine.delete_user`). Failure: `fail` with a redacted message and `retryable`. Network, 5xx, rate limits,
-  timeouts and unexpected errors are retryable; rejected credentials, rejected feeds, bad payloads, unknown kinds and missing records are not.
+  timeouts and unexpected errors are retryable; rejected credentials, rejected feeds, bad payloads, unknown kinds, missing records and a result the API refuses (400) are not.
 - Lease errors back off exponentially with jitter up to `PURSS_WORKER_MAX_BACKOFF_MS`.
 - `SIGTERM`/`SIGINT`: stop leasing, let running jobs finish for `PURSS_WORKER_DRAIN_MS`, then interrupt the rest and release them as retryable.
   A second signal exits immediately.
