@@ -53,7 +53,7 @@ export function AppsAndExtensions({ onOpen }: { onOpen: (tab: "general" | "assis
           <small>{t.extension.text(DISTRIBUTION.extension.platforms)}</small>
           <Get what="extension" selfHosted={selfHosted} />
         </Row>
-        <Row icon="phone" title={t.phone.title} action={platform.connection && !platform.desktop ? undefined
+        <Row icon="phone" title={t.phone.title} action={platform.connection?.device === "phone" ? undefined
           : <a className="btn" href={desktopDownloadUrl(ANDROID_APK)} target="_blank" rel="noopener noreferrer">{t.phone.download}</a>}>
           <small>{t.phone.text(DISTRIBUTION.mobile.platforms)}</small>
           <Get what="mobile" selfHosted={selfHosted} />

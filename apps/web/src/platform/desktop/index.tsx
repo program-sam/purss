@@ -1,31 +1,18 @@
 import type { ReactNode } from "react";
 import { desktopOffer } from "@purss/domain/app-bundle";
-import { OFFICIAL_PURSS_ORIGIN, startingServer } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
-import { api } from "../../api/client.ts";
-import { outbox } from "../../annotations/outbox-store.ts";
-import { clearAnnotationOutbox } from "../../annotations/use-annotations.ts";
-import { clearLateWrites } from "../../lib/late-writes.ts";
-import { DownloadManager } from "../../downloads/manager.ts";
-import { decodePage, readablePage } from "../../downloads/readable-page.ts";
-import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { HtmlMediaBackend } from "../../player/html-backend.ts";
-import { clearHints } from "../../state/ui-store.ts";
-import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
-import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
+import { browserPage } from "../browser-page.ts";
+import { startConnectedApp } from "../connected-app.ts";
+import type { ConnectedShell, ShellPlatform } from "../connected-app.ts";
 import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
-import type { AppConnection, DesktopApp, DesktopUpdate, Intake, Notifier, OfflineHost, Platform, Transport, WebView } from "../types.ts";
-import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "../native/app-start.ts";
+import type { DesktopApp, DesktopUpdate, Intake, Notifier, Platform, WebView } from "../types.ts";
 import { parseConnection } from "../native/connect.ts";
 import type { Connection } from "../native/connect.ts";
 import { ConnectScreen } from "../native/ConnectScreen.tsx";
 import type { ConnectShell } from "../native/ConnectScreen.tsx";
-import { forgetDevice } from "../native/forget.ts";
-import type { ForgetReason } from "../native/forget.ts";
-import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQueued } from "../native/live-update.ts";
 import type { Updater } from "../native/live-update.ts";
-import { createAppTransport } from "../native/transport.ts";
 import { desktop } from "./bridge.ts";
 import type { Incoming } from "./bridge.ts";
 import { drawBadgeOverlay, wantsOverlay } from "./badge-overlay.ts";
@@ -36,7 +23,7 @@ import { app } from "@purss/translations/app";
 const t = app.platform.desktop;
 
 /**
- * The desktop app's platform: the phone apps' model in a Tauri shell. The interface is the web app's
+ * The desktop app's shell for connected-app.ts: the phone apps' model in a Tauri shell. The interface is the web app's
  * build, embedded in the app or downloaded from the connected PURSS; it talks to that PURSS with the
  * device token from the system's credential store. The page keeps running while the window is hidden, so the
  * event stream, automatic downloads and notifications go on until the person quits from the tray.
@@ -183,115 +170,15 @@ function onIntake(listener: (intake: Intake) => void): () => void {
   });
 }
 
-/** Back to the interface the app was installed with, at the first screen (the page reloads). */
-function restartInstalled(): void {
-  forgetQueued(localKv);
-  try { history.replaceState(null, "", "/"); } catch { /* reloads at the root anyway */ }
-  desktop.interfaceApply(BUILTIN).catch(() => location.replace("/"));
-}
-
-function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
-  const caches = new StoredCaches(new IndexedDbCopyBackend());
-  const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
-  const updater = desktopUpdater();
-
-  const downloads = conn ? new DownloadManager({
-    files: desktopFiles(mediaBase),
-    get: (path, query, headers) => api(path, { query, headers }),
-    plan: (request) => api("/api/downloads/plan", { method: "POST", body: request }),
-    connection: desktopConnection,
-    readPage: (page, url) => readablePage(decodePage(page), url),
-    store: localKv,
-  }) : null;
-
-  let player: HtmlMediaBackend | null = null;
-  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
-  const updates = conn ? createInterfaceUpdates({
-    origin: conn.origin,
-    official: official.kind === "official" && official.origin === conn.origin,
-    updater,
-    fetch: (url, init) => fetch(url, init),
-    playing: () => player?.state().playing ?? false,
-    store: localKv,
-    now: () => Date.now(),
-    readOffer: desktopOffer,
-  }) : null;
-  if (updates) {
-    void updates.check();
-    let hiddenAt: number | null = null;
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
-      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
-      hiddenAt = null;
-      void updates.shown(away);
-    });
-  }
-
-  let ending = false;
-  async function wipeAndRestart(reason: ForgetReason): Promise<void> {
-    if (ending) return;
-    ending = true;
-    const { notice, stuck } = await forgetDevice({
-      stopAudio: async () => { player?.pause(); },
-      forgetConnection,
-      wipeCopies: wipeOfflineCopies,
-      clearOutbox: async () => { clearLateWrites(); await clearAnnotationOutbox(); },
-      removeDownloads: async () => { await downloads?.removeAll(); },
-      stopBackground: async () => undefined,
-      forgetPush: async () => undefined,
-      clearHints,
-      unsent: async () => { await outbox.load(); return outbox.snapshot().length; },
-    }, reason);
-    leaveNotice(notice, stuck);
-    void desktop.setBadge(0).catch(() => undefined);
-    restartInstalled();
-  }
-
-  const connection: AppConnection | null = conn ? {
-    origin: conn.origin,
-    async disconnect() {
-      let told = true;
-      try { await timeout(api("/api/connect/device", { method: "DELETE" }), 8000); } catch { told = false; }
-      await wipeAndRestart(told ? "disconnected" : "unreachable");
-    },
-    lost() { void wipeAndRestart("lost"); },
-  } : null;
-
-  const transport: Transport = conn
-    ? createAppTransport({ origin, token: conn.token, worker, downloaded: (path) => downloads!.answer(path), fetch: (r) => fetch(r), onLost: () => connection?.lost() })
-    : {
-      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: app.words.connectTheAppFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
-      events: () => () => {},
-      picture: () => Promise.reject(new Error(app.words.connectTheAppFirst)),
-    };
-
-  const offline: OfflineHost = {
-    supported: () => true,
-    installed: () => true,
-    start: async () => true,
-    tell: async (message) => { await worker.message(message); return true; },
-    whenControlled: async () => true,
-    onUpdateReady: () => () => {},
-    applyUpdate: () => location.reload(),
-    caches: () => caches,
-  };
-
+/** What the desktop adds to the platform; `conn` is null while the app isn't connected. */
+function desktopPlatform(conn: Connection | null): ShellPlatform {
   return {
-    kind: "app",
-    transport,
-    offline,
-    createPlayerBackend: () => (player = new HtmlMediaBackend()),
-    downloads,
-    connection,
+    createPlayerBackend: () => new HtmlMediaBackend(),
     passkeys: null,
     async saveFile(data, filename) { await desktop.saveFile(filename, new Uint8Array(await data.arrayBuffer())); },
-    openExternal: (url) => { if (/^https?:\/\//i.test(url)) void desktop.openExternal(url); },
-    publicOrigin: () => origin,
     onShare: () => () => {},
     widget: null,
     push: null,
-    interfaceUpdates: updates,
     appUpdates: null,
     appVersion: async () => { try { return plainVersion(await desktop.appVersion()); } catch { return null; } },
     onConnectReturn: (listener) => incoming.subscribe((i) => {
@@ -318,29 +205,35 @@ function desktopPlatform(conn: Connection | null, mediaBase: string): Platform {
   };
 }
 
-/** Add the connected PURSS's policy to the page's own (both are enforced), before any request. */
-function limitPageTo(origin: string, mediaBase: string): void {
-  const meta = document.createElement("meta");
-  meta.httpEquiv = "Content-Security-Policy";
-  meta.content = purssPolicy(origin, [], { media: mediaBase });
-  document.head.prepend(meta);
-}
-
-export async function startDesktop(): Promise<{ platform: Platform; screen: ReactNode | null }> {
+const desktopShell: ConnectedShell = {
+  device: "computer",
   // This interface started: Rust keeps it instead of going back to the previous one.
-  void desktop.interfaceReady().catch(() => undefined);
-  const updater = desktopUpdater();
-  if (await startQueued(updater, localKv)) return new Promise(() => {});
-  sendLinksOut((url) => void desktop.openExternal(url).catch(() => undefined));
-  incoming.start();
-  const stuck = takeStuck();
-  if (stuck) await forgetConnection().catch(() => undefined);
-  const conn = stuck ? null : await readConnection();
-  const mediaBase = await desktop.mediaBase();
-  if (conn) {
-    limitPageTo(conn.origin, mediaBase);
-    return { platform: desktopPlatform(conn, mediaBase), screen: null };
-  }
-  void removeDownloads(updater).catch(() => undefined);
-  return { platform: desktopPlatform(null, mediaBase), screen: <ConnectScreen notice={takeNotice()} shell={desktopConnectShell} /> };
+  interfaceStarted() { void desktop.interfaceReady().catch(() => undefined); },
+  updater: desktopUpdater(),
+  storage: { read: readConnection, forget: forgetConnection },
+  openExternal(url) { void desktop.openExternal(url).catch(() => undefined); },
+  listen() { incoming.start(); },
+  readOffer: desktopOffer,
+  async attach(conn) {
+    const mediaBase = await desktop.mediaBase();
+    return {
+      platform: desktopPlatform(conn),
+      connected: conn ? {
+        conn,
+        policy: purssPolicy(conn.origin, [], { media: mediaBase }),
+        downloads: { files: desktopFiles(mediaBase), connection: desktopConnection },
+        forget: {
+          stopAudio: async (player) => { player?.pause(); },
+          stopBackground: async () => undefined,
+          forgetPush: async () => undefined,
+          finish: () => { void desktop.setBadge(0).catch(() => undefined); },
+        },
+      } : null,
+    };
+  },
+  firstScreen: (notice): ReactNode => <ConnectScreen notice={notice} shell={desktopConnectShell} />,
+};
+
+export function startDesktop(): Promise<{ platform: Platform; screen: ReactNode | null }> {
+  return startConnectedApp(desktopShell, browserPage);
 }

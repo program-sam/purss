@@ -17,7 +17,7 @@ const noSubscribe = () => () => {};
 const noState = () => null;
 
 /** What the question is about; read when shown, since the platform is chosen after this module loads. */
-const what = () => platform.desktop ? t.whatDesktop : t.whatPhone;
+const what = () => platform.connection?.device === "computer" ? t.whatDesktop : t.whatPhone;
 
 /**
  * Asked once per server other than the official one, the first time it offers an update, after the first-visit

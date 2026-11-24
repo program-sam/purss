@@ -19,7 +19,6 @@ export const browserNotifier: Notifier = {
 
 /** The web app in a browser: the page is served by PURSS itself, so everything is same-origin with the session cookie. */
 export const webPlatform: Platform = {
-  kind: "web",
   interfaceUpdates: null,
   appUpdates: null,
   appVersion: async () => null,
@@ -37,6 +36,7 @@ export const webPlatform: Platform = {
   createPlayerBackend: () => new HtmlMediaBackend(),
   downloads: null,
   connection: null,
+  keepsOtherAccountsUnsent: false,
   passkeys: typeof window !== "undefined" && window.isSecureContext && browserSupportsWebAuthn()
     ? { create: (optionsJSON) => startRegistration({ optionsJSON }), get: (optionsJSON) => startAuthentication({ optionsJSON }) }
     : null,

@@ -84,8 +84,8 @@ if (boot.screen) {
               <OfflineController />
               <AppUpdateNotice />
               <OutboxController />
-              <AnnotationSync keepOtherAccounts={platform.kind === "app"} />
-              <LateProgressSync keepOtherAccounts={platform.kind === "app"} />
+              <AnnotationSync keepOtherAccounts={platform.keepsOtherAccountsUnsent} />
+              <LateProgressSync keepOtherAccounts={platform.keepsOtherAccountsUnsent} />
               <RouterProvider router={router} />
             </OverlayProvider>
           </ToastProvider>
