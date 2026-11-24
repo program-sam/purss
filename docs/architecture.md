@@ -113,8 +113,8 @@ addresses, not GUIDs.
   a private source, which has no address in the database, is its keyed hash under either scheme while it is
   followed. An archive carries no private link, so it finds a private source by the id it has here (a file from this
   account, even after a rename), else by its title: each private source in the file is its own, even when two share a title, and
-  one already here stands for at most one of them: of those sharing a title, the one already holding the most of its posts,
-  so the same file imported again lands on the sources its first import used. A source that was
+  one already here stands for at most one of them, the first of that title not yet taken. A private source's posts already
+  here are looked for in every private source here of that title, so importing the same file again adds none of them twice. A source that was
   unfollowed is taken up again, not followed as a second one that would hold a second copy of every item; this
   installation's own news is a built-in source that has no engine subscription.
 - **The Review page** lists the queue (`apps/api/src/services/reconcile.ts`); it calls the entries incoming items. Each entry suggests *match*

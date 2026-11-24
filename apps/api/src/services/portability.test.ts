@@ -9,6 +9,7 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App, Principal } from "../app.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, seedLibrary, shareRow } from "../features-testing.ts";
 import { applySyncBatch } from "./sync.ts";
+import { NO_TITLE } from "./content.ts";
 import { getItem, getItemDetail, listItems } from "./items.ts";
 import { pageToDownload } from "@purss/domain";
 import { createBasket, createCollection, patchBasket } from "./collections.ts";
@@ -580,7 +581,7 @@ test("the same file again into the PURSS it came from takes each private source 
 });
 
 test("two private sources of one title made in the same moment line up with the file again on every later import", async (t) => {
-  // Each round has an even chance of pairing them the wrong way round if sources of one title were paired by when they were made.
+  // Each round has an even chance of pairing them the other way round; their posts are found either way.
   for (let round = 0; round < 12; round++) {
     const { a, b, pa, pb, cleanup } = twoAccounts();
     t.after(cleanup);
@@ -607,6 +608,37 @@ test("a file whose first import took up one private source already here and made
   const again = applyImport(b, pb, stageImport(b, pb, doc).token);
   assert.deepEqual([again.created.sources, again.created.items], [0, 0]);
   assert.deepEqual([sourceOf(b, "From the first"), sourceOf(b, "From the second")], placed, "each post stays once, where the first import put it");
+});
+
+test("two private sources of one title with the same posts, one with a post more, take nothing twice when imported again", async (t) => {
+  // However the two pair with the sources here, a post already here is found in either.
+  for (let round = 0; round < 8; round++) {
+    const { a, b, pa, pb, cleanup } = twoAccounts();
+    t.after(cleanup);
+    const first = makeSource(a, pa, "Newsletter", "feed/p1", { isPrivate: true });
+    const second = makeSource(a, pa, "Newsletter", "feed/p2", { isPrivate: true });
+    a.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id IN (?, ?)", first, second);
+    const bare = (title: string, day: number) => ({ title, url: null, originalGuid: null, publishedAt: new Date(Date.UTC(2026, 0, day)).toISOString() });
+    const shared = [1, 2, 3].flatMap((d) => [entry("feed/p1", bare(`Issue ${d}`, d)), entry("feed/p2", bare(`Issue ${d}`, d))]);
+    applySyncBatch(a, (pa as Owner).engineUserId, batch([...shared, entry("feed/p2", bare("Extra", 9))]));
+    const { doc } = await exportDoc(a, pa);
+    applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.equal(count(b, "items"), 7);
+    const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.deepEqual([again.created.sources, again.created.items, count(b, "items")], [0, 0, 7], `round ${round}`);
+  }
+});
+
+test("a post with no title in a file is the post here stored without one", async (t) => {
+  const { a, pa, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first } = twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  const untitled = doc.items.find((i: { sourceId: string }) => i.sourceId === first);
+  a.db.run("UPDATE items SET title = ? WHERE id = ?", NO_TITLE, untitled.id);
+  untitled.title = "";
+  const result = applyImport(a, pa, stageImport(a, pa, rebuild(doc)).token);
+  assert.deepEqual([result.created.items, count(a, "items")], [0, 2]);
 });
 
 test("a kept copy that was cut short stays cut short when the PURSS has the same text without that word", async (t) => {

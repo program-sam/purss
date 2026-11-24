@@ -315,9 +315,6 @@ function safeAddress(raw: string | null): string | null {
  * The public address an archive source is followed at, or null when it is a private one: flagged, shaped like one, or without an address to
  * follow it at. A bridged source keeps its descriptor: it is no link, so never private.
  */
-/** How many posts of an archive private source are looked for among the items of a same-titled source when pairing the two. */
-const PAIRING_POSTS = 50;
-
 function publicAddress(src: ArchiveSource): string | null {
   const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
   const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl));
@@ -386,15 +383,15 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   const sources = new Map<string, SourceDecision>();
   const have = sourceIndex(app, ws);
   // A private source's address is not in an archive, so each source in the file is its own (two can share a title). One already here stands
-  // for at most one of them: the one the file names by the id it has here (a file from this very account, even after a rename), else one of
-  // that title, paired by which already holds the most of the file's posts (found as items are below: no address, same title and date),
-  // then by age. Pairing by posts keeps a file imported again on the sources its first import used, whatever their dates.
+  // for at most one of them: the one the file names by the id it has here (a file from this very account, even after a rename), else the
+  // first of that title not yet taken. Which of two same-titled sources a file's source lands on decides only where its new posts go: its
+  // posts already here are looked for in every private source here of that title (see `existingMatches`), so none is added twice.
   const existingById = new Map<string, { id: string; title: string }>();
-  const existingByTitle = new Map<string, { id: string }[]>();
+  const existingByTitle = new Map<string, string[]>();
   for (const e of app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ? AND is_private = 1 ORDER BY created_at, id", ws)) {
     existingById.set(e.id, e);
     const same = existingByTitle.get(lower(e.title));
-    if (same) same.push(e); else existingByTitle.set(lower(e.title), [e]);
+    if (same) same.push(e.id); else existingByTitle.set(lower(e.title), [e.id]);
   }
   const existingPrivate = new Map<string, string>(); // archive id -> the private source here it stands for
   const taken = new Set<string>();
@@ -403,30 +400,16 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     const own = existingById.get(src.id);
     if (own && !taken.has(own.id) && !existingPrivate.has(src.id)) { existingPrivate.set(src.id, own.id); taken.add(own.id); }
   }
-  const postsOf = new Map<string, ArchiveItem[]>();
-  for (const it of doc.items) {
-    if (!it.sourceId) continue;
-    const list = postsOf.get(it.sourceId);
-    if (list) list.push(it); else postsOf.set(it.sourceId, [it]);
+  for (const src of privateInFile) {
+    if (existingPrivate.has(src.id)) continue;
+    const here = (existingByTitle.get(lower(src.title)) ?? []).find((id) => !taken.has(id));
+    if (here) { existingPrivate.set(src.id, here); taken.add(here); }
   }
-  const pairs: { src: string; here: string; held: number; file: number; age: number }[] = [];
-  privateInFile.forEach((src, file) => {
-    if (existingPrivate.has(src.id)) return;
-    (existingByTitle.get(lower(src.title)) ?? []).forEach((e, age) => {
-      if (taken.has(e.id)) return;
-      let held = 0;
-      for (const it of (postsOf.get(src.id) ?? []).slice(0, PAIRING_POSTS)) {
-        if (app.db.get("SELECT 1 FROM items WHERE account_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ?", ws, e.id, it.title, it.publishedAt ?? "")) held++;
-      }
-      pairs.push({ src: src.id, here: e.id, held, file, age });
-    });
-  });
-  pairs.sort((x, y) => y.held - x.held || x.file - y.file || x.age - y.age);
-  for (const pair of pairs) {
-    if (existingPrivate.has(pair.src) || taken.has(pair.here)) continue;
-    existingPrivate.set(pair.src, pair.here);
-    taken.add(pair.here);
-  }
+  /** The private sources here that share a private source's title, it included. */
+  const sameTitleHere = (sourceId: string): string[] => {
+    const e = existingById.get(sourceId);
+    return e ? existingByTitle.get(lower(e.title))! : [sourceId];
+  };
   const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
   // The source planned for a feed's key: the same feed twice in one archive is one source.
   const plannedFeeds = new Map<string, string>();
@@ -530,7 +513,14 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     }
     if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ? LIMIT 2", ws, sourceId, url)) ids.add(r.id);
     if (!url && !it.originalGuids.length) {
-      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ? LIMIT 2", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
+      // A post with no address (a private source's, as the file holds none) by its title and date, in any private source here of its
+      // source's title; of several, the one in its own source. A title-less post is stored under the placeholder.
+      const among = sameTitleHere(sourceId);
+      const found = app.db.all<{ id: string; source_id: string }>(
+        `SELECT id, source_id FROM items WHERE account_id = ? AND source_id IN (${among.map(() => "?").join(", ")}) AND url IS NULL AND title IN (?, ?) AND COALESCE(published_at, '') = ? LIMIT 3`,
+        ws, ...among, it.title, it.title.trim() || NO_TITLE, it.publishedAt ?? "");
+      const own = found.filter((r) => r.source_id === sourceId);
+      for (const r of found.length > 1 && own.length ? own : found) ids.add(r.id);
     }
     return ids;
   };
