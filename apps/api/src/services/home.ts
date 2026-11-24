@@ -2,7 +2,8 @@ import { OTHER_BOX_ID } from "@purss/domain";
 import type { HomeOverview, ItemDTO } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import type { SqlParam } from "../db/database.ts";
-import { ITEM_COLUMNS, QUEUE_STATES_SQL, VISIBLE_SOURCE, toDTO } from "./items.ts";
+import { ITEM_COLUMNS, toDTO } from "./items.ts";
+import { QUEUE_STATES_SQL, VIEW_FROM, VISIBLE_SOURCE } from "./item-view.ts";
 import type { ItemRow } from "./items.ts";
 import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
@@ -70,8 +71,6 @@ function itemsByIds(app: App, accountId: string, ids: string[]): ItemDTO[] {
   return ids.flatMap((id) => byId.get(id) ?? []);
 }
 
-const FROM_VISIBLE = `FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id`;
-
 /** Everything Home says before its boxes. */
 export function homeOverview(app: App, p: Principal, now: Date = new Date()): HomeOverview {
   // Reading Home never changes anything: the visit is recorded by touchVisit, called from any page.
@@ -118,7 +117,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const putAside = (kind: string) => {
     const rows = app.db.all<{ id: string; n: number; m: number }>(
       `SELECT id, n, ${muted ? "purss_muted(?, title, excerpt)" : "0"} AS m FROM (
-         SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${FROM_VISIBLE}
+         SELECT i.id AS id, i.title AS title, i.excerpt AS excerpt, COUNT(*) OVER () AS n ${VIEW_FROM}
          WHERE st.account_id = ? AND i.account_id = ? AND ${QUEUE_STATES_SQL} AND ${kind} AND ${VISIBLE_SOURCE}
          ORDER BY st.workflow = 'inprogress' DESC, i.listed_at ASC, i.id ASC LIMIT ${muted ? mutedScan.rows + 1 : ROW_ITEMS})`,
       ...(muted ? [muted] : []), ws, ws);
@@ -133,7 +132,7 @@ export function homeOverview(app: App, p: Principal, now: Date = new Date()): Ho
   const toListen = putAside("i.kind = 'podcast'");
   const putAsideIds = [...toRead.ids, ...toWatch.ids, ...toListen.ids];
 
-  const isNew = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${FROM_VISIBLE} WHERE st.account_id = ? AND st.is_new = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
+  const isNew = app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${VIEW_FROM} WHERE st.account_id = ? AND st.is_new = 1 AND ${VISIBLE_SOURCE}`, ws)!.n;
 
   // Items on Home that were not looked at and are not New: the older posts of sources followed before the choice of where to start
   // existed, and what the New marker has outlived. A source followed from now has its backlog Ignored, so it is not in the count.

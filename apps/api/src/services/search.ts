@@ -1,6 +1,7 @@
 import type { ItemDTO } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { VISIBLE_SOURCE, getItem, listItems, snippetAround } from "./items.ts";
+import { getItem, listItems, snippetAround } from "./items.ts";
+import { VISIBLE_SOURCE } from "./item-view.ts";
 import { indexedWord, searchTerms } from "./search-text.ts";
 
 /** The search box's first answer, and the most one search can return: it asks for more as the person goes on, up to this. */

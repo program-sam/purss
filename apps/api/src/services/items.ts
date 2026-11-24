@@ -1,17 +1,15 @@
-import { newId, measureBytes, checkQuery } from "@purss/domain";
-import type { ItemDTO, ItemDetail, ItemIds, ItemIdsQuery, ItemListQuery, KeptDisplay, QueryNode, CaptureDTO, TextRef, WorkflowState } from "@purss/domain";
+import { newId, measureBytes } from "@purss/domain";
+import type { ItemDTO, ItemDetail, ItemIds, ItemIdsQuery, ItemListQuery, KeptDisplay, CaptureDTO, TextRef, WorkflowState } from "@purss/domain";
 import { MAX_BULK_ITEMS, itemIdsQuerySchema, itemListQuerySchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import type { z } from "zod";
 import { admitObject } from "./storage.ts";
-import { itemCounts } from "./counts.ts";
-import type { CellFilter } from "./counts.ts";
 import { NO_TITLE, contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { getPlayback, itemLinkIsMedia, itemMedia } from "./media.ts";
-import { ftsQuery, foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
+import { foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
 import { firstImage } from "./first-image.ts";
 import { looksLikeSummary } from "./teaser.ts";
 import { onHomeItem } from "./home-sources.ts";
@@ -19,7 +17,8 @@ import { NOT_MUTED_ROW, countMuted, accountMuted } from "./muted.ts";
 import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
 import type { PartialReason } from "@purss/connectors";
 import { pictureUrl, postGallery, storedPictures, withStoredPictures } from "./images.ts";
-import { settledCopy } from "./capture-state.ts";
+import { failedCopy } from "./capture-state.ts";
+import { VIEW_FROM, scopeClause, textMatch, viewConditions, viewTotal } from "./item-view.ts";
 import { keptDisplays } from "./kept-display.ts";
 import { server } from "@purss/translations/server";
 
@@ -154,64 +153,6 @@ function keptLink(title: string, url: string | null, enclosuresJson: string | nu
   return { title, url, linkIsMedia: itemLinkIsMedia(url, enclosuresJson) || (url !== null && url === shown && currentIsMedia) };
 }
 
-/** Compile a validated query tree to a parameterised WHERE fragment over items i / item_state st. */
-/** `itemTextOnly`: a text rule matches the items' own text, never the person's highlights and notes (for shared pages). */
-export function compileQuery(node: QueryNode, params: SqlParam[], accountId: string, opts: { itemTextOnly?: boolean } = {}): string {
-  if ("all" in node) return `(${node.all.map((n) => compileQuery(n, params, accountId, opts)).join(" AND ")})`;
-  if ("any" in node) return `(${node.any.map((n) => compileQuery(n, params, accountId, opts)).join(" OR ")})`;
-  if ("not" in node) return `(NOT ${compileQuery(node.not, params, accountId, opts)})`;
-  const list = (values: readonly string[]) => { params.push(...values); return values.map(() => "?").join(","); };
-  switch (node.field) {
-    case "text": return opts.itemTextOnly ? itemTextMatch(node.value, params) : textMatch(node.value, params);
-    case "source": return `i.source_id IN (${list(node.value)})`;
-    case "kind": return `i.kind IN (${list(node.value)})`;
-    case "workflow": return `st.workflow IN (${list(node.value)})`;
-    case "author": params.push(`%${node.value}%`); return "i.author LIKE ?";
-    case "new": return node.value ? "st.is_new = 1" : "st.is_new = 0";
-    case "opened": return node.value ? "st.opened_at IS NOT NULL" : "st.opened_at IS NULL";
-    case "kept": return `${node.value ? "" : "NOT "}EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id)`;
-    // Only this PURSS's own baskets and collections count, whatever ids a filter names.
-    case "basket": { const ids = list(node.value); params.push(accountId); return `EXISTS (SELECT 1 FROM basket_items b JOIN baskets bk ON bk.id = b.basket_id WHERE b.item_id = i.id AND b.basket_id IN (${ids}) AND bk.account_id = ?)`; }
-    case "collection": { const ids = list(node.value); params.push(accountId); return `i.source_id IN (SELECT cs.source_id FROM collection_sources cs JOIN collections c ON c.id = cs.collection_id WHERE cs.collection_id IN (${ids}) AND c.account_id = ?)`; }
-    case "capture": {
-      const parts: string[] = [];
-      for (const level of node.value) {
-        if (level === "fulltext") parts.push("EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status = 'done' AND c.quality IS NOT 'partial')");
-        if (level === "pending") parts.push("EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status = 'pending')");
-        if (level === "failed") parts.push("EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status = 'failed')");
-        if (level === "feed") parts.push("EXISTS (SELECT 1 FROM item_versions v WHERE v.id = i.current_version_id AND v.content_html IS NOT NULL)");
-        if (level === "metadata") parts.push("EXISTS (SELECT 1 FROM item_versions v WHERE v.id = i.current_version_id AND v.content_html IS NULL)");
-      }
-      return `(${parts.join(" OR ")})`;
-    }
-    case "date": {
-      const col = node.which === "published" ? "COALESCE(i.published_at, i.discovered_at)" : node.which === "discovered" ? "i.discovered_at"
-        : "(SELECT MIN(b.kept_at) FROM basket_items b WHERE b.item_id = i.id)";
-      const parts: string[] = [];
-      if (node.from) { params.push(node.from); parts.push(`${col} >= ?`); }
-      if (node.to) { params.push(node.to + "T23:59:59.999Z"); parts.push(`${col} <= ?`); }
-      return `(${parts.join(" AND ")})`;
-    }
-  }
-}
-
-/**
- * Items whose own text matches, or whose annotations do: the person's comments and notes and the
- * passages they highlighted. The caller's WHERE scopes it to the PURSS.
- */
-/** Items whose own text matches. */
-function itemTextMatch(text: string, params: SqlParam[]): string {
-  params.push(ftsQuery(text));
-  return "i.seq IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)";
-}
-
-export function textMatch(text: string, params: SqlParam[]): string {
-  const q = ftsQuery(text);
-  params.push(q, q);
-  return `(i.seq IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)
-    OR i.id IN (SELECT a.item_id FROM annotations a WHERE a.deleted_at IS NULL AND a.seq IN (SELECT rowid FROM annotations_fts WHERE annotations_fts MATCH ?)))`;
-}
-
 /** For items a search already found (and scoped): a few words around the first match in their text.
  *  The index is contentless, so this reads the same text the index was built from. Matches are
  *  wrapped in U+0001 … U+0002 so the client can mark them without parsing HTML. A word matches the way
@@ -253,63 +194,6 @@ function rawLength(word: string, folded: number): number {
   for (let i = 1; i <= word.length; i++) if (indexedWord(word.slice(0, i)).length >= folded) return i;
   return word.length;
 }
-
-/** Followed sources that are in no collection. */
-function looseSources(app: App, accountId: string): string[] {
-  return app.db.all<{ id: string }>(
-    `SELECT o.id FROM sources o WHERE o.account_id = ? AND o.followed = 1 AND o.kind <> 'manual'
-       AND NOT EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.source_id = o.id)`, accountId).map((r) => r.id);
-}
-
-export function scopeClause(app: App, p: Principal, scope: string, params: SqlParam[]): string {
-  const [kind, id] = scope.split(":") as [string, string | undefined];
-  switch (kind) {
-    case "all":
-    case "home":
-      return "1";
-    case "new":
-      return "st.is_new = 1";
-    case "toread":
-      // The queue: what is waiting (To read, To watch, To listen) and what is started (In progress). Looked up by state in the account's
-      // own item_state index (the states are rare), not found by probing every item.
-      params.push(p.accountId);
-      return `st.account_id = ? AND ${QUEUE_STATES_SQL}`;
-    case "loose": {
-      // Followed sources that are in no collection (Home's "Other sources"). When there are none, say so: the planner can't
-      // tell that the set is empty and would otherwise walk every item looking for a match.
-      const ids = looseSources(app, p.accountId);
-      if (!ids.length) return "0";
-      params.push(JSON.stringify(ids));
-      return "i.source_id IN (SELECT value FROM json_each(?))";
-    }
-    case "source":
-      params.push(id!);
-      return "i.source_id = ?";
-    case "basket":
-      params.push(id!);
-      return "EXISTS (SELECT 1 FROM basket_items b WHERE b.item_id = i.id AND b.basket_id = ?)";
-    case "collection": {
-      const c = app.db.get<{ mode: string; query: string | null }>("SELECT mode, query FROM collections WHERE id = ? AND account_id = ?", id!, p.accountId);
-      if (!c) throw notFound(server.api.shared.thatCollection);
-      if (c.mode === "sources") { params.push(id!); return "i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)"; }
-      const q = checkQuery(JSON.parse(c.query ?? "null"));
-      return q.ok ? compileQuery(q.query, params, p.accountId) : "0";
-    }
-    default:
-      throw badRequest(server.api.items.unknownView);
-  }
-}
-
-/** The queue is what is put aside (To read, To watch, To listen) and what is started (In progress). */
-export const QUEUE_STATES_SQL = "st.workflow IN ('toread', 'inprogress')";
-
-/**
- * Items from unfollowed sources leave lists and search unless kept, added by hand, carrying the
- * person's own highlights or notes (all of which must stay findable).
- */
-export const VISIBLE_SOURCE = `(i.source_id IS NULL OR s.followed = 1 OR s.kind = 'manual'
-  OR EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)
-  OR EXISTS (SELECT 1 FROM annotations va WHERE va.item_id = i.id AND va.deleted_at IS NULL))`;
 
 const SORT_SQL = {
   newest: { key: "i.listed_at", dir: "DESC" },
@@ -356,9 +240,6 @@ const QUEUE_RUNS = ["st.workflow = 'inprogress'", "st.workflow = 'toread'"] as c
 /** The runs a list is read in, or none when it is read in one pass. */
 const runsOf = (q: { scope: string; mix?: string }): readonly string[] | null => q.mix === "home" ? HOME_RUNS : q.scope === "toread" ? QUEUE_RUNS : null;
 
-/** Over items `i`: a readable copy failed and none is settled (pending, or finished and passed the checks: capture-state.ts), so the item says so. */
-export const CAPTURE_FAILED = `(EXISTS (SELECT 1 FROM captures fc WHERE fc.item_id = i.id AND fc.status = 'failed') AND NOT ${settledCopy("i.id")})`;
-
 /** Item types as the list filter names them, over the items named `a`. */
 const TYPE_SQL: Record<string, (a: string) => string> = {
   articles: (a) => `${a}.kind NOT IN ('video', 'podcast')`,
@@ -398,24 +279,18 @@ export function listItems(app: App, p: Principal, input: ItemListQuery, opts: Li
 
 /** What a list (its page and its "Select all") is narrowed by: its scope, state filter, chips, search and Home's rules. */
 function listConditions(app: App, p: Principal, q: Omit<z.infer<typeof itemListQuerySchema>, "cursor" | "limit">, opts: ListOptions, snapshot: number | null): { where: string[]; params: SqlParam[] } {
-  const params: SqlParam[] = [p.accountId];
-  const where: string[] = ["i.account_id = ?", scopeClause(app, p, q.scope, params), VISIBLE_SOURCE];
-  if (q.filter === "new") where.push("st.is_new = 1");
-  else if (q.filter === "all") where.push("st.workflow <> 'ignored'");
-  else if (q.filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(q.filter); }
+  const { where, params } = viewConditions(app, p, q);
   if (q.source) { const ids = q.source.split(","); where.push(`i.source_id IN (${ids.map(() => "?").join(", ")})`); params.push(...ids); }
   if (q.exceptPrivate) where.push("COALESCE(s.is_private, 0) = 0");
   if (q.without) { const ids = q.without.split(","); where.push(`(i.source_id IS NULL OR i.source_id NOT IN (${ids.map(() => "?").join(", ")}))`); params.push(...ids); }
   // the items whose readable copy couldn't be saved (what the bell's "Couldn't save the text of N items" opens).
-  if (q.capture === "failed") where.push(CAPTURE_FAILED);
+  if (q.capture === "failed") where.push(failedCopy("i.id"));
   where.push(...typeLengthConditions(q));
   if (opts.homeVisible || q.mix === "home") where.push(onHomeItem(app, p.accountId, params));
   if (snapshot !== null) { where.push("i.seq <= ?"); params.push(snapshot); }
   if (q.q) where.push(textMatch(q.q, params));
   return { where, params };
 }
-
-const LIST_FROM = "FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id";
 
 /**
  * Every item a list shows, in its order, for "Select all": the same conditions and muted words as its pages, at most
@@ -427,7 +302,7 @@ export function listItemIds(app: App, p: Principal, input: ItemIdsQuery, opts: L
   const muted = q.q || q.scope.startsWith("basket:") || q.muted === "show" ? null : accountMuted(app, p.accountId);
   const { where, params } = listConditions(app, p, q, opts, null);
   const sort = listSort(app, p, q);
-  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${where.join(" AND ")} ${orderBy(sort, "sort_key")}`;
+  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${VIEW_FROM} WHERE ${where.join(" AND ")} ${orderBy(sort, "sort_key")}`;
   const shown = muted ? `SELECT id FROM (${ordered} LIMIT -1) WHERE ${NOT_MUTED_ROW}` : `SELECT id FROM (${ordered} LIMIT -1)`;
   const args = muted ? [...params, muted] : params;
   const rows = app.db.all<{ id: string }>(`${shown} LIMIT ?`, ...args, MAX_BULK_ITEMS + 1);
@@ -449,7 +324,7 @@ function sortedRows(app: App, where: string[], params: SqlParam[], sort: ListSor
     w.push(`(${sort.key} ${op} ? OR (${sort.key} = ? AND i.id ${op} ?))`);
     ps.push(cur[0], cur[0], cur[1]);
   }
-  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${LIST_FROM} WHERE ${w.join(" AND ")} ${orderBy(sort, "sort_key")}`;
+  const ordered = `SELECT ${ITEM_COLUMNS}, ${sort.key} AS sort_key ${VIEW_FROM} WHERE ${w.join(" AND ")} ${orderBy(sort, "sort_key")}`;
   return muted
     ? app.db.all<SortedRow>(`SELECT * FROM (${ordered} LIMIT -1) WHERE ${NOT_MUTED_ROW} LIMIT ?`, ...ps, muted, limit)
     : app.db.all<SortedRow>(`${ordered} LIMIT ?`, ...ps, limit);
@@ -493,14 +368,15 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
   const kept = keptDisplays(app, p.accountId, page.filter((r) => r.basket_ids).map((r) => r.id));
   // A list narrowed by more than its scope and state has no total: counting it would read every item the narrowing looks at.
   const narrowed = !!(q.type || q.length || q.without || q.capture || opts.homeVisible || home || muted);
+  // Without a search or chips the total is added up from the PURSS's counts when that is the cheaper way (item-view.ts).
   const total = q.cursor || narrowed ? null
-    : totalFromCounts(app, p, q)
-      ?? app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${LIST_FROM} WHERE ${where.join(" AND ")}`, ...params)!.n;
+    : (q.q || q.source || q.exceptPrivate ? null : viewTotal(app, p, q))
+      ?? app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${VIEW_FROM} WHERE ${where.join(" AND ")}`, ...params)!.n;
   const out: ListResult = { items: page.map((r) => toDTO(r, kept.get(r.id))), nextCursor, total };
   if (muted && !q.cursor) {
     // What the list leaves out, counted among the first candidates it would hold without the muted words (see `mutedScan`).
     // In the date order, so the candidates are found the way the page finds them (by its scope's narrowest index).
-    const { hidden, atLeast } = countMuted(app, muted, LIST_FROM, where.join(" AND "), params, orderBy(sort, sort.key));
+    const { hidden, atLeast } = countMuted(app, muted, VIEW_FROM, where.join(" AND "), params, orderBy(sort, sort.key));
     out.mutedHidden = hidden;
     if (atLeast) out.mutedHiddenAtLeast = true;
   }
@@ -508,67 +384,14 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
 }
 
 /**
- * `countFromRowsBelowShare`: a collection that holds less than this share of the followed sources is counted from its rows; the
- * rest from the PURSS's counts. Adding up the counts costs the same whatever the collection (about 90 ms at 100,000 items);
- * counting rows costs in proportion (about 70 ms for a tenth of them). Sources are a cheap stand-in for items here: asking for
- * the items themselves costs about a quarter of the saving.
- *
  * `sortFromRowsBelow`: a list sorted by kept time or by source is read in order from its PURSS-wide index and
  * stops once the page is full; a list of a few sources' items would walk most of the PURSS to find them that way (a source of
  * 80 items took 65 to 180 ms instead of 2 at 100,000 items), so one with fewer items than this sorts them instead, as every such
  * list did before the keys were stored. Finding out reads at most this many entries of a source index.
  *
- * Test hooks, so the tests can take either way with few items.
+ * A test hook, so the tests can take either way with few items.
  */
-export const listTuning = { countFromRowsBelowShare: 0.2, sortFromRowsBelow: 2000 };
-
-/** The part of a list's scope that depends on an item's state rather than on its source. */
-const SCOPE_STATE: Record<string, { sql: string; keep: CellFilter }> = {
-  new: { sql: "st.is_new = 1", keep: (_w, isNew) => isNew },
-  toread: { sql: QUEUE_STATES_SQL, keep: (w) => w === "toread" || w === "inprogress" },
-};
-
-/**
- * How many items a list holds, added up from the PURSS's counts instead of from a probe per item. Applies to the
- * lists a person opens most (everything, New, To read, a large collection of sources, sources in no collection) when no text is
- * searched; for the rest, null: counting the rows is cheap (one source, a basket) or the only way (a query, a search).
- * The result is what counting the rows gives: items of sources that are no longer followed are in the list only while a
- * basket keeps them, which is looked up for those items alone.
- */
-function totalFromCounts(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>): number | null {
-  if (q.q || q.source || q.exceptPrivate) return null;
-  const [kind, id] = q.scope.split(":") as [string, string | undefined];
-  const scopeState = SCOPE_STATE[kind];
-  let scopeSources: Set<string | null> | null = null; // null: every source
-  if (kind === "collection") {
-    const c = app.db.get<{ mode: string }>("SELECT mode FROM collections WHERE id = ? AND account_id = ?", id!, p.accountId);
-    if (c?.mode !== "sources") return null;
-    scopeSources = new Set(app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", id!).map((r) => r.source_id));
-    const followed = app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE account_id = ? AND followed = 1 AND kind <> 'manual'", p.accountId)!.n;
-    if (scopeSources.size < followed * listTuning.countFromRowsBelowShare) return null;
-  } else if (kind === "loose") {
-    scopeSources = new Set(looseSources(app, p.accountId));
-  } else if (kind !== "all" && kind !== "home" && !scopeState) return null;
-
-  const filterSql = q.filter === "new" ? "st.is_new = 1" : q.filter === "all" ? "st.workflow <> 'ignored'" : q.filter === "all_with_ignored" ? "1" : "st.workflow = ?";
-  const filterKeep: CellFilter = q.filter === "new" ? (_w, isNew) => isNew : q.filter === "all" ? (w) => w !== "ignored" : q.filter === "all_with_ignored" ? () => true : (w) => w === q.filter;
-  const keep: CellFilter = (w, isNew) => filterKeep(w, isNew) && (!scopeState || scopeState.keep(w, isNew));
-
-  const counts = itemCounts(app, p.accountId);
-  const followed = new Set(app.db.all<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND (followed = 1 OR kind = 'manual')", p.accountId).map((r) => r.id));
-  const inScope = [...counts.bySource.keys()].filter((k) => !scopeSources || scopeSources.has(k));
-  const shown = inScope.filter((k) => k === null || followed.has(k));
-  const hidden = inScope.filter((k): k is string => k !== null && !followed.has(k));
-  let total = counts.sum(shown, keep);
-  if (hidden.length) {
-    total += app.db.get<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id
-       WHERE i.account_id = ? AND i.source_id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)
-         AND ${scopeState ? scopeState.sql : "1"} AND ${filterSql}`,
-      p.accountId, JSON.stringify(hidden), ...(filterSql.endsWith("?") ? [q.filter] : []))!.n;
-  }
-  return total;
-}
+export const listTuning = { sortFromRowsBelow: 2000 };
 
 /** The item with this number in the person's account (its short link, /app/i/<number>). */
 export function itemIdByNumber(app: App, p: Principal, number: number): { id: string } {

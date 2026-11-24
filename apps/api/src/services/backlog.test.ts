@@ -7,7 +7,8 @@ import type { App, Principal } from "../app.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
 import { applySyncBatch, arrivalOf } from "./sync.ts";
-import { listItems, listTuning } from "./items.ts";
+import { listItems } from "./items.ts";
+import { viewTuning } from "./item-view.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
 import { followSource, listSources, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
@@ -133,11 +134,11 @@ test("followed from now, the backlog arrives Ignored: hidden from lists, left ou
   assert.equal(listItems(app, p, { scope: `collection:${box.id}`, limit: 5 }).total, 1);
   assert.equal(listItems(app, p, { scope: "all", limit: 5 }).total, 1);
   assert.equal(listItems(app, p, { scope: "all", limit: 5, filter: "ignored" }).total, back.length);
-  const was = listTuning.countFromRowsBelowShare;
+  const was = viewTuning.countFromRowsBelowShare;
   try {
-    listTuning.countFromRowsBelowShare = 5; // the collection counted from its rows instead of from the counts: the same answer
+    viewTuning.countFromRowsBelowShare = 5; // the collection counted from its rows instead of from the counts: the same answer
     assert.equal(listItems(app, p, { scope: `collection:${box.id}`, limit: 5 }).total, 1);
-  } finally { listTuning.countFromRowsBelowShare = was; }
+  } finally { viewTuning.countFromRowsBelowShare = was; }
 
   // Statistics count what the PURSS holds, by state: the Ignored posts are there as Ignored, and nothing the person did is claimed.
   const stats = collectionStats(app, p, box.id).totals;

@@ -136,9 +136,10 @@ the backlog and settling rules, Keep, bulk state changes, captures and notificat
   plan as designed: a partial or covering index, or an ordered index read with no sort.
 - On a generated 20,000-item account the median bootstrap queries take under 1.5 s.
 
-`counts.test.ts` and `list-sort-keys.test.ts` in the same folder compare
-counts, totals and the kept-time and source orders with the queries they replaced,
-after random operations through every writer.
+`item-view.test.ts` holds the rows, total, "Select all" and collection count of every scope and state filter to a model of the
+items (items of sources nobody follows kept or annotated, every workflow state, New and not), whichever way the total is counted;
+`counts.test.ts` and `list-sort-keys.test.ts` compare the source and collection counts and the kept-time and source orders with the
+queries they replaced, after random operations through every writer.
 
 No test asserts the response times the app is held to on the large account, so they are measured by
 hand with the app serving the dataset: `GET /api/bootstrap` under 300 ms, and item pages

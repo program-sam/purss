@@ -4,6 +4,7 @@ import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { notFound } from "../http.ts";
 import { getPreferences } from "./preferences.ts";
+import { fullCopy } from "./capture-state.ts";
 import { usableAccountSql } from "./deletion.ts";
 import { server } from "@purss/translations/server";
 
@@ -110,7 +111,7 @@ export function remindersForToday(app: App, accountId: string, now: Date = new D
   const candidates = app.db.all<Candidate>(
     `SELECT b.basket_id, b.item_id, b.kept_at, i.title, s.title AS source_title, k.name AS basket_name,
             (v.content_html IS NOT NULL) AS version_has_content,
-            EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status = 'done' AND c.quality IS NOT 'partial') AS has_fulltext
+            ${fullCopy("i.id")} AS has_fulltext
      FROM basket_items b
      JOIN items i ON i.id = b.item_id
      JOIN item_state st ON st.item_id = i.id
@@ -141,7 +142,7 @@ export function remindersForToday(app: App, accountId: string, now: Date = new D
   const rows = app.db.all<{ id: string; status: string; item_id: string; basket_id: string; kept_at: string; title: string; source_title: string | null; basket_name: string; version_has_content: number; has_fulltext: number }>(
     `SELECT r.id, r.status, r.item_id, r.basket_id, r.kept_at, i.title, s.title AS source_title, k.name AS basket_name,
             (v.content_html IS NOT NULL) AS version_has_content,
-            EXISTS (SELECT 1 FROM captures c WHERE c.item_id = i.id AND c.status = 'done' AND c.quality IS NOT 'partial') AS has_fulltext
+            ${fullCopy("i.id")} AS has_fulltext
      FROM reminders r
      JOIN items i ON i.id = r.item_id
      JOIN item_state st ON st.item_id = i.id
