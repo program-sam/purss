@@ -1,4 +1,4 @@
-import { isQueued } from "@purss/domain";
+import { isQueued } from "@purss/domain/workflow";
 import type { ItemDTO } from "@purss/domain";
 import { itemDate } from "../lib/items.ts";
 import { pictureItem } from "../sw/protocol.ts";

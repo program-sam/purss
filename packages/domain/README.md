@@ -23,7 +23,7 @@ its jobs with them, and the web app and the extension import their types so both
 
 Everything is exported from `@purss/domain`. The modules that browsers, the public site or the packaging scripts import
 without the rest are also separate entry points (`@purss/domain/purss-address`, `/distribution`, `/app-bundle`,
-`/paths`, `/plans`, `/initials`, `/version`, `/connect-protocol`). The component map is in [architecture](../../docs/architecture.md#components).
+`/paths`, `/plans`, `/initials`, `/version`, `/connect-protocol`, `/workflow`). The component map is in [architecture](../../docs/architecture.md#components).
 
 Keep this package independent of the UI, database drivers and FreshRSS protocol details, and put an invariant here with
 a focused test before it reaches storage. The tests sit next to the code (`*.test.ts`) and run with `npm test`. What the

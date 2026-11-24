@@ -1,5 +1,6 @@
 import { app } from "@purss/translations/app";
-import { deviceStateFilterKeeps, linkIsMediaFile, sameAddress } from "@purss/domain";
+import { linkIsMediaFile, sameAddress } from "@purss/domain";
+import { deviceStateFilterKeeps } from "@purss/domain/workflow";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
 import { cleanVideoExcerpt } from "./feed-text.ts";

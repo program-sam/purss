@@ -1,5 +1,5 @@
 import { app } from "@purss/translations/app";
-import { isQueued } from "@purss/domain";
+import { isQueued } from "@purss/domain/workflow";
 import type { ActivityDTO, HomeOverview, ItemDTO, Preferences } from "@purss/domain";
 import { dateFormat, formatCount, interfaceLocale, plural, timeAgo } from "./format.ts";
 
