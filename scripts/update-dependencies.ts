@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// ---------- versions (pure, tested in update-dependencies.test.mjs)
+// ---------- versions (pure, tested in update-dependencies.test.ts)
 
 type Version = [number, number, number];
 

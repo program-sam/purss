@@ -8,12 +8,12 @@ import { firstParents, gitVersion, readVersion, versionsOf } from './version.ts'
 
 function repo() {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'purss-version-'));
-  const git = (args, date) => execFileSync('git', ['-C', dir, ...args], {
+  const git = (args: string[], date?: string) => execFileSync('git', ['-C', dir, ...args], {
     stdio: 'pipe',
     env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid', ...(date ? { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } : {}) },
   });
   git(['init', '-q', '-b', 'main']);
-  const commit = (subject, date) => git(['commit', '-q', '--allow-empty', '-m', subject], date);
+  const commit = (subject: string, date: string) => git(['commit', '-q', '--allow-empty', '-m', subject], date);
   return { dir, git, commit, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
@@ -24,7 +24,7 @@ test('the version counts the head\'s commit among its UTC day\'s commits on main
   r.commit('First on the 8th', '2026-11-08T00:10:00+01:00'); // still the 7th in UTC
   r.commit('Second', '2026-11-08T09:00:00Z');
   r.commit('Third', '2026-11-08T10:00:00Z');
-  const v = gitVersion(r.dir);
+  const v = gitVersion(r.dir)!;
   assert.equal(v.version, '2631202');
   assert.equal(v.committedAt, '2026-11-08T10:00:00.000Z');
   assert.match(v.commit, /^[0-9a-f]{40}$/);
@@ -42,8 +42,8 @@ test('a merged branch counts once, as its merge on the first-parent line', (t) =
   r.commit('Also on the branch', '2026-11-08T08:40:00Z');
   r.git(['checkout', '-q', 'main']);
   r.git(['merge', '-q', '--no-ff', '-m', 'Merge side', 'side'], '2026-11-08T09:00:00Z');
-  assert.equal(gitVersion(r.dir).version, '2631202');
-  assert.equal(firstParents(r.dir)[0].merge, true);
+  assert.equal(gitVersion(r.dir)!.version, '2631202');
+  assert.equal(firstParents(r.dir)[0]!.merge, true);
 });
 
 test('without history, version.json says it; without either, there is none', (t) => {
