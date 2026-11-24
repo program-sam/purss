@@ -57,10 +57,8 @@ const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 // The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // code and data: ids, the toolbar's check mark, the basket names and page titles the journey makes up.
-const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
 const keepCopy = app.dialogs.keepPage;
-const addSourceCopy = app.dialogs.addSource;
 const popupCopy = extension.popup;
 /** The name the extension suggests for this browser (the options page and the approval page start from it). */
 const DEVICE = extension.connect.deviceName("Chrome", "Linux");

@@ -19,7 +19,6 @@ import { createDeviceToken } from "../connect/devices.ts";
 import { REFRESHES_PER_ACCOUNT_PER_HOUR, REFRESHES_PER_GRANT_PER_HOUR, purgeOAuth } from "./grants.ts";
 import { isAcceptableRedirect, isClientIdUrl, matchRedirect, parseDocument, resolveClient } from "./clients.ts";
 import { CHALLENGE, VERIFIER, startClientSite } from "./testing.ts";
-import type { ClientSite } from "./testing.ts";
 
 const HOSTED_CALLBACK = "/api/mcp/auth_callback";
 const { oauthAuthorize, oauthClients } = server.api;

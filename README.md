@@ -96,7 +96,7 @@ secrets live in `data/` (ignored by Git). Administrator tools: `node apps/api/sr
 ## Checks
 
 ```sh
-npm run check          # repository layout, documentation links, TypeScript
+npm run check          # repository layout, documentation links, TypeScript, lint
 npm test               # unit and SQLite integration tests (fast, hermetic)
 npm run test:engine    # contract tests against the pinned FreshRSS container
 npm run test:e2e       # real-stack acceptance journey in a browser (network needed)

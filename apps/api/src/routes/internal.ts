@@ -8,9 +8,9 @@ import { RUNNABLE_JOB_SQL, completeJob, currentLease, failJob, heartbeat, leaseJ
 import { SUBSCRIBE_RETRY_BACKOFF_SECONDS, settleFailedJob, subscribeWaits } from "../services/failures.ts";
 import { deletionEngineState, finalizeDeletion, openEngineReview, recordEngineAttempt, recordEngineRemoved } from "../services/deletion.ts";
 import { applySyncBatch, recordSyncSuccess } from "../services/sync.ts";
-import { onSubscribeFailed, onSubscribed } from "../services/sources.ts";
-import { completeCapture, failCapture } from "../services/captures.ts";
-import { completeIconCheck, failIconCheck } from "../services/icons.ts";
+import { onSubscribed } from "../services/sources.ts";
+import { completeCapture } from "../services/captures.ts";
+import { completeIconCheck } from "../services/icons.ts";
 import { completeImages } from "../services/images.ts";
 import { completeJudging, judgeInput } from "../services/ai-filters.ts";
 import { aiJudgeResultSchema } from "@purss/domain";

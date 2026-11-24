@@ -1687,7 +1687,7 @@ export async function lookupLink(input: string, opts: DiscoverOptions = {}): Pro
   const max = Math.min(opts.maxCandidates ?? MAX_CANDIDATES, MAX_CANDIDATES);
   try {
     return await withScriptsAndLists(ctx, opts, await withCrossref(ctx, opts, await withRegistry(ctx, await discoverUrl(ctx, opts, norm, max), norm.url, max), max), max);
-  } catch (error) {
+  } catch {
     // Programming errors must not leak details or secrets into the user message.
     return fail(norm.url, "unreachable", server.sources.connectors.discover.checkFailed(redactUrl(norm.url)));
   }

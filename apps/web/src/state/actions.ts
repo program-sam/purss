@@ -131,7 +131,7 @@ export function useItemActions() {
     async function sendMany(changes: Change[], describe: (items: number) => string, hooks: { revert: (c: Change) => void; inverse: (c: Change, revision?: number) => Change | null }): Promise<void> {
       let outs: Outcome[];
       try { outs = await outbox.submitMany(changes); } catch (err) { changes.forEach(hooks.revert); fail(err); return; }
-      outs.forEach((o, i) => {
+      outs.forEach((o) => {
         if (o.status !== "sent") return;
         const r = o.result;
         if (r.kind === "workflow" && r.item) putItem(qc, r.item);

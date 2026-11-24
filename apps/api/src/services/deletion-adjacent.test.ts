@@ -97,7 +97,7 @@ test("removal deletes playback, annotations and their search rows, browser captu
   const owner = await member(b.app, "Owner", { admin: true });
   const m = await member(b.app, "Fay");
   seedAdjacent(b.app, principal(owner), "keepword");
-  const gone = seedAdjacent(b.app, principal(m), "goneword");
+  seedAdjacent(b.app, principal(m), "goneword");
   const search = (word: string) => b.app.db.all("SELECT rowid FROM annotations_fts WHERE annotations_fts MATCH ?", word).length;
   assert.ok(search("goneword") > 0 && search("keepword") > 0);
   const ownerGrants = count(b, "SELECT COUNT(*) AS n FROM oauth_access_tokens");

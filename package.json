@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "node scripts/check-workspace.ts && tsc -p tsconfig.json",
+    "check": "node scripts/check-workspace.ts && tsc -p tsconfig.json && oxlint --type-aware --deny-warnings",
     "test": "node --test --test-concurrency=4 \"scripts/*.test.ts\" \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
     "test:engine": "node --test --test-concurrency=1 \"tests/engine/*.test.ts\"",
     "test:e2e": "npm run build && npm run build:extension && node tests/acceptance/run.ts && node tests/acceptance/offline.ts && node tests/acceptance/home.ts && node tests/acceptance/rtl.ts && node tests/acceptance/limits.ts && node tests/acceptance/connect.ts && node tests/acceptance/oauth.ts && node tests/acceptance/media.ts && node tests/acceptance/eink.ts && node tests/acceptance/email.ts && node tests/acceptance/google.ts && node tests/acceptance/extension.ts",
@@ -25,6 +25,8 @@
     "@types/node": "^26.6.6",
     "@types/sanitize-html": "^2.16.2",
     "oauth2-mock-server": "^9.3.0",
+    "oxlint": "1.95.0",
+    "oxlint-tsgolint": "7.0.2008",
     "rolldown": "1.2.16",
     "typescript": "^7.0.2"
   },

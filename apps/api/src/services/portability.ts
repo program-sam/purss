@@ -2,7 +2,7 @@ import { dropCandidate, peekCandidate } from "./discovery-cache.ts";
 import type { ImportResult } from "@purss/domain";
 export type { ImportResult };
 import { DatabaseSync } from "node:sqlite";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";

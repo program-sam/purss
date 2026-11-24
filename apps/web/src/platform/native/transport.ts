@@ -60,9 +60,9 @@ export function createAppTransport(deps: AppTransportDeps): Transport {
     events(onMessage) {
       return followEvents({
         open: (signal) => deps.fetch(new Request(`${origin}/api/events`, { headers: { authorization: `Bearer ${token}`, accept: "text/event-stream" }, signal, credentials: "omit", cache: "no-store" })),
-        onRefused: async (res) => {
-          const code = await res.json().then((b: { error?: { code?: string } }) => b.error?.code).catch(() => null);
-          if (code === "device_signed_out") deps.onLost();
+        onRefused: (res) => {
+          void res.json().then((b: { error?: { code?: string } }) => b.error?.code).catch(() => null)
+            .then((code) => { if (code === "device_signed_out") deps.onLost(); });
         },
       }, onMessage);
     },

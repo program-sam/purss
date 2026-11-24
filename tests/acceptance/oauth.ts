@@ -50,7 +50,6 @@ const env: Record<string, string> = {
 };
 const EMAIL = "reader@example.test";
 // The words people read come from the catalogues, so rewording one cannot break this journey.
-const signInCopy = app.auth.signIn;
 const consentCopy = app.assistant.authorizePage;
 const assistantsCopy = app.assistant.assistantSettings;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -218,7 +217,7 @@ async function main(): Promise<void> {
     throw err;
   } finally {
     await browser.close();
-    running.stop();
+    await running.stop();
     await site.close();
   }
 }

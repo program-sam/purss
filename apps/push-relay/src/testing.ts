@@ -86,7 +86,9 @@ export async function startFakeFcm(publicKey: KeyObject): Promise<FakeFcm & { to
   const valid = new Set<string>();
   const fake = { messages: [] as unknown[], tokenRequests: 0, replies: [] as Reply[], problems: [] as string[] } as FakeFcm & { tokenUri: string };
   let tokenUri = "";
-  const server = http.createServer(async (req, res) => {
+  // A request the fake can't make sense of gets a 500 rather than an unhandled rejection.
+  const server = http.createServer((req, res) => { answer(req, res).catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); }); });
+  async function answer(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const body = await readBody(req);
     const json = (status: number, value: unknown) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(value)); };
     if (req.url === "/token") {
@@ -112,7 +114,7 @@ export async function startFakeFcm(publicKey: KeyObject): Promise<FakeFcm & { to
       return json(reply?.status ?? 200, reply?.body ?? { name: "projects/test-project/messages/1" });
     }
     json(404, {});
-  });
+  }
   const port = await listen(server);
   tokenUri = `http://127.0.0.1:${port}/token`;
   fake.url = `http://127.0.0.1:${port}`;

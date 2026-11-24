@@ -351,7 +351,7 @@ ${footer(site)}`,
         Object.assign(wash.style, { left: `${at.wl}px`, top: `${at.wt}px`, width: `${at.ww}px` });
         still.classList.add("leaving"); wash.classList.add("leaving");
         boxes.after(still);
-        const w = play(wash, [{ translate: "0 0" }, { translate: "0 -100%" }], { duration: 560 * T, easing: "cubic-bezier(.5,0,.8,.4)", fill: "forwards" });
+        play(wash, [{ translate: "0 0" }, { translate: "0 -100%" }], { duration: 560 * T, easing: "cubic-bezier(.5,0,.8,.4)", fill: "forwards" });
         still.querySelectorAll<HTMLElement>(".pf-box").forEach((b, i) => play(b, [{ opacity: 1 }, { opacity: 0 }], { duration: 380 * T, delay: (80 + i * 70) * T, fill: "forwards" }));
         
         page.dataset.on = "0"; toList();

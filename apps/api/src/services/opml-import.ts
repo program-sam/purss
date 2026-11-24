@@ -9,7 +9,6 @@ import { bridgeOptions } from "./bridge.ts";
 import { emit } from "../app.ts";
 import { HttpError, badRequest, consumeRateLimit, notFound, nowIso } from "../http.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
-import { createCollection } from "./collections.ts";
 import { isAccountUsable } from "./deletion.ts";
 import { canonicalFeedKey, looksPrivateFeed, OPML_MAX_FEEDS } from "./opml.ts";
 import { assertRoom, PlanLimit } from "./plans.ts";

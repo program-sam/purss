@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ItemListQuery } from "@purss/domain";
-import { Database, migrate } from "../db/database.ts";
 import type { App, Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";

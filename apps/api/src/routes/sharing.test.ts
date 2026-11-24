@@ -4,7 +4,7 @@ import { parseDocument } from "htmlparser2";
 import { server as copy } from "@purss/translations/server";
 import { appUrl } from "@purss/domain";
 import { inHtml } from "../translations-testing.ts";
-import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
+import { makeOwner, makeTestApp } from "../testing.ts";
 import { call, seedLibrary, signIn, startTestServer } from "../features-testing.ts";
 import { basketDeletePreview, createBasket, createCollection, deleteBasket, deleteCollection } from "../services/collections.ts";
 import { keepItem } from "../services/state.ts";
@@ -13,7 +13,6 @@ import { keepLink } from "../services/links.ts";
 import { newId } from "@purss/domain";
 import type { TestSession } from "../features-testing.ts";
 import { extraRouters } from "./index.ts";
-import { applySyncBatch } from "../services/sync.ts";
 import { limitPublicRead, resetPublicReadLimit } from "../services/shares.ts";
 import { HttpError } from "../http.ts";
 

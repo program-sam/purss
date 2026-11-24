@@ -1,7 +1,7 @@
 import { linkIsMediaFile, pickMediaEnclosure } from "@purss/domain";
 import type { Enclosure, ItemMedia, PlaybackPosition } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { notFound, nowIso } from "../http.ts";
+import { notFound } from "../http.ts";
 import { STATE_RECORD_BYTES, admitObject } from "./storage.ts";
 import { server } from "@purss/translations/server";
 

@@ -1,4 +1,3 @@
-import { app } from "@purss/translations/app";
 
 
 /*

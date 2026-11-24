@@ -16,7 +16,6 @@ import { clearAnnotationOutbox } from "../../annotations/use-annotations.ts";
 import { clearLateWrites } from "../../lib/late-writes.ts";
 import { DownloadManager } from "../../downloads/manager.ts";
 import { decodePage, readablePage } from "../../downloads/readable-page.ts";
-import type { KeyValue } from "../../downloads/manager.ts";
 import { parseWidgetSnapshot } from "../../device/widget.ts";
 import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
 import { clearHints } from "../../state/ui-store.ts";

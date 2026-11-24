@@ -45,7 +45,7 @@ const step = (s: string) => console.log(`✓ ${s}`);
 
 // The words the page shows come from the translation files, so rewording one never breaks this journey.
 const { workflow } = copy.lib.constants;
-const { highlightDialog, notes: noteCopy, noteEditor, syncNote, reader, selectionBar } = copy.annotations;
+const { highlightDialog, notes: noteCopy, noteEditor, syncNote, reader } = copy.annotations;
 const settingsCopy = copy.offline.settings;
 const savedCopy = copy.offline.summary;
 const tabs = copy.dialogs.settings.dialog.tabs;

@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { ascii, MAX_ICON_BYTES, sniffImage } from "./icon-format.ts";
+import { MAX_ICON_BYTES, sniffImage } from "./icon-format.ts";
 
 /**
  * Turns untrusted icon bytes into a small, freshly encoded square WebP. PNG, JPEG, GIF, WebP,

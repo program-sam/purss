@@ -20,7 +20,6 @@ import { leaseJobs } from "./jobs.ts";
 import { applySyncBatch } from "./sync.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, deleteCollection, listCollections } from "./collections.ts";
-import { setPreferences } from "./preferences.ts";
 import { listSources } from "./sources.ts";
 import { collectionStats, sourceStats } from "./statistics.ts";
 
@@ -273,7 +272,7 @@ test("a collection's filter covers its sources and goes with the collection; pre
   t.after(b.close);
   const one = makeSource(b.app, b.owner, "One", "feed/1");
   const two = makeSource(b.app, b.owner, "Two", "feed/2");
-  const other = makeSource(b.app, b.owner, "Elsewhere", "feed/3");
+  makeSource(b.app, b.owner, "Elsewhere", "feed/3");
   const col = createCollection(b.app, b.owner, { name: "Science", emoji: null, mode: "sources", sourceIds: [one, two], query: null, view: "list" });
   await b.setServerKey("server-key-1234");
   applySyncBatch(b.app, b.owner.engineUserId, batch([neutral("Sediment one", "feed/1"), neutral("Gossip two", "feed/2"), neutral("Gossip elsewhere", "feed/3")]));
