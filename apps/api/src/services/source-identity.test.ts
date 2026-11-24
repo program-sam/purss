@@ -9,7 +9,7 @@ import { holdCandidate } from "./discovery-cache.ts";
 import { getOpmlImport, runOpmlImports, startOpmlImport } from "./opml-import.ts";
 import { previewOpml } from "./opml.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
-import { followSource, presentCandidates, unfollowSource } from "./sources.ts";
+import { followSource, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
 import { applySyncBatch } from "./sync.ts";
 import { newsUrls } from "./news-address.ts";
 
@@ -135,8 +135,10 @@ async function expectRoad(road: Road, spelling: { address: string; same: boolean
   assert.equal(after.length, spelling.same ? 1 : 2, spelling.same ? "no second source for the same feed" : "a different feed is a source of its own");
   if (reported !== undefined) assert.equal(reported === stored, spelling.same, `the road reported ${reported}`);
   if (spelling.same) assert.equal(row<{ followed: number }>(app, stored, "followed").followed, 1, "and it is followed");
-  // An address the account already follows needs no new subscription; a source taken up again, or a new one, gets one.
-  assert.equal(subscriptions(app).length - before, spelling.same && followed ? 0 : 1);
+  // An address the account already follows needs no new subscription; a source taken up again, or a new one, gets one, at the address the source keeps.
+  const queued = subscriptions(app).slice(before);
+  assert.equal(queued.length, spelling.same && followed ? 0 : 1);
+  if (spelling.same && !followed && !over.privateWarning) assert.deepEqual(queued.map((j) => [j.sourceId, j.feedUrl]), [[stored, STORED]]);
 }
 
 for (const followed of [true, false]) {
@@ -177,6 +179,28 @@ test("of several unfollowed sources for one feed, the one followed last is taken
   unfollowSource(app, p, later);
   assert.equal(followSource(app, p, { ...base, token: hold(p, STORED) }).id, later);
   assert.equal(row<{ followed: number }>(app, stored, "followed").followed, 0);
+});
+
+test("a source taken up again keeps its stored address, and the first subscription and a retry both use it", (t) => {
+  const { app, p, stored } = setup(t, false);
+  const again = followSource(app, p, { ...base, token: hold(p, "http://harbour.example/feed?utm_source=x") });
+  assert.equal(again.id, stored);
+  assert.equal(row<{ feed_url: string }>(app, stored, "feed_url").feed_url, STORED);
+  assert.deepEqual(subscriptions(app).map((j) => [j.sourceId, j.feedUrl]), [[stored, STORED]], "the first subscription");
+  app.db.run("UPDATE sources SET health = 'error' WHERE id = ?", stored);
+  retrySource(app, p, stored);
+  assert.deepEqual(subscriptions(app).map((j) => [j.sourceId, j.feedUrl]), [[stored, STORED]], "and a retry, which reads the stored address");
+});
+
+test("one existing unfollowed source written two ways in one archive is taken up once", async (t) => {
+  const { app, p, stored } = setup(t, false);
+  const doc = await archiveOf([{ title: "Harbour Notes", feedUrl: STORED }, { title: "Harbour Notes (again)", feedUrl: "http://harbour.example/feed?utm_source=x" }]);
+  const staged = stageImport(app, p, doc);
+  assert.equal(staged.counts.sourcesToFollow, 1);
+  const result = applyImport(app, p, staged.token);
+  assert.equal(result.following, 1);
+  assert.deepEqual(subscriptions(app).map((j) => [j.sourceId, j.feedUrl]), [[stored, STORED]]);
+  assert.deepEqual(ids(app, p), [stored]);
 });
 
 test("this installation's own news is only ever its built-in source, made once and never subscribed to", (t) => {

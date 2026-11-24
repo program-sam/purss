@@ -132,8 +132,8 @@ export function privateFeedKey(app: App, accountId: string, feedUrl: string): st
 }
 
 
-/** A source an address is, and what it was when it was found. */
-export type SourceMatch = { id: string; title: string; followed: boolean };
+/** A source an address is, and what it was when it was found. `feedUrl` is the address the source keeps, whatever way the asked address was written: it is the one the engine is subscribed at. */
+export type SourceMatch = { id: string; title: string; followed: boolean; feedUrl: string | null };
 
 /** One account's sources by what they answer to, so many addresses can be asked of one pass over the rows (a list of thousands of feeds). */
 export type SourceIndex = {
@@ -169,7 +169,7 @@ export function sourceIndex(app: App, accountId: string): SourceIndex {
   app.db.all<{ id: string; title: string; followed: number; builtin: string | null; feed_url: string | null; feed_key: string | null }>(
     "SELECT id, title, followed, builtin, feed_url, feed_key FROM sources WHERE account_id = ? AND (feed_url IS NOT NULL OR feed_key IS NOT NULL) ORDER BY created_at, id", accountId,
   ).forEach((s, order) => {
-    const source: IndexedSource = { id: s.id, title: s.title, followed: s.followed === 1, builtin: s.builtin, order };
+    const source: IndexedSource = { id: s.id, title: s.title, followed: s.followed === 1, feedUrl: s.feed_url, builtin: s.builtin, order };
     for (const key of storedKeys(s)) {
       const same = byKey.get(key);
       if (same) same.push(source); else byKey.set(key, [source]);

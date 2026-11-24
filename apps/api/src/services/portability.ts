@@ -378,6 +378,8 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   // The source planned for a feed's key, or a private source's title: the same feed twice in one archive is one source.
   const plannedFeeds = new Map<string, string>();
   const plannedPrivate = new Map<string, string>();
+  // Existing sources the archive follows again, so that one written two ways is taken up once.
+  const followingAgain = new Set<string>();
   let reusedSources = 0;
   let manual: SourceDecision | null = null;
   /** The PURSS's "Saved links" source: reused when present, created once when an import needs it. */
@@ -410,7 +412,10 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     const existing = have.find(href);
     if (dup) { sources.set(src.id, { action: "reuse", id: dup, refollow: false, src, feedUrl: href }); reusedSources++; continue; }
     if (existing) {
-      sources.set(src.id, { action: "reuse", id: existing.id, refollow: src.followed && !existing.followed, src, feedUrl: href });
+      const refollow = src.followed && !existing.followed && !followingAgain.has(existing.id);
+      if (refollow) followingAgain.add(existing.id);
+      // A source taken up again is subscribed at the address it keeps, not the one the archive wrote.
+      sources.set(src.id, { action: "reuse", id: existing.id, refollow, src, feedUrl: existing.feedUrl ?? href });
       reusedSources++;
       continue;
     }

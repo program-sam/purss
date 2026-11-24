@@ -308,7 +308,9 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
       }
       if (collectionId) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
       recordFollowed(app, c.entry, c.route);
-      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, idempotencyKey: `subscribe:${id}` });
+      // A source taken up again keeps the address it has, so that the subscription, a retry and the engine all name the same one.
+      const subscribeAt = isPrivate ? `secret:source-urls/${id}` : former?.feedUrl ?? c.feedUrl;
+      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: subscribeAt, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, idempotencyKey: `subscribe:${id}` });
     });
   } catch (err) {
     // The link file was written inside the transaction; a source that was not made has no business keeping it (deletion lists only existing sources' files).
