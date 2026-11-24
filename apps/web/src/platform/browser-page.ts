@@ -1,7 +1,5 @@
 import { api } from "../api/client.ts";
-import { outbox } from "../annotations/outbox-store.ts";
-import { clearAnnotationOutbox } from "../annotations/use-annotations.ts";
-import { clearLateWrites } from "../lib/late-writes.ts";
+import { deviceWrites } from "../lib/unsent-writes.ts";
 import { wipeOfflineCopies } from "../offline/service-worker-link.ts";
 import { clearHints } from "../state/ui-store.ts";
 import type { Page } from "./connected-app.ts";
@@ -36,8 +34,7 @@ export const browserPage: Page = {
   revokeDevice: async () => { await timeout(api("/api/connect/device", { method: "DELETE" }), 8000); },
   data: {
     wipeCopies: wipeOfflineCopies,
-    clearOutbox: async () => { clearLateWrites(); await clearAnnotationOutbox(); },
+    unsent: deviceWrites,
     clearHints,
-    unsent: async () => { await outbox.load(); return outbox.snapshot().length; },
   },
 };

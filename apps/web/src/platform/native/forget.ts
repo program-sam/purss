@@ -1,4 +1,5 @@
 import { app } from "@purss/translations/app";
+import type { UnsentReason, UnsentWrites } from "../../lib/unsent-writes.ts";
 
 const t = app.platform.forget;
 
@@ -7,10 +8,11 @@ const t = app.platform.forget;
  * device APIs it calls, so the rules can be tested without a phone.
  *
  * - Disconnect (the person asked, after a warning about unsent highlights and notes): everything,
- *   the annotation outbox and unsent playback positions and reading progress included.
+ *   unsent highlights and notes and unsent playback positions and reading progress included.
  * - Lost (PURSS says the device isn't connected any more): everything except those.
  *   Unsent highlights and notes are the person's own writing; they stay, per account, and are sent
  *   when the same account connects this app again, as do unsent positions and progress.
+ *   Which of those stay for which reason is lib/unsent-writes.ts's rule.
  * Either way the phone stops getting notifications (the relay is told to forget its handle and the native
  * notification code's credential is removed), and the background job, its state, unfinished files and
  * the widget's snapshot go.
@@ -22,19 +24,17 @@ export type ForgetDeps = {
   /** Remove the device token; rejects when secure storage refuses. */
   forgetConnection(): Promise<void>;
   wipeCopies(): Promise<void>;
-  /** The annotation outbox and the unsent playback positions and reading progress (lib/late-writes.ts). */
-  clearOutbox(): Promise<void>;
+  /** The unsent highlights, notes, playback positions and reading progress on this device. */
+  unsent: UnsentWrites;
   removeDownloads(): Promise<void>;
   /** Stop the native background job and remove its state, unfinished files and the widget's snapshot. */
   stopBackground(): Promise<void>;
   /** Unregister from the push relay and remove the notification credential. */
   forgetPush(): Promise<void>;
   clearHints(): void;
-  /** Highlight and note changes on this device not sent yet. */
-  unsent(): Promise<number>;
 };
 
-export type ForgetReason = "disconnected" | "unreachable" | "lost";
+export type ForgetReason = Exclude<UnsentReason, "signed-out">;
 
 export type Forgotten = { notice: string; stuck: boolean };
 
@@ -42,15 +42,14 @@ export async function forgetDevice(deps: ForgetDeps, reason: ForgetReason): Prom
   await deps.stopAudio().catch(() => undefined);
   let stuck = false;
   try { await deps.forgetConnection(); } catch { stuck = true; }
-  const keepOutbox = reason === "lost";
   // The background job stops first, so no transfer it was running can move files in after the downloads go,
   await deps.stopBackground().catch(() => undefined);
-  await Promise.allSettled([deps.wipeCopies(), keepOutbox ? Promise.resolve() : deps.clearOutbox(), deps.removeDownloads(), deps.forgetPush()]);
+  let keptNotes = 0;
+  await Promise.allSettled([deps.wipeCopies(), deps.unsent.forget(reason).then((forgotten) => { keptNotes = forgotten.keptNotes; }), deps.removeDownloads(), deps.forgetPush()]);
   // and again after them, so nothing the page told it while removing them outlives this.
   await deps.stopBackground().catch(() => undefined);
   deps.clearHints();
-  const kept = keepOutbox ? await deps.unsent().catch(() => 0) : 0;
-  const keptNote = kept ? t.unsentKept(kept) : "";
+  const keptNote = keptNotes ? t.unsentKept(keptNotes) : "";
   const stuckNote = stuck ? t.stuck : "";
   const notice = reason === "disconnected"
     ? t.disconnected

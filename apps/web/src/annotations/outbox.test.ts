@@ -98,8 +98,21 @@ test("only the signed-in account's changes are sent, and another account's are d
   assert.deepEqual(sent, ["ann_2"]);
   await o.clearExcept("acc_b");
   assert.deepEqual(bodies(o), ["ann_2:theirs"]);
-  await o.clearExcept(null);
+  await o.clearAll();
   assert.equal(o.snapshot().length, 0, "sign-out deletes everything");
+});
+
+test("changing account deletes the other accounts' changes this page has read, and never what another tab recorded for an account it signed in meanwhile", async () => {
+  const store = new MemoryOutboxStore();
+  const here = new Outbox(store);
+  const otherTab = new Outbox(store);
+  await otherTab.record(put("ann_c", "read by this page", undefined, "acc_c"));
+  await here.load();
+  // Another tab signs in as acc_b and writes; this page's session data is stale and still says acc_a.
+  await otherTab.record(put("ann_b", "acc_b's, recorded since", undefined, "acc_b"));
+  await here.clearExcept("acc_a");
+  assert.deepEqual((await store.all()).map((e) => e.annotationId), ["ann_b"]);
+  assert.deepEqual(bodies(here), []);
 });
 
 test("the reader shows the server's annotations with this device's unsent changes laid over them", () => {

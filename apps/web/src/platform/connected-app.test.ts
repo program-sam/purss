@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { app } from "@purss/translations/app";
+import { MemoryOutboxStore, Outbox } from "../annotations/outbox.ts";
+import { unsentWrites } from "../lib/unsent-writes.ts";
 import { startConnectedApp } from "./connected-app.ts";
 import type { Attached, ConnectedShell, Page, ShellPlatform } from "./connected-app.ts";
 import type { PlayerBackend } from "../player/backend.ts";
@@ -69,6 +71,9 @@ function build(options: Options = {}) {
   let shown: ((awayMs: number) => void) | null = null;
   let appChecks = 0;
   const backends: FakeBackend[] = [];
+  /** Three unsent highlights and notes on the device, in memory. */
+  const notes = new Outbox(new MemoryOutboxStore());
+  const seeded = Promise.all([1, 2, 3].map((n) => notes.record({ accountId: "acc_1", itemId: "itm_a", annotationId: `ann_${n}`, at: "2026-11-01T10:00:00.000Z", op: "delete" })));
   let stoppedWith: PlayerBackend | null | "never" = "never";
   let restarted!: () => void;
   const restart = new Promise<void>((resolve) => { restarted = resolve; });
@@ -155,9 +160,8 @@ function build(options: Options = {}) {
     revokeDevice: async () => { log.push("revoke device"); if (options.unreachable) throw new Error("timeout"); },
     data: {
       wipeCopies: async () => { log.push("wipe copies"); },
-      clearOutbox: async () => { log.push("clear outbox"); },
+      unsent: unsentWrites({ notes, clearLate: () => { log.push("clear late writes"); } }),
       clearHints: () => { log.push("clear hints"); },
-      unsent: async () => 3,
     },
   };
 
@@ -165,6 +169,8 @@ function build(options: Options = {}) {
     shell,
     page,
     log,
+    notes,
+    seeded,
     store: keyValue,
     backends,
     appChecks: () => appChecks,
@@ -179,6 +185,7 @@ function build(options: Options = {}) {
 /** An app started through the interface callers use. */
 async function setup(options: Options = {}) {
   const faked = build(options);
+  await faked.seeded;
   const started = await startConnectedApp(faked.shell, faked.page);
   return {
     ...faked,
@@ -281,7 +288,7 @@ test("disconnecting tells PURSS, removes everything the app kept, leaves the not
   await a.restarted;
   const log = a.log.slice(a.log.indexOf("revoke device"));
   assert.equal(log[0], "revoke device");
-  for (const effect of ["stop audio", "forget connection", "stop background", "wipe copies", "clear outbox", "remove downloads", "forget push", "clear hints"]) {
+  for (const effect of ["stop audio", "forget connection", "stop background", "wipe copies", "clear late writes", "remove downloads", "forget push", "clear hints"]) {
     assert.ok(log.includes(effect), effect);
   }
   assert.deepEqual(log.slice(-4), ["leave notice", "finish", "reset address", `apply ${BUILTIN}`], "the notice is left before the app starts again");
@@ -294,7 +301,8 @@ test("disconnecting while PURSS can't be reached still removes everything, and s
   const a = await setup({ unreachable: true });
   await a.connection().disconnect();
   await a.restarted;
-  assert.ok(a.log.includes("clear outbox"));
+  assert.ok(a.log.includes("clear late writes"));
+  assert.equal(a.notes.snapshot().length, 0, "the unsent highlights and notes went too");
   assert.ok(a.log.includes("wipe copies"));
   assert.deepEqual(a.leftNotice(), { notice: forgot.unreachable, stuck: false });
 });
@@ -303,7 +311,8 @@ test("a lost device keeps the unsent highlights and notes, and the notice says h
   const a = await setup();
   a.connection().lost();
   await a.restarted;
-  assert.ok(!a.log.includes("clear outbox"), "unsent writing is the person's own");
+  assert.ok(!a.log.includes("clear late writes"), "unsent positions and progress stay");
+  assert.equal(a.notes.snapshot().length, 3, "unsent writing is the person's own");
   for (const effect of ["wipe copies", "remove downloads", "forget connection", "stop background", "forget push"]) assert.ok(a.log.includes(effect), effect);
   assert.deepEqual(a.leftNotice(), { notice: forgot.lost(forgot.unsentKept(3)), stuck: false });
   assert.equal(a.stoppedWith(), null, "no sound was started by the page");
@@ -336,7 +345,7 @@ test("PURSS refusing the device on the event stream loses it", async () => {
   await a.restarted;
   stop();
   assert.ok(requests.includes("/api/events"));
-  assert.ok(!a.log.includes("clear outbox"), "lost, not disconnected");
+  assert.ok(!a.log.includes("clear late writes"), "lost, not disconnected");
   assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3)));
 });
 

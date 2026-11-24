@@ -98,7 +98,7 @@ export interface Page {
   /** Tell PURSS this device is leaving; rejects when it can't be reached in time. */
   revokeDevice(): Promise<void>;
   /** Highlights, notes, offline copies and hints this page keeps (the part of forget.ts that isn't the shell's). */
-  readonly data: Pick<ForgetDeps, "wipeCopies" | "clearOutbox" | "clearHints" | "unsent">;
+  readonly data: Pick<ForgetDeps, "wipeCopies" | "unsent" | "clearHints">;
 }
 
 export type Started = { platform: Platform; screen: ReactNode | null };

@@ -424,13 +424,16 @@ storage, search or public pages) in a cache named for that account, serving them
 `x-purss-offline` header when the network fails or is slow. The service worker never intercepts or queues
 changes. The page keeps the reading queue (To read, In progress, New and Undecided; up to 200 items)
 saved by fetching the same lists, item details and annotations the pages use, at most every 15
-minutes. Annotation changes alone go through an outbox in the page's IndexedDB (`purss-annotations`):
-each is recorded there first, replaces any unsent change of the same annotation, and is sent in order
-when the connection allows; unsent changes belong to an account and are deleted at sign-out or when another
-account signs in. Another account, sign-out, an expired session or
-turning the setting off deletes the offline copies. Pictures PURSS serves whose address changes with their
-bytes (a source's icon, versioned by its digest, and a picture stored with a kept item) are kept in a
-second cache of the account's (`purss-pictures:`), served from there before the network, and deleted
+minutes. Changes to items (workflow, keeping, clearing New) go through a write outbox in the page's
+IndexedDB (`purss-outbox`): each is recorded there first and sent in order when the connection allows.
+Highlight and note changes have an outbox of their own (`purss-annotations`): each replaces any unsent
+change of the same annotation. Playback positions and reading progress that could not be sent wait in
+local storage (`purss-late:`), the latest per item. All three belong to the account that made them; what
+each does at sign-out, when another account signs in and when an app is disconnected is in the
+[web app's README](../apps/web/README.md#unsent-writes-on-this-device). Another account, sign-out, an
+expired session or turning the setting off deletes the offline copies. Pictures PURSS serves whose
+address changes with their bytes (a source's icon, versioned by its digest, and a picture stored with a
+kept item) are kept in a second cache of the account's (`purss-pictures:`), served from there before the network, and deleted
 with the offline copies; the pack saves every source's icon and the stored pictures of the kept items it saves,
 and lets go of the rest. Publishers' own images in an article are not saved.
 
@@ -622,7 +625,9 @@ minutes while failing; hosted open sign-up is open only while that check passes.
 | Engine data | `engine/` locally, the `engine-data` volume under Compose |
 | Offline copies | The browser's own Cache Storage on each device (`purss-api:<account>`), plus a small record in its local storage; never on the server, deleted at sign-out |
 | Browser extension | The browser's extension storage on each device: the PURSS address, its device token, basket names for the menu, settings; never synced |
-| Unsent annotation changes | The browser's IndexedDB on each device (`purss-annotations`), until sent; deleted at sign-out |
+| Unsent changes to items | The browser's IndexedDB on each device (`purss-outbox`), until PURSS confirms or refuses them or the person discards them; set aside, not deleted, when another account signs in |
+| Unsent highlights and notes | The browser's IndexedDB on each device (`purss-annotations`), until sent; deleted at sign-out |
+| Unsent positions and reading progress | The browser's local storage on each device (`purss-late:`), until sent; deleted at sign-out |
 
 Backups cover `product.db` and optionally `secrets/`; see
 [self-hosting](self-hosting.md#backups-and-restore).
