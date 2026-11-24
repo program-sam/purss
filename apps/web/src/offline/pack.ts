@@ -1,3 +1,4 @@
+import { isQueued } from "@purss/domain/workflow";
 import type { ItemDTO } from "@purss/domain";
 import { itemDate } from "../lib/items.ts";
 import { pictureItem } from "../sw/protocol.ts";
@@ -30,7 +31,7 @@ const newestFirst = (a: ItemDTO, b: ItemDTO) => Date.parse(itemDate(b)) - Date.p
  */
 export function selectQueue(lists: QueueLists, limit = PACK_LIMIT): ItemDTO[] {
   const chosen = new Map<string, ItemDTO>();
-  for (const it of [...lists.toread, ...lists.inprogress]) if (it.workflow === "toread" || it.workflow === "inprogress") chosen.set(it.id, it);
+  for (const it of [...lists.toread, ...lists.inprogress]) if (isQueued(it.workflow)) chosen.set(it.id, it);
   const out = [...chosen.values()].sort(newestFirst).slice(0, limit);
   const have = new Set(out.map((it) => it.id));
   let keptCount = 0;

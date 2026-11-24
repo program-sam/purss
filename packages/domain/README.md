@@ -9,7 +9,7 @@ its jobs with them, and the web app and the extension import their types so both
 | Module | What it defines |
 | --- | --- |
 | `ids.ts` | `newId(prefix)`: sortable, URL-safe identifiers (10 characters of millisecond time and 16 random ones) with a prefix per kind; `isId` |
-| `workflow.ts` | The workflow states (Undecided, To read, In progress, Finished, Ignored; stored as `undecided`, `toread`, `inprogress`, `finished` and `ignored`), their labels and the board's columns. Reading progress, the New marker, collection and basket membership and retention are separate fields, never states |
+| `workflow.ts` | The workflow states (Undecided, To read, In progress, Finished, Ignored; stored as `undecided`, `toread`, `inprogress`, `finished` and `ignored`), their labels, the board's columns, the queue (To read and In progress) and the state filters of a list with the rule each applies to an item, as the server stores it and as a device that has just changed an item judges it (the server answers the same filters in SQL, `apps/api/src/services/item-view.ts`). Reading progress, the New marker, collection and basket membership and retention are separate fields, never states |
 | `query.ts` | The typed query tree behind filter collections: validated on the server and compiled to parameterised SQL, never stored or run as raw SQL or a regular expression; sorts and item kinds |
 | `api.ts`, `features.ts` | The `/api` request and response shapes (items, sources, collections, baskets, search, the state-change command with its revision check) and those of the feature routes: sharing, export and import, reconciliation, administration |
 | `jobs.ts` | The job contract between the API, the only database writer, and the worker: kinds with the schema of each kind's payload and result (the result schemas read only what the API uses and accept the fields of an older or newer worker), leases, sync batches with their checkpoints, and failures |
@@ -23,7 +23,7 @@ its jobs with them, and the web app and the extension import their types so both
 
 Everything is exported from `@purss/domain`. The modules that browsers, the public site or the packaging scripts import
 without the rest are also separate entry points (`@purss/domain/purss-address`, `/distribution`, `/app-bundle`,
-`/paths`, `/plans`, `/initials`, `/version`, `/connect-protocol`). The component map is in [architecture](../../docs/architecture.md#components).
+`/paths`, `/plans`, `/initials`, `/version`, `/connect-protocol`, `/workflow`). The component map is in [architecture](../../docs/architecture.md#components).
 
 Keep this package independent of the UI, database drivers and FreshRSS protocol details, and put an invariant here with
 a focused test before it reaches storage. The tests sit next to the code (`*.test.ts`) and run with `npm test`. What the

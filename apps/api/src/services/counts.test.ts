@@ -1,21 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { WorkflowState } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { applySyncBatch } from "./sync.ts";
 import { bulk, changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
-import { VISIBLE_SOURCE, insertItem, listItems, listTuning, scopeClause } from "./items.ts";
+import { insertItem, listItems } from "./items.ts";
 import { itemCounts } from "./counts.ts";
 import { listSources, unfollowSource } from "./sources.ts";
-import type { SqlParam } from "../db/database.ts";
 
 /*
- * The source list, the collection list and the totals of item lists add up one set of counts instead of counting rows
- * for each. These tests build PURSSes with the awkward cases (sources no longer followed, hand-kept links without a
- * source, items kept from sources that were unfollowed, every workflow state, New and not) at random and check every
- * number against the queries the counts replaced, which are kept here as the reference.
+ * The source list and the collection list add up one set of counts instead of counting rows for each. These tests build
+ * PURSSes with the awkward cases (sources no longer followed, hand-kept links without a source, items kept from sources that
+ * were unfollowed, every workflow state, New and not) at random and check every number against the queries the counts replaced,
+ * which are kept here as the reference. The totals of item lists, which add up the same counts, are held to a model of the
+ * items in item-view.test.ts.
  */
 
 function rng(seed: number): () => number {
@@ -28,8 +27,6 @@ function rng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-const STATES: WorkflowState[] = ["undecided", "toread", "inprogress", "finished", "ignored"];
 
 type World = { app: App; p: Principal & { engineUserId: string }; sources: string[]; collections: string[]; queryCollection: string; baskets: string[]; cleanup: () => void };
 
@@ -80,16 +77,6 @@ function build(seed: number): World {
   return { app, p, sources, collections, queryCollection, baskets, cleanup };
 }
 
-/** The queries the counts replaced. */
-function referenceTotal(app: App, p: Principal, scope: string, filter: string): number {
-  const params: SqlParam[] = [p.accountId];
-  const where = ["i.account_id = ?", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
-  if (filter === "new") where.push("st.is_new = 1");
-  else if (filter === "all") where.push("st.workflow <> 'ignored'");
-  else if (filter !== "all_with_ignored") { where.push("st.workflow = ?"); params.push(filter); }
-  return app.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")}`, ...params)!.n;
-}
-
 const SEEDS = [1, 2, 3, 4, 5, 6];
 
 test("source and collection counts equal the queries they replaced, in every awkward PURSS", () => {
@@ -114,39 +101,6 @@ test("source and collection counts equal the queries they replaced, in every awk
     } finally { w.cleanup(); }
   }
 });
-
-test("the total of every list a person can open equals counting its rows", (t) => {
-  // Small collections are counted from their rows; make the counts answer for them too, so both ways are compared.
-  const was = listTuning.countFromRowsBelowShare;
-  t.after(() => { listTuning.countFromRowsBelowShare = was; });
-  let compared = 0;
-  for (const below of [0, was]) {
-    listTuning.countFromRowsBelowShare = below;
-    compared += everyListTotal();
-  }
-  assert.ok(compared > 1000);
-});
-
-function everyListTotal(): number {
-  let compared = 0;
-  for (const seed of SEEDS) {
-    const w = build(seed);
-    try {
-      const scopes = ["all", "home", "new", "toread", "loose", `collection:${w.collections[0]}`, `collection:${w.collections[1]}`, `collection:${w.collections[2]}`, `collection:${w.queryCollection}`,
-        `source:${w.sources[0]}`, `source:${w.sources[1]}`, `basket:${w.baskets[0]}`];
-      for (const scope of scopes) {
-        for (const filter of ["all_with_ignored", "all", "new", ...STATES]) {
-          const total = listItems(w.app, w.p, { scope, filter: filter as never, limit: 5 }).total;
-          assert.equal(total, referenceTotal(w.app, w.p, scope, filter), `seed ${seed}, ${scope}, filter ${filter}`);
-          compared++;
-        }
-      }
-      // Items of a source nobody follows any more are listed only while a basket keeps them.
-      assert.ok(w.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM items i JOIN sources s ON s.id = i.source_id WHERE s.followed = 0")!.n > 0);
-    } finally { w.cleanup(); }
-  }
-  return compared;
-}
 
 test("counts are reused until something is written, and never kept from inside a transaction that rolls back", () => {
   const w = build(7);

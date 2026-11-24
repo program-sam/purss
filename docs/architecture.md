@@ -178,7 +178,7 @@ What holds however the walk is interrupted:
 ## Query contract
 
 Lists, filter collections, shared pages and assistants read items through one typed model
-(`packages/domain/src/query.ts`, compiled in `apps/api/src/services/items.ts`).
+(`packages/domain/src/query.ts`, compiled in `apps/api/src/services/item-view.ts`).
 
 - **A filter collection stores a query tree, never SQL or a pattern.** (A collection's `mode` is `filter`, or `sources` for a
   source collection.) A leaf tests one field: text, source,
@@ -188,7 +188,18 @@ Lists, filter collections, shared pages and assistants read items through one ty
   levels deep, 24 leaves and 12 children per node, each list of values bounded and de-duplicated. It
   compiles to parameterised SQL scoped to the account.
 - **A list's state filter is one of a fixed few:** `all` (everything but Ignored), `all_with_ignored`, `new` (the New marker)
-  or a workflow state (`undecided`, `toread`, `inprogress`, `finished`, `ignored`).
+  or a workflow state (`undecided`, `toread`, `inprogress`, `finished`, `ignored`). `new` is the marker whatever the workflow state: Finished and
+  Ignored take it off, but Undo of a Clear New puts it back on an item that another tab has since ignored. The server's counts use that rule
+  (`stateFilterKeeps` in `packages/domain`); the web app decides with `deviceStateFilterKeeps` whether an item it has just changed still belongs
+  in the list on screen, which also takes an item it has just ignored out of New before the server has answered.
+- **One module decides which items a view shows** (`services/item-view.ts`): a list, a collection's count, "Select all", the statistics
+  and Clear New all take their conditions from it: the scope (everything, New, the queue, a source, the sources in no collection, a basket,
+  a collection), the state filter, the visible-source rule (an item of a source nobody follows is seen only while a basket keeps it or it
+  carries a highlight or note) and the readable-copy states a rule can ask for (`services/capture-state.ts`). A public page applies the
+  same rule except that highlights and notes do not make an item public. A list's total is added up from the account's counts
+  (`services/counts.ts`) when that is cheaper than counting rows; the tests hold the two to a model of the items
+  (`item-view.test.ts`). What narrows a list further (source chips, type, length, search, muted words, Home's boxes) and its order are the
+  list's own (`services/items.ts`).
 - **Sorts come from a fixed list:** newest, oldest, source, title and kept time. Ties break on the item ID, so
   an order is deterministic.
 - **A page is addressed by an opaque cursor,** the last row's sort key and ID (for Home's lists also the run

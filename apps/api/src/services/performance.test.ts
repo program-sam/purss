@@ -10,7 +10,8 @@ import { pausedReason } from "./storage.ts";
 import { applySyncBatch } from "./sync.ts";
 import { createBasket, createCollection, listBaskets, listCollections } from "./collections.ts";
 import { listSources } from "./sources.ts";
-import { insertItem, listItems, listTuning } from "./items.ts";
+import { insertItem, listItems } from "./items.ts";
+import { viewTuning } from "./item-view.ts";
 import { keepItem } from "./state.ts";
 import { getPreferences, setPreferences } from "./preferences.ts";
 import { homeOverview } from "./home.ts";
@@ -202,8 +203,8 @@ test("an account that followed its sources from now has most items Ignored: Home
   assert.ok(hidden > 600 * 0.6, `most items are backlog, which arrived Ignored (${hidden} of 600)`);
   assert.equal(n("SELECT COUNT(*) AS n FROM item_state WHERE account_id = ? AND workflow = 'ignored' AND is_new = 1"), 0, "and none of them is New");
 
-  const was = listTuning.countFromRowsBelowShare;
-  listTuning.countFromRowsBelowShare = 5; // the collection's total is counted from its rows, not from the counts
+  const was = viewTuning.countFromRowsBelowShare;
+  viewTuning.countFromRowsBelowShare = 5; // the collection's total is counted from its rows, not from the counts
   const { result, seen } = (() => {
     try {
       return recordQueries(app, () => {
@@ -213,7 +214,7 @@ test("an account that followed its sources from now has most items Ignored: Home
         listSources(app, p);
         return { home, page, collection };
       });
-    } finally { listTuning.countFromRowsBelowShare = was; }
+    } finally { viewTuning.countFromRowsBelowShare = was; }
   })();
   const shown = n("SELECT COUNT(*) AS n FROM items i JOIN item_state st ON st.item_id = i.id JOIN sources s ON s.id = i.source_id WHERE i.account_id = ? AND s.followed = 1 AND st.workflow = 'undecided' AND st.is_new = 0");
   assert.equal(result.home.unseen, shown, "Home counts the older items that show, not the Ignored ones");

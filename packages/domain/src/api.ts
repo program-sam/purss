@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WorkflowState } from "./workflow.ts";
 import type { ItemKind, QueryNode, Sort } from "./query.ts";
-import { WORKFLOW_STATES } from "./workflow.ts";
+import { STATE_FILTERS, WORKFLOW_STATES } from "./workflow.ts";
 import { SORTS, queryNodeSchema } from "./query.ts";
 import type { PlanUsage } from "./plans.ts";
 import { LOOKUP_ENTRIES } from "./discovery-routes.ts";
@@ -342,7 +342,7 @@ const sourceIdList = z.string().max(4000).regex(/^[a-z0-9_]+(,[a-z0-9_]+)*$/);
 export const itemListQuerySchema = z.object({
   scope: itemScopeSchema.default("all"),
   // all = everything but Ignored; all_with_ignored includes it.
-  filter: z.enum(["all", "all_with_ignored", "new", ...WORKFLOW_STATES]).default("all"),
+  filter: z.enum(STATE_FILTERS).default("all"),
   sort: z.enum(SORTS).default("newest"),
   q: z.string().max(200).optional(),
   /** Only items from these sources (comma separated). */

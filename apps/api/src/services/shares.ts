@@ -6,7 +6,7 @@ import type { App, Principal } from "../app.ts";
 import { audit, emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { randomToken } from "../secrets.ts";
-import { compileQuery } from "./items.ts";
+import { PUBLIC_VISIBLE_SOURCE, compileQuery } from "./item-view.ts";
 import { planOf } from "./plans.ts";
 import { PRODUCT_NAME, pageShell, productHome, publicLink } from "./public-pages.ts";
 import { escapeHtml, escapeXml, plainText, uuidFrom } from "./text-safety.ts";
@@ -114,9 +114,10 @@ export function canShare(app: App, accountId: string): boolean {
 type Row = { id: string; title: string; url: string | null; excerpt: string | null; published_at: string | null; discovered_at: string; source_title: string | null; source_kind: string | null; note: string | null };
 
 /**
- * Exactly what visitors can see now, newest first; null when the target is gone or can no longer be shared. A shared collection shows
- * what its owner's list of it shows: Ignored items, which include the backlog of a source followed from now, are not in it.
- * A basket shows everything kept in it, as its owner's list of it does.
+ * Exactly what visitors can see now, newest first by the publication date the page shows (not by when the items reached the owner's
+ * lists); null when the target is gone or can no longer be shared. A shared collection shows what its owner's list of it shows, except
+ * what only the person's highlights and notes keep there (item-view.ts PUBLIC_VISIBLE_SOURCE): Ignored items, which include the backlog
+ * of a source followed from now, are not in it. A basket shows everything kept in it, as its owner's list of it does.
  */
 export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" | "target_id" | "account_id">, limit = PAGE_ITEMS): (PageItem & { itemId: string; ownLink: boolean })[] | null {
   const t = target(app, share.target_kind, share.target_id, share.account_id);
@@ -132,7 +133,7 @@ export function projection(app: App, share: Pick<ShareRow, "id" | "target_kind" 
     params.push(t.id);
     scope = "s.followed = 1 AND i.source_id IN (SELECT source_id FROM collection_sources WHERE collection_id = ?)";
   } else {
-    scope = `(s.followed = 1 OR s.kind = 'manual' OR EXISTS (SELECT 1 FROM basket_items vb WHERE vb.item_id = i.id)) AND ${compileQuery(t.query!, params, share.account_id, { itemTextOnly: true })}`;
+    scope = `${PUBLIC_VISIBLE_SOURCE} AND ${compileQuery(t.query!, params, share.account_id, { itemTextOnly: true })}`;
   }
   if (t.mode === "basket") params.push(t.id);
   // Read a margin past the limit: links that carry a key (in the query or the path) are dropped below, after the query.

@@ -9,7 +9,7 @@ import { getItemDetail, listItems } from "./items.ts";
 import { reconcile, usedBytes } from "./storage.ts";
 import { completeCapture, failCapture, queueCapture, retryCapture, startCaptureCheck, stepCaptureCheck } from "./captures.ts";
 import { runProblemCheck } from "./notifications.ts";
-import { compileQuery } from "./items.ts";
+import { compileQuery } from "./item-view.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
 import { createBasket } from "./collections.ts";
 import { keepItem } from "./state.ts";

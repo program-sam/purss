@@ -7,12 +7,10 @@ import { emit } from "../app.ts";
 import { addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { randomToken } from "../secrets.ts";
 import { refreshPause, releaseObject, releaseReservation } from "./storage.ts";
-import { compileQuery } from "./items.ts";
-import { itemCounts } from "./counts.ts";
+import { collectionNumbers } from "./item-view.ts";
 import { markMembershipChanged, pruneUnreferencedVersions } from "./state.ts";
 import { forgetPlayback } from "./media.ts";
 import { annotationCounts, deleteItemAnnotations } from "./annotations.ts";
-import type { SqlParam } from "../db/database.ts";
 import { assertRoom } from "./plans.ts";
 import { forgetCollectionFilter, forgetItemVerdicts } from "./ai-access.ts";
 import { server } from "@purss/translations/server";
@@ -23,30 +21,17 @@ type CollectionRow = { id: string; name: string; emoji: string | null; mode: Col
 
 export function listCollections(app: App, p: Principal): CollectionDTO[] {
   const rows = app.db.all<CollectionRow>("SELECT id, name, emoji, mode, view, position, show_on_home, query FROM collections WHERE account_id = ? ORDER BY position, created_at", p.accountId);
-  const sourceMode = rows.some((r) => r.mode === "sources");
-  // A collection of sources adds up its sources' counts; the PURSS is counted once for all of them.
-  const counts = sourceMode ? itemCounts(app, p.accountId) : null;
   const filtered = new Set(app.db.all<{ collection_id: string }>("SELECT collection_id FROM ai_filters WHERE account_id = ? AND enabled = 1 AND collection_id IS NOT NULL", p.accountId).map((x) => x.collection_id));
-  return rows.map((r) => {
-    const sourceIds = app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", r.id).map((x) => x.source_id);
-    const n = r.mode === "sources" && counts
-      ? { isNew: counts.sum(sourceIds, (w, isNew) => w !== "ignored" && isNew), items: counts.sum(sourceIds, (w) => w !== "ignored") }
-      : countQueryCollection(app, p, r);
+  const members = rows.map((r) => ({ id: r.id, mode: r.mode, sourceIds: app.db.all<{ source_id: string }>("SELECT source_id FROM collection_sources WHERE collection_id = ?", r.id).map((x) => x.source_id) }));
+  const numbers = collectionNumbers(app, p, members);
+  return rows.map((r, i) => {
+    const { sourceIds } = members[i]!;
+    const n = numbers.get(r.id)!;
     return {
       id: r.id, name: r.name, emoji: r.emoji, mode: r.mode, view: r.view, position: r.position, showOnHome: r.show_on_home === 1,
       sourceIds, query: r.query ? JSON.parse(r.query) : null, newCount: n.isNew, itemCount: n.items, aiFiltered: filtered.has(r.id),
     };
   });
-}
-
-/** A collection defined by a query has no sources to add up: its items are counted where they are. */
-function countQueryCollection(app: App, p: Principal, r: CollectionRow): { isNew: number; items: number } {
-  const params: SqlParam[] = [p.accountId];
-  const q = checkQuery(r.query ? JSON.parse(r.query) : null);
-  const clause = q.ok ? compileQuery(q.query, params, p.accountId) : "0";
-  return app.db.get<{ isNew: number; items: number }>(
-    `SELECT COALESCE(SUM(st.is_new), 0) AS isNew, COUNT(*) AS items FROM items i JOIN item_state st ON st.item_id = i.id
-     WHERE i.account_id = ? AND st.workflow <> 'ignored' AND ${clause}`, ...params)!;
 }
 
 /** Names are how people find their collections and baskets; two with the same name are confusing. */

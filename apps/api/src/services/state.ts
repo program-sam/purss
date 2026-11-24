@@ -5,8 +5,8 @@ import { emit } from "../app.ts";
 import { HttpError, addSeconds, conflict, notFound, nowIso } from "../http.ts";
 import { STATE_RECORD_BYTES, admitObject, markPaused, releaseObject, StorageFull } from "./storage.ts";
 import { enqueue } from "./jobs.ts";
-import { VISIBLE_SOURCE, getItem, scopeClause } from "./items.ts";
-import type { SqlParam } from "../db/database.ts";
+import { getItem } from "./items.ts";
+import { VIEW_FROM, viewConditions } from "./item-view.ts";
 import { queueCapture } from "./captures.ts";
 import { queueItemImages } from "./images.ts";
 import { server } from "@purss/translations/server";
@@ -302,11 +302,8 @@ export function clearNewAll(app: App, p: Principal, scope: string): { changed: n
   let changed = 0;
   for (;;) {
     const page = app.db.tx(() => {
-      const params: SqlParam[] = [p.accountId];
-      const where = ["i.account_id = ?", "st.is_new = 1", scopeClause(app, p, scope, params), VISIBLE_SOURCE];
-      const ids = app.db.all<{ id: string }>(
-        `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id LEFT JOIN sources s ON s.id = i.source_id WHERE ${where.join(" AND ")} LIMIT ?`,
-        ...params, CLEAR_PAGE).map((r) => r.id);
+      const { where, params } = viewConditions(app, p, { scope, filter: "new" });
+      const ids = app.db.all<{ id: string }>(`SELECT i.id ${VIEW_FROM} WHERE ${where.join(" AND ")} LIMIT ?`, ...params, CLEAR_PAGE).map((r) => r.id);
       if (ids.length) {
         app.db.run(`UPDATE item_state SET is_new = 0, state_version = state_version + 1, updated_at = ? WHERE account_id = ? AND is_new = 1 AND item_id IN (${ids.map(() => "?").join(",")})`, nowIso(), p.accountId, ...ids);
       }
