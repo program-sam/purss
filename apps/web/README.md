@@ -196,6 +196,26 @@ The PNG icons are rendered from `public/icon.svg` (the same artwork as the favic
 any use, a 512 maskable with the artwork inside the safe zone, and a 180 Apple touch icon. To change
 them, edit the artwork and render the PNGs again with Playwright's Chromium.
 
+## Unsent writes on this device
+
+Three queues hold what this device could not send yet, each filed under the account that made it: changes to
+items (the write outbox above, IndexedDB `purss-outbox`), highlights and notes (`purss-annotations`, below)
+and playback positions and reading progress (local storage `purss-late:`, `lib/late-writes.ts`: the latest
+per item, sent at start, when the connection returns, when the page is shown and every ten seconds while any
+waits). `lib/unsent-writes.ts` is the rule for what leaves the device when a person does:
+
+| Reason | Highlights, notes, positions and progress | Changes to items |
+| --- | --- | --- |
+| Signing out | Every account's deleted | When any wait, asked first: send, discard or stay signed in (`outbox/sign-out.ts`) |
+| *Disconnect this app*, whether or not PURSS could be reached | Every account's deleted | Stay, set aside |
+| A connection PURSS ended (a lost device) | Stay, per account; the notice counts the highlights and notes | Stay, set aside |
+| Another account signs in, in a browser | The other accounts' deleted | Set aside |
+| Another account signs in, in an app | Stay | Set aside |
+
+A change to items that stays is sent when its account is signed in again. Another account signing in is
+each queue's own housekeeping while it syncs (`AnnotationSync`, `LateProgressSync`, told by
+`Platform.keepsOtherAccountsUnsent`, below), not part of `unsent-writes.ts`. An expired session deletes none of them.
+
 ## Highlights and notes
 
 `src/annotations/` holds the reader's annotations. A *highlight* is a passage with an optional comment, a *note* is text
