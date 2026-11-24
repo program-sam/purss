@@ -4,12 +4,9 @@ import { Parser } from "htmlparser2";
 import { assertShallowMarkup, looksPrivateUrl, parseBridgeDescriptor, TooComplexError } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { badRequest, nowIso } from "../http.ts";
-import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
-import { urlKey } from "./url-key.ts";
+import { feedKey, sourceIndex } from "./source-identity.ts";
 import { escapeXml, hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
 import { server } from "@purss/translations/server";
-
-export { canonicalFeedKey };
 
 /*
  * OPML carries subscriptions only. Export lists public, followed sources built from
@@ -62,7 +59,7 @@ export function parseOpml(text: string): ParsedOpml {
       const feedUrl = httpUrlOrNull(xmlUrl);
       if (!feedUrl) { skipped.notWebAddress++; return; }
       // The same feed written another way (http or https, a trailing slash, tracking parameters) is listed once.
-      const key = urlKey(feedUrl) ?? feedUrl;
+      const key = feedKey(feedUrl) ?? feedUrl;
       if (seen.has(key)) { skipped.duplicates++; return; }
       if (feeds.length >= OPML_MAX_FEEDS) { truncated = true; return; }
       seen.add(key);
@@ -96,25 +93,12 @@ export function looksPrivateFeed(raw: string): boolean {
 
 export function previewOpml(app: App, p: Principal, text: string): OpmlPreview {
   const parsed = parseOpml(text);
-  const followed = new Map<string, string>();
-  for (const s of app.db.all<{ id: string; feed_url: string }>("SELECT id, feed_url FROM sources WHERE account_id = ? AND followed = 1 AND feed_url IS NOT NULL", p.accountId)) {
-    // A bridged source is listed by its page, as the export writes it.
-    const bridged = parseBridgeDescriptor(s.feed_url);
-    const href = bridged ? bridged.service.pageUrl(bridged.key) : httpUrlOrNull(s.feed_url);
-    const key = href ? urlKey(href) : null;
-    if (key && !followed.has(key)) followed.set(key, s.id);
-  }
-  // A private source has no address to compare: its keyed hash is compared with the listed address's.
-  const privateOnes = new Map<string, string>();
-  for (const s of app.db.all<{ id: string; feed_key: string }>("SELECT id, feed_key FROM sources WHERE account_id = ? AND followed = 1 AND feed_key IS NOT NULL", p.accountId)) privateOnes.set(s.feed_key, s.id);
+  const known = sourceIndex(app, p.accountId);
   return {
     feeds: parsed.feeds.map((f) => {
-      // The same address written another way (http or https, a trailing slash, tracking parameters) is the source followed; a private
-      // source's keyed hash is compared under either scheme.
-      const other = otherScheme(f.feedUrl);
-      const privateKeys = privateOnes.size ? [privateFeedKey(app, p.accountId, f.feedUrl), other ? privateFeedKey(app, p.accountId, other) : null] : [];
-      const listed = urlKey(f.feedUrl);
-      const sourceId = (listed ? followed.get(listed) : undefined) ?? privateKeys.map((k) => (k ? privateOnes.get(k) : undefined)).find(Boolean) ?? null;
+      // The same address written another way (http or https, a trailing slash, tracking parameters) is the source followed.
+      const have = known.find(f.feedUrl);
+      const sourceId = have?.followed ? have.id : null;
       return { ...f, alreadyFollowing: sourceId !== null, sourceId, looksPrivate: looksPrivateFeed(f.feedUrl) };
     }),
     skipped: parsed.skipped,

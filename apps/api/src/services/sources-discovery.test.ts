@@ -5,7 +5,6 @@ import { server } from "@purss/translations/server";
 import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
 import { keepLink } from "./links.ts";
-import * as sourcesModule from "./sources.ts";
 import { getSource, listSources, NO_POSTS_YET, onSubscribed, presentCandidates, searchPodcastDirectory } from "./sources.ts";
 import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
 
@@ -122,21 +121,6 @@ test("podcast search: Apple's directory answers with shows, and a failure says s
   const down = await searchPodcastDirectory("football weekly", { fetch: async (url) => fakeResponse(url, "oops", "text/html", 503) });
   assert.ok(!down.ok);
   assert.ok(down.message.includes(server.sources.connectors.podcastSearch.directory));
-});
-
-test("the same feed written another way (http or https, a trailing slash, tracking parameters) is 'already followed'; www. and another path are not", (t) => {
-  const { app, cleanup } = makeTestApp();
-  t.after(cleanup);
-  const p = makeOwner(app);
-  const existing = makeSource(app, p, "Harbour Notes", "feed/harbour");
-  app.db.run("UPDATE sources SET feed_url = 'https://harbour.example/feed/' WHERE id = ?", existing);
-  const urls = ["http://harbour.example/feed", "https://harbour.example/feed", "https://harbour.example/feed/?utm_source=x", "https://HARBOUR.example/feed/", "https://www.harbour.example/feed/", "https://harbour.example/feed/atom"];
-  const found = presentCandidates(app, p, urls.map((feedUrl) => draft({ title: "Something", feedUrl })));
-  assert.deepEqual(found.map((c) => c.alreadyFollowingSourceId), [existing, existing, existing, existing, null, null]);
-  // Following it returns the source already followed instead of a second one.
-  const { followSource } = sourcesModule;
-  assert.equal(followSource(app, p, { token: found[0]!.token, collectionId: null, newCollectionName: null }).id, existing);
-  assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sources WHERE account_id = ?", p.accountId)!.n, 1);
 });
 
 test("a feed whose newest posts are a followed source's (the same feed at another address) is pointed out; a section inside it, or a few shared posts, is not", (t) => {

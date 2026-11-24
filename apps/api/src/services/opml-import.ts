@@ -10,9 +10,10 @@ import { emit } from "../app.ts";
 import { HttpError, badRequest, consumeRateLimit, notFound, nowIso } from "../http.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
 import { isAccountUsable } from "./deletion.ts";
-import { canonicalFeedKey, looksPrivateFeed, OPML_MAX_FEEDS } from "./opml.ts";
+import { looksPrivateFeed, OPML_MAX_FEEDS } from "./opml.ts";
 import { assertRoom, PlanLimit } from "./plans.ts";
-import { followedSource, followSource, presentCandidates } from "./sources.ts";
+import { feedKey, findSource, sameFeedAddress } from "./source-identity.ts";
+import { followSource, presentCandidates } from "./sources.ts";
 import { newsCandidate } from "./news-address.ts";
 import { httpUrlOrNull } from "./text-safety.ts";
 import { server } from "@purss/translations/server";
@@ -91,7 +92,7 @@ export function startOpmlImport(app: App, p: Principal, input: OpmlImportRequest
   for (const f of input.feeds) {
     const feedUrl = httpUrlOrNull(f.feedUrl);
     if (!feedUrl) continue;
-    const key = canonicalFeedKey(feedUrl);
+    const key = feedKey(feedUrl) ?? feedUrl;
     if (seen.has(key)) continue;
     seen.add(key);
     feeds.push({ title: f.title.trim().slice(0, 200) || hostOf(feedUrl), feedUrl, folder: f.folder?.trim().slice(0, 80) || null, private: looksPrivateFeed(feedUrl) });
@@ -271,7 +272,8 @@ function takeTurn(app: App, deps: OpmlImportDeps): { row: ImportRow; entry: Entr
       const full = noRoomFor(app, row.account_id);
       if (full) {
         const link = entry.feed_url ?? readSecret(app.config.secretsDir, secretName(row.id, entry.position));
-        const have = link ? followedSource(app, principalOf(row), link) : undefined;
+        const found = link ? findSource(app, row.account_id, link) : undefined;
+        const have = found?.followed ? found : undefined;
         settleRow(app, row.id, entry.position, have ? "already" : "failed", have ? null : full, have?.id ?? null);
         if (entry.looks_private) removeSecret(app.config.secretsDir, secretName(row.id, entry.position));
         continue;
@@ -326,8 +328,7 @@ async function followEntry(app: App, row: ImportRow, entry: EntryRow, deps: Opml
       return;
     }
     if (!found.ok) { settle("failed", found.message || server.api.opmlImport.couldNotFollow); dropLink(); return; }
-    const key = canonicalFeedKey(feedUrl);
-    const exact = found.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } });
+    const exact = found.candidates.find((c) => sameFeedAddress(c.feedUrl, feedUrl));
     // A lone candidate is followed for the file's address only when it is a feed the page offers or a list PURSS is sure of: one found
     // through the page's scripts or links, or a list it isn't sure of, waits for the person to choose it in Add source.
     const sole = found.candidates.length === 1 ? found.candidates[0]! : undefined;

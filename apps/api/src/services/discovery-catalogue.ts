@@ -8,7 +8,8 @@ import { isStoredIcon } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { notFound } from "../http.ts";
 import { hueFor } from "./content.ts";
-import { NAMED, feedKey, hostOf, letters, ownSources, skipPrivate } from "./discover.ts";
+import { NAMED, hostOf, letters, ownSources, skipPrivate } from "./discover.ts";
+import { feedKey } from "./source-identity.ts";
 
 /*
  * Discovery's catalogue of popular sources by category: `discovery-catalogue.sqlite` in the data directory, put there by hand and never

@@ -27,14 +27,12 @@ import {
   ARCHIVE_FORMAT, ARCHIVE_OMITTED, ARCHIVE_SCHEMA_VERSION, ArchiveError, countJsonValues, parseArchive, sha256Hex,
 } from "./archive-format.ts";
 import type { Archive, ArchiveCollection, ArchiveItem, ArchiveSource, SectionName } from "./archive-format.ts";
-import { bridgeAddress, privateFeedKey } from "./feed-keys.ts";
+import { bridgeAddress, feedKey, insertSource, privateFeedKey, reviveSource, sourceIndex } from "./source-identity.ts";
 import { hasCredentialShape, httpUrlOrNull, plainText } from "./text-safety.ts";
-import { canonicalFeedKey } from "./opml.ts";
 import { fullTextAvailable } from "./captures.ts";
 import { annotationBytes, indexAnnotation } from "./annotations.ts";
 import { PlanLimit, assertRoom } from "./plans.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM } from "./images.ts";
-import { isNewsFeed } from "./news-address.ts";
 import { pictureType } from "@purss/connectors";
 import { server } from "@purss/translations/server";
 
@@ -373,14 +371,13 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
 
   // ---- sources
   const sources = new Map<string, SourceDecision>();
-  const existingByFeed = new Map<string, { id: string; followed: boolean }>();
-  for (const s of app.db.all<{ id: string; feed_url: string; followed: number }>("SELECT id, feed_url, followed FROM sources WHERE account_id = ? AND feed_url IS NOT NULL ORDER BY followed ASC", ws)) {
-    const href = httpUrlOrNull(s.feed_url) ?? bridgeAddress(s.feed_url);
-    if (href) existingByFeed.set(canonicalFeedKey(href), { id: s.id, followed: s.followed === 1 });
-  }
+  const have = sourceIndex(app, ws);
+  // A private source's address is not in an archive, so the title is all there is to find one by.
   const existingPrivate = app.db.all<{ id: string; title: string; followed: number }>("SELECT id, title, followed FROM sources WHERE account_id = ? AND is_private = 1", ws);
   const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
-  const planned = new Map<string, string>(); // feed key / private title -> planned source id (duplicates inside one archive)
+  // The source planned for a feed's key, or a private source's title: the same feed twice in one archive is one source.
+  const plannedFeeds = new Map<string, string>();
+  const plannedPrivate = new Map<string, string>();
   let reusedSources = 0;
   let manual: SourceDecision | null = null;
   /** The PURSS's "Saved links" source: reused when present, created once when an import needs it. */
@@ -398,19 +395,19 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
     const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl)) || !href;
     if (priv) {
-      const key = `private:${lower(src.title)}`;
-      const dup = planned.get(key);
+      const key = lower(src.title);
+      const dup = plannedPrivate.get(key);
       const existing = existingPrivate.find((e) => lower(e.title) === lower(src.title));
       if (dup) { sources.set(src.id, { action: "reuse", id: dup, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
       if (existing) { sources.set(src.id, { action: "reuse", id: existing.id, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
       const id = newId("src");
-      planned.set(key, id);
+      plannedPrivate.set(key, id);
       sources.set(src.id, { action: "create", id, mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
       continue;
     }
-    const key = canonicalFeedKey(href);
-    const dup = planned.get(key);
-    const existing = existingByFeed.get(key);
+    const key = feedKey(href) ?? href;
+    const dup = plannedFeeds.get(key);
+    const existing = have.find(href);
     if (dup) { sources.set(src.id, { action: "reuse", id: dup, refollow: false, src, feedUrl: href }); reusedSources++; continue; }
     if (existing) {
       sources.set(src.id, { action: "reuse", id: existing.id, refollow: src.followed && !existing.followed, src, feedUrl: href });
@@ -418,7 +415,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
       continue;
     }
     const id = newId("src");
-    planned.set(key, id);
+    plannedFeeds.set(key, id);
     sources.set(src.id, { action: "create", id, mode: src.followed ? "follow" : "unfollowed", src, feedUrl: href });
   }
   let toFollow = 0;
@@ -968,13 +965,8 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   const created = new Set<string>();
   for (const d of plan.sources.values()) {
     if (d.action === "reuse") {
-      if (d.refollow && d.feedUrl && isNewsFeed(app, d.feedUrl)) {
-        // This installation's news comes from here, not from the engine: the next maintenance tick brings its newest posts (services/news.ts).
-        app.db.run("UPDATE sources SET followed = 1, health = 'ok', health_text = NULL, created_at = ? WHERE id = ?", now, d.id);
-      } else if (d.refollow && d.feedUrl) {
-        app.db.run("UPDATE sources SET followed = 1, health = 'pending', health_text = NULL WHERE id = ?", d.id);
-        subscribe(d.id, d.feedUrl, d.src.title);
-      }
+      // An unfollowed source the archive follows is taken up again, as following its feed again would; this installation's own news has no engine subscription.
+      if (d.refollow && d.feedUrl && !reviveSource(app, d.id).news) subscribe(d.id, d.feedUrl, d.src.title);
       continue;
     }
     if (created.has(d.id)) continue;
@@ -982,25 +974,23 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
     const s = d.src;
     const createdAt = ISO_FALLBACK(s.createdAt, now);
     const lastItemAt = s.lastItemAt ? ISO_FALLBACK(s.lastItemAt, "") || null : null;
+    const kept = { id: d.id, accountId: p.accountId, origin: s.origin, hue: s.hue, createdAt };
     if (d.mode === "manual") {
-      app.db.run("INSERT INTO sources (id, account_id, kind, title, origin, hue, health, created_at) VALUES (?, ?, 'manual', ?, ?, ?, 'ok', ?)", d.id, p.accountId, server.api.shared.keptLinks, server.api.portability.keptByHand, s.hue, createdAt);
+      insertSource(app, { ...kept, kind: "manual", title: server.api.shared.keptLinks, origin: server.api.portability.keptByHand, health: "ok" });
     } else if (d.mode === "reconnect" || (d.mode === "unfollowed" && d.feedUrl === null)) {
       const reconnect = d.mode === "reconnect";
-      app.db.run(
-        `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, health, health_text, last_item_at, created_at)
-         VALUES (?, ?, 'private', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        d.id, p.accountId, s.title, s.origin, s.curator, s.hue, reconnect ? 1 : 0, reconnect ? 1 : s.paused ? 1 : 0, s.notify,
-        reconnect ? "reconnect" : "ok", reconnect ? PRIVATE_NOTE : null, lastItemAt, createdAt);
+      insertSource(app, {
+        ...kept, kind: "private", title: s.title, privateLink: null, curator: s.curator, followed: reconnect, paused: reconnect || s.paused, notify: s.notify,
+        health: reconnect ? "reconnect" : "ok", healthText: reconnect ? PRIVATE_NOTE : null, lastItemAt,
+      });
       if (reconnect) result.reconnectRequired++;
     } else {
       const follow = d.mode === "follow";
-      app.db.run(
-        `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, is_private, curator, hue, followed, paused, notify, full_text, health, health_text, last_item_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        d.id, p.accountId, s.kind, s.title, s.origin, safeAddress(s.siteUrl), d.feedUrl, s.curator, s.hue, follow ? 1 : 0, follow && s.paused ? 1 : 0, s.notify,
-        s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }) ? 1 : 0,
-        follow ? "pending" : "ok", null, lastItemAt, createdAt);
-      if (follow) subscribe(d.id, d.feedUrl!, s.title);
+      const { news } = insertSource(app, {
+        ...kept, kind: s.kind, title: s.title, siteUrl: safeAddress(s.siteUrl), feedUrl: d.feedUrl, curator: s.curator, followed: follow, paused: follow && s.paused, notify: s.notify,
+        fullText: s.fullText && fullTextAvailable({ kind: s.kind, is_private: 0 }), health: follow ? "pending" : "ok", lastItemAt,
+      });
+      if (follow && !news) subscribe(d.id, d.feedUrl!, s.title);
     }
     result.created.sources++;
   }
