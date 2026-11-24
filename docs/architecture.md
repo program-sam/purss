@@ -669,9 +669,9 @@ minutes while failing; hosted open sign-up is open only while that check passes.
 | Engine data | `engine/` locally, the `engine-data` volume under Compose |
 | Offline copies | The browser's own Cache Storage on each device (`purss-api:<account>`), plus a small record in its local storage; never on the server, deleted at sign-out |
 | Browser extension | The browser's extension storage on each device: the PURSS address, its device token, basket names for the menu, settings; never synced |
-| Unsent changes to items | The browser's IndexedDB on each device (`purss-outbox`), until PURSS confirms or refuses them or the person discards them; set aside, not deleted, when another account signs in |
-| Unsent highlights and notes | The browser's IndexedDB on each device (`purss-annotations`), until sent; deleted at sign-out |
-| Unsent positions and reading progress | The browser's local storage on each device (`purss-late:`), until sent; deleted at sign-out |
+| Unsent changes to items | The browser's IndexedDB on each device (`purss-outbox`), until PURSS confirms or refuses them or the person discards them; set aside, not deleted, when another account signs in; every account's deleted when an app is disconnected or loses its connection |
+| Unsent highlights and notes | The browser's IndexedDB on each device (`purss-annotations`), until sent; deleted at sign-out and when an app is disconnected |
+| Unsent positions and reading progress | The browser's local storage on each device (`purss-late:`), until sent; deleted at sign-out and when an app is disconnected |
 
 Backups cover `product.db` and optionally `secrets/`; see
 [self-hosting](self-hosting.md#backups-and-restore).

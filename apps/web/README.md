@@ -190,7 +190,7 @@ Several items at once (`batch.ts`) are one queued change each, kept with that it
 writes to the item, and the outbox's own sends, move waiting changes to the new revision); on a conflict the item is
 read once: if its workflow already equals the target the change counts as done, otherwise it is dropped and the person
 is told. No client timestamps and no comparison with the workflow the change started from. When the signed-in account
-changes the previous queue is set aside untouched. Only the tab holding the `purss-outbox-send` Web Lock sends.
+changes the previous queue is set aside untouched; only forgetting the device (`clearAll`) removes the entries of accounts that are not signed in. Only the tab holding the `purss-outbox-send` Web Lock sends.
 
 The PNG icons are rendered from `public/icon.svg` (the same artwork as the favicon): 192 and 512 for
 any use, a 512 maskable with the artwork inside the safe zone, and a 180 Apple touch icon. To change
@@ -206,15 +206,24 @@ waits). `lib/unsent-writes.ts` is the rule for what leaves the device when a per
 
 | Reason | Highlights, notes, positions and progress | Changes to items |
 | --- | --- | --- |
-| Signing out | Every account's deleted | When any wait, asked first: send, discard or stay signed in (`outbox/sign-out.ts`) |
-| *Disconnect this app*, whether or not PURSS could be reached | Every account's deleted | Stay, set aside |
-| A connection PURSS ended (a lost device) | Stay, per account; the notice counts the highlights and notes | Stay, set aside |
+| Signing out | Every account's deleted | When any wait, asked first: send, discard or stay signed in (`outbox/sign-out.ts`); other accounts' stay, set aside |
+| *Disconnect this app*, whether or not PURSS could be reached | Every account's deleted | Every account's deleted |
+| A connection PURSS ended (a lost device) | Stay, per account; the notice counts them | Every account's deleted |
 | Another account signs in, in a browser | The other accounts' deleted | Set aside |
 | Another account signs in, in an app | Stay | Set aside |
 
-A change to items that stays is sent when its account is signed in again. Another account signing in is
-each queue's own housekeeping while it syncs (`AnnotationSync`, `LateProgressSync`, told by
-`Platform.keepsOtherAccountsUnsent`, below), not part of `unsent-writes.ts`. An expired session deletes none of them.
+A change to items that is set aside is sent when its account is signed in again. Changes to items are not the person's own
+writing, so an app that stops being connected forgets all of them. `Outbox.clearAll` empties the store of every account and
+installation, whatever this page loaded: it takes the `purss-outbox-send` lock, so no tab is sending and no send can write an
+entry again afterwards, waits for this page's own writes to the store that are in flight, and from then on this page writes
+nothing more to disk (`GuardedStore` in `outbox/outbox.ts`; the stores in `outbox/store.ts` each count and clear everything
+they hold). Another account signing in is each queue's own housekeeping while it syncs (`AnnotationSync`, `LateProgressSync`,
+told by `Platform.keepsOtherAccountsUnsent`, below), not part of `unsent-writes.ts`. An expired session deletes none of them.
+
+`unsentWrites(...).count()` is what *Settings → This device* shows before *Disconnect this app* and what its confirmation asks
+about: every account's highlights and notes, playback positions and reading progress, and changes to items, counted from the
+device itself (`useUnsentOnDevice` counts again while the page shows), which is exactly what a disconnect removes. The notice a
+lost device leaves counts the highlights and notes and the playback positions and reading progress that stay.
 
 ## Highlights and notes
 
@@ -242,9 +251,10 @@ annotations (`ItemDTO.annotatedAt`). The outbox works whether or not *Offline re
 
 Unsent changes belong to an account. In a browser, signing out deletes them after a warning in *Settings → Security* when any
 wait, and another account signing in deletes the previous account's; an expired session keeps them. In the apps,
-*Disconnect this app* deletes them after the same warning, but a lost connection keeps them, and so does connecting with
-another account: they are sent when their account connects again, and *Settings → This device* offers to copy them as
-text or discard them. Nothing unsent is deleted without the person's say in the apps.
+*Disconnect this app* deletes them after a warning that counts everything the disconnect deletes, but a lost connection keeps
+them, and so does connecting with another account: they are sent when their account connects again, and *Settings → This
+device* offers to copy them as text or discard them. In the apps, no highlight, note, playback position or reading progress is
+deleted without the person's say. Unsent changes to items are not kept that way (see above).
 
 Annotations pin no kept version and make no readable copy. Unfollowing with *Also delete the items you haven't kept* skips any item with a live
 annotation; an explicit permanent delete names the items that carry annotations and needs the same

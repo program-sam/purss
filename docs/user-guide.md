@@ -1108,11 +1108,13 @@ notes, and its audio or video file on this phone, to read and play without a con
   deleted in PURSS disappears from Downloaded the next time the app is online.
 
 **Disconnecting.** *Settings → This device → Disconnect this app* disconnects it and removes
-everything it kept on this phone: offline copies, downloads, and highlights or notes not yet sent
-(it warns you first). If the app is disconnected from elsewhere (Settings → Connected apps in the
+everything it kept on this phone: offline copies, downloads, and everything not yet sent, from every account that used the app:
+highlights and notes, playback positions and reading progress, and changes to items. It warns you first and counts what it will
+delete. If the app is disconnected from elsewhere (Settings → Connected apps in the
 browser, or after 90 days unused), it removes the same and asks you to connect again, except your
-unsent highlights and notes: they stay on the phone and are sent when you connect again with the same
-account. If you connect with another account, *Settings → This device* lets you copy them as text or
+unsent highlights and notes, playback positions and reading progress: they stay on the phone and are sent when you connect again
+with the same account, and the notice says how many. Changes to items that were not yet sent are removed. If you connect with
+another account, *Settings → This device* lets you copy the highlights and notes as text or
 discard them.
 
 ## Browser extension and bookmarklets
