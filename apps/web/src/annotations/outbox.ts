@@ -216,14 +216,18 @@ export class Outbox {
     });
   }
 
-  /** Delete every entry except the given account's (all of them for null): account change and sign-out. */
+  /**
+   * Delete every entry except the given account's (all of them for null): account change and sign-out. What the device holds
+   * is read again first: another tab may have recorded changes since this page read it, and they are deleted too.
+   */
   clearExcept(accountId: string | null): Promise<void> {
     return this.serial(async () => {
       await this.load();
-      const gone = this.entries.filter((e) => e.accountId !== accountId);
+      const held = await this.store.all().catch(() => this.entries);
+      const gone = held.filter((e) => e.accountId !== accountId);
       if (!gone.length) return;
       await this.store.remove(gone.map((e) => e.seq!));
-      this.entries = this.entries.filter((e) => e.accountId === accountId);
+      this.entries = held.filter((e) => e.accountId === accountId);
       this.changed();
     });
   }

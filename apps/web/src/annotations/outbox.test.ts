@@ -102,6 +102,18 @@ test("only the signed-in account's changes are sent, and another account's are d
   assert.equal(o.snapshot().length, 0, "sign-out deletes everything");
 });
 
+test("another account's changes are deleted from the device even when another tab recorded them after this page read it", async () => {
+  const store = new MemoryOutboxStore();
+  const here = new Outbox(store);
+  const otherTab = new Outbox(store);
+  await here.load();
+  await otherTab.record(put("ann_1", "mine", undefined, "acc_a"));
+  await otherTab.record(put("ann_2", "theirs", undefined, "acc_b"));
+  await here.clearExcept("acc_a");
+  assert.deepEqual((await store.all()).map((e) => e.annotationId), ["ann_1"]);
+  assert.deepEqual(bodies(here), ["ann_1:mine"], "and this page now shows what the device holds");
+});
+
 test("the reader shows the server's annotations with this device's unsent changes laid over them", () => {
   const server: AnnotationDTO[] = [
     { id: "ann_1", itemId: "itm_1", kind: "note", quote: null, position: null, target: null, body: "server text", createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" },

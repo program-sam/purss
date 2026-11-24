@@ -67,6 +67,16 @@ test("a connection PURSS ended counts the highlights and notes the device holds,
   assert.equal((await writes.forget("lost")).keptNotes, 2);
 });
 
+test("signing out deletes what another tab recorded after this page read the device", async () => {
+  const store = new MemoryOutboxStore();
+  const here = new Outbox(store);
+  const otherTab = new Outbox(store);
+  await here.load();
+  await otherTab.record({ accountId: "acc_1", itemId: "itm_a", annotationId: "ann_late", at: "2026-11-01T10:00:00.000Z", op: "delete" });
+  await unsentWrites({ notes: here, clearLate: () => undefined }).forget("signed-out");
+  assert.deepEqual(await store.all(), []);
+});
+
 test("signing out deletes the positions and progress even when the highlights and notes could not be deleted, and says so", async () => {
   const storage = memoryStorage();
   lateStore<number>("progress", "acc_1", storage).put("itm_a", 0.5);
