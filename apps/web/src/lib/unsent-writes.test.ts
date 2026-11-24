@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { app } from "@purss/translations/app";
 import { MemoryOutboxStore, Outbox } from "../annotations/outbox.ts";
 import { scopeOf } from "../outbox/entries.ts";
 import { Outbox as ChangeOutbox } from "../outbox/outbox.ts";
@@ -172,4 +173,15 @@ test("the warning counts what another tab recorded since this page read the devi
 test("the warning for a device with nothing unsent counts nothing", async () => {
   const writes = unsentWrites({ notes: new Outbox(new MemoryOutboxStore()), late: { count: () => countLateWrites(memoryStorage()), clear: () => undefined }, changes: changeOutbox(new MemoryStore()) });
   assert.equal(unsentTotal(await writes.count()), 0);
+});
+
+test("the words of the warning count each kind the device holds, name only those, and agree with the question asked at Disconnect", () => {
+  const t = app.downloads.deviceTab;
+  const counts = { notes: 2, late: 3, changes: 4 };
+  for (const text of [t.unsyncedWarning(counts), t.unsyncedLost(counts)]) for (const n of ["2", "3", "4"]) assert.ok(text.includes(n), `${n} in ${text}`);
+  const onlyNotes = { notes: 1, late: 0, changes: 0 };
+  const onlyLate = { notes: 0, late: 1, changes: 0 };
+  const onlyChanges = { notes: 0, late: 0, changes: 1 };
+  assert.equal(new Set([onlyNotes, onlyLate, onlyChanges].map((c) => t.unsyncedWarning(c))).size, 3, "each kind has words of its own");
+  assert.ok(t.disconnectConfirm(t.unsyncedLost(counts)).includes(t.unsyncedLost(counts)), "the question carries the same count");
 });

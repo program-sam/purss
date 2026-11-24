@@ -3,6 +3,19 @@ import { words } from "./words.ts";
 // The plural helper keeps the exact current logic for notices the phone apps leave after disconnecting.
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many.replace("#", String(n)));
 
+/** What this device holds that has not been sent, of every account: highlights and notes, playback positions and reading progress, changes to items. */
+type Unsent = { notes: number; late: number; changes: number };
+const total = ({ notes, late, changes }: Unsent) => notes + late + changes;
+/** Only the kinds that are there, counted. */
+const unsentWords = ({ notes, late, changes }: Unsent) => {
+  const kinds = [
+    ...(notes ? [plural(notes, "1 highlight or note", "# highlights or notes")] : []),
+    ...(late ? [plural(late, "1 playback position or reading progress", "# playback positions and reading progress")] : []),
+    ...(changes ? [plural(changes, "1 change to an item", "# changes to items")] : []),
+  ];
+  return kinds.length > 1 ? `${kinds.slice(0, -1).join(", ")} and ${kinds[kinds.length - 1]}` : kinds.join("");
+};
+
 export default {
   auth: {
     accountEmailSection: {
@@ -350,7 +363,7 @@ export default {
   downloads: {
     deviceTab: {
       otherWords: (n: number) => n === 1 ? "1 highlight or note" : `${n} highlights or notes`,
-      unsyncedLost: (n: number) => ` ${n === 1 ? "1 highlight or note hasn't" : `${n} highlights or notes haven't`} synced yet and will be lost.`,
+      unsyncedLost: (unsent: Unsent) => ` ${unsentWords(unsent)} ${total(unsent) === 1 ? "hasn't" : "haven't"} synced yet and will be lost.`,
       disconnectConfirm: (warn: string) => `Disconnect this app from PURSS? Everything it keeps on this device, downloads included, is removed.${warn}`,
       copied: (words: string) => `Copied ${words} as text.`,
       copyFailed: "Couldn't copy to the clipboard.",
@@ -377,7 +390,10 @@ export default {
       storageUse: { before: "Downloads use ", after: " on this device." },
       removedAll: "Removed every download from this device.",
       removeAll: "Remove all downloads",
-      unsyncedWarning: (n: number) => `${n === 1 ? "1 highlight or note hasn't" : `${n} highlights or notes haven't`} synced yet. Disconnecting deletes ${n === 1 ? "it" : "them"}. Go online first to keep ${n === 1 ? "it" : "them"}.`,
+      unsyncedWarning: (unsent: Unsent) => {
+        const one = total(unsent) === 1;
+        return `${unsentWords(unsent)} ${one ? "hasn't" : "haven't"} synced yet. Disconnecting deletes ${one ? "it" : "them"}, whichever account ${one ? "made it" : "made them"}. Go online first to send this account's.`;
+      },
       disconnect: "Disconnect this app",
     },
 

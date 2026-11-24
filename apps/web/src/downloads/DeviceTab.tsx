@@ -2,8 +2,10 @@ import { useState } from "react";
 import { OFFICIAL_PURSS_ORIGIN, parsePurssAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain";
 import { Button, Check, Icon, SelectInput } from "@purss/ui";
 import { outboxAsText } from "../annotations/outbox.ts";
-import { useOtherAccountsUnsent, useWaitingCount } from "../annotations/use-annotations.ts";
+import { useOtherAccountsUnsent } from "../annotations/use-annotations.ts";
 import { bytesLabel } from "../lib/format.ts";
+import { deviceWrites, unsentTotal } from "../lib/unsent-writes.ts";
+import { useUnsentOnDevice } from "../lib/use-unsent-on-device.ts";
 import { platform } from "../platform/index.ts";
 import { PhoneNotificationsSection } from "../shell/PhoneNotifications.tsx";
 import { InterfaceUpdatesSection } from "../shell/InterfaceUpdates.tsx";
@@ -26,7 +28,7 @@ export function DeviceTab() {
   const downloads = platform.downloads;
   const settings = useDownloadSettings();
   useDownloads();
-  const unsynced = useWaitingCount();
+  const unsent = useUnsentOnDevice();
   const others = useOtherAccountsUnsent();
   const { toast } = useToasts();
   const [busy, setBusy] = useState(false);
@@ -36,9 +38,11 @@ export function DeviceTab() {
   const choices = [...new Set([...LIMIT_CHOICES, settings.limitBytes])].sort((a, b) => a - b);
 
   async function disconnect() {
-    const warn = unsynced ? t.unsyncedLost(unsynced) : "";
-    if (!window.confirm(t.disconnectConfirm(warn))) return;
     setBusy(true);
+    // Counted from the device now, not from what the page last showed: what is deleted is what the device holds.
+    const held = await deviceWrites.count().catch(() => unsent);
+    const warn = unsentTotal(held) ? t.unsyncedLost(held) : "";
+    if (!window.confirm(t.disconnectConfirm(warn))) { setBusy(false); return; }
     await conn!.disconnect();
   }
 
@@ -102,8 +106,8 @@ export function DeviceTab() {
         {used ? <div><Button onClick={() => void downloads.removeAll().then(() => toast(t.removedAll))}><Icon name="trash" size="sm" />{t.removeAll}</Button></div> : null}
       </section>
 
-      {unsynced ? (
-        <p className="p-warn"><Icon name="alert" /><span>{t.unsyncedWarning(unsynced)}</span></p>
+      {unsentTotal(unsent) ? (
+        <p className="p-warn"><Icon name="alert" /><span>{t.unsyncedWarning(unsent)}</span></p>
       ) : null}
       <div><Button disabled={busy} onClick={() => void disconnect()}>{t.disconnect}</Button></div>
     </>
