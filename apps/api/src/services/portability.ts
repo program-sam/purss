@@ -170,8 +170,8 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
         const priv = i.source_id !== null && privateIds.has(i.source_id);
         const link = (u: string | null) => (u && (priv || hasCredentialShape(u)) ? null : u);
         const html = (h: string | null) => (priv ? stripAddresses(h) : h);
-        const versions = all<{ id: string; title: string; url: string | null; summary_html: string | null; content_html: string | null; created_at: string }>(
-          "SELECT id, title, url, summary_html, content_html, created_at FROM item_versions WHERE item_id = ? ORDER BY created_at, id", i.id);
+        const versions = all<{ id: string; title: string; url: string | null; summary_html: string | null; content_html: string | null; content_omitted: number; created_at: string }>(
+          "SELECT id, title, url, summary_html, content_html, content_omitted, created_at FROM item_versions WHERE item_id = ? ORDER BY created_at, id", i.id);
         const captures = all<{ id: string; kind: string; status: string; title: string | null; text: string | null; html: string | null; final_url: string | null; error: string | null; quality: string | null; partial_reason: string | null; created_at: string; completed_at: string | null }>(
           "SELECT id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at FROM captures WHERE item_id = ? AND status IN ('done', 'failed') ORDER BY created_at, id", i.id);
         const guids = priv ? [] : all<{ original_guid: string }>("SELECT DISTINCT original_guid FROM external_ids WHERE item_id = ? AND original_guid IS NOT NULL ORDER BY original_guid LIMIT 5", i.id)
@@ -182,7 +182,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
           id: i.id, number: i.number, sourceId: i.source_id, kind: i.kind, title: i.title, url: link(i.url), urlRedacted: i.url !== null && link(i.url) === null,
           author: i.author, imageUrl: link(i.image_url), durationSeconds: i.duration_seconds, doi: i.doi, curatorNote: i.curator_note,
           publishedAt: i.published_at, discoveredAt: i.discovered_at, listedAt: i.listed_at, createdAt: i.created_at, enclosures, currentVersionId: i.current_version_id,
-          versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), createdAt: v.created_at })),
+          versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), contentOmitted: v.content_omitted === 1, createdAt: v.created_at })),
           captures: captures.map((c) => ({ id: c.id, kind: c.kind, status: c.status, title: c.title, text: c.text, html: html(c.html), finalUrl: link(c.final_url), error: c.error, quality: c.quality, partialReason: c.partial_reason, createdAt: c.created_at, completedAt: c.completed_at })),
           state: { workflow: i.workflow, isNew: i.is_new === 1, progress: i.progress, openedAt: i.opened_at },
           originalGuids: guids,
@@ -311,6 +311,16 @@ function safeAddress(raw: string | null): string | null {
   return href && !hasCredentialShape(href) ? href : null;
 }
 
+/**
+ * The public address an archive source is followed at, or null when it is a private one: flagged, shaped like one, or without an address to
+ * follow it at. A bridged source keeps its descriptor: it is no link, so never private.
+ */
+function publicAddress(src: ArchiveSource): string | null {
+  const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
+  const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl));
+  return priv ? null : href;
+}
+
 function prepareItem(item: ArchiveItem, now: string): PreparedItem {
   const url = item.urlRedacted ? null : safeAddress(item.url);
   const imageUrl = safeAddress(item.imageUrl);
@@ -323,13 +333,13 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
 
   const rawVersions: Version[] = item.versions.length
     ? item.versions
-    : [{ id: `${item.id}:v`, title: item.title, url: item.url, summaryHtml: null, contentHtml: null, createdAt: item.createdAt }];
+    : [{ id: `${item.id}:v`, title: item.title, url: item.url, summaryHtml: null, contentHtml: null, contentOmitted: false, createdAt: item.createdAt }];
   const versions: PreparedVersion[] = rawVersions.map((v) => {
     const vUrl = item.urlRedacted ? null : safeAddress(v.url);
     const title = v.title.trim() || item.title.trim() || NO_TITLE;
     const { summaryHtml, contentHtml, hash } = prepareVersion({ title, url: vUrl, summaryHtml: v.summaryHtml, contentHtml: v.contentHtml });
     return {
-      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash, createdAt: ISO_FALLBACK(v.createdAt, createdAt),
+      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash, contentOmitted: v.contentOmitted, createdAt: ISO_FALLBACK(v.createdAt, createdAt),
       bytes: versionBytes({ title, url: vUrl, author: item.author, summaryHtml, contentHtml, imageUrl, enclosures, publishedAt }),
     };
   });
@@ -372,12 +382,37 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   // ---- sources
   const sources = new Map<string, SourceDecision>();
   const have = sourceIndex(app, ws);
-  // A private source's address is not in an archive, so the title is all there is to find one by.
-  const existingPrivate = app.db.all<{ id: string; title: string; followed: number }>("SELECT id, title, followed FROM sources WHERE account_id = ? AND is_private = 1", ws);
+  // A private source's address is not in an archive, so each source in the file is its own (two can share a title). One already here stands
+  // for at most one of them: the one the file names by the id it has here (a file from this very account, even after a rename), else the
+  // first of that title not yet taken. Which of two same-titled sources a file's source lands on decides only where its new posts go: its
+  // posts already here are looked for in every private source here of that title (see `existingMatches`), so none is added twice.
+  const existingById = new Map<string, { id: string; title: string }>();
+  const existingByTitle = new Map<string, string[]>();
+  for (const e of app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ? AND is_private = 1 ORDER BY created_at, id", ws)) {
+    existingById.set(e.id, e);
+    const same = existingByTitle.get(lower(e.title));
+    if (same) same.push(e.id); else existingByTitle.set(lower(e.title), [e.id]);
+  }
+  const existingPrivate = new Map<string, string>(); // archive id -> the private source here it stands for
+  const taken = new Set<string>();
+  const privateInFile = doc.sources.filter((src) => src.kind !== "manual" && !publicAddress(src));
+  for (const src of privateInFile) {
+    const own = existingById.get(src.id);
+    if (own && !taken.has(own.id) && !existingPrivate.has(src.id)) { existingPrivate.set(src.id, own.id); taken.add(own.id); }
+  }
+  for (const src of privateInFile) {
+    if (existingPrivate.has(src.id)) continue;
+    const here = (existingByTitle.get(lower(src.title)) ?? []).find((id) => !taken.has(id));
+    if (here) { existingPrivate.set(src.id, here); taken.add(here); }
+  }
+  /** The private sources here that share a private source's title, it included. */
+  const sameTitleHere = (sourceId: string): string[] => {
+    const e = existingById.get(sourceId);
+    return e ? existingByTitle.get(lower(e.title))! : [sourceId];
+  };
   const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
-  // The source planned for a feed's key, or a private source's title: the same feed twice in one archive is one source.
+  // The source planned for a feed's key: the same feed twice in one archive is one source.
   const plannedFeeds = new Map<string, string>();
-  const plannedPrivate = new Map<string, string>();
   // Existing sources the archive follows again, so that one written two ways is taken up once.
   const followingAgain = new Set<string>();
   let reusedSources = 0;
@@ -393,18 +428,11 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   };
   for (const src of doc.sources) {
     if (src.kind === "manual") { sources.set(src.id, manualDecision(src)); continue; }
-    // A bridged source keeps its descriptor: it is no link, so never private.
-    const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
-    const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl)) || !href;
-    if (priv) {
-      const key = lower(src.title);
-      const dup = plannedPrivate.get(key);
-      const existing = existingPrivate.find((e) => lower(e.title) === lower(src.title));
-      if (dup) { sources.set(src.id, { action: "reuse", id: dup, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
-      if (existing) { sources.set(src.id, { action: "reuse", id: existing.id, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
-      const id = newId("src");
-      plannedPrivate.set(key, id);
-      sources.set(src.id, { action: "create", id, mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
+    const href = publicAddress(src);
+    if (!href) {
+      const existing = existingPrivate.get(src.id);
+      if (existing) { sources.set(src.id, { action: "reuse", id: existing, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
+      sources.set(src.id, { action: "create", id: newId("src"), mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
       continue;
     }
     const key = feedKey(href) ?? href;
@@ -485,7 +513,14 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     }
     if (url) for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url = ? LIMIT 2", ws, sourceId, url)) ids.add(r.id);
     if (!url && !it.originalGuids.length) {
-      for (const r of app.db.all<{ id: string }>("SELECT id FROM items WHERE account_id = ? AND source_id = ? AND url IS NULL AND title = ? AND COALESCE(published_at, '') = ? LIMIT 2", ws, sourceId, it.title, it.publishedAt ?? "")) ids.add(r.id);
+      // A post with no address (a private source's, as the file holds none) by its title and date, in any private source here of its
+      // source's title; of several, the one in its own source. A title-less post is stored under the placeholder.
+      const among = sameTitleHere(sourceId);
+      const found = app.db.all<{ id: string; source_id: string }>(
+        `SELECT id, source_id FROM items WHERE account_id = ? AND source_id IN (${among.map(() => "?").join(", ")}) AND url IS NULL AND title IN (?, ?) AND COALESCE(published_at, '') = ? LIMIT 3`,
+        ws, ...among, it.title, it.title.trim() || NO_TITLE, it.publishedAt ?? "");
+      const own = found.filter((r) => r.source_id === sourceId);
+      for (const r of found.length > 1 && own.length ? own : found) ids.add(r.id);
     }
     return ids;
   };
@@ -705,10 +740,10 @@ function remapQuery(node: unknown, maps: Maps): unknown {
   return n;
 }
 
-/** For an item that already exists: the version a kept pin should point at, and a new version row when none matches. */
+/** For an item that already exists: the version a kept pin should point at (same text and the same word on omitted content), and a new version row when none matches. */
 function resolveKeptVersion(app: App, item: Extract<ItemDecision, { action: "match" }>, archiveVersionId: string | null): { versionId: string | null; insert: PreparedVersion | null } {
   const wanted = item.prepared.versions.find((v) => v.archiveId === archiveVersionId) ?? item.prepared.versions.find((v) => v.id === item.prepared.currentId)!;
-  const existing = app.db.get<{ id: string }>("SELECT id FROM item_versions WHERE item_id = ? AND content_hash = ?", item.id, wanted.hash);
+  const existing = app.db.get<{ id: string }>("SELECT id FROM item_versions WHERE item_id = ? AND content_hash = ? AND content_omitted = ?", item.id, wanted.hash, wanted.contentOmitted ? 1 : 0);
   if (existing) return { versionId: existing.id, insert: null };
   return { versionId: null, insert: wanted };
 }

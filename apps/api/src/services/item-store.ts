@@ -53,7 +53,7 @@ export type ItemRevision = {
 };
 
 /** A version an archive import brings back, its text already sanitised and hashed (see `prepareVersion`). */
-export type RestoredVersion = { id: string; title: string; url: string | null; summaryHtml: string | null; contentHtml: string | null; hash: string; createdAt: string; bytes: number };
+export type RestoredVersion = { id: string; title: string; url: string | null; summaryHtml: string | null; contentHtml: string | null; hash: string; contentOmitted: boolean; createdAt: string; bytes: number };
 
 /** A readable copy an archive import brings back. */
 export type RestoredCapture = {
@@ -291,7 +291,7 @@ export function restoreItem(app: App, r: RestoredItem): number {
 
 /** Add a version an archive import brings back to an item (see `restoreItem`). */
 export function restoreVersion(app: App, accountId: string, itemId: string, sourceId: string | null, v: RestoredVersion): void {
-  writeVersion(app, { id: v.id, itemId, accountId, title: v.title, url: v.url, summaryHtml: v.summaryHtml, contentHtml: v.contentHtml, hash: v.hash, contentOmitted: false, createdAt: v.createdAt });
+  writeVersion(app, { id: v.id, itemId, accountId, title: v.title, url: v.url, summaryHtml: v.summaryHtml, contentHtml: v.contentHtml, hash: v.hash, contentOmitted: v.contentOmitted, createdAt: v.createdAt });
   recordObject(app, { accountId, kind: "item_version", refId: v.id, itemId, sourceId, bytes: v.bytes, reason: "import" });
 }
 

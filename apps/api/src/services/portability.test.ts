@@ -9,9 +9,11 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App, Principal } from "../app.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, seedLibrary, shareRow } from "../features-testing.ts";
 import { applySyncBatch } from "./sync.ts";
-import { getItem, listItems } from "./items.ts";
+import { NO_TITLE } from "./content.ts";
+import { getItem, getItemDetail, listItems } from "./items.ts";
+import { pageToDownload } from "@purss/domain";
 import { createBasket, createCollection, patchBasket } from "./collections.ts";
-import { changeState } from "./state.ts";
+import { changeState, keepItem } from "./state.ts";
 import { reconcile, usedBytes } from "./storage.ts";
 import { applyImport, reconnectSource, stageImport, streamExport } from "./portability.ts";
 import { OPTIONAL_SECTION_NAMES, parseArchive, SECTION_NAMES, sha256Hex } from "./archive-format.ts";
@@ -520,4 +522,201 @@ test("Remind me days round-trip with their notes; days gone by, items not kept a
   // A hostile file's bad day is refused as an invalid export.
   const bad = rebuild({ ...doc, itemReminders: [{ itemId: doc.itemReminders[0].itemId, remindOn: "next week", note: null }] });
   assert.throws(() => stageImport(c, pc, bad), (e: unknown) => e instanceof HttpError);
+});
+
+/** Two private sources of one title, each with a post that carries no address (as an archive writes one of a private source). */
+function twoNewsletters(a: App, pa: Principal) {
+  const first = makeSource(a, pa, "Newsletter", "feed/p1", { isPrivate: true });
+  const second = makeSource(a, pa, "Newsletter", "feed/p2", { isPrivate: true });
+  const bare = { url: null, originalGuid: null };
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/p1", { title: "From the first", ...bare }), entry("feed/p2", { title: "From the second", ...bare })]));
+  return { first, second };
+}
+const sourceOf = (app: App, title: string) => app.db.all<{ source_id: string }>("SELECT source_id FROM items WHERE title = ? ORDER BY seq", title).map((r) => r.source_id);
+
+test("two private sources that share a title stay two sources after an import, each with its own items, and the same file again adds nothing", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  assert.equal(doc.sources.filter((s: { title: string }) => s.title === "Newsletter").length, 2, "the file holds both");
+
+  const preview = stageImport(b, pb, doc);
+  assert.equal(preview.counts.sourcesToReconnect, 2);
+  const result = applyImport(b, pb, preview.token);
+  assert.deepEqual([result.created.sources, result.reconnectRequired, result.created.items], [2, 2, 2]);
+  assert.equal(count(b, "sources"), 2);
+  assert.notEqual(sourceOf(b, "From the first")[0], sourceOf(b, "From the second")[0], "each item stays with its own source");
+
+  // The same file again, into the PURSS it was imported into and into the one it came from, finds each source once and adds nothing.
+  for (const [app, p] of [[b, pb], [a, pa]] as const) {
+    const again = stageImport(app, p, doc);
+    assert.deepEqual([again.counts.newItems, again.counts.existingItems, again.counts.existingSources], [0, 2, 2]);
+    const second = applyImport(app, p, again.token);
+    assert.deepEqual([second.created.sources, second.created.items], [0, 0]);
+    assert.deepEqual([count(app, "sources"), count(app, "items")], [2, 2]);
+  }
+});
+
+test("a file with two private sources of one title, imported where one of that title already is, adds only the other", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  makeSource(b, pb, "newsletter", "feed/mine", { isPrivate: true });
+  const result = applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual([result.created.sources, result.alreadyPresent.sources, count(b, "sources")], [1, 1, 2], "one is the source already there, one is new");
+  assert.notEqual(sourceOf(b, "From the first")[0], sourceOf(b, "From the second")[0]);
+});
+
+test("the same file again into the PURSS it came from takes each private source by the id it has there, even when one was renamed since", async (t) => {
+  const { a, pa, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first, second } = twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  a.db.run("UPDATE sources SET title = 'Weekly' WHERE id = ?", first);
+  const result = applyImport(a, pa, stageImport(a, pa, doc).token);
+  assert.deepEqual([result.created.sources, result.created.items, result.alreadyPresent.sources], [0, 0, 2]);
+  assert.deepEqual([sourceOf(a, "From the first"), sourceOf(a, "From the second")], [[first], [second]], "each post stays once, under its own source");
+});
+
+test("two private sources of one title made in the same moment line up with the file again on every later import", async (t) => {
+  // Each round has an even chance of pairing them the other way round; their posts are found either way.
+  for (let round = 0; round < 12; round++) {
+    const { a, b, pa, pb, cleanup } = twoAccounts();
+    t.after(cleanup);
+    const { first, second } = twoNewsletters(a, pa);
+    a.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id IN (?, ?)", first, second);
+    const { doc } = await exportDoc(a, pa);
+    applyImport(b, pb, stageImport(b, pb, doc).token);
+    const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.deepEqual([again.created.sources, again.created.items, count(b, "items")], [0, 0, 2], `round ${round}`);
+  }
+});
+
+test("a file whose first import took up one private source already here and made the other is imported again onto the same two", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first, second } = twoNewsletters(a, pa);
+  a.db.run("UPDATE sources SET created_at = '2025-01-01T00:00:00.000Z' WHERE id = ?", first);
+  a.db.run("UPDATE sources SET created_at = '2025-01-02T00:00:00.000Z' WHERE id = ?", second);
+  const { doc } = await exportDoc(a, pa);
+  const here = makeSource(b, pb, "Newsletter", "feed/mine", { isPrivate: true });
+  b.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id = ?", here);
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  const placed = [sourceOf(b, "From the first"), sourceOf(b, "From the second")];
+  const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual([again.created.sources, again.created.items], [0, 0]);
+  assert.deepEqual([sourceOf(b, "From the first"), sourceOf(b, "From the second")], placed, "each post stays once, where the first import put it");
+});
+
+test("two private sources of one title with the same posts, one with a post more, take nothing twice when imported again", async (t) => {
+  // However the two pair with the sources here, a post already here is found in either.
+  for (let round = 0; round < 8; round++) {
+    const { a, b, pa, pb, cleanup } = twoAccounts();
+    t.after(cleanup);
+    const first = makeSource(a, pa, "Newsletter", "feed/p1", { isPrivate: true });
+    const second = makeSource(a, pa, "Newsletter", "feed/p2", { isPrivate: true });
+    a.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id IN (?, ?)", first, second);
+    const bare = (title: string, day: number) => ({ title, url: null, originalGuid: null, publishedAt: new Date(Date.UTC(2026, 0, day)).toISOString() });
+    const shared = [1, 2, 3].flatMap((d) => [entry("feed/p1", bare(`Issue ${d}`, d)), entry("feed/p2", bare(`Issue ${d}`, d))]);
+    applySyncBatch(a, (pa as Owner).engineUserId, batch([...shared, entry("feed/p2", bare("Extra", 9))]));
+    const { doc } = await exportDoc(a, pa);
+    applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.equal(count(b, "items"), 7);
+    const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.deepEqual([again.created.sources, again.created.items, count(b, "items")], [0, 0, 7], `round ${round}`);
+  }
+});
+
+test("a post with no title in a file is the post here stored without one", async (t) => {
+  const { a, pa, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first } = twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  const untitled = doc.items.find((i: { sourceId: string }) => i.sourceId === first);
+  a.db.run("UPDATE items SET title = ? WHERE id = ?", NO_TITLE, untitled.id);
+  untitled.title = "";
+  const result = applyImport(a, pa, stageImport(a, pa, rebuild(doc)).token);
+  assert.deepEqual([result.created.items, count(a, "items")], [0, 2]);
+});
+
+test("a kept copy that was cut short stays cut short when the PURSS has the same text without that word", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const summary = `<p>${"The start of a very long essay. ".repeat(40)}</p>`;
+  makeSource(a, pa, "Long reads", "feed/1");
+  const essay = entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([essay]));
+  const itemId = a.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'Very long essay'")!.id;
+  keepItem(a, pa, itemId, createBasket(a, pa, { name: "Keep", captureMode: "metadata" }).id);
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (whole)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Now all of it. ".repeat(80)}</p>` }]));
+  const { doc } = await exportDoc(a, pa);
+
+  makeSource(b, pb, "Long reads", "feed/1");
+  applySyncBatch(b, (pb as Owner).engineUserId, batch([{ ...essay, contentOmitted: undefined }]));
+  const before = b.db.all<{ content_omitted: number }>("SELECT content_omitted FROM item_versions WHERE title = 'Very long essay'").map((r) => r.content_omitted);
+  assert.deepEqual(before, [0], "the same text, not marked as cut");
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  const pinned = b.db.get<{ content_omitted: number }>("SELECT v.content_omitted FROM basket_items k JOIN item_versions v ON v.id = k.version_id WHERE k.account_id = ?", pb.accountId);
+  assert.equal(pinned?.content_omitted, 1, "the kept copy is the cut one");
+});
+
+test("a version whose full text was too large still says so after an import, in the reader, in the downloads and as a kept copy", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const c = makeTestApp();
+  t.after(c.cleanup);
+  const pc = makeOwner(c.app);
+  const summary = `<p>${"The start of a very long essay. ".repeat(40)}</p>`; // longer than a teaser: only the notice says the text is cut
+  makeSource(a, pa, "Long reads", "feed/1");
+  const essay = entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  const whole = entry("feed/1", { title: "Whole one", contentHtml: `<p>${"All of it is here. ".repeat(60)}</p>` });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([essay, whole]));
+  const idOf = (app: App, title: string) => app.db.get<{ id: string }>("SELECT id FROM items WHERE title = ?", title)!.id;
+  const keptIn = createBasket(a, pa, { name: "Keep", captureMode: "metadata" }).id;
+  keepItem(a, pa, idOf(a, "Very long essay"), keptIn);
+  // The feed then sends the whole text: the item moves on to a version without the notice and the kept one stays as it was kept.
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (whole)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Now all of it. ".repeat(80)}</p>` }]));
+  const flags = (app: App) => app.db.all<{ title: string; content_omitted: number }>("SELECT v.title, v.content_omitted FROM item_versions v ORDER BY v.title").map((r) => [r.title, r.content_omitted]);
+  assert.deepEqual(flags(a), [["Very long essay", 1], ["Very long essay (whole)", 0], ["Whole one", 0]]);
+
+  const { doc } = await exportDoc(a, pa);
+  const archived = doc.items.flatMap((i: { versions: { title: string; contentOmitted: boolean }[] }) => i.versions.map((v) => [v.title, v.contentOmitted]));
+  assert.deepEqual(archived.sort((x: [string, boolean], y: [string, boolean]) => x[0].localeCompare(y[0])), [["Very long essay", true], ["Very long essay (whole)", false], ["Whole one", false]]);
+
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual(flags(b), flags(a), "every version keeps its flag");
+  const kept = getItemDetail(b, pb, idOf(b, "Very long essay (whole)"));
+  assert.equal(kept.changedSinceKept, true);
+  assert.equal(kept.contentOmitted, true, "the kept copy is the one that was cut");
+  assert.equal(kept.contentOmitted, getItemDetail(a, pa, idOf(a, "Very long essay (whole)")).contentOmitted);
+  assert.equal(getItemDetail(b, pb, idOf(b, "Whole one")).contentOmitted, false);
+
+  // Without the kept copy the item is the cut one: the reader and a download both go to the publisher's page.
+  const lone = entry("feed/1", { title: "Cut and alone", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([lone]));
+  applyImport(b, pb, stageImport(b, pb, (await exportDoc(a, pa)).doc).token);
+  const detail = getItemDetail(b, pb, idOf(b, "Cut and alone"));
+  assert.deepEqual([detail.contentOmitted, detail.summaryOnly], [true, false]);
+  assert.equal(pageToDownload({ media: detail.media, url: detail.url, summaryOnly: detail.summaryOnly, contentOmitted: detail.contentOmitted }), lone.url);
+
+  // An item the PURSS already has gets the kept copy as a version of its own, with its flag.
+  makeSource(c.app, pc, "Long reads", "feed/1");
+  applySyncBatch(c.app, (pc as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (their copy)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Their own full text. ".repeat(80)}</p>` }]));
+  applyImport(c.app, pc, stageImport(c.app, pc, doc).token);
+  assert.deepEqual(flags(c.app).filter(([title]) => title === "Very long essay"), [["Very long essay", 1]]);
+});
+
+test("an archive written before versions said it was cut short imports every version as whole", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  makeSource(a, pa, "Long reads", "feed/1");
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: "<p>The start.</p>", contentOmitted: true })]));
+  const { doc } = await exportDoc(a, pa);
+  const old = structuredClone(doc);
+  for (const item of old.items) for (const v of item.versions) delete v.contentOmitted;
+  assert.ok(parseArchive(rebuild(old)).items.every((i) => i.versions.every((v) => v.contentOmitted === false)));
+  applyImport(b, pb, stageImport(b, pb, rebuild(old)).token);
+  assert.deepEqual(b.db.all<{ content_omitted: number }>("SELECT content_omitted FROM item_versions").map((r) => r.content_omitted), [0]);
 });

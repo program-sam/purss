@@ -15,7 +15,8 @@ import { server } from "@purss/translations/server";
  *   collections      source and filter collections (filters reference archive ids)
  *   baskets          basket definitions
  *   memberships      basket -> item pins with the kept version and keep time
- *   items            items with every stored version (current and kept), captured text (fetched
+ *   items            items with every stored version (current and kept, each saying whether the feed's
+ *                    full text was too large to store), captured text (fetched
  *                    by the server or sent by the person's browser, by `kind`),
  *                    workflow / progress / isNew state, and original publisher GUIDs
  *   preferences      one object
@@ -116,6 +117,8 @@ const versionSchema = z.object({
   url: text(4000).nullable().default(null),
   summaryHtml: text(500_000).nullable().default(null),
   contentHtml: text(5_000_000).nullable().default(null),
+  /** The feed's full text was too large to store, so the version holds its summary only. Optional on import (absent: the text is whole). */
+  contentOmitted: z.boolean().default(false),
   createdAt: iso,
 });
 
