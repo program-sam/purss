@@ -575,10 +575,43 @@ test("the same file again into the PURSS it came from takes each private source 
   const { doc } = await exportDoc(a, pa);
   a.db.run("UPDATE sources SET title = 'Weekly' WHERE id = ?", first);
   const result = applyImport(a, pa, stageImport(a, pa, doc).token);
-  assert.deepEqual([result.created.sources, result.alreadyPresent.sources], [1, 1], "the renamed one is no longer found by its title");
-  assert.deepEqual(sourceOf(a, "From the second"), [second], "the one that kept its title is taken by its own id, so its post is not added again");
-  assert.equal(sourceOf(a, "From the first").length, 2, "the renamed one's post is added to the source made for it");
-  assert.ok(!sourceOf(a, "From the first").slice(1).includes(second));
+  assert.deepEqual([result.created.sources, result.created.items, result.alreadyPresent.sources], [0, 0, 2]);
+  assert.deepEqual([sourceOf(a, "From the first"), sourceOf(a, "From the second")], [[first], [second]], "each post stays once, under its own source");
+});
+
+test("two private sources of one title made in the same moment line up with the file again on every later import", async (t) => {
+  // Each round has an even chance of pairing them the wrong way round when the ids made on import sort apart from the file's order.
+  for (let round = 0; round < 12; round++) {
+    const { a, b, pa, pb, cleanup } = twoAccounts();
+    t.after(cleanup);
+    const { first, second } = twoNewsletters(a, pa);
+    a.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id IN (?, ?)", first, second);
+    const { doc } = await exportDoc(a, pa);
+    applyImport(b, pb, stageImport(b, pb, doc).token);
+    const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+    assert.deepEqual([again.created.sources, again.created.items, count(b, "items")], [0, 0, 2], `round ${round}`);
+  }
+});
+
+test("a kept copy that was cut short stays cut short when the PURSS has the same text without that word", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const summary = `<p>${"The start of a very long essay. ".repeat(40)}</p>`;
+  makeSource(a, pa, "Long reads", "feed/1");
+  const essay = entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([essay]));
+  const itemId = a.db.get<{ id: string }>("SELECT id FROM items WHERE title = 'Very long essay'")!.id;
+  keepItem(a, pa, itemId, createBasket(a, pa, { name: "Keep", captureMode: "metadata" }).id);
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (whole)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Now all of it. ".repeat(80)}</p>` }]));
+  const { doc } = await exportDoc(a, pa);
+
+  makeSource(b, pb, "Long reads", "feed/1");
+  applySyncBatch(b, (pb as Owner).engineUserId, batch([{ ...essay, contentOmitted: undefined }]));
+  const before = b.db.all<{ content_omitted: number }>("SELECT content_omitted FROM item_versions WHERE title = 'Very long essay'").map((r) => r.content_omitted);
+  assert.deepEqual(before, [0], "the same text, not marked as cut");
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  const pinned = b.db.get<{ content_omitted: number }>("SELECT v.content_omitted FROM basket_items k JOIN item_versions v ON v.id = k.version_id WHERE k.account_id = ?", pb.accountId);
+  assert.equal(pinned?.content_omitted, 1, "the kept copy is the cut one");
 });
 
 test("a version whose full text was too large still says so after an import, in the reader, in the downloads and as a kept copy", async (t) => {

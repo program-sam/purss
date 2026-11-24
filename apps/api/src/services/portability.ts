@@ -382,24 +382,30 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   // ---- sources
   const sources = new Map<string, SourceDecision>();
   const have = sourceIndex(app, ws);
-  // A private source's address is not in an archive, so each source in the file is its own (two can share a title), and one already here
-  // is found by its title, standing for at most one of them: the one the file names by the id it has here (a file from this very PURSS),
-  // else the first of that title not yet taken.
+  // A private source's address is not in an archive, so each source in the file is its own (two can share a title). One already here stands
+  // for at most one of them: the one the file names by the id it has here (a file from this very account, even after a rename), else the
+  // first of that title not yet taken. Those made now get ids that sort in the file's order, so sources of one title that were made in the
+  // same moment line up with the file again on the next import.
+  const existingById = new Map<string, { id: string; title: string }>();
   const existingByTitle = new Map<string, { id: string }[]>();
   for (const e of app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ? AND is_private = 1 ORDER BY created_at, id", ws)) {
+    existingById.set(e.id, e);
     const same = existingByTitle.get(lower(e.title));
     if (same) same.push(e); else existingByTitle.set(lower(e.title), [e]);
   }
   const existingPrivate = new Map<string, string>(); // archive id -> the private source here it stands for
   const taken = new Set<string>();
   const privateInFile = doc.sources.filter((src) => src.kind !== "manual" && !publicAddress(src));
-  for (const own of [true, false]) {
-    for (const src of privateInFile) {
-      if (existingPrivate.has(src.id)) continue;
-      const here = (existingByTitle.get(lower(src.title)) ?? []).find((e) => !taken.has(e.id) && (!own || e.id === src.id));
-      if (here) { existingPrivate.set(src.id, here.id); taken.add(here.id); }
-    }
+  for (const src of privateInFile) {
+    const own = existingById.get(src.id);
+    if (own && !taken.has(own.id)) { existingPrivate.set(src.id, own.id); taken.add(own.id); }
   }
+  for (const src of privateInFile) {
+    if (existingPrivate.has(src.id)) continue;
+    const here = (existingByTitle.get(lower(src.title)) ?? []).find((e) => !taken.has(e.id));
+    if (here) { existingPrivate.set(src.id, here.id); taken.add(here.id); }
+  }
+  const newPrivateIds = privateInFile.filter((src) => !existingPrivate.has(src.id)).map(() => newId("src")).sort();
   const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
   // The source planned for a feed's key: the same feed twice in one archive is one source.
   const plannedFeeds = new Map<string, string>();
@@ -422,7 +428,7 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
     if (!href) {
       const existing = existingPrivate.get(src.id);
       if (existing) { sources.set(src.id, { action: "reuse", id: existing, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
-      sources.set(src.id, { action: "create", id: newId("src"), mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
+      sources.set(src.id, { action: "create", id: newPrivateIds.shift()!, mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
       continue;
     }
     const key = feedKey(href) ?? href;
@@ -723,10 +729,10 @@ function remapQuery(node: unknown, maps: Maps): unknown {
   return n;
 }
 
-/** For an item that already exists: the version a kept pin should point at, and a new version row when none matches. */
+/** For an item that already exists: the version a kept pin should point at (same text and the same word on omitted content), and a new version row when none matches. */
 function resolveKeptVersion(app: App, item: Extract<ItemDecision, { action: "match" }>, archiveVersionId: string | null): { versionId: string | null; insert: PreparedVersion | null } {
   const wanted = item.prepared.versions.find((v) => v.archiveId === archiveVersionId) ?? item.prepared.versions.find((v) => v.id === item.prepared.currentId)!;
-  const existing = app.db.get<{ id: string }>("SELECT id FROM item_versions WHERE item_id = ? AND content_hash = ?", item.id, wanted.hash);
+  const existing = app.db.get<{ id: string }>("SELECT id FROM item_versions WHERE item_id = ? AND content_hash = ? AND content_omitted = ?", item.id, wanted.hash, wanted.contentOmitted ? 1 : 0);
   if (existing) return { versionId: existing.id, insert: null };
   return { versionId: null, insert: wanted };
 }
