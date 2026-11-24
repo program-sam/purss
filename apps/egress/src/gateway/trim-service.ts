@@ -1,6 +1,6 @@
 import v8 from "node:v8";
 import vm from "node:vm";
-import { HARD_STREAM_BYTES, parseContentType, parseTrimTarget, safeFetch, trimSignatureMatches } from "@purss/connectors";
+import { HARD_STREAM_BYTES, parseContentType, safeFetch, verifyTrimRoute } from "@purss/connectors";
 import type { Resolver, SafeFetchOptions, SafeFetchResult } from "@purss/connectors";
 import type { Logger } from "../proxy.ts";
 import { FeedTrimmer, TRIM_LIMITS } from "./trim.ts";
@@ -147,8 +147,8 @@ export class TrimService {
 
   /** Answer a signed address. Anything unsigned or malformed is the same 404. */
   async serve(encoded: string, signature: string): Promise<TrimAnswer> {
-    const url = parseTrimTarget(encoded);
-    if (!url || !trimSignatureMatches(this.#secret, url, signature)) return NOT_FOUND;
+    const url = verifyTrimRoute(this.#secret, encoded, signature);
+    if (!url) return NOT_FOUND;
     const running = this.#inflight.get(url);
     if (running) return running;
     const state = this.#touch(url);

@@ -1,33 +1,79 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { ItemCounter, TRIM_FEED_BYTES, TRIM_FEED_ITEMS, countFeedItems, isLargeFeed, parseTrimTarget, trimRoutePath, trimSignature, trimSignatureMatches } from "./trimmed.ts";
+import { ItemCounter, TRIM_FEED_BYTES, TRIM_FEED_ITEMS, countFeedItems, isLargeFeed, trimRoutePath, verifyTrimRoute } from "./trimmed.ts";
 import { allowLoopback, send, startServer } from "./testing.ts";
 
 const KEY = "k".repeat(40);
 
-test("a gateway path names its feed address, and only this installation's key signs it", () => {
-  const url = "https://feeds.simplecast.com/54nAGcIl?x=1&y=ü";
-  const path = trimRoutePath(KEY, url);
-  const [, t, sig, encoded] = path.split("/");
-  assert.equal(t, "t");
-  assert.equal(parseTrimTarget(encoded!), url);
-  assert.ok(trimSignatureMatches(KEY, url, sig!));
-  assert.equal(trimRoutePath(KEY, url), path, "the same address always gives the same path");
-  assert.ok(!trimSignatureMatches("other-key-".repeat(5), url, sig!));
-  assert.ok(!trimSignatureMatches(KEY, `${url}2`, sig!), "a signature is for one address");
-  assert.ok(!trimSignatureMatches(KEY, url, sig!.slice(1)));
-  assert.notEqual(trimSignature(KEY, url), trimSignature(KEY, "https://other.example/feed"));
+/** What a listener hands to the check: the path's signature and its encoded address. */
+function route(path: string): [encoded: string, signature: string] {
+  const [, t, signature, encoded, ...rest] = path.split("/");
+  assert.ok(t === "t" && signature && encoded !== undefined && rest.length === 0, path);
+  return [encoded, signature];
+}
+const verified = (path: string, secret = KEY) => { const [encoded, signature] = route(path); return verifyTrimRoute(secret, encoded, signature); };
+const enc = (s: string) => Buffer.from(s).toString("base64url");
+
+test("a gateway path made for a feed address verifies back to it, and only under this installation's key", () => {
+  const addresses = [
+    "https://feeds.simplecast.com/54nAGcIl?x=1&y=ü",
+    "http://a.example/feed",
+    "https://user:pass@private.example:8443/feed.xml?token=a%2Fb%3Dc&x=%25#frag",
+    "https://xn--bcher-kva.example/ü/%C3%BC?q=a+b&q=c",
+    `https://a.example/${"x".repeat(2048 - "https://a.example/".length)}`,
+  ];
+  for (const url of addresses) {
+    const path = trimRoutePath(KEY, url);
+    assert.equal(verified(path), url, url.slice(0, 40));
+    assert.equal(trimRoutePath(KEY, url), path, "the same address always gives the same path");
+    assert.equal(verified(path, "other-key-".repeat(5)), null, `${url.slice(0, 40)}: another installation's key`);
+  }
 });
 
-test("only plain web addresses of reasonable length are accepted from a path", () => {
-  const enc = (s: string) => Buffer.from(s).toString("base64url");
-  assert.equal(parseTrimTarget(enc("http://a.example/feed")), "http://a.example/feed");
+test("gateway paths already issued keep verifying: the signature and the path are fixed", () => {
+  assert.equal(trimRoutePath(KEY, "http://a.example/feed"), "/t/INQcKbl1G-jAwa1vchX34_HsbT-VdRwOLVyu3rJ1vcA/aHR0cDovL2EuZXhhbXBsZS9mZWVk");
+  assert.equal(
+    trimRoutePath(KEY, "https://feeds.simplecast.com/54nAGcIl?x=1&y=ü"),
+    "/t/iQez_kjHb_gA327bLLbndZuE1kWF4RvoicO6YyToKxM/aHR0cHM6Ly9mZWVkcy5zaW1wbGVjYXN0LmNvbS81NG5BR2NJbD94PTEmeT3DvA",
+  );
+  assert.equal(verified("/t/INQcKbl1G-jAwa1vchX34_HsbT-VdRwOLVyu3rJ1vcA/aHR0cDovL2EuZXhhbXBsZS9mZWVk"), "http://a.example/feed");
+});
+
+test("a gateway path is refused whatever is changed in it", () => {
+  const url = "https://a.example/f?q=???>>>"; // its base64url has both of the characters that differ from base64's
+  const [encoded, signature] = route(trimRoutePath(KEY, url));
+  const check = (e: string, given: string) => verifyTrimRoute(KEY, e, given);
+  assert.equal(check(encoded, signature), url);
+  // The last character of an address whose length leaves bits over can be written two ways that decode the same.
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const spelledOtherwise = encoded.slice(0, -1) + alphabet[alphabet.indexOf(encoded.at(-1)!) ^ 1];
+  assert.equal(Buffer.from(spelledOtherwise, "base64url").toString(), url);
+  const refused: [string, string, string][] = [
+    ["another address under this signature", enc("https://a.example/other"), signature],
+    ["the address spelled another way", enc("https://a.example/f?q=%3F??>>>"), signature],
+    ["the same address with its padding", `${encoded}=`, signature],
+    ["the address spelled with other bits in its last character", spelledOtherwise, signature],
+    ["the address in the other base64 alphabet", encoded.replace(/-/g, "+").replace(/_/g, "/"), signature],
+    ["the address encoded twice", enc(encoded), trimRoutePath(KEY, encoded).split("/")[2]!],
+    ["a signature one character off", encoded, `${signature.slice(0, -1)}${signature.endsWith("A") ? "B" : "A"}`],
+    ["a signature cut short", encoded, signature.slice(1)],
+    ["a signature with more after it", encoded, `${signature}A`],
+    ["no signature", encoded, ""],
+    ["a signature of the same length with a letter outside ASCII", encoded, `${signature.slice(0, -1)}é`],
+    ["no address", "", signature],
+    ["an address that is not base64url", "not*base64", signature],
+  ];
+  assert.ok(/[-_]/.test(encoded));
+  for (const [what, e, given] of refused) assert.equal(check(e, given), null, what);
+});
+
+test("only plain web addresses of reasonable length verify, even signed by this installation", () => {
+  const signed = (url: string) => verified(trimRoutePath(KEY, url));
+  assert.equal(signed("http://a.example/feed"), "http://a.example/feed");
   for (const bad of ["file:///etc/passwd", "ftp://a.example/f", "javascript:alert(1)", "not a url", "", `https://a.example/${"x".repeat(2100)}`]) {
-    assert.equal(parseTrimTarget(enc(bad)), null, bad.slice(0, 30));
+    assert.equal(signed(bad), null, bad.slice(0, 30));
   }
-  assert.equal(parseTrimTarget("not*base64"), null);
-  assert.equal(parseTrimTarget(`${enc("https://a.example/feed")}=`), null, "padding and other spellings of the same address are not accepted");
 });
 
 test("the size check stops at the first byte past the size, through the ordinary address rules", async () => {

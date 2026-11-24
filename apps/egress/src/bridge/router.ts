@@ -1,6 +1,6 @@
 import { server } from "@purss/translations/server";
 import http from "node:http";
-import { bridgeKeyValid, bridgeService, bridgeSignatureMatches, parseFeed } from "@purss/connectors";
+import { parseFeed, verifyBridgeRoute } from "@purss/connectors";
 import type { BridgeService, FeedItem } from "@purss/connectors";
 import { boundEntry, serializeFeed, serializeItem } from "../gateway/rss.ts";
 import type { FeedEntry } from "../gateway/rss.ts";
@@ -89,10 +89,9 @@ export class BridgeRouter {
 
   /** Answer a signed source address. Anything unsigned, unknown or malformed is the same 404. */
   async serve(serviceId: string, rawKey: string, signature: string): Promise<RouterAnswer> {
-    const service = bridgeService(serviceId);
-    let key: string;
-    try { key = decodeURIComponent(rawKey); } catch { return NOT_FOUND; }
-    if (!service || !bridgeKeyValid(service, key) || !bridgeSignatureMatches(this.#secret, service.id, key, signature)) return NOT_FOUND;
+    const target = verifyBridgeRoute(this.#secret, serviceId, rawKey, signature);
+    if (!target) return NOT_FOUND;
+    const { service, key } = target;
     // A service whose backend this installation doesn't run (RSS-Bridge's, without RSS-Bridge) is not served here.
     if (!this.#backends.some((b) => b.kind === service.backend.kind)) return NOT_FOUND;
 

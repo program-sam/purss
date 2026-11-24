@@ -1,8 +1,8 @@
 import { server } from "@purss/translations/server";
 import type { BridgeServiceId } from "@purss/domain";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { issnFromPortalUrl, issnPortalUrl } from "./crossref.ts";
 import { MAX_PAGE_KEY, decodePageKey, encodePageKey, keepsFragment, pageBridgeParams, pageHost, pagePostId } from "./page-feeds.ts";
+import { routeSignatureMatches, signRoute } from "./route-signature.ts";
 
 /*
  * Services followed through the installation's bridge: pages that publish no feed of
@@ -556,18 +556,23 @@ export function bridgeTargetForPage(url: URL): BridgeTarget | null {
   return null;
 }
 
-/** The engine-address signature: the router answers only addresses signed with the installation's bridge key. */
-export function bridgeSignature(secret: string, serviceId: string, key: string): string {
-  return createHmac("sha256", secret).update(`${serviceId}/${key}`).digest("base64url");
-}
+/** What the signature of a source's router address covers. */
+const signedName = (serviceId: string, key: string): string => `${serviceId}/${key}`;
 
-export function bridgeSignatureMatches(secret: string, serviceId: string, key: string, given: string): boolean {
-  const want = Buffer.from(bridgeSignature(secret, serviceId, key));
-  const got = Buffer.from(given);
-  return got.length === want.length && timingSafeEqual(got, want);
-}
-
-/** The router path of a source: `/b/<service>/<key>/<signature>`. */
+/** The router path of a source: `/b/<service>/<key>/<signature>`, signed with the installation's bridge key; only the router answers it. */
 export function bridgeRoutePath(secret: string, serviceId: string, key: string): string {
-  return `/b/${serviceId}/${encodeURIComponent(key)}/${bridgeSignature(secret, serviceId, key)}`;
+  return `/b/${serviceId}/${encodeURIComponent(key)}/${signRoute(secret, signedName(serviceId, key))}`;
+}
+
+/**
+ * The source a router path names, given its parts as they stand in the path (`rawKey` still percent-encoded), when this
+ * installation's bridge key signed it for a listed service and a valid key; else null. Everything else (unsigned, another
+ * installation's, tampered, an unknown service, a key the service refuses, a bad escape) is the same null.
+ */
+export function verifyBridgeRoute(secret: string, serviceId: string, rawKey: string, signature: string): BridgeTarget | null {
+  let key: string;
+  try { key = decodeURIComponent(rawKey); } catch { return null; }
+  const service = bridgeService(serviceId);
+  if (!service || !bridgeKeyValid(service, key) || !routeSignatureMatches(secret, signedName(service.id, key), signature)) return null;
+  return { service, key };
 }
