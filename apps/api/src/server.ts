@@ -68,9 +68,11 @@ async function toReq(raw: IncomingMessage, url: URL, params: Record<string, stri
 export function publicServer(app: App, routers: Router<Ctx>[], extra: { publicPages?: Router<Ctx>; events: (req: IncomingMessage, res: ServerResponse, ctx: Ctx) => void }): Server {
   return createServer(async (raw, res) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
-    const url = new URL(raw.url ?? "/", app.config.publicOrigin);
     const method = raw.method ?? "GET";
     try {
+      // A request line can carry a path that is not a valid address ("//["); it gets a 400, like any other refusal.
+      if (!URL.canParse(raw.url ?? "/", app.config.publicOrigin)) throw new HttpError(400, "bad_request", server.api.httpServer.thatDoesntExist);
+      const url = new URL(raw.url ?? "/", app.config.publicOrigin);
       // Assistants (MCP) authenticate with a token only; session cookies never apply there.
       if (url.pathname === "/mcp") { await handleMcp(app, raw, res); return; }
       // The phone apps this PURSS vouches for (passkeys and links): two public files, no cookies.
