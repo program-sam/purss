@@ -10,7 +10,7 @@ const total = ({ notes, late, changes }: Unsent) => notes + late + changes;
 const unsentWords = ({ notes, late, changes }: Unsent) => {
   const kinds = [
     ...(notes ? [plural(notes, "1 highlight or note", "# highlights or notes")] : []),
-    ...(late ? [plural(late, "1 playback position or reading progress", "# playback positions and reading progress")] : []),
+    ...(late ? [plural(late, "1 playback position or reading progress", "# playback positions or reading progress")] : []),
     ...(changes ? [plural(changes, "1 change to an item", "# changes to items")] : []),
   ];
   return kinds.length > 1 ? `${kinds.slice(0, -1).join(", ")} and ${kinds[kinds.length - 1]}` : kinds.join("");
@@ -326,12 +326,13 @@ export default {
     forget: {
       unsentKept: (notes: number, late: number) => {
         const kept = [
-          ...(notes ? [plural(notes, "unsent highlight or note", "# unsent highlights and notes")] : []),
-          ...(late ? [plural(late, "unsent playback position or reading progress", "# unsent playback positions and reading progress")] : []),
+          ...(notes ? [plural(notes, "unsent highlight or note", "# unsent highlights or notes")] : []),
+          ...(late ? [plural(late, "unsent playback position or reading progress", "# unsent playback positions or reading progress")] : []),
         ].join(" and ");
         const one = notes + late === 1;
         return ` Your ${kept} ${one ? "stays" : "stay"} on this device and ${one ? "is" : "are"} sent when you connect again with the same account.`;
       },
+      unsentStuck: " Some unsent writes couldn't be removed from this device's storage. Remove the app's data in the system settings, or reinstall it, to be sure they're gone.",
       stuck: " The old connection couldn't be removed from this device's secure storage. Connecting again replaces it. If this keeps happening, reinstall the app.",
       disconnected: "This app is disconnected, and everything it kept on this device is removed.",
       unreachable: "Everything this app kept on this device is removed. PURSS couldn't be reached to disconnect it, so remove it in Settings → Connected apps next time you're there.",

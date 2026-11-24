@@ -16,6 +16,7 @@ const t = app.platform.forget;
  * Either way the phone stops getting notifications (the relay is told to forget its handle and the native
  * notification code's credential is removed), and the background job, its state, unfinished files and
  * the widget's snapshot go.
+ * When the device's storage refuses to let go of unsent writes that should go, the notice says so rather than that everything is removed.
  * When the connection itself can't be removed from secure storage, the app must not start with it
  * again (it would be refused and lost again, over and over): the result says so.
  */
@@ -45,12 +46,14 @@ export async function forgetDevice(deps: ForgetDeps, reason: ForgetReason): Prom
   // The background job stops first, so no transfer it was running can move files in after the downloads go,
   await deps.stopBackground().catch(() => undefined);
   let kept = { keptNotes: 0, keptLate: 0 };
-  await Promise.allSettled([deps.wipeCopies(), deps.unsent.forget(reason).then((forgotten) => { kept = forgotten; }), deps.removeDownloads(), deps.forgetPush()]);
+  let unsentStuck = false;
+  const unsent = deps.unsent.forget(reason).then((forgotten) => { kept = forgotten; }, () => { unsentStuck = true; });
+  await Promise.allSettled([deps.wipeCopies(), unsent, deps.removeDownloads(), deps.forgetPush()]);
   // and again after them, so nothing the page told it while removing them outlives this.
   await deps.stopBackground().catch(() => undefined);
   deps.clearHints();
   const keptNote = kept.keptNotes || kept.keptLate ? t.unsentKept(kept.keptNotes, kept.keptLate) : "";
-  const stuckNote = stuck ? t.stuck : "";
+  const stuckNote = (unsentStuck ? t.unsentStuck : "") + (stuck ? t.stuck : "");
   const notice = reason === "disconnected"
     ? t.disconnected
     : reason === "unreachable"

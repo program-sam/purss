@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { app } from "@purss/translations/app";
 import { MemoryOutboxStore, Outbox } from "../../annotations/outbox.ts";
 import { unsentWrites } from "../../lib/unsent-writes.ts";
+import type { UnsentWrites } from "../../lib/unsent-writes.ts";
 import { forgetDevice } from "./forget.ts";
 import type { ForgetDeps } from "./forget.ts";
 
@@ -69,6 +70,18 @@ test("disconnecting, which the person confirmed, removes the unsent highlights a
     assert.deepEqual(t.clears, ["late", "changes"], `${reason}: the positions, progress and changes to items go too`);
     assert.equal(out.notice, reason === "disconnected" ? copy.disconnected : copy.unreachable, reason);
   }
+});
+
+test("when the device's storage refuses to remove unsent writes, the notice says so instead of that everything is removed", async () => {
+  for (const reason of ["disconnected", "unreachable", "lost"] as const) {
+    const refusing: UnsentWrites = { forget: async () => { throw new Error("storage"); }, count: async () => ({ notes: 0, late: 0, changes: 1 }) };
+    const t = await fakes({ unsent: refusing });
+    const out = await forgetDevice(t.deps, reason);
+    assert.ok(out.notice.includes(copy.unsentStuck), reason);
+    assert.ok(t.done.includes("downloads") && t.done.includes("hints"), `${reason}: the rest is still removed`);
+  }
+  const fine = await fakes();
+  assert.ok(!(await forgetDevice(fine.deps, "disconnected")).notice.includes(copy.unsentStuck));
 });
 
 test("when secure storage won't let go of the connection, the result says so instead of starting with it again", async () => {
