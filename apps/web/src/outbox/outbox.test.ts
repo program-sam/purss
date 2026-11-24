@@ -7,7 +7,7 @@ import type { Deps, Outcome, Sender } from "./outbox.ts";
 import { scopeOf } from "./entries.ts";
 import type { Entry } from "./entries.ts";
 import { signOutGate } from "./sign-out.ts";
-import { MemoryStore } from "./store.ts";
+import { FallbackStore, MemoryStore } from "./store.ts";
 
 type Fail = { status: number; code: string; message: string };
 const offline: Fail = { status: 0, code: "offline", message: "Can't reach PURSS right now." };
@@ -448,7 +448,7 @@ test("pending items are shown as they will look, and the view tells its watchers
 
 test("without a way to keep changes on disk they are still sent from memory", async () => {
   const fake = new Fake({ a: "undecided" });
-  const broken = { load: async () => { throw new Error("denied"); }, put: async () => { throw new Error("quota"); }, remove: async () => { throw new Error("denied"); } };
+  const broken = { load: async () => { throw new Error("denied"); }, put: async () => { throw new Error("quota"); }, remove: async () => { throw new Error("denied"); }, count: async () => { throw new Error("denied"); }, clearAll: async () => { throw new Error("denied"); } };
   let t = 0;
   const outbox = new Outbox({ store: broken, sender: fake.sender, now: () => t++ });
   outbox.setAccount("acc_1");
@@ -984,4 +984,146 @@ test("the same state set by hand is not taken for the player's own change, but i
   second.outbox.resume();
   await second.outbox.drain();
   assert.deepEqual(second.seen.map((o) => o.status), ["dropped"], "In progress, but chosen by the person: theirs");
+});
+
+// ---------- forgetting the device ----------
+
+const itemChange = { kind: "keep", itemId: "x", basketId: "bkt_1", on: true } as const;
+
+test("forgetting the device removes every account's changes from disk, those set aside and those this page never read included", async () => {
+  const fake = new Fake({ a: "undecided", b: "undecided" });
+  fake.down = true;
+  const store = new MemoryStore();
+  const tabA = make(fake, store, "acc_1");
+  await tabA.outbox.submit(workflow("a", "undecided", "toread"));
+  tabA.outbox.setAccount("acc_2"); // acc_1's change is set aside on disk
+  const tabB = make(fake, store, "acc_3", "https://other.test"); // another tab, another installation, made a change this page has never read
+  await tabB.outbox.submit(workflow("b", "undecided", "toread"));
+  tabA.outbox.setAccount("acc_1");
+  await tabA.outbox.ready;
+  assert.equal(await tabA.outbox.countAll(), 2, "the count reads the device, not this page");
+  assert.equal(tabA.outbox.pendingCount(), 1);
+  await tabA.outbox.clearAll();
+  assert.equal(await store.count(), 0);
+  assert.equal(await tabA.outbox.countAll(), 0);
+  assert.equal(tabA.outbox.pendingCount(), 0);
+  assert.deepEqual(tabA.outbox.entries(), []);
+});
+
+test("forgetting the device waits for a send in another tab, so what that send writes after its answer does not bring the change back", async () => {
+  const fake = new Fake({ x: "undecided" });
+  const lock = sharedLock();
+  const store = new MemoryStore();
+  const answer = holdPoint();
+  // PURSS is busy: the answer comes after the other tab asked to forget, and the send then keeps the change (and its count of attempts) on disk.
+  const sender: Sender = { ...fake.sender, keep: async () => { await answer.wait(); throw { status: 503, code: "unavailable", message: "busy" } satisfies Fail; } };
+  const sending = make(fake, store, "acc_1", "https://purss.test", { ...lock, sender });
+  const leaving = make(fake, store, "acc_1", "https://purss.test", lock);
+  await Promise.all([sending.outbox.ready, leaving.outbox.ready]);
+  const submitted = sending.outbox.submit(itemChange);
+  await answer.arrived;
+  let cleared = false;
+  const clearing = leaving.outbox.clearAll().then(() => { cleared = true; });
+  await tick(20);
+  assert.equal(cleared, false, "it waits for the tab that is sending");
+  assert.equal(await store.count(), 1, "and takes nothing out from under it");
+  answer.release();
+  await Promise.all([clearing, submitted]);
+  assert.equal(await store.count(), 0, "the entry the send wrote after its answer is gone too");
+});
+
+test("forgetting the device waits for a write of this page that is still on its way to disk, so it does not land after the clear", async () => {
+  class LatePuts extends MemoryStore {
+    point: ReturnType<typeof holdPoint> | null = null;
+    override async put(entry: Entry): Promise<void> { await this.point?.wait(); await super.put(entry); }
+  }
+  const fake = new Fake({ a: "undecided" });
+  fake.down = true;
+  const store = new LatePuts();
+  const { outbox } = make(fake, store);
+  await outbox.ready;
+  store.point = holdPoint();
+  const submitted = outbox.submit(workflow("a", "undecided", "toread"));
+  await store.point.arrived; // the write has started, and the entry is not on disk yet
+  let cleared = false;
+  const clearing = outbox.clearAll().then(() => { cleared = true; });
+  await tick(20);
+  assert.equal(cleared, false, "the write started first, so it is waited for");
+  store.point.release();
+  await clearing;
+  await submitted;
+  await outbox.settled();
+  assert.equal(await store.count(), 0);
+});
+
+test("after the device is forgotten this page writes nothing more to disk", async () => {
+  const fake = new Fake({ a: "undecided" });
+  fake.down = true;
+  const store = new MemoryStore();
+  const { outbox } = make(fake, store);
+  await outbox.ready;
+  await outbox.clearAll();
+  assert.equal((await outbox.submit(workflow("a", "undecided", "toread"))).status, "deferred");
+  await outbox.settled();
+  assert.equal(await store.count(), 0, "not the change, and not the mark that it was tried either");
+});
+
+test("forgetting the device when nothing is waiting changes nothing and does not hang", async () => {
+  const { outbox, store } = make(new Fake({}), new MemoryStore());
+  await outbox.clearAll();
+  assert.equal(await store.count(), 0);
+});
+
+test("someone still waiting for the first answer of a change is not left waiting when the device is forgotten", async () => {
+  const fake = new Fake({ x: "undecided" });
+  const answer = holdPoint();
+  const sender: Sender = { ...fake.sender, keep: async () => { await answer.wait(); throw offline; } };
+  const { outbox } = make(fake, new MemoryStore(), "acc_1", "https://purss.test", { sender });
+  const submitted = outbox.submit(itemChange);
+  await answer.arrived;
+  const clearing = outbox.clearAll();
+  answer.release();
+  await clearing;
+  assert.equal((await submitted).status, "deferred");
+});
+
+test("a store that refuses to forget makes forgetting the device reject", async () => {
+  const fake = new Fake({ a: "undecided" });
+  fake.down = true;
+  class Refusing extends MemoryStore { override clearAll(): Promise<void> { return Promise.reject(new Error("storage refused")); } }
+  const { outbox } = make(fake, new Refusing());
+  await outbox.submit(workflow("a", "undecided", "toread"));
+  await assert.rejects(outbox.clearAll(), /storage refused/);
+});
+
+// The store a browser has: IndexedDB where it works, and memory where it does not (private mode, blocked, quota).
+const entryOf = (id: string, accountId: string): Entry => ({ kind: "keep", itemId: "x", basketId: "bkt_1", on: true, id, installation: "https://purss.test", accountId, seq: 1, createdAt: "2026-11-01T10:00:00.000Z", attempts: 0, notBefore: 0 });
+
+test("the browser's store counts and clears what both of its stores hold", async () => {
+  const main = new MemoryStore();
+  const spare = new MemoryStore();
+  const both = new FallbackStore(main, spare);
+  await main.put(entryOf("one", "acc_1"));
+  await spare.put(entryOf("two", "acc_2"));
+  assert.equal(await both.count(), 2);
+  await both.clearAll();
+  assert.equal(await main.count(), 0);
+  assert.equal(await spare.count(), 0);
+});
+
+test("the browser's store clears the second store even when the first refuses, and then says so", async () => {
+  class Refusing extends MemoryStore { override clearAll(): Promise<void> { return Promise.reject(new Error("blocked")); } }
+  const main = new Refusing();
+  const spare = new MemoryStore();
+  await main.put(entryOf("one", "acc_1"));
+  await spare.put(entryOf("two", "acc_2"));
+  await assert.rejects(new FallbackStore(main, spare).clearAll(), /blocked/);
+  assert.equal(await spare.count(), 0);
+});
+
+test("the browser's store counts what the second took over when the first cannot be read", async () => {
+  class Unreadable extends MemoryStore { override count(): Promise<number> { return Promise.reject(new Error("denied")); } }
+  const spare = new MemoryStore();
+  await spare.put(entryOf("two", "acc_2"));
+  assert.equal(await new FallbackStore(new Unreadable(), spare).count(), 1);
 });

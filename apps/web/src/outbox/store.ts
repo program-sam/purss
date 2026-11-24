@@ -8,6 +8,8 @@ export class MemoryStore implements Store {
   load(scope: string): Promise<Entry[]> { return Promise.resolve([...this.rows.values()].filter((e) => scopeOf(e.installation, e.accountId) === scope).map((e) => structuredClone(e))); }
   put(entry: Entry): Promise<void> { this.rows.set(entry.id, structuredClone(entry)); return Promise.resolve(); }
   remove(id: string): Promise<void> { this.rows.delete(id); return Promise.resolve(); }
+  count(): Promise<number> { return Promise.resolve(this.rows.size); }
+  clearAll(): Promise<void> { this.rows.clear(); return Promise.resolve(); }
 }
 
 const DB_NAME = "purss-outbox";
@@ -61,6 +63,18 @@ export class IndexedDbStore implements Store {
     tx.objectStore(TABLE).delete(id);
     await finished(tx);
   }
+
+  async count(): Promise<number> {
+    const db = await this.open();
+    return request(db.transaction(TABLE, "readonly").objectStore(TABLE).count());
+  }
+
+  async clearAll(): Promise<void> {
+    const db = await this.open();
+    const tx = db.transaction(TABLE, "readwrite");
+    tx.objectStore(TABLE).clear();
+    await finished(tx);
+  }
 }
 
 /** IndexedDB when this browser has it and allows it, otherwise memory (changes then survive only this visit). */
@@ -72,7 +86,7 @@ export function openStore(): Store {
 }
 
 /** Uses the first store; if it fails (private mode, blocked, quota), carries on in the second so nothing is refused. */
-class FallbackStore implements Store {
+export class FallbackStore implements Store {
   private broken = false;
   private readonly main: Store;
   private readonly spare: Store;
@@ -88,5 +102,16 @@ class FallbackStore implements Store {
   async remove(id: string): Promise<void> {
     if (!this.broken) { try { await this.main.remove(id); } catch { this.broken = true; } }
     await this.spare.remove(id);
+  }
+  /** What the device holds is in the first store, plus whatever the second took over from it. */
+  async count(): Promise<number> {
+    let held = 0;
+    if (!this.broken) { try { held = await this.main.count(); } catch { this.broken = true; } }
+    return held + await this.spare.count();
+  }
+  /** Both are cleared. If the first refuses, this rejects: what it holds on disk is then not known to be gone. */
+  async clearAll(): Promise<void> {
+    await this.spare.clearAll();
+    await this.main.clearAll();
   }
 }

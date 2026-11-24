@@ -86,10 +86,11 @@ sign-in inside an app's web view. Device tokens, their lifetime and what a token
   and played while the app is running.
 - **Disconnecting.** Settings → This device → *Disconnect this app* calls `DELETE /api/connect/device` (8 seconds), then
   removes the token, offline copies, downloads, the notification registration, the background job and the home-screen
-  panels' data, and the annotation outbox with unsent positions and progress after a warning when anything is unsent. A
-  `401 device_signed_out` from any request or the event stream does the same with a notice, except that unsent
-  highlights, notes, positions and progress stay, per account, and are sent when that account connects again. If the
-  installation can't be reached the device is still wiped and the person is told to remove it in Settings → Connected apps.
+  panels' data, and every account's unsent highlights, notes, positions, progress and changes to items, after a warning
+  that counts them. A `401 device_signed_out` from any request or the event stream does the same with a notice, except
+  that unsent highlights, notes, positions and progress stay, per account, and are sent when that account connects again
+  (the notice counts them); unsent changes to items go. If the installation can't be reached the device is still wiped
+  and the person is told to remove it in Settings → Connected apps.
   If secure storage refuses to remove the token, the next start doesn't use it.
 - **Positions made offline.** The player keeps every position on the device first and removes it once the server has it.
   What is left from playing without a connection is sent at start, when the connection returns, when the app is shown

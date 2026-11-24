@@ -8,7 +8,44 @@ export type Store = {
   load(scope: string): Promise<Entry[]>;
   put(entry: Entry): Promise<void>;
   remove(id: string): Promise<void>;
+  /** How many entries the store holds, of every scope. */
+  count(): Promise<number>;
+  /** Remove every entry, of every scope. Rejects when the store refuses. */
+  clearAll(): Promise<void>;
 };
+
+/**
+ * The store as the outbox writes to it. Every write of this page goes through here, so forgetting the device can wait for
+ * the ones in flight, and no write made after it brings an entry back: the page keeps nothing more on disk until it is reloaded.
+ */
+class GuardedStore implements Store {
+  private readonly store: Store;
+  private closed = false;
+  private readonly inFlight = new Set<Promise<void>>();
+
+  constructor(store: Store) { this.store = store; }
+
+  load(scope: string): Promise<Entry[]> { return this.store.load(scope); }
+  count(): Promise<number> { return this.store.count(); }
+  put(entry: Entry): Promise<void> { return this.write(() => this.store.put(entry)); }
+  remove(id: string): Promise<void> { return this.write(() => this.store.remove(id)); }
+
+  private write(op: () => Promise<void>): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    const done = op();
+    this.inFlight.add(done);
+    const settled = () => { this.inFlight.delete(done); };
+    done.then(settled, settled);
+    return done;
+  }
+
+  /** Close the page to writes, wait for the ones already started (a write that starts later could land after the clear), then remove everything. */
+  async clearAll(): Promise<void> {
+    this.closed = true;
+    await Promise.allSettled([...this.inFlight]);
+    await this.store.clearAll();
+  }
+}
 
 /** What PURSS holds about an item when a conflict is checked. */
 export type ServerWorkflow = { workflow: WorkflowState; revision: number; workflowRevision: number; playbackWorkflowSessionId: string | null };
@@ -82,10 +119,11 @@ const BUSY_RECHECK_MS = 5_000;
  * sent again after a lost connection, a closed tab or a reload.
  *
  * The queue belongs to one installation and one account. When the signed-in account changes it is set aside
- * untouched on disk, and the new account's own entries are loaded; nothing crosses over.
+ * untouched on disk, and the new account's own entries are loaded; nothing crosses over. Only forgetting the device
+ * (`clearAll`) removes the entries of the accounts that are not signed in.
  */
 export class Outbox {
-  private readonly store: Store;
+  private readonly store: GuardedStore;
   private readonly sender: Sender;
   private readonly installation: string;
   private readonly now: () => number;
@@ -118,7 +156,7 @@ export class Outbox {
   private shown: readonly Entry[] = [];
 
   constructor(deps: Deps) {
-    this.store = deps.store;
+    this.store = new GuardedStore(deps.store);
     this.sender = deps.sender;
     this.installation = deps.installation ?? (typeof location !== "undefined" ? location.origin : "local");
     this.now = deps.now ?? (() => Date.now());
@@ -220,6 +258,28 @@ export class Outbox {
     this.changed();
     await Promise.all(doomed.map((e) => this.store.remove(e.id).catch(() => undefined)));
     return doomed.length;
+  }
+
+  /** How many changes this device holds, of every account and installation, read from the device: only the signed-in account's are in memory. */
+  countAll(): Promise<number> { return this.store.count(); }
+
+  /**
+   * The device is forgotten (the app is disconnected, or PURSS ended its connection): remove every change of every account from
+   * this device, from disk as well as from this page. The send lock is waited for, so no tab is sending: a send could otherwise
+   * write the change's entry again after it is gone. This page's own writes in flight finish first, and it writes nothing more
+   * (see `GuardedStore`), so none of them can bring an entry back either. If the device's storage refuses, this rejects.
+   */
+  async clearAll(): Promise<void> {
+    await this.locked(async () => {
+      await this.settled();
+      this.cancelRetry?.();
+      this.cancelRetry = null;
+      const doomed = this.mem;
+      this.mem = [];
+      for (const e of doomed) { this.defer(e); this.gone.add(e.id); this.told.delete(e.id); } // whoever still waits for an answer is not left waiting
+      this.changed();
+      await this.store.clearAll();
+    });
   }
 
   // ---------- making changes ----------

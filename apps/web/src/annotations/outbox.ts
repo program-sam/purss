@@ -232,6 +232,9 @@ export class Outbox {
     });
   }
 
+  /** How many entries the device holds, of every account, read from the device: another tab may have recorded some since this page read it. */
+  async count(): Promise<number> { return (await this.store.all()).length; }
+
   /**
    * Delete every entry of every account: sign-out and disconnecting. What the device holds is read again first, so changes
    * another tab recorded since this page read it go too. If it can't be read, this rejects: nothing is then known to be deleted.

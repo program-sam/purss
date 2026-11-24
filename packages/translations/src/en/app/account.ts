@@ -3,6 +3,19 @@ import { words } from "./words.ts";
 // The plural helper keeps the exact current logic for notices the phone apps leave after disconnecting.
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many.replace("#", String(n)));
 
+/** What this device holds that has not been sent, of every account: highlights and notes, playback positions and reading progress, changes to items. */
+type Unsent = { notes: number; late: number; changes: number };
+const total = ({ notes, late, changes }: Unsent) => notes + late + changes;
+/** Only the kinds that are there, counted. */
+const unsentWords = ({ notes, late, changes }: Unsent) => {
+  const kinds = [
+    ...(notes ? [plural(notes, "1 highlight or note", "# highlights or notes")] : []),
+    ...(late ? [plural(late, "1 playback position or reading progress", "# playback positions or reading progress")] : []),
+    ...(changes ? [plural(changes, "1 change to an item", "# changes to items")] : []),
+  ];
+  return kinds.length > 1 ? `${kinds.slice(0, -1).join(", ")} and ${kinds[kinds.length - 1]}` : kinds.join("");
+};
+
 export default {
   auth: {
     accountEmailSection: {
@@ -311,7 +324,15 @@ export default {
     },
 
     forget: {
-      unsentKept: (n: number) => ` ${plural(n, "Your unsent highlight or note stays", "Your # unsent highlights and notes stay")} on this device and ${plural(n, "is", "are")} sent when you connect again with the same account.`,
+      unsentKept: (notes: number, late: number) => {
+        const kept = [
+          ...(notes ? [plural(notes, "unsent highlight or note", "# unsent highlights or notes")] : []),
+          ...(late ? [plural(late, "unsent playback position or reading progress", "# unsent playback positions or reading progress")] : []),
+        ].join(" and ");
+        const one = notes + late === 1;
+        return ` Your ${kept} ${one ? "stays" : "stay"} on this device and ${one ? "is" : "are"} sent when you connect again with the same account.`;
+      },
+      unsentStuck: " Some unsent writes couldn't be removed from this device's storage. Remove the app's data in the system settings, or reinstall it, to be sure they're gone.",
       stuck: " The old connection couldn't be removed from this device's secure storage. Connecting again replaces it. If this keeps happening, reinstall the app.",
       disconnected: "This app is disconnected, and everything it kept on this device is removed.",
       unreachable: "Everything this app kept on this device is removed. PURSS couldn't be reached to disconnect it, so remove it in Settings → Connected apps next time you're there.",
@@ -343,7 +364,7 @@ export default {
   downloads: {
     deviceTab: {
       otherWords: (n: number) => n === 1 ? "1 highlight or note" : `${n} highlights or notes`,
-      unsyncedLost: (n: number) => ` ${n === 1 ? "1 highlight or note hasn't" : `${n} highlights or notes haven't`} synced yet and will be lost.`,
+      unsyncedLost: (unsent: Unsent) => ` ${unsentWords(unsent)} ${total(unsent) === 1 ? "hasn't" : "haven't"} synced yet and will be lost.`,
       disconnectConfirm: (warn: string) => `Disconnect this app from PURSS? Everything it keeps on this device, downloads included, is removed.${warn}`,
       copied: (words: string) => `Copied ${words} as text.`,
       copyFailed: "Couldn't copy to the clipboard.",
@@ -370,7 +391,10 @@ export default {
       storageUse: { before: "Downloads use ", after: " on this device." },
       removedAll: "Removed every download from this device.",
       removeAll: "Remove all downloads",
-      unsyncedWarning: (n: number) => `${n === 1 ? "1 highlight or note hasn't" : `${n} highlights or notes haven't`} synced yet. Disconnecting deletes ${n === 1 ? "it" : "them"}. Go online first to keep ${n === 1 ? "it" : "them"}.`,
+      unsyncedWarning: (unsent: Unsent) => {
+        const one = total(unsent) === 1;
+        return `${unsentWords(unsent)} ${one ? "hasn't" : "haven't"} synced yet. Disconnecting deletes ${one ? "it" : "them"}, whichever account ${one ? "made it" : "made them"}. Go online first to send this account's.`;
+      },
       disconnect: "Disconnect this app",
     },
 
