@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, statSync, existsSync, readFileSync, wri
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { isJobKind, jobResultSchemas } from "@purss/domain";
 import { EngineError } from "@purss/freshrss";
 import { FakeEngine } from "../../../packages/freshrss/src/testing/fake-engine.ts";
 import { createHandlers, defaultMakeClient } from "./handlers.ts";
@@ -67,7 +68,10 @@ async function setup(opts: { capture?: CaptureFn; pictures?: PicturesFn; icon?: 
     const leaseId = `lse_${Math.random()}`;
     // a lease must exist for batch posts to be accepted
     fake.leased.set(jobId, { job: { id: jobId, kind, payload }, leaseId });
-    return handler({ job: { id: jobId, kind: kind as never, payload, leaseId, leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), attempts: 1 }, payload: payload as never, signal: new AbortController().signal }) as Promise<Record<string, unknown>>;
+    const result = await handler({ job: { id: jobId, kind: kind as never, payload, leaseId, leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), attempts: 1 }, payload: payload as never, signal: new AbortController().signal });
+    // What a handler reports is what the API's result schema for its kind accepts: the wire the API reads.
+    if (isJobKind(kind) && result !== SETTLED) assert.deepEqual(jobResultSchemas[kind].safeParse(result).error?.issues, undefined, `the ${kind} result matches the API's schema`);
+    return result as Record<string, unknown>;
   };
   return {
     engine, fake, secrets, adminCalls, run, handlers, dir,
