@@ -580,7 +580,7 @@ test("the same file again into the PURSS it came from takes each private source 
 });
 
 test("two private sources of one title made in the same moment line up with the file again on every later import", async (t) => {
-  // Each round has an even chance of pairing them the wrong way round when the ids made on import sort apart from the file's order.
+  // Each round has an even chance of pairing them the wrong way round if sources of one title were paired by when they were made.
   for (let round = 0; round < 12; round++) {
     const { a, b, pa, pb, cleanup } = twoAccounts();
     t.after(cleanup);
@@ -591,6 +591,22 @@ test("two private sources of one title made in the same moment line up with the 
     const again = applyImport(b, pb, stageImport(b, pb, doc).token);
     assert.deepEqual([again.created.sources, again.created.items, count(b, "items")], [0, 0, 2], `round ${round}`);
   }
+});
+
+test("a file whose first import took up one private source already here and made the other is imported again onto the same two", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first, second } = twoNewsletters(a, pa);
+  a.db.run("UPDATE sources SET created_at = '2025-01-01T00:00:00.000Z' WHERE id = ?", first);
+  a.db.run("UPDATE sources SET created_at = '2025-01-02T00:00:00.000Z' WHERE id = ?", second);
+  const { doc } = await exportDoc(a, pa);
+  const here = makeSource(b, pb, "Newsletter", "feed/mine", { isPrivate: true });
+  b.db.run("UPDATE sources SET created_at = '2026-01-01T00:00:00.000Z' WHERE id = ?", here);
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  const placed = [sourceOf(b, "From the first"), sourceOf(b, "From the second")];
+  const again = applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual([again.created.sources, again.created.items], [0, 0]);
+  assert.deepEqual([sourceOf(b, "From the first"), sourceOf(b, "From the second")], placed, "each post stays once, where the first import put it");
 });
 
 test("a kept copy that was cut short stays cut short when the PURSS has the same text without that word", async (t) => {
