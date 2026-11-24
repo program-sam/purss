@@ -190,7 +190,8 @@ account and six an hour. A manifest at the end holds the count and SHA-256 of ea
 plain words what it leaves out.
 
 **In the file:** sources (followed and unfollowed), collections and their filters, baskets, memberships with the
-version each keeps and when, every item (kept or not) with all its stored versions, its readable copies
+version each keeps and when, every item (kept or not) with all its stored versions (each saying whether the feed's text was
+too large to store, so that it holds the summary only), its readable copies
 (server-fetched and browser, finished and failed) and its workflow, progress and New state, preferences (muted
 words included), the log of workflow changes, the person's live highlights and notes, kept pictures, reminders,
 and sharing settings with public notes.

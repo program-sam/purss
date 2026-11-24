@@ -170,8 +170,8 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
         const priv = i.source_id !== null && privateIds.has(i.source_id);
         const link = (u: string | null) => (u && (priv || hasCredentialShape(u)) ? null : u);
         const html = (h: string | null) => (priv ? stripAddresses(h) : h);
-        const versions = all<{ id: string; title: string; url: string | null; summary_html: string | null; content_html: string | null; created_at: string }>(
-          "SELECT id, title, url, summary_html, content_html, created_at FROM item_versions WHERE item_id = ? ORDER BY created_at, id", i.id);
+        const versions = all<{ id: string; title: string; url: string | null; summary_html: string | null; content_html: string | null; content_omitted: number; created_at: string }>(
+          "SELECT id, title, url, summary_html, content_html, content_omitted, created_at FROM item_versions WHERE item_id = ? ORDER BY created_at, id", i.id);
         const captures = all<{ id: string; kind: string; status: string; title: string | null; text: string | null; html: string | null; final_url: string | null; error: string | null; quality: string | null; partial_reason: string | null; created_at: string; completed_at: string | null }>(
           "SELECT id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at FROM captures WHERE item_id = ? AND status IN ('done', 'failed') ORDER BY created_at, id", i.id);
         const guids = priv ? [] : all<{ original_guid: string }>("SELECT DISTINCT original_guid FROM external_ids WHERE item_id = ? AND original_guid IS NOT NULL ORDER BY original_guid LIMIT 5", i.id)
@@ -182,7 +182,7 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
           id: i.id, number: i.number, sourceId: i.source_id, kind: i.kind, title: i.title, url: link(i.url), urlRedacted: i.url !== null && link(i.url) === null,
           author: i.author, imageUrl: link(i.image_url), durationSeconds: i.duration_seconds, doi: i.doi, curatorNote: i.curator_note,
           publishedAt: i.published_at, discoveredAt: i.discovered_at, listedAt: i.listed_at, createdAt: i.created_at, enclosures, currentVersionId: i.current_version_id,
-          versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), createdAt: v.created_at })),
+          versions: versions.map((v) => ({ id: v.id, title: v.title, url: link(v.url), summaryHtml: html(v.summary_html), contentHtml: html(v.content_html), contentOmitted: v.content_omitted === 1, createdAt: v.created_at })),
           captures: captures.map((c) => ({ id: c.id, kind: c.kind, status: c.status, title: c.title, text: c.text, html: html(c.html), finalUrl: link(c.final_url), error: c.error, quality: c.quality, partialReason: c.partial_reason, createdAt: c.created_at, completedAt: c.completed_at })),
           state: { workflow: i.workflow, isNew: i.is_new === 1, progress: i.progress, openedAt: i.opened_at },
           originalGuids: guids,
@@ -323,13 +323,13 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
 
   const rawVersions: Version[] = item.versions.length
     ? item.versions
-    : [{ id: `${item.id}:v`, title: item.title, url: item.url, summaryHtml: null, contentHtml: null, createdAt: item.createdAt }];
+    : [{ id: `${item.id}:v`, title: item.title, url: item.url, summaryHtml: null, contentHtml: null, contentOmitted: false, createdAt: item.createdAt }];
   const versions: PreparedVersion[] = rawVersions.map((v) => {
     const vUrl = item.urlRedacted ? null : safeAddress(v.url);
     const title = v.title.trim() || item.title.trim() || NO_TITLE;
     const { summaryHtml, contentHtml, hash } = prepareVersion({ title, url: vUrl, summaryHtml: v.summaryHtml, contentHtml: v.contentHtml });
     return {
-      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash, createdAt: ISO_FALLBACK(v.createdAt, createdAt),
+      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash, contentOmitted: v.contentOmitted, createdAt: ISO_FALLBACK(v.createdAt, createdAt),
       bytes: versionBytes({ title, url: vUrl, author: item.author, summaryHtml, contentHtml, imageUrl, enclosures, publishedAt }),
     };
   });

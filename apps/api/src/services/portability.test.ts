@@ -9,9 +9,10 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App, Principal } from "../app.ts";
 import { PRIVATE_FEED_URL, PRIVATE_ITEM_URL, seedLibrary, shareRow } from "../features-testing.ts";
 import { applySyncBatch } from "./sync.ts";
-import { getItem, listItems } from "./items.ts";
+import { getItem, getItemDetail, listItems } from "./items.ts";
+import { pageToDownload } from "@purss/domain";
 import { createBasket, createCollection, patchBasket } from "./collections.ts";
-import { changeState } from "./state.ts";
+import { changeState, keepItem } from "./state.ts";
 import { reconcile, usedBytes } from "./storage.ts";
 import { applyImport, reconnectSource, stageImport, streamExport } from "./portability.ts";
 import { OPTIONAL_SECTION_NAMES, parseArchive, SECTION_NAMES, sha256Hex } from "./archive-format.ts";
@@ -520,4 +521,63 @@ test("Remind me days round-trip with their notes; days gone by, items not kept a
   // A hostile file's bad day is refused as an invalid export.
   const bad = rebuild({ ...doc, itemReminders: [{ itemId: doc.itemReminders[0].itemId, remindOn: "next week", note: null }] });
   assert.throws(() => stageImport(c, pc, bad), (e: unknown) => e instanceof HttpError);
+});
+
+test("a version whose full text was too large still says so after an import, in the reader, in the downloads and as a kept copy", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const c = makeTestApp();
+  t.after(c.cleanup);
+  const pc = makeOwner(c.app);
+  const summary = `<p>${"The start of a very long essay. ".repeat(40)}</p>`; // longer than a teaser: only the notice says the text is cut
+  makeSource(a, pa, "Long reads", "feed/1");
+  const essay = entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  const whole = entry("feed/1", { title: "Whole one", contentHtml: `<p>${"All of it is here. ".repeat(60)}</p>` });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([essay, whole]));
+  const idOf = (app: App, title: string) => app.db.get<{ id: string }>("SELECT id FROM items WHERE title = ?", title)!.id;
+  const keptIn = createBasket(a, pa, { name: "Keep", captureMode: "metadata" }).id;
+  keepItem(a, pa, idOf(a, "Very long essay"), keptIn);
+  // The feed then sends the whole text: the item moves on to a version without the notice and the kept one stays as it was kept.
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (whole)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Now all of it. ".repeat(80)}</p>` }]));
+  const flags = (app: App) => app.db.all<{ title: string; content_omitted: number }>("SELECT v.title, v.content_omitted FROM item_versions v ORDER BY v.title").map((r) => [r.title, r.content_omitted]);
+  assert.deepEqual(flags(a), [["Very long essay", 1], ["Very long essay (whole)", 0], ["Whole one", 0]]);
+
+  const { doc } = await exportDoc(a, pa);
+  const archived = doc.items.flatMap((i: { versions: { title: string; contentOmitted: boolean }[] }) => i.versions.map((v) => [v.title, v.contentOmitted]));
+  assert.deepEqual(archived.sort((x: [string, boolean], y: [string, boolean]) => x[0].localeCompare(y[0])), [["Very long essay", true], ["Very long essay (whole)", false], ["Whole one", false]]);
+
+  applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual(flags(b), flags(a), "every version keeps its flag");
+  const kept = getItemDetail(b, pb, idOf(b, "Very long essay (whole)"));
+  assert.equal(kept.changedSinceKept, true);
+  assert.equal(kept.contentOmitted, true, "the kept copy is the one that was cut");
+  assert.equal(kept.contentOmitted, getItemDetail(a, pa, idOf(a, "Very long essay (whole)")).contentOmitted);
+  assert.equal(getItemDetail(b, pb, idOf(b, "Whole one")).contentOmitted, false);
+
+  // Without the kept copy the item is the cut one: the reader and a download both go to the publisher's page.
+  const lone = entry("feed/1", { title: "Cut and alone", contentHtml: null, summaryHtml: summary, contentOmitted: true });
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([lone]));
+  applyImport(b, pb, stageImport(b, pb, (await exportDoc(a, pa)).doc).token);
+  const detail = getItemDetail(b, pb, idOf(b, "Cut and alone"));
+  assert.deepEqual([detail.contentOmitted, detail.summaryOnly], [true, false]);
+  assert.equal(pageToDownload({ media: detail.media, url: detail.url, summaryOnly: detail.summaryOnly, contentOmitted: detail.contentOmitted }), lone.url);
+
+  // An item the PURSS already has gets the kept copy as a version of its own, with its flag.
+  makeSource(c.app, pc, "Long reads", "feed/1");
+  applySyncBatch(c.app, (pc as Owner).engineUserId, batch([{ ...essay, title: "Very long essay (their copy)", contentOmitted: undefined, summaryHtml: null, contentHtml: `<p>${"Their own full text. ".repeat(80)}</p>` }]));
+  applyImport(c.app, pc, stageImport(c.app, pc, doc).token);
+  assert.deepEqual(flags(c.app).filter(([title]) => title === "Very long essay"), [["Very long essay", 1]]);
+});
+
+test("an archive written before versions said it was cut short imports every version as whole", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  makeSource(a, pa, "Long reads", "feed/1");
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/1", { title: "Very long essay", contentHtml: null, summaryHtml: "<p>The start.</p>", contentOmitted: true })]));
+  const { doc } = await exportDoc(a, pa);
+  const old = structuredClone(doc);
+  for (const item of old.items) for (const v of item.versions) delete v.contentOmitted;
+  assert.ok(parseArchive(rebuild(old)).items.every((i) => i.versions.every((v) => v.contentOmitted === false)));
+  applyImport(b, pb, stageImport(b, pb, rebuild(old)).token);
+  assert.deepEqual(b.db.all<{ content_omitted: number }>("SELECT content_omitted FROM item_versions").map((r) => r.content_omitted), [0]);
 });
