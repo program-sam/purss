@@ -14,8 +14,6 @@ import type { AuthenticationResponseJSON, PublicKeyCredentialCreationOptionsJSON
  * exists at all.
  */
 export interface Platform {
-  /** For diagnostics and tests only. */
-  readonly kind: "web" | "app";
   readonly transport: Transport;
   readonly offline: OfflineHost;
   /** The player's backend: the browser's media element, or the native audio player in the apps. */
@@ -24,6 +22,11 @@ export interface Platform {
   readonly downloads: DeviceDownloads | null;
   /** The PURSS this app is connected to; null on the web, where the page is PURSS itself. */
   readonly connection: AppConnection | null;
+  /**
+   * Whether changes not yet sent (highlights, notes, playback positions, reading progress) of another account that signed in on this
+   * device are kept for when it connects again (the apps), or deleted when someone else signs in (a browser, which shares its storage).
+   */
+  readonly keepsOtherAccountsUnsent: boolean;
   /** Passkeys: the browser's, or the phone's own where PURSS vouches for the app; null where none can be used. */
   readonly passkeys: Passkeys | null;
   /** Hand a file to the person: a download in a browser, the share sheet in the apps (save to Files, Drive, …). */
@@ -216,6 +219,8 @@ export interface Passkeys {
 export interface AppConnection {
   /** The server's address, e.g. https://purss.example. */
   readonly origin: string;
+  /** Which device the app runs on, for the words and downloads that differ. */
+  readonly device: "phone" | "computer";
   /** Revoke this device's token on the server (when reachable), then remove everything this app keeps and go back to the first screen. */
   disconnect(): Promise<void>;
   /** The server said this device is no longer connected: remove everything and go back to the first screen. */

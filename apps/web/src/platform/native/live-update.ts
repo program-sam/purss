@@ -12,7 +12,7 @@ import type { InterfaceUpdates, InterfaceUpdateState } from "../types.ts";
  * the app is shown again after an hour away with nothing playing (a reload would stop the player). The app keeps
  * that queue itself: the plugin's own "next bundle" is installed whenever the app goes to the background. One that
  * doesn't start is rolled back by the plugin and never tried again. Disconnecting goes back to the installed
- * interface straight away and forgets the queue (index.tsx).
+ * interface straight away and forgets the queue (connected-app.ts).
  */
 
 /** The updater plugin, as far as this module uses it (index.tsx wraps @capgo/capacitor-updater). */

@@ -259,7 +259,8 @@ The same build runs in a browser, inside the mobile app (`apps/mobile`, see its
 | `offline` | The service worker (`web-offline.ts`) | The same `OfflineServiceWorker` in the page, offline copies in IndexedDB (`copies.ts`) |
 | `createPlayerBackend()` | `HtmlMediaBackend` | Mobile app: `AppPlayerBackend`, native audio with lock-screen controls and video in the page. Desktop: `HtmlMediaBackend` |
 | `downloads` | none | `DownloadManager` (`src/downloads`) over the device's files |
-| `connection` | none | The connected installation: disconnect, signed-out handling, opening pages in the browser |
+| `connection` | none | The connected installation and which device it is on (`phone` or `computer`): disconnect, signed-out handling, opening pages in the browser |
+| `keepsOtherAccountsUnsent` | `false`: a browser's storage is shared, so another account's unsent highlights, notes, playback positions and reading progress are deleted when someone else signs in | `true`: they stay, per account, for when it connects again |
 | `passkeys` | The browser's | Mobile app: the phone's own, where the installation vouches for the app. Desktop: none |
 | `saveFile` | A download | Mobile app: the share sheet. Desktop: a save dialog |
 | `onShare`, `widget`, `push` | none | Mobile app: links shared in, the home-screen panels, notifications |
@@ -267,8 +268,16 @@ The same build runs in a browser, inside the mobile app (`apps/mobile`, see its
 | `interfaceUpdates`, `appUpdates` | none | Interface updates from the connected installation; the mobile app also learns of new versions of the app |
 | `webView`, `frames` | `frames`: the reader may frame a page whose headers allow it | Desktop: its own web view shows any page. Mobile app: pages open in a browser tab over the app |
 
-The apps' code is a separate chunk, loaded only inside the shell. An app that isn't connected shows
-`native/ConnectScreen.tsx` instead of the router. `src/offline/service-worker-link.ts` and `store.ts` reach
+The apps' code is a separate chunk, loaded only inside the shell. Both apps start and stop in one place,
+`platform/connected-app.ts`: `startConnectedApp(shell, page)` reads the saved connection, adds the connected
+installation's policy to the page, makes the offline copies, transport, downloads and interface updates, and
+forgets the device when it is disconnected or lost (`native/forget.ts` says what goes). A `ConnectedShell` is
+only what differs: secure storage, the updater, audio, push, the web view, the icon's badge and the first screen
+(`native/index.tsx` for the phones, `desktop/index.tsx` for the computer); a `Page` is the browser's part
+(links, policy, storage, what the page keeps for PURSS; `browser-page.ts`), so `connected-app.test.ts` runs the start-up and
+the disconnect and lost-device flows against fakes of both. The folder `native/` also holds what the
+desktop app shares with the phones: the connect screen and flow, the transport and the live-update rules.
+An app that isn't connected shows `native/ConnectScreen.tsx` instead of the router. `src/offline/service-worker-link.ts` and `store.ts` reach
 the offline copies only through `platform.offline`, so the offline pack, its settings and notices are one
 system on both.
 

@@ -1,7 +1,7 @@
 import type { KeyValue } from "../../downloads/manager.ts";
 
 /*
- * What the phone apps (native/index.tsx) and the desktop app (desktop/index.tsx) do the same way at start:
+ * What the page does the same way in the phone apps and the desktop app (browser-page.ts, for connected-app.ts):
  * local storage as a key-value store, the notice and the stuck flag a disconnection leaves for the next start, and
  * sending links to other sites out of the app's page.
  */

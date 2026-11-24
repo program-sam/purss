@@ -6,50 +6,38 @@ import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import type { BundleInfo } from "@capgo/capacitor-updater";
-import { APPS_RELEASE_MANIFEST, OFFICIAL_PURSS_ORIGIN, startingServer } from "@purss/domain";
+import { APPS_RELEASE_MANIFEST } from "@purss/domain";
 import { plainVersion } from "@purss/domain/version";
 import { CapacitorShareTarget } from "@capgo/capacitor-share-target";
 import { AudioPlayer } from "@mediagrid/capacitor-native-audio";
-import { api } from "../../api/client.ts";
-import { outbox } from "../../annotations/outbox-store.ts";
-import { clearAnnotationOutbox } from "../../annotations/use-annotations.ts";
-import { clearLateWrites } from "../../lib/late-writes.ts";
-import { DownloadManager } from "../../downloads/manager.ts";
-import { decodePage, readablePage } from "../../downloads/readable-page.ts";
 import { parseWidgetSnapshot } from "../../device/widget.ts";
-import { wipeOfflineCopies } from "../../offline/service-worker-link.ts";
-import { clearHints } from "../../state/ui-store.ts";
-import { OfflineServiceWorker } from "../../sw/offline-worker.ts";
-import { IndexedDbCopyBackend, StoredCaches } from "../copies.ts";
+import { browserPage } from "../browser-page.ts";
+import { startConnectedApp } from "../connected-app.ts";
+import type { ConnectedShell, ShellPlatform } from "../connected-app.ts";
 import { purssPolicy } from "../csp.ts";
 import { readOpenLink } from "../open-link.ts";
 import { browserNotifier } from "../web.ts";
-import type { AppConnection, OfflineHost, Platform, Transport } from "../types.ts";
+import type { Platform } from "../types.ts";
 import { AppPlayerBackend } from "./audio-backend.ts";
 import { goUpOneLevel, pressEscape } from "./back-button.ts";
 import type { Connection } from "./connect.ts";
 import { ConnectScreen } from "./ConnectScreen.tsx";
 import type { ConnectShell } from "./ConnectScreen.tsx";
 import { forgetConnection, readConnection, saveConnection } from "./connection-store.ts";
-import { deviceConnection, deviceFiles } from "./files.ts";
-import { forgetDevice } from "./forget.ts";
+import { deviceConnection, deviceFiles, shareFile } from "./files.ts";
 import { devicePush, pushSetup } from "./push-device.ts";
-import type { PushSetup } from "./push-device.ts";
-import type { ForgetReason } from "./forget.ts";
 import { PurssDevice } from "./device-plugin.ts";
-import { createAppTransport } from "./transport.ts";
-import { shareFile } from "./files.ts";
 import { nativePasskeys } from "./passkeys.ts";
-import { BUILTIN, createInterfaceUpdates, forgetQueued, removeDownloads, startQueued } from "./live-update.ts";
+import { BUILTIN } from "./live-update.ts";
 import type { BundleRef, Updater } from "./live-update.ts";
 import { createAppUpdates, manifestVersion, sourceOf } from "./app-updates.ts";
-import { leaveNotice, localKv, sendLinksOut, takeNotice, takeStuck, timeout } from "./app-start.ts";
+import { localKv } from "./app-start.ts";
 import { app } from "@purss/translations/app";
 
 const t = app.platform.native;
 
 /**
- * The Android and iOS apps' platform. The interface is the web app's own build, bundled in
+ * The Android and iOS apps' shell for connected-app.ts. The interface is the web app's own build, bundled in
  * the app; it talks to the connected PURSS with the device token from secure storage. Offline
  * copies are kept by the same OfflineServiceWorker the web's service worker runs, here in the page, in
  * IndexedDB; downloads add the device copies ("Downloaded") on top.
@@ -118,118 +106,12 @@ const appUpdates = createAppUpdates({
   now: () => Date.now(),
 });
 
-/** Back to the interface the app was installed with, at the first screen (the page reloads). */
-function restartInstalled(): void {
-  forgetQueued(localKv);
-  try { history.replaceState(null, "", "/"); } catch { /* the plugin's reload starts at the root anyway */ }
-  CapacitorUpdater.reset().catch(() => location.replace("/"));
-}
-
-function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Platform {
-  const caches = new StoredCaches(new IndexedDbCopyBackend());
-  const origin = conn?.origin ?? location.origin;
-  const worker = new OfflineServiceWorker({ caches, fetch: (r) => fetch(r), now: () => Date.now(), origin, build: "app" });
-
-  const downloads = conn ? new DownloadManager({
-    files: deviceFiles,
-    get: (path, query, headers) => api(path, { query, headers }),
-    plan: (request) => api("/api/downloads/plan", { method: "POST", body: request }),
-    connection: deviceConnection,
-    readPage: (page, url) => readablePage(decodePage(page), url),
-    store: localKv,
-    // The background job needs the same server the token belongs to; it reads the token itself.
-    mirror: (state) => { void PurssDevice.setBackground({ state: state ? JSON.stringify({ ...state, origin }) : null }).catch(() => undefined); },
-  }) : null;
-
-  const phone = conn && pushConfig ? devicePush(conn.origin, pushConfig) : null;
-
-  let player: AppPlayerBackend | null = null;
-  const official = startingServer(null, OFFICIAL_PURSS_ORIGIN);
-  const updates = conn ? createInterfaceUpdates({
-    origin: conn.origin,
-    official: official.kind === "official" && official.origin === conn.origin,
-    updater,
-    fetch: (url, init) => fetch(url, init),
-    playing: () => player?.state().playing ?? false,
-    store: localKv,
-    now: () => Date.now(),
-  }) : null;
-  if (updates) {
-    void updates.check();
-    void appUpdates.check();
-    let hiddenAt: number | null = null;
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
-      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
-      hiddenAt = null;
-      void updates.shown(away);
-      void appUpdates.check();
-    });
-  }
-
-  let ending = false;
-  /** Remove what this app keeps for PURSS (see forget.ts), then start again at the first screen. */
-  async function wipeAndRestart(reason: ForgetReason): Promise<void> {
-    if (ending) return;
-    ending = true;
-    const { notice, stuck } = await forgetDevice({
-      stopAudio: () => AudioPlayer.destroy({ audioId: "purss-player" }),
-      forgetConnection,
-      wipeCopies: wipeOfflineCopies,
-      clearOutbox: async () => { clearLateWrites(); await clearAnnotationOutbox(); },
-      removeDownloads: async () => { await downloads?.removeAll(); },
-      stopBackground: () => PurssDevice.reset(),
-      forgetPush: async () => { await phone?.forget(); },
-      clearHints,
-      unsent: async () => { await outbox.load(); return outbox.snapshot().length; },
-    }, reason);
-    leaveNotice(notice, stuck);
-    // The next PURSS decides on its own interface.
-    restartInstalled();
-  }
-
-  const connection: AppConnection | null = conn ? {
-    origin: conn.origin,
-    async disconnect() {
-      let told = true;
-      try { await timeout(api("/api/connect/device", { method: "DELETE" }), 8000); } catch { told = false; }
-      await wipeAndRestart(told ? "disconnected" : "unreachable");
-    },
-    lost() {
-      void wipeAndRestart("lost");
-    },
-  } : null;
-
-  const transport: Transport = conn
-    ? createAppTransport({ origin, token: conn.token, worker, downloaded: (path) => downloads!.answer(path), fetch: (r) => fetch(r), onLost: () => connection?.lost() })
-    : {
-      fetch: async () => new Response(JSON.stringify({ error: { code: "device_signed_out", message: app.words.connectTheAppFirst } }), { status: 401, headers: { "content-type": "application/json" } }),
-      events: () => () => {},
-      picture: () => Promise.reject(new Error(app.words.connectTheAppFirst)),
-    };
-
-  const offline: OfflineHost = {
-    supported: () => true,
-    installed: () => true,
-    start: async () => true,
-    tell: async (message) => { await worker.message(message); return true; },
-    whenControlled: async () => true,
-    onUpdateReady: () => () => {},
-    applyUpdate: () => location.reload(),
-    caches: () => caches,
-  };
-
+/** What the phone adds to the platform; `phone` is where this PURSS's notifications arrive, null while the app isn't connected. */
+function phonePlatform(conn: Connection | null, phone: ReturnType<typeof devicePush> | null): ShellPlatform {
   return {
-    kind: "app",
-    transport,
-    offline,
-    createPlayerBackend: () => (player = new AppPlayerBackend()),
-    downloads,
-    connection,
+    createPlayerBackend: () => new AppPlayerBackend(),
     passkeys: conn?.passkeys ? nativePasskeys : null,
     saveFile: shareFile,
-    openExternal: (url) => { if (/^https?:\/\//i.test(url)) void Browser.open({ url }); },
-    publicOrigin: () => origin,
     onShare(listener) {
       const handle = CapacitorShareTarget.addListener("shareReceived", (e) => listener({ title: e.title ?? "", texts: e.texts ?? [] }));
       return () => { void handle.then((h) => h.remove()); };
@@ -246,7 +128,6 @@ function appPlatform(conn: Connection | null, pushConfig: PushSetup | null): Pla
       },
     } : null,
     push: phone?.push ?? null,
-    interfaceUpdates: updates,
     appUpdates: conn ? appUpdates : null,
     // The phones show notifications through the relay; Settings doesn't offer alerts there.
     notifier: browserNotifier,
@@ -289,40 +170,52 @@ let launchTaken = false;
 /** The launch link already opened, so reloading the page doesn't open the same item again. */
 const LAUNCH_KEY = "purss:launch-opened";
 
-/** Add the connected PURSS's policy to the page's own (both are enforced), before any request. The push relay is the only other origin it calls. */
-function limitPageTo(origin: string, relay: string): void {
-  const meta = document.createElement("meta");
-  meta.httpEquiv = "Content-Security-Policy";
-  meta.content = purssPolicy(origin, [relay]);
-  document.head.prepend(meta);
-}
-
-export async function startNative(): Promise<{ platform: Platform; screen: ReactNode | null }> {
+const phoneShell: ConnectedShell = {
+  device: "phone",
   // This interface started: the updater plugin keeps it instead of rolling back to the previous one.
-  void CapacitorUpdater.notifyAppReady().catch(() => undefined);
-  // A downloaded interface waiting for this start takes over before anything is shown; the page reloads into it.
-  if (await startQueued(updater, localKv)) return new Promise(() => {});
+  interfaceStarted() { void CapacitorUpdater.notifyAppReady().catch(() => undefined); },
+  updater,
+  storage: { read: readConnection, forget: forgetConnection },
   // Links to other sites open in the system browser (an in-app browser tab).
-  sendLinksOut((url) => void Browser.open({ url }));
-  // The app going to the background and coming back is the page losing and regaining focus, so what is open refreshes then.
-  void App.addListener("pause", () => focusManager.setFocused(false));
-  void App.addListener("resume", () => focusManager.setFocused(true));
-  void App.addListener("backButton", ({ canGoBack }) => {
-    goUpOneLevel({ escape: pressEscape, canGoBack, previousPage: () => history.back(), leave: () => void App.minimizeApp() });
-  });
-  const stuck = takeStuck();
-  // A connection that couldn't be removed is tried once more and never used: it would only be refused again.
-  if (stuck) await forgetConnection().catch(() => undefined);
-  const conn = stuck ? null : await readConnection();
-  if (conn) {
+  openExternal(url) { void Browser.open({ url }); },
+  listen() {
+    // The app going to the background and coming back is the page losing and regaining focus, so what is open refreshes then.
+    void App.addListener("pause", () => focusManager.setFocused(false));
+    void App.addListener("resume", () => focusManager.setFocused(true));
+    void App.addListener("backButton", ({ canGoBack }) => {
+      goUpOneLevel({ escape: pressEscape, canGoBack, previousPage: () => history.back(), leave: () => void App.minimizeApp() });
+    });
+  },
+  async attach(conn) {
+    if (!conn) return { platform: phonePlatform(null, null), connected: null };
     const pushConfig = await pushSetup();
-    limitPageTo(conn.origin, pushConfig.relay);
-    const platform = appPlatform(conn, pushConfig);
-    // The background job found the token refused while the app was closed: the same as being told so now.
-    void PurssDevice.takeBackgroundReport().then((r) => { if (r.lost) platform.connection?.lost(); }).catch(() => undefined);
-    return { platform, screen: null };
-  }
-  void removeDownloads(updater).catch(() => undefined);
-  const notice = takeNotice();
-  return { platform: appPlatform(null, null), screen: <ConnectScreen notice={notice} shell={phoneConnectShell} /> };
+    const phone = devicePush(conn.origin, pushConfig);
+    return {
+      platform: phonePlatform(conn, phone),
+      connected: {
+        conn,
+        // The push relay is the only other origin the page calls.
+        policy: purssPolicy(conn.origin, [pushConfig.relay]),
+        downloads: {
+          files: deviceFiles,
+          connection: deviceConnection,
+          // The background job needs the same server the token belongs to; it reads the token itself.
+          mirror: (state) => { void PurssDevice.setBackground({ state: state ? JSON.stringify({ ...state, origin: conn.origin }) : null }).catch(() => undefined); },
+        },
+        appCheck: () => { void appUpdates.check(); },
+        refusedWhileClosed: async () => (await PurssDevice.takeBackgroundReport()).lost,
+        forget: {
+          stopAudio: () => AudioPlayer.destroy({ audioId: "purss-player" }),
+          stopBackground: () => PurssDevice.reset(),
+          forgetPush: async () => { await phone.forget(); },
+          finish: () => undefined,
+        },
+      },
+    };
+  },
+  firstScreen: (notice): ReactNode => <ConnectScreen notice={notice} shell={phoneConnectShell} />,
+};
+
+export function startNative(): Promise<{ platform: Platform; screen: ReactNode | null }> {
+  return startConnectedApp(phoneShell, browserPage);
 }

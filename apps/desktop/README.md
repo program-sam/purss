@@ -30,8 +30,10 @@ tokens is in [security](../../docs/security.md#connected-apps).
   `http://tauri.localhost`) from an `Assets` provider that reads the active downloaded interface from disk and falls
   back to the one embedded in the binary. The origin never changes when the interface does, so IndexedDB data, local
   storage and the outbox survive updates. `platform/index.ts` loads `platform/desktop/` when `window.__TAURI_INTERNALS__`
-  exists; it reuses the mobile app's connect flow, transport, live-update rules and connect screen, and the web's own
-  service worker, download manager, media-element player and browser alerts.
+  exists; it starts through `platform/connected-app.ts` like the phone apps, giving it only what a Tauri shell adds
+  (credential store, updater, web view, notifications, badge). It reuses the mobile app's connect flow, transport,
+  live-update rules and connect screen, and the web's own service worker, download manager, media-element player and
+  browser alerts.
 - **Connecting.** As a device of kind `mobile` (Settings → Connected apps calls it *App on a phone, tablet or computer*),
   with PKCE and the redirect `purss://connect` registered by the app (`tauri-plugin-deep-link`); the device name says
   which computer. The page calls the installation cross-origin with its token, so the API answers CORS for `tauri://localhost`
