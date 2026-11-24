@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { clearAnnotationOutbox } from "../annotations/use-annotations.ts";
 import { messageOf, post } from "../api/client.ts";
-import { clearLateWrites } from "../lib/late-writes.ts";
+import { deviceWrites } from "../lib/unsent-writes.ts";
 import { wipeOfflineCopies } from "../offline/service-worker-link.ts";
 import { useOverlays } from "../state/overlays.tsx";
 import { clearHints } from "../state/ui-store.ts";
@@ -23,8 +22,7 @@ export function useSignOut(): { signOut: () => Promise<void>; busy: boolean; err
     try {
       await post("/api/auth/logout");
       await wipeOfflineCopies();
-      await clearAnnotationOutbox();
-      clearLateWrites();
+      await deviceWrites.forget("signed-out");
       clearHints();
       qc.clear();
       overlays.close();

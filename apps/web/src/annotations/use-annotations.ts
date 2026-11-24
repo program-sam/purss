@@ -163,8 +163,3 @@ export function AnnotationSync({ keepOtherAccounts = false }: { keepOtherAccount
   }, [qc, accountId, waiting]);
   return null;
 }
-
-/** Sign-out: unsent changes on this device are deleted with the other offline data. */
-export function clearAnnotationOutbox(): Promise<void> {
-  return outbox.clearExcept(null);
-}
