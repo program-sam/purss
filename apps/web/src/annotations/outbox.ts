@@ -217,17 +217,32 @@ export class Outbox {
   }
 
   /**
-   * Delete every entry except the given account's (all of them for null): account change and sign-out. What the device holds
-   * is read again first: another tab may have recorded changes since this page read it, and they are deleted too.
+   * Delete the entries of every account but the given one, when someone else signs in. Only what this page has read: this
+   * page's idea of who is signed in can be minutes old, and another tab may already have signed that other account in
+   * and recorded its changes.
    */
-  clearExcept(accountId: string | null): Promise<void> {
+  clearExcept(accountId: string): Promise<void> {
     return this.serial(async () => {
       await this.load();
-      const held = await this.store.all().catch(() => this.entries);
-      const gone = held.filter((e) => e.accountId !== accountId);
+      const gone = this.entries.filter((e) => e.accountId !== accountId);
       if (!gone.length) return;
       await this.store.remove(gone.map((e) => e.seq!));
-      this.entries = held.filter((e) => e.accountId === accountId);
+      this.entries = this.entries.filter((e) => e.accountId === accountId);
+      this.changed();
+    });
+  }
+
+  /**
+   * Delete every entry of every account: sign-out and disconnecting. What the device holds is read again first, so changes
+   * another tab recorded since this page read it go too. If it can't be read, this rejects: nothing is then known to be deleted.
+   */
+  clearAll(): Promise<void> {
+    return this.serial(async () => {
+      await this.load();
+      const held = await this.store.all();
+      await this.store.remove(held.map((e) => e.seq!));
+      if (!this.entries.length) return;
+      this.entries = [];
       this.changed();
     });
   }

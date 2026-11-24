@@ -30,7 +30,7 @@ const STAYS: Record<UnsentReason, boolean> = {
 
 export type UnsentQueues = {
   /** Highlights and notes. */
-  notes: Pick<NoteOutbox, "clearExcept" | "load" | "snapshot">;
+  notes: Pick<NoteOutbox, "clearAll" | "load" | "snapshot">;
   /** Delete every account's playback positions and reading progress. */
   clearLate(): void;
 };
@@ -53,7 +53,7 @@ export function unsentWrites(queues: UnsentQueues): UnsentWrites {
         return { keptNotes: queues.notes.snapshot().length };
       }
       queues.clearLate();
-      await queues.notes.clearExcept(null);
+      await queues.notes.clearAll();
       return { keptNotes: 0 };
     },
   };

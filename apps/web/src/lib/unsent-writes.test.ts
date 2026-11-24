@@ -77,10 +77,21 @@ test("signing out deletes what another tab recorded after this page read the dev
   assert.deepEqual(await store.all(), []);
 });
 
+test("signing out fails, instead of going ahead with notes still on the device, when what the device holds can't be read to delete it", async () => {
+  const store = new MemoryOutboxStore();
+  let reads = 0;
+  const flaky = { all: () => (++reads > 1 ? Promise.reject(new Error("storage unreadable")) : store.all()), save: (e: Parameters<typeof store.save>[0]) => store.save(e), remove: (s: readonly number[]) => store.remove(s) };
+  const here = new Outbox(flaky);
+  await here.load();
+  await new Outbox(store).record({ accountId: "acc_1", itemId: "itm_a", annotationId: "ann_late", at: "2026-11-01T10:00:00.000Z", op: "delete" });
+  await assert.rejects(unsentWrites({ notes: here, clearLate: () => undefined }).forget("signed-out"), /storage unreadable/);
+  assert.equal((await store.all()).length, 1, "nothing was claimed deleted");
+});
+
 test("signing out deletes the positions and progress even when the highlights and notes could not be deleted, and says so", async () => {
   const storage = memoryStorage();
   lateStore<number>("progress", "acc_1", storage).put("itm_a", 0.5);
-  const refusing = { clearExcept: () => Promise.reject(new Error("storage refused")), load: () => Promise.resolve(), snapshot: () => [] };
+  const refusing = { clearAll: () => Promise.reject(new Error("storage refused")), load: () => Promise.resolve(), snapshot: () => [] };
   const writes = unsentWrites({ notes: refusing, clearLate: () => clearLateWrites(storage) });
   await assert.rejects(writes.forget("signed-out"), /storage refused/);
   assert.equal(storage.length, 0);
