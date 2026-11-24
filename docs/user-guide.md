@@ -1227,7 +1227,7 @@ their own feed reader. The button is one link with no script or image, so nobody
   kept. For reading and printing; it isn't something to import again.
 - **Import:** shows what an export file would add before anything changes. Nothing is deleted,
   items already here aren't added twice, sharing settings arrive switched off, and private
-  sources arrive as *needs reconnecting*. Reminders come back on their items when the item is
+  sources arrive as *needs reconnecting*, each on its own even when two share a name. Reminders come back on their items when the item is
   kept; days that have gone by, and items that already have a reminder, are left alone. A file from an
   earlier version that marked the posts a source already had when you followed it from now, and that you
   hadn't touched, brings them in as Ignored, which is how they are kept now.

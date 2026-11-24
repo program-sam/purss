@@ -111,7 +111,9 @@ addresses, not GUIDs.
   feed is the same feed when its address is the same up to `http` or `https`, a trailing slash, the host's case
   and tracking parameters (`urlKey`); a bridged source is its descriptor, which a list also names by its page;
   a private source, which has no address in the database, is its keyed hash under either scheme while it is
-  followed. An archive carries no private link, so it finds a private source by its title. A source that was
+  followed. An archive carries no private link, so it finds a private source by its title: each private source in the file is its
+  own, even when two share a title, and one already here stands for at most one of them (the one the file names by the id it has
+  here, else the first of that title not yet taken). A source that was
   unfollowed is taken up again, not followed as a second one that would hold a second copy of every item; this
   installation's own news is a built-in source that has no engine subscription.
 - **The Review page** lists the queue (`apps/api/src/services/reconcile.ts`); it calls the entries incoming items. Each entry suggests *match*

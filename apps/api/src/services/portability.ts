@@ -311,6 +311,16 @@ function safeAddress(raw: string | null): string | null {
   return href && !hasCredentialShape(href) ? href : null;
 }
 
+/**
+ * The public address an archive source is followed at, or null when it is a private one: flagged, shaped like one, or without an address to
+ * follow it at. A bridged source keeps its descriptor: it is no link, so never private.
+ */
+function publicAddress(src: ArchiveSource): string | null {
+  const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
+  const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl));
+  return priv ? null : href;
+}
+
 function prepareItem(item: ArchiveItem, now: string): PreparedItem {
   const url = item.urlRedacted ? null : safeAddress(item.url);
   const imageUrl = safeAddress(item.imageUrl);
@@ -372,12 +382,27 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   // ---- sources
   const sources = new Map<string, SourceDecision>();
   const have = sourceIndex(app, ws);
-  // A private source's address is not in an archive, so the title is all there is to find one by.
-  const existingPrivate = app.db.all<{ id: string; title: string; followed: number }>("SELECT id, title, followed FROM sources WHERE account_id = ? AND is_private = 1", ws);
+  // A private source's address is not in an archive, so each source in the file is its own (two can share a title), and one already here
+  // is found by its title, standing for at most one of them: the one the file names by the id it has here (a file from this very PURSS),
+  // else the first of that title not yet taken.
+  const existingByTitle = new Map<string, { id: string }[]>();
+  for (const e of app.db.all<{ id: string; title: string }>("SELECT id, title FROM sources WHERE account_id = ? AND is_private = 1 ORDER BY created_at, id", ws)) {
+    const same = existingByTitle.get(lower(e.title));
+    if (same) same.push(e); else existingByTitle.set(lower(e.title), [e]);
+  }
+  const existingPrivate = new Map<string, string>(); // archive id -> the private source here it stands for
+  const taken = new Set<string>();
+  const privateInFile = doc.sources.filter((src) => src.kind !== "manual" && !publicAddress(src));
+  for (const own of [true, false]) {
+    for (const src of privateInFile) {
+      if (existingPrivate.has(src.id)) continue;
+      const here = (existingByTitle.get(lower(src.title)) ?? []).find((e) => !taken.has(e.id) && (!own || e.id === src.id));
+      if (here) { existingPrivate.set(src.id, here.id); taken.add(here.id); }
+    }
+  }
   const existingManual = app.db.get<{ id: string }>("SELECT id FROM sources WHERE account_id = ? AND kind = 'manual'", ws)?.id ?? null;
-  // The source planned for a feed's key, or a private source's title: the same feed twice in one archive is one source.
+  // The source planned for a feed's key: the same feed twice in one archive is one source.
   const plannedFeeds = new Map<string, string>();
-  const plannedPrivate = new Map<string, string>();
   // Existing sources the archive follows again, so that one written two ways is taken up once.
   const followingAgain = new Set<string>();
   let reusedSources = 0;
@@ -393,18 +418,11 @@ function planImport(app: App, p: Principal, doc: Archive): ImportPlan {
   };
   for (const src of doc.sources) {
     if (src.kind === "manual") { sources.set(src.id, manualDecision(src)); continue; }
-    // A bridged source keeps its descriptor: it is no link, so never private.
-    const href = safeAddress(src.feedUrl) ?? bridgeAddress(src.feedUrl);
-    const priv = src.isPrivate || src.reconnectRequired || src.kind === "private" || (src.feedUrl !== null && hasCredentialShape(src.feedUrl)) || !href;
-    if (priv) {
-      const key = lower(src.title);
-      const dup = plannedPrivate.get(key);
-      const existing = existingPrivate.find((e) => lower(e.title) === lower(src.title));
-      if (dup) { sources.set(src.id, { action: "reuse", id: dup, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
-      if (existing) { sources.set(src.id, { action: "reuse", id: existing.id, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
-      const id = newId("src");
-      plannedPrivate.set(key, id);
-      sources.set(src.id, { action: "create", id, mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
+    const href = publicAddress(src);
+    if (!href) {
+      const existing = existingPrivate.get(src.id);
+      if (existing) { sources.set(src.id, { action: "reuse", id: existing, refollow: false, src, feedUrl: null }); reusedSources++; continue; }
+      sources.set(src.id, { action: "create", id: newId("src"), mode: src.followed ? "reconnect" : "unfollowed", src, feedUrl: null });
       continue;
     }
     const key = feedKey(href) ?? href;

@@ -523,6 +523,64 @@ test("Remind me days round-trip with their notes; days gone by, items not kept a
   assert.throws(() => stageImport(c, pc, bad), (e: unknown) => e instanceof HttpError);
 });
 
+/** Two private sources of one title, each with a post that carries no address (as an archive writes one of a private source). */
+function twoNewsletters(a: App, pa: Principal) {
+  const first = makeSource(a, pa, "Newsletter", "feed/p1", { isPrivate: true });
+  const second = makeSource(a, pa, "Newsletter", "feed/p2", { isPrivate: true });
+  const bare = { url: null, originalGuid: null };
+  applySyncBatch(a, (pa as Owner).engineUserId, batch([entry("feed/p1", { title: "From the first", ...bare }), entry("feed/p2", { title: "From the second", ...bare })]));
+  return { first, second };
+}
+const sourceOf = (app: App, title: string) => app.db.all<{ source_id: string }>("SELECT source_id FROM items WHERE title = ? ORDER BY seq", title).map((r) => r.source_id);
+
+test("two private sources that share a title stay two sources after an import, each with its own items, and the same file again adds nothing", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  assert.equal(doc.sources.filter((s: { title: string }) => s.title === "Newsletter").length, 2, "the file holds both");
+
+  const preview = stageImport(b, pb, doc);
+  assert.equal(preview.counts.sourcesToReconnect, 2);
+  const result = applyImport(b, pb, preview.token);
+  assert.deepEqual([result.created.sources, result.reconnectRequired, result.created.items], [2, 2, 2]);
+  assert.equal(count(b, "sources"), 2);
+  assert.notEqual(sourceOf(b, "From the first")[0], sourceOf(b, "From the second")[0], "each item stays with its own source");
+
+  // The same file again, into the PURSS it was imported into and into the one it came from, finds each source once and adds nothing.
+  for (const [app, p] of [[b, pb], [a, pa]] as const) {
+    const again = stageImport(app, p, doc);
+    assert.deepEqual([again.counts.newItems, again.counts.existingItems, again.counts.existingSources], [0, 2, 2]);
+    const second = applyImport(app, p, again.token);
+    assert.deepEqual([second.created.sources, second.created.items], [0, 0]);
+    assert.deepEqual([count(app, "sources"), count(app, "items")], [2, 2]);
+  }
+});
+
+test("a file with two private sources of one title, imported where one of that title already is, adds only the other", async (t) => {
+  const { a, b, pa, pb, cleanup } = twoAccounts();
+  t.after(cleanup);
+  twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  makeSource(b, pb, "newsletter", "feed/mine", { isPrivate: true });
+  const result = applyImport(b, pb, stageImport(b, pb, doc).token);
+  assert.deepEqual([result.created.sources, result.alreadyPresent.sources, count(b, "sources")], [1, 1, 2], "one is the source already there, one is new");
+  assert.notEqual(sourceOf(b, "From the first")[0], sourceOf(b, "From the second")[0]);
+});
+
+test("the same file again into the PURSS it came from takes each private source by the id it has there, even when one was renamed since", async (t) => {
+  const { a, pa, cleanup } = twoAccounts();
+  t.after(cleanup);
+  const { first, second } = twoNewsletters(a, pa);
+  const { doc } = await exportDoc(a, pa);
+  a.db.run("UPDATE sources SET title = 'Weekly' WHERE id = ?", first);
+  const result = applyImport(a, pa, stageImport(a, pa, doc).token);
+  assert.deepEqual([result.created.sources, result.alreadyPresent.sources], [1, 1], "the renamed one is no longer found by its title");
+  assert.deepEqual(sourceOf(a, "From the second"), [second], "the one that kept its title is taken by its own id, so its post is not added again");
+  assert.equal(sourceOf(a, "From the first").length, 2, "the renamed one's post is added to the source made for it");
+  assert.ok(!sourceOf(a, "From the first").slice(1).includes(second));
+});
+
 test("a version whose full text was too large still says so after an import, in the reader, in the downloads and as a kept copy", async (t) => {
   const { a, b, pa, pb, cleanup } = twoAccounts();
   t.after(cleanup);

@@ -213,8 +213,9 @@ lists the public feeds followed and leaves private sources out.
 and whether it fits the allowance and the plan, before changing anything. One staged file waits per account for 24
 hours. Applying is one transaction that lands completely or not at all, and over a limit nothing is written and
 the staged file stays for a retry. Sources already here are recognised by their address as when following one
-(a private source by its name, as the file holds no link), and an unfollowed one the file follows is taken up
-again. Import deletes nothing: items already here are not added twice, sharing
+(a private source by its name, as the file holds no link: two private sources that share a name stay two, and one already here
+stands for at most one of them, the one the file names by the id it has here, else the first of that name not yet taken),
+and an unfollowed one the file follows is taken up again. Import deletes nothing: items already here are not added twice, sharing
 arrives switched off, private sources arrive as *needs reconnecting*, and preferences are applied only when the
 account has none. Moving to a fresh installation recreates the followed public sources, and the entries its engine
 then delivers are matched by link to the imported items instead of being added a second time.
