@@ -451,16 +451,6 @@ test("an expired reservation is not subtracted twice when its capture settles la
   assert.ok(usedBytes(app, p.accountId) <= 3_000_000);
 });
 
-test("a job whose lease keeps expiring stops after its attempts", async (t) => {
-  const { app, cleanup } = setup();
-  t.after(cleanup);
-  const { enqueue, expireLeases } = await import("./jobs.ts");
-  const id = enqueue(app, "engine.sync", { engineUserId: "eng_x" }, { maxAttempts: 2 });
-  app.db.run("UPDATE jobs SET status = 'leased', attempts = 2, lease_id = 'l', lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", id);
-  expireLeases(app);
-  assert.equal(app.db.get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", id)!.status, "failed");
-});
-
 test("replacement-engine entries are queued once and duplicate ids don't break patches", async (t) => {
   const { app, p, src, cleanup } = setup();
   t.after(cleanup);

@@ -3,10 +3,6 @@ import type { App } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
 import { usableAccountSql } from "./deletion.ts";
 import { enqueue } from "./jobs.ts";
-import { failCapture } from "./captures.ts";
-import { failIconCheck } from "./icons.ts";
-import { onSubscribeFailed } from "./sources.ts";
-import { failJudging } from "./ai-filters.ts";
 import { server } from "@purss/translations/server";
 
 /**
@@ -22,9 +18,6 @@ export const SYNC_FAILURE_BACKOFF_SECONDS = [60, 300, 900, 3600] as const;
  * minutes); then it stops and the source waits for the person.
  */
 export const SUBSCRIBE_RETRY_BACKOFF_SECONDS = [60, 300, 1800] as const;
-
-/** A subscribe failure that is expected to pass on its own, so it is retried on the longer schedule. */
-export const subscribeWaits = (reason: FailureReason | undefined): boolean => reason === "rate_limited" || reason === "unavailable";
 
 /** Seconds after a sync attempt before the next one is due, given how many runs in a row have failed. */
 export function syncDelaySeconds(intervalSeconds: number, consecutiveFailures: number): number {
@@ -73,32 +66,16 @@ export function subscribeGaveUpText(reason: FailureReason | undefined): string {
 }
 
 /**
- * What a job's failure changes for the person, once the failure is recorded on the job: after a reported failure, and after a
- * lease that expired for the last time (a worker that keeps dying must not leave a source, copy or sync looking fine).
- * A sync that fails for good gets plain words on its checkpoint and counts toward the wait before its next run.
+ * A sync run that failed: the checkpoint gets plain words for Home and the job keeps the technical error. Runs that fail for good
+ * are counted so the next run waits longer each time instead of hammering the engine; the row is created when the first run fails.
  */
-export function settleFailedJob(app: App, job: { kind: string; payload: Record<string, unknown> }, outcome: { finalFailure: boolean }, reason?: FailureReason): void {
-  const { payload } = job;
-  if (outcome.finalFailure) {
-    if (job.kind === "engine.subscribe") onSubscribeFailed(app, String(payload.sourceId), subscribeGaveUpText(reason), reason ?? null);
-    if (job.kind === "engine.provision") app.db.run("UPDATE engine_users SET status = 'error' WHERE id = ?", String(payload.engineUserId));
-    if (job.kind === "source.icon") failIconCheck(app, String(payload.sourceId));
-    if (job.kind === "filter.judge") failJudging(app, payload);
-    if (job.kind === "capture.fulltext") failCapture(app, String(payload.captureId), server.api.failures.pageNotCaptured);
-  } else if (job.kind === "engine.subscribe") {
-    const text = subscribeRetryText(reason);
-    if (text) onSubscribeFailed(app, String(payload.sourceId), text, reason ?? null);
-  }
-  if (job.kind === "engine.sync") {
-    // The job keeps the technical error. Runs that fail for good are counted so the next run waits longer each time
-    // instead of hammering the engine; the row is created when the first run fails.
-    const final = outcome.finalFailure ? 1 : 0;
-    app.db.run(
-      `INSERT INTO sync_checkpoints (engine_user_id, last_attempt_at, last_error, consecutive_failures) VALUES (?, ?, ?, ?)
-       ON CONFLICT(engine_user_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error,
-         consecutive_failures = consecutive_failures + ?`,
-      String(payload.engineUserId), nowIso(), syncFailureText(reason), final, final);
-  }
+export function recordSyncFailure(app: App, engineUserId: string, reason: FailureReason | undefined, finalFailure: boolean): void {
+  const final = finalFailure ? 1 : 0;
+  app.db.run(
+    `INSERT INTO sync_checkpoints (engine_user_id, last_attempt_at, last_error, consecutive_failures) VALUES (?, ?, ?, ?)
+     ON CONFLICT(engine_user_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error,
+       consecutive_failures = consecutive_failures + ?`,
+    engineUserId, nowIso(), syncFailureText(reason), final, final);
 }
 
 /**

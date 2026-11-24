@@ -72,6 +72,17 @@ the whole system again. The names are the [glossary](glossary.md)'s.
   product never reads its database.
 - **Durable jobs are enqueued in the same transaction** as the change that needs them
   (`jobs` table), so a crash can't lose or half-apply a follow, sync or capture.
+- **Each kind of job is defined once** (`services/jobs.ts`): what the worker's result must look like
+  (the result schema in `packages/domain`, which accepts the fields of an older or newer worker), what
+  completing the job changes, what of the result the finished job keeps, the retry schedule of a failure
+  that will pass, and what a final failure (a reported one, or a lease that expired for the last time)
+  or a cancelled queued job means to the person. The worker's routes only lease jobs and hand
+  each report to that definition, in one transaction. A result the API refuses (a subscription
+  without a stream id, a Smart filter answer that is not one) is answered with 400, which the worker
+  takes as a failure that will not pass on a retry: the job fails for good at its first attempt, with
+  what that means for its kind, instead of being retried. So a result is checked only for what the
+  API cannot complete without; the rest of what a worker reports about a run is read as far as it is
+  in the expected shape and otherwise ignored.
 
 ## Identity and reconciliation
 

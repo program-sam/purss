@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { jevConfigFromEnv } from "@purss/connectors";
+import { jobResultSchemas } from "@purss/domain";
 import type { AiJudgeInput, LeasedJob } from "@purss/domain";
 import { createHandlers } from "./handlers.ts";
 import type { HandlerDeps } from "./handlers.ts";
@@ -24,7 +25,13 @@ function setup(input: AiJudgeInput, jevFetch: (url: string, init: RequestInit) =
   } as unknown as HandlerDeps;
   const handler = createHandlers(deps)["filter.judge"]!;
   const job: LeasedJob = { id: "job_1", kind: "filter.judge", payload: {}, leaseId: "lse_1", leaseExpiresAt: "", attempts: 1 };
-  return { run: () => handler({ job, payload: { itemIds: input.requests.map((r) => r.itemId), announce: true }, signal: new AbortController().signal }), cleanup: () => rmSync(secretsDir, { recursive: true, force: true }) };
+  const run = async () => {
+    const result = await handler({ job, payload: { itemIds: input.requests.map((r) => r.itemId), announce: true }, signal: new AbortController().signal });
+    // What the worker reports is what the API's result schema for the kind accepts.
+    assert.deepEqual(jobResultSchemas["filter.judge"].safeParse(result).error?.issues, undefined);
+    return result;
+  };
+  return { run, cleanup: () => rmSync(secretsDir, { recursive: true, force: true }) };
 }
 
 const ok = (p: number) => new Response(JSON.stringify({ model: "jev-1.13.0", answers: { f1_aif: { type: "noul", noul: p } }, usage: { input_tokens: 90 } }), { status: 200 });

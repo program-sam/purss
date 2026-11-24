@@ -17,7 +17,6 @@ import { redactError } from "./text-safety.ts";
 import { confirmEngineRemoved, isAccountUsable, usableAccountSql } from "./deletion.ts";
 import { planUsage, storedPlan } from "./plans.ts";
 import { serverTokensOf } from "./ai-access.ts";
-import { failJudging } from "./ai-filters.ts";
 import { topDiscoveryMisses } from "./discovery-misses.ts";
 import { discoveryRouteStats } from "./discovery-routes.ts";
 import { server } from "@purss/translations/server";
@@ -189,14 +188,9 @@ export function listAdminJobs(app: App, opts: { status?: string; limit?: number 
 }
 
 function jobAction(app: App, admin: Principal, id: string, action: "retry" | "cancel"): { ok: true } {
-  const job = app.db.get<{ kind: string; account_id: string | null; status: string; payload: string }>("SELECT kind, account_id, status, payload FROM jobs WHERE id = ?", id);
+  const job = app.db.get<{ kind: string; account_id: string | null }>("SELECT kind, account_id FROM jobs WHERE id = ?", id);
   if (!job) throw notFound(server.api.admin.thatJob);
-  const done = app.db.tx(() => {
-    const ok = action === "retry" ? retryJob(app, id) : cancelJob(app, id);
-    // A cancelled Smart filter job leaves its posts unjudged; they are announced as a sync would have (a failed one already was).
-    if (ok && action === "cancel" && job.kind === "filter.judge" && job.status === "queued") failJudging(app, JSON.parse(job.payload) as Record<string, unknown>);
-    return ok;
-  });
+  const done = action === "retry" ? retryJob(app, id) : cancelJob(app, id);
   if (!done) {
     const waiting = action === "retry" && !!job.account_id && job.kind !== "engine.delete_user" && !isAccountUsable(app, job.account_id);
     audit(app, admin.accountId, `admin_job_${action}`, id, "failure", waiting ? "account unusable" : "wrong state");

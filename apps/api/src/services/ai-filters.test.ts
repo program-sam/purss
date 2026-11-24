@@ -16,7 +16,7 @@ import { internalServer } from "../server.ts";
 import { internalRouter } from "../routes/internal.ts";
 import { publicRouter } from "../routes/public.ts";
 import { extraRouters } from "../routes/index.ts";
-import { leaseJobs } from "./jobs.ts";
+import { completeLeasedJob, leaseJobs } from "./jobs.ts";
 import { applySyncBatch } from "./sync.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, deleteCollection, listCollections } from "./collections.ts";
@@ -104,8 +104,7 @@ async function runJudging(b: Booted): Promise<number> {
         } else result.verdicts.push({ itemId: input.requests[i]!.itemId, answers: a.answers, inputTokens: a.inputTokens });
       });
     }
-    const done = await internalPost(b, `/internal/jobs/${job.id}/complete`, { leaseId: job.leaseId, result });
-    assert.equal(done.status, 200, await done.text());
+    assert.equal(completeLeasedJob(b.app, job.id, job.leaseId, result), true);
   }
 }
 
@@ -254,7 +253,7 @@ test("a kept post is never dropped, a filter changed mid-flight waits for its ow
   const input = (await (await internalPost(b, `/internal/filters/${job.id}/input`, { leaseId: job.leaseId })).json()) as AiJudgeInput;
   await b.api("PUT", `/api/sources/${source}/ai-filter`, { keep: "sediment and tides" });
   const stale = { route: input.route, model: null, keyRejected: false, keyFingerprint: null, unfinished: [], verdicts: input.requests.map((r) => ({ itemId: r.itemId, answers: Object.fromEntries(Object.keys(r.questions).map((k) => [k, 0.01])), inputTokens: 10 })) };
-  assert.equal((await internalPost(b, `/internal/jobs/${job.id}/complete`, { leaseId: job.leaseId, result: stale })).status, 200);
+  assert.equal(completeLeasedJob(b.app, job.id, job.leaseId, stale), true);
   assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "undecided", "an answer to the old words changes nothing");
   await runJudging(b); // the re-check the change queued
   assert.equal(post(b.app, b.owner.accountId, "Off-topic post").workflow, "ignored");
@@ -334,7 +333,7 @@ test("a key Jev refuses: posts stay as they are and are announced, the key is ma
   const late = { route: "server", model: null, keyRejected: true, keyFingerprint: jevKeyFingerprint("server-key-1234"), unfinished: [], verdicts: [] };
   b.app.db.run("INSERT INTO jobs (id, account_id, kind, payload, status, lease_id, lease_expires_at, run_after, max_attempts, created_at, updated_at) VALUES ('job_late', ?, 'filter.judge', ?, 'leased', 'lse_late', ?, ?, 4, ?, ?)",
     b.owner.accountId, JSON.stringify({ itemIds: [post(b.app, b.owner.accountId, "Second post").id], announce: false }), new Date(Date.now() + 60_000).toISOString(), new Date().toISOString(), new Date().toISOString(), new Date().toISOString());
-  assert.equal((await internalPost(b, "/internal/jobs/job_late/complete", { leaseId: "lse_late", result: late })).status, 200);
+  assert.equal(completeLeasedJob(b.app, "job_late", "lse_late", late), true);
   assert.deepEqual((await b.api("GET", "/api/admin/ai", undefined, b.adminSession)).json.key, { hint: "5678", rejected: false });
 });
 

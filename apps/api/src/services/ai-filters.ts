@@ -1,5 +1,5 @@
 import { AI_FILTER_PREVIEW_POSTS, dropsPost, judgeQuestionKey, newId, parseJudgeQuestionKey } from "@purss/domain";
-import type { AiFilterDTO, AiFilterPreview, AiFilterRule, AiFilterScope, AiJudgeInput, AiJudgeRequest, AiJudgeResult, WhenUnsure, WorkflowState } from "@purss/domain";
+import type { AiFilterDTO, AiFilterPreview, AiFilterRule, AiFilterScope, AiJudgeInput, AiJudgeRequest, AiJudgeResult, JobPayload, WhenUnsure, WorkflowState } from "@purss/domain";
 import { askJevEach, jevKeyFingerprint, JevError } from "@purss/connectors";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
@@ -238,17 +238,17 @@ type ItemNow = { id: string; source_id: string | null; workflow: WorkflowState; 
  * when a filter drops it and it is still Undecided, unopened and unkept; or given back (Undecided) when no filter drops it any
  * more and it is still as a filter left it. The posts that stay are announced, like a sync announces new posts.
  */
-export function completeJudging(app: App, job: { account_id: string | null; payload: string }, result: AiJudgeResult): void {
-  if (!job.account_id || !job.account_id) return;
-  const owner = { accountId: job.account_id};
-  const { itemIds } = JSON.parse(job.payload) as { itemIds: string[] };
+export function completeJudging(app: App, job: { accountId: string | null; payload: JobPayload<"filter.judge"> }, result: AiJudgeResult): void {
+  if (!job.accountId) return;
+  const owner = { accountId: job.accountId };
+  const { itemIds } = job.payload;
   if (result.keyRejected && result.route) {
     markKeyRejected(app, result.keyFingerprint);
     console.warn("[api] Jev refused the server's Jev key (Admin → Smart filters); filters that use it are waiting");
   }
   // Posts Jev couldn't be asked about are asked again a minute later (the worker reports some only when others got answers).
   const unfinished = result.unfinished.filter((id) => itemIds.includes(id));
-  const announce = (JSON.parse(job.payload) as { announce?: boolean }).announce === true;
+  const announce = job.payload.announce === true;
   if (unfinished.length && !result.keyRejected) {
     enqueue(app, "filter.judge", { itemIds: unfinished, announce }, { accountId: owner.accountId, maxAttempts: 4, runAfter: new Date(Date.now() + 60_000).toISOString() });
   }
@@ -323,9 +323,8 @@ export function completeJudging(app: App, job: { account_id: string | null; payl
 }
 
 /** A filter.judge job that failed for good: its posts stay as they are, and new ones are announced as a sync would have. */
-export function failJudging(app: App, payload: Record<string, unknown>): void {
-  if (payload.announce !== true) return;
-  const itemIds = Array.isArray(payload.itemIds) ? payload.itemIds.map(String) : [];
+export function failJudging(app: App, { announce, itemIds }: JobPayload<"filter.judge">): void {
+  if (announce !== true) return;
   const rows = app.db.all<{ account_id: string; source_id: string; n: number }>(
     `SELECT i.account_id, i.source_id, COUNT(*) AS n FROM json_each(?) j JOIN items i ON i.id = j.value JOIN item_state st ON st.item_id = i.id
      WHERE i.source_id IS NOT NULL AND st.is_new = 1 AND st.workflow = 'undecided' GROUP BY i.account_id, i.source_id`, JSON.stringify(itemIds));

@@ -1,19 +1,11 @@
 import { z } from "zod";
-import { JOB_KINDS, syncBatchSchema, jobResultSchema, jobFailureSchema } from "@purss/domain";
-import type { JobKind } from "@purss/domain";
+import { isJobKind, syncBatchSchema, jobResultSchema, jobFailureSchema } from "@purss/domain";
 import type { App } from "../app.ts";
-import { emit } from "../app.ts";
 import { HttpError, Router, nowIso, parse } from "../http.ts";
-import { RUNNABLE_JOB_SQL, completeJob, currentLease, failJob, heartbeat, leaseJobs, returnWaitingJob } from "../services/jobs.ts";
-import { SUBSCRIBE_RETRY_BACKOFF_SECONDS, settleFailedJob, subscribeWaits } from "../services/failures.ts";
+import { RUNNABLE_JOB_SQL, completeLeasedJob, currentLease, failLeasedJob, heartbeat, leaseJobs } from "../services/jobs.ts";
 import { deletionEngineState, finalizeDeletion, openEngineReview, recordEngineAttempt, recordEngineRemoved } from "../services/deletion.ts";
-import { applySyncBatch, recordSyncSuccess } from "../services/sync.ts";
-import { onSubscribed } from "../services/sources.ts";
-import { completeCapture } from "../services/captures.ts";
-import { completeIconCheck } from "../services/icons.ts";
-import { completeImages } from "../services/images.ts";
-import { completeJudging, judgeInput } from "../services/ai-filters.ts";
-import { aiJudgeResultSchema } from "@purss/domain";
+import { applySyncBatch } from "../services/sync.ts";
+import { judgeInput } from "../services/ai-filters.ts";
 
 /**
  * Request body limit of the sync batch route. The worker keeps a batch under its own cap, counted in UTF-8 bytes
@@ -24,6 +16,8 @@ const SYNC_BATCH_BODY_LIMIT = 8 * 1024 * 1024;
 /** A finished job's result: the pictures of one kept item, which may be 10 MB, come back whole as base64. */
 const JOB_RESULT_BODY_LIMIT = 16 * 1024 * 1024;
 
+const leaseLost = () => new HttpError(409, "lease_lost", "Lease lost.");
+
 /** Service-authenticated routes for the worker. Never mounted on the public listener. */
 export function internalRouter(app: App): Router<{ app: App }> {
   const r = new Router<{ app: App }>();
@@ -31,68 +25,25 @@ export function internalRouter(app: App): Router<{ app: App }> {
   r.post("/internal/jobs/lease", (req) => {
     // A worker from another version may ask for kinds this API doesn't have: it gets none of those, and its other kinds still run.
     const body = parse(z.object({ kinds: z.array(z.string().max(64)).min(1).max(50), max: z.number().int().min(1).max(50) }), req.body);
-    const kinds = body.kinds.filter((k): k is JobKind => (JOB_KINDS as readonly string[]).includes(k));
+    const kinds = body.kinds.filter(isJobKind);
     return { jobs: kinds.length ? leaseJobs(app, kinds, body.max) : [] };
   });
 
   r.post("/internal/jobs/:id/heartbeat", (req) => {
     const { leaseId } = parse(z.object({ leaseId: z.string() }), req.body);
-    if (!heartbeat(app, req.params.id!, leaseId)) throw new HttpError(409, "lease_lost", "Lease lost.");
+    if (!heartbeat(app, req.params.id!, leaseId)) throw leaseLost();
     return { ok: true };
   });
 
   r.post("/internal/jobs/:id/complete", (req) => {
     const body = parse(jobResultSchema, req.body);
-    const job = currentLease(app, req.params.id!, body.leaseId);
-    if (!job) throw new HttpError(409, "lease_lost", "Lease lost.");
-    const payload = JSON.parse(job.payload) as Record<string, unknown>;
-    const result = body.result ?? {};
-    app.db.tx(() => {
-      if (job.kind === "engine.subscribe") {
-        const streamId = z.string().min(1).parse(result.streamId);
-        onSubscribed(app, String(payload.sourceId), streamId, { empty: result.empty === true, viaGateway: result.viaGateway === true });
-      } else if (job.kind === "engine.provision") {
-        app.db.run("UPDATE engine_users SET status = 'ready', engine_identity = COALESCE(engine_identity, ?) WHERE id = ?",
-          typeof result.engineIdentity === "string" ? result.engineIdentity : null, String(payload.engineUserId));
-      } else if (job.kind === "capture.fulltext") {
-        completeCapture(app, String(payload.captureId), result);
-      } else if (job.kind === "capture.images") {
-        completeImages(app, { itemId: String(payload.itemId), urls: z.array(z.string()).parse(payload.urls) }, result);
-      } else if (job.kind === "source.icon") {
-        completeIconCheck(app, String(payload.sourceId), result);
-      } else if (job.kind === "filter.judge") {
-        const judged = aiJudgeResultSchema.parse(result);
-        completeJudging(app, job, judged);
-        result.verdicts = judged.verdicts.length;
-        delete result.model;
-      } else if (job.kind === "engine.sync") {
-        // A sync with nothing new posts no batch; its completion still proves the engine answered.
-        recordSyncSuccess(app, String(payload.engineUserId));
-      }
-      // Captured text, pictures and icon bytes live in their own tables, not in the job's result.
-      completeJob(app, job.id, body.leaseId, job.kind === "capture.fulltext" ? { captured: true } : job.kind === "capture.images" ? { pictures: Array.isArray(result.images) ? result.images.length : 0 }
-        : job.kind === "source.icon" ? { found: result.found === true } : result);
-    });
-    if (job.account_id) emit(app, job.account_id, { type: "jobs" });
+    if (!completeLeasedJob(app, req.params.id!, body.leaseId, body.result)) throw leaseLost();
     return { ok: true };
   }, { bodyLimit: JOB_RESULT_BODY_LIMIT });
 
   r.post("/internal/jobs/:id/fail", (req) => {
     const body = parse(jobFailureSchema, req.body);
-    const job = currentLease(app, req.params.id!, body.leaseId);
-    if (!job) {
-      // A job whose account became unusable waits in the queue instead of using up an attempt.
-      returnWaitingJob(app, req.params.id!, body.leaseId);
-      throw new HttpError(409, "lease_lost", "Lease lost.");
-    }
-    const payload = JSON.parse(job.payload) as Record<string, unknown>;
-    app.db.tx(() => {
-      // A site that limits requests or doesn't answer is retried after 1, 5 and 30 minutes, then the source says so and waits for the person.
-      const waits = job.kind === "engine.subscribe" && subscribeWaits(body.reason);
-      const outcome = failJob(app, job.id, body.leaseId, body.error, body.retryable, waits ? { retryDelays: SUBSCRIBE_RETRY_BACKOFF_SECONDS } : {});
-      if (outcome) settleFailedJob(app, { kind: job.kind, payload }, outcome, body.reason);
-    });
-    if (job.account_id) emit(app, job.account_id, { type: "jobs" });
+    if (!failLeasedJob(app, req.params.id!, body.leaseId, body)) throw leaseLost();
     return { ok: true };
   });
 
@@ -100,7 +51,7 @@ export function internalRouter(app: App): Router<{ app: App }> {
   r.post("/internal/filters/:jobId/input", (req) => {
     const { leaseId } = parse(z.object({ leaseId: z.string() }), req.body);
     const job = currentLease(app, req.params.jobId!, leaseId);
-    if (!job || job.kind !== "filter.judge") throw new HttpError(409, "lease_lost", "Lease lost.");
+    if (!job || job.kind !== "filter.judge") throw leaseLost();
     return judgeInput(app, job);
   });
 
@@ -108,7 +59,7 @@ export function internalRouter(app: App): Router<{ app: App }> {
     const batch = parse(syncBatchSchema, req.body);
     const job = app.db.get(`SELECT 1 FROM jobs WHERE lease_id = ? AND status = 'leased' AND kind = 'engine.sync' AND json_extract(payload, '$.engineUserId') = ? AND lease_expires_at > ? AND ${RUNNABLE_JOB_SQL}`,
       batch.leaseId, req.params.engineUserId!, nowIso());
-    if (!job) throw new HttpError(409, "lease_lost", "Lease lost.");
+    if (!job) throw leaseLost();
     const result = applySyncBatch(app, req.params.engineUserId!, batch);
     return { accepted: result.accepted, updated: result.updated, duplicates: result.duplicates, unknownStreams: result.unknownStreams, queuedForReview: result.queuedForReview };
   }, { bodyLimit: SYNC_BATCH_BODY_LIMIT });

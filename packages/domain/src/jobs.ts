@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiJudgeResultSchema } from "./ai-filters.ts";
 
 /**
  * Internal job contract between the API (sole database writer) and the worker.
@@ -19,6 +20,9 @@ export const JOB_KINDS = [
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
+/** Whether a stored or requested kind is one this version knows; a worker or a row of another version may name others. */
+export const isJobKind = (kind: string): kind is JobKind => (JOB_KINDS as readonly string[]).includes(kind);
+
 export const jobPayloadSchemas = {
   "engine.provision": z.object({ engineUserId: z.string(), username: z.string() }),
   // trim: the feed is big (larger than the engine can read whole), so the engine is given the feed gateway's trimmed copy of it.
@@ -37,6 +41,35 @@ export const jobPayloadSchemas = {
   // announce: the posts arrived just now, and the ones that stay are announced as new (a re-check announces nothing).
   "filter.judge": z.object({ itemIds: z.array(z.string()).min(1).max(20), announce: z.boolean() }),
 } satisfies Record<JobKind, z.ZodType>;
+export type JobPayload<K extends JobKind> = z.infer<(typeof jobPayloadSchemas)[K]>;
+
+/**
+ * What a worker reports when a job ran, by kind. A schema names only the fields the API uses and lets any other pass, and a
+ * field a worker of another version may not send is optional, so the wire stays compatible across a rolling deploy. A result
+ * the API refuses ends the job for good (the worker takes a 400 as a failure that will not pass on a retry), so only what the
+ * API cannot complete without is checked: the stream id of a subscription, and a Smart filter answer. Metadata about the
+ * run (an engine identity, a word about the feed) is `unknown` here, and the API acts on it only in the shape it expects. The
+ * results of `capture.fulltext`, `capture.images` and `source.icon` are any object here: what the worker fetched is checked
+ * where it is stored (captured text, pictures and icon bytes), and a result that fails there settles the copy, picture or
+ * icon check, rather than refusing a request the worker would retry.
+ */
+const anyResult = z.record(z.string(), z.unknown());
+export const jobResultSchemas = {
+  // engineIdentity: a string says which engine this is.
+  "engine.provision": z.looseObject({ engineIdentity: z.unknown().optional() }),
+  // empty: the engine says the feed it just fetched has nothing in it; viaGateway: the engine follows the feed gateway's copy of a big feed. Each counts only when it is true.
+  "engine.subscribe": z.looseObject({ streamId: z.string().min(1), empty: z.unknown().optional(), viaGateway: z.unknown().optional() }),
+  "engine.unsubscribe": anyResult,
+  "engine.rename": anyResult,
+  "engine.sync": anyResult,
+  "engine.mark_read": anyResult,
+  "capture.fulltext": anyResult,
+  "capture.images": anyResult,
+  "source.icon": anyResult,
+  "engine.delete_user": anyResult,
+  "filter.judge": aiJudgeResultSchema,
+} satisfies Record<JobKind, z.ZodType>;
+export type JobResult<K extends JobKind> = z.infer<(typeof jobResultSchemas)[K]>;
 
 export type LeasedJob = {
   id: string;
@@ -78,6 +111,7 @@ export const syncBatchSchema = z.object({
 });
 export type SyncBatch = z.infer<typeof syncBatchSchema>;
 
+/** A finished job's report; its result is checked by the job's kind (`jobResultSchemas`). */
 export const jobResultSchema = z.object({
   leaseId: z.string(),
   result: z.record(z.string(), z.unknown()).optional(),
