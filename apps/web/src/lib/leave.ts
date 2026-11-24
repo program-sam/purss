@@ -1,4 +1,5 @@
 import type { ItemDTO, WorkflowState } from "@purss/domain";
+import { showChange } from "../outbox/item-writer.ts";
 import { focusable, survivorIndex } from "./focus.ts";
 
 /** What can take an item out of the list it is shown in: a new state, Restore, or removing it from the basket shown. */
@@ -6,13 +7,13 @@ export type LeaveCause = WorkflowState | "restore" | "unkeep";
 
 /**
  * The causes that take this item out of its list, as a row's `data-leaves` attribute. `keeps` is the list's own
- * rule. PURSS clears the New marker when an item's state changes, so a list of new items loses it then.
+ * rule, asked about the item as the change would leave it (`showChange`: a list of new items loses it when its state changes).
  */
 export function leavesOn(item: ItemDTO, keeps: (item: ItemDTO) => boolean, inBasket: boolean): string {
   const out: LeaveCause[] = [];
   for (const w of ["undecided", "toread", "inprogress", "finished", "ignored"] as const) {
     if (w === item.workflow) continue;
-    if (!keeps({ ...item, workflow: w, isNew: false })) out.push(w);
+    if (!keeps(showChange(item, { kind: "workflow", itemId: item.id, from: item.workflow, to: w, revision: item.revision }))) out.push(w);
   }
   if (item.workflow === "ignored" && !keeps({ ...item, workflow: "undecided" })) out.push("restore");
   if (inBasket) out.push("unkeep");

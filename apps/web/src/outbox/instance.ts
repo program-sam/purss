@@ -1,6 +1,7 @@
 import type { BulkResult, ItemDTO } from "@purss/domain";
 import { api } from "../api/client.ts";
-import type { KeepResult, StateChangeResult } from "../api/types.ts";
+import type { ClearFreshResult, KeepResult, StateChangeResult } from "../api/types.ts";
+import type { StateRequests } from "./item-writer.ts";
 import { Outbox } from "./outbox.ts";
 import type { Sender } from "./outbox.ts";
 import { serial } from "./serial.ts";
@@ -51,3 +52,10 @@ async function locked<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export const outbox = new Outbox({ store: openStore(), sender, serialize: serial, exclusive, locked });
+
+/** The requests an item's writes make outside the outbox: reading progress, opening, Undo and Mark all as seen (see item-writer.ts). */
+export const itemRequests: StateRequests = {
+  state: (itemId, body) => api<StateChangeResult>(`/api/items/${enc(itemId)}/state`, { method: "PATCH", body }),
+  undo: async (undoToken) => { await api("/api/undo", { method: "POST", body: { undoToken } }); },
+  clearNew: (scope) => api<ClearFreshResult>("/api/items/clear-new", { method: "POST", body: { scope } }),
+};
