@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
-import { insertItem, listItems, searchSnippets } from "./items.ts";
+import { listItems, searchSnippets } from "./items.ts";
 import { rebuildSearchIndex, searchIndexIsCurrent, SEARCH_INDEX_VERSION, startSearchIndexRebuild, stepSearchIndex } from "./search-index.ts";
 import { foldForSearch, ftsQuery, stemTerm } from "./search-text.ts";
 import { putAnnotation } from "./annotations.ts";
 import { newId } from "@purss/domain";
+import { insertItem } from "./item-store.ts";
 
 test("Arabic is folded: vowel marks, stretched letters, alef and heh variants, the article and digits", () => {
   const same = (a: string, b: string) => assert.equal(foldForSearch(a), foldForSearch(b), `${a} / ${b}`);

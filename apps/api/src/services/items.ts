@@ -1,17 +1,14 @@
-import { newId, measureBytes } from "@purss/domain";
 import type { ItemDTO, ItemDetail, ItemIds, ItemIdsQuery, ItemListQuery, KeptDisplay, CaptureDTO, TextRef, WorkflowState } from "@purss/domain";
 import { MAX_BULK_ITEMS, itemIdsQuerySchema, itemListQuerySchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { badRequest, notFound, nowIso } from "../http.ts";
+import { badRequest, notFound } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import type { z } from "zod";
-import { admitObject } from "./storage.ts";
-import { NO_TITLE, contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
-import { linkKey, urlKey } from "./url-key.ts";
+import { displayAuthor, displayExcerpt, displayTitle, excerptBeyondTitle } from "./content.ts";
 import { getPlayback, itemLinkIsMedia, itemMedia } from "./media.ts";
-import { foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
-import { firstImage } from "./first-image.ts";
+import { indexedWord, searchTerms } from "./search-text.ts";
 import { looksLikeSummary } from "./teaser.ts";
+import { searchBody } from "./item-store.ts";
 import { onHomeItem } from "./home-sources.ts";
 import { NOT_MUTED_ROW, countMuted, accountMuted } from "./muted.ts";
 import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
@@ -21,89 +18,6 @@ import { failedCopy } from "./capture-state.ts";
 import { VIEW_FROM, scopeClause, textMatch, viewConditions, viewTotal } from "./item-view.ts";
 import { keptDisplays } from "./kept-display.ts";
 import { server } from "@purss/translations/server";
-
-export type NewItem = {
-  accountId: string;
-  sourceId: string | null;
-  sourceKindForFts?: string;
-  kind: string;
-  title: string;
-  url: string | null;
-  author: string | null;
-  summaryHtml: string | null;
-  contentHtml: string | null;
-  imageUrl: string | null;
-  durationSeconds: number | null;
-  doi: string | null;
-  curatorNote: string | null;
-  publishedAt: string | null;
-  discoveredAt: string;
-  /** The item's time in lists; its publication date, else its arrival, when not given. */
-  listedAt?: string;
-  enclosures: { url: string; type: string | null; length?: number | null }[];
-  /** The feed's full text was too large to send; the item holds its summary only. */
-  contentOmitted?: boolean;
-  isNew: boolean;
-  /** Backlog of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
-  ignored?: boolean;
-  reason: string;
-};
-
-/** Create an item with its first immutable version, state, search entry and storage object. */
-export function insertItem(app: App, n: NewItem): { id: string; versionId: string; seq: number } {
-  const id = newId("itm");
-  const versionId = newId("ver");
-  const now = nowIso();
-  const summaryHtml = sanitize(n.summaryHtml);
-  const contentHtml = sanitize(n.contentHtml);
-  const text = toText(contentHtml ?? summaryHtml);
-  const ex = excerpt(toText(summaryHtml) || text);
-  const r = app.db.run(
-    `INSERT INTO items (id, account_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
-       read_minutes, doi, curator_note, published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.sourceId, n.sourceId, n.kind, n.title || NO_TITLE, n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
-    n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, n.listedAt ?? n.publishedAt ?? n.discoveredAt, versionId,
-    JSON.stringify(n.enclosures.slice(0, 10)), now, now,
-  );
-  app.db.run(
-    "INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    versionId, id, n.accountId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
-  );
-  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.isNew ? 1 : 0, now);
-  indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
-  admitObject(app, {
-    accountId: n.accountId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
-    bytes: versionBytes({ title: n.title, url: n.url, author: n.author, summaryHtml, contentHtml, imageUrl: n.imageUrl, enclosures: n.enclosures, publishedAt: n.publishedAt }),
-    reason: n.reason,
-  });
-  return { id, versionId, seq: r.lastInsertRowid };
-}
-
-export function versionBytes(v: Record<string, unknown>): number {
-  return measureBytes(v);
-}
-
-/** The text search indexes for an item besides its title: its content (or summary) and any captured readable text. */
-function searchBody(app: App, itemId: string, contentHtml: string | null, summaryHtml: string | null): string {
-  const captured = app.db.all<{ text: string | null }>("SELECT text FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial'", itemId).map((c) => c.text ?? "").join(" ");
-  return `${toText(contentHtml ?? summaryHtml)} ${captured}`.trim();
-}
-
-/** Re-index an item's searchable text (after edits or captures). */
-export function reindex(app: App, itemId: string): void {
-  const row = app.db.get<{ seq: number; title: string; excerpt: string | null; author: string | null; content_html: string | null; summary_html: string | null }>(
-    `SELECT i.seq, i.title, i.excerpt, i.author, v.content_html, v.summary_html FROM items i LEFT JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?`, itemId);
-  if (!row) return;
-  const body = searchBody(app, itemId, row.content_html, row.summary_html);
-  app.db.run("DELETE FROM items_fts WHERE rowid = ?", row.seq);
-  indexText(app, row.seq, { title: row.title, excerpt: row.excerpt ?? "", author: row.author ?? "", body });
-}
-
-/** Put an item's searchable text into the index in its folded form (see search-text.ts). Every writer of the index goes through here. */
-export function indexText(app: App, seq: number, t: { title: string; excerpt: string; author: string; body: string }): void {
-  app.db.run("INSERT INTO items_fts (rowid, title, excerpt, author, body) VALUES (?, ?, ?, ?, ?)", seq, foldForSearch(t.title), foldForSearch(t.excerpt), foldForSearch(t.author), foldForSearch(t.body));
-}
 
 // ---------- listing ----------
 

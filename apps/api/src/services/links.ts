@@ -11,7 +11,8 @@ import { hueFor } from "./content.ts";
 
 /** The colour of the source that holds links kept by hand, from a fixed seed (not copy) so a new name never changes it. */
 const MANUAL_SOURCE_HUE = hueFor("Saved links");
-import { getItem, insertItem, reindex } from "./items.ts";
+import { getItem } from "./items.ts";
+import { insertItem, reindex } from "./item-store.ts";
 import { keepItem } from "./state.ts";
 import { urlKey } from "./url-key.ts";
 import { server } from "@purss/translations/server";

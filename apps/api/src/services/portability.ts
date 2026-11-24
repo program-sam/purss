@@ -15,11 +15,11 @@ import { audit, emit } from "../app.ts";
 import { HttpError, addSeconds, badRequest, conflict, notFound, nowIso } from "../http.ts";
 import { randomToken, removeSecret, writeSecret } from "../secrets.ts";
 import { enqueue } from "./jobs.ts";
-import { STATE_RECORD_BYTES, addUsedBytes, checkGrowth, diskInfo, diskOverride, reservedBytes, usedBytes, allowance } from "./storage.ts";
-import { NO_TITLE, contentHash, excerpt, readMinutes, sanitize, toText } from "./content.ts";
-import { indexText, versionBytes } from "./items.ts";
+import { STATE_RECORD_BYTES, checkGrowth, diskInfo, diskOverride, recordObject, reservedBytes, usedBytes, allowance } from "./storage.ts";
+import { NO_TITLE, sanitize } from "./content.ts";
+import { prepareVersion, restoreItem, restoreVersion, versionBytes } from "./item-store.ts";
+import type { RestoredCapture, RestoredVersion } from "./item-store.ts";
 import { markMembershipChanged } from "./state.ts";
-import { linkKey, urlKey } from "./url-key.ts";
 import { preferencesPatchSchema, setPreferences } from "./preferences.ts";
 import { makeSlug } from "./shares.ts";
 import { todayFor } from "./item-reminders.ts";
@@ -263,12 +263,12 @@ export async function streamExport(app: App, p: Principal, write: ExportSink): P
 
 type Version = ArchiveItem["versions"][number];
 
-type PreparedVersion = { archiveId: string | null; id: string; title: string; url: string | null; summaryHtml: string | null; contentHtml: string | null; hash: string; createdAt: string; bytes: number };
-type PreparedCapture = { archiveId: string; id: string; kind: "fulltext" | "browser"; status: "done" | "failed"; title: string | null; text: string | null; html: string | null; finalUrl: string | null; error: string | null; quality: "full" | "partial" | null; partialReason: "gated" | "references" | "short" | null; createdAt: string; completedAt: string | null; bytes: number };
+type PreparedVersion = RestoredVersion & { archiveId: string | null };
+type PreparedCapture = RestoredCapture & { archiveId: string };
 type PreparedItem = {
   url: string | null; imageUrl: string | null; enclosures: { url: string; type: string | null; length: number | null }[]; kind: string;
-  versions: PreparedVersion[]; currentId: string; captures: PreparedCapture[]; text: string; excerpt: string | null; readMinutes: number | null;
-  searchBody: string; discoveredAt: string; publishedAt: string | null; listedAt: string; createdAt: string; stateBytes: number; bytes: number;
+  versions: PreparedVersion[]; currentId: string; captures: PreparedCapture[];
+  discoveredAt: string; publishedAt: string | null; listedAt: string; createdAt: string; stateBytes: number; bytes: number;
 };
 
 type SourceDecision =
@@ -328,16 +328,14 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
     : [{ id: `${item.id}:v`, title: item.title, url: item.url, summaryHtml: null, contentHtml: null, createdAt: item.createdAt }];
   const versions: PreparedVersion[] = rawVersions.map((v) => {
     const vUrl = item.urlRedacted ? null : safeAddress(v.url);
-    const summaryHtml = sanitize(v.summaryHtml);
-    const contentHtml = sanitize(v.contentHtml);
     const title = v.title.trim() || item.title.trim() || NO_TITLE;
+    const { summaryHtml, contentHtml, hash } = prepareVersion({ title, url: vUrl, summaryHtml: v.summaryHtml, contentHtml: v.contentHtml });
     return {
-      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash: contentHash(title, vUrl, summaryHtml, contentHtml), createdAt: ISO_FALLBACK(v.createdAt, createdAt),
+      archiveId: v.id, id: newId("ver"), title, url: vUrl, summaryHtml, contentHtml, hash, createdAt: ISO_FALLBACK(v.createdAt, createdAt),
       bytes: versionBytes({ title, url: vUrl, author: item.author, summaryHtml, contentHtml, imageUrl, enclosures, publishedAt }),
     };
   });
   const current = versions.find((v) => v.archiveId === item.currentVersionId) ?? versions[versions.length - 1]!;
-  const text = toText(current.contentHtml ?? current.summaryHtml);
 
   // An item has at most one browser capture, and only a finished one: keep the newest.
   const browser = item.captures.filter((c) => c.kind === "browser" && c.status === "done").sort((a, b) => (a.completedAt ?? a.createdAt ?? "").localeCompare(b.completedAt ?? b.createdAt ?? "")).at(-1);
@@ -354,11 +352,8 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
   });
   const nonDefault = item.state.workflow !== "undecided" || item.state.progress > 0 || item.state.openedAt !== null;
   const stateBytes = nonDefault ? STATE_RECORD_BYTES : 0;
-  const summaryText = toText(current.summaryHtml);
   return {
-    url, imageUrl, enclosures, kind, versions, currentId: current.id, captures, text, excerpt: excerpt(summaryText || text),
-    readMinutes: kind === "video" || kind === "podcast" ? null : readMinutes(text),
-    searchBody: `${text} ${captures.filter((c) => c.status === "done" && c.quality !== "partial").map((c) => c.text ?? "").join(" ")}`.trim(),
+    url, imageUrl, enclosures, kind, versions, currentId: current.id, captures,
     discoveredAt, publishedAt, listedAt, createdAt, stateBytes,
     bytes: versions.reduce((n, v) => n + v.bytes, 0) + captures.reduce((n, c) => n + c.bytes, 0) + stateBytes,
   };
@@ -945,14 +940,7 @@ export function applyImport(app: App, p: Principal, token: string): ImportResult
 function ledgerInsert(app: App, p: Principal, spec: { kind: "item_version" | "capture" | "record" | "image"; refId: string; itemId: string | null; sourceId: string | null; bytes: number }): void {
   // The whole import was admitted once up front (checkGrowth for the total, inside the same
   // transaction), so each object is recorded without repeating the usage check.
-  const id = newId("obj");
-  const at = nowIso();
-  app.db.run(
-    "INSERT INTO stored_objects (id, account_id, kind, ref_id, item_id, source_id, bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    id, p.accountId, spec.kind, spec.refId, spec.itemId, spec.sourceId, spec.bytes, at);
-  app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    newId("use"), p.accountId, `admit:${id}`, id, spec.bytes, "import", at);
-  addUsedBytes(app, p.accountId, spec.bytes);
+  recordObject(app, { accountId: p.accountId, reason: "import", ...spec });
 }
 
 function runImport(app: App, p: Principal, doc: Archive, token: string): ImportResult {
@@ -1054,27 +1042,13 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
   for (const d of plan.items.values()) {
     if (d.action !== "create") continue;
     const { item: it, prepared: pr } = d;
-    const cur = pr.versions.find((v) => v.id === pr.currentId)!;
-    const row = app.db.run(
-      `INSERT INTO items (id, number, account_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds, read_minutes, doi, curator_note,
-         published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
-       VALUES (?, ?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      d.id, keptNumbers.get(d.id) ?? null, p.accountId, d.sourceId, d.sourceId, pr.kind, it.title.trim() || NO_TITLE, pr.url, urlKey(pr.url), pr.url ? linkKey(pr.url) : null, it.author, pr.excerpt, pr.imageUrl, it.durationSeconds, pr.readMinutes,
-      it.doi, it.curatorNote, pr.publishedAt, pr.discoveredAt, pr.listedAt, pr.currentId, JSON.stringify(pr.enclosures.slice(0, 10)), pr.createdAt, now);
-    for (const v of pr.versions) {
-      app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        v.id, d.id, ws, v.title, v.url, v.summaryHtml, v.contentHtml, v.hash, v.createdAt);
-      ledgerInsert(app, p, { kind: "item_version", refId: v.id, itemId: d.id, sourceId: d.sourceId, bytes: v.bytes });
-    }
-    app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, progress, opened_at, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
-      d.id, ws, d.sourceId, it.state.workflow, it.state.isNew ? 1 : 0, it.state.progress, it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null, now);
-    if (pr.stateBytes) ledgerInsert(app, p, { kind: "record", refId: `state:${d.id}`, itemId: null, sourceId: null, bytes: pr.stateBytes });
-    for (const c of pr.captures) {
-      app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, title, text, html, final_url, error, quality, partial_reason, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        c.id, ws, d.id, c.kind, c.status, c.title, c.text, c.html, c.finalUrl, c.error, c.quality, c.partialReason, c.createdAt, c.completedAt);
-      if (c.status === "done") { ledgerInsert(app, p, { kind: "capture", refId: c.id, itemId: d.id, sourceId: null, bytes: c.bytes }); result.created.captures++; }
-    }
-    indexText(app, Number(row.lastInsertRowid), { title: it.title, excerpt: pr.excerpt ?? "", author: it.author ?? "", body: pr.searchBody || cur.title });
+    result.created.captures += restoreItem(app, {
+      id: d.id, number: keptNumbers.get(d.id) ?? null, accountId: ws, sourceId: d.sourceId, kind: pr.kind, title: it.title.trim() || NO_TITLE, url: pr.url, author: it.author,
+      imageUrl: pr.imageUrl, durationSeconds: it.durationSeconds, doi: it.doi, curatorNote: it.curatorNote, publishedAt: pr.publishedAt, discoveredAt: pr.discoveredAt,
+      listedAt: pr.listedAt, createdAt: pr.createdAt, enclosures: pr.enclosures, versions: pr.versions, currentVersionId: pr.currentId,
+      state: { workflow: it.state.workflow, isNew: it.state.isNew, progress: it.state.progress, openedAt: it.state.openedAt ? ISO_FALLBACK(it.state.openedAt, "") || null : null },
+      stateBytes: pr.stateBytes, captures: pr.captures,
+    });
     result.created.items++;
   }
   // ---- workflow history (after the items it refers to exist)
@@ -1124,9 +1098,7 @@ function runImport(app: App, p: Principal, doc: Archive, token: string): ImportR
       if (!versionId && v.insert) {
         versionId = newId("ver");
         const owner = app.db.get<{ source_id: string | null }>("SELECT source_id FROM items WHERE id = ?", base.id);
-        app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          versionId, base.id, ws, v.insert.title, v.insert.url, v.insert.summaryHtml, v.insert.contentHtml, v.insert.hash, v.insert.createdAt);
-        ledgerInsert(app, p, { kind: "item_version", refId: versionId, itemId: base.id, sourceId: owner?.source_id ?? null, bytes: v.insert.bytes });
+        restoreVersion(app, ws, base.id, owner?.source_id ?? null, { ...v.insert, id: versionId });
       }
       versionId ??= app.db.get<{ current_version_id: string }>("SELECT current_version_id FROM items WHERE id = ?", base.id)?.current_version_id ?? null;
     }

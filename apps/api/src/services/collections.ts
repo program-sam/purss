@@ -1,18 +1,18 @@
 import { newId, checkQuery } from "@purss/domain";
-import type { BasketDTO, CollectionDTO, DeletePreview, StoredObjectKind, ViewMode } from "@purss/domain";
+import type { BasketDTO, CollectionDTO, DeletePreview, ViewMode } from "@purss/domain";
 import type { z } from "zod";
 import type { basketCreateSchema, basketPatchSchema, collectionCreateSchema, collectionPatchSchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { addSeconds, badRequest, notFound, nowIso } from "../http.ts";
 import { randomToken } from "../secrets.ts";
-import { refreshPause, releaseObject, releaseReservation } from "./storage.ts";
+import { refreshPause, releaseObject } from "./storage.ts";
 import { collectionNumbers } from "./item-view.ts";
 import { markMembershipChanged, pruneUnreferencedVersions } from "./state.ts";
-import { forgetPlayback } from "./media.ts";
-import { annotationCounts, deleteItemAnnotations } from "./annotations.ts";
+import { annotationCounts } from "./annotations.ts";
+import { deleteItemNow } from "./item-store.ts";
 import { assertRoom } from "./plans.ts";
-import { forgetCollectionFilter, forgetItemVerdicts } from "./ai-access.ts";
+import { forgetCollectionFilter } from "./ai-access.ts";
 import { server } from "@purss/translations/server";
 
 // ---------- collections ----------
@@ -193,43 +193,6 @@ export function deletePreview(app: App, p: Principal, itemIds: string[]): Delete
   return { itemIds, keptItems: kept, annotatedItems: annotated, releasesBytes: bytes, confirmToken };
 }
 
-
-/**
- * Permanently delete one item inside the caller's transaction (no confirmation here; callers
- * confirm first). Returns the bytes released, or null when the item isn't in this PURSS.
- */
-export function deleteItemNow(app: App, p: Pick<Principal, "accountId">, id: string): number | null {
-  let released = 0;
-  const item = app.db.get<{ seq: number }>("SELECT seq FROM items WHERE id = ? AND account_id = ?", id, p.accountId);
-  if (!item) return null;
-  for (const o of app.db.all<{ kind: StoredObjectKind; ref_id: string }>("SELECT kind, ref_id FROM stored_objects WHERE item_id = ? AND released_at IS NULL", id)) {
-    released += releaseObject(app, o.kind, o.ref_id, "deleted");
-  }
-  for (const m of app.db.all<{ basket_id: string }>("SELECT basket_id FROM basket_items WHERE item_id = ?", id)) {
-    released += releaseObject(app, "record", `basket:${m.basket_id}:${id}`, "deleted");
-  }
-  released += releaseObject(app, "record", `state:${id}`, "deleted");
-  for (const e of app.db.all<{ engine_user_id: string; external_id: string }>("SELECT engine_user_id, external_id FROM external_ids WHERE item_id = ?", id)) {
-    app.db.run("INSERT OR IGNORE INTO item_tombstones (engine_user_id, external_id, deleted_at) VALUES (?, ?, ?)", e.engine_user_id, e.external_id, nowIso());
-  }
-  for (const c of app.db.all<{ id: string }>("SELECT id FROM captures WHERE item_id = ? AND status = 'pending'", id)) {
-    const r = app.db.get<{ id: string }>("SELECT id FROM reservations WHERE idempotency_key = ?", `capture:${c.id}`);
-    if (r) releaseReservation(app, r.id);
-  }
-  forgetPlayback(app, id);
-  app.db.run("DELETE FROM items_fts WHERE rowid = ?", item.seq);
-  deleteItemAnnotations(app, id);
-  forgetItemVerdicts(app, id);
-  for (const table of ["basket_items", "captures", "item_images", "external_ids", "item_state", "state_log", "reminders"]) {
-    app.db.run(`DELETE FROM ${table} WHERE item_id = ?`, id);
-  }
-  app.db.run("DELETE FROM share_notes WHERE item_id = ?", id);
-  app.db.run("UPDATE items SET current_version_id = NULL WHERE id = ?", id);
-  app.db.run("DELETE FROM item_versions WHERE item_id = ?", id);
-  app.db.run("DELETE FROM notifications WHERE item_id = ?", id);
-  app.db.run("DELETE FROM items WHERE id = ?", id);
-  return released;
-}
 
 /** Permanent, confirmed deletion. Never blocked by a full storage allowance. No undo. */
 export function deleteItems(app: App, p: Principal, confirmToken: string): { deleted: number; releasedBytes: number } {

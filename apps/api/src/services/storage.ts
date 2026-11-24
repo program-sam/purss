@@ -157,6 +157,13 @@ export type ObjectSpec = {
 /** Admit and record a stored object. Must run inside the mutation's transaction. */
 export function admitObject(app: App, spec: ObjectSpec): string {
   checkGrowth(app, spec.accountId, spec.bytes, { control: spec.control, reservationId: spec.reservationId, onDisk: spec.onDisk });
+  const id = recordObject(app, spec);
+  if (spec.reservationId) settleReservation(app, spec.reservationId);
+  return id;
+}
+
+/** Record a stored object without checking growth, for a caller that admitted the whole of it up front (an archive import checks its total once). */
+export function recordObject(app: App, spec: Pick<ObjectSpec, "accountId" | "kind" | "refId" | "itemId" | "sourceId" | "bytes" | "reason">): string {
   const id = newId("obj");
   const now = nowIso();
   app.db.run(
@@ -166,7 +173,6 @@ export function admitObject(app: App, spec: ObjectSpec): string {
   app.db.run("INSERT INTO usage_events (id, account_id, idempotency_key, object_id, delta_bytes, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     newId("use"), spec.accountId, `admit:${id}`, id, spec.bytes, spec.reason, now);
   addUsedBytes(app, spec.accountId, spec.bytes);
-  if (spec.reservationId) settleReservation(app, spec.reservationId);
   return id;
 }
 

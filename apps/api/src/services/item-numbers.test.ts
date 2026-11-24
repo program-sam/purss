@@ -8,8 +8,8 @@ import { extraRouters } from "../routes/index.ts";
 import { publicRouter } from "../routes/public.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItem, itemIdByNumber } from "./items.ts";
-import { deleteItemNow } from "./collections.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
+import { deleteItemNow } from "./item-store.ts";
 
 /*
  * An item's number names it in its short link, /app/i/<number>. Numbers count per account, are never given

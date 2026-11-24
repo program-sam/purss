@@ -1,6 +1,6 @@
 import type { App } from "../app.ts";
 import { indexAnnotation } from "./annotations.ts";
-import { reindex } from "./items.ts";
+import { reindex } from "./item-store.ts";
 
 /*
  * Keeping the search index in step with how search folds text (search-text.ts). The index is derived

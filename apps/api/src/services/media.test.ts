@@ -5,11 +5,11 @@ import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
-import { deleteItemNow } from "./collections.ts";
 import { reconcile, usedBytes } from "./storage.ts";
 import { savePlayback } from "./media.ts";
 import { createBasket } from "./collections.ts";
 import { keepItem } from "./state.ts";
+import { deleteItemNow } from "./item-store.ts";
 
 const MP3 = "https://cdn.example.org/episodes/ep1.mp3";
 

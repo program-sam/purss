@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../apps/api/src/config.ts";
 import { openDatabase } from "../apps/api/src/db/database.ts";
-import { reindex } from "../apps/api/src/services/items.ts";
+import { reindex } from "../apps/api/src/services/item-store.ts";
 import { reconcile } from "../apps/api/src/services/storage.ts";
 import type { App } from "../apps/api/src/app.ts";
 import { describeDatabase, hashFile } from "./backup.ts";

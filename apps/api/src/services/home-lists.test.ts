@@ -4,14 +4,15 @@ import type { ItemListQuery } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
-import { insertItem, listItemIds, listItems } from "./items.ts";
-import type { NewItem } from "./items.ts";
+import { listItemIds, listItems } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection } from "./collections.ts";
 import { getPreferences, preferencesPatchSchema, setPreferences } from "./preferences.ts";
 import { homeOverview } from "./home.ts";
 import { activeMutedWords, mutedScan } from "./muted.ts";
 import { matchesMuted, mutedPatterns } from "./muted-match.ts";
+import { insertItem } from "./item-store.ts";
+import type { NewItem } from "./item-store.ts";
 
 /*
  * What Home's sections and lists show: items of collections hidden on Home stay out of Home's feed and

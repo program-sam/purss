@@ -7,12 +7,12 @@ import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import type { App, Principal } from "../app.ts";
 import { HttpError } from "../http.ts";
 import { createBasket, createCollection, deleteItems, deletePreview } from "./collections.ts";
-import { insertItem } from "./items.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
 import { OPTIONAL_SECTION_NAMES, SECTION_NAMES, parseArchive, sha256Hex } from "./archive-format.ts";
 import { collectionStats, sourceStats } from "./statistics.ts";
 import { applyUndo, bulk, changeState, keepItem } from "./state.ts";
 import { reconcile } from "./storage.ts";
+import { insertItem } from "./item-store.ts";
 
 const DAY = 86_400_000;
 const NOW = Date.now();

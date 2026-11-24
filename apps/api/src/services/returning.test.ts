@@ -9,8 +9,7 @@ import { nowIso } from "../http.ts";
 import { settleMail, useTransport } from "../mail/mailer.ts";
 import type { Message } from "../mail/mailer.ts";
 import { applySyncBatch } from "./sync.ts";
-import { insertItem, listItems } from "./items.ts";
-import type { NewItem } from "./items.ts";
+import { listItems } from "./items.ts";
 import { applyUndo, bulk, changeState, clearNewAll } from "./state.ts";
 import { createCollection } from "./collections.ts";
 import { followSource, onSubscribed, patchSource, unfollowSource } from "./sources.ts";
@@ -20,6 +19,8 @@ import { digestFor, lastScheduled, listNotifications, notifyArrivals, pruneNotif
 import { homeOverview, touchVisit } from "./home.ts";
 import { expireNewMarkers, resumePausedSources, runReturningPass } from "./returning.ts";
 import { activityFor } from "./activity.ts";
+import { insertItem } from "./item-store.ts";
+import type { NewItem } from "./item-store.ts";
 
 const { activity, notifications, mailTemplates, shared, sources } = server.api;
 const DAY = 86_400_000;

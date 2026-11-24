@@ -7,12 +7,12 @@ import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
 import { changeState } from "./state.ts";
-import { deleteItemNow } from "./collections.ts";
 import { reconcile, reservedBytes, usedBytes } from "./storage.ts";
 import { AUTO_CAPTURE_SPACING_SECONDS, completeCapture } from "./captures.ts";
 import { followSource, getSource, patchSource } from "./sources.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
+import { deleteItemNow } from "./item-store.ts";
 
 const pendingCaptures = (app: App, sourceId: string) => app.db.all<{ item_id: string }>(
   "SELECT c.item_id FROM captures c JOIN items i ON i.id = c.item_id WHERE i.source_id = ? AND c.status = 'pending'", sourceId).map((r) => r.item_id);

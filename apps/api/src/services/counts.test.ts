@@ -5,9 +5,10 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import { applySyncBatch } from "./sync.ts";
 import { bulk, changeState, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
-import { insertItem, listItems } from "./items.ts";
+import { listItems } from "./items.ts";
 import { itemCounts } from "./counts.ts";
 import { listSources, unfollowSource } from "./sources.ts";
+import { insertItem } from "./item-store.ts";
 
 /*
  * The source list and the collection list add up one set of counts instead of counting rows for each. These tests build

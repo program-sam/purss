@@ -7,7 +7,7 @@ import { emit } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import { admitObject, checkGrowth, markPaused, releaseObject, releaseReservation, reserve, StorageFull } from "./storage.ts";
 import { readMinutes, sanitize, toText } from "./content.ts";
-import { reindex } from "./items.ts";
+import { reindex } from "./item-store.ts";
 import { queueItemImages } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { enqueue } from "./jobs.ts";
