@@ -1,4 +1,5 @@
 import { app } from "@purss/translations/app";
+import { isQueued } from "@purss/domain";
 import type { ActivityDTO, HomeOverview, ItemDTO, Preferences } from "@purss/domain";
 import { dateFormat, formatCount, interfaceLocale, plural, timeAgo } from "./format.ts";
 
@@ -21,7 +22,7 @@ export function newDaysChoices(current: number): { value: number; label: string 
 }
 
 /** The queue: what the person put aside (To read) and what they started (In progress). */
-export const inQueue = (i: Pick<ItemDTO, "workflow">) => i.workflow === "toread" || i.workflow === "inprogress";
+export const inQueue = (i: Pick<ItemDTO, "workflow">) => isQueued(i.workflow);
 
 /** The queue is split into three rows by kind, as the state's own name is: articles are To read, videos To watch, podcasts To listen. */
 type Aside = Pick<ItemDTO, "workflow" | "kind">;

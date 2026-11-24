@@ -1,5 +1,5 @@
 import { app } from "@purss/translations/app";
-import type { ItemKind, Sort, ViewMode, WorkflowState } from "@purss/domain";
+import type { ItemKind, Sort, StateFilter, ViewMode, WorkflowState } from "@purss/domain";
 
 /*
  * Browser-safe copies of the product's small enumerations. The domain package's runtime entry
@@ -31,7 +31,7 @@ export const SORT_LABELS: Record<Sort, string> = app.lib.constants.sorts;
 export const SORT_ORDER: readonly Sort[] = ["newest", "oldest", "source", "title", "kept"];
 
 /** Filters shown in the header menu. "all" (All) is everything except Ignored; "all_with_ignored" includes Ignored. */
-export type ListFilter = "all" | "all_with_ignored" | "new" | WorkflowState;
+export type ListFilter = StateFilter;
 export const LIST_FILTERS: readonly ListFilter[] = ["all", "all_with_ignored", "new", "undecided", "toread", "inprogress", "finished", "ignored"];
 export const FILTER_LABELS: Record<ListFilter, string> = app.lib.constants.filters;
 
