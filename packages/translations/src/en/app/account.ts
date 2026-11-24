@@ -311,7 +311,14 @@ export default {
     },
 
     forget: {
-      unsentKept: (n: number) => ` ${plural(n, "Your unsent highlight or note stays", "Your # unsent highlights and notes stay")} on this device and ${plural(n, "is", "are")} sent when you connect again with the same account.`,
+      unsentKept: (notes: number, late: number) => {
+        const kept = [
+          ...(notes ? [plural(notes, "unsent highlight or note", "# unsent highlights and notes")] : []),
+          ...(late ? [plural(late, "unsent playback position or reading progress", "# unsent playback positions and reading progress")] : []),
+        ].join(" and ");
+        const one = notes + late === 1;
+        return ` Your ${kept} ${one ? "stays" : "stay"} on this device and ${one ? "is" : "are"} sent when you connect again with the same account.`;
+      },
       stuck: " The old connection couldn't be removed from this device's secure storage. Connecting again replaces it. If this keeps happening, reinstall the app.",
       disconnected: "This app is disconnected, and everything it kept on this device is removed.",
       unreachable: "Everything this app kept on this device is removed. PURSS couldn't be reached to disconnect it, so remove it in Settings → Connected apps next time you're there.",

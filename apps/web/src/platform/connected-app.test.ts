@@ -160,7 +160,11 @@ function build(options: Options = {}) {
     revokeDevice: async () => { log.push("revoke device"); if (options.unreachable) throw new Error("timeout"); },
     data: {
       wipeCopies: async () => { log.push("wipe copies"); },
-      unsent: unsentWrites({ notes, clearLate: () => { log.push("clear late writes"); } }),
+      unsent: unsentWrites({
+        notes,
+        late: { count: () => 0, clear: () => { log.push("clear late writes"); } },
+        changes: { countAll: async () => 0, clearAll: async () => { log.push("clear item changes"); } },
+      }),
       clearHints: () => { log.push("clear hints"); },
     },
   };
@@ -288,7 +292,7 @@ test("disconnecting tells PURSS, removes everything the app kept, leaves the not
   await a.restarted;
   const log = a.log.slice(a.log.indexOf("revoke device"));
   assert.equal(log[0], "revoke device");
-  for (const effect of ["stop audio", "forget connection", "stop background", "wipe copies", "clear late writes", "remove downloads", "forget push", "clear hints"]) {
+  for (const effect of ["stop audio", "forget connection", "stop background", "wipe copies", "clear late writes", "clear item changes", "remove downloads", "forget push", "clear hints"]) {
     assert.ok(log.includes(effect), effect);
   }
   assert.deepEqual(log.slice(-4), ["leave notice", "finish", "reset address", `apply ${BUILTIN}`], "the notice is left before the app starts again");
@@ -302,6 +306,7 @@ test("disconnecting while PURSS can't be reached still removes everything, and s
   await a.connection().disconnect();
   await a.restarted;
   assert.ok(a.log.includes("clear late writes"));
+  assert.ok(a.log.includes("clear item changes"));
   assert.equal(a.notes.snapshot().length, 0, "the unsent highlights and notes went too");
   assert.ok(a.log.includes("wipe copies"));
   assert.deepEqual(a.leftNotice(), { notice: forgot.unreachable, stuck: false });
@@ -312,9 +317,10 @@ test("a lost device keeps the unsent highlights and notes, and the notice says h
   a.connection().lost();
   await a.restarted;
   assert.ok(!a.log.includes("clear late writes"), "unsent positions and progress stay");
+  assert.ok(a.log.includes("clear item changes"), "changes to items are not the person's own writing: they go");
   assert.equal(a.notes.snapshot().length, 3, "unsent writing is the person's own");
   for (const effect of ["wipe copies", "remove downloads", "forget connection", "stop background", "forget push"]) assert.ok(a.log.includes(effect), effect);
-  assert.deepEqual(a.leftNotice(), { notice: forgot.lost(forgot.unsentKept(3)), stuck: false });
+  assert.deepEqual(a.leftNotice(), { notice: forgot.lost(forgot.unsentKept(3, 0)), stuck: false });
   assert.equal(a.stoppedWith(), null, "no sound was started by the page");
 });
 
@@ -324,7 +330,7 @@ test("a connection that secure storage won't remove is marked so the next start 
   await a.restarted;
   const left = a.leftNotice();
   assert.equal(left.stuck, true);
-  assert.equal(left.notice, forgot.lost(forgot.unsentKept(3)) + forgot.stuck);
+  assert.equal(left.notice, forgot.lost(forgot.unsentKept(3, 0)) + forgot.stuck);
 });
 
 test("however many times the device is lost or disconnected, it is forgotten once", async () => {
@@ -335,7 +341,7 @@ test("however many times the device is lost or disconnected, it is forgotten onc
   await a.restarted;
   assert.equal(a.log.filter((l) => l === "forget connection").length, 1);
   assert.equal(a.log.filter((l) => l === "leave notice").length, 1);
-  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3)), "the first reason stands");
+  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3, 0)), "the first reason stands");
 });
 
 test("PURSS refusing the device on the event stream loses it", async () => {
@@ -346,13 +352,14 @@ test("PURSS refusing the device on the event stream loses it", async () => {
   stop();
   assert.ok(requests.includes("/api/events"));
   assert.ok(!a.log.includes("clear late writes"), "lost, not disconnected");
-  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3)));
+  assert.ok(a.log.includes("clear item changes"));
+  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3, 0)));
 });
 
 test("the background job finding the token refused while the app was closed loses the device at start", async () => {
   const a = await setup({ refusedWhileClosed: true });
   await a.restarted;
-  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3)));
+  assert.equal(a.leftNotice().notice, forgot.lost(forgot.unsentKept(3, 0)));
   const quiet = await setup({ refusedWhileClosed: false });
   await new Promise((r) => setImmediate(r));
   assert.ok(!quiet.log.includes("leave notice"));

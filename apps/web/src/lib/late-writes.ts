@@ -26,14 +26,16 @@ function deviceStorage(): KV {
   try { return localStorage; } catch { return memory(); }
 }
 
+function parse<T>(stored: string | null): Record<string, T> {
+  try {
+    const v = JSON.parse(stored ?? "{}") as unknown;
+    return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, T> : {};
+  } catch { return {}; }
+}
+
 export function lateStore<T>(kind: string, accountId: string, storage: KV = deviceStorage()): LateStore<T> {
   const key = `${PREFIX}${kind}:${accountId}`;
-  const read = (): Record<string, T> => {
-    try {
-      const v = JSON.parse(storage.getItem(key) ?? "{}") as unknown;
-      return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, T> : {};
-    } catch { return {}; }
-  };
+  const read = (): Record<string, T> => parse<T>(storage.getItem(key));
   const write = (all: Record<string, T>) => {
     try { if (Object.keys(all).length) storage.setItem(key, JSON.stringify(all)); else storage.removeItem(key); } catch { /* full or private mode: kept for this visit only by the caller's retry */ }
   };
@@ -60,6 +62,16 @@ export function clearLateWrites(storage: KV = deviceStorage(), except: string | 
     if (k?.startsWith(PREFIX) && !(except && k.endsWith(`:${except}`))) keys.push(k);
   }
   for (const k of keys) storage.removeItem(k);
+}
+
+/** How many unsent positions and progress entries this device holds, of every account: what `clearLateWrites` with no `except` removes. */
+export function countLateWrites(storage: KV = deviceStorage()): number {
+  let held = 0;
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (k?.startsWith(PREFIX)) held += Object.keys(parse(storage.getItem(k))).length;
+  }
+  return held;
 }
 
 /** Whether a failed write should be kept for later: no connection, a busy server, or a session that ended. */
