@@ -8,6 +8,7 @@ import { enqueue } from "./jobs.ts";
 import { getItem } from "./items.ts";
 import { VIEW_FROM, viewConditions } from "./item-view.ts";
 import { queueCapture } from "./captures.ts";
+import { keptVersionsChanged } from "./item-store.ts";
 import { queueItemImages } from "./images.ts";
 import { server } from "@purss/translations/server";
 
@@ -152,11 +153,13 @@ function mirrorRead(app: App, p: Owner, itemIds: string[], workflow: WorkflowSta
  * Which baskets hold an item is part of the copy that caches and the offline pack keep (`basketIds`), so a change to it moves the
  * state version like any other change to the item. The revision stays where it is, and `updated_at` too: Home orders the items
  * in progress by it, and keeping an item is not reading it. It also stores again when the item was last kept, which lists sorted
- * by kept time read. Call in the transaction that adds or removes the membership, after it.
+ * by kept time read. It is also which version the reader shows, and so the reading time (`keptVersionsChanged`). Call in the transaction
+ * that adds or removes the membership, after it.
  */
 export function markMembershipChanged(app: App, accountId: string, itemId: string): void {
   app.db.run("UPDATE item_state SET state_version = state_version + 1 WHERE item_id = ? AND account_id = ?", itemId, accountId);
   app.db.run("UPDATE items SET kept_key = COALESCE((SELECT MAX(kept_at) FROM basket_items WHERE item_id = ?), '') WHERE id = ?", itemId, itemId);
+  keptVersionsChanged(app, itemId);
 }
 
 export function keepItem(app: App, p: Principal, itemId: string, basketId: string, ops?: UndoOp[]): { captureQueued: boolean; captureNote: string | null } {

@@ -1,5 +1,5 @@
 import { newId, measureBytes } from "@purss/domain";
-import type { StoredObjectKind, WorkflowState } from "@purss/domain";
+import type { StoredObjectKind, TextRef, WorkflowState } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
 import { nowIso } from "../http.ts";
 import { StorageFull, admitObject, markPaused, recordObject, releaseObject, releaseReservation } from "./storage.ts";
@@ -91,22 +91,76 @@ function headlineOf(title: string, summaryHtml: string | null, contentHtml: stri
   return title.trim() || excerpt(toText(summaryHtml ?? contentHtml), 80) || NO_TITLE;
 }
 
+// ---------- the text the reader shows
+
+/** A stored version of an item, as `shownText` reads it. */
+export type ShownVersion = { id: string; title: string; url: string | null; contentHtml: string | null; summaryHtml: string | null; contentOmitted: boolean; createdAt: string };
+
+/** What the reader shows for an item, and the stored texts it chose between. */
+export type ShownText = {
+  /** The newest finished readable copy that is the whole page, a browser capture included (its markup may be missing: then it shows nothing). */
+  copy: { id: string; html: string | null } | null;
+  current: ShownVersion;
+  /** The version the earliest basket kept, and when; null when no basket keeps the item. */
+  kept: (ShownVersion & { keptAt: string }) | null;
+  /** A basket's kept version is shown, because the item has been revised since. */
+  changedSinceKept: boolean;
+  /** What is shown, and which stored text it is. */
+  html: string | null;
+  ref: TextRef | null;
+};
+
 /**
- * Give an item the reading time of a complete readable copy: the copy is the article, where the feed's text was a summary.
- * A video or a podcast episode has none. Called when a copy is completed (captures.ts) and when an import brings one back.
+ * The one rule for which text the reader shows for an item: its newest readable copy that is the whole page, else the version the
+ * earliest basket kept while an edit has since replaced it as the current version, else the current version. `getItemDetail` shows
+ * exactly this, and the item's reading time is that of this text (`refreshReadingTime`).
  */
-export function setReadingTimeFromCopy(app: App, itemId: string, copyText: string): void {
-  app.db.run("UPDATE items SET read_minutes = ? WHERE id = ? AND kind NOT IN ('video', 'podcast')", readMinutes(copyText), itemId);
+export function shownText(app: App, itemId: string): ShownText {
+  const version = `v.id, v.title, v.url, v.content_html, v.summary_html, v.content_omitted, v.created_at`;
+  type Row = { id: string; title: string; url: string | null; content_html: string | null; summary_html: string | null; content_omitted: number; created_at: string };
+  const asVersion = (r: Row): ShownVersion => ({ id: r.id, title: r.title, url: r.url, contentHtml: r.content_html, summaryHtml: r.summary_html, contentOmitted: r.content_omitted === 1, createdAt: r.created_at });
+  const copy = app.db.get<{ id: string; html: string | null }>(
+    "SELECT id, html FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial' ORDER BY completed_at DESC LIMIT 1", itemId) ?? null;
+  const current = asVersion(app.db.get<Row>(`SELECT ${version} FROM items i JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?`, itemId)!);
+  const keptRow = app.db.get<Row & { kept_at: string }>(
+    `SELECT ${version}, b.kept_at FROM basket_items b JOIN item_versions v ON v.id = b.version_id WHERE b.item_id = ? ORDER BY b.kept_at LIMIT 1`, itemId);
+  const kept = keptRow ? { ...asVersion(keptRow), keptAt: keptRow.kept_at } : null;
+  const changedSinceKept = !!kept && kept.id !== current.id;
+  const keptHtml = kept ? kept.contentHtml ?? kept.summaryHtml : null;
+  const currentHtml = current.contentHtml ?? current.summaryHtml;
+  const ref: TextRef | null = copy && copy.html !== null ? { kind: "capture", id: copy.id }
+    : changedSinceKept && kept ? (keptHtml ? { kind: "version", id: kept.id } : null)
+    : currentHtml ? { kind: "version", id: current.id } : null;
+  return { copy, current, kept, changedSinceKept, html: copy?.html ?? (changedSinceKept ? keptHtml : currentHtml), ref };
 }
 
 /**
- * Whether the reader shows an item's version `versionId`, as `getItemDetail` chooses what to show: a readable copy comes before a
- * kept version (the earliest kept one, while it is not the current version), which comes before the current version.
+ * Set an item's reading time from the text the reader shows for it (`shownText`), the way a complete readable copy sets it: the copy is the
+ * article, where the feed's text was a summary. A video or a podcast episode has none. Call it after anything that can change which text is
+ * shown or what it says: an edit, a readable copy completed or saved from the browser, an import, a basket kept version removed
+ * (`keptVersionsChanged`). `known` is a version's plain text the caller has already read, so it is not read again.
  */
-function showsVersion(app: App, itemId: string, versionId: string): boolean {
-  if (app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial'", itemId)) return false;
-  const kept = app.db.get<{ version_id: string }>("SELECT version_id FROM basket_items WHERE item_id = ? ORDER BY kept_at LIMIT 1", itemId);
-  return !kept || kept.version_id === versionId;
+export function refreshReadingTime(app: App, itemId: string, known?: { versionId: string; text: string }): void {
+  const item = app.db.get<{ kind: string }>("SELECT kind FROM items WHERE id = ?", itemId);
+  if (!item || item.kind === "video" || item.kind === "podcast") return;
+  const shown = shownText(app, itemId);
+  let text: string;
+  if (shown.copy && shown.copy.html !== null) {
+    text = app.db.get<{ text: string | null }>("SELECT text FROM captures WHERE id = ?", shown.copy.id)?.text ?? toText(shown.copy.html);
+  } else {
+    const version = shown.changedSinceKept ? shown.kept! : shown.current;
+    text = known?.versionId === version.id ? known.text : toText(version.contentHtml ?? version.summaryHtml);
+  }
+  app.db.run("UPDATE items SET read_minutes = ? WHERE id = ?", readMinutes(text), itemId);
+}
+
+/**
+ * Which version the reader shows depends on which versions the baskets kept, which matters only once an item has more than one. Call after a
+ * basket's kept version is added or removed (`markMembershipChanged` does).
+ */
+export function keptVersionsChanged(app: App, itemId: string): void {
+  if (app.db.all("SELECT 1 FROM item_versions WHERE item_id = ? LIMIT 2", itemId).length < 2) return;
+  refreshReadingTime(app, itemId);
 }
 
 /** A version's text as it is stored: sanitised, with the hash that tells a later delivery whether it changed. */
@@ -228,8 +282,8 @@ export function restoreItem(app: App, r: RestoredItem): number {
       c.id, r.accountId, r.id, c.kind, c.status, c.title, c.text, c.html, c.finalUrl, c.error, c.quality, c.partialReason, c.createdAt, c.completedAt);
     if (c.status === "done") { recordObject(app, { accountId: r.accountId, kind: "capture", refId: c.id, itemId: r.id, bytes: c.bytes, reason: "import" }); copies++; }
   }
-  const complete = r.captures.filter((c) => c.status === "done" && c.kind === "fulltext" && c.quality === "full").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""))[0];
-  if (complete) setReadingTimeFromCopy(app, r.id, complete.text ?? "");
+  // Without a readable copy the current version is what is shown (and its reading time is set), until a basket keeps another one.
+  if (r.captures.length) refreshReadingTime(app, r.id, { versionId: r.currentVersionId, text: d.text });
   indexItem(app, r.id, seq, { title: r.title, excerpt: d.excerpt, author: r.author }, d.text);
   return copies;
 }
@@ -274,13 +328,8 @@ export function updateItem(app: App, accountId: string, itemId: string, entry: I
         reason: "feed item update",
       });
       // The files come with the revision: a rotated file address (a private feed's new token) must stay recognisable as the item's file.
-      // The reading time describes the text the reader shows: it follows the new version only when that is the text shown, and stays
-      // with a readable copy or a kept version, which an edit does not replace.
-      app.db.run(
-        `UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?,
-           read_minutes = CASE WHEN ? THEN ? ELSE read_minutes END,
-           image_url = COALESCE(?, image_url), enclosures = ?, current_version_id = ?, updated_at = ? WHERE id = ?`,
-        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, d.excerpt, showsVersion(app, itemId, versionId) ? 1 : 0, d.readMinutes, entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
+      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), enclosures = ?, current_version_id = ?, updated_at = ? WHERE id = ?",
+        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, d.excerpt, entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
       const pinned = app.db.get("SELECT 1 FROM basket_items WHERE version_id = ?", cur.current_version_id);
       if (!pinned) {
         // The superseded version was never kept: it is replaced, not retained.
@@ -288,6 +337,8 @@ export function updateItem(app: App, accountId: string, itemId: string, entry: I
         app.db.run("DELETE FROM item_versions WHERE id = ?", cur.current_version_id);
       }
       indexItem(app, itemId, cur.seq, { title, excerpt: d.excerpt, author: entry.author }, d.text);
+      // The new text is what the reader shows unless a readable copy or a kept version is: the reading time follows what is shown.
+      refreshReadingTime(app, itemId, { versionId, text: d.text });
     });
     return true;
   } catch (err) {

@@ -4,10 +4,10 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
-import { createBasket } from "./collections.ts";
+import { basketDeletePreview, createBasket, deleteBasket } from "./collections.ts";
 import { deleteItemNow } from "./item-store.ts";
-import { keepLink } from "./links.ts";
-import { keepItem } from "./state.ts";
+import { keepLink, keepWithBrowserCapture } from "./links.ts";
+import { keepItem, unkeepItem } from "./state.ts";
 import { putAnnotation } from "./annotations.ts";
 import { savePlayback } from "./media.ts";
 import { setItemReminder } from "./item-reminders.ts";
@@ -21,7 +21,7 @@ import { foldForSearch } from "./search-text.ts";
 import { linkKey, urlKey } from "./url-key.ts";
 import { reconcile } from "./storage.ts";
 import { getItemDetail } from "./items.ts";
-import { completeCapture, queueCapture } from "./captures.ts";
+import { completeCapture, queueCapture, stepCaptureCheck } from "./captures.ts";
 
 /*
  * The item store: whichever way an item is made, revised or removed (an engine sync, an archive import, a news post, a link kept
@@ -301,6 +301,125 @@ test("an archive import gives an item with a complete readable copy the reading 
   assert.equal(getItemDetail(b.app, pb, imported).readMinutes, 10);
   assertReadingTimeIsOfShownText(b.app, pb, imported);
   assert.equal(getItemDetail(b.app, pb, itemOf(b.app, partial.url!)).readMinutes, 5, "nor does importing it make a part of a page the article");
+});
+
+const browserPage = (words: number) => `<article><p>${prose(words)}</p></article>`;
+const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+
+test("the reading time follows the newest complete copy, a browser capture included, and an import keeps it", async (t) => {
+  const a = makeTestApp();
+  const b = makeTestApp();
+  t.after(() => { a.cleanup(); b.cleanup(); });
+  const pa = makeOwner(a.app);
+  const pb = makeOwner(b.app);
+  makeSource(a.app, pa, "Tide Letters", "feed/1");
+  const e = entry("feed/1", { title: "Copied twice", contentHtml: longText(700) });
+  applySyncBatch(a.app, pa.engineUserId, batch([e]));
+  const id = itemOf(a.app, e.url!);
+  assert.equal(getItemDetail(a.app, pa, id).readMinutes, 4);
+  saveReadableCopy(a.app, pa, id, prose(2300));
+  assert.equal(getItemDetail(a.app, pa, id).readMinutes, 10, "the server's copy is the article");
+  await pause();
+  keepWithBrowserCapture(a.app, pa, { url: e.url!, basketId: createBasket(a.app, pa, { name: "Reading", captureMode: "metadata" }).id, html: browserPage(700) });
+  assert.equal(getItemDetail(a.app, pa, id).readMinutes, 4, "the person's newer capture is what the reader shows now");
+  assertReadingTimeIsOfShownText(a.app, pa, id);
+
+  const parts: string[] = [];
+  await streamExport(a.app, pa, (c) => { parts.push(c); });
+  assert.equal(applyImport(b.app, pb, stageImport(b.app, pb, JSON.parse(parts.join(""))).token).created.items, 1);
+  assert.equal(getItemDetail(b.app, pb, itemOf(b.app, e.url!)).readMinutes, 4);
+  assertReadingTimeIsOfShownText(b.app, pb, itemOf(b.app, e.url!));
+});
+
+test("a page saved from the browser gives the item the reading time of that text", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const e = entry("feed/1", { title: "Short in the feed", contentHtml: longText(20) });
+  applySyncBatch(app, p.engineUserId, batch([e]));
+  const id = itemOf(app, e.url!);
+  assert.equal(getItemDetail(app, p, id).readMinutes, 1);
+  keepWithBrowserCapture(app, p, { url: e.url!, basketId: createBasket(app, p, { name: "Reading", captureMode: "metadata" }).id, html: browserPage(700) });
+  assert.equal(getItemDetail(app, p, id).readMinutes, 4);
+  assertReadingTimeIsOfShownText(app, p, id);
+});
+
+test("taking an item out of the baskets that kept its versions gives it the reading time of the text shown next", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const first = createBasket(app, p, { name: "First", captureMode: "metadata" }).id;
+  const second = createBasket(app, p, { name: "Second", captureMode: "metadata" }).id;
+  const kept = (title: string) => {
+    const e = entry("feed/1", { title, contentHtml: longText(20) });
+    applySyncBatch(app, p.engineUserId, batch([e]));
+    const id = itemOf(app, e.url!);
+    keepItem(app, p, id, first);
+    applySyncBatch(app, p.engineUserId, batch([{ ...e, contentHtml: longText(700) }]));
+    keepItem(app, p, id, second);
+    applySyncBatch(app, p.engineUserId, batch([{ ...e, contentHtml: longText(1400) }]));
+    assert.equal(getItemDetail(app, p, id).readMinutes, 1, "the reader shows the version the first basket kept");
+    assertReadingTimeIsOfShownText(app, p, id);
+    return id;
+  };
+  const byUnkeeping = kept("Unkept twice");
+  unkeepItem(app, p, byUnkeeping, first);
+  assert.equal(getItemDetail(app, p, byUnkeeping).readMinutes, 4, "now the second basket's version");
+  assertReadingTimeIsOfShownText(app, p, byUnkeeping);
+  unkeepItem(app, p, byUnkeeping, second);
+  assert.equal(getItemDetail(app, p, byUnkeeping).readMinutes, 7, "now the latest text");
+  assertReadingTimeIsOfShownText(app, p, byUnkeeping);
+
+  const byDeleting = kept("Basket deleted");
+  deleteBasket(app, p, first, basketDeletePreview(app, p, first).confirmToken);
+  assert.equal(getItemDetail(app, p, byDeleting).readMinutes, 4);
+  assertReadingTimeIsOfShownText(app, p, byDeleting);
+  assert.deepEqual([reconcile(app, p.accountId).difference, reconcile(app, p.accountId).trackedDifference], [0, 0]);
+});
+
+test("an import keeps the reading time of the version a basket kept, when an edit has since replaced it", async (t) => {
+  const a = makeTestApp();
+  const b = makeTestApp();
+  t.after(() => { a.cleanup(); b.cleanup(); });
+  const pa = makeOwner(a.app);
+  const pb = makeOwner(b.app);
+  makeSource(a.app, pa, "Tide Letters", "feed/1");
+  const e = entry("feed/1", { title: "Kept short, grown long", contentHtml: longText(20) });
+  applySyncBatch(a.app, pa.engineUserId, batch([e]));
+  keepItem(a.app, pa, itemOf(a.app, e.url!), createBasket(a.app, pa, { name: "Reading", captureMode: "metadata" }).id);
+  applySyncBatch(a.app, pa.engineUserId, batch([{ ...e, contentHtml: longText(1400) }]));
+  assert.equal(getItemDetail(a.app, pa, itemOf(a.app, e.url!)).readMinutes, 1);
+  const parts: string[] = [];
+  await streamExport(a.app, pa, (c) => { parts.push(c); });
+  applyImport(b.app, pb, stageImport(b.app, pb, JSON.parse(parts.join(""))).token);
+  const imported = getItemDetail(b.app, pb, itemOf(b.app, e.url!));
+  assert.equal(imported.changedSinceKept, true);
+  assert.equal(imported.readMinutes, 1, "the kept version is what the reader shows");
+  assertReadingTimeIsOfShownText(b.app, pb, imported.id);
+});
+
+test("a finished copy with nothing to show is not what the reader shows, so it gives no reading time", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const e = entry("feed/1", { title: "Empty copy", contentHtml: longText(700) });
+  applySyncBatch(app, p.engineUserId, batch([e]));
+  const id = itemOf(app, e.url!);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, quality, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'done', ?, NULL, 'full', ?, ?)", newId("cap"), p.accountId, id, prose(2300), nowIso(), nowIso());
+  assert.equal(applySyncBatch(app, p.engineUserId, batch([{ ...e, contentHtml: longText(1500) }])).updated, 1);
+  assert.equal(getItemDetail(app, p, id).readMinutes, 7, "the feed's text is what is shown");
+  assertReadingTimeIsOfShownText(app, p, id);
+});
+
+test("checking a readable copy made before copies were checked gives the reading time of what is shown when it is only part of the page", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const e = entry("feed/1", { title: "Old copy", contentHtml: longText(1000) });
+  applySyncBatch(app, p.engineUserId, batch([e]));
+  const id = itemOf(app, e.url!);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'done', ?, ?, ?, ?)", newId("cap"), p.accountId, id, prose(30), `<p>${prose(30)}</p>`, nowIso(), nowIso());
+  app.db.run("UPDATE items SET read_minutes = 1 WHERE id = ?", id);
+  assert.equal(getItemDetail(app, p, id).readMinutes, 1, "an unchecked copy is shown, and set the reading time");
+  assert.equal(stepCaptureCheck(app), true);
+  assert.equal(getItemDetail(app, p, id).readMinutes, 5, "found to be only part of the page, it gives way to the feed's text");
+  assertReadingTimeIsOfShownText(app, p, id);
 });
 
 test("an edit that does not fit the storage allowance is deferred and leaves the item as it was", (t) => {
