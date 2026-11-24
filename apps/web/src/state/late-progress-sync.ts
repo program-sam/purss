@@ -2,14 +2,13 @@ import { useEffect } from "react";
 import type { ItemDetail } from "@purss/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { get, patch } from "../api/client.ts";
+import { get } from "../api/client.ts";
 import { useSession } from "../api/hooks.ts";
 import { putItem } from "../api/queries.ts";
-import type { StateChangeResult } from "../api/types.ts";
 import { clearLateWrites, lateStore, worthRetrying } from "../lib/late-writes.ts";
 import { onResume } from "../offline/status.ts";
-import { outbox } from "../outbox/instance.ts";
-import { serial } from "../outbox/serial.ts";
+import { itemRequests, outbox } from "../outbox/instance.ts";
+import { writeState } from "../outbox/item-writer.ts";
 import { sendLateProgress } from "./late-progress.ts";
 
 /** This account's reading progress that couldn't be sent yet. */
@@ -22,11 +21,10 @@ export function syncLateProgress(qc: QueryClient, accountId: string): Promise<vo
       const item = await get<ItemDetail>(`/api/items/${encodeURIComponent(id)}`);
       return { progress: item.progress, revision: item.revision };
     },
-    write: (id, progress, expectedRevision) => serial(id, async () => {
-      const res = await patch<StateChangeResult>(`/api/items/${encodeURIComponent(id)}/state`, { progress, expectedRevision });
-      outbox.noteOwnWrite(id, expectedRevision, res.item.revision);
+    write: async (id, progress, expectedRevision) => {
+      const res = await writeState({ outbox, requests: itemRequests }, id, { progress }, () => expectedRevision);
       putItem(qc, res.item);
-    }),
+    },
     worthRetrying,
   });
 }

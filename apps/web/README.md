@@ -50,7 +50,7 @@ Shared tokens and primitives are in `packages/ui`.
   `?dialog=add|settings|security|…` opens a popup once and is then removed.
 - Every change that the API can reverse shows an Undo toast (`POST /api/undo`); item changes carry
   `expectedRevision` and a 409 refreshes the item and says so. The player's own moves to In progress and
-  Finished (`player/player.ts`, `setPlaybackWorkflow` in `state/actions.ts`) are the exception: they carry a playback session
+  Finished (`player/player.ts`, `setPlaybackWorkflow` in `outbox/item-writer.ts`) are the exception: they carry a playback session
   and the workflow revision, say nothing and have no Undo, and go through the same outbox.
 - Browser notifications are only requested from a button in Settings, only when the mode is
   "Browser alerts", and respect quiet hours and previews. Nothing is requested on load.
@@ -171,12 +171,19 @@ The API serves `/sw.js` and the manifest with `Cache-Control: no-cache`.
 ## The write outbox
 
 `src/outbox/` holds changes to items until PURSS confirms them: workflow changes, keep and un-keep,
-and clearing New. `entries.ts` has the pure rules (what a change looks like on screen while it waits, the
-read-on-conflict rule, which failures mean wait, stop or give up, the scope a queued change is filed under), `outbox.ts` the
+and clearing New. `item-writer.ts` is how the page writes to an item. `showChange` is the one rule for what a change looks like on
+an item, and follows what PURSS answers: a workflow change, keeping or taking out of a basket, and reading progress are doing something
+with the item, so its New marker goes, while a change that changes nothing leaves it. The same rule builds the copy shown the moment a
+change is made and, through `overlayItem`, the copy a reloaded list shows while the change still waits. `createItemWriter` is every
+write the page makes (workflow, the player's own changes, keep, Mark as seen, opening, reading progress): it shows the change, sends it
+through the outbox or, for opening and reading progress, one request at a time per item (`writeState`, which also moves waiting
+workflow changes to the revision it produced), and tells the person how it ended, with Undo. It is given the page's copies of items,
+the outbox and the requests, so its tests run without a browser; `state/actions.ts` only wires it to the query cache and the toasts.
+`entries.ts` has the other pure rules (the read-on-conflict rule, which failures mean wait, stop or give up, the scope a queued change is filed under), `outbox.ts` the
 `Outbox` class (order, retries, one pass at a time, one account's queue at a time), `store.ts` the IndexedDB store
 (an index on scope = installation origin + account id; memory fallback), `sign-out.ts` the question asked when signing
 out with changes unsent, and `instance.ts` the wiring to the API client. The page shows a change at once
-(`state/actions.ts` updates the query cache and calls `outbox.submit`), `api/queries.ts` lays pending changes over
+(`item-writer.ts` updates the query cache and calls `outbox.submit`), `api/queries.ts` lays pending changes over
 anything fetched meanwhile and tells the outbox who is signed in (from the session query), `OutboxController` resends on
 `online`/visible/sign-in and asks before the page is left with changes unsent, and `PendingMark` is the small clock.
 Several items at once (`batch.ts`) are one queued change each, kept with that item's own revision. Clearing New and recording an opening do not move an item's revision (the New marker is separate from workflow and progress), so queued workflow changes are not disturbed by them; because of that, the page orders its records of an item by `stateVersion` alone (`isNewerCopy`: the cache, Home and the offline pack's staleness check), a counter PURSS moves by one on every change to the item's state (keeping and un-keeping it in a basket included, since `basketIds` is part of the record), written in the same transaction as the change; no clock is involved, and conflict detection stays on the revision. Undo (`cancel(entryId, change)`) waits for the send lock: a queued change that never left is removed; one that may have reached PURSS (`tried`, kept on disk before the request leaves, or already sent and removed by another tab) is removed, and for a workflow change the item is read back, giving the revision to send the opposite change on, or `cancelled` when it never took effect; if the item cannot be read the Undo is kept as an `undoWorkflow` change that reads the item when it is sent, and the workflow changes queued after it move on to the revision its write produced, whatever revision the page had cached when they were made (changes written elsewhere are still caught, because the Undo reads the item first). An Undo belongs to the account that pressed it: if another account (or nobody) is signed in by the time it can be settled, `cancel` answers `away`, reads nothing and adds nothing to the current queue, and an Undo that had to be kept stays on disk under its own account. Keep and un-keep are idempotent. A workflow change is resent with the revision it was made against (the page's own
