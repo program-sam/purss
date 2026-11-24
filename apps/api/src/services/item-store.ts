@@ -98,8 +98,8 @@ export type ShownVersion = { id: string; title: string; url: string | null; cont
 
 /** What the reader shows for an item, and the stored texts it chose between. */
 export type ShownText = {
-  /** The newest finished readable copy that is the whole page, a browser capture included (its markup may be missing: then it shows nothing). */
-  copy: { id: string; html: string | null } | null;
+  /** The newest finished readable copy that is the whole page and has markup to show, a browser capture included. */
+  copy: { id: string; html: string } | null;
   current: ShownVersion;
   /** The version the earliest basket kept, and when; null when no basket keeps the item. */
   kept: (ShownVersion & { keptAt: string }) | null;
@@ -111,7 +111,7 @@ export type ShownText = {
 };
 
 /**
- * The one rule for which text the reader shows for an item: its newest readable copy that is the whole page, else the version the
+ * The one rule for which text the reader shows for an item: its newest readable copy that is the whole page and has markup to show, else the version the
  * earliest basket kept while an edit has since replaced it as the current version, else the current version. `getItemDetail` shows
  * exactly this, and the item's reading time is that of this text (`refreshReadingTime`).
  */
@@ -119,8 +119,8 @@ export function shownText(app: App, itemId: string): ShownText {
   const version = `v.id, v.title, v.url, v.content_html, v.summary_html, v.content_omitted, v.created_at`;
   type Row = { id: string; title: string; url: string | null; content_html: string | null; summary_html: string | null; content_omitted: number; created_at: string };
   const asVersion = (r: Row): ShownVersion => ({ id: r.id, title: r.title, url: r.url, contentHtml: r.content_html, summaryHtml: r.summary_html, contentOmitted: r.content_omitted === 1, createdAt: r.created_at });
-  const copy = app.db.get<{ id: string; html: string | null }>(
-    "SELECT id, html FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial' ORDER BY completed_at DESC LIMIT 1", itemId) ?? null;
+  const copy = app.db.get<{ id: string; html: string }>(
+    "SELECT id, html FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial' AND html IS NOT NULL ORDER BY completed_at DESC LIMIT 1", itemId) ?? null;
   const current = asVersion(app.db.get<Row>(`SELECT ${version} FROM items i JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?`, itemId)!);
   const keptRow = app.db.get<Row & { kept_at: string }>(
     `SELECT ${version}, b.kept_at FROM basket_items b JOIN item_versions v ON v.id = b.version_id WHERE b.item_id = ? ORDER BY b.kept_at LIMIT 1`, itemId);
@@ -128,7 +128,7 @@ export function shownText(app: App, itemId: string): ShownText {
   const changedSinceKept = !!kept && kept.id !== current.id;
   const keptHtml = kept ? kept.contentHtml ?? kept.summaryHtml : null;
   const currentHtml = current.contentHtml ?? current.summaryHtml;
-  const ref: TextRef | null = copy && copy.html !== null ? { kind: "capture", id: copy.id }
+  const ref: TextRef | null = copy ? { kind: "capture", id: copy.id }
     : changedSinceKept && kept ? (keptHtml ? { kind: "version", id: kept.id } : null)
     : currentHtml ? { kind: "version", id: current.id } : null;
   return { copy, current, kept, changedSinceKept, html: copy?.html ?? (changedSinceKept ? keptHtml : currentHtml), ref };
@@ -145,8 +145,9 @@ export function refreshReadingTime(app: App, itemId: string, known?: { versionId
   if (!item || item.kind === "video" || item.kind === "podcast") return;
   const shown = shownText(app, itemId);
   let text: string;
-  if (shown.copy && shown.copy.html !== null) {
-    text = app.db.get<{ text: string | null }>("SELECT text FROM captures WHERE id = ?", shown.copy.id)?.text ?? toText(shown.copy.html);
+  if (shown.copy) {
+    // The copy's own plain text, where it has any; its markup says the same otherwise.
+    text = app.db.get<{ text: string | null }>("SELECT text FROM captures WHERE id = ?", shown.copy.id)?.text || toText(shown.copy.html);
   } else {
     const version = shown.changedSinceKept ? shown.kept! : shown.current;
     text = known?.versionId === version.id ? known.text : toText(version.contentHtml ?? version.summaryHtml);

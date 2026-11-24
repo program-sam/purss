@@ -408,6 +408,76 @@ test("a finished copy with nothing to show is not what the reader shows, so it g
   assertReadingTimeIsOfShownText(app, p, id);
 });
 
+test("a readable copy with no plain text gives the reading time of its markup, before and after a move", async (t) => {
+  const a = makeTestApp();
+  const b = makeTestApp();
+  t.after(() => { a.cleanup(); b.cleanup(); });
+  const pa = makeOwner(a.app);
+  const pb = makeOwner(b.app);
+  makeSource(a.app, pa, "Tide Letters", "feed/1");
+  const e = entry("feed/1", { title: "Markup only", contentHtml: longText(20) });
+  const emptyText = entry("feed/1", { title: "Empty text", contentHtml: longText(20) });
+  applySyncBatch(a.app, pa.engineUserId, batch([e, emptyText]));
+  const [id, emptyId] = [itemOf(a.app, e.url!), itemOf(a.app, emptyText.url!)];
+  const copy = (itemId: string, text: string | null) => a.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, quality, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'done', ?, ?, 'full', ?, ?)",
+    newId("cap"), pa.accountId, itemId, text, `<p>${prose(900)}</p>`, nowIso(), nowIso());
+  copy(id, null);
+  copy(emptyId, "");
+  // An edit sets the reading time again from what the reader shows.
+  applySyncBatch(a.app, pa.engineUserId, batch([{ ...e, contentHtml: longText(25) }, { ...emptyText, contentHtml: longText(25) }]));
+  assert.deepEqual([getItemDetail(a.app, pa, id).readMinutes, getItemDetail(a.app, pa, emptyId).readMinutes], [4, 4], "900 words in the markup, whatever the plain text says");
+  assertReadingTimeIsOfShownText(a.app, pa, id);
+  assertReadingTimeIsOfShownText(a.app, pa, emptyId);
+
+  const parts: string[] = [];
+  await streamExport(a.app, pa, (c) => { parts.push(c); });
+  applyImport(b.app, pb, stageImport(b.app, pb, JSON.parse(parts.join(""))).token);
+  const imported = itemOf(b.app, e.url!);
+  assert.equal(b.app.db.get<{ text: string | null }>("SELECT text FROM captures WHERE item_id = ?", imported)!.text, null, "a copy with no plain text still has none");
+  assert.equal(getItemDetail(b.app, pb, imported).readMinutes, 4);
+  assertReadingTimeIsOfShownText(b.app, pb, imported);
+  assert.equal(b.app.db.get<{ text: string | null }>("SELECT text FROM captures WHERE item_id = ?", itemOf(b.app, emptyText.url!))!.text, "", "nor does an empty one gain any");
+});
+
+test("an archive import keeps a finished copy with no markup without it, so it does not hide the feed's text", async (t) => {
+  const a = makeTestApp();
+  const b = makeTestApp();
+  t.after(() => { a.cleanup(); b.cleanup(); });
+  const pa = makeOwner(a.app);
+  const pb = makeOwner(b.app);
+  makeSource(a.app, pa, "Tide Letters", "feed/1");
+  const e = entry("feed/1", { title: "Nothing to show", contentHtml: longText(300) });
+  applySyncBatch(a.app, pa.engineUserId, batch([e]));
+  a.app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, quality, created_at, completed_at) VALUES (?, ?, ?, 'fulltext', 'done', ?, NULL, 'full', ?, ?)",
+    newId("cap"), pa.accountId, itemOf(a.app, e.url!), prose(900), nowIso(), nowIso());
+  const parts: string[] = [];
+  await streamExport(a.app, pa, (c) => { parts.push(c); });
+  applyImport(b.app, pb, stageImport(b.app, pb, JSON.parse(parts.join(""))).token);
+  const imported = itemOf(b.app, e.url!);
+  assert.equal(b.app.db.get<{ html: string | null }>("SELECT html FROM captures WHERE item_id = ?", imported)!.html, null);
+  assert.match(getItemDetail(b.app, pb, imported).contentHtml!, /w299/, "the feed's text is what the reader shows");
+  assert.equal(getItemDetail(b.app, pb, imported).readMinutes, 2);
+  assertReadingTimeIsOfShownText(b.app, pb, imported);
+});
+
+test("a finished copy with no markup is passed over for the newest one that has some", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const e = entry("feed/1", { title: "Two copies", contentHtml: longText(300) });
+  applySyncBatch(app, p.engineUserId, batch([e]));
+  const id = itemOf(app, e.url!);
+  saveReadableCopy(app, p, id, prose(2300));
+  assert.equal(getItemDetail(app, p, id).readMinutes, 10);
+  app.db.run("INSERT INTO captures (id, account_id, item_id, kind, status, text, html, created_at, completed_at) VALUES (?, ?, ?, 'browser', 'done', ?, NULL, ?, ?)",
+    newId("cap"), p.accountId, id, prose(30), "2099-01-01T00:00:00.000Z", "2099-01-01T00:00:00.000Z");
+  const detail = getItemDetail(app, p, id);
+  assert.match(detail.contentHtml!, /tide mud river/, "the older copy is what the reader shows");
+  assert.equal(detail.contentRef!.kind, "capture");
+  assert.equal(applySyncBatch(app, p.engineUserId, batch([{ ...e, contentHtml: longText(310) }])).updated, 1);
+  assert.equal(getItemDetail(app, p, id).readMinutes, 10, "so the reading time is the older copy's, not the feed's");
+  assertReadingTimeIsOfShownText(app, p, id);
+});
+
 test("checking a readable copy made before copies were checked gives the reading time of what is shown when it is only part of the page", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);

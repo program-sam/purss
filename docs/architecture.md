@@ -299,7 +299,7 @@ import. It writes the item, its versions and its state, works out what the item 
 version (`url_key`, `link_key`, the excerpt, the reading time, the source's title), and keeps its search entry and its
 ledger objects in step. A post with no headline is headed with the start of its text, when it arrives and when it is
 edited. The reading time is that of the text the reader shows, and `shownText` is the one rule for which that is: the newest
-readable copy that is the whole page (a copy saved from the browser included), else the version the earliest basket kept while an
+readable copy that is the whole page and has markup to show (a copy saved from the browser included), else the version the earliest basket kept while an
 edit has since replaced it, else the current version. The reader and the reading time both follow it, and the reading time is set
 again after anything that changes which text is shown or what it says: an edit, a readable copy completed or saved, a basket
 keeping a version or letting it go, an import. Deleting an

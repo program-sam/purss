@@ -340,14 +340,16 @@ function prepareItem(item: ArchiveItem, now: string): PreparedItem {
   // An item has at most one browser capture, and only a finished one: keep the newest.
   const browser = item.captures.filter((c) => c.kind === "browser" && c.status === "done").sort((a, b) => (a.completedAt ?? a.createdAt ?? "").localeCompare(b.completedAt ?? b.createdAt ?? "")).at(-1);
   const captures: PreparedCapture[] = item.captures.filter((c) => c.kind === "fulltext" || c === browser).map((c) => {
-    const html = sanitize(c.html);
-    const finalUrl = safeAddress(c.finalUrl);
     const done = c.status === "done";
+    // A copy with no plain text or no markup stays as it was: the reader shows the one with markup, and the reading time follows it.
+    const text = done ? c.text : null;
+    const html = done && c.html !== null ? sanitize(c.html) ?? "" : null;
+    const finalUrl = safeAddress(c.finalUrl);
     return {
-      archiveId: c.id, id: newId("cap"), kind: c.kind, status: c.status, title: c.title, text: done ? c.text ?? "" : null, html: done ? html ?? "" : null, finalUrl, error: done ? null : plainText(c.error, 500) || null,
+      archiveId: c.id, id: newId("cap"), kind: c.kind, status: c.status, title: c.title, text, html, finalUrl, error: done ? null : plainText(c.error, 500) || null,
       quality: done && c.kind === "fulltext" ? c.quality : null, partialReason: done && c.kind === "fulltext" && c.quality === "partial" ? c.partialReason : null,
       createdAt: ISO_FALLBACK(c.createdAt, createdAt), completedAt: c.completedAt ? ISO_FALLBACK(c.completedAt, createdAt) : null,
-      bytes: done ? measureBytes({ title: c.title, text: c.text ?? "", html: html ?? "", finalUrl }) : 0,
+      bytes: done ? measureBytes({ title: c.title, text, html, finalUrl }) : 0,
     };
   });
   const nonDefault = item.state.workflow !== "undecided" || item.state.progress > 0 || item.state.openedAt !== null;
