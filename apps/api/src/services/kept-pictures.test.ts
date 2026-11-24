@@ -8,7 +8,6 @@ import { createBasket, deleteItemNow } from "./collections.ts";
 import { keepItem, unkeepItem } from "./state.ts";
 import { completeCapture, failCapture, saveBrowserCapture } from "./captures.ts";
 import { expireLeases } from "./jobs.ts";
-import { settleFailedJob } from "./failures.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM, completeImages, pictureAddresses, queueItemImages } from "./images.ts";
 import { pausedReason, reconcile, recountUsedBytes, usedBytes } from "./storage.ts";
 
@@ -295,7 +294,7 @@ test("an item picture address too long for a job never breaks keeping, a readabl
   const unrelated = app.db.get<{ id: string }>("SELECT id FROM jobs WHERE kind = 'capture.images'")!.id;
   app.db.run("UPDATE jobs SET status = 'leased', lease_id = 'l', lease_expires_at = '2000-01-01T00:00:00.000Z', attempts = max_attempts WHERE kind = 'capture.fulltext' AND json_extract(payload, '$.captureId') = ?", dying);
   app.db.run("UPDATE jobs SET status = 'leased', lease_id = 'l2', lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", unrelated);
-  expireLeases(app, (job) => settleFailedJob(app, job, { finalFailure: true }));
+  expireLeases(app);
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", dying)!.status, "failed");
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", unrelated)!.status, "queued", "an unrelated job in the same pass is put back");
 });
@@ -350,7 +349,7 @@ test("when SQLite ends the caller's whole transaction, asking for pictures does 
   assert.equal(app.db.raw.isTransaction, false);
 
   // Lease recovery: the whole pass is undone, not just its first statements committed one by one.
-  assert.throws(() => expireLeases(app, (job) => settleFailedJob(app, job, { finalFailure: true })), /the database ended the transaction/);
+  assert.throws(() => expireLeases(app), /the database ended the transaction/);
   assert.deepEqual(app.db.all("SELECT id, status, attempts FROM jobs ORDER BY id"), jobsBefore, "every job is as it was");
   assert.equal(app.db.get<{ status: string }>("SELECT status FROM captures WHERE id = ?", capture)!.status, "pending");
   assert.equal(app.db.raw.isTransaction, false);

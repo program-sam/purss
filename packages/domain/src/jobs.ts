@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiJudgeResultSchema } from "./ai-filters.ts";
 
 /**
  * Internal job contract between the API (sole database writer) and the worker.
@@ -19,6 +20,9 @@ export const JOB_KINDS = [
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
+/** Whether a stored or requested kind is one this version knows; a worker or a row of another version may name others. */
+export const isJobKind = (kind: string): kind is JobKind => (JOB_KINDS as readonly string[]).includes(kind);
+
 export const jobPayloadSchemas = {
   "engine.provision": z.object({ engineUserId: z.string(), username: z.string() }),
   // trim: the feed is big (larger than the engine can read whole), so the engine is given the feed gateway's trimmed copy of it.
@@ -37,6 +41,31 @@ export const jobPayloadSchemas = {
   // announce: the posts arrived just now, and the ones that stay are announced as new (a re-check announces nothing).
   "filter.judge": z.object({ itemIds: z.array(z.string()).min(1).max(20), announce: z.boolean() }),
 } satisfies Record<JobKind, z.ZodType>;
+export type JobPayload<K extends JobKind> = z.infer<(typeof jobPayloadSchemas)[K]>;
+
+/**
+ * What a worker reports when a job ran, by kind. A schema names only the fields the API uses and lets any other pass, and a
+ * field a worker of another version may not send is optional, so the wire stays compatible across a rolling deploy. The
+ * results of `capture.fulltext`, `capture.images` and `source.icon` are any object here: what the worker fetched is checked
+ * where it is stored (captured text, pictures and icon bytes), and a result that fails there settles the copy, picture or
+ * icon check, rather than refusing a request the worker would retry.
+ */
+const anyResult = z.record(z.string(), z.unknown());
+export const jobResultSchemas = {
+  "engine.provision": z.looseObject({ engineIdentity: z.string().optional() }),
+  // empty: the engine says the feed it just fetched has nothing in it; viaGateway: the engine follows the feed gateway's copy of a big feed.
+  "engine.subscribe": z.looseObject({ streamId: z.string().min(1), empty: z.boolean().optional(), viaGateway: z.boolean().optional() }),
+  "engine.unsubscribe": anyResult,
+  "engine.rename": anyResult,
+  "engine.sync": anyResult,
+  "engine.mark_read": anyResult,
+  "capture.fulltext": anyResult,
+  "capture.images": anyResult,
+  "source.icon": anyResult,
+  "engine.delete_user": anyResult,
+  "filter.judge": aiJudgeResultSchema,
+} satisfies Record<JobKind, z.ZodType>;
+export type JobResult<K extends JobKind> = z.infer<(typeof jobResultSchemas)[K]>;
 
 export type LeasedJob = {
   id: string;
@@ -78,6 +107,7 @@ export const syncBatchSchema = z.object({
 });
 export type SyncBatch = z.infer<typeof syncBatchSchema>;
 
+/** A finished job's report; its result is checked by the job's kind (`jobResultSchemas`). */
 export const jobResultSchema = z.object({
   leaseId: z.string(),
   result: z.record(z.string(), z.unknown()).optional(),

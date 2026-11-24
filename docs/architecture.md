@@ -72,6 +72,12 @@ the whole system again. The names are the [glossary](glossary.md)'s.
   product never reads its database.
 - **Durable jobs are enqueued in the same transaction** as the change that needs them
   (`jobs` table), so a crash can't lose or half-apply a follow, sync or capture.
+- **Each kind of job is defined once** (`services/jobs.ts`): what the worker's result must look like
+  (the result schema in `packages/domain`, which accepts the fields of an older or newer worker), what
+  completing the job changes, what of the result the finished job keeps, the retry schedule of a failure
+  that will pass, and what a final failure (a reported one, or a lease that expired for the last time)
+  or a cancelled queued job means to the person. The worker's routes only lease jobs and hand
+  each report to that definition, in one transaction.
 
 ## Identity and reconciliation
 

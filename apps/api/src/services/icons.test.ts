@@ -5,11 +5,8 @@ import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
 import { extraRouters } from "../routes/index.ts";
-import { internalRouter } from "../routes/internal.ts";
-import { internalServer } from "../server.ts";
-import type { AddressInfo } from "node:net";
 import { addSeconds } from "../http.ts";
-import { completeJob, leaseJobs } from "./jobs.ts";
+import { completeLeasedJob, failLeasedJob, leaseJobs } from "./jobs.ts";
 import { completeIconCheck, failIconCheck, scheduleIconChecks } from "./icons.ts";
 import { getSource, listSources } from "./sources.ts";
 
@@ -39,7 +36,7 @@ test("the sweep queues one check per due source, skips saved links, and redacts 
 
   // A week later the checked source is due again and its finished job is re-armed.
   const [job] = leaseJobs(app, ["source.icon"], 1);
-  completeJob(app, job!.id, job!.leaseId, {});
+  completeLeasedJob(app, job!.id, job!.leaseId, {});
   const done = (job!.payload as { sourceId: string }).sourceId;
   app.db.run("UPDATE sources SET icon_checked_at = ? WHERE id = ?", addSeconds(-8 * 86_400), done);
   scheduleIconChecks(app);
@@ -108,30 +105,26 @@ test("the icon route serves the owner's icon with caching and lockdown headers, 
   assert.equal((await call(app, server.base, "GET", url, null)).status, 401, "signed out can't read it");
 });
 
-test("through the internal job routes: the icon is stored, the job keeps no bytes, and a final failure still marks the check", async (t) => {
+test("a found icon is stored, the job keeps no bytes, and a final failure still marks the check", async (t) => {
   const { app, cleanup } = makeTestApp();
-  const server = internalServer(app, internalRouter(app));
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(async () => { await new Promise<void>((r) => { server.close(() => r()); server.closeAllConnections(); }); cleanup(); });
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { authorization: `Bearer ${app.serviceToken}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  t.after(cleanup);
   const p = makeOwner(app);
   const a = makeSource(app, p, "A", "feed/1");
   const b = makeSource(app, p, "B", "feed/2");
   scheduleIconChecks(app);
 
-  const lease = await (await post("/internal/jobs/lease", { kinds: ["source.icon"], max: 2 })).json() as { jobs: { id: string; leaseId: string; payload: { sourceId: string } }[] };
-  const jobA = lease.jobs.find((j) => j.payload.sourceId === a)!;
-  const jobB = lease.jobs.find((j) => j.payload.sourceId === b)!;
-  assert.equal((await post(`/internal/jobs/${jobA.id}/complete`, { leaseId: jobA.leaseId, result: await found() })).status, 200);
+  const jobs = leaseJobs(app, ["source.icon"], 2);
+  const jobA = jobs.find((j) => (j.payload as { sourceId: string }).sourceId === a)!;
+  const jobB = jobs.find((j) => (j.payload as { sourceId: string }).sourceId === b)!;
+  assert.equal(completeLeasedJob(app, jobA.id, jobA.leaseId, await found()), true);
   assert.ok(getSource(app, p, a).iconUrl);
   assert.equal(app.db.get<{ result: string }>("SELECT result FROM jobs WHERE id = ?", jobA.id)!.result, JSON.stringify({ found: true }));
 
   // B's lookup crashes twice (maxAttempts 2): no icon, but it isn't retried every tick either.
-  assert.equal((await post(`/internal/jobs/${jobB.id}/fail`, { leaseId: jobB.leaseId, error: "boom", retryable: true })).status, 200);
+  assert.equal(failLeasedJob(app, jobB.id, jobB.leaseId, { error: "boom", retryable: true }), true);
   app.db.run("UPDATE jobs SET run_after = ? WHERE id = ?", addSeconds(-1), jobB.id);
-  const again = await (await post("/internal/jobs/lease", { kinds: ["source.icon"], max: 1 })).json() as { jobs: { id: string; leaseId: string }[] };
-  assert.equal((await post(`/internal/jobs/${again.jobs[0]!.id}/fail`, { leaseId: again.jobs[0]!.leaseId, error: "boom", retryable: true })).status, 200);
+  const again = leaseJobs(app, ["source.icon"], 1)[0]!;
+  assert.equal(failLeasedJob(app, again.id, again.leaseId, { error: "boom", retryable: true }), true);
   assert.ok(app.db.get<{ c: string | null }>("SELECT icon_checked_at AS c FROM sources WHERE id = ?", b)!.c);
   scheduleIconChecks(app);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'source.icon' AND status = 'queued'")!.n, 0);

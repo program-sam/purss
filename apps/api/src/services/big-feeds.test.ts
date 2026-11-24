@@ -4,11 +4,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { server } from "@purss/translations/server";
 import { newId } from "@purss/domain";
+import type { FailureReason } from "@purss/domain";
 import type { Principal } from "../app.ts";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { holdCandidate } from "./discovery-cache.ts";
 import { generateOpml } from "./opml.ts";
-import { EARLIER_NOT_A_FEED_TEXT, EARLIER_TOO_LARGE_TEXT, retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
+import { EARLIER_NOT_A_FEED_TEXT, EARLIER_TOO_LARGE_TEXT, retryEarlierSizeFailures, retryOverloadedSubscribes, subscribeGaveUpText, subscribeRetryText } from "./failures.ts";
+import { failLeasedJob, leaseJobs } from "./jobs.ts";
 import { checkEmptyFeeds, followSource, getSource, onSubscribeFailed, onSubscribed, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
 
 const { failures } = server.api;
@@ -24,6 +26,13 @@ function hold(p: Principal, feedUrl: string, over: Record<string, unknown> = {})
 type Row = { via_gateway: number; feed_url: string | null; health: string; health_text: string | null; engine_stream_id: string | null };
 const row = (app: ReturnType<typeof makeTestApp>["app"], id: string) => app.db.get<Row>("SELECT via_gateway, feed_url, health, health_text, engine_stream_id FROM sources WHERE id = ?", id)!;
 const jobs = (app: ReturnType<typeof makeTestApp>["app"]) => app.db.all<{ payload: string; idempotency_key: string; status: string }>("SELECT payload, idempotency_key, status FROM jobs WHERE kind = 'engine.subscribe' ORDER BY created_at, rowid").map((j) => ({ ...j, payload: JSON.parse(j.payload) as Record<string, unknown> }));
+
+/** The worker reports that following a source failed, for the subscription job the follow queued. */
+function subscribeFails(app: ReturnType<typeof makeTestApp>["app"], sourceId: string, failure: { retryable: boolean; reason: FailureReason | undefined }): void {
+  const job = leaseJobs(app, ["engine.subscribe"], 1)[0]!;
+  assert.equal((job.payload as { sourceId: string }).sourceId, sourceId);
+  failLeasedJob(app, job.id, job.leaseId, { error: "x", ...failure });
+}
 
 test("a feed the preview found too big for the engine is followed through the gateway; the source keeps its own address and the person is shown nothing different", (t) => {
   const { app, cleanup } = makeTestApp();
@@ -194,8 +203,9 @@ test("sources an earlier version gave up on for a feed's size are reworded and t
 
   // Once: whatever comes of the tries, nothing is asked again (the message that was the reason to is gone), and a try that fails again says the plain one.
   const count = jobs(app).length;
-  app.db.run("UPDATE jobs SET status = 'failed' WHERE idempotency_key LIKE 'gateway-retry:%'");
-  for (const j of tries()) settleFailedJob(app, { kind: "engine.subscribe", payload: j.payload }, { finalFailure: true }, "too_large");
+  for (const j of leaseJobs(app, ["engine.subscribe"], 50)) {
+    if ((j.payload as { trim?: boolean }).trim) failLeasedJob(app, j.id, j.leaseId, { error: "x", retryable: false, reason: "too_large" });
+  }
   retryEarlierSizeFailures(app);
   retryEarlierSizeFailures(app);
   assert.equal(jobs(app).length, count);
@@ -217,17 +227,17 @@ test("a big feed that can't be followed never says anything about its size, and 
   t.after(cleanup);
   const p = makeOwner(app);
   const s = followSource(app, p, { ...base, token: hold(p, BIG, { large: true }) });
-  settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: s.id } }, { finalFailure: true }, "too_large");
+  subscribeFails(app, s.id, { retryable: false, reason: "too_large" });
   assert.deepEqual([getSource(app, p, s.id).health, getSource(app, p, s.id).healthText], ["error", failures.couldNotFollow]);
   for (const reason of ["too_large", "not_a_feed", "other", undefined] as const) {
     const t2 = followSource(app, p, { ...base, token: hold(p, `https://example.org/${reason}.xml`) });
-    settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: t2.id } }, { finalFailure: true }, reason);
+    subscribeFails(app, t2.id, { retryable: false, reason });
     const said = getSource(app, p, t2.id).healthText;
     assert.equal(said, reason === "not_a_feed" ? failures.notAFeed : failures.couldNotFollow, String(reason));
     assert.ok(said !== EARLIER_TOO_LARGE_TEXT && said !== EARLIER_NOT_A_FEED_TEXT, `${String(reason)}: nothing about the size`);
   }
   // The same engine failure that is a real outage still says so.
-  const o = followSource(app, p, { ...base, token: hold(p, "https://example.org/other.xml") });
-  settleFailedJob(app, { kind: "engine.subscribe", payload: { sourceId: o.id } }, { finalFailure: false }, "unavailable");
+  const o = followSource(app, p, { ...base, token: hold(p, "https://example.org/outage.xml") });
+  subscribeFails(app, o.id, { retryable: true, reason: "unavailable" });
   assert.equal(getSource(app, p, o.id).healthText, failures.siteNotAnswering);
 });

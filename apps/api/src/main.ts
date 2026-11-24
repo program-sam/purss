@@ -12,7 +12,7 @@ import { internalRouter } from "./routes/internal.ts";
 import { extraRouters } from "./routes/index.ts";
 import { internalServer, publicServer } from "./server.ts";
 import { enqueue, expireLeases } from "./services/jobs.ts";
-import { retryEarlierSizeFailures, retryOverloadedSubscribes, settleFailedJob, syncDelaySeconds } from "./services/failures.ts";
+import { retryEarlierSizeFailures, retryOverloadedSubscribes, syncDelaySeconds } from "./services/failures.ts";
 import { expireReservations, refreshPause } from "./services/storage.ts";
 import { addSeconds, nowIso, watchTrustedProxies } from "./http.ts";
 import { runReminderPass } from "./services/reminders.ts";
@@ -112,7 +112,7 @@ export function eventStream(_req: IncomingMessage, res: ServerResponse, ctx: Ctx
 export function tick(app: App): void {
   removeMediaFolder(app.config.dataDir);
   deliverNews(app);
-  expireLeases(app, (job) => settleFailedJob(app, job, { finalFailure: true }));
+  expireLeases(app);
   expireReservations(app);
   const users = app.db.all<{ id: string; account_id: string; }>(`SELECT id, account_id FROM engine_users WHERE status = 'ready' AND ${usableAccountSql("engine_users.account_id")}`);
   for (const u of users) {
