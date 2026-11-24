@@ -1,6 +1,7 @@
 import type { ItemDTO, WorkflowState } from "@purss/domain";
-import { asFailure, backoffSeconds, classify, itemIdsOf, judgeConflict, notChangedMessage, overlayItem, removedFromBasket, scopeOf } from "./entries.ts";
+import { asFailure, backoffSeconds, classify, itemIdsOf, judgeConflict, notChangedMessage, removedFromBasket, scopeOf } from "./entries.ts";
 import type { Change, Entry } from "./entries.ts";
+import { overlayItem } from "./item-writer.ts";
 
 /** Where entries are kept between visits, filed by scope (installation and account). */
 export type Store = {

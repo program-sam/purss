@@ -1,5 +1,5 @@
 import { app } from "@purss/translations/app";
-import type { ItemDTO, WorkflowState } from "@purss/domain";
+import type { WorkflowState } from "@purss/domain";
 
 /**
  * The changes that go through the outbox: each one is shown at once, kept on this device until the
@@ -64,26 +64,6 @@ export function judgeConflict(change: { to: WorkflowState; playback?: Pick<Playb
       && server.playbackWorkflowSessionId === change.playback.sessionId ? "done" : "drop";
   }
   return server.workflow === change.to ? "done" : "drop";
-}
-
-/** The item with a new workflow, as the server will have it: its workflow revision a step on, and the session that made it (null: the person). */
-function withWorkflow<T extends ItemDTO>(item: T, workflow: WorkflowState, sessionId: string | null): T {
-  return { ...item, workflow, workflowRevision: item.workflowRevision + 1, playbackWorkflowSessionId: sessionId };
-}
-
-/** Show a pending change on an item the way it will look once sent. Entries are applied in order. */
-export function overlayItem<T extends ItemDTO>(item: T, entries: readonly Entry[]): T {
-  let out = item;
-  for (const e of entries) {
-    if (e.kind === "workflow" && e.itemId === item.id) out = out.workflow === e.to ? out : withWorkflow(out, e.to, e.playback?.sessionId ?? null);
-    else if (e.kind === "undoWorkflow" && e.itemId === item.id) out = out.workflow === e.applied ? withWorkflow(out, e.restore, null) : out;
-    else if (e.kind === "keep" && e.itemId === item.id) {
-      const has = out.basketIds.includes(e.basketId);
-      if (e.on && !has) out = { ...out, basketIds: [...out.basketIds, e.basketId] };
-      else if (!e.on && has) out = { ...out, basketIds: out.basketIds.filter((b) => b !== e.basketId) };
-    } else if (e.kind === "clearNew" && e.itemIds.includes(item.id) && out.isNew) out = { ...out, isNew: false };
-  }
-  return out;
 }
 
 /** Ids of the items a list of entries is about. */
