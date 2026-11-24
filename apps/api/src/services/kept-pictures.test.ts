@@ -4,12 +4,13 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import type { App, Principal } from "../app.ts";
 import { applySyncBatch } from "./sync.ts";
 import { getItemDetail, listItems } from "./items.ts";
-import { createBasket, deleteItemNow } from "./collections.ts";
+import { createBasket } from "./collections.ts";
 import { keepItem, unkeepItem } from "./state.ts";
 import { completeCapture, failCapture, saveBrowserCapture } from "./captures.ts";
 import { expireLeases } from "./jobs.ts";
 import { IMAGES_PER_ITEM, IMAGE_BYTES_PER_ITEM, completeImages, pictureAddresses, queueItemImages } from "./images.ts";
 import { pausedReason, reconcile, recountUsedBytes, usedBytes } from "./storage.ts";
+import { deleteItemNow } from "./item-store.ts";
 
 const PNG = (extra: number) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(extra, 7)]);
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');

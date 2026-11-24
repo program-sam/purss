@@ -5,12 +5,13 @@ import assert from "node:assert/strict";
 import type { App } from "../app.ts";
 import { makeOwner, makeTestApp } from "../testing.ts";
 import { createBasket } from "./collections.ts";
-import { getItemDetail, insertItem, listItems } from "./items.ts";
+import { getItemDetail, listItems } from "./items.ts";
 import { changeState, keepItem } from "./state.ts";
 import { reconcile } from "./storage.ts";
 import { completeIconCheck, readIcon, scheduleIconChecks } from "./icons.ts";
 import { lookupSources, followSource, getSource, patchSource, unfollowSource } from "./sources.ts";
 import { NEWS_INITIAL_POSTS, NEWS_TITLE, createNewsPost, deleteNewsPost, deliverNews, newsAdmin, renderNewsAtom, renderNewsBody, updateNewsPost } from "./news.ts";
+import { insertItem } from "./item-store.ts";
 
 type Owner = ReturnType<typeof makeOwner>;
 const newsSource = (app: App, p: Owner) => app.db.get<{ id: string; followed: number }>("SELECT id, followed FROM sources WHERE account_id = ? AND builtin = 'news'", p.accountId);

@@ -12,11 +12,11 @@ import { signIn, startTestServer, call } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";
 import { extraRouters } from "../routes/index.ts";
 import { createDeviceToken, revokeAllDevices } from "../connect/devices.ts";
-import { insertItem } from "./items.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { listSources } from "./sources.ts";
 import { setPreferences } from "./preferences.ts";
 import { setRelayFetchForTests, startPush, wakeHeld, wakePhones } from "./push.ts";
+import { insertItem } from "./item-store.ts";
 
 const HANDLE = `rh_${"A".repeat(43)}`;
 const OTHER_HANDLE = `rh_${"B".repeat(43)}`;

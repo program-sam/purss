@@ -3,10 +3,10 @@ import type { SyncBatch, SyncEntry } from "@purss/domain";
 import type { App } from "../app.ts";
 import { emit } from "../app.ts";
 import { HttpError, nowIso } from "../http.ts";
-import { admitObject, markPaused, releaseObject, StorageFull } from "./storage.ts";
-import { NO_TITLE, contentHash, detectKind, excerpt, findDoi, sanitize, toText } from "./content.ts";
-import { insertItem, reindex, versionBytes } from "./items.ts";
-import { linkKey, urlKey } from "./url-key.ts";
+import { markPaused, StorageFull } from "./storage.ts";
+import { detectKind, findDoi, toText } from "./content.ts";
+import { insertItem, updateItem } from "./item-store.ts";
+import { linkKey } from "./url-key.ts";
 import { notifyArrivals } from "./notifications.ts";
 import { fullTextAvailable, queueAutoCapture } from "./captures.ts";
 import { queueNewPosts } from "./ai-filters.ts";
@@ -76,7 +76,7 @@ export function applySyncBatch(app: App, engineUserId: string, batch: SyncBatch)
 
       const mapped = app.db.get<{ item_id: string }>("SELECT item_id FROM external_ids WHERE engine_user_id = ? AND external_id = ?", eu.id, entry.externalId);
       if (mapped) {
-        if (updateItem(app, eu, mapped.item_id, entry)) result.updated++;
+        if (updateItem(app, eu.account_id, mapped.item_id, entry)) result.updated++;
         else result.duplicates++;
         continue;
       }
@@ -248,7 +248,7 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
     accountId: eu.account_id,
     sourceId: source.id,
     kind,
-    title: entry.title.trim() || excerpt(toText(entry.summaryHtml ?? entry.contentHtml), 80) || NO_TITLE,
+    title: entry.title,
     url: entry.url,
     author: entry.author,
     summaryHtml: entry.summaryHtml,
@@ -266,58 +266,6 @@ function createFromEntry(app: App, eu: EngineUser, source: { id: string; kind: s
     ignored,
     reason: "feed item",
   }).id;
-}
-
-/**
- * Apply an upstream edit. A kept (pinned) version is never modified: the edit becomes
- * a new current version, admitted as feed growth. When growth is paused the edit is
- * deferred (the batch still commits; the next edit or resync can apply it).
- */
-export type ItemRevision = Pick<SyncEntry, "title" | "url" | "author" | "summaryHtml" | "contentHtml" | "imageUrl" | "enclosures" | "publishedAt" | "contentOmitted">;
-
-export function updateItem(app: App, eu: Pick<EngineUser, "account_id" | "account_id">, itemId: string, entry: ItemRevision): boolean {
-  const cur = app.db.get<{ current_version_id: string; content_hash: string; source_id: string | null }>(
-    "SELECT i.current_version_id, v.content_hash, i.source_id FROM items i JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?", itemId);
-  if (!cur) return false;
-  // An update whose text was too large to send must not replace text the item already has: that stays as it is.
-  const held = entry.contentOmitted
-    ? app.db.get<{ summary_html: string | null; content_html: string | null; content_omitted: number }>("SELECT summary_html, content_html, content_omitted FROM item_versions WHERE id = ?", cur.current_version_id)
-    : undefined;
-  const keepText = !!held?.content_html;
-  const summaryHtml = keepText ? held!.summary_html : sanitize(entry.summaryHtml);
-  const contentHtml = keepText ? held!.content_html : sanitize(entry.contentHtml);
-  const contentOmitted = entry.contentOmitted && !keepText ? 1 : 0;
-  const title = entry.title.trim() || NO_TITLE;
-  const hash = contentHash(title, entry.url, summaryHtml, contentHtml);
-  if (hash === cur.content_hash) return false;
-  const versionId = newId("ver");
-  const now = nowIso();
-  try {
-    app.db.tx(() => {
-      app.db.run("INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        versionId, itemId, eu.account_id, title, entry.url, summaryHtml, contentHtml, hash, contentOmitted, now);
-      admitObject(app, {
-        accountId: eu.account_id, kind: "item_version", refId: versionId, itemId, sourceId: cur.source_id,
-        bytes: versionBytes({ title, url: entry.url, author: entry.author, summaryHtml, contentHtml, imageUrl: entry.imageUrl, enclosures: entry.enclosures, publishedAt: entry.publishedAt }),
-        reason: "feed item update",
-      });
-      const text = toText(contentHtml ?? summaryHtml);
-      // The files come with the revision: a rotated file address (a private feed's new token) must stay recognisable as the item's file.
-      app.db.run("UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?, image_url = COALESCE(?, image_url), enclosures = ?, current_version_id = ?, updated_at = ? WHERE id = ?",
-        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, excerpt(toText(summaryHtml) || text), entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
-      const pinned = app.db.get("SELECT 1 FROM basket_items WHERE version_id = ?", cur.current_version_id);
-      if (!pinned) {
-        // The superseded version was never kept: it is replaced, not retained.
-        releaseObject(app, "item_version", cur.current_version_id, "replaced by upstream edit");
-        app.db.run("DELETE FROM item_versions WHERE id = ?", cur.current_version_id);
-      }
-      reindex(app, itemId);
-    });
-    return true;
-  } catch (err) {
-    if (err instanceof StorageFull) { markPaused(app, err); return false; } // deferred while growth is paused
-    throw err;
-  }
 }
 
 /** Mark a completed sync run: clears the delay warning and schedules the next run normally. */

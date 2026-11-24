@@ -1,17 +1,14 @@
-import { newId, measureBytes } from "@purss/domain";
-import type { ItemDTO, ItemDetail, ItemIds, ItemIdsQuery, ItemListQuery, KeptDisplay, CaptureDTO, TextRef, WorkflowState } from "@purss/domain";
+import type { ItemDTO, ItemDetail, ItemIds, ItemIdsQuery, ItemListQuery, KeptDisplay, CaptureDTO, WorkflowState } from "@purss/domain";
 import { MAX_BULK_ITEMS, itemIdsQuerySchema, itemListQuerySchema } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { badRequest, notFound, nowIso } from "../http.ts";
+import { badRequest, notFound } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
 import type { z } from "zod";
-import { admitObject } from "./storage.ts";
-import { NO_TITLE, contentHash, displayAuthor, displayExcerpt, displayTitle, excerpt, excerptBeyondTitle, readMinutes, sanitize, toText } from "./content.ts";
-import { linkKey, urlKey } from "./url-key.ts";
+import { displayAuthor, displayExcerpt, displayTitle, excerptBeyondTitle } from "./content.ts";
 import { getPlayback, itemLinkIsMedia, itemMedia } from "./media.ts";
-import { foldForSearch, indexedWord, searchTerms } from "./search-text.ts";
-import { firstImage } from "./first-image.ts";
+import { indexedWord, searchTerms } from "./search-text.ts";
 import { looksLikeSummary } from "./teaser.ts";
+import { searchBody, shownText } from "./item-store.ts";
 import { onHomeItem } from "./home-sources.ts";
 import { NOT_MUTED_ROW, countMuted, accountMuted } from "./muted.ts";
 import { copyOnlyPicture, partialReasonText } from "@purss/connectors";
@@ -21,89 +18,6 @@ import { failedCopy } from "./capture-state.ts";
 import { VIEW_FROM, scopeClause, textMatch, viewConditions, viewTotal } from "./item-view.ts";
 import { keptDisplays } from "./kept-display.ts";
 import { server } from "@purss/translations/server";
-
-export type NewItem = {
-  accountId: string;
-  sourceId: string | null;
-  sourceKindForFts?: string;
-  kind: string;
-  title: string;
-  url: string | null;
-  author: string | null;
-  summaryHtml: string | null;
-  contentHtml: string | null;
-  imageUrl: string | null;
-  durationSeconds: number | null;
-  doi: string | null;
-  curatorNote: string | null;
-  publishedAt: string | null;
-  discoveredAt: string;
-  /** The item's time in lists; its publication date, else its arrival, when not given. */
-  listedAt?: string;
-  enclosures: { url: string; type: string | null; length?: number | null }[];
-  /** The feed's full text was too large to send; the item holds its summary only. */
-  contentOmitted?: boolean;
-  isNew: boolean;
-  /** Backlog of a source followed from now: stored as Ignored, so it is hidden from lists and left out of Home and the counts, and search still finds it. */
-  ignored?: boolean;
-  reason: string;
-};
-
-/** Create an item with its first immutable version, state, search entry and storage object. */
-export function insertItem(app: App, n: NewItem): { id: string; versionId: string; seq: number } {
-  const id = newId("itm");
-  const versionId = newId("ver");
-  const now = nowIso();
-  const summaryHtml = sanitize(n.summaryHtml);
-  const contentHtml = sanitize(n.contentHtml);
-  const text = toText(contentHtml ?? summaryHtml);
-  const ex = excerpt(toText(summaryHtml) || text);
-  const r = app.db.run(
-    `INSERT INTO items (id, account_id, source_id, source_title, kind, title, url, url_key, link_key, author, excerpt, image_url, duration_seconds,
-       read_minutes, doi, curator_note, published_at, discovered_at, listed_at, current_version_id, enclosures, created_at, updated_at)
-     VALUES (?, ?, ?, COALESCE((SELECT title FROM sources WHERE id = ?), ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, n.accountId, n.sourceId, n.sourceId, n.kind, n.title || NO_TITLE, n.url, urlKey(n.url), n.url ? linkKey(n.url) : null, n.author, ex, n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), n.durationSeconds,
-    n.kind === "video" || n.kind === "podcast" ? null : readMinutes(text), n.doi, n.curatorNote, n.publishedAt, n.discoveredAt, n.listedAt ?? n.publishedAt ?? n.discoveredAt, versionId,
-    JSON.stringify(n.enclosures.slice(0, 10)), now, now,
-  );
-  app.db.run(
-    "INSERT INTO item_versions (id, item_id, account_id, title, url, summary_html, content_html, content_hash, content_omitted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    versionId, id, n.accountId, n.title, n.url, summaryHtml, contentHtml, contentHash(n.title, n.url, summaryHtml, contentHtml), n.contentOmitted ? 1 : 0, now,
-  );
-  app.db.run("INSERT INTO item_state (item_id, account_id, source_id, workflow, is_new, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, n.accountId, n.sourceId, n.ignored ? "ignored" : "undecided", n.isNew ? 1 : 0, now);
-  indexText(app, r.lastInsertRowid, { title: n.title, excerpt: ex ?? "", author: n.author ?? "", body: text });
-  admitObject(app, {
-    accountId: n.accountId, kind: "item_version", refId: versionId, itemId: id, sourceId: n.sourceId,
-    bytes: versionBytes({ title: n.title, url: n.url, author: n.author, summaryHtml, contentHtml, imageUrl: n.imageUrl, enclosures: n.enclosures, publishedAt: n.publishedAt }),
-    reason: n.reason,
-  });
-  return { id, versionId, seq: r.lastInsertRowid };
-}
-
-export function versionBytes(v: Record<string, unknown>): number {
-  return measureBytes(v);
-}
-
-/** The text search indexes for an item besides its title: its content (or summary) and any captured readable text. */
-function searchBody(app: App, itemId: string, contentHtml: string | null, summaryHtml: string | null): string {
-  const captured = app.db.all<{ text: string | null }>("SELECT text FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial'", itemId).map((c) => c.text ?? "").join(" ");
-  return `${toText(contentHtml ?? summaryHtml)} ${captured}`.trim();
-}
-
-/** Re-index an item's searchable text (after edits or captures). */
-export function reindex(app: App, itemId: string): void {
-  const row = app.db.get<{ seq: number; title: string; excerpt: string | null; author: string | null; content_html: string | null; summary_html: string | null }>(
-    `SELECT i.seq, i.title, i.excerpt, i.author, v.content_html, v.summary_html FROM items i LEFT JOIN item_versions v ON v.id = i.current_version_id WHERE i.id = ?`, itemId);
-  if (!row) return;
-  const body = searchBody(app, itemId, row.content_html, row.summary_html);
-  app.db.run("DELETE FROM items_fts WHERE rowid = ?", row.seq);
-  indexText(app, row.seq, { title: row.title, excerpt: row.excerpt ?? "", author: row.author ?? "", body });
-}
-
-/** Put an item's searchable text into the index in its folded form (see search-text.ts). Every writer of the index goes through here. */
-export function indexText(app: App, seq: number, t: { title: string; excerpt: string; author: string; body: string }): void {
-  app.db.run("INSERT INTO items_fts (rowid, title, excerpt, author, body) VALUES (?, ?, ?, ?, ?)", seq, foldForSearch(t.title), foldForSearch(t.excerpt), foldForSearch(t.author), foldForSearch(t.body));
-}
 
 // ---------- listing ----------
 
@@ -421,17 +335,16 @@ export const BROWSER_CAPTURE_NOTE = server.api.items.browserCaptureNote;
 
 export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
   const dto = getItem(app, p, id);
-  const extra = app.db.get<{ version_id: string; content_html: string | null; summary_html: string | null; content_omitted: number; enclosures: string | null; image_url: string | null; version_created: string; is_private: number | null }>(
-    `SELECT v.id AS version_id, v.content_html, v.summary_html, v.content_omitted, i.enclosures, i.image_url, v.created_at AS version_created, s.is_private FROM items i
-     JOIN item_versions v ON v.id = i.current_version_id LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?`, id)!;
-  const keptVersion = app.db.get<{ kept_at: string; version_id: string; content_html: string | null; summary_html: string | null; content_omitted: number; title: string; url: string | null }>(
-    `SELECT b.kept_at, b.version_id, v.content_html, v.summary_html, v.content_omitted, v.title, v.url FROM basket_items b JOIN item_versions v ON v.id = b.version_id
-     WHERE b.item_id = ? ORDER BY b.kept_at LIMIT 1`, id);
+  const extra = app.db.get<{ enclosures: string | null; image_url: string | null; is_private: number | null }>(
+    "SELECT i.enclosures, i.image_url, s.is_private FROM items i LEFT JOIN sources s ON s.id = i.source_id WHERE i.id = ?", id)!;
+  // Which text is shown is the item store's rule, the one the reading time follows too.
+  const shown = shownText(app, id);
+  const keptVersion = shown.kept;
   const captures: CaptureDTO[] = [];
-  const base = keptVersion ?? { kept_at: extra.version_created, content_html: extra.content_html };
+  const base = keptVersion ?? { keptAt: shown.current.createdAt, contentHtml: shown.current.contentHtml };
   if (dto.basketIds.length) {
-    const level = base.content_html ? "feed" : "metadata";
-    captures.push({ id: `snapshot:${id}`, level, label: CAPTURE_LABELS[level], createdAt: keptVersion?.kept_at ?? extra.version_created, note: null });
+    const level = base.contentHtml ? "feed" : "metadata";
+    captures.push({ id: `snapshot:${id}`, level, label: CAPTURE_LABELS[level], createdAt: keptVersion?.keptAt ?? shown.current.createdAt, note: null });
   }
   for (const c of app.db.all<{ id: string; kind: "fulltext" | "browser"; status: "pending" | "done" | "failed"; quality: string | null; partial_reason: PartialReason | null; error: string | null; created_at: string; completed_at: string | null }>(
     "SELECT id, kind, status, quality, partial_reason, error, created_at, completed_at FROM captures WHERE item_id = ? ORDER BY created_at", id)) {
@@ -443,19 +356,15 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
         : c.status === "failed" ? c.error : level === "browser" ? BROWSER_CAPTURE_NOTE : level === "partial" ? partialReasonText(c.partial_reason ?? "short") : null });
   }
   // Only a copy that passed the checks is the article; one that is only part of the page waits behind a toggle.
-  const fulltext = app.db.get<{ id: string; html: string | null }>("SELECT id, html FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial' ORDER BY completed_at DESC LIMIT 1", id);
+  const fulltext = shown.copy ?? undefined;
   const partial = fulltext ? undefined : app.db.get<{ id: string; html: string | null; partial_reason: PartialReason | null }>(
     "SELECT id, html, partial_reason FROM captures WHERE item_id = ? AND status = 'done' AND quality = 'partial' ORDER BY completed_at DESC LIMIT 1", id);
   const stored = storedPictures(app, id);
   const pictures = (html: string | null) => withStoredPictures(html, stored, id);
-  const current = extra.content_html ?? extra.summary_html;
+  const current = shown.current.contentHtml ?? shown.current.summaryHtml;
   // A kept item shows the copy that was kept; an upstream edit never silently replaces it.
-  const changedSinceKept = !!keptVersion && keptVersion.version_id !== extra.version_id;
-  const keptHtml = keptVersion ? keptVersion.content_html ?? keptVersion.summary_html : null;
-  // Which stored text the reader shows, so a highlight can record what it was made on.
-  const contentRef: TextRef | null = fulltext && fulltext.html !== null ? { kind: "capture", id: fulltext.id }
-    : changedSinceKept && keptVersion ? (keptHtml ? { kind: "version", id: keptVersion.version_id } : null)
-    : current ? { kind: "version", id: extra.version_id } : null;
+  const changedSinceKept = shown.changedSinceKept;
+  const keptHtml = keptVersion ? keptVersion.contentHtml ?? keptVersion.summaryHtml : null;
   const collections = app.db.all<{ id: string; name: string }>(
     `SELECT c.id, c.name FROM collections c WHERE c.account_id = ? AND c.mode = 'sources'
        AND EXISTS (SELECT 1 FROM collection_sources cs WHERE cs.collection_id = c.id AND cs.source_id = ?) ORDER BY c.position`,
@@ -466,21 +375,21 @@ export function getItemDetail(app: App, p: Principal, id: string): ItemDetail {
     ...dto,
     // A kept item reads as it was kept; the latest version is available alongside.
     ...(changedSinceKept && keptVersion ? keptLink(keptVersion.title, keptVersion.url, extra.enclosures, dto.url, dto.linkIsMedia === true, extra.is_private === 1) : {}),
-    contentHtml: pictures(fulltext?.html ?? (changedSinceKept ? keptHtml : current)),
+    contentHtml: pictures(shown.html),
     keptPicture: extra.image_url && stored.has(extra.image_url) ? pictureUrl(id, stored.get(extra.image_url)!) : null,
     gallery: postGallery(app, id, stored),
     partialCopy: partial?.html ? { html: pictures(partial.html)!, reason: partial.partial_reason ?? "short", note: partialReasonText(partial.partial_reason ?? "short"), ref: { kind: "capture", id: partial.id } } : null,
-    contentOmitted: !fulltext && (changedSinceKept && keptVersion ? keptVersion.content_omitted : extra.content_omitted) === 1,
+    contentOmitted: !fulltext && (changedSinceKept && keptVersion ? keptVersion.contentOmitted : shown.current.contentOmitted),
     // A readable copy is the article. Without one, what the feed sent is only a summary when it is short or cut off.
     // A post (Bluesky's, Instagram's) and the installation's own news posts (services/news.ts) are whole, however short.
     summaryOnly: !fulltext && dto.kind !== "post" && looksLikeSummary(changedSinceKept ? keptHtml : current)
       && !app.db.get("SELECT 1 FROM sources WHERE id = ? AND builtin IS NOT NULL", dto.sourceId ?? ""),
     changedSinceKept,
     latestHtml: changedSinceKept ? pictures(current) : null,
-    contentRef,
-    latestRef: changedSinceKept && current ? { kind: "version", id: extra.version_id } : null,
+    contentRef: shown.ref,
+    latestRef: changedSinceKept && current ? { kind: "version", id: shown.current.id } : null,
     captures,
-    keptVersionAt: keptVersion?.kept_at ?? null,
+    keptVersionAt: keptVersion?.keptAt ?? null,
     enclosures: extra.is_private ? [] : enclosures,
     collections,
     playback: getPlayback(app, p.accountId, id),

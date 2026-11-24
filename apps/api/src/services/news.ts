@@ -5,9 +5,7 @@ import type { NewsAdminDTO, NewsPostDTO, NewsPostInput, NewsPostStats } from "@p
 import type { App, Principal } from "../app.ts";
 import { audit, emit } from "../app.ts";
 import { notFound, nowIso } from "../http.ts";
-import { insertItem } from "./items.ts";
-import { updateItem } from "./sync.ts";
-import { deleteItemNow } from "./collections.ts";
+import { deleteItemNow, insertItem, updateItem } from "./item-store.ts";
 import { hueFor } from "./content.ts";
 import { markPaused, StorageFull } from "./storage.ts";
 import { notifyArrivals } from "./notifications.ts";
@@ -192,7 +190,7 @@ function reviseCopies(app: App): void {
      WHERE d.revised_at < p.updated_at AND NOT EXISTS (SELECT 1 FROM storage_accounts sa WHERE sa.account_id = i.account_id AND sa.paused_reason IS NOT NULL)
      LIMIT 500`);
   for (const c of copies) {
-    const changed = updateItem(app, c, c.item_id, {
+    const changed = updateItem(app, c.account_id, c.item_id, {
       title: c.title, url: newsUrls(app).post(c.post_id), author: null, summaryHtml: null, contentHtml: renderNewsBody(c.body),
       imageUrl: null, enclosures: [], publishedAt: c.published_at,
     });

@@ -7,10 +7,11 @@ import { seedLibrary } from "../features-testing.ts";
 import { HttpError } from "../http.ts";
 import { applySyncBatch } from "./sync.ts";
 import { changeState, keepItem, unkeepItem } from "./state.ts";
-import { createBasket, deleteItemNow } from "./collections.ts";
+import { createBasket } from "./collections.ts";
 import { completeCapture, failCapture } from "./captures.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
 import { admitObject, addUsedBytes, countedBytes, expireReservations, recountUsedBytes, reconcile, releaseObject, reservedBytes, usedBytes } from "./storage.ts";
+import { deleteItemNow } from "./item-store.ts";
 
 /*
  * The used-bytes total is what the storage allowance check reads on every admitted object. Random operations through the product's

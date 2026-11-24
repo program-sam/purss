@@ -15,7 +15,8 @@ import { HttpError, addSeconds, badRequest, notFound, nowIso } from "../http.ts"
 import { enqueue } from "./jobs.ts";
 import { hueFor } from "./content.ts";
 import { iconUrl } from "./icons.ts";
-import { createCollection, deleteItemNow } from "./collections.ts";
+import { createCollection } from "./collections.ts";
+import { deleteItemNow } from "./item-store.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
 import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
 import { linkKey, urlKey } from "./url-key.ts";

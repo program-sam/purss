@@ -293,6 +293,20 @@ never mistaken for a finished one of another version. `GET /api/activity` summar
 arrivals for the sidebar's activity line. `services/notifications.ts` is the one place that decides who is told what
 and when; `digestFor` counts a digest for a window; `runDigest` puts it in the bell and, when allowed, emails it.
 
+**The item store.** `services/item-store.ts` is the one module that makes, revises and removes an item, whichever
+way it arrives: an engine sync, a reconciled entry, an installation news post, a link kept by hand or an archive
+import. It writes the item, its versions and its state, works out what the item derives from its current
+version (`url_key`, `link_key`, the excerpt, the reading time, the source's title), and keeps its search entry and its
+ledger objects in step. A post with no headline is headed with the start of its text, when it arrives and when it is
+edited. The reading time is that of the text the reader shows, and `shownText` is the one rule for which that is: the newest
+readable copy that is the whole page and has markup to show (a copy saved from the browser included), else the version the earliest basket kept while an
+edit has since replaced it, else the current version. The reader and the reading time both follow it, and the reading time is set
+again after anything that changes which text is shown or what it says: an edit, a readable copy completed or saved, a basket
+keeping a version or letting it go, an import. Deleting an
+item releases its objects, drops its search entry, remembers the engine's entry as deleted so it does not come
+back, and takes its highlights and notes, playback position and Smart filter answers with it. Callers pass inputs and
+never write these rows; `item-store.test.ts` recomputes them from the current version after each path.
+
 **Keeping.** An item's content lives in immutable `item_versions`. Keeping inserts a basket
 membership that pins the current version, in one transaction with its storage record: if the record
 cannot be stored, nothing is kept and the person is told. An edited feed entry becomes a new version and

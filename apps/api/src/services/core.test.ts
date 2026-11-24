@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TEST_PASSWORD, batch, entry, makeOwner, makeSource, makeTestApp, testPassword } from "../testing.ts";
 import { applySyncBatch, recordSyncSuccess } from "./sync.ts";
-import { listItems, getItemDetail, insertItem, searchSnippets } from "./items.ts";
+import { listItems, getItemDetail, searchSnippets } from "./items.ts";
 import { applyUndo, bulk, changeState, keepItem, keepWithUndo, unkeepItem } from "./state.ts";
 import { admitObject, pausedReason, reconcile, reservedBytes, usedBytes, diskOverride } from "./storage.ts";
 import { createBasket, createCollection, deleteItems, deletePreview, listBaskets, patchBasket } from "./collections.ts";
 import { completeCapture, failCapture } from "./captures.ts";
 import { HttpError } from "../http.ts";
+import { insertItem } from "./item-store.ts";
 
 function setup(allowanceBytes: number | null = null) {
   const { app, cleanup } = makeTestApp();

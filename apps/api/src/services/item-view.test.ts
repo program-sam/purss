@@ -7,7 +7,8 @@ import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts"
 import { nowIso } from "../http.ts";
 import { applyUndo, bulk, clearNewAll, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
-import { insertItem, listItemIds, listItems } from "./items.ts";
+import { listItemIds, listItems } from "./items.ts";
+import { insertItem } from "./item-store.ts";
 import { viewTuning } from "./item-view.ts";
 import { applySyncBatch } from "./sync.ts";
 import { putAnnotation } from "./annotations.ts";

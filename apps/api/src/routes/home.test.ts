@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
-import { insertItem } from "../services/items.ts";
-import type { NewItem } from "../services/items.ts";
 import { createCollection } from "../services/collections.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { extraRouters } from "./index.ts";
 import { publicRouter } from "./public.ts";
+import { insertItem } from "../services/item-store.ts";
+import type { NewItem } from "../services/item-store.ts";
 
 async function boot() {
   const { app, cleanup } = makeTestApp({ PURSS_MODE: "hosted" });
