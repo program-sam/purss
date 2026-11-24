@@ -75,7 +75,7 @@ export type RestoredItem = {
 
 // ---------- what an item derives from its current version
 
-/** The plain text of a version, the excerpt and reading time an item shows for it, and the start of its text a headline-less item is headed with. */
+/** The plain text of a version, and the excerpt and reading time an item shows for it. Reads the markup, so it is done once and only for a version that is stored. */
 function derive(kind: string, summaryHtml: string | null, contentHtml: string | null) {
   const summaryText = toText(summaryHtml);
   const text = contentHtml == null ? summaryText : toText(contentHtml);
@@ -83,8 +83,30 @@ function derive(kind: string, summaryHtml: string | null, contentHtml: string | 
     text,
     excerpt: excerpt(summaryText || text),
     readMinutes: kind === "video" || kind === "podcast" ? null : readMinutes(text),
-    headline: (title: string) => title.trim() || excerpt(summaryHtml != null ? summaryText : text, 80) || NO_TITLE,
   };
+}
+
+/** The title an item is stored with: the one it arrived with, else the start of its text, else the marker for none. Reads the text only when it has to. */
+function headlineOf(title: string, summaryHtml: string | null, contentHtml: string | null): string {
+  return title.trim() || excerpt(toText(summaryHtml ?? contentHtml), 80) || NO_TITLE;
+}
+
+/**
+ * Give an item the reading time of a complete readable copy: the copy is the article, where the feed's text was a summary.
+ * A video or a podcast episode has none. Called when a copy is completed (captures.ts) and when an import brings one back.
+ */
+export function setReadingTimeFromCopy(app: App, itemId: string, copyText: string): void {
+  app.db.run("UPDATE items SET read_minutes = ? WHERE id = ? AND kind NOT IN ('video', 'podcast')", readMinutes(copyText), itemId);
+}
+
+/**
+ * Whether the reader shows an item's version `versionId`, as `getItemDetail` chooses what to show: a readable copy comes before a
+ * kept version (the earliest kept one, while it is not the current version), which comes before the current version.
+ */
+function showsVersion(app: App, itemId: string, versionId: string): boolean {
+  if (app.db.get("SELECT 1 FROM captures WHERE item_id = ? AND status = 'done' AND quality IS NOT 'partial'", itemId)) return false;
+  const kept = app.db.get<{ version_id: string }>("SELECT version_id FROM basket_items WHERE item_id = ? ORDER BY kept_at LIMIT 1", itemId);
+  return !kept || kept.version_id === versionId;
 }
 
 /** A version's text as it is stored: sanitised, with the hash that tells a later delivery whether it changed. */
@@ -166,8 +188,8 @@ export function insertItem(app: App, n: NewItem): { id: string; versionId: strin
   const now = nowIso();
   const summaryHtml = sanitize(n.summaryHtml);
   const contentHtml = sanitize(n.contentHtml);
+  const title = headlineOf(n.title, summaryHtml, contentHtml);
   const d = derive(n.kind, summaryHtml, contentHtml);
-  const title = d.headline(n.title);
   const seq = writeItem(app, {
     id, number: null, accountId: n.accountId, sourceId: n.sourceId, kind: n.kind, title, url: n.url, author: n.author, excerpt: d.excerpt,
     imageUrl: n.imageUrl ?? firstImage(contentHtml ?? summaryHtml), durationSeconds: n.durationSeconds, readMinutes: d.readMinutes, doi: n.doi, curatorNote: n.curatorNote,
@@ -206,6 +228,8 @@ export function restoreItem(app: App, r: RestoredItem): number {
       c.id, r.accountId, r.id, c.kind, c.status, c.title, c.text, c.html, c.finalUrl, c.error, c.quality, c.partialReason, c.createdAt, c.completedAt);
     if (c.status === "done") { recordObject(app, { accountId: r.accountId, kind: "capture", refId: c.id, itemId: r.id, bytes: c.bytes, reason: "import" }); copies++; }
   }
+  const complete = r.captures.filter((c) => c.status === "done" && c.kind === "fulltext" && c.quality === "full").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""))[0];
+  if (complete) setReadingTimeFromCopy(app, r.id, complete.text ?? "");
   indexItem(app, r.id, seq, { title: r.title, excerpt: d.excerpt, author: r.author }, d.text);
   return copies;
 }
@@ -235,10 +259,10 @@ export function updateItem(app: App, accountId: string, itemId: string, entry: I
   const summaryHtml = keepText ? held!.summary_html : sanitize(entry.summaryHtml);
   const contentHtml = keepText ? held!.content_html : sanitize(entry.contentHtml);
   const contentOmitted = entry.contentOmitted === true && !keepText;
-  const d = derive(cur.kind, summaryHtml, contentHtml);
-  const title = d.headline(entry.title);
+  const title = headlineOf(entry.title, summaryHtml, contentHtml);
   const hash = contentHash(title, entry.url, summaryHtml, contentHtml);
   if (hash === cur.content_hash) return false;
+  const d = derive(cur.kind, summaryHtml, contentHtml);
   const versionId = newId("ver");
   const now = nowIso();
   try {
@@ -250,12 +274,13 @@ export function updateItem(app: App, accountId: string, itemId: string, entry: I
         reason: "feed item update",
       });
       // The files come with the revision: a rotated file address (a private feed's new token) must stay recognisable as the item's file.
-      // Reading time follows the new text, unless a readable copy has set it (see captures.ts).
+      // The reading time describes the text the reader shows: it follows the new version only when that is the text shown, and stays
+      // with a readable copy or a kept version, which an edit does not replace.
       app.db.run(
         `UPDATE items SET title = ?, url = ?, url_key = ?, link_key = ?, author = ?, excerpt = ?,
-           read_minutes = CASE WHEN EXISTS (SELECT 1 FROM captures WHERE item_id = items.id AND kind = 'fulltext' AND status = 'done' AND quality IS NOT 'partial') THEN read_minutes ELSE ? END,
+           read_minutes = CASE WHEN ? THEN ? ELSE read_minutes END,
            image_url = COALESCE(?, image_url), enclosures = ?, current_version_id = ?, updated_at = ? WHERE id = ?`,
-        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, d.excerpt, d.readMinutes, entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
+        title, entry.url, urlKey(entry.url), entry.url ? linkKey(entry.url) : null, entry.author, d.excerpt, showsVersion(app, itemId, versionId) ? 1 : 0, d.readMinutes, entry.imageUrl, JSON.stringify((entry.enclosures ?? []).slice(0, 10)), versionId, now, itemId);
       const pinned = app.db.get("SELECT 1 FROM basket_items WHERE version_id = ?", cur.current_version_id);
       if (!pinned) {
         // The superseded version was never kept: it is replaced, not retained.

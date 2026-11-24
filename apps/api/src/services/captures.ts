@@ -6,8 +6,8 @@ import type { App, Principal } from "../app.ts";
 import { emit } from "../app.ts";
 import { badRequest, notFound, nowIso } from "../http.ts";
 import { admitObject, checkGrowth, markPaused, releaseObject, releaseReservation, reserve, StorageFull } from "./storage.ts";
-import { readMinutes, sanitize, toText } from "./content.ts";
-import { reindex } from "./item-store.ts";
+import { sanitize, toText } from "./content.ts";
+import { reindex, setReadingTimeFromCopy } from "./item-store.ts";
 import { queueItemImages } from "./images.ts";
 import { settledCopy } from "./capture-state.ts";
 import { enqueue } from "./jobs.ts";
@@ -132,7 +132,7 @@ export function completeCapture(app: App, captureId: string, raw: unknown): void
   app.db.run("UPDATE captures SET status = 'done', title = ?, text = ?, html = ?, final_url = ?, quality = ?, partial_reason = ?, completed_at = ? WHERE id = ?",
     parsed.data.title, parsed.data.text, html, parsed.data.finalUrl, verdict.full ? "full" : "partial", verdict.full ? null : verdict.reason, nowIso(), captureId);
   // The reading time followed the feed's summary when the item arrived; the readable copy is the article, unless it is only part of the page.
-  if (verdict.full) app.db.run("UPDATE items SET read_minutes = ? WHERE id = ? AND kind NOT IN ('video', 'podcast')", readMinutes(parsed.data.text), cap.item_id);
+  if (verdict.full) setReadingTimeFromCopy(app, cap.item_id, parsed.data.text);
   reindex(app, cap.item_id);
   queueItemImages(app, cap.item_id);
   emit(app, cap.account_id, { type: "storage" });
