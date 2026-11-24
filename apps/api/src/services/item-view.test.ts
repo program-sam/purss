@@ -3,17 +3,17 @@ import assert from "node:assert/strict";
 import { newId } from "@purss/domain";
 import type { QueryNode, WorkflowState } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { makeOwner, makeSource, makeTestApp } from "../testing.ts";
+import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
 import { nowIso } from "../http.ts";
-import { bulk, keepItem } from "./state.ts";
+import { applyUndo, bulk, clearNewAll, keepItem } from "./state.ts";
 import { createBasket, createCollection, listCollections } from "./collections.ts";
 import { insertItem, listItemIds, listItems } from "./items.ts";
 import { viewTuning } from "./item-view.ts";
+import { applySyncBatch } from "./sync.ts";
 import { putAnnotation } from "./annotations.ts";
 import { unfollowSource } from "./sources.ts";
 import { searchItems } from "./search.ts";
 import { homeOverview } from "./home.ts";
-import { clearNewAll } from "./state.ts";
 import { collectionStats, sourceStats } from "./statistics.ts";
 import { projection, saveShare } from "./shares.ts";
 
@@ -31,13 +31,23 @@ type Item = { id: string; source: string | null; workflow: WorkflowState; isNew:
 
 const KINDS: Kind[] = [
   { workflow: "undecided", isNew: false }, { workflow: "undecided", isNew: true }, { workflow: "toread", isNew: false }, { workflow: "inprogress", isNew: false },
-  { workflow: "finished", isNew: false }, { workflow: "ignored", isNew: false },
+  { workflow: "finished", isNew: false }, { workflow: "ignored", isNew: false }, { workflow: "ignored", isNew: true },
 ];
 
 type World = {
   app: App; p: Owner; items: Item[]; followed: Set<string>; sources: Record<"f1" | "f2" | "f3" | "u1" | "u2" | "hand", string>;
   baskets: string[]; collections: { a: string; b: string; unseen: string; named: string; everything: string; empty: string }; queries: Record<string, QueryNode>; cleanup: () => void;
 };
+
+/**
+ * An Ignored item that is New again. No one sets that: the server takes the marker off an Ignored item. It is what Undo of a Clear New
+ * leaves when another tab ignored the item in between (Undo puts the marker back whatever the item has become).
+ */
+function ignoredAndNew(app: App, p: Principal, itemId: string): void {
+  const cleared = bulk(app, p, [itemId], { type: "clearNew" });
+  bulk(app, p, [itemId], { type: "workflow", workflow: "ignored" });
+  applyUndo(app, p, cleared.undoToken!);
+}
 
 /** Followed sources f1..f3 (f3 in no collection), sources u1 and u2 that were followed and no longer are, and hand-kept links, each holding one item of every kind that is kept, annotated, both or neither. */
 function build(): World {
@@ -57,7 +67,8 @@ function build(): World {
       imageUrl: null, durationSeconds: null, doi: null, curatorNote: null, publishedAt: new Date(Date.UTC(2026, 9, 1) + n * 3600_000).toISOString(),
       discoveredAt: new Date(Date.UTC(2026, 9, 1) + n * 3600_000).toISOString(), enclosures: [], isNew: k.isNew, reason: "test",
     });
-    if (k.workflow !== "undecided") bulk(app, p, [r.id], { type: "workflow", workflow: k.workflow });
+    if (k.workflow === "ignored" && k.isNew) ignoredAndNew(app, p, r.id);
+    else if (k.workflow !== "undecided") bulk(app, p, [r.id], { type: "workflow", workflow: k.workflow });
     const basket = keep ? baskets[n % 2]! : null;
     if (basket) keepItem(app, p, r.id, basket);
     if (annotate) putAnnotation(app, p, r.id, newId("ann"), { kind: "note", body: `a note on ${n}`, updatedAt: nowIso() });
@@ -155,6 +166,7 @@ test("every list shows the items its scope, state filter and the visible-source 
   t.after(w.cleanup);
   assert.ok(w.items.some((i) => i.source !== null && !w.followed.has(i.source) && i.annotated && !i.kept), "an annotated item of a source nobody follows, kept by nothing");
   assert.ok(w.items.some((i) => !visible(w, i)), "an item no list shows");
+  assert.ok(w.items.some((i) => i.workflow === "ignored" && i.isNew), "an Ignored item that is New");
   const was = viewTuning.countFromRowsBelowShare;
   t.after(() => { viewTuning.countFromRowsBelowShare = was; });
   const problems: string[] = [];
@@ -280,4 +292,51 @@ test("a shared page leaves out what only the person's own notes keep in their li
   w.app.db.run("UPDATE items SET listed_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", newest);
   assert.equal(projection(w.app, share, 100_000)![0]!.itemId, newest);
   assert.equal(rowsOf(w, { scope: `collection:${w.collections.everything}`, filter: "all" }).at(-1), newest);
+});
+
+test("an Ignored item that Undo made New again is in the lists and totals that ask for New or for Ignored, whichever way they are counted", (t) => {
+  const { app, p, cleanup } = (() => { const x = makeTestApp(); return { ...x, p: makeOwner(x.app) }; })();
+  t.after(cleanup);
+  const was = viewTuning.countFromRowsBelowShare;
+  t.after(() => { viewTuning.countFromRowsBelowShare = was; });
+  const source = makeSource(app, p, "Followed", "feed/a");
+  const collection = createCollection(app, p, { name: "Mine", emoji: null, mode: "sources", sourceIds: [source], query: null, view: "list" }).id;
+  applySyncBatch(app, p.engineUserId, batch([entry("feed/a"), entry("feed/a"), entry("feed/a")]));
+  const [ignored, other, untouched] = listItems(app, p, { scope: "all", sort: "oldest", limit: 5 }).items.map((i) => i.id) as [string, string, string];
+  assert.ok(listItems(app, p, { scope: "new", limit: 5 }).items.length === 3, "all three arrived New");
+  // Tab A clears New and keeps its Undo; tab B ignores one of the items; tab A then takes its Undo.
+  const cleared = clearNewAll(app, p, "all");
+  assert.equal(cleared.changed, 3);
+  bulk(app, p, [ignored], { type: "workflow", workflow: "ignored" });
+  bulk(app, p, [other], { type: "workflow", workflow: "toread" });
+  applyUndo(app, p, cleared.undoToken!);
+  const state = (id: string) => { const r = app.db.get<{ workflow: string; is_new: number }>("SELECT workflow, is_new FROM item_state WHERE item_id = ?", id)!; return `${r.workflow}${r.is_new ? "+new" : ""}`; };
+  assert.deepEqual([state(ignored), state(other), state(untouched)], ["ignored+new", "toread+new", "undecided+new"], "Undo put the marker back on all three, the Ignored one included");
+
+  const filters = ["all", "all_with_ignored", "new", "undecided", "toread", "ignored"] as const;
+  const stored = (scope: string, filter: string) => app.db.all<{ id: string }>(
+    `SELECT i.id FROM items i JOIN item_state st ON st.item_id = i.id WHERE i.account_id = ? AND ${scope === "new" ? "st.is_new = 1" : scope === "toread" ? "st.workflow IN ('toread', 'inprogress')" : "1"}
+       AND ${filter === "new" ? "st.is_new = 1" : filter === "all" ? "st.workflow <> 'ignored'" : filter === "all_with_ignored" ? "1" : `st.workflow = '${filter}'`}`, p.accountId).map((r) => r.id).sort();
+  const problems: string[] = [];
+  for (const below of [0, was, 1]) {
+    viewTuning.countFromRowsBelowShare = below;
+    for (const scope of ["all", "new", "toread", `collection:${collection}`]) {
+      for (const filter of filters) {
+        const rows = listItems(app, p, { scope, filter, limit: 50 });
+        const ids = rows.items.map((i) => i.id).sort();
+        const where = `${scope}, ${filter}, counts below ${below}`;
+        // What a list shows is what is stored; its total, Select all and the collection it belongs to say the same.
+        const expected = scope.startsWith("collection:") ? stored("all", filter) : stored(scope, filter);
+        if (JSON.stringify(ids) !== JSON.stringify(expected)) problems.push(`rows of ${where}: ${ids.length}, expected ${expected.length}`);
+        if (rows.total !== expected.length) problems.push(`total of ${where}: ${rows.total}, expected ${expected.length}`);
+        const all = listItemIds(app, p, { scope, filter });
+        if (all.total !== expected.length) problems.push(`Select all of ${where}: ${all.total}, expected ${expected.length}`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+  assert.equal(listItems(app, p, { scope: "all", filter: "new", limit: 5 }).items.some((i) => i.id === ignored), true);
+  // The numbers beside the collection say what opening it shows (Ignored items left out) and how many of those are New.
+  const beside = listCollections(app, p).find((c) => c.id === collection)!;
+  assert.deepEqual([beside.itemCount, beside.newCount], [2, 2], "the Ignored item is in neither number, the two others are New");
 });

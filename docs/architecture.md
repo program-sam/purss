@@ -188,8 +188,10 @@ Lists, filter collections, shared pages and assistants read items through one ty
   levels deep, 24 leaves and 12 children per node, each list of values bounded and de-duplicated. It
   compiles to parameterised SQL scoped to the account.
 - **A list's state filter is one of a fixed few:** `all` (everything but Ignored), `all_with_ignored`, `new` (the New marker)
-  or a workflow state (`undecided`, `toread`, `inprogress`, `finished`, `ignored`). The web app decides with the same rule
-  (`stateFilterKeeps` in `packages/domain`) whether an item it has just changed still belongs in the list on screen.
+  or a workflow state (`undecided`, `toread`, `inprogress`, `finished`, `ignored`). `new` is the marker whatever the workflow state: Finished and
+  Ignored take it off, but Undo of a Clear New puts it back on an item that another tab has since ignored. The server's counts use that rule
+  (`stateFilterKeeps` in `packages/domain`); the web app decides with `deviceStateFilterKeeps` whether an item it has just changed still belongs
+  in the list on screen, which also takes an item it has just ignored out of New before the server has answered.
 - **One module decides which items a view shows** (`services/item-view.ts`): a list, a collection's count, "Select all", the statistics
   and Clear New all take their conditions from it: the scope (everything, New, the queue, a source, the sources in no collection, a basket,
   a collection), the state filter, the visible-source rule (an item of a source nobody follows is seen only while a basket keeps it or it

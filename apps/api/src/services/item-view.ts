@@ -14,8 +14,8 @@ import { server } from "@purss/translations/server";
  * items are in this scope, with this state filter, that a person sees", and they get one answer, written here:
  *
  *  - the scope: everything, New, the queue, a source, the sources in no collection, a basket, a collection (of sources, or a rule);
- *  - the state filter: everything but Ignored, everything, New, or one workflow state (domain `stateFilterKeeps` says the same of an item
- *    a device holds);
+ *  - the state filter: everything but Ignored, everything, New (the marker, whatever the workflow state), or one workflow state; the
+ *    counts take it from domain `stateFilterKeeps`, which says the same of a state as the SQL says of a row;
  *  - the visible-source rule: items of sources nobody follows any more are seen only while kept or annotated;
  *  - the readable-copy states a rule can ask for (capture-state.ts).
  *
@@ -49,7 +49,7 @@ export const QUEUE_STATES_SQL = `st.workflow IN (${QUEUE_STATES.map((s) => `'${s
 
 export type View = { scope: string; filter: StateFilter };
 
-/** A state filter as SQL over `st` (with its parameters) and as the same decision over the counts' cells. */
+/** A state filter as SQL over `st` (with its parameters) and as the same decision over the counts' cells: the two must agree for every cell. */
 function stateFilter(filter: StateFilter): { sql: string; params: SqlParam[]; keep: CellFilter } {
   const keep: CellFilter = (workflow, isNew) => stateFilterKeeps(filter, workflow, isNew);
   switch (filter) {
@@ -184,8 +184,10 @@ export function collectionNumbers(app: App, p: Principal, collections: { id: str
   const counts = collections.some((c) => c.mode === "sources") ? itemCounts(app, p.accountId) : null;
   const all = stateFilter("all");
   const marked = stateFilter("new");
+  // New among what opening the collection shows, which leaves out the Ignored items.
+  const newOfAll: CellFilter = (workflow, isNew) => all.keep(workflow, isNew) && marked.keep(workflow, isNew);
   return new Map(collections.map((c) => {
-    if (c.mode === "sources" && counts) return [c.id, { isNew: counts.sum(c.sourceIds, marked.keep), items: counts.sum(c.sourceIds, all.keep) }];
+    if (c.mode === "sources" && counts) return [c.id, { isNew: counts.sum(c.sourceIds, newOfAll), items: counts.sum(c.sourceIds, all.keep) }];
     const { where, params } = viewConditions(app, p, { scope: `collection:${c.id}`, filter: "all" });
     return [c.id, app.db.get<{ isNew: number; items: number }>(`SELECT COALESCE(SUM(st.is_new), 0) AS isNew, COUNT(*) AS items ${VIEW_FROM} WHERE ${where.join(" AND ")}`, ...params)!];
   }));

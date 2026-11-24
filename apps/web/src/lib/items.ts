@@ -1,5 +1,5 @@
 import { app } from "@purss/translations/app";
-import { linkIsMediaFile, sameAddress, stateFilterKeeps } from "@purss/domain";
+import { deviceStateFilterKeeps, linkIsMediaFile, sameAddress } from "@purss/domain";
 import type { ItemDTO } from "@purss/domain";
 import type { ListFilter } from "./constants.ts";
 import { cleanVideoExcerpt } from "./feed-text.ts";
@@ -13,7 +13,7 @@ export function belongsInList(item: ItemDTO, scope: string, filter: ListFilter):
 
 /** Whether an item belongs in a list with this filter, judged on the client so a change shows at once. */
 export function matchesFilter(item: ItemDTO, filter: ListFilter): boolean {
-  return stateFilterKeeps(filter, item.workflow, item.isNew);
+  return deviceStateFilterKeeps(filter, item.workflow, item.isNew);
 }
 
 /** The excerpt as lists and cards show it: a video's description without the feed's download mark and its leading link and sponsor lines. */
