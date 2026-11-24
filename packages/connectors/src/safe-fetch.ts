@@ -4,7 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
 import type { LookupFunction } from "node:net";
-import { createBrotliDecompress, createGunzip, createInflate, createInflateRaw } from "node:zlib";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { pipeline, Writable } from "node:stream";
 import type { Transform } from "node:stream";
 import { classifyAddress, hostnameVerdict, isBlockedPort } from "./addresses.ts";

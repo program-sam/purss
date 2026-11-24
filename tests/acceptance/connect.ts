@@ -52,7 +52,6 @@ const env: NodeJS.ProcessEnv = {
 };
 const EMAIL = "reader@example.test";
 // The words people read come from the catalogues, so rewording one cannot break this journey.
-const signInCopy = app.auth.signIn;
 const connectCopy = app.connect.connectPage;
 const tabsCopy = app.dialogs.settings.dialog.tabs;
 const addressCopy = app.auth.accountEmailSection;

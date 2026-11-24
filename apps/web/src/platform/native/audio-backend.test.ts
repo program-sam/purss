@@ -11,7 +11,6 @@ function fakePlugin(opts: { duration?: number } = {}) {
   const cb: { ready?: () => void; end?: () => void; status?: (r: { status: "playing" | "paused" | "stopped" }) => void } = {};
   let time = 0;
   let exists = false;
-  const ok = async () => undefined;
   const plugin = {
     create: async (p: { audioSource: string; friendlyTitle: string; artistName?: string; seekBackwardTime?: number; seekForwardTime?: number }) => {
       if (exists) throw new Error("exists");

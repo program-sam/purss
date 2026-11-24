@@ -98,7 +98,6 @@ function Head({ place, newHere, onClearNew }: { place: ListPlace; newHere: numbe
   const ws = usePurss();
   const nav = useNav();
   const qc = useQueryClient();
-  const ls = useListState(place);
   const overlays = useOverlays();
   const popups = usePopups();
   const { toast } = useToasts();

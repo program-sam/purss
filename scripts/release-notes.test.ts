@@ -9,11 +9,11 @@ import { releaseNotes, toMarkdown } from './release-notes.ts';
 test('release notes: after one version up to another, by day, newest first, a merge listing its branch', (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'purss-notes-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const git = (args, date) => execFileSync('git', ['-C', dir, ...args], {
+  const git = (args: string[], date: string) => execFileSync('git', ['-C', dir, ...args], {
     stdio: 'pipe',
     env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid', GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
   });
-  const commit = (s, date) => git(['commit', '-q', '--allow-empty', '-m', s], date);
+  const commit = (s: string, date: string) => git(['commit', '-q', '--allow-empty', '-m', s], date);
   git(['init', '-q', '-b', 'main'], '2026-11-07T08:00:00Z');
   commit('Old news', '2026-11-07T08:00:00Z'); // 2631101
   commit('Lists load faster', '2026-11-07T09:00:00Z'); // 2631102

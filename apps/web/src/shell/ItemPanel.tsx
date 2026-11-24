@@ -24,7 +24,6 @@ import { usePending, usePendingMark } from "../outbox/hooks.ts";
 import { openHold } from "../state/open-hold.ts";
 import { seenNotices, useSeenNotice } from "../state/seen-notice.ts";
 import { useToasts } from "../state/toasts.tsx";
-import { useOverlays } from "../state/overlays.tsx";
 import { useItemMenus } from "../state/item-menus.tsx";
 import { useCurrentPlace } from "./place.ts";
 import { usePopups } from "../state/popups.tsx";
@@ -90,7 +89,6 @@ const NO_ANNOTATIONS: readonly ViewAnnotation[] = [];
 function PanelBody({ itemId, detail, loading }: { itemId: string; detail: ItemDetail | undefined; loading: boolean }) {
   const ws = usePurss();
   const nav = useNav();
-  const overlays = useOverlays();
   const actions = useItemActions();
   const menus = useItemMenus();
   // Opened from a basket, the item was saved on purpose: the state menu offers no Ignored.

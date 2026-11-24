@@ -115,10 +115,17 @@ export async function reasonToSkip(state: StoreState, version: string, built: Fi
 
 const b64url = (v: string | Buffer) => Buffer.from(v).toString("base64url");
 
-async function check(res: Response, what: string): Promise<any> {
+/** The parts of the stores' JSON replies this script reads; anything else they send is ignored. */
+type ChromeRevision = { state?: string; distributionChannels?: { crxVersion?: string }[] };
+type ChromeStatus = { takenDown?: boolean; submittedItemRevisionStatus?: ChromeRevision; publishedItemRevisionStatus?: ChromeRevision; lastAsyncUploadState?: string };
+type AmoVersion = { version: string; file: { status?: string; url: string } };
+type AmoUpload = { uuid: string; processed?: boolean; valid?: boolean; validation?: { messages?: { type?: string }[] } };
+
+/** The reply's JSON, or an error naming the request when the store refused it. */
+async function check<T = unknown>(res: Response, what: string): Promise<T> {
   const text = await res.text();
   if (!res.ok) throw new Error(`${what}: ${res.status} ${text.slice(0, 500)}`);
-  return text ? JSON.parse(text) : {};
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 async function download(url: string, headers: Record<string, string> = {}): Promise<Buffer> {
@@ -145,16 +152,16 @@ class Chrome {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
     });
-    return new Chrome((await check(res, "Google sign-in")).access_token);
+    return new Chrome((await check<{ access_token: string }>(res, "Google sign-in")).access_token);
   }
 
   private get auth() { return { authorization: `Bearer ${this.token}` }; }
 
   async state(): Promise<StoreState> {
-    const s = await check(await fetch(`${CHROME_API}:fetchStatus`, { headers: this.auth }), "Chrome Web Store status");
+    const s = await check<ChromeStatus>(await fetch(`${CHROME_API}:fetchStatus`, { headers: this.auth }), "Chrome Web Store status");
     if (s.takenDown) throw new Error("The Chrome Web Store took the item down; see the developer dashboard");
     const submitted = s.submittedItemRevisionStatus;
-    const version = s.publishedItemRevisionStatus?.distributionChannels?.[0]?.crxVersion as string | undefined;
+    const version = s.publishedItemRevisionStatus?.distributionChannels?.[0]?.crxVersion;
     return {
       inReview: submitted?.state === "PENDING_REVIEW" || submitted?.state === "STAGED" ? submitted.distributionChannels?.[0]?.crxVersion ?? "?" : null,
       published: version ? { version, files: async () => unzip(await download(CHROME_CRX)) } : null,
@@ -162,11 +169,11 @@ class Chrome {
   }
 
   async send(zip: Buffer): Promise<void> {
-    const up = await check(await fetch(CHROME_UPLOAD, { method: "POST", headers: { ...this.auth, "content-type": "application/zip" }, body: new Uint8Array(zip) }), "Chrome Web Store upload");
+    const up = await check<{ uploadState?: string }>(await fetch(CHROME_UPLOAD, { method: "POST", headers: { ...this.auth, "content-type": "application/zip" }, body: new Uint8Array(zip) }), "Chrome Web Store upload");
     let state = up.uploadState;
     for (let i = 0; state === "IN_PROGRESS" && i < 60; i++) {
       await sleep(5000);
-      state = (await check(await fetch(`${CHROME_API}:fetchStatus`, { headers: this.auth }), "Chrome Web Store status")).lastAsyncUploadState;
+      state = (await check<ChromeStatus>(await fetch(`${CHROME_API}:fetchStatus`, { headers: this.auth }), "Chrome Web Store status")).lastAsyncUploadState;
     }
     if (state !== "SUCCEEDED") throw new Error(`Chrome Web Store upload ended ${state}`);
     await check(await fetch(`${CHROME_API}:publish`, { method: "POST", headers: this.auth }), "Chrome Web Store publish");
@@ -186,11 +193,11 @@ class Firefox {
   }
 
   async state(): Promise<StoreState> {
-    const list = await check(await fetch(`${AMO_API}/addon/${AMO_ADDON}/versions/?filter=all_without_unlisted`, { headers: this.auth }), "addons.mozilla.org versions");
+    const list = await check<{ results?: AmoVersion[] }>(await fetch(`${AMO_API}/addon/${AMO_ADDON}/versions/?filter=all_without_unlisted`, { headers: this.auth }), "addons.mozilla.org versions");
     const latest = list.results?.[0];
     if (!latest) return { inReview: null, published: null };
     return {
-      inReview: latest.file?.status === "unreviewed" ? latest.version : null,
+      inReview: latest.file.status === "unreviewed" ? latest.version : null,
       published: { version: latest.version, files: async () => unzip(await download(latest.file.url, this.auth)) },
     };
   }
@@ -199,13 +206,13 @@ class Firefox {
     const form = new FormData();
     form.set("upload", new Blob([new Uint8Array(zip)]), `purss-firefox-${version}.zip`);
     form.set("channel", "listed");
-    let upload = await check(await fetch(`${AMO_API}/upload/`, { method: "POST", headers: this.auth, body: form }), "addons.mozilla.org upload");
+    let upload = await check<AmoUpload>(await fetch(`${AMO_API}/upload/`, { method: "POST", headers: this.auth, body: form }), "addons.mozilla.org upload");
     for (let i = 0; !upload.processed && i < 60; i++) {
       await sleep(5000);
-      upload = await check(await fetch(`${AMO_API}/upload/${upload.uuid}/`, { headers: this.auth }), "addons.mozilla.org validation");
+      upload = await check<AmoUpload>(await fetch(`${AMO_API}/upload/${upload.uuid}/`, { headers: this.auth }), "addons.mozilla.org validation");
     }
     if (!upload.processed) throw new Error("addons.mozilla.org didn't finish validating the upload");
-    if (!upload.valid) throw new Error(`addons.mozilla.org rejected the upload: ${JSON.stringify(upload.validation?.messages?.filter((m: any) => m.type === "error") ?? upload.validation).slice(0, 1500)}`);
+    if (!upload.valid) throw new Error(`addons.mozilla.org rejected the upload: ${JSON.stringify(upload.validation?.messages?.filter((m) => m.type === "error") ?? upload.validation).slice(0, 1500)}`);
     const v = new FormData();
     v.set("upload", upload.uuid);
     v.set("source", new Blob([new Uint8Array(source)]), `purss-source-${version}.tar.gz`);

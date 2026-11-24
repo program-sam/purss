@@ -12,7 +12,7 @@ import type { RegistrationResponseJSON, AuthenticationResponseJSON } from "@simp
 import type { App, Ctx, Principal } from "../app.ts";
 import { audit, requirePrincipal, requireRecentAuth } from "../app.ts";
 import { signOutAllElse } from "../auth/sign-out.ts";
-import { badRequest, consumeRateLimit, HttpError, Router, notFound, nowIso, parse, rateLimit, setCookie } from "../http.ts";
+import { badRequest, HttpError, Router, notFound, nowIso, parse, rateLimit, setCookie } from "../http.ts";
 import { randomToken } from "../secrets.ts";
 
 const OIDC_COOKIE = "purss_oidc";

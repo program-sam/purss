@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { OPERATOR_EMAIL, makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
+import { makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
 import { checkMail, settleMail, useTransport } from "../mail/mailer.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
 import { publicRouter } from "../routes/public.ts";

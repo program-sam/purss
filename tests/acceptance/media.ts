@@ -50,10 +50,8 @@ const EMAIL = "listener@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 // The words people read come from the catalogues, so rewording one cannot break this journey. What stays written out here is
 // what the app keeps in code: the labels only screen readers announce (the player's buttons and slider, a row's "Actions for").
-const signInCopy = app.auth.signIn;
 const mediaCopy = app.player.media;
 const panelCopy = app.shell.itemPanel;
-const menuCopy = app.state.itemMenus;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** A name that starts with the catalogue's words. */
 const startsWith = (s: string) => new RegExp(`^${escapeRe(s)}`);

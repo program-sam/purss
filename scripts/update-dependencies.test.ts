@@ -12,15 +12,18 @@ test("only exact versions and caret ranges of plain releases are updated", () =>
   assert.equal(parseVersion("1.2.3-rc.1"), null);
 });
 
+/** A version as text, or null when there is none, so a missing update fails the comparison instead of throwing. */
+const shown = (v: Parameters<typeof showVersion>[0] | null) => (v ? showVersion(v) : null);
+
 test("an update stays within the major version (the minor for 0.x) and skips pre-releases", () => {
-  assert.equal(showVersion(newestCompatible([1, 2, 3], list)), "1.9.0");
+  assert.equal(shown(newestCompatible([1, 2, 3], list)), "1.9.0");
   assert.equal(newestCompatible([1, 9, 0], list), null, "already the newest of its major");
-  assert.equal(showVersion(newestCompatible([0, 4, 1], list)), "0.4.2", "0.x: a new minor is a breaking change");
+  assert.equal(shown(newestCompatible([0, 4, 1], list)), "0.4.2", "0.x: a new minor is a breaking change");
 });
 
 test("a newer major (or a new minor of 0.x) is reported, not taken", () => {
-  assert.equal(showVersion(newestBreaking([1, 2, 3], list)), "2.0.0", "the release candidate of 2.1 is skipped");
-  assert.equal(showVersion(newestBreaking([0, 4, 1], list)), "2.0.0");
+  assert.equal(shown(newestBreaking([1, 2, 3], list)), "2.0.0", "the release candidate of 2.1 is skipped");
+  assert.equal(shown(newestBreaking([0, 4, 1], list)), "2.0.0");
   assert.equal(newestBreaking([2, 0, 0], list), null);
 });
 
@@ -28,13 +31,13 @@ test("nothing above the latest tag is offered: an old mistaken major is no updat
   // @capgo/capacitor-updater: 9.0.0 and 10.0.0 are 2023 publishes for Capacitor 5; latest is 8.54.2.
   const updater = ["7.53.0", "8.54.1", "8.54.2", "9.0.0", "10.0.0", "8.55.0-beta.1"];
   assert.equal(newestBreaking([8, 54, 1], offered(updater, "8.54.2")), null);
-  assert.equal(showVersion(newestCompatible([8, 54, 1], offered(updater, "8.54.2"))), "8.54.2");
-  assert.equal(showVersion(newestBreaking([1, 2, 3], offered(list, "2.0.0"))), "2.0.0", "a real new major still shows");
+  assert.equal(shown(newestCompatible([8, 54, 1], offered(updater, "8.54.2"))), "8.54.2");
+  assert.equal(shown(newestBreaking([1, 2, 3], offered(list, "2.0.0"))), "2.0.0", "a real new major still shows");
   assert.deepEqual(offered(list, "3.0.0-rc.1"), list, "a pre-release latest filters nothing");
   assert.deepEqual(offered(list, undefined), list);
 });
 
-const sha = (c) => c.repeat(40);
+const sha = (c: string) => c.repeat(40);
 
 test("a pinned action is read with its major version; local workflows, branch pins and tags are not", () => {
   const workflow = [
@@ -65,7 +68,7 @@ test("a pinned action is reported for a newer major or a tag that moved, with th
     `- GitHub Action \`actions/checkout\` v7 → v8: pin \`actions/checkout@${sha("c")} # v8\``,
     "a new major wins over a moved tag",
   );
-  assert.match(describeActionUpdate(pin, 8, { pinnedTag: null, newestTag: null }), /v7 → v8: pin the commit of its v8 tag$/);
+  assert.match(describeActionUpdate(pin, 8, { pinnedTag: null, newestTag: null }) ?? "", /v7 → v8: pin the commit of its v8 tag$/);
 });
 
 test("every third-party action in the workflows is pinned to a full commit with its version in a comment", () => {

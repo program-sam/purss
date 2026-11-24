@@ -4,7 +4,7 @@ import { DISCOVERY_ENTRIES, DISCOVERY_ROUTES, isDiscoveryEntry, isDiscoveryRoute
 import type { DiscoveryEntry, DiscoveryRoute } from "@purss/domain";
 import { BRIDGE_SERVICES } from "@purss/connectors";
 import { server as copy } from "@purss/translations/server";
-import type { App, Principal } from "../app.ts";
+import type { App } from "../app.ts";
 import { callTool } from "../mcp/tools.ts";
 import { publicRouter } from "../routes/public.ts";
 import { extraRouters } from "../routes/index.ts";

@@ -7,7 +7,7 @@ import type { App, Ctx, Principal } from "../app.ts";
 import { audit } from "../app.ts";
 import { HttpError, addSeconds, consumeRateLimit, nowIso, setCookie } from "../http.ts";
 import { hashSecret, humanCode, normalizeCode, randomToken, sha256, verifySecret, writeSecret, readSecret, removeSecret } from "../secrets.ts";
-import { normalizeEmail, storePassword, verifyPassword, writePassword } from "./passwords.ts";
+import { normalizeEmail, storePassword, writePassword } from "./passwords.ts";
 import { canConfirm, linkedProviders } from "./providers.ts";
 import type { PreparedPassword } from "./passwords.ts";
 import { enqueue } from "../services/jobs.ts";

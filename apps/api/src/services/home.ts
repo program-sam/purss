@@ -1,14 +1,13 @@
 import { OTHER_BOX_ID } from "@purss/domain";
 import type { HomeOverview, ItemDTO } from "@purss/domain";
 import type { App, Principal } from "../app.ts";
-import { badRequest, notFound } from "../http.ts";
 import type { SqlParam } from "../db/database.ts";
-import { CAPTURE_FAILED, ITEM_COLUMNS, QUEUE_STATES_SQL, VISIBLE_SOURCE, listItems, toDTO, typeLengthConditions } from "./items.ts";
+import { ITEM_COLUMNS, QUEUE_STATES_SQL, VISIBLE_SOURCE, toDTO } from "./items.ts";
 import type { ItemRow } from "./items.ts";
 import { getPreferences } from "./preferences.ts";
 import { inHomeBox, onHomeItem } from "./home-sources.ts";
 import { itemCounts } from "./counts.ts";
-import { countMuted, mutedAmong, mutedScan, accountMuted } from "./muted.ts";
+import { countMuted, mutedScan, accountMuted } from "./muted.ts";
 import { server } from "@purss/translations/server";
 
 /*

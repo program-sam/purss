@@ -35,7 +35,7 @@ The npm workspaces are `apps/*` and `packages/*`, all private.
 
 ```sh
 npm install
-npm run check        # repository layout, Markdown links, then tsc --noEmit over everything
+npm run check        # repository layout, Markdown links, tsc --noEmit over everything, then oxlint
 npm test             # unit and SQLite integration tests (node:test, hermetic)
 npm run test:engine  # contract tests against isolated FreshRSS containers (podman, a few minutes)
 npm run test:e2e     # builds the web app and the extension, then the real-stack journey and the hermetic journeys in Chromium (podman, network)
@@ -57,6 +57,11 @@ start the API with `PURSS_PUBLIC_ORIGIN=http://localhost:5173` so its origin and
 - **TypeScript without a build step on the server.** Node 26 runs `.ts` files directly by
   stripping types, so only erasable syntax is allowed (`erasableSyntaxOnly`: no enums,
   namespaces or parameter properties). Imports name the `.ts` file. `tsc` only type-checks.
+- **Lint catches what the compiler lets through.** `oxlint --type-aware` (rules in
+  `.oxlintrc.json`) refuses a promise left unawaited or handed to a callback that ignores it,
+  a `switch` over a union that misses a case and has no `default`, unused variables and imports,
+  and `any` outside tests. Mark a promise that is meant to run on its own with `void`. React event
+  props may take async handlers. typescript-eslint is not used: it does not support TypeScript 7.
 - **Tests** use `node:test` and `node:assert`, sit next to the code as `*.test.ts`, and are
   picked up by the globs in `package.json`. API tests use a real SQLite database in a temp
   directory (`apps/api/src/testing.ts`). Fetching code is tested against local servers through
@@ -80,7 +85,7 @@ works on realistic data, not when its own fixtures pass.
 
 | Command | What it covers | Needs |
 | --- | --- | --- |
-| `npm run check` | Package manifests (named, private), the required README files and the pages in `docs`, every local Markdown link, then `tsc --noEmit` over the apps, packages, scripts and tests | Node 26 |
+| `npm run check` | Package manifests (named, private), the required README files and the pages in `docs`, every local Markdown link, then `tsc --noEmit` over the apps, packages, scripts and tests, then the type-aware lint (`.oxlintrc.json`) | Node 26 |
 | `npm test` | The tests next to the code, four files at a time: domain transitions and parsing, fetching and its address rules, API services and routes on a real SQLite database, worker handlers, the web app's logic, the extension, the packaging scripts. Hermetic: no network, containers or browser | Node 26 |
 | `npm run test:engine` | Contract tests of the FreshRSS boundary against the pinned engine container, one file at a time: provisioning, restart and replacement, every feed fetch going through the egress proxy and never directly, subscribing, entry paging, resume, upstream edits and late arrivals, read mirroring, one upstream fetch for many accounts, scheduled refresh, an interrupted first run, feeds too big for the engine through the feed gateway | podman, a few minutes |
 | `npm run test:e2e` | Builds the web app and the extension, then drives Chromium: the core journey against the real stack (sign-up, passkey, two real public sources, every view, keeping with a readable-text capture, search, restart, sign-in again, an invited account that asks to be deleted), then hermetic journeys for offline reading, Home, right-to-left text, plan limits, connected apps, assistants signing in with OAuth, the player, the e-ink display, account email, sign-in with Google and the extension. Each journey is described in the [acceptance README](../tests/acceptance/README.md) | The core journey needs podman and network; all need Playwright's Chromium |

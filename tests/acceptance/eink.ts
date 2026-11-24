@@ -40,7 +40,7 @@ const EMAIL = "reader@example.test";
 const step = (s: string) => console.log(`✓ ${s}`);
 
 // The words the page shows come from the translation files, so rewording one never breaks this check.
-const { display, general } = copy.dialogs.settings;
+const { general } = copy.dialogs.settings;
 const { up, down } = copy.components.pageNav;
 /** Catalogue text as a regular expression source; a run of spaces matches any whitespace, as the page shows it. */
 const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");

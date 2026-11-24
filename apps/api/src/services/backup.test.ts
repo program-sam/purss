@@ -6,8 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { batch, entry, makeOwner, makeSource, makeTestApp } from "../testing.ts";
-import { applySyncBatch } from "./sync.ts";
+import { makeOwner, makeTestApp } from "../testing.ts";
 import { seedLibrary } from "../features-testing.ts";
 import { openDatabase } from "../db/database.ts";
 import { loadConfig } from "../config.ts";

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DiscoveryCandidate } from "@purss/domain";
 import { server } from "@purss/translations/server";
-import { app } from "@purss/translations/app";
 import { cadenceText, EPISODES, POSTS } from "./cadence.ts";
 import { YOUTUBE_REFUSED } from "./link-lookup.ts";
 import { lookupLink, previewsAsFeed } from "./link-lookup.ts";
@@ -128,7 +127,6 @@ test("a feed served as text/html is still recognised by its content", async () =
 });
 
 test("website with several alternates: labels, ordering and de-duplication of the same feed in two formats", async () => {
-  const atomSame = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Site Blog</title><link href="https://site.example/"/><entry><title>Site Blog 1</title><id>g1</id><link href="https://site.example/p1"/><updated>2026-11-02T10:00:00Z</updated></entry></feed>`;
   const html = `<!doctype html><html><head><title>Site</title>
     <link rel="alternate" type="application/rss+xml" title="Site Blog &raquo; Comments Feed" href="/comments/feed/">
     <link rel="alternate" type="application/rss+xml" title="Site Blog" href="/feed/">

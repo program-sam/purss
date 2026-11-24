@@ -84,8 +84,9 @@ test("failures come back as reasons with plain messages", async () => {
         return send(res, 200, "text/html", `<html><body>${"<div>".repeat(50_000)}deep</body></html>`);
       case "/hang":
         return;
+      default:
+        return send(res, 500, "text/plain", "oops");
     }
-    send(res, 500, "text/plain", "oops");
   });
   const get = (path: string, extra: { signal?: AbortSignal } = {}) => captureReadableWith(`${server.url}${path}`, { signal: extra.signal, fetch: { testAllowAddress: allowLoopback, timeoutMs: 1500, phaseTimeoutsMs: { firstByteMs: 300 } } });
   try {

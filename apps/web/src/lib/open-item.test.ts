@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemDTO } from "@purss/domain";
 import { createSeenStore, itemNeedsOpening, openItem, undoSeen } from "./open-item.ts";
-import type { OpenDeps, SeenNotice } from "./open-item.ts";
+import type { OpenDeps } from "./open-item.ts";
 
 function item(over: Partial<ItemDTO> = {}): ItemDTO {
   return {

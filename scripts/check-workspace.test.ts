@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
-import { checkWorkspace, docFiles, workspacePaths } from './check-workspace.mjs';
+import test, { type TestContext } from 'node:test';
+import { checkWorkspace, docFiles, workspacePaths } from './check-workspace.ts';
 
-async function fixture(context) {
+async function fixture(context: TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'purss-scaffold-'));
   context.after(() => rm(root, { recursive: true, force: true }));
   for (const [index, directory] of ['', ...workspacePaths].entries()) {
@@ -40,7 +40,7 @@ test('accepts the private scaffold and ignores external and anchor-only links', 
 test('reports broken local links and missing docs', async (context) => {
   const root = await fixture(context);
   await writeFile(path.join(root, 'README.md'), '[missing](missing.md)');
-  await rm(path.join(root, 'docs', docFiles[1]));
+  await rm(path.join(root, 'docs', docFiles[1]!));
   const result = await checkWorkspace(root);
   assert.ok(result.errors.some((error) => error.includes('broken local link')));
   assert.ok(result.errors.some((error) => error.includes('Missing required document')));

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
+import http from "node:http";
 import { after, before, describe, test } from "node:test";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -364,11 +365,9 @@ describe("strict input", () => {
       assert.equal((await call(h.base, "POST", "/v1/register", { raw, headers: { "content-type": type } })).status, 415, type);
     }
     const missing = await new Promise<number>((resolve, reject) => {
-      import("node:http").then(({ default: http }) => {
-        const req = http.request(h.base + "/v1/register", { method: "POST", agent: false }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
-        req.on("error", reject);
-        req.end(raw);
-      });
+      const req = http.request(h.base + "/v1/register", { method: "POST", agent: false }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+      req.on("error", reject);
+      req.end(raw);
     });
     assert.equal(missing, 415);
     assert.equal((await call(h.base, "POST", "/v1/register", { raw, headers: { "content-type": "application/json; charset=utf-8" } })).status, 200);

@@ -26,12 +26,14 @@ function prerender(site: Site): Plugin {
     name: "purss-site-prerender",
     configureServer(server) {
       dev = server;
-      server.middlewares.use(async (req, res, next) => {
+      server.middlewares.use((req, res, next) => {
         const name = req.url?.split("?")[0]?.slice(1) ?? "";
-        const body = (await files())[name];
-        if (body === undefined) return next();
-        res.setHeader("Content-Type", name.endsWith(".xml") ? "application/xml" : "text/plain");
-        res.end(body);
+        files().then((all) => {
+          const body = all[name];
+          if (body === undefined) return next();
+          res.setHeader("Content-Type", name.endsWith(".xml") ? "application/xml" : "text/plain");
+          res.end(body);
+        }, next);
       });
     },
     buildStart() {

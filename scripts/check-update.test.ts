@@ -4,13 +4,18 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { composeProblems, isRange, lockProblems as check, manifestProblems, stagedProblems } from "./check-update.ts";
+import { composeProblems, isRange, lockProblems as check, manifestProblems, stagedProblems, type Registry, type RegistryVersion } from "./check-update.ts";
+
+/** Lock entries here are deliberately malformed in every way a forged lockfile could be, so they stay loosely typed. */
+type Entry = Record<string, any>;
+type Lock = Record<string, any> & { packages: Record<string, any> };
+type Published = Record<string, RegistryVersion | null>;
 
 const manifest = { name: "x", scripts: { build: "vite build" }, dependencies: { vite: "^8.3.5", zod: "4.6.7" } };
 const HASH = `sha512-${"A".repeat(86)}==`;
-const tarball = (name, version) => `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`;
-const reg = (name, version, extra = {}) => ({ version, resolved: tarball(name, version), integrity: HASH, ...extra });
-const lock = (vite = "8.3.5", spec = "^8.3.5", more = {}) => ({
+const tarball = (name: string, version: string) => `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`;
+const reg = (name: string, version: string, extra: Entry = {}): Entry => ({ version, resolved: tarball(name, version), integrity: HASH, ...extra });
+const lock = (vite = "8.3.5", spec = "^8.3.5", more: Record<string, Entry> = {}): Lock => ({
   name: "x", lockfileVersion: 3, requires: true,
   packages: {
     "": { name: "x", dependencies: { vite: spec, zod: "4.6.7" } },
@@ -22,16 +27,16 @@ const lock = (vite = "8.3.5", spec = "^8.3.5", more = {}) => ({
   },
 });
 /** A registry that publishes exactly what an entry says (so only the local rules are tested), unless told otherwise. */
-const truthful = (lockfile, overrides = {}) => async (name, version) => {
+const truthful = (lockfile: Lock, overrides: Published = {}): Registry => async (name, version) => {
   const key = `${name}@${version}`;
-  if (key in overrides) return overrides[key];
+  if (key in overrides) return overrides[key] ?? null;
   const entry = Object.entries(lockfile.packages).find(([p, e]) => p.endsWith(`node_modules/${name}`) && e.version === version)?.[1];
   if (!entry) return null;
   const { integrity, dependencies, optionalDependencies, peerDependencies, peerDependenciesMeta, bin, engines, os, cpu, libc } = entry;
   return { integrity, dependencies, optionalDependencies, peerDependencies, peerDependenciesMeta, bin, engines, os, cpu, libc };
 };
-const lockProblems = (before, after, overrides) => check(before, after, truthful(after, overrides));
-const image = (c) => `services:\n  bridge:\n    image: docker.io/rssbridge/rss-bridge@sha256:${c.repeat(64)}\n    restart: unless-stopped\n`;
+const lockProblems = (before: Lock, after: Record<string, unknown>, overrides?: Published) => check(before, after, truthful(after as Lock, overrides));
+const image = (c: string) => `services:\n  bridge:\n    image: docker.io/rssbridge/rss-bridge@sha256:${c.repeat(64)}\n    restart: unless-stopped\n`;
 
 test("a version bump of an existing dependency is accepted; anything else in a package.json isn't", () => {
   assert.deepEqual(manifestProblems("p", manifest, { ...manifest, dependencies: { vite: "^8.3.6", zod: "4.6.8" } }), []);
@@ -117,7 +122,7 @@ test("compose: only the RSS-Bridge image line may change", () => {
 test("the staged result is what's checked, however the patch was written (a patch without git headers too)", async (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "purss-check-update-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const git = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const git = (...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   git("init", "-q");
   git("config", "user.email", "t@example.com");
   git("config", "user.name", "t");

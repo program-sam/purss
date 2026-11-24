@@ -37,8 +37,8 @@ const ignoredDirectories = new Set([
   '.secrets', 'data', 'backups', 'playwright-report', 'test-results',
 ]);
 
-async function markdownFiles(directory) {
-  const files = [];
+async function markdownFiles(directory: string): Promise<string[]> {
+  const files: string[] = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory() && !ignoredDirectories.has(entry.name)) {
@@ -50,9 +50,9 @@ async function markdownFiles(directory) {
   return files;
 }
 
-export async function checkWorkspace(root) {
-  const errors = [];
-  const packageNames = new Set();
+export async function checkWorkspace(root: string): Promise<{ errors: string[]; documentCount: number; packageCount: number }> {
+  const errors: string[] = [];
+  const packageNames = new Set<string>();
   for (const directory of ['', ...workspacePaths]) {
     const manifestPath = path.join(root, directory, 'package.json');
     try {
@@ -71,7 +71,7 @@ export async function checkWorkspace(root) {
         errors.push('Root package must declare the apps and packages workspaces');
       }
     } catch (error) {
-      errors.push(`${directory || '.'}: cannot read valid package.json (${error.message})`);
+      errors.push(`${directory || '.'}: cannot read valid package.json (${error instanceof Error ? error.message : String(error)})`);
     }
   }
 
@@ -95,10 +95,10 @@ export async function checkWorkspace(root) {
     documentCount += 1;
     const content = await readFile(filename, 'utf8');
     for (const match of content.matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
-      const target = match[1];
+      const target = match[1]!;
       if (/^(?:https?:|mailto:|#)/i.test(target)) continue;
       try {
-        const localTarget = decodeURIComponent(target.split(/[?#]/)[0]);
+        const localTarget = decodeURIComponent(target.split(/[?#]/)[0]!);
         const resolved = path.resolve(path.dirname(filename), localTarget);
         const relative = path.relative(root, resolved);
         if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {

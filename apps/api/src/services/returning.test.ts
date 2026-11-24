@@ -907,7 +907,7 @@ test("only a source set to 'Notify me' tells as items arrive, with a digest or w
   t.after(cleanup);
   const loud = makeSource(app, p, "Loud", "feed/1");
   const mute = makeSource(app, p, "Mute", "feed/2");
-  const plain = makeSource(app, p, "Plain", "feed/3");
+  makeSource(app, p, "Plain", "feed/3");
   app.db.run("UPDATE sources SET notify = 'on' WHERE id = ?", loud);
   app.db.run("UPDATE sources SET notify = 'muted' WHERE id = ?", mute);
   setPreferences(app, p.accountId, { notifications: { frequency: "daily" } });

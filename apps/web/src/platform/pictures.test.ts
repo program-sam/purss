@@ -53,7 +53,7 @@ test("over the budget the least recently asked-for copies go, never the one just
   await picture("/p/a");
   await picture("/p/b");
   await picture("/p/c");
-  picture("/p/a"); // used again: now b is the oldest
+  void picture("/p/a"); // used again: now b is the oldest
   const loading = picture("/p/held");
   await picture("/p/d");
   assert.deepEqual(revoked, ["blob:test/2"], "b went to make room for d; the one still loading stayed");
