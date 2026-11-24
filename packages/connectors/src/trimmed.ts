@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { routeSignatureMatches, signRoute } from "./route-signature.ts";
 import { safeFetch } from "./safe-fetch.ts";
 import type { SafeFetchOptions } from "./safe-fetch.ts";
 
@@ -32,24 +32,24 @@ const MAX_URL_LENGTH = 2048;
 
 const encodeTarget = (feedUrl: string): string => Buffer.from(feedUrl, "utf8").toString("base64url");
 
-/** The signature of a feed address: the gateway answers only addresses signed with the installation's feed-trim key. */
-export function trimSignature(secret: string, feedUrl: string): string {
-  return createHmac("sha256", secret).update(`trim\n${feedUrl}`).digest("base64url");
-}
+/** What the signature of a gateway address covers. */
+const signedName = (feedUrl: string): string => `trim\n${feedUrl}`;
 
-export function trimSignatureMatches(secret: string, feedUrl: string, given: string): boolean {
-  const want = Buffer.from(trimSignature(secret, feedUrl));
-  const got = Buffer.from(given);
-  return got.length === want.length && timingSafeEqual(got, want);
-}
-
-/** The gateway path of a feed: `/t/<signature>/<address, base64url>`. The same address always gives the same path. */
+/** The gateway path of a feed: `/t/<signature>/<address, base64url>`, signed with the installation's feed-trim key. The same address always gives the same path. */
 export function trimRoutePath(secret: string, feedUrl: string): string {
-  return `/t/${trimSignature(secret, feedUrl)}/${encodeTarget(feedUrl)}`;
+  return `/t/${signRoute(secret, signedName(feedUrl))}/${encodeTarget(feedUrl)}`;
 }
 
-/** The feed address a gateway path names, when it is a plain web address of reasonable length; else null. */
-export function parseTrimTarget(encoded: string): string | null {
+/**
+ * The feed address a gateway path names, given its parts as they stand in the path, when this installation's feed-trim key signed it
+ * and it is a plain web address of reasonable length written the one way `trimRoutePath` writes it; else null.
+ */
+export function verifyTrimRoute(secret: string, encoded: string, signature: string): string | null {
+  const url = parseTarget(encoded);
+  return url && routeSignatureMatches(secret, signedName(url), signature) ? url : null;
+}
+
+function parseTarget(encoded: string): string | null {
   if (!/^[A-Za-z0-9_-]{1,4000}$/.test(encoded)) return null;
   const url = Buffer.from(encoded, "base64url").toString("utf8");
   if (url.length > MAX_URL_LENGTH || encodeTarget(url) !== encoded) return null;

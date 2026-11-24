@@ -5,6 +5,7 @@ import { server as copy } from "@purss/translations/server";
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { BROWSER_CAPTURE_MAX_CHARS } from "@purss/domain";
+import { readConnectAnswer, s256Challenge } from "@purss/domain/connect-protocol";
 import { requireAdmin, requireRecentAuth } from "../app.ts";
 import { makeAdministrator, makeOwner, makeTestApp, TEST_PASSWORD } from "../testing.ts";
 import { call, signIn, startTestServer } from "../features-testing.ts";
@@ -85,6 +86,8 @@ test("an app connects with a one-time code and PKCE, then acts as its account wi
   assert.equal(summary.json.redirect.uri, "purss://connect");
   const decline = new URL(summary.json.declineUrl);
   assert.deepEqual([decline.protocol, decline.searchParams.get("error"), decline.searchParams.get("state"), decline.searchParams.get("iss")], ["purss:", "access_denied", "state-1234567890", b.app.config.publicOrigin]);
+  const asked = { state: "state-1234567890", issuer: b.app.config.publicOrigin };
+  assert.deepEqual(readConnectAnswer(decline.searchParams, asked), { kind: "declined" }, "the apps read the refusal this PURSS writes");
   assert.equal(b.app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM connect_codes")!.n, 0, "looking at the request issues nothing");
 
   const approve = await call(b.app, b.server.base, "POST", "/api/connect/approve", b.session, requestParams("mobile", "purss://connect"));
@@ -95,6 +98,8 @@ test("an app connects with a one-time code and PKCE, then acts as its account wi
   assert.equal(back.searchParams.get("iss"), b.app.config.publicOrigin);
   const code = back.searchParams.get("code")!;
   assert.ok(code.length >= 40);
+  assert.deepEqual(readConnectAnswer(back.searchParams, asked), { kind: "code", code }, "and the code");
+  assert.equal(readConnectAnswer(back.searchParams, { ...asked, issuer: "https://other.example" }).kind, "other-purss");
   assert.equal(b.app.db.get<{ code_hash: string }>("SELECT code_hash FROM connect_codes")!.code_hash, sha256(code), "only the code's hash is stored");
 
   const exchange = await raw(b, "POST", "/api/connect/token", { origin: "capacitor://localhost", body: { client: "mobile", code, codeVerifier: VERIFIER, redirectUri: "purss://connect" } });
@@ -130,6 +135,7 @@ test("codes are bound to the verifier, client and return address, expire, and bu
   const b = await boot();
   t.after(b.close);
   assert.equal(s256(VERIFIER), CHALLENGE, "RFC 7636 test vector");
+  assert.equal(await s256Challenge(VERIFIER), CHALLENGE, "which is the challenge the apps make");
   assert.ok(verifierMatches(VERIFIER, CHALLENGE));
   assert.ok(!verifierMatches("short", CHALLENGE));
   assert.ok(!verifierMatches(VERIFIER + "x", CHALLENGE));

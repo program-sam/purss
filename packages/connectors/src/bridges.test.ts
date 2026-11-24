@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { server } from "@purss/translations/server";
-import { BRIDGE_SERVICES, bridgeDescriptor, bridgeKeyValid, bridgeRoutePath, bridgeService, bridgeSignature, bridgeSignatureMatches, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor } from "./bridges.ts";
+import { BRIDGE_SERVICES, bridgeDescriptor, bridgeKeyValid, bridgeRoutePath, bridgeService, bridgeTargetForPage, copyOnlyPicture, parseBridgeDescriptor, verifyBridgeRoute } from "./bridges.ts";
 import { lookupLink } from "./link-lookup.ts";
 import { decodePageKey, encodePageKey } from "./page-feeds.ts";
 import { parseFeed } from "./feed.ts";
@@ -128,15 +128,62 @@ test("descriptors carry no host, backend or credential, and only listed keys par
   }
 });
 
-test("signatures bind the service and key to the installation's key", () => {
-  const key = "s".repeat(43);
-  const s = bridgeSignature(key, "telegram", "durov");
-  assert.equal(s.length, 43);
-  assert.equal(bridgeSignatureMatches(key, "telegram", "durov", s), true);
-  assert.equal(bridgeSignatureMatches(key, "telegram", "pavel", s), false);
-  assert.equal(bridgeSignatureMatches("t".repeat(43), "telegram", "durov", s), false);
-  assert.equal(bridgeSignatureMatches(key, "telegram", "durov", s.slice(1)), false);
-  assert.equal(bridgeRoutePath(key, "telegram", "durov"), `/b/telegram/durov/${s}`);
+const ROUTE_KEY = "s".repeat(43);
+/** What a listener hands to the check: the path's parts, the key still percent-encoded. */
+function route(path: string): [service: string, rawKey: string, signature: string] {
+  const [, b, service, rawKey, signature, ...rest] = path.split("/");
+  assert.ok(b === "b" && service && rawKey && signature && rest.length === 0, path);
+  return [service, rawKey, signature];
+}
+const verified = (path: string, secret = ROUTE_KEY) => verifyBridgeRoute(secret, ...route(path));
+
+test("a router path made for any listed service verifies back to that source, and only under the installation's key", () => {
+  for (const s of BRIDGE_SERVICES) {
+    const path = bridgeRoutePath(ROUTE_KEY, s.id, s.example);
+    const target = verified(path);
+    assert.equal(target?.service.id, s.id, s.id);
+    assert.equal(target?.key, s.example, s.id);
+    assert.equal(verified(path, "t".repeat(43)), null, `${s.id}: another installation's key`);
+  }
+});
+
+test("router paths already issued keep verifying: the signature and the path are fixed", () => {
+  assert.equal(bridgeRoutePath(ROUTE_KEY, "telegram", "durov"), "/b/telegram/durov/fw3xvwBvFPJJ0jKSnWopPtWUOt9Ee5VIRgCu_klS8Lw");
+  assert.equal(bridgeRoutePath(ROUTE_KEY, "instagram", "nasa.gov"), "/b/instagram/nasa.gov/-zmVfp-_IBSibCdARrE1FslHkOckDBPel_lWV3jjHQY");
+  assert.equal(verified("/b/telegram/durov/fw3xvwBvFPJJ0jKSnWopPtWUOt9Ee5VIRgCu_klS8Lw")?.key, "durov");
+});
+
+test("a router path is refused whatever is changed in it", () => {
+  const [, , signature] = route(bridgeRoutePath(ROUTE_KEY, "telegram", "durov"));
+  const check = (service: string, rawKey: string, given: string) => verifyBridgeRoute(ROUTE_KEY, service, rawKey, given);
+  assert.equal(check("telegram", "durov", signature!)?.key, "durov");
+  const refused: [string, string, string, string][] = [
+    ["another key", "telegram", "pavel", signature!],
+    ["another service for the same key", "mixcloud", "durov", signature!],
+    ["an unlisted service", "tiktok", "durov", bridgeRoutePath(ROUTE_KEY, "tiktok", "durov").split("/").at(-1)!],
+    ["a key its service refuses, signed", "telegram", "Du%20rov", bridgeRoutePath(ROUTE_KEY, "telegram", "Du rov").split("/").at(-1)!],
+    ["a signature one character off", "telegram", "durov", `${signature!.slice(0, -1)}${signature!.endsWith("A") ? "B" : "A"}`],
+    ["a signature cut short", "telegram", "durov", signature!.slice(1)],
+    ["a signature with more after it", "telegram", "durov", `${signature}A`],
+    ["no signature", "telegram", "durov", ""],
+    ["a signature of the same length with a letter outside ASCII", "telegram", "durov", `${signature!.slice(0, -1)}é`],
+    ["the service in capitals", "TELEGRAM", "durov", signature!],
+  ];
+  for (const [what, service, rawKey, given] of refused) assert.equal(check(service, rawKey, given), null, what);
+});
+
+test("a router path's key is read once, as the listener got it", () => {
+  const sign = (key: string) => bridgeRoutePath(ROUTE_KEY, "telegram", key).split("/").at(-1)!;
+  const check = (rawKey: string, key: string) => verifyBridgeRoute(ROUTE_KEY, "telegram", rawKey, sign(key));
+  assert.equal(check("durov", "durov")?.key, "durov");
+  assert.equal(check("dur%6Fv", "durov")?.key, "durov", "another spelling of the same key is the same source");
+  assert.equal(check("dur%256Fv", "durov"), null, "an escape escaped again is not the key it spells once");
+  assert.equal(check("dur%256Fv", "dur%6Fv"), null, "nor one signed that way: the key is refused");
+  assert.equal(check("d%C3%BCrov", "dürov"), null, "a key outside the service's letters, however spelled and signed");
+  assert.equal(check("durov%3Fx%3D1", "durov?x=1"), null, "a query is not part of a key");
+  assert.equal(check("durov?x=1", "durov"), null, "an unescaped query is no key either");
+  assert.equal(check("durov%2Fx", "durov/x"), null, "an escaped slash");
+  for (const bad of ["%", "%E0%A4%A", "%zz", "durov%"]) assert.equal(check(bad, "durov"), null, `${bad}: a bad escape is a refusal, not a failure`);
 });
 
 const RSS = `<?xml version="1.0"?><rss version="2.0"><channel><title>Durov's Channel</title><link>https://t.me/durov</link>

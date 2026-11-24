@@ -59,7 +59,8 @@ and a faster store review.
 - **Connecting.** The options page checks that `/api/connect/info` names an installation that calls itself by that address, then
   `identity.launchWebAuthFlow` opens the installation's `/connect` page with PKCE (S256), a fresh `state` and the browser's own
   redirect (`https://<id>.chromiumapp.org/…`, `https://<hash>.extensions.allizom.org/…`). The answer must carry that
-  `state` and an `iss` equal to the installation. Safari, and anyone who prefers it, types the short code the approval page
+  `state` and an `iss` equal to the installation; the PKCE and that check are `@purss/domain/connect-protocol`, shared
+  with the mobile and desktop apps. Safari, and anyone who prefers it, types the short code the approval page
   shows. The connection runs in the options tab, because a popup closes when the approval window takes focus.
 - **Token.** Kept in the extension's local storage, never synced; sent only as a bearer header with
   `credentials: "omit"`, and only to the connected installation. The server gives an `extension` token an exact list of routes

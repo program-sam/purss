@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { server } from "@purss/translations/server";
+import { readProviderCode } from "@purss/domain/connect-protocol";
 import { createHash, randomBytes } from "node:crypto";
 import { OAuth2Server } from "oauth2-mock-server";
 import { OPERATOR_EMAIL, makeAdministrator, makeOwner, makeTestApp } from "../testing.ts";
@@ -645,13 +646,14 @@ test("over HTTP: starting step-up needs the right session; an app confirms throu
     const callback = await authorize(started.headers.get("location")!);
     return fetch(b.base + callback.pathname + callback.search, { redirect: "manual", headers: { cookie: setCookie(started, "purss_oidc")!.pair, "x-forwarded-for": freshAddress() } });
   };
-  const codeOf = async (page: Response, param: string) => {
+  const codeOf = async (page: Response, param: "link_code" | "confirm_code") => {
     const html = await page.text();
     const href = /<meta http-equiv="refresh" content="0;url=(purss:\/\/connect\?[^"]+)">/.exec(html)?.[1];
     assert.ok(href, "the page goes back to the app");
     assert.match(html, GO_BACK_LINK, "and offers the link if the browser doesn't follow it");
     const back = new URL(href.replaceAll("&amp;", "&"));
     assert.deepEqual([back.protocol, back.host, back.searchParams.get("state"), back.searchParams.get("iss"), back.searchParams.get("link_code")], ["purss:", "connect", pair.state, b.app.config.publicOrigin, null]);
+    assert.equal(readProviderCode(back.searchParams, { state: pair.state, issuer: b.app.config.publicOrigin }, param), back.searchParams.get(param), "the app reads the code this page hands back");
     return back.searchParams.get(param)!;
   };
   const done = await finishInBrowser(ticket.json.url);
@@ -945,6 +947,7 @@ test("an app's link ends on a page that sends the code to purss://connect, and l
   assert.deepEqual([back.protocol, back.host, back.searchParams.get("state"), back.searchParams.get("iss")], ["purss:", "connect", pair.state, b.app.config.publicOrigin]);
   assert.match(html, GO_BACK_LINK, "and offers the link if the browser doesn't follow it");
   const code = back.searchParams.get("link_code")!;
+  assert.equal(readProviderCode(back.searchParams, { state: pair.state, issuer: b.app.config.publicOrigin }, "link_code"), code, "the app reads the code this page hands back");
   assert.equal(oidcRows(b.app, "g-app-link"), 0, "the browser linked nothing");
 
   // The app redeems it: not with another account's token, not without its verifier; then it is linked.
